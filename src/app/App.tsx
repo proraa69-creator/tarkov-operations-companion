@@ -5,6 +5,8 @@ import { MapsPage } from '../pages/MapsPage'
 import { QuestsPage } from '../pages/QuestsPage'
 import { ItemsPage } from '../pages/ItemsPage'
 import { AmmoPage, EconomyPage, HideoutPage, KeysPage, SettingsPage, TradersPage } from '../pages/ReferencePages'
+import { ImportProgressPage } from '../pages/ImportProgressPage'
+import { ProfilePage } from '../pages/ProfilePage'
 
 export function App() {
   return <AppShell><Routes>
@@ -12,6 +14,8 @@ export function App() {
     <Route path="/maps" element={<MapsPage />} />
     <Route path="/maps/:mapId" element={<MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
+    <Route path="/import" element={<ImportProgressPage />} />
+    <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<ItemsPage />} />
     <Route path="/economy" element={<EconomyPage />} />
     <Route path="/keys" element={<KeysPage />} />

@@ -1,62 +1,157 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { RaidMode } from '../domain/types'
+import { createLocalProfile, migrateProfile } from '../domain/progress'
+import type { LocalProfile, RaidMode, TaskProgressRecord } from '../domain/types'
 
-interface PersistedState {
-  raidMode: RaidMode
+interface UiState {
   selectedMapId: string
-  trackedQuestIds: string[]
-  completedQuestIds: string[]
-  favoriteItemIds: string[]
   hiddenMarkerTypes: string[]
 }
 
-interface AppStateValue extends PersistedState {
+interface ProfileState {
+  activeProfileId: string
+  profiles: LocalProfile[]
+}
+
+interface AppStateValue extends UiState {
+  raidMode: RaidMode
+  trackedQuestIds: string[]
+  completedQuestIds: string[]
+  favoriteItemIds: string[]
+  activeProfile: LocalProfile
+  profiles: LocalProfile[]
   setRaidMode: (mode: RaidMode) => void
+  setPlayerLevel: (level: number) => void
   setSelectedMapId: (id: string) => void
   toggleTrackedQuest: (id: string) => void
   toggleCompletedQuest: (id: string) => void
+  setTaskRecord: (record: TaskProgressRecord) => void
+  applyTaskRecords: (records: TaskProgressRecord[]) => void
   toggleFavoriteItem: (id: string) => void
   toggleMarkerType: (type: string) => void
+  createProfile: (name: string) => string
+  selectProfile: (id: string) => void
+  renameProfile: (name: string) => void
+  replaceActiveProfile: (profile: LocalProfile) => void
   reset: () => void
 }
 
-const STORAGE_KEY = 'tarkov-operations-state-v1'
-const defaults: PersistedState = {
-  raidMode: 'pvp',
-  selectedMapId: 'customs',
-  trackedQuestIds: ['operation-aquarius', 'golden-swag', 'bp-depot'],
-  completedQuestIds: ['debut'],
-  favoriteItemIds: ['graphics-card', 'ledx', 'salewa'],
-  hiddenMarkerTypes: ['spawn'],
-}
-
+const UI_STORAGE_KEY = 'tarkov-operations-ui-v2'
+const PROFILE_STORAGE_KEY = 'tarkov-operations-profiles-v2'
+const LEGACY_STORAGE_KEY = 'tarkov-operations-state-v1'
+const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'] }
 const AppStateContext = createContext<AppStateValue | null>(null)
 
-function loadState(): PersistedState {
+function readJson(key: string): unknown {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaults
-    return { ...defaults, ...JSON.parse(raw) }
+    const value = localStorage.getItem(key)
+    return value ? JSON.parse(value) : null
   } catch {
-    return defaults
+    return null
   }
 }
 
+function loadUiState(): UiState {
+  const saved = readJson(UI_STORAGE_KEY) as Partial<UiState> | null
+  const legacy = readJson(LEGACY_STORAGE_KEY) as Partial<UiState> | null
+  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}) }
+}
+
+function loadProfileState(): ProfileState {
+  const saved = readJson(PROFILE_STORAGE_KEY) as Partial<ProfileState> | null
+  const restored = (saved?.profiles ?? []).map(migrateProfile).filter(Boolean) as LocalProfile[]
+  if (restored.length) {
+    const activeProfileId = restored.some((profile) => profile.id === saved?.activeProfileId)
+      ? saved!.activeProfileId!
+      : restored[0].id
+    return { activeProfileId, profiles: restored }
+  }
+
+  const profile = createLocalProfile('Оператор', 'local-operator')
+  const legacy = readJson(LEGACY_STORAGE_KEY) as {
+    raidMode?: RaidMode
+    trackedQuestIds?: string[]
+    completedQuestIds?: string[]
+    favoriteItemIds?: string[]
+  } | null
+  const mode = legacy?.raidMode === 'pve' ? 'pve' : 'pvp'
+  profile.selectedMode = mode
+  profile.modes[mode].trackedTaskIds = legacy?.trackedQuestIds ?? ['operation-aquarius', 'golden-swag', 'bp-depot']
+  profile.modes[mode].favoriteItemIds = legacy?.favoriteItemIds ?? ['graphics-card', 'ledx', 'salewa']
+  for (const taskId of legacy?.completedQuestIds ?? ['debut']) {
+    profile.modes[mode].taskProgress[taskId] = {
+      taskId, status: 'completed', source: 'migration', updatedAt: new Date().toISOString(),
+    }
+  }
+  return { activeProfileId: profile.id, profiles: [profile] }
+}
+
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<PersistedState>(loadState)
-  useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(state)), [state])
+  const [ui, setUi] = useState<UiState>(loadUiState)
+  const [profileState, setProfileState] = useState<ProfileState>(loadProfileState)
+  const activeProfile = profileState.profiles.find((profile) => profile.id === profileState.activeProfileId) ?? profileState.profiles[0]
+  const mode = activeProfile.selectedMode
+  const modeProgress = activeProfile.modes[mode]
+
+  useEffect(() => localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(ui)), [ui])
+  useEffect(() => localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileState)), [profileState])
+
+  const updateActive = (updater: (profile: LocalProfile) => LocalProfile) => {
+    setProfileState((current) => ({
+      ...current,
+      profiles: current.profiles.map((profile) => profile.id === current.activeProfileId ? updater(profile) : profile),
+    }))
+  }
+
+  const updateMode = (updater: (progress: LocalProfile['modes'][RaidMode]) => LocalProfile['modes'][RaidMode]) => {
+    updateActive((profile) => ({
+      ...profile,
+      updatedAt: new Date().toISOString(),
+      modes: { ...profile.modes, [profile.selectedMode]: updater(profile.modes[profile.selectedMode]) },
+    }))
+  }
 
   const value = useMemo<AppStateValue>(() => ({
-    ...state,
-    setRaidMode: (raidMode) => setState((current) => ({ ...current, raidMode })),
-    setSelectedMapId: (selectedMapId) => setState((current) => ({ ...current, selectedMapId })),
-    toggleTrackedQuest: (id) => setState((current) => ({ ...current, trackedQuestIds: toggle(current.trackedQuestIds, id) })),
-    toggleCompletedQuest: (id) => setState((current) => ({ ...current, completedQuestIds: toggle(current.completedQuestIds, id) })),
-    toggleFavoriteItem: (id) => setState((current) => ({ ...current, favoriteItemIds: toggle(current.favoriteItemIds, id) })),
-    toggleMarkerType: (type) => setState((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),
-    reset: () => setState(defaults),
-  }), [state])
+    ...ui,
+    raidMode: mode,
+    trackedQuestIds: modeProgress.trackedTaskIds,
+    completedQuestIds: Object.values(modeProgress.taskProgress).filter((record) => record.status === 'completed').map((record) => record.taskId),
+    favoriteItemIds: modeProgress.favoriteItemIds,
+    activeProfile,
+    profiles: profileState.profiles,
+    setRaidMode: (selectedMode) => updateActive((profile) => ({ ...profile, selectedMode, updatedAt: new Date().toISOString() })),
+    setPlayerLevel: (playerLevel) => updateMode((progress) => ({ ...progress, playerLevel: Math.max(1, Math.min(79, Math.round(playerLevel))) })),
+    setSelectedMapId: (selectedMapId) => setUi((current) => ({ ...current, selectedMapId })),
+    toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
+    toggleCompletedQuest: (id) => updateMode((progress) => {
+      const next = { ...progress.taskProgress }
+      if (next[id]?.status === 'completed') delete next[id]
+      else next[id] = { taskId: id, status: 'completed', source: 'manual', updatedAt: new Date().toISOString() }
+      return { ...progress, taskProgress: next }
+    }),
+    setTaskRecord: (record) => updateMode((progress) => ({ ...progress, taskProgress: { ...progress.taskProgress, [record.taskId]: record } })),
+    applyTaskRecords: (records) => updateMode((progress) => ({
+      ...progress,
+      taskProgress: records.reduce((all, record) => ({ ...all, [record.taskId]: record }), progress.taskProgress),
+    })),
+    toggleFavoriteItem: (id) => updateMode((progress) => ({ ...progress, favoriteItemIds: toggle(progress.favoriteItemIds, id) })),
+    toggleMarkerType: (type) => setUi((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),
+    createProfile: (name) => {
+      const profile = createLocalProfile(name)
+      setProfileState((current) => ({ activeProfileId: profile.id, profiles: [...current.profiles, profile] }))
+      return profile.id
+    },
+    selectProfile: (activeProfileId) => setProfileState((current) => current.profiles.some((profile) => profile.id === activeProfileId) ? { ...current, activeProfileId } : current),
+    renameProfile: (displayName) => updateActive((profile) => ({ ...profile, displayName: displayName.trim() || profile.displayName, updatedAt: new Date().toISOString() })),
+    replaceActiveProfile: (replacement) => setProfileState((current) => ({ ...current, profiles: current.profiles.map((profile) => profile.id === current.activeProfileId ? replacement : profile) })),
+    reset: () => {
+      const profile = createLocalProfile('Оператор', 'local-operator')
+      setProfileState({ activeProfileId: profile.id, profiles: [profile] })
+      setUi(uiDefaults)
+    },
+  // Functions intentionally close over the current active profile.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [ui, activeProfile, mode, modeProgress, profileState.profiles])
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
 }

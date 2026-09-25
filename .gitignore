@@ -1,6 +1,9 @@
 .superpowers/
 node_modules/
 dist/
+dist-electron/
+release/
+outputs/
 coverage/
 test-results/
 playwright-report/

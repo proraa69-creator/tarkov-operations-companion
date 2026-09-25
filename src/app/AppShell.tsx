@@ -2,15 +2,19 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   Boxes, ChevronRight, CircleDollarSign, Crosshair, Home, KeyRound,
-  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, X,
+  Landmark, Map, PackageSearch, RefreshCw, ScanLine, Search, Settings, Shield, Target, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { timeAgo } from '../shared/format'
+import { eventsToProgressRecords, type LogParseResult } from '../import/logParser'
+
+const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
 
 const navigation = [
   { to: '/', label: 'Обзор', icon: Home },
   { to: '/quests', label: 'Мои задания', icon: Target },
+  { to: '/import', label: 'Синхронизация', icon: ScanLine },
   { to: '/maps', label: 'Карты', icon: Map },
   { to: '/items', label: 'Предметы', icon: PackageSearch },
   { to: '/economy', label: 'Экономика', icon: CircleDollarSign },
@@ -21,7 +25,7 @@ const navigation = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { raidMode, setRaidMode } = useAppState()
+  const { raidMode, setRaidMode, activeProfile, applyTaskRecords } = useAppState()
   const { source, updatedAt, isFetching, refresh, data } = useTarkovData()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -38,6 +42,26 @@ export function AppShell({ children }: { children: ReactNode }) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    if (!window.tarkovDesktop) return
+    let active = true
+    const applyLogResult = (result: LogParseResult) => {
+      if (!active || result.detectedModes.length !== 1 || result.detectedModes[0] !== raidMode) return
+      applyTaskRecords(eventsToProgressRecords(result.events))
+    }
+    const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)
+    const savedFolder = localStorage.getItem(LOG_FOLDER_STORAGE_KEY)
+    if (savedFolder) {
+      void window.tarkovDesktop.startWatchingLogs(savedFolder).then((started) => {
+        if (!started) localStorage.removeItem(LOG_FOLDER_STORAGE_KEY)
+      }).catch(() => localStorage.removeItem(LOG_FOLDER_STORAGE_KEY))
+    }
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [applyTaskRecords, raidMode])
 
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -79,6 +103,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>Поиск по заданиям, предметам и картам</span><kbd>Ctrl K</kbd></button>
         <div className="mode-switch" aria-label="Режим рынка"><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button></div>
         <button className="icon-button" onClick={refresh} title="Обновить данные" aria-label="Обновить данные"><RefreshCw size={16} className={isFetching ? 'spin' : ''} /></button>
+        <button className="profile-chip" onClick={() => navigate('/profile')} title="Профиль"><UserRound size={15} /><span>{activeProfile.displayName}</span></button>
         <button className="icon-button" onClick={() => navigate('/settings')} title="Настройки"><Shield size={16} /></button>
       </header>
 

@@ -1,5 +1,40 @@
 export type RaidMode = 'pvp' | 'pve'
 export type MarkerType = 'quest' | 'extract' | 'key' | 'boss' | 'spawn' | 'cache' | 'danger' | 'landmark'
+export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
+export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration'
+
+export interface TaskRequirement {
+  taskId: string
+  allowedStatuses: Array<'complete' | 'failed' | 'active'>
+  group?: string
+}
+
+export interface TaskProgressRecord {
+  taskId: string
+  status: 'active' | 'completed' | 'failed'
+  source: ProgressSource
+  updatedAt: string
+}
+
+export interface ModeProgress {
+  playerLevel: number
+  faction: 'usec' | 'bear' | 'unknown'
+  prestige: number
+  taskProgress: Record<string, TaskProgressRecord>
+  trackedTaskIds: string[]
+  favoriteItemIds: string[]
+  hideoutLevels: Record<string, number>
+}
+
+export interface LocalProfile {
+  schemaVersion: 2
+  id: string
+  displayName: string
+  createdAt: string
+  updatedAt: string
+  selectedMode: RaidMode
+  modes: Record<RaidMode, ModeProgress>
+}
 
 export interface GameMap {
   id: string
@@ -38,6 +73,7 @@ export interface MapMarker {
 
 export interface Quest {
   id: string
+  normalizedName?: string
   name: string
   trader: string
   mapId?: string
@@ -48,6 +84,12 @@ export interface Quest {
   rewards: string[]
   requiredItems?: string[]
   previous?: string[]
+  requirements?: TaskRequirement[]
+  faction?: string
+  experience?: number
+  wikiLink?: string
+  imageUrl?: string
+  objectiveIds?: string[]
 }
 
 export interface PriceQuote {
@@ -59,6 +101,7 @@ export interface PriceQuote {
 
 export interface Item {
   id: string
+  normalizedName?: string
   name: string
   shortName: string
   category: 'Ключ' | 'Медицина' | 'Бартер' | 'Боеприпас' | 'Оружие' | 'Броня' | 'Еда' | 'Инструмент'
@@ -73,6 +116,11 @@ export interface Item {
   damage?: number
   penetration?: number
   armorClass?: number
+  width?: number
+  height?: number
+  fleaPrice?: number
+  wikiLink?: string
+  types?: string[]
 }
 
 export interface HideoutStation {
@@ -82,6 +130,8 @@ export interface HideoutStation {
   status: 'ready' | 'progress' | 'locked'
   requirements: string[]
   bonus: string
+  maxLevel?: number
+  imageUrl?: string
 }
 
 export interface Trader {
@@ -99,4 +149,10 @@ export interface AppDataset {
   items: Item[]
   hideout: HideoutStation[]
   traders: Trader[]
+  metadata?: {
+    source: string
+    mode: RaidMode
+    loadedAt: string
+    counts: Record<string, number>
+  }
 }

@@ -3,7 +3,8 @@ import { createContext, useContext, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { AppDataset } from '../domain/types'
 import { demoDataset } from './demo'
-import { fetchTarkovData } from './tarkovApi'
+import { fetchTarkovCatalog } from './tarkovJsonClient'
+import { useAppState } from '../state/AppState'
 
 interface DataContextValue {
   data: AppDataset
@@ -17,15 +18,16 @@ interface DataContextValue {
 const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const { raidMode } = useAppState()
   const query = useQuery({
-    queryKey: ['tarkov-companion-data'],
-    queryFn: fetchTarkovData,
-    staleTime: 1000 * 60 * 20,
+    queryKey: ['tarkov-companion-data', raidMode],
+    queryFn: () => fetchTarkovCatalog(raidMode),
+    staleTime: 1000 * 60 * 60 * 6,
     gcTime: 1000 * 60 * 60 * 24 * 7,
     retry: 1,
   })
 
-  const source = query.data ? (query.isFetchedAfterMount ? 'live' : 'cache') : 'demo'
+  const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
   const value: DataContextValue = {
     data: query.data ?? demoDataset,
     source,

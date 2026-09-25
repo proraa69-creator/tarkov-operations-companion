@@ -1,11 +1,19 @@
 {
   "name": "tarkov-operations-companion",
+  "productName": "Tarkov Operations Companion Beta",
+  "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
+  "author": "Tarkov Operations Companion contributors",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build:renderer": "tsc -b && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "npm run build:renderer && npm run build:electron",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win portable",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
@@ -13,10 +21,29 @@
     "test:e2e": "playwright test",
     "lint": "eslint ."
   },
+  "build": {
+    "appId": "local.tarkov.operations.companion",
+    "productName": "Tarkov Operations Companion Beta",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "Tarkov Operations Companion Beta.exe"
+    }
+  },
   "dependencies": {
-    "@tanstack/query-sync-storage-persister": "latest",
     "@tanstack/react-query": "latest",
-    "@tanstack/react-query-persist-client": "latest",
+    "fflate": "^0.8.3",
+    "idb-keyval": "^6.3.0",
     "leaflet": "latest",
     "lucide-react": "latest",
     "react": "latest",
@@ -31,9 +58,12 @@
     "@testing-library/react": "latest",
     "@testing-library/user-event": "latest",
     "@types/leaflet": "latest",
+    "@types/node": "^26.6.2",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",
