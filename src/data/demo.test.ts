@@ -1,0 +1,21 @@
+import { describe, expect, it } from 'vitest'
+import { demoDataset } from './demo'
+
+describe('demo dataset', () => {
+  it('keeps every marker connected to an existing map', () => {
+    const mapIds = new Set(demoDataset.maps.map((map) => map.id))
+    expect(demoDataset.markers.every((marker) => mapIds.has(marker.mapId))).toBe(true)
+  })
+
+  it('keeps quest item relations valid', () => {
+    const itemIds = new Set(demoDataset.items.map((item) => item.id))
+    const referencedIds = demoDataset.quests.flatMap((quest) => quest.requiredItems ?? [])
+    expect(referencedIds.every((id) => itemIds.has(id))).toBe(true)
+  })
+
+  it('has a deep Customs slice', () => {
+    const markers = demoDataset.markers.filter((marker) => marker.mapId === 'customs')
+    expect(markers.map((marker) => marker.type)).toEqual(expect.arrayContaining(['quest', 'extract', 'key', 'boss', 'cache', 'danger', 'landmark']))
+    expect(markers.length).toBeGreaterThanOrEqual(12)
+  })
+})

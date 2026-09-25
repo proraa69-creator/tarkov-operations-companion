@@ -1,0 +1,22 @@
+import { expect, test } from '@playwright/test'
+
+test('command center opens Customs and marker details', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: /следующий рейд начинается здесь/i })).toBeVisible()
+  await page.getByRole('button', { name: /открыть карту/i }).click()
+  await expect(page.getByText('КОНТЕКСТ КАРТЫ')).toBeVisible()
+  await expect(page.locator('.leaflet-container')).toBeVisible()
+  await page.locator('.map-marker').first().click()
+  await expect(page.getByRole('button', { name: /закрыть карточку/i })).toBeVisible()
+})
+
+test('quest progress persists after reload', async ({ page }) => {
+  await page.goto('/quests?selected=operation-aquarius')
+  const toggle = page.getByRole('button', { name: /добавить в активные|убрать из активных/i })
+  await expect(toggle).toBeVisible()
+  const before = await toggle.textContent()
+  await toggle.click()
+  await page.reload()
+  const after = await page.getByRole('button', { name: /добавить в активные|убрать из активных/i }).textContent()
+  expect(after).not.toEqual(before)
+})
