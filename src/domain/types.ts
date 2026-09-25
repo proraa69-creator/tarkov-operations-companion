@@ -9,8 +9,16 @@ export interface GameMap {
   players: string
   difficulty: 'Низкая' | 'Средняя' | 'Высокая' | 'Экстремальная'
   imageUrl?: string
+  tileUrl?: string
+  bounds?: [[number, number], [number, number]]
+  transform?: [number, number, number, number]
+  coordinateRotation?: number
+  tileSize?: number
+  minZoom?: number
+  maxZoom?: number
   accent: string
   floors?: string[]
+  layers?: Array<{ name: string; imageUrl?: string; tileUrl?: string }>
   markerCount: number
   attribution?: string
 }

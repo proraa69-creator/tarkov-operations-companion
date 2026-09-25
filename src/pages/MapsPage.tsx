@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CRS, divIcon, type LatLngBoundsExpression } from 'leaflet'
-import { ImageOverlay, MapContainer, Marker, ZoomControl } from 'react-leaflet'
+import L, { CRS, divIcon, type LatLngBoundsExpression } from 'leaflet'
+import { ImageOverlay, MapContainer, Marker, TileLayer, ZoomControl } from 'react-leaflet'
 import { AlertTriangle, Box, ChevronRight, CircleDot, Crosshair, DoorOpen, KeyRound, MapPin, Search, Skull, Target, TentTree } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import type { MapMarker, MarkerType } from '../domain/types'
+import type { GameMap, MapMarker, MarkerType } from '../domain/types'
 
 const markerMeta: Record<MarkerType, { label: string; color: string; glyph: string; icon: typeof Target }> = {
   quest: { label: 'Задания', color: '#d5b76f', glyph: '!', icon: Target },
@@ -18,7 +18,7 @@ const markerMeta: Record<MarkerType, { label: string; color: string; glyph: stri
   landmark: { label: 'Ориентиры', color: '#7f9ca2', glyph: 'L', icon: TentTree },
 }
 
-const bounds: LatLngBoundsExpression = [[0, 0], [1000, 1000]]
+const defaultBounds: LatLngBoundsExpression = [[0, 0], [1000, 1000]]
 
 export function MapsPage() {
   const { mapId } = useParams()
@@ -30,12 +30,17 @@ export function MapsPage() {
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null)
   const [floor, setFloor] = useState(activeMap.floors?.[0] ?? 'Основной')
   const [search, setSearch] = useState('')
+  const activeBounds = toLeafletBounds(activeMap)
+  const activeCrs = createMapCrs(activeMap)
+  const activeLayer = activeMap.layers?.find((layer) => layer.name === floor)
+  const imageUrl = activeLayer?.imageUrl ?? activeMap.imageUrl
+  const tileUrl = activeLayer?.tileUrl ?? activeMap.tileUrl
 
   const mapMarkers = useMemo(() => {
     const actual = data.markers.filter((marker) => marker.mapId === activeMap.id)
-    const base = actual.length ? actual : generatedMarkers(activeMap.id, data.quests.filter((quest) => quest.mapId === activeMap.id).length)
+    const base = actual.length ? actual : generatedMarkers(activeMap, data.quests.filter((quest) => quest.mapId === activeMap.id).length)
     return base.filter((marker) => !state.hiddenMarkerTypes.includes(marker.type) && `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }, [activeMap.id, data.markers, data.quests, search, state.hiddenMarkerTypes])
+  }, [activeMap, data.markers, data.quests, search, state.hiddenMarkerTypes])
 
   const selectMap = (id: string) => {
     state.setSelectedMapId(id)
@@ -57,9 +62,10 @@ export function MapsPage() {
 
       <section className="map-stage">
         <div className="map-hud"><span>{activeMap.name.toUpperCase()}</span><span>{floor.toUpperCase()}</span><span>{mapMarkers.length} МАРКЕРОВ</span></div>
-        <MapContainer key={activeMap.id} crs={CRS.Simple} bounds={bounds} minZoom={-1} maxZoom={3} zoomControl={false} attributionControl={true}>
+        <MapContainer key={activeMap.id} crs={activeCrs} bounds={activeBounds} minZoom={activeMap.minZoom ?? -1} maxZoom={Math.max(7, activeMap.maxZoom ?? 3)} zoomControl={false} attributionControl={true}>
           <ZoomControl position="bottomright" />
-          {activeMap.imageUrl && <ImageOverlay url={activeMap.imageUrl} bounds={bounds} attribution={activeMap.attribution} />}
+          {imageUrl && <ImageOverlay key={imageUrl} url={imageUrl} bounds={activeBounds} attribution={activeMap.attribution} />}
+          {tileUrl && <TileLayer key={tileUrl} url={tileUrl} bounds={activeBounds} tileSize={activeMap.tileSize ?? 256} minZoom={activeMap.minZoom} maxZoom={Math.max(7, activeMap.maxZoom ?? 3)} maxNativeZoom={activeMap.maxZoom} noWrap attribution={activeMap.attribution} />}
           {mapMarkers.map((marker) => {
             const meta = markerMeta[marker.type]
             const icon = divIcon({ className: 'marker-icon', html: `<div class="map-marker" style="--marker-color:${meta.color}"><span>${meta.glyph}</span></div>`, iconSize: [28, 28], iconAnchor: [14, 27] })
@@ -85,16 +91,47 @@ export function MapsPage() {
   </div>
 }
 
-function generatedMarkers(mapId: string, questCount: number): MapMarker[] {
-  const seed = mapId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+function generatedMarkers(map: { id: string; bounds?: [[number, number], [number, number]] }, questCount: number): MapMarker[] {
+  const seed = map.id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
   const types: MarkerType[] = ['extract', 'quest', 'landmark', 'cache', 'danger']
+  const rawBounds = map.bounds ?? [[0, 0], [1000, 1000]]
+  const minX = Math.min(rawBounds[0][0], rawBounds[1][0])
+  const maxX = Math.max(rawBounds[0][0], rawBounds[1][0])
+  const minZ = Math.min(rawBounds[0][1], rawBounds[1][1])
+  const maxZ = Math.max(rawBounds[0][1], rawBounds[1][1])
   return Array.from({ length: Math.max(6, questCount + 4) }, (_, index) => ({
-    id: `${mapId}-generated-${index}`,
-    mapId,
+    id: `${map.id}-generated-${index}`,
+    mapId: map.id,
     type: types[index % types.length],
     title: index % 5 === 0 ? 'Основной выход' : index % 5 === 1 ? 'Зона задания' : index % 5 === 2 ? 'Ключевой ориентир' : index % 5 === 3 ? 'Скрытый тайник' : 'Опасная зона',
     description: 'Базовый маркер прототипа. Полное покрытие этой локации будет уточняться по открытым источникам.',
-    position: [160 + ((seed * (index + 3)) % 680), 140 + ((seed * (index + 7)) % 720)] as [number, number],
+    position: [minZ + (maxZ - minZ) * (.14 + (((seed * (index + 7)) % 720) / 1000)), minX + (maxX - minX) * (.16 + (((seed * (index + 3)) % 680) / 1000))] as [number, number],
     meta: 'Базовый слой',
   }))
+}
+
+function toLeafletBounds(map: GameMap): LatLngBoundsExpression {
+  if (!map.bounds) return defaultBounds
+  return [[map.bounds[0][1], map.bounds[0][0]], [map.bounds[1][1], map.bounds[1][0]]]
+}
+
+function createMapCrs(map: GameMap) {
+  if (!map.transform) return CRS.Simple
+  const [scaleX, marginX, scaleY, marginY] = map.transform
+  const rotation = map.coordinateRotation ?? 0
+  return L.extend({}, CRS.Simple, {
+    transformation: new L.Transformation(scaleX, marginX, scaleY * -1, marginY),
+    projection: L.extend({}, L.Projection.LonLat, {
+      project: (point: L.LatLng) => L.Projection.LonLat.project(rotate(point, rotation)),
+      unproject: (point: L.Point) => rotate(L.Projection.LonLat.unproject(point), rotation * -1),
+    }),
+  })
+}
+
+function rotate(point: L.LatLng, rotation: number) {
+  if ((!point.lng && !point.lat) || !rotation) return point
+  const angle = rotation * Math.PI / 180
+  const x = point.lng * Math.cos(angle) - point.lat * Math.sin(angle)
+  const y = point.lng * Math.sin(angle) + point.lat * Math.cos(angle)
+  return L.latLng(y, x)
 }

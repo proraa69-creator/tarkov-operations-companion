@@ -20,3 +20,14 @@ test('quest progress persists after reload', async ({ page }) => {
   const after = await page.getByRole('button', { name: /добавить в активные|убрать из активных/i }).textContent()
   expect(after).not.toEqual(before)
 })
+
+test('Icebreaker floor selector swaps the tile layer immediately', async ({ page }) => {
+  await page.goto('/maps/icebreaker')
+  await expect(page.locator('.leaflet-container')).toBeVisible()
+  await expect(page.locator('.map-hud')).toContainText('ЛАЗАРЕТ')
+
+  await page.getByRole('button', { name: 'Главная палуба', exact: true }).click()
+
+  await expect(page.locator('.map-hud')).toContainText('ГЛАВНАЯ ПАЛУБА')
+  await expect(page.locator('.leaflet-tile[src*="/14_bridge/"]').first()).toBeVisible()
+})
