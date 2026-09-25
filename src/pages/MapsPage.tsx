@@ -2,19 +2,30 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import L, { CRS, divIcon, type LatLngBoundsExpression } from 'leaflet'
 import { ImageOverlay, MapContainer, Marker, TileLayer, ZoomControl } from 'react-leaflet'
-import { AlertTriangle, Box, ChevronRight, CircleDot, Crosshair, DoorOpen, KeyRound, MapPin, Search, Skull, Target, TentTree } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, Box, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen, FlaskConical, HeartPulse, KeyRound, MapPin, Search, Skull, Target, TentTree, Users, Wrench } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
+import { markerVisibleOnFloor } from '../data/mapProjection'
+import { allMarkerLayers } from '../domain/mapLayers'
 import { useAppState } from '../state/AppState'
-import type { GameMap, MapMarker, MarkerType } from '../domain/types'
+import type { GameMap, MapMarker, MarkerLayerId, MarkerType } from '../domain/types'
 
-const markerMeta: Record<MarkerType, { label: string; color: string; glyph: string; icon: typeof Target }> = {
-  quest: { label: 'Задания', color: '#d5b76f', glyph: '!', icon: Target },
-  extract: { label: 'Выходы', color: '#82b58d', glyph: '↗', icon: DoorOpen },
+const markerMeta: Record<MarkerLayerId, { label: string; color: string; glyph: string; icon: typeof Target }> = {
+  'extract.pmc': { label: 'Выходы PMC', color: '#6fb47c', glyph: 'P', icon: DoorOpen },
+  'extract.scav': { label: 'Выходы Scav', color: '#c9b463', glyph: 'S', icon: DoorOpen },
+  'extract.coop': { label: 'Co-op выходы', color: '#70a6ba', glyph: '2', icon: Users },
+  transit: { label: 'Транзиты', color: '#9bb2d0', glyph: 'T', icon: ArrowRightLeft },
+  'quest.zone': { label: 'Квесты', color: '#d5b76f', glyph: '!', icon: Target },
+  'quest.item': { label: 'Квестовые предметы', color: '#e0c76f', glyph: 'Q', icon: Box },
   key: { label: 'Ключи', color: '#8ea8c4', glyph: 'K', icon: KeyRound },
   boss: { label: 'Боссы', color: '#c16f62', glyph: 'B', icon: Skull },
   spawn: { label: 'Спавны', color: '#b789be', glyph: 'S', icon: CircleDot },
-  cache: { label: 'Тайники', color: '#9d8c67', glyph: 'C', icon: Box },
-  danger: { label: 'Опасности', color: '#d98064', glyph: '!', icon: AlertTriangle },
+  hazard: { label: 'Опасности', color: '#d98064', glyph: '!', icon: AlertTriangle },
+  'loot.valuable': { label: 'Ценный лут', color: '#cc9fe0', glyph: '◆', icon: Diamond },
+  'loot.weapon': { label: 'Оружие/боеприпасы', color: '#c18b65', glyph: 'A', icon: Crosshair },
+  'loot.medical': { label: 'Медицина', color: '#d97878', glyph: '+', icon: HeartPulse },
+  'loot.provision': { label: 'Провизия', color: '#a9b96f', glyph: 'F', icon: FlaskConical },
+  'loot.technical': { label: 'Технический лут', color: '#8aa28f', glyph: 'W', icon: Wrench },
+  'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', glyph: 'C', icon: Box },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', glyph: 'L', icon: TentTree },
 }
 
@@ -38,9 +49,14 @@ export function MapsPage() {
 
   const mapMarkers = useMemo(() => {
     const actual = data.markers.filter((marker) => marker.mapId === activeMap.id)
-    const base = actual.length ? actual : generatedMarkers(activeMap, data.quests.filter((quest) => quest.mapId === activeMap.id).length)
-    return base.filter((marker) => !state.hiddenMarkerTypes.includes(marker.type) && `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }, [activeMap, data.markers, data.quests, search, state.hiddenMarkerTypes])
+    return actual.filter((marker) => {
+      const layerId = markerLayerId(marker)
+      return !state.hiddenMarkerLayers.includes(layerId)
+        && !state.hiddenMarkerTypes.includes(marker.type)
+        && markerVisibleOnFloor(marker, floor)
+        && `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase())
+    })
+  }, [activeMap.id, data.markers, floor, search, state.hiddenMarkerLayers, state.hiddenMarkerTypes])
 
   const selectMap = (id: string) => {
     state.setSelectedMapId(id)
@@ -57,7 +73,7 @@ export function MapsPage() {
     <div className="map-shell">
       <aside className="map-sidebar">
         <div><div className="map-side-title">ЛОКАЦИИ</div>{data.maps.map((map) => <button key={map.id} className={`map-option ${map.id === activeMap.id ? 'active' : ''}`} onClick={() => selectMap(map.id)}><span className="map-color" style={{ background: map.accent }} /><span>{map.name}</span><small>{map.markerCount}</small></button>)}</div>
-        <div><div className="map-side-title" style={{ marginTop: 20 }}>СЛОИ КАРТЫ</div>{(Object.keys(markerMeta) as MarkerType[]).map((type) => { const meta = markerMeta[type]; const visible = !state.hiddenMarkerTypes.includes(type); return <button className={`layer-button ${visible ? 'active' : ''}`} key={type} onClick={() => state.toggleMarkerType(type)}><span className="layer-dot" style={{ '--marker-color': meta.color } as React.CSSProperties} /><span>{meta.label}</span><small style={{ marginLeft: 'auto' }}>{data.markers.filter((m) => m.mapId === activeMap.id && m.type === type).length}</small></button> })}</div>
+        <div><div className="map-side-title" style={{ marginTop: 20 }}>СЛОИ КАРТЫ</div>{allMarkerLayers.map((layerId) => { const meta = markerMeta[layerId]; const visible = !state.hiddenMarkerLayers.includes(layerId); return <button className={`layer-button ${visible ? 'active' : ''}`} key={layerId} onClick={() => state.toggleMarkerLayer(layerId)}><span className="layer-dot" style={{ '--marker-color': meta.color } as React.CSSProperties} /><span>{meta.label}</span><small style={{ marginLeft: 'auto' }}>{data.markers.filter((m) => m.mapId === activeMap.id && markerLayerId(m) === layerId).length}</small></button> })}</div>
       </aside>
 
       <section className="map-stage">
@@ -67,7 +83,7 @@ export function MapsPage() {
           {imageUrl && <ImageOverlay key={imageUrl} url={imageUrl} bounds={activeBounds} attribution={activeMap.attribution} />}
           {tileUrl && <TileLayer key={tileUrl} url={tileUrl} bounds={activeBounds} tileSize={activeMap.tileSize ?? 256} minZoom={activeMap.minZoom} maxZoom={Math.max(7, activeMap.maxZoom ?? 3)} maxNativeZoom={activeMap.maxZoom} noWrap attribution={activeMap.attribution} />}
           {mapMarkers.map((marker) => {
-            const meta = markerMeta[marker.type]
+            const meta = markerMeta[markerLayerId(marker)]
             const icon = divIcon({ className: 'marker-icon', html: `<div class="map-marker" style="--marker-color:${meta.color}"><span>${meta.glyph}</span></div>`, iconSize: [28, 28], iconAnchor: [14, 27] })
             return <Marker key={marker.id} position={marker.position} icon={icon} eventHandlers={{ click: () => setSelectedMarker(marker) }} />
           })}
@@ -80,7 +96,7 @@ export function MapsPage() {
         {activeMap.floors && <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>{activeMap.floors.map((entry) => <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)}>{entry}</button>)}</div>}
         {!selectedMarker && <div className="map-detail-empty"><div><Crosshair size={30} /><h3>Выберите маркер</h3><p>Нажмите на точку карты, чтобы открыть сведения, связанное задание или ключ.</p></div></div>}
         {selectedMarker && <div>
-          <div className="detail-hero" style={{ '--marker-color': markerMeta[selectedMarker.type].color } as React.CSSProperties}><div className="detail-type">{markerMeta[selectedMarker.type].label}</div><h2>{selectedMarker.title}</h2><span className="tag">{selectedMarker.meta}</span></div>
+          <div className="detail-hero" style={{ '--marker-color': markerMeta[markerLayerId(selectedMarker)].color } as React.CSSProperties}><div className="detail-type">{markerMeta[markerLayerId(selectedMarker)].label}</div><h2>{selectedMarker.title}</h2><span className="tag">{selectedMarker.meta}</span></div>
           <div className="detail-section"><h4>Сведения</h4><p>{selectedMarker.description}</p></div>
           {relatedQuest && <div className="detail-section"><h4>Связанное задание</h4><p style={{ marginBottom: 12 }}><strong style={{ color: 'var(--text)' }}>{relatedQuest.name}</strong><br />{relatedQuest.trader} · уровень {relatedQuest.level}</p><Link className="button" style={{ width: '100%' }} to={`/quests?selected=${relatedQuest.id}`}>Открыть задание <ChevronRight size={14} /></Link></div>}
           {relatedItem && <div className="detail-section"><h4>Требуемый предмет</h4><div className="item-row"><img className="item-thumb" src={relatedItem.iconUrl} alt="" /><span><strong>{relatedItem.name}</strong><small className="dim">{relatedItem.category}</small></span></div><Link className="button" style={{ width: '100%', marginTop: 10 }} to={`/items?selected=${relatedItem.id}`}>Открыть предмет <ChevronRight size={14} /></Link></div>}
@@ -91,28 +107,18 @@ export function MapsPage() {
   </div>
 }
 
-function generatedMarkers(map: { id: string; bounds?: [[number, number], [number, number]] }, questCount: number): MapMarker[] {
-  const seed = map.id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  const types: MarkerType[] = ['extract', 'quest', 'landmark', 'cache', 'danger']
-  const rawBounds = map.bounds ?? [[0, 0], [1000, 1000]]
-  const minX = Math.min(rawBounds[0][0], rawBounds[1][0])
-  const maxX = Math.max(rawBounds[0][0], rawBounds[1][0])
-  const minZ = Math.min(rawBounds[0][1], rawBounds[1][1])
-  const maxZ = Math.max(rawBounds[0][1], rawBounds[1][1])
-  return Array.from({ length: Math.max(6, questCount + 4) }, (_, index) => ({
-    id: `${map.id}-generated-${index}`,
-    mapId: map.id,
-    type: types[index % types.length],
-    title: index % 5 === 0 ? 'Основной выход' : index % 5 === 1 ? 'Зона задания' : index % 5 === 2 ? 'Ключевой ориентир' : index % 5 === 3 ? 'Скрытый тайник' : 'Опасная зона',
-    description: 'Базовый маркер прототипа. Полное покрытие этой локации будет уточняться по открытым источникам.',
-    position: [minZ + (maxZ - minZ) * (.14 + (((seed * (index + 7)) % 720) / 1000)), minX + (maxX - minX) * (.16 + (((seed * (index + 3)) % 680) / 1000))] as [number, number],
-    meta: 'Базовый слой',
-  }))
-}
-
 function toLeafletBounds(map: GameMap): LatLngBoundsExpression {
   if (!map.bounds) return defaultBounds
   return [[map.bounds[0][1], map.bounds[0][0]], [map.bounds[1][1], map.bounds[1][0]]]
+}
+
+function markerLayerId(marker: MapMarker): MarkerLayerId {
+  if (marker.layerId) return marker.layerId
+  if (marker.type === 'extract') return 'extract.pmc'
+  if (marker.type === 'quest') return marker.itemId ? 'quest.item' : 'quest.zone'
+  if (marker.type === 'cache') return 'loot.container'
+  if (marker.type === 'danger') return 'hazard'
+  return marker.type as MarkerLayerId
 }
 
 function createMapCrs(map: GameMap) {

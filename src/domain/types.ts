@@ -1,5 +1,24 @@
 export type RaidMode = 'pvp' | 'pve'
 export type MarkerType = 'quest' | 'extract' | 'key' | 'boss' | 'spawn' | 'cache' | 'danger' | 'landmark'
+export type MarkerLayerId =
+  | 'extract.pmc'
+  | 'extract.scav'
+  | 'extract.coop'
+  | 'transit'
+  | 'quest.zone'
+  | 'quest.item'
+  | 'key'
+  | 'boss'
+  | 'spawn'
+  | 'hazard'
+  | 'loot.valuable'
+  | 'loot.weapon'
+  | 'loot.medical'
+  | 'loot.provision'
+  | 'loot.technical'
+  | 'loot.container'
+  | 'landmark'
+export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
 export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration'
 
@@ -53,7 +72,7 @@ export interface GameMap {
   maxZoom?: number
   accent: string
   floors?: string[]
-  layers?: Array<{ name: string; imageUrl?: string; tileUrl?: string }>
+  layers?: Array<{ id?: string; name: string; imageUrl?: string; tileUrl?: string; heightRange?: [number, number] }>
   markerCount: number
   attribution?: string
 }
@@ -62,12 +81,21 @@ export interface MapMarker {
   id: string
   mapId: string
   type: MarkerType
+  layerId?: MarkerLayerId
   title: string
   description: string
   position: [number, number]
+  outline?: Array<[number, number]>
   floor?: string
+  heightRange?: [number, number]
   questId?: string
   itemId?: string
+  extractId?: string
+  extractFaction?: ExtractFaction
+  source?: string
+  requiresPower?: boolean
+  requiresItem?: boolean
+  requiresCoop?: boolean
   meta?: string
 }
 

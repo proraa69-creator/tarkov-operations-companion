@@ -1,6 +1,8 @@
 import { get, set } from 'idb-keyval'
 import type { AppDataset, GameMap, HideoutStation, Item, Quest, RaidMode, Trader } from '../domain/types'
-import { demoDataset, maps as curatedMaps } from './demo'
+import { maps as curatedMaps } from './demo'
+import { fetchMapRenderingConfigs } from './mapConfigClient'
+import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 
 const BASE_URL = 'https://json.tarkov.dev'
 const CACHE_PREFIX = 'tarkov-operations-catalog-v3'
@@ -32,23 +34,24 @@ export async function fetchTarkovCatalog(mode: RaidMode): Promise<AppDataset> {
 
 async function fetchLiveCatalog(mode: RaidMode): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : 'regular'
-  const [tasks, items, maps, traders, hideout] = await Promise.all([
+  const [tasks, items, maps, traders, hideout, mapConfigs] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks'),
     fetchTranslated(upstreamMode, 'items'),
     fetchTranslated(upstreamMode, 'maps'),
     fetchTranslated(upstreamMode, 'traders'),
     fetchTranslated(upstreamMode, 'hideout'),
+    fetchMapRenderingConfigs().catch(() => new Map<string, Partial<GameMap>>()),
   ])
 
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
   const itemById = new Map(itemRows.map((item) => [item.id, item]))
-  const mapRows = adaptMaps(maps)
+  const mapRows = adaptMaps(maps, mapConfigs)
   const mapNameById = buildMapNameIndex(maps)
   const questRows = adaptTasks(tasks, traderById, itemById, mapNameById)
   const hideoutRows = adaptHideout(hideout, itemById)
-  const markers = remapDemoMarkers(questRows, itemRows)
+  const markers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById })
 
   return {
     maps: mapRows,
@@ -204,26 +207,29 @@ function adaptTasks(
   }).filter((quest) => quest.id)
 }
 
-function adaptMaps(root: JsonRecord): GameMap[] {
+function adaptMaps(root: JsonRecord, mapConfigs: Map<string, Partial<GameMap>>): GameMap[] {
   const rawMaps = asRecord(root.maps)
   const live = recordValues(rawMaps)
   const byName = new Map(live.map((entry) => [text(entry.normalizedName), entry]))
   const merged = curatedMaps.map((map) => {
     const row = byName.get(map.id)
+    const config = mapConfigs.get(map.id) ?? {}
     if (!row) return map
     return {
       ...map,
+      ...config,
       name: text(row.name, map.name),
       subtitle: text(row.description, map.subtitle),
       raidTime: number(row.raidDuration) || map.raidTime,
       players: text(row.players, map.players),
-      markerCount: asArray(row.extracts).length + asArray(row.spawns).length + asArray(row.bosses).length,
+      markerCount: asArray(row.extracts).length + asArray(row.transits).length + asArray(row.spawns).length + asArray(row.bosses).length + asArray(row.lootContainers).length + asArray(row.lootLoose).length,
     }
   })
   const known = new Set(merged.map((map) => map.id))
   for (const [index, row] of live.entries()) {
     const id = text(row.normalizedName)
     if (!id || known.has(id)) continue
+    const config = mapConfigs.get(id) ?? {}
     merged.push({
       id,
       name: text(row.name, id),
@@ -231,8 +237,9 @@ function adaptMaps(root: JsonRecord): GameMap[] {
       raidTime: number(row.raidDuration) || 40,
       players: text(row.players, '—'),
       difficulty: 'Высокая',
+      ...config,
       accent: ['#7d8d68', '#789096', '#9a7d64'][index % 3],
-      markerCount: asArray(row.extracts).length + asArray(row.spawns).length,
+      markerCount: asArray(row.extracts).length + asArray(row.transits).length + asArray(row.spawns).length + asArray(row.bosses).length + asArray(row.lootContainers).length + asArray(row.lootLoose).length,
       attribution: 'Данные карты © tarkov.dev contributors',
     })
   }
@@ -263,16 +270,6 @@ function adaptHideout(root: JsonRecord, items: Map<string, Item>): HideoutStatio
 
 function buildMapNameIndex(root: JsonRecord) {
   return new Map(recordValues(asRecord(root.maps)).map((entry) => [text(entry.id), text(entry.normalizedName)]))
-}
-
-function remapDemoMarkers(quests: Quest[], items: Item[]) {
-  const questsByName = new Map(quests.map((quest) => [quest.normalizedName, quest.id]))
-  const itemsByName = new Map(items.map((item) => [item.normalizedName, item.id]))
-  return demoDataset.markers.map((marker) => ({
-    ...marker,
-    questId: marker.questId ? questsByName.get(marker.questId) ?? marker.questId : undefined,
-    itemId: marker.itemId ? itemsByName.get(marker.itemId) ?? marker.itemId : undefined,
-  }))
 }
 
 function mapCategory(types: string[]): Item['category'] {

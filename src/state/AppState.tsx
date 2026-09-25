@@ -1,11 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createLocalProfile, migrateProfile } from '../domain/progress'
-import type { LocalProfile, RaidMode, TaskProgressRecord } from '../domain/types'
+import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
+import type { LocalProfile, MarkerLayerId, RaidMode, TaskProgressRecord } from '../domain/types'
 
 interface UiState {
   selectedMapId: string
   hiddenMarkerTypes: string[]
+  hiddenMarkerLayers: MarkerLayerId[]
 }
 
 interface ProfileState {
@@ -29,6 +31,7 @@ interface AppStateValue extends UiState {
   applyTaskRecords: (records: TaskProgressRecord[]) => void
   toggleFavoriteItem: (id: string) => void
   toggleMarkerType: (type: string) => void
+  toggleMarkerLayer: (layerId: MarkerLayerId) => void
   createProfile: (name: string) => string
   selectProfile: (id: string) => void
   renameProfile: (name: string) => void
@@ -39,7 +42,7 @@ interface AppStateValue extends UiState {
 const UI_STORAGE_KEY = 'tarkov-operations-ui-v2'
 const PROFILE_STORAGE_KEY = 'tarkov-operations-profiles-v2'
 const LEGACY_STORAGE_KEY = 'tarkov-operations-state-v1'
-const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'] }
+const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'], hiddenMarkerLayers: defaultHiddenMarkerLayers }
 const AppStateContext = createContext<AppStateValue | null>(null)
 
 function readJson(key: string): unknown {
@@ -54,7 +57,7 @@ function readJson(key: string): unknown {
 function loadUiState(): UiState {
   const saved = readJson(UI_STORAGE_KEY) as Partial<UiState> | null
   const legacy = readJson(LEGACY_STORAGE_KEY) as Partial<UiState> | null
-  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}) }
+  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}), hiddenMarkerLayers: saved?.hiddenMarkerLayers ?? uiDefaults.hiddenMarkerLayers }
 }
 
 function loadProfileState(): ProfileState {
@@ -136,6 +139,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     })),
     toggleFavoriteItem: (id) => updateMode((progress) => ({ ...progress, favoriteItemIds: toggle(progress.favoriteItemIds, id) })),
     toggleMarkerType: (type) => setUi((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),
+    toggleMarkerLayer: (layerId) => setUi((current) => ({ ...current, hiddenMarkerLayers: toggle(current.hiddenMarkerLayers, layerId) as MarkerLayerId[] })),
     createProfile: (name) => {
       const profile = createLocalProfile(name)
       setProfileState((current) => ({ activeProfileId: profile.id, profiles: [...current.profiles, profile] }))
