@@ -3,6 +3,7 @@ import type { LogParseResult } from '../src/import/logParser.js'
 
 contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
+  autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,
   onLogsUpdated: (callback: (result: LogParseResult) => void) => {

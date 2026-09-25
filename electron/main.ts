@@ -5,6 +5,7 @@ import { dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { unzipSync } from 'fflate'
 import { mergeParseResults, parseEftLog, type LogParseResult } from '../src/import/logParser.js'
+import { discoverEftLogs, normalizeSelectedLogsFolder } from './logDiscovery.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | null = null
@@ -54,13 +55,23 @@ app.on('window-all-closed', () => {
 })
 
 function registerIpc() {
+  ipcMain.handle('logs:auto-find-and-scan', async () => {
+    const discovered = await discoverEftLogs(app.getPath('appData'))
+    if (!discovered.logsFolder) return null
+    const parsed = await scanLogFolder(discovered.logsFolder)
+    return { ...parsed, folder: discovered.logsFolder }
+  })
+
   ipcMain.handle('logs:select-and-scan', async () => {
+    const discovered = await discoverEftLogs(app.getPath('appData'))
     const result = await dialog.showOpenDialog(mainWindow!, {
-      title: 'Выберите папку Logs Escape from Tarkov',
+      title: 'Выберите папку Logs',
+      buttonLabel: 'Выбрать папку Logs',
+      defaultPath: discovered.gameFolder ?? discovered.gamesRoot,
       properties: ['openDirectory'],
     })
     if (result.canceled || !result.filePaths[0]) return null
-    const folder = result.filePaths[0]
+    const folder = await normalizeSelectedLogsFolder(result.filePaths[0])
     const parsed = await scanLogFolder(folder)
     return { ...parsed, folder }
   })

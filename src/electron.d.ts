@@ -2,6 +2,7 @@ import type { LogParseResult } from './import/logParser'
 
 interface TarkovDesktopApi {
   isDesktop: true
+  autoFindAndScanLogs: () => Promise<(LogParseResult & { folder: string }) | null>
   scanLogs: () => Promise<(LogParseResult & { folder: string }) | null>
   startWatchingLogs: (folder: string) => Promise<boolean>
   onLogsUpdated: (callback: (result: LogParseResult) => void) => () => void

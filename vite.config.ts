@@ -9,6 +9,6 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: true,
     globals: true,
-    exclude: [...configDefaults.exclude, 'tests/**', 'work/**'],
+    exclude: [...configDefaults.exclude, 'tests/**', 'work/**', 'dist-electron/**'],
   },
 })

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronRight, FileArchive, FolderSearch, ListChecks, LoaderCircle, Search, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, FileArchive, FolderOpen, FolderSearch, ListChecks, LoaderCircle, Search, ShieldCheck, WandSparkles } from 'lucide-react'
 import { unzipSync } from 'fflate'
 import { useNavigate } from 'react-router-dom'
 import { useTarkovData } from '../data/DataProvider'
@@ -32,15 +32,37 @@ export function ImportProgressPage() {
   const modeConflict = Boolean(result?.detectedModes.length && !result.detectedModes.includes(state.raidMode)) || (result?.detectedModes.length ?? 0) > 1
   const manualTasks = data.quests.filter((quest) => `${quest.name} ${quest.trader}`.toLowerCase().includes(manualQuery.toLowerCase())).slice(0, 250)
 
-  const scanDesktop = async () => {
+  const showDesktopResult = (parsed: (LogParseResult & { folder: string }) | null) => {
+    if (!parsed) {
+      setStage('source')
+      return false
+    }
+    setResult(parsed)
+    setStage('preview')
+    return true
+  }
+
+  const scanDesktopAutomatically = async () => {
     if (!window.tarkovDesktop) return
     setStage('scanning')
     setError('')
     try {
-      const parsed = await window.tarkovDesktop.scanLogs()
-      if (!parsed) return setStage('source')
-      setResult(parsed)
-      setStage('preview')
+      const parsed = await window.tarkovDesktop.autoFindAndScanLogs()
+      if (showDesktopResult(parsed)) return
+      setError('Папка игры не найдена автоматически. Выберите папку Logs в открывшемся окне.')
+      showDesktopResult(await window.tarkovDesktop.scanLogs())
+    } catch (scanError) {
+      setError(scanError instanceof Error ? scanError.message : 'Не удалось прочитать журналы')
+      setStage('source')
+    }
+  }
+
+  const scanDesktopManually = async () => {
+    if (!window.tarkovDesktop) return
+    setStage('scanning')
+    setError('')
+    try {
+      showDesktopResult(await window.tarkovDesktop.scanLogs())
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : 'Не удалось прочитать журналы')
       setStage('source')
@@ -92,7 +114,8 @@ export function ImportProgressPage() {
     {error && <div className="panel import-warning"><AlertTriangle size={18} /> {error}</div>}
 
     {stage === 'source' && <div className="import-source-grid">
-      <button className="panel import-source-card" onClick={window.tarkovDesktop ? scanDesktop : () => fileInput.current?.click()}><FolderSearch size={32} /><span><strong>Найти прогресс в журналах EFT</strong><small>{window.tarkovDesktop ? 'Выберите папку Battlestate Games → EFT → Logs' : 'Выберите файлы notification/output или ZIP'}</small></span><ChevronRight /></button>
+      <button className="panel import-source-card" onClick={window.tarkovDesktop ? scanDesktopAutomatically : () => fileInput.current?.click()}>{window.tarkovDesktop ? <WandSparkles size={32} /> : <FolderSearch size={32} />}<span><strong>{window.tarkovDesktop ? 'Найти прогресс автоматически' : 'Найти прогресс в журналах EFT'}</strong><small>{window.tarkovDesktop ? 'Программа сама найдёт установленный Tarkov и папку Logs' : 'Выберите файлы notification/output или ZIP'}</small></span><ChevronRight /></button>
+      {window.tarkovDesktop && <button className="panel import-source-card" onClick={scanDesktopManually}><FolderOpen size={32} /><span><strong>Выбрать папку Logs вручную</strong><small>Откроется папка Escape from Tarkov — выберите внутри неё Logs</small></span><ChevronRight /></button>}
       <button className="panel import-source-card" onClick={() => setStage('manual')}><ListChecks size={32} /><span><strong>Быстрая ручная отметка</strong><small>Найдите и отметьте уже выполненные задания списком</small></span><ChevronRight /></button>
       <input ref={fileInput} hidden type="file" multiple accept=".log,.txt,.zip" onChange={(event) => void scanBrowserFiles(event.target.files)} />
     </div>}
@@ -103,6 +126,7 @@ export function ImportProgressPage() {
       <div className="panel-header"><div><div className="eyebrow">Предварительный просмотр</div><div className="panel-title">Найденные изменения</div></div><span className="tag">{result.events.length} событий</span></div>
       <div className="import-stat-grid"><div><strong>{summary.completed}</strong><span>выполнено</span></div><div><strong>{summary.active}</strong><span>начато</span></div><div><strong>{summary.failed}</strong><span>провалено</span></div><div><strong>{summary.unknown}</strong><span>неизвестно</span></div></div>
       {modeConflict && <div className="import-warning"><AlertTriangle size={17} /><span>Режим журналов не совпадает с выбранным {state.raidMode.toUpperCase()} или в файлах смешаны режимы. Переключите режим сверху либо выберите журналы одного персонажа.</span></div>}
+      {result.folder && <div className="import-note">Папка журналов: {result.folder}</div>}
       {result.ignoredRecords > 0 && <div className="import-note">Пропущено повреждённых записей: {result.ignoredRecords}. Остальные данные не изменялись.</div>}
       <div className="import-event-list">{result.events.filter((event) => knownIds.has(event.taskId)).slice(0, 120).map((event) => { const quest = data.quests.find((entry) => entry.id === event.taskId)!; return <div key={`${event.taskId}-${event.timestamp}`}><span className={`import-event-state ${event.status}`}>{event.status === 'completed' ? <Check /> : event.status === 'failed' ? <AlertTriangle /> : <FileArchive />}</span><span><strong>{quest.name}</strong><small>{quest.trader} · {event.status === 'completed' ? 'выполнено' : event.status === 'failed' ? 'провалено' : 'начато'}</small></span></div> })}</div>
       <div className="import-actions"><button className="button ghost" onClick={() => setStage('source')}>Назад</button><button className="button primary" disabled={modeConflict || !result.events.length} onClick={() => void applyImport()}><Check size={16} /> Применить изменения</button></div>
