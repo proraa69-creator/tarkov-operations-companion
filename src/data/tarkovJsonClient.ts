@@ -33,7 +33,7 @@ export async function fetchTarkovCatalog(mode: RaidMode): Promise<AppDataset> {
 }
 
 async function fetchLiveCatalog(mode: RaidMode): Promise<AppDataset> {
-  const upstreamMode = mode === 'pve' ? 'pve' : 'regular'
+  const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const [tasks, items, maps, traders, hideout, mapConfigs] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks'),
     fetchTranslated(upstreamMode, 'items'),
@@ -113,6 +113,7 @@ function adaptTraders(root: JsonRecord): Trader[] {
     role: text(entry.description, 'Торговец и источник заданий'),
     loyalty: Math.max(1, asArray(entry.levels).length),
     accent: ['#7d8d68', '#789096', '#9a7d64', '#6d8793', '#8e8265', '#877064'][index % 6],
+    imageUrl: text(entry.imageLink) || text(entry.avatarLink) || undefined,
   })).filter((trader) => trader.id)
 }
 
@@ -249,21 +250,25 @@ function adaptMaps(root: JsonRecord, mapConfigs: Map<string, Partial<GameMap>>):
 function adaptHideout(root: JsonRecord, items: Map<string, Item>): HideoutStation[] {
   return recordValues(root).map((entry) => {
     const levels = asArray(entry.levels)
-    const next = levels[0] ?? {}
-    const requirements = asArray(next.itemRequirements).slice(0, 6).map((requirement) => {
-      const item = items.get(text(requirement.item))
-      return `${item?.name ?? text(requirement.item)} × ${number(requirement.count) || 1}`
+    const normalizedLevels = levels.map((level, index) => {
+      const requirements = asArray(level.itemRequirements).slice(0, 10).map((requirement) => {
+        const item = items.get(text(requirement.item))
+        return `${item?.name ?? text(requirement.item)} × ${number(requirement.count) || 1}`
+      })
+      const bonuses = asArray(level.bonuses).map((bonus) => text(bonus.name)).filter(Boolean)
+      return { level: number(level.level) || index + 1, requirements, bonus: bonuses.slice(0, 3).join(' · ') || 'Новые возможности модуля' }
     })
-    const bonuses = asArray(next.bonuses).map((bonus) => text(bonus.name)).filter(Boolean)
+    const next = normalizedLevels[0]
     return {
       id: text(entry.id),
       name: text(entry.name, text(entry.normalizedName, 'Станция')),
       level: 0,
       maxLevel: levels.length,
       status: 'locked',
-      requirements,
-      bonus: bonuses.slice(0, 2).join(' · ') || 'Бонусы открываются после постройки',
+      requirements: next?.requirements ?? [],
+      bonus: next?.bonus ?? 'Бонусы открываются после постройки',
       imageUrl: text(entry.imageLink) || undefined,
+      levels: normalizedLevels,
     } satisfies HideoutStation
   }).filter((station) => station.id)
 }

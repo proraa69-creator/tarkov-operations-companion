@@ -8,6 +8,7 @@ import { markerVisibleOnFloor } from '../data/mapProjection'
 import { allMarkerLayers } from '../domain/mapLayers'
 import { useAppState } from '../state/AppState'
 import type { GameMap, MapMarker, MarkerLayerId } from '../domain/types'
+import { calculateAvailability } from '../progression/requirementEngine'
 
 const markerMeta: Record<MarkerLayerId, { label: string; color: string; glyph: string; icon: typeof Target }> = {
   'extract.pmc': { label: 'Выходы PMC', color: '#6fb47c', glyph: 'P', icon: DoorOpen },
@@ -46,17 +47,21 @@ export function MapsPage() {
   const activeLayer = activeMap.layers?.find((layer) => layer.name === floor)
   const imageUrl = activeLayer?.imageUrl ?? activeMap.imageUrl
   const tileUrl = activeLayer?.tileUrl ?? activeMap.tileUrl
+  const availability = useMemo(() => calculateAvailability(data.quests, state.activeProfile.modes[state.raidMode]), [data.quests, state.activeProfile, state.raidMode])
+  const relevantQuestIds = useMemo(() => new Set(data.quests.filter((quest) => ['available', 'active'].includes(availability.get(quest.id)?.status ?? '')).map((quest) => quest.id)), [availability, data.quests])
 
   const mapMarkers = useMemo(() => {
     const actual = data.markers.filter((marker) => marker.mapId === activeMap.id)
     return actual.filter((marker) => {
       const layerId = markerLayerId(marker)
-      return !state.hiddenMarkerLayers.includes(layerId)
+      const relevant = !marker.questId || !['quest.zone', 'quest.item'].includes(layerId) || relevantQuestIds.has(marker.questId)
+      return relevant
+        && !state.hiddenMarkerLayers.includes(layerId)
         && !state.hiddenMarkerTypes.includes(marker.type)
         && markerVisibleOnFloor(marker, floor)
         && `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase())
     })
-  }, [activeMap.id, data.markers, floor, search, state.hiddenMarkerLayers, state.hiddenMarkerTypes])
+  }, [activeMap.id, data.markers, floor, relevantQuestIds, search, state.hiddenMarkerLayers, state.hiddenMarkerTypes])
 
   const selectMap = (id: string) => {
     state.setSelectedMapId(id)
@@ -73,7 +78,7 @@ export function MapsPage() {
     <div className="map-shell">
       <aside className="map-sidebar">
         <div><div className="map-side-title">ЛОКАЦИИ</div>{data.maps.map((map) => <button key={map.id} className={`map-option ${map.id === activeMap.id ? 'active' : ''}`} onClick={() => selectMap(map.id)}><span className="map-color" style={{ background: map.accent }} /><span>{map.name}</span><small>{map.markerCount}</small></button>)}</div>
-        <div><div className="map-side-title" style={{ marginTop: 20 }}>СЛОИ КАРТЫ</div>{allMarkerLayers.map((layerId) => { const meta = markerMeta[layerId]; const visible = !state.hiddenMarkerLayers.includes(layerId); return <button className={`layer-button ${visible ? 'active' : ''}`} key={layerId} onClick={() => state.toggleMarkerLayer(layerId)}><span className="layer-dot" style={{ '--marker-color': meta.color } as React.CSSProperties} /><span>{meta.label}</span><small style={{ marginLeft: 'auto' }}>{data.markers.filter((m) => m.mapId === activeMap.id && markerLayerId(m) === layerId).length}</small></button> })}</div>
+        <div><div className="map-side-title" style={{ marginTop: 20 }}>СЛОИ КАРТЫ</div>{allMarkerLayers.map((layerId) => { const meta = markerMeta[layerId]; const visible = !state.hiddenMarkerLayers.includes(layerId); return <button className={`layer-button ${visible ? 'active' : ''}`} key={layerId} onClick={() => state.toggleMarkerLayer(layerId)}><span className="layer-dot" style={{ '--marker-color': meta.color } as React.CSSProperties} /><span>{meta.label}</span><small style={{ marginLeft: 'auto' }}>{data.markers.filter((m) => m.mapId === activeMap.id && markerLayerId(m) === layerId && (!m.questId || !['quest.zone', 'quest.item'].includes(layerId) || relevantQuestIds.has(m.questId))).length}</small></button> })}</div>
       </aside>
 
       <section className="map-stage">

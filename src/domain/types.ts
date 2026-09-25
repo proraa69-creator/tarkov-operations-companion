@@ -1,4 +1,4 @@
-export type RaidMode = 'pvp' | 'pve'
+export type RaidMode = 'pvp' | 'pve' | 'seasonal'
 export type MarkerType = 'quest' | 'extract' | 'key' | 'boss' | 'spawn' | 'cache' | 'danger' | 'landmark'
 export type MarkerLayerId =
   | 'extract.pmc'
@@ -20,7 +20,7 @@ export type MarkerLayerId =
   | 'landmark'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
-export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration'
+export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred'
 
 export interface TaskRequirement {
   taskId: string
@@ -33,9 +33,31 @@ export interface TaskProgressRecord {
   status: 'active' | 'completed' | 'failed'
   source: ProgressSource
   updatedAt: string
+  inferredFromTaskId?: string
+}
+
+export interface ModeRegistration {
+  status: 'unregistered' | 'registered'
+  enteredNickname?: string
+  nickname?: string
+  accountId?: number
+  verifiedAt?: string
+}
+
+export interface PlayerProfileSnapshot {
+  accountId: number
+  nickname: string
+  experience: number
+  level: number
+  faction: 'usec' | 'bear' | 'unknown'
+  prestige: number
+  fetchedAt: string
+  upstreamUpdatedAt?: string
 }
 
 export interface ModeProgress {
+  registration: ModeRegistration
+  playerSnapshot?: PlayerProfileSnapshot
   playerLevel: number
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
@@ -43,10 +65,12 @@ export interface ModeProgress {
   trackedTaskIds: string[]
   favoriteItemIds: string[]
   hideoutLevels: Record<string, number>
+  seasonId?: string
+  lastLogSyncAt?: string
 }
 
 export interface LocalProfile {
-  schemaVersion: 2
+  schemaVersion: 3
   id: string
   displayName: string
   createdAt: string
@@ -160,6 +184,7 @@ export interface HideoutStation {
   bonus: string
   maxLevel?: number
   imageUrl?: string
+  levels?: Array<{ level: number; requirements: string[]; bonus: string }>
 }
 
 export interface Trader {
@@ -168,6 +193,7 @@ export interface Trader {
   role: string
   loyalty: number
   accent: string
+  imageUrl?: string
 }
 
 export interface AppDataset {

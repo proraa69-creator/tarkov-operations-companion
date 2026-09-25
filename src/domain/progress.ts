@@ -1,9 +1,10 @@
-import type { LocalProfile, ModeProgress, RaidMode, TaskProgressRecord } from './types'
+import type { LocalProfile, ModeProgress, ModeRegistration, PlayerProfileSnapshot, RaidMode, TaskProgressRecord } from './types'
 
-export const PROFILE_SCHEMA_VERSION = 2 as const
+export const PROFILE_SCHEMA_VERSION = 3 as const
 
 export function createModeProgress(): ModeProgress {
   return {
+    registration: { status: 'unregistered' },
     playerLevel: 1,
     faction: 'unknown',
     prestige: 0,
@@ -23,8 +24,43 @@ export function createLocalProfile(displayName: string, id: string = crypto.rand
     createdAt: now,
     updatedAt: now,
     selectedMode: 'pvp',
-    modes: { pvp: createModeProgress(), pve: createModeProgress() },
+    modes: { pvp: createModeProgress(), pve: createModeProgress(), seasonal: createModeProgress() },
   }
+}
+
+export function registerModeProfile(
+  profile: LocalProfile,
+  mode: RaidMode,
+  registration: Omit<ModeRegistration, 'status'> & { accountId: number; nickname: string; verifiedAt: string },
+): LocalProfile {
+  return updateMode(profile, mode, {
+    registration: { ...registration, status: 'registered' },
+  }, registration.verifiedAt)
+}
+
+export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): LocalProfile {
+  return updateMode(profile, mode, {
+    registration: { status: 'unregistered' },
+    playerSnapshot: undefined,
+  })
+}
+
+export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snapshot: PlayerProfileSnapshot): LocalProfile {
+  const current = profile.modes[mode].playerSnapshot
+  if (current?.upstreamUpdatedAt && snapshot.upstreamUpdatedAt && snapshot.upstreamUpdatedAt < current.upstreamUpdatedAt) return profile
+  if (!snapshot.upstreamUpdatedAt && current && snapshot.fetchedAt < current.fetchedAt) return profile
+  return updateMode(profile, mode, {
+    playerSnapshot: snapshot,
+    playerLevel: Math.max(1, Math.round(snapshot.level)),
+    faction: snapshot.faction,
+    prestige: Math.max(0, Math.round(snapshot.prestige)),
+    registration: {
+      ...profile.modes[mode].registration,
+      status: 'registered',
+      accountId: snapshot.accountId,
+      nickname: snapshot.nickname,
+    },
+  }, snapshot.fetchedAt)
 }
 
 export function setTaskProgress(
@@ -50,20 +86,37 @@ export function setTaskProgress(
 
 export function migrateProfile(input: unknown): LocalProfile | null {
   if (!input || typeof input !== 'object') return null
-  const candidate = input as Partial<LocalProfile>
+  const candidate = input as Partial<LocalProfile> & { schemaVersion?: number; modes?: Partial<Record<RaidMode, Partial<ModeProgress>>> }
   if (!candidate.id || !candidate.displayName || !candidate.modes) return null
-  const normalizeMode = (mode: RaidMode): ModeProgress => ({
-    ...createModeProgress(),
-    ...(candidate.modes?.[mode] ?? {}),
-    taskProgress: { ...(candidate.modes?.[mode]?.taskProgress ?? {}) },
-  })
+  const normalizeMode = (mode: RaidMode): ModeProgress => {
+    const saved = candidate.modes?.[mode]
+    return {
+      ...createModeProgress(),
+      ...(saved ?? {}),
+      registration: saved?.registration?.status === 'registered'
+        ? { ...saved.registration, status: 'registered' }
+        : { status: 'unregistered' },
+      taskProgress: { ...(saved?.taskProgress ?? {}) },
+      trackedTaskIds: [...(saved?.trackedTaskIds ?? [])],
+      favoriteItemIds: [...(saved?.favoriteItemIds ?? [])],
+      hideoutLevels: { ...(saved?.hideoutLevels ?? {}) },
+    }
+  }
   return {
     schemaVersion: PROFILE_SCHEMA_VERSION,
     id: candidate.id,
     displayName: candidate.displayName,
     createdAt: candidate.createdAt ?? new Date().toISOString(),
     updatedAt: candidate.updatedAt ?? new Date().toISOString(),
-    selectedMode: candidate.selectedMode === 'pve' ? 'pve' : 'pvp',
-    modes: { pvp: normalizeMode('pvp'), pve: normalizeMode('pve') },
+    selectedMode: candidate.selectedMode === 'pve' || candidate.selectedMode === 'seasonal' ? candidate.selectedMode : 'pvp',
+    modes: { pvp: normalizeMode('pvp'), pve: normalizeMode('pve'), seasonal: normalizeMode('seasonal') },
+  }
+}
+
+function updateMode(profile: LocalProfile, mode: RaidMode, patch: Partial<ModeProgress>, updatedAt = new Date().toISOString()): LocalProfile {
+  return {
+    ...profile,
+    updatedAt,
+    modes: { ...profile.modes, [mode]: { ...profile.modes[mode], ...patch } },
   }
 }

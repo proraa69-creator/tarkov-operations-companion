@@ -22,4 +22,12 @@ describe('task availability', () => {
     progress.taskProgress.debut = { taskId: 'debut', status: 'completed', source: 'manual', updatedAt: '' }
     expect(evaluateTaskAvailability(quest, progress)).toEqual({ status: 'available', blockers: [] })
   })
+
+  it('keeps opposite-faction tasks locked', () => {
+    const progress = createModeProgress()
+    progress.playerLevel = 5
+    progress.faction = 'bear'
+    progress.taskProgress.debut = { taskId: 'debut', status: 'completed', source: 'manual', updatedAt: '' }
+    expect(evaluateTaskAvailability({ ...quest, faction: 'USEC' }, progress).blockers).toContain('Задание доступно фракции USEC')
+  })
 })

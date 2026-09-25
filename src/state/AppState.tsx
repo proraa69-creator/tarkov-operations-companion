@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { createLocalProfile, migrateProfile } from '../domain/progress'
+import { applyPlayerSnapshot, clearModeRegistration, createLocalProfile, migrateProfile, registerModeProfile } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
-import type { LocalProfile, MarkerLayerId, RaidMode, TaskProgressRecord } from '../domain/types'
+import type { LocalProfile, MarkerLayerId, PlayerProfileSnapshot, RaidMode, TaskProgressRecord } from '../domain/types'
 
 interface UiState {
   selectedMapId: string
@@ -23,12 +23,16 @@ interface AppStateValue extends UiState {
   activeProfile: LocalProfile
   profiles: LocalProfile[]
   setRaidMode: (mode: RaidMode) => void
-  setPlayerLevel: (level: number) => void
+  registerModeProfile: (mode: RaidMode, registration: { accountId: number; enteredNickname: string; nickname: string; verifiedAt: string }) => void
+  clearModeProfile: (mode: RaidMode) => void
+  updatePlayerSnapshot: (mode: RaidMode, snapshot: PlayerProfileSnapshot) => void
   setSelectedMapId: (id: string) => void
   toggleTrackedQuest: (id: string) => void
   toggleCompletedQuest: (id: string) => void
   setTaskRecord: (record: TaskProgressRecord) => void
   applyTaskRecords: (records: TaskProgressRecord[]) => void
+  applyTaskRecordsForMode: (mode: RaidMode, records: TaskProgressRecord[]) => void
+  setHideoutLevel: (stationId: string, level: number) => void
   toggleFavoriteItem: (id: string) => void
   toggleMarkerType: (type: string) => void
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
@@ -77,7 +81,7 @@ function loadProfileState(): ProfileState {
     completedQuestIds?: string[]
     favoriteItemIds?: string[]
   } | null
-  const mode = legacy?.raidMode === 'pve' ? 'pve' : 'pvp'
+  const mode = legacy?.raidMode === 'pve' || legacy?.raidMode === 'seasonal' ? legacy.raidMode : 'pvp'
   profile.selectedMode = mode
   profile.modes[mode].trackedTaskIds = legacy?.trackedQuestIds ?? ['operation-aquarius', 'golden-swag', 'bp-depot']
   profile.modes[mode].favoriteItemIds = legacy?.favoriteItemIds ?? ['graphics-card', 'ledx', 'salewa']
@@ -123,7 +127,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     activeProfile,
     profiles: profileState.profiles,
     setRaidMode: (selectedMode) => updateActive((profile) => ({ ...profile, selectedMode, updatedAt: new Date().toISOString() })),
-    setPlayerLevel: (playerLevel) => updateMode((progress) => ({ ...progress, playerLevel: Math.max(1, Math.min(79, Math.round(playerLevel))) })),
+    registerModeProfile: (selectedMode, registration) => updateActive((profile) => registerModeProfile(profile, selectedMode, registration)),
+    clearModeProfile: (selectedMode) => updateActive((profile) => clearModeRegistration(profile, selectedMode)),
+    updatePlayerSnapshot: (selectedMode, snapshot) => updateActive((profile) => applyPlayerSnapshot(profile, selectedMode, snapshot)),
     setSelectedMapId: (selectedMapId) => setUi((current) => ({ ...current, selectedMapId })),
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
     toggleCompletedQuest: (id) => updateMode((progress) => {
@@ -136,6 +142,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     applyTaskRecords: (records) => updateMode((progress) => ({
       ...progress,
       taskProgress: records.reduce((all, record) => ({ ...all, [record.taskId]: record }), progress.taskProgress),
+    })),
+    applyTaskRecordsForMode: (selectedMode, records) => updateActive((profile) => ({
+      ...profile,
+      updatedAt: new Date().toISOString(),
+      modes: {
+        ...profile.modes,
+        [selectedMode]: {
+          ...profile.modes[selectedMode],
+          taskProgress: records.reduce((all, record) => ({ ...all, [record.taskId]: record }), profile.modes[selectedMode].taskProgress),
+          lastLogSyncAt: new Date().toISOString(),
+        },
+      },
+    })),
+    setHideoutLevel: (stationId, level) => updateMode((progress) => ({
+      ...progress,
+      hideoutLevels: { ...progress.hideoutLevels, [stationId]: Math.max(0, Math.round(level)) },
     })),
     toggleFavoriteItem: (id) => updateMode((progress) => ({ ...progress, favoriteItemIds: toggle(progress.favoriteItemIds, id) })),
     toggleMarkerType: (type) => setUi((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),

@@ -11,14 +11,13 @@ test('command center opens Customs and marker details', async ({ page }) => {
 })
 
 test('quest progress persists after reload', async ({ page }) => {
-  await page.goto('/#/quests?selected=operation-aquarius')
-  const toggle = page.getByRole('button', { name: /добавить в активные|убрать из активных/i })
-  await expect(toggle).toBeVisible()
-  const before = await toggle.textContent()
-  await toggle.click()
+  await page.goto('/#/quests')
+  const complete = page.getByRole('button', { name: /отметить выполненным:/i }).first()
+  const label = await complete.getAttribute('aria-label')
+  await complete.click()
   await page.reload()
-  const after = await page.getByRole('button', { name: /добавить в активные|убрать из активных/i }).textContent()
-  expect(after).not.toEqual(before)
+  await page.getByRole('button', { name: 'Выполненные' }).click()
+  await expect(page.getByRole('button', { name: label?.replace('Отметить выполненным:', 'Снять выполнение:') ?? '' })).toBeVisible()
 })
 
 test('Icebreaker floor selector swaps the tile layer immediately', async ({ page }) => {
@@ -38,5 +37,6 @@ test('quest can be completed from the left edge of its card', async ({ page }) =
   await expect(complete).toBeVisible()
   const label = await complete.getAttribute('aria-label')
   await complete.click()
+  await page.getByRole('button', { name: 'Выполненные' }).click()
   await expect(page.getByRole('button', { name: label?.replace('Отметить выполненным:', 'Снять выполнение:') ?? '' })).toBeVisible()
 })

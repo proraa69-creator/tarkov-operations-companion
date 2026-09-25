@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Boxes, ChevronRight, CircleDollarSign, Crosshair, Home, KeyRound,
+  Boxes, ChevronRight, CircleDollarSign, Home,
   Landmark, Map, PackageSearch, RefreshCw, ScanLine, Search, Settings, Shield, Target, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { timeAgo } from '../shared/format'
-import { eventsToProgressRecords, type LogParseResult } from '../import/logParser'
+import { eventsToProgressRecords } from '../import/logParser'
+import type { RaidMode } from '../domain/types'
+import { ModeRegistrationDialog } from '../components/ModeRegistrationDialog'
+import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 
 const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
 
@@ -17,16 +20,16 @@ const navigation = [
   { to: '/import', label: 'Синхронизация', icon: ScanLine },
   { to: '/maps', label: 'Карты', icon: Map },
   { to: '/items', label: 'Предметы', icon: PackageSearch },
-  { to: '/economy', label: 'Экономика', icon: CircleDollarSign },
-  { to: '/keys', label: 'Ключи', icon: KeyRound },
-  { to: '/ammo', label: 'Боеприпасы', icon: Crosshair },
+  { to: '/flea', label: 'Барахолка', icon: CircleDollarSign },
   { to: '/hideout', label: 'Убежище', icon: Boxes },
   { to: '/traders', label: 'Торговцы', icon: Landmark },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { raidMode, setRaidMode, activeProfile, applyTaskRecords } = useAppState()
+  const state = useAppState()
+  const { raidMode, setRaidMode, activeProfile } = state
   const { source, updatedAt, isFetching, refresh, data } = useTarkovData()
+  const { syncError, isSyncing } = usePlayerProfileSync()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
@@ -46,9 +49,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!window.tarkovDesktop) return
     let active = true
-    const applyLogResult = (result: LogParseResult) => {
-      if (!active || result.detectedModes.length !== 1 || result.detectedModes[0] !== raidMode) return
-      applyTaskRecords(eventsToProgressRecords(result.events))
+    const applyLogResult = (result: Parameters<NonNullable<typeof window.tarkovDesktop>['onLogsUpdated']>[0] extends (value: infer T) => void ? T : never) => {
+      if (!active) return
+      for (const mode of ['pvp', 'pve', 'seasonal'] as RaidMode[]) {
+        const registration = activeProfile.modes[mode].registration
+        const accountId = result.latestAccountIdByMode[mode]
+        if (registration.status !== 'registered' || (accountId && registration.accountId !== accountId)) continue
+        const events = result.eventsByMode[mode] ?? []
+        if (events.length) state.applyTaskRecordsForMode(mode, eventsToProgressRecords(events))
+      }
+      if (result.latestMode && result.latestMode !== raidMode) setRaidMode(result.latestMode)
     }
     const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)
     const savedFolder = localStorage.getItem(LOG_FOLDER_STORAGE_KEY)
@@ -61,7 +71,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       active = false
       unsubscribe()
     }
-  }, [applyTaskRecords, raidMode])
+  // Subscribe again only when the profile or selected mode changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfile.id, raidMode])
 
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -101,9 +113,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <header className="topbar">
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>Поиск по заданиям, предметам и картам</span><kbd>Ctrl K</kbd></button>
-        <div className="mode-switch" aria-label="Режим рынка"><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button></div>
-        <button className="icon-button" onClick={refresh} title="Обновить данные" aria-label="Обновить данные"><RefreshCw size={16} className={isFetching ? 'spin' : ''} /></button>
-        <button className="profile-chip" onClick={() => navigate('/profile')} title="Профиль"><UserRound size={15} /><span>{activeProfile.displayName}</span></button>
+        <div className="mode-switch" aria-label="Игровой режим"><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>Сезон</button></div>
+        <button className="icon-button" onClick={refresh} title={syncError || 'Обновить данные'} aria-label="Обновить данные"><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
+        <button className="profile-chip" onClick={() => navigate('/profile')} title="Профиль"><UserRound size={15} /><span>{activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName}</span></button>
         <button className="icon-button" onClick={() => navigate('/settings')} title="Настройки"><Shield size={16} /></button>
       </header>
 
@@ -119,6 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>}
+      {window.tarkovDesktop && activeProfile.modes[raidMode].registration.status !== 'registered' && <ModeRegistrationDialog />}
     </div>
   )
 }

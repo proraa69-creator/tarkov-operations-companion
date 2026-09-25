@@ -1,11 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { readFile, stat, writeFile } from 'node:fs/promises'
 import { watch, type FSWatcher } from 'node:fs'
-import { dirname, extname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { unzipSync } from 'fflate'
-import { mergeParseResults, parseEftLog, type LogParseResult } from '../src/import/logParser.js'
+import type { RaidMode } from '../src/domain/types.js'
 import { discoverEftLogs, normalizeSelectedLogsFolder } from './logDiscovery.js'
+import { scanLogFolderBySession } from './logScanner.js'
+import { fetchPlayerProfile } from './playerProfileService.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | null = null
@@ -58,7 +59,7 @@ function registerIpc() {
   ipcMain.handle('logs:auto-find-and-scan', async () => {
     const discovered = await discoverEftLogs(app.getPath('appData'))
     if (!discovered.logsFolder) return null
-    const parsed = await scanLogFolder(discovered.logsFolder)
+    const parsed = await scanLogFolderBySession(discovered.logsFolder)
     return { ...parsed, folder: discovered.logsFolder }
   })
 
@@ -72,7 +73,7 @@ function registerIpc() {
     })
     if (result.canceled || !result.filePaths[0]) return null
     const folder = await normalizeSelectedLogsFolder(result.filePaths[0])
-    const parsed = await scanLogFolder(folder)
+    const parsed = await scanLogFolderBySession(folder)
     return { ...parsed, folder }
   })
 
@@ -109,42 +110,28 @@ function registerIpc() {
   })
 
   ipcMain.handle('app:version', () => app.getVersion())
-}
 
-async function scanLogFolder(folder: string): Promise<LogParseResult> {
-  const files = await collectLogFiles(folder)
-  const results: LogParseResult[] = []
-  for (const file of files) {
-    try {
-      if (extname(file).toLowerCase() === '.zip') {
-        const archive = unzipSync(new Uint8Array(await readFile(file)))
-        for (const [name, bytes] of Object.entries(archive)) {
-          if (isSupportedLog(name)) results.push(parseEftLog(new TextDecoder().decode(bytes)))
-        }
-      } else {
-        results.push(parseEftLog(await readFile(file, 'utf8')))
-      }
-    } catch {
-      results.push({ events: [], detectedModes: [], ignoredRecords: 1 })
+  ipcMain.handle('profile:resolve', async (_event, rawMode: unknown, rawNickname: unknown) => {
+    const mode = validateMode(rawMode)
+    const nickname = typeof rawNickname === 'string' ? rawNickname.trim() : ''
+    if (!nickname || !/^[a-zA-Z0-9_-]{3,15}$/i.test(nickname)) throw new Error('Введите корректный ник Escape from Tarkov')
+    const discovered = await discoverEftLogs(app.getPath('appData'))
+    if (!discovered.logsFolder) throw new Error('Папка Logs не найдена. Сначала запустите Escape from Tarkov хотя бы один раз.')
+    const scan = await scanLogFolderBySession(discovered.logsFolder)
+    const accountId = scan.latestAccountIdByMode[mode] ?? [...scan.sessions].reverse().find((session) => session.accountId)?.accountId
+    if (!accountId) throw new Error('В журналах не найден Tarkov ID. Запустите игру, войдите в выбранный режим и повторите.')
+    const snapshot = await fetchPlayerProfile(mode, accountId)
+    if (snapshot.nickname.toLowerCase() !== nickname.toLowerCase()) {
+      throw new Error(`В журналах найден профиль ${snapshot.nickname}, а введён ${nickname}. Проверьте режим и ник.`)
     }
-  }
-  return mergeParseResults(results)
-}
+    return { accountId, nickname: snapshot.nickname, level: snapshot.level, faction: snapshot.faction, mode, snapshot }
+  })
 
-async function collectLogFiles(root: string, depth = 0): Promise<string[]> {
-  if (depth > 4) return []
-  const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
-  const files: string[] = []
-  for (const entry of entries) {
-    const path = join(root, entry.name)
-    if (entry.isDirectory()) files.push(...await collectLogFiles(path, depth + 1))
-    else if (entry.isFile() && isSupportedLog(entry.name)) files.push(path)
-  }
-  return files
-}
-
-function isSupportedLog(name: string) {
-  return /(?:notifications|application|output[_-]?\d*).*\.log$/i.test(name) || /\.zip$/i.test(name)
+  ipcMain.handle('profile:refresh', async (_event, rawMode: unknown, rawAccountId: unknown) => {
+    const mode = validateMode(rawMode)
+    const accountId = Number(rawAccountId)
+    return fetchPlayerProfile(mode, accountId)
+  })
 }
 
 function startLogWatcher(folder: string) {
@@ -153,8 +140,13 @@ function startLogWatcher(folder: string) {
   logWatcher = watch(folder, { recursive: true }, () => {
     if (watchDebounce) clearTimeout(watchDebounce)
     watchDebounce = setTimeout(async () => {
-      const result = await scanLogFolder(watchedFolder)
+      const result = await scanLogFolderBySession(watchedFolder)
       mainWindow?.webContents.send('logs:updated', result)
     }, 1500)
   })
+}
+
+function validateMode(value: unknown): RaidMode {
+  if (value === 'pvp' || value === 'pve' || value === 'seasonal') return value
+  throw new Error('Неизвестный режим Escape from Tarkov')
 }

@@ -20,6 +20,7 @@ describe('App', () => {
   it('renders quest catalog on its route', () => {
     renderApp('/quests')
     expect(screen.getByRole('heading', { name: 'Задания' })).toBeInTheDocument()
-    expect(screen.getAllByText('Операция «Водолей»').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Доступные' })).toHaveClass('active')
+    expect(screen.getAllByRole('button', { name: /Отметить выполненным:/ }).length).toBeGreaterThan(0)
   })
 })

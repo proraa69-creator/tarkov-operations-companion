@@ -22,7 +22,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const query = useQuery({
     queryKey: ['tarkov-companion-data', raidMode],
     queryFn: () => fetchTarkovCatalog(raidMode),
-    staleTime: 1000 * 60 * 60 * 6,
+    staleTime: 55_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
     gcTime: 1000 * 60 * 60 * 24 * 7,
     retry: 1,
   })

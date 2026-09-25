@@ -10,6 +10,15 @@ describe('EFT log parser', () => {
 2026-09-25 10:03:00 Got notification | ChatMessageReceived {"message":{"type":12,"templateId":"${taskId} 0"}}`)
     expect(result.detectedModes).toEqual(['pve'])
     expect(result.events).toEqual([{ taskId, status: 'completed', timestamp: new Date('2026-09-25T10:03:00').toISOString(), mode: 'pve' }])
+    expect(result.accountIds).toEqual([])
+  })
+
+  it('detects seasonal sessions and the selected account id', () => {
+    const result = parseEftLog(`Session mode: PvPSeason
+CompleteSelectedProfile ProfileId:0123456789abcdef01234567 AccountId:7690289`)
+    expect(result.detectedModes).toEqual(['seasonal'])
+    expect(result.accountIds).toEqual([7690289])
+    expect(result.profileIds).toEqual(['0123456789abcdef01234567'])
   })
 
   it('supports multiline JSON and ignores unrelated notifications', () => {

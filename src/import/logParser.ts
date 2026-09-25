@@ -10,6 +10,8 @@ export interface ParsedTaskEvent {
 export interface LogParseResult {
   events: ParsedTaskEvent[]
   detectedModes: RaidMode[]
+  accountIds: number[]
+  profileIds: string[]
   ignoredRecords: number
 }
 
@@ -21,6 +23,8 @@ const STATUS_BY_TYPE = new Map<number, ParsedTaskEvent['status']>([
 
 export function parseEftLog(text: string): LogParseResult {
   const detectedModes = detectModes(text)
+  const accountIds = detectAccountIds(text)
+  const profileIds = detectProfileIds(text)
   const fallbackMode = detectedModes.length === 1 ? detectedModes[0] : undefined
   const events: ParsedTaskEvent[] = []
   let ignoredRecords = 0
@@ -41,7 +45,7 @@ export function parseEftLog(text: string): LogParseResult {
     }
   }
 
-  return { events: reduceEvents(events), detectedModes, ignoredRecords }
+  return { events: reduceEvents(events), detectedModes, accountIds, profileIds, ignoredRecords }
 }
 
 export function eventsToProgressRecords(events: ParsedTaskEvent[]): TaskProgressRecord[] {
@@ -57,18 +61,31 @@ export function mergeParseResults(results: LogParseResult[]): LogParseResult {
   return {
     events: reduceEvents(results.flatMap((result) => result.events)),
     detectedModes: [...new Set(results.flatMap((result) => result.detectedModes))],
+    accountIds: [...new Set(results.flatMap((result) => result.accountIds))],
+    profileIds: [...new Set(results.flatMap((result) => result.profileIds))],
     ignoredRecords: results.reduce((sum, result) => sum + result.ignoredRecords, 0),
   }
 }
 
 function detectModes(text: string): RaidMode[] {
   const modes = new Set<RaidMode>()
-  for (const match of text.matchAll(/Session mode:\s*(Pve|Pvp|Regular)|"sessionMode"\s*:\s*"(PVE|PVP|Regular)"/gi)) {
+  for (const match of text.matchAll(/Session mode:\s*(PvPSeason|Seasonal|Pve|Pvp|Regular)|"sessionMode"\s*:\s*"(PvPSeason|Seasonal|PVE|PVP|Regular)"/gi)) {
     const value = (match[1] ?? match[2] ?? '').toLowerCase()
     if (value === 'pve') modes.add('pve')
     if (value === 'pvp' || value === 'regular') modes.add('pvp')
+    if (value === 'pvpseason' || value === 'seasonal') modes.add('seasonal')
   }
   return [...modes]
+}
+
+function detectAccountIds(text: string) {
+  return [...new Set([...text.matchAll(/CompleteSelectedProfile[^\r\n]*AccountId:(\d+)/gi)]
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isSafeInteger(value) && value > 0))]
+}
+
+function detectProfileIds(text: string) {
+  return [...new Set([...text.matchAll(/CompleteSelectedProfile[^\r\n]*ProfileId:([a-f0-9]{24})/gi)].map((match) => match[1]))]
 }
 
 function extractJsonObjects(text: string) {
