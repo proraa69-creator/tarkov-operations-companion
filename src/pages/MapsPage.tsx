@@ -7,7 +7,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { markerVisibleOnFloor } from '../data/mapProjection'
 import { allMarkerLayers } from '../domain/mapLayers'
 import { useAppState } from '../state/AppState'
-import type { GameMap, MapMarker, MarkerLayerId, MarkerType } from '../domain/types'
+import type { GameMap, MapMarker, MarkerLayerId } from '../domain/types'
 
 const markerMeta: Record<MarkerLayerId, { label: string; color: string; glyph: string; icon: typeof Target }> = {
   'extract.pmc': { label: 'Выходы PMC', color: '#6fb47c', glyph: 'P', icon: DoorOpen },
