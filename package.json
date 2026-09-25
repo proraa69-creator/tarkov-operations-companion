@@ -30,6 +30,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "electron/preload.cjs",
       "package.json"
     ],
     "asar": true,

@@ -115,7 +115,7 @@ export function ImportProgressPage() {
 
     {stage === 'source' && <div className="import-source-grid">
       <button className="panel import-source-card" onClick={window.tarkovDesktop ? scanDesktopAutomatically : () => fileInput.current?.click()}>{window.tarkovDesktop ? <WandSparkles size={32} /> : <FolderSearch size={32} />}<span><strong>{window.tarkovDesktop ? 'Найти прогресс автоматически' : 'Найти прогресс в журналах EFT'}</strong><small>{window.tarkovDesktop ? 'Программа сама найдёт установленный Tarkov и папку Logs' : 'Выберите файлы notification/output или ZIP'}</small></span><ChevronRight /></button>
-      {window.tarkovDesktop && <button className="panel import-source-card" onClick={scanDesktopManually}><FolderOpen size={32} /><span><strong>Выбрать папку Logs вручную</strong><small>Откроется папка Escape from Tarkov — выберите внутри неё Logs</small></span><ChevronRight /></button>}
+      {window.tarkovDesktop && <button className="panel import-source-card" onClick={scanDesktopManually}><FolderOpen size={32} /><span><strong>Выбрать папку Logs вручную</strong><small>Выберите папку Logs внутри Escape from Tarkov</small></span><ChevronRight /></button>}
       <button className="panel import-source-card" onClick={() => setStage('manual')}><ListChecks size={32} /><span><strong>Быстрая ручная отметка</strong><small>Найдите и отметьте уже выполненные задания списком</small></span><ChevronRight /></button>
       <input ref={fileInput} hidden type="file" multiple accept=".log,.txt,.zip" onChange={(event) => void scanBrowserFiles(event.target.files)} />
     </div>}

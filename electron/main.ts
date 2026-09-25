@@ -23,7 +23,7 @@ function createWindow() {
     title: 'Tarkov Operations Companion Beta',
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(appDir, 'preload.js'),
+      preload: join(appDir, '../../electron/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
