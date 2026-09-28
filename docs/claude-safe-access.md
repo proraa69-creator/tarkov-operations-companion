@@ -12,6 +12,16 @@ Start it from PowerShell with:
 .\start-claude-safe.ps1
 ```
 
+## Faster project mode
+
+For less interruption during ordinary code work, use:
+
+```powershell
+.\start-claude-auto-projects.ps1
+```
+
+This uses `acceptEdits` mode for the listed project folders. It is intended for project code edits and normal development commands. It still should not be treated as full unattended control of the entire Windows computer.
+
 If Claude is not authenticated yet, it will ask you to sign in. Log in manually in the browser or terminal prompt.
 
 ## What Claude can safely do
