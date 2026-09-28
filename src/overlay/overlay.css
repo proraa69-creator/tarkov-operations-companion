@@ -1,0 +1,99 @@
+html.overlay-root,
+html.overlay-root body,
+html.overlay-root #root {
+  background: transparent !important;
+  overflow: hidden;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+.ov-card {
+  box-sizing: border-box;
+  margin: 4px;
+  padding: 12px 14px;
+  color: var(--text);
+  background: rgb(12 16 13 / 92%);
+  border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 55%);
+  font-size: 12.5px;
+  line-height: 1.35;
+  animation: ov-in .18s var(--ease-soft);
+}
+
+@keyframes ov-in {
+  from { opacity: 0; transform: translateY(4px) scale(.98); }
+}
+
+.ov-title { margin: 0; font-weight: 700; font-size: 13.5px; letter-spacing: .01em; }
+.ov-muted { margin: 2px 0 0; color: var(--text-muted); font-size: 11.5px; }
+
+.ov-item { width: calc(100% - 8px); }
+.ov-item .ov-prices { margin-top: 0; }
+.ov-item.is-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); }
+.ov-item-head { display: flex; gap: 10px; align-items: center; }
+.ov-item-icon { width: 44px; height: 44px; object-fit: contain; background: rgb(255 255 255 / 5%); border: 1px solid var(--line); border-radius: 6px; }
+
+.ov-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ov-tag { padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid; }
+.ov-tag.is-ok { color: var(--text-muted); border-color: var(--line-strong); }
+.ov-tag.is-warn { color: #1b1408; background: var(--brass-strong); border-color: var(--brass-strong); }
+.ov-tag.is-kappa { color: #f3d8ff; background: rgb(142 84 180 / 35%); border-color: rgb(186 132 222 / 60%); }
+
+.ov-quests { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.ov-quests li { display: flex; justify-content: space-between; gap: 10px; }
+.ov-quests li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-quests li em { font-style: normal; color: var(--brass); white-space: nowrap; }
+
+.ov-prices { display: grid; gap: 3px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.ov-prices div { display: flex; justify-content: space-between; }
+.ov-prices span { color: var(--text-muted); }
+.ov-prices strong { color: var(--text); }
+
+.ov-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brass);
+  border-radius: 50%;
+  animation: ov-spin .8s linear infinite;
+}
+
+@keyframes ov-spin { to { transform: rotate(360deg); } }
+
+.ov-minimap {
+  position: absolute;
+  inset: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgb(10 14 11 / 88%);
+  border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 55%);
+  animation: ov-in .18s var(--ease-soft);
+}
+
+.ov-minimap-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line);
+}
+.ov-minimap-head strong { color: var(--text); font-size: 12px; margin-right: auto; }
+.ov-minimap-head .is-live { color: #8fd694; }
+
+.ov-minimap-map { flex: 1; background: transparent; opacity: .92; }
+.ov-minimap-empty { width: 300px; display: flex; flex-direction: column; gap: 4px; }
+.ov-minimap-empty:has(.ov-spinner) { flex-direction: row; align-items: center; gap: 10px; color: var(--text-muted); }
+
+.ov-marker img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }
+
+.ov-player svg { width: 40px; height: 40px; overflow: visible; transition: transform .25s var(--ease-soft); }
+.ov-player circle { fill: #4fc3f7; stroke: #fff; stroke-width: 2.5; }
+.ov-player path { fill: #fff; stroke: #0b3c52; stroke-width: 1.2; }

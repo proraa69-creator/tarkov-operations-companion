@@ -3,9 +3,14 @@ node_modules/
 dist/
 dist-electron/
 release/
+release-build/
+release-scan/
 outputs/
 coverage/
 test-results/
 playwright-report/
+.playwright-cli/
 .env*
 work/
+server/data/
+scratch-out.txt

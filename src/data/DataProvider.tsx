@@ -1,10 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { AppDataset } from '../domain/types'
 import { demoDataset } from './demo'
 import { fetchTarkovCatalog } from './tarkovJsonClient'
 import { useAppState } from '../state/AppState'
+import { cleanDatasetText } from '../shared/questText'
+import { useLocale } from '../i18n/LocaleProvider'
+import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 
 interface DataContextValue {
   data: AppDataset
@@ -19,9 +22,11 @@ const DataContext = createContext<DataContextValue | null>(null)
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { raidMode } = useAppState()
+  const { locale } = useLocale()
+  useEffect(() => { if (locale === 'en') void loadEnglishCatalog(raidMode) }, [locale, raidMode])
   const query = useQuery({
     queryKey: ['tarkov-companion-data', raidMode],
-    queryFn: () => fetchTarkovCatalog(raidMode),
+    queryFn: () => fetchTarkovCatalog(raidMode, 'ru'),
     staleTime: 55_000,
     refetchInterval: 60_000,
     refetchIntervalInBackground: true,
@@ -30,8 +35,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   })
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
+  const data = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
   const value: DataContextValue = {
-    data: query.data ?? demoDataset,
+    data,
     source,
     isFetching: query.isFetching,
     updatedAt: query.dataUpdatedAt || undefined,

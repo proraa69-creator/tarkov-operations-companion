@@ -11,6 +11,6 @@
     "types": ["node", "electron"],
     "noEmit": false
   },
-  "include": ["electron/**/*.ts", "src/import/logParser.ts", "src/domain/types.ts", "src/profile/playerProfileNormalizer.ts"],
+  "include": ["electron/**/*.ts", "src/import/logParser.ts", "src/domain/types.ts", "src/profile/playerProfileNormalizer.ts", "src/overlay/screenshotPosition.ts"],
   "exclude": ["electron/**/*.test.ts"]
 }

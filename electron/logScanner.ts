@@ -1,102 +1,74 @@
 import { readFile, readdir, stat } from 'node:fs/promises'
-import { extname, join } from 'node:path'
-import { mergeParseResults, parseEftLog, type LogParseResult, type ParsedTaskEvent } from '../src/import/logParser.js'
-import type { RaidMode } from '../src/domain/types.js'
+import { join } from 'node:path'
+import { buildScanResult, readLogSignals, type LogSignal, type ModeLogScanResult } from '../src/import/eftLogTimeline.js'
+import { raidStateFromLogs, type RaidState } from '../src/import/raidState.js'
 
-export interface LogSessionResult extends LogParseResult {
-  id: string
-  folder: string
-  modifiedAt: string
-  mode?: RaidMode
-  accountId?: number
-}
+export type { ModeLogScanResult, RaidState }
 
-export interface ModeLogScanResult extends LogParseResult {
-  sessions: LogSessionResult[]
-  eventsByMode: Record<RaidMode, ParsedTaskEvent[]>
-  unresolvedEvents: ParsedTaskEvent[]
-  latestMode?: RaidMode
-  latestAccountIdByMode: Partial<Record<RaidMode, number>>
-}
+/** Only these logs carry mode, profile and quest notifications; output/errors are huge and irrelevant. */
+const RELEVANT_LOG = /(application|backend|notifications)[^\\/]*\.log$/i
+const MAX_FILE_BYTES = 60 * 1024 * 1024
+const signalCache = new Map<string, { mtimeMs: number; size: number; signals: LogSignal[] }>()
 
 export async function scanLogFolderBySession(root: string): Promise<ModeLogScanResult> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
-  const sessionFolders = entries.filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))
-  const folders = sessionFolders.length ? sessionFolders.map((entry) => join(root, entry.name)) : [root]
-  const sessions = (await Promise.all(folders.map(scanSessionFolder)))
-    .filter((session) => session.events.length || session.detectedModes.length || session.accountIds.length)
-    .sort((a, b) => a.modifiedAt.localeCompare(b.modifiedAt))
-
-  const eventsByMode: Record<RaidMode, ParsedTaskEvent[]> = { pvp: [], pve: [], seasonal: [] }
-  const unresolvedEvents: ParsedTaskEvent[] = []
-  const latestAccountIdByMode: Partial<Record<RaidMode, number>> = {}
-  for (const session of sessions) {
-    if (session.mode && session.accountId) latestAccountIdByMode[session.mode] = session.accountId
-    for (const event of session.events) {
-      const mode = event.mode ?? session.mode
-      if (mode) eventsByMode[mode].push({ ...event, mode })
-      else unresolvedEvents.push(event)
+  const sessionFolders = entries.filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name)).map((entry) => join(root, entry.name))
+  const folders = sessionFolders.length ? sessionFolders : [root]
+  const signals: LogSignal[] = []
+  let ignoredRecords = 0
+  for (const folder of folders) {
+    for (const file of await relevantLogs(folder)) {
+      const result = await fileSignals(file)
+      if (result) signals.push(...result)
+      else ignoredRecords += 1
     }
   }
-  for (const mode of Object.keys(eventsByMode) as RaidMode[]) eventsByMode[mode] = reduceModeEvents(eventsByMode[mode])
-  const latestMode = [...sessions].reverse().find((session) => session.mode)?.mode
-  const merged = mergeParseResults(sessions)
-  return {
-    ...merged,
-    events: [...eventsByMode.pvp, ...eventsByMode.pve, ...eventsByMode.seasonal, ...unresolvedEvents],
-    sessions,
-    eventsByMode,
-    unresolvedEvents,
-    latestMode,
-    latestAccountIdByMode,
+  return buildScanResult(signals, folders.length, ignoredRecords)
+}
+
+/** Raid state of the newest game launch — only its application and notification logs are read. */
+export async function readRaidState(root: string): Promise<RaidState> {
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
+  const latest = entries
+    .filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))
+    .map((entry) => ({ name: entry.name, key: launchKey(entry.name) }))
+    .sort((a, b) => b.key - a.key)[0]
+  const folder = latest ? join(root, latest.name) : root
+  const files = (await relevantLogs(folder)).filter((file) => /(application|notifications)[^\\/]*\.log$/i.test(file))
+  const texts = await Promise.all(files.map((file) => readFile(file, 'utf8').catch(() => '')))
+  return raidStateFromLogs(texts)
+}
+
+/** «log_2026.09.27_2-33-45_1.1.5.1» → sortable launch time (the hour is not zero-padded). */
+function launchKey(name: string) {
+  const match = /^log_(\d{4})\.(\d{2})\.(\d{2})_(\d{1,2})-(\d{2})-(\d{2})/i.exec(name)
+  if (!match) return 0
+  const [, year, month, day, hour, minute, second] = match.map(Number)
+  return Date.UTC(year!, month! - 1, day!, hour!, minute!, second!)
+}
+
+async function fileSignals(file: string) {
+  const info = await stat(file).catch(() => null)
+  if (!info || info.size > MAX_FILE_BYTES) return undefined
+  const cached = signalCache.get(file)
+  if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) return cached.signals
+  try {
+    const signals = readLogSignals(await readFile(file, 'utf8'))
+    signalCache.set(file, { mtimeMs: info.mtimeMs, size: info.size, signals })
+    return signals
+  } catch {
+    return undefined
   }
 }
 
-async function scanSessionFolder(folder: string): Promise<LogSessionResult> {
-  const files = await collectSupportedLogs(folder)
-  const parsed: LogParseResult[] = []
-  let modified = 0
-  for (const file of files) {
-    const info = await stat(file).catch(() => null)
-    modified = Math.max(modified, info?.mtimeMs ?? 0)
-    try {
-      parsed.push(parseEftLog(await readFile(file, 'utf8')))
-    } catch {
-      parsed.push({ events: [], detectedModes: [], accountIds: [], profileIds: [], ignoredRecords: 1 })
-    }
-  }
-  const merged = mergeParseResults(parsed)
-  const mode = merged.detectedModes.length === 1 ? merged.detectedModes[0] : undefined
-  const accountId = merged.accountIds.at(-1)
-  return {
-    ...merged,
-    events: merged.events.map((event) => event.mode || !mode ? event : { ...event, mode }),
-    id: folder.split(/[\\/]/).at(-1) ?? folder,
-    folder,
-    modifiedAt: new Date(modified || 0).toISOString(),
-    mode,
-    accountId,
-  }
-}
-
-async function collectSupportedLogs(root: string, depth = 0): Promise<string[]> {
+async function relevantLogs(root: string, depth = 0): Promise<string[]> {
   if (depth > 2) return []
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const files: string[] = []
   for (const entry of entries) {
     const path = join(root, entry.name)
-    if (entry.isDirectory()) files.push(...await collectSupportedLogs(path, depth + 1))
-    else if (entry.isFile() && extname(entry.name).toLowerCase() === '.log' && /(?:notifications|push-notifications|application|output[_-]?\d*).*\.log$/i.test(entry.name)) files.push(path)
+    if (entry.isDirectory()) files.push(...await relevantLogs(path, depth + 1))
+    else if (entry.isFile() && RELEVANT_LOG.test(entry.name)) files.push(path)
   }
   return files
-}
-
-function reduceModeEvents(events: ParsedTaskEvent[]) {
-  const priority = { active: 1, failed: 2, completed: 3 }
-  const byTask = new Map<string, ParsedTaskEvent>()
-  for (const event of events) {
-    const current = byTask.get(event.taskId)
-    if (!current || event.timestamp > current.timestamp || (event.timestamp === current.timestamp && priority[event.status] > priority[current.status])) byTask.set(event.taskId, event)
-  }
-  return [...byTask.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
 }

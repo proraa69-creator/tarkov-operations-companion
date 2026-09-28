@@ -20,7 +20,7 @@ export type MarkerLayerId =
   | 'landmark'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
-export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred'
+export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred' | 'screen-scan'
 
 export interface TaskRequirement {
   taskId: string
@@ -34,6 +34,7 @@ export interface TaskProgressRecord {
   source: ProgressSource
   updatedAt: string
   inferredFromTaskId?: string
+  currentStageIndex?: number
 }
 
 export interface ModeRegistration {
@@ -51,6 +52,9 @@ export interface PlayerProfileSnapshot {
   level: number
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
+  accountType?: string
+  totalInGameTime?: number
+  equipment?: Array<{ itemId: string; slotId: string }>
   fetchedAt: string
   upstreamUpdatedAt?: string
 }
@@ -64,13 +68,15 @@ export interface ModeProgress {
   taskProgress: Record<string, TaskProgressRecord>
   trackedTaskIds: string[]
   favoriteItemIds: string[]
+  raidItemIds: string[]
   hideoutLevels: Record<string, number>
   seasonId?: string
   lastLogSyncAt?: string
+  logCharacterId?: string
 }
 
 export interface LocalProfile {
-  schemaVersion: 3
+  schemaVersion: 5
   id: string
   displayName: string
   createdAt: string
@@ -96,9 +102,45 @@ export interface GameMap {
   maxZoom?: number
   accent: string
   floors?: string[]
-  layers?: Array<{ id?: string; name: string; imageUrl?: string; tileUrl?: string; heightRange?: [number, number] }>
+  layers?: MapFloorLayer[]
   markerCount: number
   attribution?: string
+}
+
+export interface MapFloorExtent {
+  height: [number, number]
+  /** Game-space [x, z] rectangles; absent means the whole map. */
+  bounds?: Array<[[number, number], [number, number]]>
+}
+
+export interface MapFloorLayer {
+  svgLayer?: string
+  id?: string
+  name: string
+  imageUrl?: string
+  tileUrl?: string
+  heightRange?: [number, number]
+  extents?: MapFloorExtent[]
+  /** True when the floor has its own tiles/svg instead of reusing the main map. */
+  ownTiles?: boolean
+}
+
+export interface BossGear {
+  name: string
+  iconUrl?: string
+  slot?: string
+}
+
+export interface BossInfo {
+  key?: string
+  name: string
+  portraitUrl?: string
+  spawnChance?: number
+  locationChance?: number
+  locationName?: string
+  escorts?: string[]
+  gear?: BossGear[]
+  health?: number
 }
 
 export interface MapMarker {
@@ -112,7 +154,13 @@ export interface MapMarker {
   outline?: Array<[number, number]>
   floor?: string
   heightRange?: [number, number]
+  /** Game-space Y of the point, used to pick the floor. */
+  height?: number
+  /** Position is a guess (e.g. map center), not a known objective point. */
+  approximate?: boolean
+  boss?: BossInfo
   questId?: string
+  stageIndex?: number
   itemId?: string
   extractId?: string
   extractFaction?: ExtractFaction
@@ -123,6 +171,19 @@ export interface MapMarker {
   meta?: string
 }
 
+export interface QuestStage {
+  id: string
+  title: string
+  description: string
+  mapIds: string[]
+  optional?: boolean
+  landmarkHints?: string[]
+  /** Extra strings for OCR matching of the in-game Tasks → Story detail panel. */
+  ocrAliases?: string[]
+  /** Expected progress denominator when the stage shows counters like 0/3. */
+  progressTotal?: number
+}
+
 export interface Quest {
   id: string
   normalizedName?: string
@@ -131,8 +192,11 @@ export interface Quest {
   mapId?: string
   level: number
   kappa: boolean
+  kind?: 'trader' | 'story'
+  storyOrder?: number
   description: string
   objectives: string[]
+  stages?: QuestStage[]
   rewards: string[]
   requiredItems?: string[]
   previous?: string[]
@@ -142,6 +206,9 @@ export interface Quest {
   wikiLink?: string
   imageUrl?: string
   objectiveIds?: string[]
+  mapIds?: string[]
+  anyMap?: boolean
+  raidRequirements?: Array<{ itemId: string; count: number; purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'; mapIds: string[] }>
 }
 
 export interface PriceQuote {
@@ -178,13 +245,21 @@ export interface Item {
 export interface HideoutStation {
   id: string
   name: string
+  normalizedName?: string
   level: number
   status: 'ready' | 'progress' | 'locked'
   requirements: string[]
   bonus: string
   maxLevel?: number
   imageUrl?: string
-  levels?: Array<{ level: number; requirements: string[]; bonus: string }>
+  layout?: { x: number; y: number }
+  levels?: Array<{
+    level: number
+    requirements: string[]
+    stationRequirements?: string[]
+    bonus: string
+    constructionTimeHours?: number
+  }>
 }
 
 export interface Trader {

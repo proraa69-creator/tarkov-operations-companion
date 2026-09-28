@@ -1,6 +1,6 @@
 import type { LocalProfile, ModeProgress, ModeRegistration, PlayerProfileSnapshot, RaidMode, TaskProgressRecord } from './types'
 
-export const PROFILE_SCHEMA_VERSION = 3 as const
+export const PROFILE_SCHEMA_VERSION = 5 as const
 
 export function createModeProgress(): ModeProgress {
   return {
@@ -11,6 +11,7 @@ export function createModeProgress(): ModeProgress {
     taskProgress: {},
     trackedTaskIds: [],
     favoriteItemIds: [],
+    raidItemIds: [],
     hideoutLevels: {},
   }
 }
@@ -33,7 +34,29 @@ export function registerModeProfile(
   mode: RaidMode,
   registration: Omit<ModeRegistration, 'status'> & { accountId: number; nickname: string; verifiedAt: string },
 ): LocalProfile {
-  return updateMode(profile, mode, {
+  const current = profile.modes[mode]
+  const previousAccountId = current.registration.accountId
+  const accountChanged = typeof previousAccountId === 'number' && previousAccountId !== registration.accountId
+
+  // Binding a different Tarkov account resets quest progress, but keeps operator prefs
+  // (favorites / raid list / hideout) so they survive nick confirmation and wipe rebinds.
+  let next = profile
+  if (accountChanged) {
+    next = {
+      ...profile,
+      modes: {
+        ...profile.modes,
+        [mode]: {
+          ...createModeProgress(),
+          favoriteItemIds: [...current.favoriteItemIds],
+          raidItemIds: [...current.raidItemIds],
+          hideoutLevels: { ...current.hideoutLevels },
+        },
+      },
+    }
+  }
+
+  return updateMode(next, mode, {
     registration: { ...registration, status: 'registered' },
   }, registration.verifiedAt)
 }
@@ -69,7 +92,7 @@ export function setTaskProgress(
   record: TaskProgressRecord,
 ): LocalProfile {
   const current = profile.modes[mode].taskProgress[record.taskId]
-  if (current?.status === 'completed' && record.status !== 'completed' && record.source !== 'manual') return profile
+  if (current && current.updatedAt > record.updatedAt) return profile
 
   return {
     ...profile,
@@ -88,17 +111,28 @@ export function migrateProfile(input: unknown): LocalProfile | null {
   if (!input || typeof input !== 'object') return null
   const candidate = input as Partial<LocalProfile> & { schemaVersion?: number; modes?: Partial<Record<RaidMode, Partial<ModeProgress>>> }
   if (!candidate.id || !candidate.displayName || !candidate.modes) return null
+  const favoriteUnion = [...new Set((['pvp', 'pve', 'seasonal'] as RaidMode[]).flatMap((mode) => candidate.modes?.[mode]?.favoriteItemIds ?? []))]
+  // v4 and older filled quests from screen OCR and from a log parser that could mix modes;
+  // v5 rebuilds every mode from the per-mode log timeline, keeping only manual edits.
+  const dropUntrusted = (candidate.schemaVersion ?? 0) < 5
   const normalizeMode = (mode: RaidMode): ModeProgress => {
     const saved = candidate.modes?.[mode]
+    const taskProgress = { ...(saved?.taskProgress ?? {}) }
+    for (const [taskId, record] of Object.entries(taskProgress)) {
+      if (dropUntrusted && ['screen-scan', 'inferred', 'eft-log'].includes(record.source)) delete taskProgress[taskId]
+      // Confirmed trader-task scans survive restart; inferred chains remain untrusted.
+      else if (record.source === 'inferred') delete taskProgress[taskId]
+    }
     return {
       ...createModeProgress(),
       ...(saved ?? {}),
       registration: saved?.registration?.status === 'registered'
         ? { ...saved.registration, status: 'registered' }
         : { status: 'unregistered' },
-      taskProgress: { ...(saved?.taskProgress ?? {}) },
+      taskProgress,
       trackedTaskIds: [...(saved?.trackedTaskIds ?? [])],
-      favoriteItemIds: [...(saved?.favoriteItemIds ?? [])],
+      favoriteItemIds: favoriteUnion.length ? [...favoriteUnion] : [...(saved?.favoriteItemIds ?? [])],
+      raidItemIds: [...(saved?.raidItemIds ?? [])],
       hideoutLevels: { ...(saved?.hideoutLevels ?? {}) },
     }
   }

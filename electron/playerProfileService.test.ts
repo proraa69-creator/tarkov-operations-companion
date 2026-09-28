@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { clearPlayerProfileCache, fetchPlayerProfile } from './playerProfileService'
+import { clearPlayerProfileCache, fetchPlayerProfile, resolveAccountIdsByNickname } from './playerProfileService'
 
 afterEach(() => {
   clearPlayerProfileCache()
@@ -17,7 +17,15 @@ describe('player profile service', () => {
     const second = await fetchPlayerProfile('pvp', 7)
     expect(first).toMatchObject({ accountId: 7, nickname: 'SHAURMA', level: 2, faction: 'bear' })
     expect(second).toEqual(first)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('players.tarkov.dev'))).toBe(true)
+  })
+
+  it('resolves seasonal nicknames from the mode index', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/pvp-season/index.json')) return new Response(JSON.stringify({ 42: 'SeasonNick', 99: 'Other' }))
+      throw new Error(`unexpected ${url}`)
+    }))
+    await expect(resolveAccountIdsByNickname('seasonal', 'SeasonNick')).resolves.toEqual([42])
   })
 
   it('returns a clear rate-limit error', async () => {

@@ -1,0 +1,427 @@
+== log_2026.09.03_14-15-02_1.1.0.1.46911
+  modes: 14:15:17 Regular, 14:19:42 Pve
+== log_2026.09.03_14-27-22_1.1.0.1.46911
+  modes: 14:27:35 Pve
+== log_2026.09.03_14-58-58_1.1.0.1.46911
+  modes: 14:59:12 Pve
+== log_2026.09.03_15-04-17_1.1.0.1.46911
+  modes: 15:04:31 Pve
+== log_2026.09.03_15-11-08_1.1.0.1.46911
+  modes: 15:11:24 Pve
+== log_2026.09.04_0-02-48_1.1.0.1.46911
+  modes: 00:03:04 Pve
+== log_2026.09.04_20-43-41_1.1.0.1.46911
+  modes: 20:43:56 Regular
+== log_2026.09.04_21-55-02_1.1.0.1.46911
+  modes: 21:55:18 Regular
+== log_2026.09.04_23-29-41_1.1.0.1.46911
+  modes: 23:29:56 Pve, 23:31:29 Regular
+== log_2026.09.07_16-33-11_1.1.0.1.46911
+  modes: 16:33:26 Regular, 16:34:10 Pve
+== log_2026.09.08_22-34-32_1.1.5.0.47242
+  modes: 22:34:48 Pve, 22:37:21 Regular
+  00:16:40 t12 5d25e2ee86f77443e35162ea successMessageText
+== log_2026.09.10_0-11-40_1.1.5.0.47242
+  modes: 00:11:55 Regular
+  01:05:27 t12 675c085d59b0575973005f52 successMessageText
+  01:06:12 t10 5a27bb3d86f77411ea361a21 description
+  01:06:14 t10 6179b4d1bca27a099552e04e description
+  01:06:16 t10 6a5cd2178fd7c2b201032f3f description
+  01:06:18 t10 6086c852c945025d41566124 description
+  01:06:30 t10 6a91840a740be0cff50e0310 description
+== log_2026.09.11_11-35-34_1.1.5.0.47242
+  modes: 11:35:49 Regular
+== log_2026.09.11_11-43-12_1.1.5.0.47242
+  modes: 11:43:26 Regular
+== log_2026.09.11_18-29-46_1.1.5.0.47242
+  modes: 18:30:01 Regular
+  18:31:41 t12 59c124d686f774189b3c843f successMessageText
+  18:31:51 t10 6a7637fed31fb1191903fc07 description
+== log_2026.09.11_19-07-56_1.1.5.0.47242
+  modes: 19:08:11 Regular
+== log_2026.09.12_0-47-16_1.1.5.0.47242
+  modes: 00:47:31 Regular
+== log_2026.09.12_11-39-54_1.1.5.0.47242
+  modes: 11:40:08 Regular
+== log_2026.09.12_2-15-32_1.1.5.0.47242
+  modes: 02:15:47 Regular
+  02:18:17 t12 6a5c1578f2689567c30eb0f3 successMessageText
+== log_2026.09.12_22-32-39_1.1.5.0.47242
+  modes: 22:32:54 Regular
+  00:04:33 t12 5b47926a86f7747ccc057c15 successMessageText
+  00:04:46 t12 5ae448bf86f7744d733e55ee successMessageText
+  00:04:53 t12 5ae4493486f7744efa289417 successMessageText
+== log_2026.09.13_10-20-16_1.1.5.0.47242
+  modes: 10:20:31 Regular
+== log_2026.09.13_20-19-51_1.1.5.0.47242
+  modes: 20:20:07 Regular
+  21:52:05 t12 5ae448e586f7744dcf0c2a67 successMessageText
+  21:52:10 t12 5b478d0f86f7744d190d91b5 successMessageText
+== log_2026.09.15_21-45-01_1.1.5.0.47426
+  modes: 21:45:15 Regular
+== log_2026.09.16_16-40-05_1.1.5.0.47426
+  modes: 16:40:21 Regular
+  16:51:35 t12 5d25e43786f7740a212217fa successMessageText
+  18:12:52 t12 5ac2428686f77412450b42bf successMessageText
+  18:19:27 t12 639872f9decada40426d3447 successMessageText
+  18:19:32 t10 5ac345dc86f774288030817f description
+  18:19:35 t10 66aa74571e5e199ecd094f18 description
+  18:19:38 t10 5ae3267986f7742a413592fe description
+  18:21:38 t12 5ae3267986f7742a413592fe successMessageText
+  18:23:47 t12 5ae3270f86f77445ba41d4dd successMessageText
+  18:23:51 t10 5ae3277186f7745973054106 description
+  18:23:54 t10 6179b3bdc7560e13d23eeb8d description
+  18:23:57 t10 64ee9df4496db64f9b7a4432 description
+  19:28:51 t12 5ae448f286f77448d73c0131 successMessageText
+  19:29:05 t12 671a49f77d49aea42c029b5f successMessageText
+  20:11:20 t12 5b478b1886f7744d1b23c57d successMessageText
+  20:11:34 t12 5ae4498786f7744bde357695 successMessageText
+== log_2026.09.16_8-20-36_1.1.5.0.47426
+  modes: 08:20:51 Regular
+  08:22:53 t12 675c3507a06634b5110e3c18 successMessageText
+  08:51:28 t12 64f3176921045e77405d63b5 successMessageText
+== log_2026.09.17_23-16-36_1.1.5.0.47426
+  modes: 23:16:50 Regular, 01:52:26 PvpSeason
+  23:32:16 t12 63a5cf262964a7488f5243ce successMessageText
+  01:28:20 t12 5a27b75b86f7742e97191958 successMessageText
+  01:59:48 t10 5ae448bf86f7744d733e55ee description
+  01:59:50 t10 5ae449c386f7744bde357697 description
+  01:59:51 t10 5ae448f286f77448d73c0131 description
+  02:00:36 t10 59689fbd86f7740d137ebfc4 description
+  02:00:37 t10 657315ddab5a49b71f098853 description
+  02:00:39 t10 596a0e1686f7741ddf17dbee description
+  02:48:56 t12 5ae448bf86f7744d733e55ee successMessageText
+  02:48:59 t10 5ae4490786f7744ca822adcc description
+  02:49:08 t10 5ae4493486f7744efa289417 description
+== log_2026.09.18_17-13-55_1.1.5.1.47473
+  modes: 17:14:09 PvpSeason, 17:14:35 Regular
+  18:31:09 t12 665eeacf5d86b6c8aa03c79b successMessageText
+  18:31:27 t12 5a27b80086f774429a5d7e20 successMessageText
+  18:31:32 t10 639135f286e646067c176a87 description
+  18:31:34 t10 5a27b87686f77460de0252a8 description
+  18:31:40 t10 5a27b7d686f77460d847e6a6 description
+  18:33:23 t10 665eec1f5e47a79f8605565a description
+== log_2026.09.18_22-27-37_1.1.5.1.47510
+  modes: 22:27:54 Regular
+== log_2026.09.18_22-54-14_1.1.5.1.47510
+  modes: 22:54:32 Regular
+  23:30:24 t12 5c0d190cd09282029f5390d8 successMessageText
+  23:37:01 t12 665eec1f5e47a79f8605565a successMessageText
+  23:37:07 t10 665eec4a4dfc83b0ed0a9dca description
+  23:56:45 t10 6a880acc9216d0f5aa078305 description
+  00:11:28 t12 5eda19f0edce541157209cee successMessageText
+== log_2026.09.19_18-17-54_1.1.5.1.47510
+  modes: 18:18:09 Regular
+== log_2026.09.19_23-58-40_1.1.5.1.47510
+  modes: 23:58:56 Regular
+  00:52:52 t12 6089736efa70fc097863b8f6 successMessageText
+  00:53:01 t12 5ede55112c95834b583f052a successMessageText
+  00:53:05 t10 66ab970848ddbe9d4a0c49a8 description
+  00:53:08 t10 60896b7bfa70fc097863b8f5 description
+  00:53:11 t10 669fa3a40c828825de06d6a1 description
+== log_2026.09.22_0-32-47_1.1.5.1.47510
+  modes: 00:33:04 Regular
+== log_2026.09.24_1-25-21_1.1.5.1.47510
+  modes: 01:25:37 Regular
+== log_2026.09.24_2-18-18_1.1.5.1.47510
+  modes: 02:18:35 Regular
+== log_2026.09.24_2-29-44_1.1.5.1.47510
+  modes: 02:29:59 Regular
+== log_2026.09.25_0-14-28_1.1.5.1.47510
+  modes: 00:14:45 Regular
+== log_2026.09.25_17-33-16_1.1.5.1.47510
+  modes: 17:33:31 Regular
+  19:19:19 t12 64e7b971f9d6fa49d6769b44 successMessageText
+  19:19:25 t10 6578eb36e5020875d64645cd description
+  19:19:29 t10 5d25e4ad86f77443e625e387 description
+  19:19:31 t10 669fa3979b0ce3feae01a130 description
+== log_2026.09.25_2-18-24_1.1.5.1.47510
+  modes: 02:18:38 Regular
+  03:22:47 t12 59c50a9e86f7745fef66f4ff successMessageText
+  03:22:52 t10 59c50c8886f7745fed3193bf description
+  03:23:03 t12 5edab736cc183c769d778bc2 successMessageText
+  03:23:08 t10 6179ad56c760af5ad2053587 description
+  03:23:10 t10 596a218586f77420d232807c description
+  03:23:17 t10 5edaba7c0c502106f869bc02 description
+  03:23:30 t12 5a27bb8386f7741c770d2d0a successMessageText
+  03:23:35 t10 5a27bbf886f774333a418eeb description
+  03:23:43 t12 5ac3467986f7741d6224abc2 successMessageText
+  04:11:03 t12 5bc479e586f7747f376c7da3 successMessageText
+  04:11:08 t10 5bc47dbf86f7741ee74e93b9 description
+== log_2026.09.25_22-18-30_1.1.5.1.47510
+  modes: 22:18:46 Regular
+== log_2026.09.26_0-48-12_1.1.5.1.47510
+  modes: 00:48:27 Regular
+== log_2026.09.26_1-42-38_1.1.5.1.47510
+  modes: 01:42:53 Regular
+== log_2026.09.26_11-03-01_1.1.5.1.47510
+  modes: 11:03:18 Regular
+== log_2026.09.26_16-40-00_1.1.5.1.47510
+  modes: 16:40:15 Regular
+== log_2026.09.26_20-56-50_1.1.5.1.47510
+  modes: 20:57:06 Regular
+== log_2026.09.26_22-04-56_1.1.5.1.47510
+  modes: 22:05:12 Regular, 22:05:40 Pve, 22:39:24 Regular, 22:47:05 Regular
+  22:08:12 t12 63a5cf262964a7488f5243ce successMessageText
+  22:08:15 t10 60e71b9bbd90872cb85440f3 description
+  22:08:18 t10 639136f086e646067c176a8b description
+  22:08:19 t10 639136d68ba6894d155e77cf description
+  22:08:20 t10 64e7b9bffd30422ed03dad38 description
+  22:08:23 t10 64f5deac39e45b527a7c4232 description
+  22:08:25 t10 669fa3a40c828825de06d6a1 description
+  22:08:29 t10 6179b5b06e9dd54ac275e409 description
+  22:08:32 t10 675c1ff1a757ddd00404f0aa description
+  22:08:33 t10 63a9ae24009ffc6a551631a5 description
+  22:08:35 t10 60e71bb4e456d449cd47ca75 description
+  22:08:37 t10 6574e0dedc0d635f633a5805 description
+  22:08:42 t10 669fa39ee749756c920d02c8 description
+  22:08:44 t10 6a7ae35b2dbf91eb050af95a description
+  22:08:45 t10 6a5424ae135497b9df0c68be description
+  22:09:20 t10 6764174c86addd02bc033d68 description
+  22:09:22 t10 626bd75d5bef5d7d590bd415 description
+  22:09:24 t10 669fa39c64ea11e84c0642a6 description
+  22:09:26 t10 60e71c11d54b755a3b53eb65 description
+  22:09:28 t10 6a7aef2360157cb5e3029a5f description
+  22:09:35 t10 6a5ccda873f06065630d61b0 description
+  22:09:36 t10 5a27bb3d86f77411ea361a21 description
+  22:09:38 t10 60e71ccb5688f6424c7bfec4 description
+  22:09:40 t10 5a0449d586f77474e66227b7 description
+  22:09:42 t10 6a5c1578f2689567c30eb0f3 description
+  22:09:44 t10 5a27bafb86f7741c73584017 description
+  22:09:46 t10 6a5cd2178fd7c2b201032f3f description
+  22:10:00 t10 639135534b15ca31f76bc317 description
+  22:10:02 t10 5a27bb1e86f7741f27621b7e description
+  22:10:04 t10 5edac63b930f5454f51e128b description
+  22:10:06 t10 5a27bb8386f7741c770d2d0a description
+  22:10:07 t10 63a9b229813bba58a50c9ee5 description
+  22:10:13 t10 5c0be13186f7746f016734aa description
+  22:10:14 t10 60e71d6d7fcf9c556f325055 description
+  22:10:16 t10 66aa74571e5e199ecd094f18 description
+  22:10:18 t10 60e71d23c1bfa3050473b8e6 description
+  22:10:19 t10 6942b44f891369fc790e385a description
+  22:10:21 t10 64f83bd983cfca080a362c82 description
+  22:10:30 t10 60e71dc0a94be721b065bbfc description
+  22:10:32 t10 5b478b1886f7744d1b23c57d description
+  22:10:34 t10 66aa61663aa37705c5024277 description
+  22:10:35 t10 5ae4498786f7744bde357695 description
+  22:10:38 t10 5ae449d986f774453a54a7e1 description
+  22:10:41 t10 5c112d7e86f7740d6f647486 description
+  22:10:43 t10 5b47891f86f7744d1b23c571 description
+  22:10:44 t10 5ae4497b86f7744cf402ed00 description
+  22:10:45 t10 60e71dc67fcf9c556f325056 description
+  22:11:37 t10 66b38e144f2ab7cc530c3fe7 description
+  22:11:39 t10 63a9b36cc31b00242d28a99f description
+  22:11:40 t10 60e729cf5698ee7b05057439 description
+  22:11:41 t10 5bc4856986f77454c317bea7 description
+  22:11:44 t10 6a4532e48e82d8ffea0c3eae description
+  22:11:45 t10 5d25e2ee86f77443e35162ea description
+  22:11:47 t10 626bdcc3a371ee3a7a3514c5 description
+  22:11:49 t10 669fa3a08b4a64b332041ff7 description
+  22:11:51 t10 600302d73b897b11364cd161 description
+  22:11:53 t10 5d25e4b786f77408251c4bfc description
+  22:11:54 t10 639136df4b15ca31f76bc31f description
+  22:11:56 t10 5d25e2d886f77442734d335e description
+  22:44:19 t12 6761f28a022f60bb320f3e95 successMessageText
+  23:22:18 t10 596a0e1686f7741ddf17dbee description
+  23:22:19 t10 657315ddab5a49b71f098853 description
+  23:22:20 t10 59689fbd86f7740d137ebfc4 description
+  23:25:01 t10 5ae448f286f77448d73c0131 description
+  23:25:03 t10 5ae449c386f7744bde357697 description
+  23:25:05 t10 5ae448bf86f7744d733e55ee description
+== log_2026.09.26_4-47-27_1.1.5.1.47510
+  modes: 04:47:42 Regular
+== log_2026.09.26_5-43-17_1.1.5.1.47510
+  modes: 05:43:32 Regular
+== log_2026.09.27_0-05-51_1.1.5.1.47510
+  modes: 00:06:07 Regular, 00:39:17 Pve, 00:51:09 Regular
+== log_2026.09.27_0-57-04_1.1.5.1.47510
+  modes: 00:57:25 Regular
+== log_2026.09.27_1-42-15_1.1.5.1.47510
+  modes: 01:42:33 Regular, 01:44:08 Pve, 02:30:49 Regular
+== log_2026.09.27_12-13-36_1.1.5.1.47510
+  modes: 12:13:51 Regular
+== log_2026.09.27_12-57-32_1.1.5.1.47510
+  modes: 12:57:47 Regular
+  13:37:13 t12 5ae448bf86f7744d733e55ee successMessageText
+  13:37:16 t10 5ae4490786f7744ca822adcc description
+  13:37:18 t10 5ae4493d86f7744b8e15aa8f description
+== log_2026.09.27_14-54-28_1.1.5.1.47510
+  modes: 14:54:43 Regular
+  15:00:39 t10 596b36c586f77450d6045ad2 description
+  15:00:43 t10 657315e270bb0b8dba00cc48 description
+== log_2026.09.27_16-00-10_1.1.5.1.47510
+  modes: 16:00:25 Regular
+  18:05:10 t12 5ae448f286f77448d73c0131 successMessageText
+  18:05:14 t12 5ae449c386f7744bde357697 successMessageText
+  18:05:18 t10 5ae449b386f77446d8741719 description
+  18:05:19 t10 60e71dc0a94be721b065bbfc description
+  18:05:21 t10 5c10f94386f774227172c572 description
+== log_2026.09.27_2-33-45_1.1.5.1.47510
+  modes: 02:34:03 Regular
+
+== chat message types
+[[2,28],[4,89],[12,41],[10,109],[13,3],[8,6],[15,1]]
+== notification types
+[["UserMatchCreated",48],["UserRoomStarted",10],["UserConfirmed",53],["UserMatchOver",31],["ChatMessageReceived",277],["RagfairOfferSold",88],["RagfairNewRating",14],["GroupMatchInviteAccept",3],["GroupMatchRaidReady",14],["GroupMatchStartGame",13],["GroupMatchInviteSend",6],["GroupMatchRaidSettings",11],["GroupMatchWasRemoved",3],["GroupMatchRaidNotReady",16],["ForceLogout",4],["CustomizationUpdateRequired",2],["GroupMatchInviteCancel",1],["ExpansionsAccountBonusesAdded",4]]
+== backend urls
+3997 /client/repeatalbeQuests/activityPeriods
+3993 /client/repeatalbeQuests/activityPeriods.
+1773 /client/game/keepalive
+1649 /client/game/keepalive.
+1435 /client/game/profile/items/moving.
+1435 /client/game/profile/items/moving
+976 /client/trading/api/getTraderAssort/:id.
+976 /client/trading/api/getTraderAssort/:id
+769 /client/profile/status
+759 /client/profile/status.
+567 /client/ragfair/find.
+567 /client/ragfair/find
+306 /client/items/prices/:id.
+306 /client/items/prices/:id
+264 /client/achievement/list
+250 /client/match/group/current.
+250 /client/match/group/current
+215 /client/putLoadMetrics.
+215 /client/putLoadMetrics
+206 /client/mail/dialog/view.
+206 /client/mail/dialog/view
+203 /client/game/profile/list
+202 /client/settings
+202 /client/seasonal-perks/list
+190 /client/game/profile/list.
+189 /client/settings.
+189 /client/seasonal-perks/list.
+189 /client/items.
+189 /client/customization.
+189 /client/customization
+189 /client/items
+188 /client/game/profile/select.
+188 /client/game/profile/select
+180 /client/ragfair/itemMarketPrice.
+180 /client/ragfair/itemMarketPrice
+160 /client/customization/storage
+147 /client/season/active
+147 /client/battle-pass/active
+147 /client/trading/api/traderSettings
+147 /client/match/group/invite/cancel-all.
+147 /client/match/group/invite/cancel-all
+142 /client/quest/chains
+139 /client/mail/dialog/getAllAttachments.
+139 /client/mail/dialog/getAllAttachments
+137 /client/customization/storage.
+136 /client/notifier/channel/create.
+136 /client/notifier/channel/create
+134 /client/globals.
+134 /client/trading/api/traderSettings.
+134 /client/quest/getMainQuestsList.
+134 /client/quest/getMainQuestNotesList.
+134 /client/variable/group.
+134 /client/dialogue.
+134 /client/tape/list.
+134 /client/subtitle-track/list.
+134 /client/season/active.
+134 /client/battle-pass/active.
+134 /client/handbook/templates.
+134 /client/variable/group
+134 /client/subtitle-track/list
+134 /client/quest/getMainQuestsList
+134 /client/tape/list
+134 /client/quest/getMainQuestNotesList
+134 /client/handbook/templates
+134 /client/globals
+134 /client/dialogue
+134 /client/raid/configuration.
+134 /client/raid/configuration
+133 /client/mail/dialog/list
+132 /client/builds/list.
+132 /client/friends.
+132 /client/achievement/statistic.
+132 /client/quest/list.
+132 /client/weather.
+132 /client/ending/list.
+132 /client/locations.
+132 /client/achievement/statistic
+132 /client/friends
+132 /client/mail/dialog/list.
+132 /client/builds/list
+== application line heads
+629 TRACE
+524 SUCCESS
+335 Reason
+262 Getting Proc Address for
+262 Config entry
+245 PrepareSelectedProfileLocally ProfileId
+188 CompleteSelectedProfile ProfileId
+131 Start loading dll
+131 Init
+131 Initialized
+131 BEClient inited successfully
+131 Disposing BEClient
+131 BEClient exit
+131 BEClient exit successfully
+131 Releasing dll
+75 ClientMetricsEvents
+75 scene preset path
+72 Heap pre
+68 Session mode
+66 LocationLoaded
+65 MatchingCompleted
+65 GamePrepared
+65 GameCreated
+65 GamePooled
+65 GameRunned
+64 PlayerSpawnEvent
+64 GameSpawn
+64 GameSpawned
+63 GameStarted
+55 Application awaken
+55 Assert
+55 driveType
+55 NVIDIA Reflex is available on this machin
+55 Game settings
+55 Sound settings
+55 PostFx settings
+55 Graphics settings
+55 Control settings
+55 Matching with group id
+33 GameStarting
+5 collectedMemoryGB 35
+5 collectedMemoryGB 36
+4 collectedMemoryGB 46
+3 collectedMemoryGB 39
+3 totalMemoryBeforeCleanUp 734
+3 Network game matching cancelled
+3 totalMemoryBeforeCleanUp 701
+3 collectedMemoryGB 37
+3 collectedMemoryGB 14
+3 collectedMemoryGB 40
+3 collectedMemoryGB 42
+2 collectedMemoryGB 60
+2 collectedMemoryGB 31
+2 totalMemoryBeforeCleanUp 697
+2 collectedMemoryGB 2
+2 collectedMemoryGB 32
+2 collectedMemoryGB 1336
+2 collectedMemoryGB 113
+2 totalMemoryBeforeCleanUp 719
+2 collectedMemoryGB 78
+2 collectedMemoryGB 43
+2 collectedMemoryGB 33
+2 totalMemoryBeforeCleanUp 717
+2 totalMemoryBeforeCleanUp 707
+2 totalMemoryBeforeCleanUp 715
+2 totalMemoryBeforeCleanUp 712
+2 collectedMemoryGB 58
+2 collectedMemoryGB 34
+2 totalMemoryBeforeCleanUp 720
+2 collectedMemoryGB 408
+2 collectedMemoryGB 29
+2 collectedMemoryGB 85
+1 totalMemoryBeforeCleanUp 700
+1 totalMemoryBeforeCleanUp 1170
+1 collectedMemoryGB 135
+1 totalMemoryBeforeCleanUp 754
+1 totalMemoryBeforeCleanUp 742
+1 collectedMemoryGB 62
+1 collectedMemoryGB 53
+1 totalMemoryBeforeCleanUp 746

@@ -4,6 +4,10 @@ import { eventsToProgressRecords, mergeParseResults, parseEftLog } from './logPa
 const taskId = '5936d90786f7742b1420ba5b'
 
 describe('EFT log parser', () => {
+  it('uses the notification header timestamp when JSON starts on the next line', () => {
+    const parsed = parseEftLog(`2026-09-25 11:12:13.456|Info|Got notification\n{\n"message":{"type":10,"templateId":"${taskId} 0"}\n}`)
+    expect(parsed.events[0].timestamp).toBe(new Date('2026-09-25T11:12:13.456').toISOString())
+  })
   it('extracts quest notifications and the session mode', () => {
     const result = parseEftLog(`2026-09-25 10:00:00 Session mode: Pve
 2026-09-25 10:01:00 Got notification | ChatMessageReceived {"message":{"type":10,"templateId":"${taskId} 0"}}
@@ -36,5 +40,15 @@ Got notification | ChatMessageReceived {
     const merged = mergeParseResults([active, complete, complete])
     expect(merged.events).toHaveLength(1)
     expect(eventsToProgressRecords(merged.events)[0]).toMatchObject({ status: 'completed', source: 'eft-log' })
+  })
+
+  it('reads TarkovQuestie-style root notifications without a nested message object', () => {
+    const result = parseEftLog(`2026-09-25 12:00:00 Got notification | ChatMessageReceived {"type":10,"templateId":"${taskId} startedMessageText"}`)
+    expect(result.events[0]).toMatchObject({ taskId, status: 'active' })
+  })
+
+  it('reads string quest types and reversed templateId/type order', () => {
+    const reversed = parseEftLog(`{"templateId":"${taskId} 0","type":"12"}`)
+    expect(reversed.events[0]).toMatchObject({ taskId, status: 'completed' })
   })
 })

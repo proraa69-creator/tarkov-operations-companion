@@ -1,4 +1,5 @@
 import type { AppDataset, GameMap, HideoutStation, Item, MapMarker, Quest, Trader } from '../domain/types'
+import { applyCuratedStoryStages } from './storyChapters'
 
 export const maps: GameMap[] = [
   { id: 'customs', name: 'Таможня', subtitle: 'Промышленная зона и общежития', raidTime: 35, players: '9–12', difficulty: 'Средняя', accent: '#bda66b', imageUrl: 'https://assets.tarkov.dev/maps/svg/Customs.svg', floors: ['Основной', '2-й этаж', '3-й этаж'], markerCount: 42, attribution: 'Карта © Shebuka / tarkov.dev · CC BY-NC-SA 4.0' },
@@ -27,6 +28,55 @@ export const quests: Quest[] = [
   { id: 'introduction', name: 'Знакомство', trader: 'Механик', mapId: 'woods', level: 2, kappa: true, description: 'Найти лагерь Егеря и забрать его послание.', objectives: ['Найти лагерь Егеря', 'Получить сообщение', 'Передать сообщение Механику'], rewards: ['4500 опыта', 'Доступ к Егерю'] },
   { id: 'signal-1', name: 'Сигнал — часть 1', trader: 'Механик', mapId: 'shoreline', level: 12, kappa: true, description: 'Найти две рабочие антенны на Побережье.', objectives: ['Найти первую антенну', 'Найти вторую антенну', 'Выжить и выйти'], rewards: ['6700 опыта', '10 000 ₽'] },
   { id: 'database-1', name: 'База данных — часть 1', trader: 'Барахольщик', mapId: 'interchange', level: 12, kappa: true, description: 'Собрать грузовые манифесты магазинов комплекса ULTRA.', objectives: ['Найти 3 манифеста', 'Передать документы'], rewards: ['8400 опыта', '30 000 ₽'] },
+  { id: 'grenadier', name: 'Гренадёр', trader: 'Прапор', anyMap: true, level: 15, kappa: false, description: 'Устранить цели гранатами на любой локации.', objectives: ['Устранить любую цель, используя гранаты или подствольные гранатомёты'], rewards: ['18 000 опыта'] },
+  {
+    id: 'story-tour',
+    kind: 'story',
+    name: 'Тур',
+    trader: 'Глава истории',
+    storyOrder: 1,
+    mapId: 'ground-zero',
+    mapIds: ['ground-zero', 'shoreline'],
+    level: 1,
+    kappa: false,
+    description: 'Первая глава сюжетной истории: выбраться из эпицентра и открыть основные локации.',
+    objectives: [
+      'Выбраться из Эпицентра',
+      'Поговорить с Терапевтом',
+      'Обеспечить доступ к Улицам Таркова',
+      'Поговорить с Барахольщиком',
+      'Выжить на локации Развязка и выйти или посетить Развязку 3 раза',
+      'Рассказать Барахольщику о разведке',
+      'Поговорить с Лыжником',
+      'Передать строительные материалы Лыжнику',
+      'Поговорить с Механиком',
+      'Выжить на локации Завод',
+      'Уничтожить цели на Лесу',
+      'Связаться с гарнизоном порта через интерком',
+      'Поговорить с Прапором',
+      'Оплатить Механику доступ к Маяку',
+      'Посетить секретный объект TerraGroup — Лабораторию',
+    ],
+    stages: [
+      { id: 'story-tour-0', title: 'Выбраться из Эпицентра', description: 'Завершите обучающий рейд и выйдите с Эпицентра.', mapIds: ['ground-zero'], ocrAliases: ['побег с эпицентра', 'выбраться из эпицентра'] },
+      { id: 'story-tour-1', title: 'Поговорить с Терапевтом', description: 'Найдите Терапевта и поговорите с ней.', mapIds: [], ocrAliases: ['поговорить с терапевтом'] },
+      { id: 'story-tour-2', title: 'Обеспечить доступ к Улицам Таркова', description: 'Передайте Терапевту 250 000 ₽.', mapIds: ['streets-of-tarkov'], ocrAliases: ['доступ к улицам', '250 000'] },
+      { id: 'story-tour-3', title: 'Поговорить с Барахольщиком', description: 'Обратитесь к Барахольщику.', mapIds: [], ocrAliases: ['поговорить с барахольщиком'] },
+      { id: 'story-tour-4', title: 'Выжить на локации Развязка и выйти или посетить Развязку 3 раза', description: 'Выйдите с Развязки живым либо посетите локацию 3 раза.', mapIds: ['interchange'], progressTotal: 3, ocrAliases: ['выжить на локации развязка', 'выйдите с развязки', 'выйти с развязки', 'посетить развязку', 'развязку 3 раза', 'развязка и выйти'] },
+      { id: 'story-tour-5', title: 'Рассказать Барахольщику о разведке', description: 'Доложите Барахольщику.', mapIds: [], ocrAliases: ['рассказать барахольщику'] },
+      { id: 'story-tour-6', title: 'Поговорить с Лыжником', description: 'Лыжник откроет Таможню.', mapIds: ['customs'], ocrAliases: ['поговорить с лыжником'] },
+      { id: 'story-tour-7', title: 'Передать строительные материалы Лыжнику', description: 'Сдайте стройматериалы.', mapIds: ['customs'], ocrAliases: ['строительные материалы'] },
+      { id: 'story-tour-8', title: 'Поговорить с Механиком', description: 'Механик направит на Завод.', mapIds: ['factory'], ocrAliases: ['поговорить с механиком'] },
+      { id: 'story-tour-9', title: 'Выжить на локации Завод', description: 'Выйдите с Завода живым.', mapIds: ['factory'], ocrAliases: ['выжить на локации завод'] },
+      { id: 'story-tour-10', title: 'Уничтожить цели на Лесу', description: 'Уничтожьте 3 цели на Лесу.', mapIds: ['woods'], progressTotal: 3, ocrAliases: ['на лесу', 'три цели'] },
+      { id: 'story-tour-11', title: 'Связаться с гарнизоном порта через интерком', description: 'Интерком у вышки перед Терминалом на Берегу.', mapIds: ['shoreline'], ocrAliases: ['интерком', 'терминал'], landmarkHints: ['интерком', 'терминал'] },
+      { id: 'story-tour-12', title: 'Поговорить с Прапором', description: 'Прапор откроет Резерв.', mapIds: ['reserve'], ocrAliases: ['поговорить с прапором'] },
+      { id: 'story-tour-13', title: 'Оплатить Механику доступ к Маяку', description: 'Оплата за Маяк.', mapIds: ['lighthouse'], ocrAliases: ['доступ к маяку'] },
+      { id: 'story-tour-14', title: 'Посетить секретный объект TerraGroup — Лабораторию', description: 'Осмотрите зоны Лаборатории.', mapIds: ['the-lab'], ocrAliases: ['лаборатор'] },
+    ],
+    rewards: ['Разблокирует локации главы Тур'],
+    wikiLink: 'https://escapefromtarkov.fandom.com/ru/wiki/%D0%A2%D1%83%D1%80',
+  },
 ]
 
 const updatedAt = new Date().toISOString()
@@ -61,6 +111,9 @@ export const markers: MapMarker[] = [
   { id: 'customs-cache-1', mapId: 'customs', type: 'cache', title: 'Скрытый тайник', description: 'Закопанная бочка рядом с железной дорогой.', position: [718, 348], meta: 'Контейнер с добычей' },
   { id: 'customs-dorm-key', mapId: 'customs', type: 'key', title: 'Общежития', description: 'Концентрация закрытых комнат, квестовых ключей и ценной добычи.', position: [530, 495], itemId: 'dorm-206-key', meta: 'Ключи 114 · 206 · 303' },
   { id: 'customs-fortress', mapId: 'customs', type: 'landmark', title: 'Крепость', description: 'Укреплённое здание между стройкой и старой заправкой.', position: [365, 615], meta: 'Ориентир' },
+  { id: 'ground-zero-story-tour-0', mapId: 'ground-zero', type: 'quest', layerId: 'quest.zone', title: 'Тур', description: 'Выбраться из Эпицентра', position: [420, 380], questId: 'story-tour', stageIndex: 0, source: 'tarkov-wiki/story', meta: 'Глава истории · этап 1' },
+  { id: 'interchange-story-tour-4', mapId: 'interchange', type: 'quest', layerId: 'quest.zone', title: 'Тур', description: 'Выжить на Развязке или посетить 3 раза', position: [480, 420], questId: 'story-tour', stageIndex: 4, source: 'tarkov-wiki/story', meta: 'Глава истории · этап 5' },
+  { id: 'shoreline-story-tour-11', mapId: 'shoreline', type: 'quest', layerId: 'quest.zone', title: 'Тур', description: 'Интерком у сторожевой вышки перед Терминалом', position: [210, 820], questId: 'story-tour', stageIndex: 11, source: 'tarkov-wiki/story', meta: 'Глава истории · этап 12' },
 ]
 
 export const hideout: HideoutStation[] = [
@@ -80,4 +133,11 @@ export const traders: Trader[] = [
   { id: 'jaeger', name: 'Егерь', role: 'Охотничье снаряжение', loyalty: 2, accent: '#71805f' },
 ]
 
-export const demoDataset: AppDataset = { maps, markers, quests, items, hideout, traders }
+export const demoDataset: AppDataset = {
+  maps,
+  markers,
+  quests: applyCuratedStoryStages(quests),
+  items,
+  hideout,
+  traders,
+}

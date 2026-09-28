@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest'
+import type { Item, Quest } from '../domain/types'
+import { createItemMatcher } from './itemMatch'
+import { describeItem } from './itemInfo'
+
+const item = (id: string, name: string, shortName: string, fleaPrice?: number): Item => ({
+  id, name, shortName, category: 'Бартер', description: '', fleaPrice,
+  prices: [{ source: 'Барахолка', price: fleaPrice ?? 0, mode: 'pvp', updatedAt: '' }, { source: 'Терапевт', price: 21000, mode: 'pvp', updatedAt: '' }],
+})
+
+const ITEMS = [
+  item('flash', 'Флешка с зашифрованными данными', 'Флешка'),
+  item('ledx', 'Трансиллюминатор кожи LEDX', 'LEDX', 900000),
+  item('tetriz', 'Портативная игра Tetriz', 'Tetriz', 45000),
+  item('bolts', 'Болты', 'Болты', 12000),
+]
+
+describe('item lookup under the cursor', () => {
+  const match = createItemMatcher(ITEMS)
+
+  it('finds the item from a noisy tooltip line', () => {
+    expect(match('| Трансиллюминатор кожи LEDХ ~\nНайдено в рейде')?.id).toBe('ledx')
+    expect(match('ffl Портативная игра Tetrlz')?.id).toBe('tetriz')
+  })
+
+  it('accepts a short name only as a whole word', () => {
+    expect(match('Tetriz')?.id).toBe('tetriz')
+    expect(match('Болтовня')).toBeNull()
+  })
+
+  it('returns nothing for unrelated text', () => {
+    expect(match('ИНВЕНТАРЬ\nСНАРЯЖЕНИЕ')).toBeNull()
+  })
+
+  it('lists open quests, Kappa and prices for the item', () => {
+    const quests = [
+      { id: 'q1', name: 'Коллекционер', trader: 'Смотритель', level: 1, kappa: true, description: '', objectives: [], rewards: [], raidRequirements: [{ itemId: 'tetriz', count: 1, purpose: 'handover' as const, mapIds: [] }] },
+      { id: 'q2', name: 'Гонки', trader: 'Механик', level: 10, kappa: false, description: '', objectives: [], rewards: [], raidRequirements: [{ itemId: 'tetriz', count: 2, purpose: 'find' as const, mapIds: [] }] },
+      { id: 'q3', name: 'Сделано', trader: 'Прапор', level: 5, kappa: false, description: '', objectives: [], rewards: [], requiredItems: ['tetriz'] },
+    ] satisfies Quest[]
+    const info = describeItem(ITEMS[2]!, quests, { taskProgress: { q3: { taskId: 'q3', status: 'completed', source: 'manual', updatedAt: '' } } })
+    expect(info.quests.map((need) => [need.name, need.count, need.purpose])).toEqual([['Коллекционер', 1, 'сдать'], ['Гонки', 2, 'найти']])
+    expect(info.kappa).toBe(true)
+    expect(info.collector).toBe(true)
+    expect(info.fleaPrice).toBe(45000)
+    expect(info.bestTrader).toEqual({ name: 'Терапевт', price: 21000 })
+  })
+})

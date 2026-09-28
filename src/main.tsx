@@ -8,13 +8,18 @@ import './styles/pages.css'
 import { App } from './app/App'
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
+import { OverlayApp, overlayKind } from './overlay/OverlayApp'
+import { LocaleProvider } from './i18n/LocaleProvider'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
+const overlay = overlayKind(window.location.hash)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AppStateProvider><DataProvider><HashRouter><App /></HashRouter></DataProvider></AppStateProvider>
-    </QueryClientProvider>
-  </React.StrictMode>,
+  overlay
+    ? <LocaleProvider><OverlayApp kind={overlay} /></LocaleProvider>
+    : <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <LocaleProvider><AppStateProvider><DataProvider><HashRouter><App /></HashRouter></DataProvider></AppStateProvider></LocaleProvider>
+      </QueryClientProvider>
+    </React.StrictMode>,
 )

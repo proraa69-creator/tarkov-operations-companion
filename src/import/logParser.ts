@@ -5,6 +5,8 @@ export interface ParsedTaskEvent {
   status: 'active' | 'failed' | 'completed'
   timestamp: string
   mode?: RaidMode
+  accountId?: number
+  profileId?: string
 }
 
 export interface LogParseResult {
@@ -21,7 +23,7 @@ const STATUS_BY_TYPE = new Map<number, ParsedTaskEvent['status']>([
   [12, 'completed'],
 ])
 
-export function parseEftLog(text: string): LogParseResult {
+export function parseEftLog(text: string, preserveHistory = false): LogParseResult {
   const detectedModes = detectModes(text)
   const accountIds = detectAccountIds(text)
   const profileIds = detectProfileIds(text)
@@ -32,20 +34,33 @@ export function parseEftLog(text: string): LogParseResult {
   for (const candidate of extractJsonObjects(text)) {
     try {
       const payload = JSON.parse(candidate.json) as Record<string, unknown>
-      const message = isRecord(payload.message) ? payload.message : null
-      if (!message) continue
-      const type = typeof message.type === 'number' ? message.type : Number(message.type)
-      const status = STATUS_BY_TYPE.get(type)
-      const templateId = typeof message.templateId === 'string' ? message.templateId : ''
-      const taskId = templateId.split(/\s+/)[0]
-      if (!status || !/^[a-f0-9]{24}$/i.test(taskId)) continue
-      events.push({ taskId, status, timestamp: extractTimestamp(candidate.prefix, payload), mode: fallbackMode })
+      const event = readQuestNotification(payload)
+      if (!event) continue
+      events.push({ ...event, timestamp: extractTimestamp(candidate.prefix, payload), mode: fallbackMode })
     } catch {
       ignoredRecords += 1
     }
   }
 
-  return { events: reduceEvents(events), detectedModes, accountIds, profileIds, ignoredRecords }
+  const regexPatterns = [
+    /"type"\s*:\s*"?(10|11|12)"?[\s\S]{0,280}?"templateId"\s*:\s*"([a-f0-9]{24})[^"]*"/gi,
+    /"templateId"\s*:\s*"([a-f0-9]{24})[^"]*"[\s\S]{0,280}?"type"\s*:\s*"?(10|11|12)"?/gi,
+    /"tid"\s*:\s*"([a-f0-9]{24})"[\s\S]{0,200}?"type"\s*:\s*"?(10|11|12)"?/gi,
+  ]
+  for (const pattern of regexPatterns) {
+    for (const match of text.matchAll(pattern)) {
+      const typeValue = match[1].length === 24 ? match[2] : match[1]
+      const taskId = match[1].length === 24 ? match[1] : match[2]
+      const status = STATUS_BY_TYPE.get(Number(typeValue))
+      if (!status || !taskId) continue
+      if (events.some((event) => event.taskId === taskId && event.status === status)) continue
+      const preceding = text.slice(Math.max(0, (match.index ?? 0) - 120), match.index)
+      const stamp = preceding.match(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?/)?.[0]
+      events.push({ taskId, status, timestamp: stamp ? new Date(stamp.replace(' ', 'T')).toISOString() : new Date(0).toISOString(), mode: fallbackMode })
+    }
+  }
+
+  return { events: preserveHistory ? events : reduceEvents(events), detectedModes, accountIds, profileIds, ignoredRecords }
 }
 
 export function eventsToProgressRecords(events: ParsedTaskEvent[]): TaskProgressRecord[] {
@@ -112,7 +127,9 @@ function extractJsonObjects(text: string) {
     } else if (char === '}' && depth > 0) {
       depth -= 1
       if (depth === 0 && start >= 0) {
-        const prefixStart = Math.max(0, text.lastIndexOf('\n', start - 1) + 1)
+        const preceding = text.slice(Math.max(0, start - 1000), start)
+        const header = [...preceding.matchAll(/\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?/g)].at(-1)
+        const prefixStart = header ? Math.max(0, start - 1000) + header.index! : Math.max(0, text.lastIndexOf('\n', start - 1) + 1)
         records.push({ json: text.slice(start, index + 1), prefix: text.slice(prefixStart, start) })
         start = -1
       }
@@ -134,12 +151,28 @@ function reduceEvents(events: ParsedTaskEvent[]) {
   const priority = { active: 1, failed: 2, completed: 3 }
   const byTask = new Map<string, ParsedTaskEvent>()
   for (const event of events) {
-    const current = byTask.get(event.taskId)
+    const key = `${event.mode ?? '?'}:${event.accountId ?? '?'}:${event.profileId ?? '?'}:${event.taskId}`
+    const current = byTask.get(key)
     if (!current || event.timestamp > current.timestamp || (event.timestamp === current.timestamp && priority[event.status] > priority[current.status])) {
-      byTask.set(event.taskId, event)
+      byTask.set(key, event)
     }
   }
   return [...byTask.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+}
+
+function readQuestNotification(payload: Record<string, unknown>): Pick<ParsedTaskEvent, 'taskId' | 'status'> | undefined {
+  const sources = [isRecord(payload.message) ? payload.message : undefined, payload].filter((entry): entry is Record<string, unknown> => Boolean(entry))
+  for (const source of sources) {
+    const type = typeof source.type === 'number' ? source.type : Number(source.type)
+    const status = STATUS_BY_TYPE.get(type)
+    const templateId = typeof source.templateId === 'string'
+      ? source.templateId
+      : typeof source.tid === 'string'
+        ? source.tid
+        : ''
+    const taskId = templateId.split(/\s+/)[0]
+    if (status && /^[a-f0-9]{24}$/i.test(taskId)) return { taskId, status }
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

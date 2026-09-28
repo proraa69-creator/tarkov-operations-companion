@@ -1,27 +1,23 @@
+import { uiText } from '../i18n/renderText'
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowUpRight,
   Boxes,
-  Check,
   Crosshair,
   Database,
-  ExternalLink,
   HardDrive,
-  Heart,
   KeyRound,
   Minus,
   Plus,
   RotateCcw,
   Search,
-  ShieldCheck,
-  TrendingUp,
-  UserRound,
 } from "lucide-react";
 import { useTarkovData } from "../data/DataProvider";
 import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
+import { useLocale } from "../i18n/LocaleProvider";
 
 export function EconomyPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -60,21 +56,17 @@ export function EconomyPage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">
-            Рыночная разведка · {state.raidMode.toUpperCase()}
+          <div className="eyebrow">{uiText(" Рыночная разведка · ")}{uiText(state.raidMode.toUpperCase())}
           </div>
-          <h1 className="page-title">Экономика</h1>
-          <p className="page-subtitle">
-            Сравнение источников продажи. Все цены показывают режим и время
-            последнего обновления.
-          </p>
+          <h1 className="page-title">{uiText("Экономика")}</h1>
+          <p className="page-subtitle">{uiText(" Сравнение источников продажи. Все цены показывают режим и время последнего обновления. ")}</p>
         </div>
         <span className={`tag ${source === "demo" ? "danger" : "green"}`}>
-          <Database size={12} />{" "}
-          {source === "demo" ? "демо-цены" : `обновлено ${timeAgo(updatedAt)}`}
+          <Database size={12} />{uiText(" ")}
+          {uiText(source === "demo" ? "демо-цены" : `обновлено ${timeAgo(updatedAt)}`)}
         </span>
       </header>
-      {source === "demo" && (
+      {uiText(source === "demo" && (
         <div
           className="panel"
           style={{
@@ -87,14 +79,11 @@ export function EconomyPage() {
           <AlertTriangle
             size={16}
             style={{ verticalAlign: "middle", marginRight: 8 }}
-          />
-          Tarkov.dev временно недоступен. Показаны встроенные демонстрационные
-          значения — не используйте их для точного расчёта сделки.
-        </div>
-      )}
+          />{uiText(" Tarkov.dev временно недоступен. Показаны встроенные демонстрационные значения — не используйте их для точного расчёта сделки. ")}</div>
+      ))}
       <section className="panel">
         <div className="panel-header">
-          <div className="panel-title">Рейтинг ценности</div>
+          <div className="panel-title">{uiText("Рейтинг ценности")}</div>
           <div style={{ position: "relative" }}>
             <Search
               size={14}
@@ -110,7 +99,7 @@ export function EconomyPage() {
               style={{ height: 35, paddingLeft: 32 }}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Найти предмет…"
+              placeholder={uiText("Найти предмет…")}
             />
           </div>
         </div>
@@ -118,40 +107,40 @@ export function EconomyPage() {
           <table className="price-table">
             <thead>
               <tr>
-                <th>Предмет</th>
-                <th>Категория</th>
-                <th>Лучший источник</th>
-                <th>Разница</th>
-                <th>Цена</th>
+                <th>{uiText("Предмет")}</th>
+                <th>{uiText("Категория")}</th>
+                <th>{uiText("Лучший источник")}</th>
+                <th>{uiText("Разница")}</th>
+                <th>{uiText("Цена")}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ item, best, spread }) => (
+              {uiText(rows.map(({ item, best, spread }) => (
                 <tr key={item.id}>
                   <td>
                     <Link
-                      to={`/items?selected=${item.id}`}
+                      to={`/flea?selected=${item.id}`}
                       style={{ display: "flex", alignItems: "center", gap: 10 }}
                     >
-                      <img className="item-thumb" src={item.iconUrl} alt="" />
+                      <img className="item-thumb" src={item.iconUrl} alt={uiText("")} />
                       <span>
-                        <strong>{item.name}</strong>
+                        <strong>{uiText(item.name)}</strong>
                         <small className="dim" style={{ display: "block" }}>
-                          {item.shortName}
+                          {uiText(item.shortName)}
                         </small>
                       </span>
                     </Link>
                   </td>
                   <td>
-                    <span className="tag">{item.category}</span>
+                    <span className="tag">{uiText(item.category)}</span>
                   </td>
-                  <td>{best.source}</td>
-                  <td className="mono price-up">+{formatPrice(spread)}</td>
+                  <td>{uiText(best.source)}</td>
+                  <td className="mono price-up">+{uiText(formatPrice(spread))}</td>
                   <td className="mono">
-                    <strong>{formatPrice(best.price)}</strong>
+                    <strong>{uiText(formatPrice(best.price))}</strong>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>
@@ -173,15 +162,12 @@ export function KeysPage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">Доступ и маршруты</div>
-          <h1 className="page-title">Ключи</h1>
-          <p className="page-subtitle">
-            Где применяется ключ, какое задание открывает и сколько он стоит.
-          </p>
+          <div className="eyebrow">{uiText("Доступ и маршруты")}</div>
+          <h1 className="page-title">{uiText("Ключи")}</h1>
+          <p className="page-subtitle">{uiText(" Где применяется ключ, какое задание открывает и сколько он стоит. ")}</p>
         </div>
         <span className="tag brass">
-          <KeyRound size={12} /> {keys.length} ключей
-        </span>
+          <KeyRound size={12} /> {uiText(keys.length)}{uiText(" ключей ")}</span>
       </header>
       <div className="filter-row">
         <div style={{ position: "relative" }}>
@@ -199,12 +185,12 @@ export function KeysPage() {
             style={{ paddingLeft: 34 }}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Номер комнаты или название…"
+            placeholder={uiText("Номер комнаты или название…")}
           />
         </div>
       </div>
       <div className="grid-3">
-        {keys.map((item) => {
+        {uiText(keys.map((item) => {
           const map = data.maps.find((entry) => entry.id === item.mapId);
           const quests =
             item.questIds
@@ -218,25 +204,25 @@ export function KeysPage() {
               <div className="item-detail-visual" style={{ minHeight: 140 }}>
                 <img
                   src={item.iconUrl}
-                  alt={item.name}
+                  alt={uiText(item.name)}
                   style={{ maxHeight: 90 }}
                 />
               </div>
               <div className="panel-body">
-                <div className="eyebrow">{map?.name ?? "Разные локации"}</div>
-                <h3 style={{ margin: "9px 0 7px" }}>{item.name}</h3>
+                <div className="eyebrow">{uiText(map?.name ?? "Разные локации")}</div>
+                <h3 style={{ margin: "9px 0 7px" }}>{uiText(item.name)}</h3>
                 <p className="muted" style={{ minHeight: 58, lineHeight: 1.5 }}>
-                  {item.description}
+                  {uiText(item.description)}
                 </p>
                 <div className="filter-row">
-                  {quests.map(
+                  {uiText(quests.map(
                     (quest) =>
                       quest && (
                         <span className="tag brass" key={quest.id}>
-                          {quest.name}
+                          {uiText(quest.name)}
                         </span>
                       ),
-                  )}
+                  ))}
                 </div>
                 <div className="divider" />
                 <div
@@ -248,19 +234,18 @@ export function KeysPage() {
                   }}
                 >
                   <strong className="mono price-up">
-                    {price ? formatPrice(price.price) : "—"}
+                    {uiText(price ? formatPrice(price.price) : "—")}
                   </strong>
                   <Link
                     className="button small"
-                    to={`/items?selected=${item.id}`}
-                  >
-                    Подробнее <ArrowUpRight size={13} />
+                    to={`/flea?selected=${item.id}`}
+                  >{uiText(" Подробнее ")}<ArrowUpRight size={13} />
                   </Link>
                 </div>
               </div>
             </article>
           );
-        })}
+        }))}
       </div>
     </div>
   );
@@ -282,16 +267,12 @@ export function AmmoPage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">Баллистика</div>
-          <h1 className="page-title">Боеприпасы</h1>
-          <p className="page-subtitle">
-            Сравнение урона, пробития и цены для быстрой подготовки
-            боекомплекта.
-          </p>
+          <div className="eyebrow">{uiText("Баллистика")}</div>
+          <h1 className="page-title">{uiText("Боеприпасы")}</h1>
+          <p className="page-subtitle">{uiText(" Сравнение урона, пробития и цены для быстрой подготовки боекомплекта. ")}</p>
         </div>
         <span className="tag green">
-          <Crosshair size={12} /> сортировка по пробитию
-        </span>
+          <Crosshair size={12} />{uiText(" сортировка по пробитию ")}</span>
       </header>
       <div className="filter-row">
         <select
@@ -299,9 +280,9 @@ export function AmmoPage() {
           value={caliber}
           onChange={(event) => setCaliber(event.target.value)}
         >
-          {calibers.map((entry) => (
-            <option key={entry}>{entry}</option>
-          ))}
+          {uiText(calibers.map((entry) => (
+            <option key={entry}>{uiText(entry)}</option>
+          )))}
         </select>
       </div>
       <section className="panel">
@@ -309,16 +290,16 @@ export function AmmoPage() {
           <table className="price-table">
             <thead>
               <tr>
-                <th>Патрон</th>
-                <th>Калибр</th>
-                <th>Урон</th>
-                <th>Пробитие</th>
-                <th>Против брони</th>
-                <th>Цена</th>
+                <th>{uiText("Патрон")}</th>
+                <th>{uiText("Калибр")}</th>
+                <th>{uiText("Урон")}</th>
+                <th>{uiText("Пробитие")}</th>
+                <th>{uiText("Против брони")}</th>
+                <th>{uiText("Цена")}</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => {
+              {uiText(filtered.map((item) => {
                 const price = item.prices.find(
                   (quote) => quote.mode === state.raidMode,
                 );
@@ -330,21 +311,21 @@ export function AmmoPage() {
                   <tr key={item.id}>
                     <td>
                       <Link
-                        to={`/items?selected=${item.id}`}
+                        to={`/flea?selected=${item.id}`}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: 10,
                         }}
                       >
-                        <img className="item-thumb" src={item.iconUrl} alt="" />
-                        <strong>{item.shortName}</strong>
+                        <img className="item-thumb" src={item.iconUrl} alt={uiText("")} />
+                        <strong>{uiText(item.shortName)}</strong>
                       </Link>
                     </td>
-                    <td>{item.caliber}</td>
-                    <td className="mono">{item.damage}</td>
+                    <td>{uiText(item.caliber)}</td>
+                    <td className="mono">{uiText(item.damage)}</td>
                     <td>
-                      <strong className="mono">{item.penetration}</strong>
+                      <strong className="mono">{uiText(item.penetration)}</strong>
                       <div
                         className="priority-bar"
                         style={{ width: 110, marginTop: 6 }}
@@ -357,16 +338,15 @@ export function AmmoPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="tag brass">
-                        до класса {effectiveClass}
+                      <span className="tag brass">{uiText(" до класса ")}{uiText(effectiveClass)}
                       </span>
                     </td>
                     <td className="mono">
-                      {price ? formatPrice(price.price) : "—"}
+                      {uiText(price ? formatPrice(price.price) : "—")}
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
@@ -393,56 +373,58 @@ export function HideoutPage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">
-            Инфраструктура · {state.raidMode.toUpperCase()}
+          <div className="eyebrow">{uiText(" Инфраструктура · ")}{uiText(state.raidMode.toUpperCase())}
           </div>
-          <h1 className="page-title">Убежище</h1>
-          <p className="page-subtitle">
-            Выберите модуль на схеме. Уровни указываются вручную — журналы EFT
-            не содержат надёжного состояния убежища.
-          </p>
+          <h1 className="page-title">{uiText("Убежище")}</h1>
+          <p className="page-subtitle">{uiText(" Схематический вид сверху: модули, уровни и требования к постройке. Уровни пока указываются вручную — в журналах EFT нет надёжного снимка убежища. ")}</p>
         </div>
         <span className="tag brass">
-          <Boxes size={12} /> ручной учёт уровней
-        </span>
+          <Boxes size={12} /> {uiText(data.hideout.length)}{uiText(" модулей ")}</span>
       </header>
       <div className="hideout-layout">
-        <section className="panel hideout-map" aria-label="Схема убежища">
-          {data.hideout.map((station, index) => {
-            const level =
-              state.activeProfile.modes[state.raidMode].hideoutLevels[
-                station.id
-              ] ?? 0;
-            return (
-              <button
-                key={station.id}
-                className={`hideout-node ${selected?.id === station.id ? "active" : ""}`}
-                style={{ gridColumn: (index % 4) + 1 }}
-                onClick={() => setSelectedId(station.id)}
-              >
-                {station.imageUrl ? (
-                  <img src={station.imageUrl} alt="" />
-                ) : (
-                  <Boxes size={20} />
-                )}
-                <span>
-                  <strong>{station.name}</strong>
-                  <small>
-                    уровень {level}/{station.maxLevel ?? 0}
-                  </small>
-                </span>
-              </button>
-            );
-          })}
+        <section className="panel hideout-map" aria-label={uiText("Схема убежища")}>
+          <div className="hideout-schematic">
+            <div className="hideout-corridor" aria-hidden="true">{uiText("ВХОД ↓")}</div>
+            {uiText(data.hideout.map((station, index) => {
+              const level =
+                state.activeProfile.modes[state.raidMode].hideoutLevels[
+                  station.id
+                ] ?? 0;
+              const layout = station.layout ?? {
+                x: 8 + (index % 5) * 20,
+                y: 8 + Math.floor(index / 5) * 22,
+              };
+              return (
+                <button
+                  key={station.id}
+                  className={`hideout-node ${selected?.id === station.id ? "active" : ""} ${level > 0 ? "built" : ""}`}
+                  style={{ left: `${layout.x}%`, top: `${layout.y}%` }}
+                  onClick={() => setSelectedId(station.id)}
+                  title={uiText(station.name)}
+                >
+                  {uiText(station.imageUrl ? (
+                    <img src={station.imageUrl} alt={uiText("")} />
+                  ) : (
+                    <Boxes size={18} />
+                  ))}
+                  <span>
+                    <strong>{uiText(station.name)}</strong>
+                    <small>{uiText(" ур. ")}{uiText(level)}/{uiText(station.maxLevel ?? 0)}
+                    </small>
+                  </span>
+                </button>
+              );
+            }))}
+          </div>
         </section>
-        {selected && (
+        {uiText(selected && (
           <aside className="panel hideout-detail">
             <div className="panel-header">
               <div>
-                <div className="eyebrow">Модуль</div>
-                <div className="panel-title">{selected.name}</div>
+                <div className="eyebrow">{uiText("Модуль")}</div>
+                <div className="panel-title">{uiText(selected.name)}</div>
               </div>
-              {selected.imageUrl && <img src={selected.imageUrl} alt="" />}
+              {uiText(selected.imageUrl && <img src={selected.imageUrl} alt={uiText("")} />)}
             </div>
             <div className="panel-body">
               <div className="hideout-level-control">
@@ -457,7 +439,7 @@ export function HideoutPage() {
                 >
                   <Minus size={15} />
                 </button>
-                <strong>Уровень {currentLevel}</strong>
+                <strong>{uiText("Уровень ")}{uiText(currentLevel)}</strong>
                 <button
                   className="icon-button"
                   disabled={currentLevel >= (selected.maxLevel ?? 0)}
@@ -468,29 +450,65 @@ export function HideoutPage() {
                   <Plus size={15} />
                 </button>
               </div>
-              <small className="dim">Указано игроком</small>
+              <small className="dim">{uiText("Указано игроком")}</small>
               <div className="divider" style={{ margin: "15px 0" }} />
               <div className="stat-label">
-                {next ? `Для уровня ${next.level}` : "Максимальный уровень"}
+                {uiText(next ? `Для уровня ${next.level}` : "Максимальный уровень")}
               </div>
-              {next?.requirements.length ? (
-                next.requirements.map((requirement) => (
-                  <div className="quest-objective" key={requirement}>
-                    <span className="objective-dot" />
-                    <span>{requirement}</span>
-                  </div>
-                ))
+              {uiText(next?.stationRequirements?.length ? (
+                <>
+                  <div className="stat-label" style={{ marginTop: 10 }}>{uiText(" Модули ")}</div>
+                  {uiText(next.stationRequirements.map((requirement) => (
+                    <div className="quest-objective" key={requirement}>
+                      <span className="objective-dot" />
+                      <span>{uiText(requirement)}</span>
+                    </div>
+                  )))}
+                </>
+              ) : null)}
+              {uiText(next?.requirements.length ? (
+                <>
+                  <div className="stat-label" style={{ marginTop: 10 }}>{uiText(" Предметы и условия ")}</div>
+                  {uiText(next.requirements.map((requirement) => (
+                    <div className="quest-objective" key={requirement}>
+                      <span className="objective-dot" />
+                      <span>{uiText(requirement)}</span>
+                    </div>
+                  )))}
+                </>
               ) : (
                 <p className="muted">
-                  {next
+                  {uiText(next
                     ? "Предметные требования не указаны в источнике."
-                    : "Дальнейших улучшений нет."}
+                    : "Дальнейших улучшений нет.")}
                 </p>
-              )}
-              <p className="muted">{next?.bonus ?? selected.bonus}</p>
+              ))}
+              {uiText(typeof next?.constructionTimeHours === "number" && (
+                <p className="muted">{uiText(" Время постройки: ~")}{uiText(next.constructionTimeHours)}{uiText(" ч ")}</p>
+              ))}
+              <p className="muted">{uiText(next?.bonus ?? selected.bonus)}</p>
+              {uiText(selected.levels && selected.levels.length > 1 && (
+                <>
+                  <div className="divider" style={{ margin: "15px 0" }} />
+                  <div className="stat-label">{uiText("Все уровни")}</div>
+                  {uiText(selected.levels.map((level) => (
+                    <div className="quest-objective" key={level.level}>
+                      <span className="objective-dot" />
+                      <span>{uiText(" Ур. ")}{uiText(level.level)}:{uiText(" ")}
+                        {uiText([
+                          ...(level.stationRequirements ?? []),
+                          ...level.requirements,
+                        ]
+
+                          .join(" · ") || level.bonus)}
+                      </span>
+                    </div>
+                  )))}
+                </>
+              ))}
             </div>
           </aside>
-        )}
+        ))}
       </div>
     </div>
   );
@@ -499,65 +517,37 @@ export function HideoutPage() {
 export function TradersPage() {
   const { data } = useTarkovData();
   const [selectedId, setSelectedId] = useState(data.traders[0]?.id ?? "");
-  const selected = data.traders.find((trader) => trader.id === selectedId);
   return (
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">Контакты</div>
-          <h1 className="page-title">Торговцы</h1>
-          <p className="page-subtitle">
-            Выберите портрет торговца. Подробные данные появятся в следующих
-            версиях.
-          </p>
+          <div className="eyebrow">{uiText("Контакты")}</div>
+          <h1 className="page-title">{uiText("Торговцы")}</h1>
+          <p className="page-subtitle">{uiText(" Выберите портрет торговца, подробные данные появятся в следующих версиях. ")}</p>
         </div>
-        <span className="tag">
-          <UserRound size={12} /> {data.traders.length} контактов
-        </span>
       </header>
-      <div className="trader-layout">
-        <div className="trader-grid">
-          {data.traders.map((trader) => (
-            <button
-              className={`panel trader-card ${selectedId === trader.id ? "active" : ""}`}
-              key={trader.id}
-              onClick={() => setSelectedId(trader.id)}
+      <div className="trader-grid">
+        {uiText(data.traders.map((trader) => (
+          <button
+            className={`panel trader-card ${selectedId === trader.id ? "active" : ""}`}
+            key={trader.id}
+            onClick={() => setSelectedId(trader.id)}
+            aria-label={uiText(trader.name)}
+            aria-pressed={selectedId === trader.id}
+          >
+            <div
+              className="trader-portrait"
+              style={{ borderColor: trader.accent }}
             >
-              <div
-                className="trader-portrait"
-                style={{ borderColor: trader.accent }}
-              >
-                {trader.imageUrl ? (
-                  <img src={trader.imageUrl} alt={trader.name} />
-                ) : (
-                  trader.name[0]
-                )}
-              </div>
-              <strong>{trader.name}</strong>
-            </button>
-          ))}
-        </div>
-        {selected && (
-          <section className="panel trader-detail">
-            <div style={{ height: 5, background: selected.accent }} />
-            <div className="panel-body">
-              {selected.imageUrl && (
-                <img
-                  className="trader-detail-image"
-                  src={selected.imageUrl}
-                  alt={selected.name}
-                />
-              )}
-              <div className="eyebrow">Торговец</div>
-              <h2>{selected.name}</h2>
-              <p className="muted">{selected.role}</p>
-              <div className="import-note">
-                Раздел подготовлен. Ассортимент, репутация и персональные
-                предложения пока не подключены.
-              </div>
+              {uiText(trader.imageUrl ? (
+                <img src={trader.imageUrl} alt={uiText("")} />
+              ) : (
+                trader.name[0]
+              ))}
             </div>
-          </section>
-        )}
+            <strong>{uiText(trader.name)}</strong>
+          </button>
+        )))}
       </div>
     </div>
   );
@@ -566,60 +556,32 @@ export function TradersPage() {
 export function SettingsPage() {
   const { data, source, updatedAt, refresh, isFetching } = useTarkovData();
   const state = useAppState();
-  const [reduced, setReduced] = useState(false);
+  const { locale, setLocale } = useLocale();
   const [compact, setCompact] = useState(true);
   const counts = data.metadata?.counts;
   return (
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">Система</div>
-          <h1 className="page-title">Настройки</h1>
-          <p className="page-subtitle">
-            Локальные предпочтения, данные и сведения об источниках.
-          </p>
+          <div className="eyebrow">{uiText("Система")}</div>
+          <h1 className="page-title">{uiText("Настройки")}</h1>
+          <p className="page-subtitle">{uiText(" Локальные предпочтения и управление данными аккаунта. ")}</p>
         </div>
         <span className={`tag ${source === "demo" ? "danger" : "green"}`}>
-          <HardDrive size={12} />{" "}
-          {source === "demo" ? "Демо-режим" : `Данные ${timeAgo(updatedAt)}`}
+          <HardDrive size={12} />{uiText(" ")}
+          {uiText(source === "demo" ? "Демо-режим" : `Данные ${timeAgo(updatedAt)}`)}
         </span>
       </header>
       <div className="settings-grid">
         <section className="panel">
           <div className="panel-header">
-            <div className="panel-title">Интерфейс и режим</div>
+            <div className="panel-title">{uiText("Интерфейс")}</div>
           </div>
           <div className="panel-body">
             <div className="setting-row">
               <span>
-                <strong>Экономика</strong>
-                <small>Глобальный режим рынка</small>
-              </span>
-              <div className="mode-switch">
-                <button
-                  className={state.raidMode === "pvp" ? "active" : ""}
-                  onClick={() => state.setRaidMode("pvp")}
-                >
-                  PvP
-                </button>
-                <button
-                  className={state.raidMode === "pve" ? "active" : ""}
-                  onClick={() => state.setRaidMode("pve")}
-                >
-                  PvE
-                </button>
-                <button
-                  className={state.raidMode === "seasonal" ? "active" : ""}
-                  onClick={() => state.setRaidMode("seasonal")}
-                >
-                  Сезон
-                </button>
-              </div>
-            </div>
-            <div className="setting-row">
-              <span>
-                <strong>Компактные таблицы</strong>
-                <small>Больше строк на экране</small>
+                <strong>{uiText("Компактные таблицы")}</strong>
+                <small>{uiText("Больше строк на экране")}</small>
               </span>
               <button
                 className={`toggle ${compact ? "on" : ""}`}
@@ -630,145 +592,60 @@ export function SettingsPage() {
             </div>
             <div className="setting-row">
               <span>
-                <strong>Сократить анимацию</strong>
-                <small>Меньше переходов и движения</small>
+                <strong>{uiText("Язык интерфейса")}</strong>
+                <small>{uiText("Первая версия")}</small>
               </span>
-              <button
-                className={`toggle ${reduced ? "on" : ""}`}
-                onClick={() => setReduced(!reduced)}
-              >
-                <span />
-              </button>
-            </div>
-            <div className="setting-row">
-              <span>
-                <strong>Язык интерфейса</strong>
-                <small>Первая версия прототипа</small>
-              </span>
-              <span className="tag brass">Русский</span>
+              <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>
           </div>
         </section>
         <section className="panel">
           <div className="panel-header">
-            <div className="panel-title">Данные</div>
+            <div className="panel-title">{uiText("Данные")}</div>
           </div>
           <div className="panel-body">
-            <div className="setting-row">
-              <span>
-                <strong>Источник</strong>
-                <small>
-                  {source === "demo"
-                    ? "Встроенный демонстрационный набор"
-                    : "json.tarkov.dev · русский каталог"}
-                </small>
-              </span>
-              <span className={`tag ${source === "demo" ? "danger" : "green"}`}>
-                {source}
-              </span>
-            </div>
-            {counts && (
+            {uiText(counts && (
               <div className="setting-row">
                 <span>
-                  <strong>Каталог</strong>
+                  <strong>{uiText("Каталог")}</strong>
                   <small>
-                    {counts.quests.toLocaleString("ru-RU")} заданий ·{" "}
-                    {counts.items.toLocaleString("ru-RU")} предметов ·{" "}
-                    {counts.maps.toLocaleString("ru-RU")} карт
-                  </small>
+                    {uiText(counts.quests.toLocaleString("ru-RU"))}{uiText(" заданий ·")}{uiText(" ")}
+                    {uiText(counts.items.toLocaleString("ru-RU"))}{uiText(" предметов ·")}{uiText(" ")}
+                    {uiText(counts.maps.toLocaleString("ru-RU"))}{uiText(" карт ")}</small>
                 </span>
                 <span className="tag brass">
-                  {state.raidMode.toUpperCase()}
+                  {uiText(state.raidMode.toUpperCase())}
                 </span>
               </div>
-            )}
+            ))}
             <div className="setting-row">
               <span>
-                <strong>Обновить сейчас</strong>
+                <strong>{uiText("Обновить сейчас")}</strong>
                 <small>
-                  {isFetching
+                  {uiText(isFetching
                     ? "Запрос выполняется…"
-                    : `Последнее: ${timeAgo(updatedAt)}`}
+                    : `Последнее: ${timeAgo(updatedAt)}`)}
                 </small>
               </span>
               <button className="button small" onClick={refresh}>
-                <RotateCcw size={13} /> Обновить
-              </button>
+                <RotateCcw size={13} />{uiText(" Обновить ")}</button>
             </div>
             <div className="setting-row">
               <span>
-                <strong>Локальный прогресс</strong>
-                <small>Активные задания, избранное и слои</small>
+                <strong>{uiText("Локальный прогресс")}</strong>
+                <small>{uiText(" Сбросить этот аккаунт и создать заново: задания, избранное и привязки режимов ")}</small>
               </span>
               <button
                 className="button small danger"
                 onClick={() => {
-                  if (window.confirm("Сбросить весь локальный прогресс?"))
+                  if (
+                    window.confirm(
+                      "Сбросить аккаунт и создать локальный прогресс заново?",
+                    )
+                  )
                     state.reset();
                 }}
-              >
-                Сбросить
-              </button>
-            </div>
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">Источники и лицензии</div>
-            <ShieldCheck size={16} className="dim" />
-          </div>
-          <div className="panel-body stack">
-            <p className="muted" style={{ lineHeight: 1.65 }}>
-              Неофициальный некоммерческий компаньон. Не читает память игры, не
-              внедряется в процесс и не автоматизирует игровые действия.
-            </p>
-            <a
-              className="button ghost"
-              href="https://tarkov.dev"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Tarkov.dev <ExternalLink size={14} />
-            </a>
-            <a
-              className="button ghost"
-              href="https://github.com/the-hideout/tarkov-dev-svg-maps"
-              target="_blank"
-              rel="noreferrer"
-            >
-              SVG-карты · CC BY-NC-SA 4.0 <ExternalLink size={14} />
-            </a>
-            <a
-              className="button ghost"
-              href="https://www.escapefromtarkov.com"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Escape from Tarkov <ExternalLink size={14} />
-            </a>
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">Состояние прототипа</div>
-            <TrendingUp size={16} className="dim" />
-          </div>
-          <div className="panel-body">
-            <div className="quest-objective">
-              <Check size={15} color="var(--green)" />
-              <span>Командный центр и планирование рейда</span>
-            </div>
-            <div className="quest-objective">
-              <Check size={15} color="var(--green)" />
-              <span>Карты, интерактивные маркеры и слои</span>
-            </div>
-            <div className="quest-objective">
-              <Check size={15} color="var(--green)" />
-              <span>Задания, предметы, ключи и экономика</span>
-            </div>
-            <div className="quest-objective">
-              <Heart size={15} color="var(--brass)" />
-              <span>Готово к пользовательской оценке</span>
+              >{uiText(" Сбросить аккаунт ")}</button>
             </div>
           </div>
         </section>

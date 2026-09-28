@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { applyPlayerSnapshot, createLocalProfile, migrateProfile, registerModeProfile, setTaskProgress } from './progress'
 
 describe('local profile model', () => {
+  it('preserves confirmed PvE trader-task scans after restart', () => {
+    const profile = setTaskProgress(createLocalProfile('Operator'), 'pve', { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-28T00:00:00Z' })
+    expect(migrateProfile(profile)?.modes.pve.taskProgress.debut).toEqual(profile.modes.pve.taskProgress.debut)
+    expect(migrateProfile(profile)?.modes.pvp.taskProgress.debut).toBeUndefined()
+  })
   it('keeps PvP, PvE and Seasonal progress isolated', () => {
     const profile = createLocalProfile('BANGKOK', 'profile-1')
     const updated = setTaskProgress(profile, 'pvp', {
@@ -26,11 +31,12 @@ describe('local profile model', () => {
     const migrated = migrateProfile({
       id: 'legacy', displayName: 'Legacy', selectedMode: 'pve', modes: { pvp: {}, pve: { playerLevel: 22 } },
     })
-    expect(migrated?.schemaVersion).toBe(3)
+    expect(migrated?.schemaVersion).toBe(5)
     expect(migrated?.modes.pve.playerLevel).toBe(22)
     expect(migrated?.modes.pvp.playerLevel).toBe(1)
     expect(migrated?.modes.seasonal.playerLevel).toBe(1)
     expect(migrated?.modes.seasonal.registration.status).toBe('unregistered')
+    expect(migrated?.modes.pvp.raidItemIds).toEqual([])
   })
 
   it('registers a nickname only for the selected mode', () => {
@@ -43,6 +49,54 @@ describe('local profile model', () => {
     expect(profile.modes.pve.registration).toMatchObject({ status: 'registered', accountId: 7690289, nickname: 'Shaurma' })
     expect(profile.modes.pvp.registration.status).toBe('unregistered')
     expect(profile.modes.seasonal.registration.status).toBe('unregistered')
+  })
+
+  it('keeps favorites when binding or rebinding a nickname', () => {
+    const withFavorites = {
+      ...createLocalProfile('Operator'),
+      modes: {
+        ...createLocalProfile('Operator').modes,
+        pvp: {
+          ...createLocalProfile('Operator').modes.pvp,
+          favoriteItemIds: ['ledx', 'graphics-card'],
+          raidItemIds: ['salewa'],
+        },
+      },
+    }
+    const firstBind = registerModeProfile(withFavorites, 'pvp', {
+      accountId: 1,
+      enteredNickname: 'shaurma',
+      nickname: 'SHAURMA',
+      verifiedAt: '2026-09-26T00:00:00.000Z',
+    })
+    expect(firstBind.modes.pvp.favoriteItemIds).toEqual(['ledx', 'graphics-card'])
+    expect(firstBind.modes.pvp.raidItemIds).toEqual(['salewa'])
+
+    const rebound = registerModeProfile(firstBind, 'pvp', {
+      accountId: 2,
+      enteredNickname: 'other',
+      nickname: 'Other',
+      verifiedAt: '2026-09-26T01:00:00.000Z',
+    })
+    expect(rebound.modes.pvp.favoriteItemIds).toEqual(['ledx', 'graphics-card'])
+    expect(rebound.modes.pvp.raidItemIds).toEqual(['salewa'])
+    expect(rebound.modes.pvp.registration.accountId).toBe(2)
+  })
+
+  it('shares favorites across modes during migration', () => {
+    const migrated = migrateProfile({
+      id: 'legacy',
+      displayName: 'Legacy',
+      selectedMode: 'pvp',
+      modes: {
+        pvp: { favoriteItemIds: ['ledx'] },
+        pve: { favoriteItemIds: ['salewa'] },
+        seasonal: {},
+      },
+    })
+    expect(migrated?.modes.pvp.favoriteItemIds).toEqual(['ledx', 'salewa'])
+    expect(migrated?.modes.pve.favoriteItemIds).toEqual(['ledx', 'salewa'])
+    expect(migrated?.modes.seasonal.favoriteItemIds).toEqual(['ledx', 'salewa'])
   })
 
   it('does not replace a newer player snapshot with an older one', () => {

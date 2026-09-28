@@ -1,0 +1,89 @@
+openapi: 3.1.0
+info:
+  title: Tarkov Operations Companion API
+  version: 0.2.0
+  description: Local development API. Public billing and per-user authentication are not enabled yet.
+servers:
+  - url: http://127.0.0.1:8787
+paths:
+  /health:
+    get:
+      responses:
+        '200': {description: Service status}
+  /v1/catalog/{mode}:
+    get:
+      parameters:
+        - {$ref: '#/components/parameters/Mode'}
+      responses:
+        '200': {description: AppDataset — maps, markers, quests, items, traders, hideout and source metadata. The same model is consumed by desktop and web.}
+        '400': {description: Invalid mode}
+        '502': {description: Upstream unavailable and no cache}
+  /v1/players/resolve:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode, nickname]
+              properties:
+                mode: {$ref: '#/components/schemas/Mode'}
+                nickname: {type: string, minLength: 3, maxLength: 15}
+      responses:
+        '200': {description: Verified public profile candidate and snapshot}
+        '404': {description: No public profile for this mode}
+        '409': {description: Ambiguous nickname or stale index}
+  /v1/players/{mode}/{accountId}:
+    get:
+      parameters:
+        - {$ref: '#/components/parameters/Mode'}
+        - {name: accountId, in: path, required: true, schema: {type: integer, minimum: 1}}
+      responses:
+        '200': {description: PlayerProfileSnapshot with fetch time and upstream update time}
+        '502': {description: Public profile unavailable}
+  /v1/sync/events:
+    post:
+      security: [{DeviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode, accountId, characterId, events]
+              properties:
+                mode: {$ref: '#/components/schemas/Mode'}
+                accountId: {type: integer, minimum: 1}
+                characterId: {type: string, pattern: '^[a-fA-F0-9]{24}$'}
+                events:
+                  type: array
+                  maxItems: 2000
+                  items:
+                    type: object
+                    required: [taskId, status, timestamp]
+                    properties:
+                      taskId: {type: string, pattern: '^[a-fA-F0-9]{24}$'}
+                      status: {type: string, enum: [active, completed, failed]}
+                      timestamp: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Deduplicated projection. Coverage is partial because logs are not a full game snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [revision, records, coverage]
+                properties:
+                  revision: {type: string}
+                  records: {type: array, items: {type: object}}
+                  coverage: {type: string, const: partial}
+        '400': {description: Invalid event batch}
+        '401': {description: Invalid or missing device token}
+components:
+  parameters:
+    Mode: {name: mode, in: path, required: true, schema: {$ref: '#/components/schemas/Mode'}}
+  schemas:
+    Mode: {type: string, enum: [pvp, pve, seasonal]}
+  securitySchemes:
+    DeviceToken: {type: http, scheme: bearer}

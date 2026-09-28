@@ -1,0 +1,37 @@
+import type { MarkerLayerId } from '../domain/types'
+import pmcExtraction from './map-markers/01_pmc_extraction.png'
+import coopExtraction from './map-markers/03_coop_extraction.png'
+import transition from './map-markers/04_transition.png'
+import quest from './map-markers/05_quest.png'
+import questItem from './map-markers/06_quest_item.png'
+import key from './map-markers/07_key.png'
+import boss from './map-markers/08_boss.png'
+import spawn from './map-markers/09_spawn.png'
+import danger from './map-markers/10_danger.png'
+import landmark from './map-markers/11_landmark.png'
+import valuableLoot from './map-markers/12_valuable_loot.png'
+import weaponsAmmo from './map-markers/13_weapons_ammo.png'
+import medicine from './map-markers/14_medicine.png'
+import provisions from './map-markers/15_provisions.png'
+import technicalLoot from './map-markers/16_technical_loot.png'
+import containerStash from './map-markers/17_container_stash.png'
+
+export const markerImages: Record<MarkerLayerId, string> = {
+  'extract.pmc': pmcExtraction,
+  'extract.scav': pmcExtraction,
+  'extract.coop': coopExtraction,
+  transit: transition,
+  'quest.zone': quest,
+  'quest.item': questItem,
+  key,
+  boss,
+  spawn,
+  hazard: danger,
+  landmark,
+  'loot.valuable': valuableLoot,
+  'loot.weapon': weaponsAmmo,
+  'loot.medical': medicine,
+  'loot.provision': provisions,
+  'loot.technical': technicalLoot,
+  'loot.container': containerStash,
+}

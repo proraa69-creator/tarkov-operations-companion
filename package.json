@@ -4,7 +4,7 @@
   "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
   "author": "Tarkov Operations Companion contributors",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.4",
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -14,6 +14,8 @@
     "build": "npm run build:renderer && npm run build:electron",
     "desktop": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win portable",
+    "server:dev": "npm --prefix server run dev",
+    "server:test": "npm --prefix server test",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
@@ -34,26 +36,44 @@
       "package.json"
     ],
     "asar": true,
+    "npmRebuild": false,
+    "asarUnpack": [
+      "**/node_modules/tesseract.js/**",
+      "**/node_modules/tesseract.js-core/**",
+      "**/node_modules/uiohook-napi/**",
+      "**/node_modules/node-gyp-build/**",
+      "**/node_modules/koffi/**"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/tessdata",
+        "to": "tessdata"
+      }
+    ],
     "win": {
       "target": [
         "portable"
       ],
-      "artifactName": "Tarkov Operations Companion Beta.exe"
+      "artifactName": "Tarkov Operations Companion Experimental ${version}.exe"
     }
   },
   "dependencies": {
     "@tanstack/react-query": "latest",
     "fflate": "^0.8.3",
     "idb-keyval": "^6.3.0",
+    "koffi": "^3.3.1",
     "leaflet": "latest",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-leaflet": "latest",
-    "react-router-dom": "latest"
+    "react-router-dom": "latest",
+    "tesseract.js": "^7.0.0",
+    "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
     "@eslint/js": "latest",
+    "@imgly/background-removal-node": "^1.4.5",
     "@playwright/test": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
@@ -70,6 +90,7 @@
     "eslint-plugin-react-refresh": "latest",
     "globals": "latest",
     "jsdom": "latest",
+    "sharp": "^0.35.5",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vite": "latest",

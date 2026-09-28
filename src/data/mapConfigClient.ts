@@ -1,4 +1,5 @@
-import type { GameMap } from '../domain/types'
+import type { GameMap, MapFloorExtent, MapFloorLayer } from '../domain/types'
+import { localizeFloorName, MAIN_FLOOR } from './mapProjection'
 
 const MAP_CONFIG_URL = 'https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json'
 const ATTRIBUTION = 'Карта © tarkov.dev contributors · CC BY-NC-SA 4.0'
@@ -9,6 +10,7 @@ interface RawMapConfigRoot {
 }
 
 interface RawMapConfig {
+  svgLayer?: string
   key?: string
   minZoom?: number
   maxZoom?: number
@@ -24,15 +26,21 @@ interface RawMapConfig {
 }
 
 interface RawMapLayer {
+  svgLayer?: string
   name?: string
   tilePath?: string
   svgPath?: string
   heightRange?: number[]
-  extents?: Array<{ height?: number[] }>
+  extents?: RawExtent[] | RawExtent
+}
+
+interface RawExtent {
+  height?: number[]
+  bounds?: unknown[]
 }
 
 export async function fetchMapRenderingConfigs(): Promise<Map<string, Partial<GameMap>>> {
-  const response = await fetch(MAP_CONFIG_URL, { headers: { accept: 'application/json' } })
+  const response = await fetch(MAP_CONFIG_URL, { signal: AbortSignal.timeout(20_000), headers: { accept: 'application/json' } })
   if (!response.ok) throw new Error(`maps.json: HTTP ${response.status}`)
   const roots = await response.json() as RawMapConfigRoot[]
   return adaptMapRenderingConfigs(Array.isArray(roots) ? roots : [])
@@ -62,26 +70,49 @@ export function adaptMapRenderingConfigs(roots: RawMapConfigRoot[]): Map<string,
 }
 
 function mapFloors(config: RawMapConfig) {
-  const names = ['Основной', ...(config.layers ?? []).map((layer) => layer.name).filter((name): name is string => Boolean(name))]
+  const names = [MAIN_FLOOR, ...(config.layers ?? []).map((layer) => layer.name).filter((name): name is string => Boolean(name)).map(localizeFloorName)]
   return [...new Set(names)]
 }
 
 function mapLayers(config: RawMapConfig): GameMap['layers'] {
-  const primary = {
+  const primary: MapFloorLayer = {
     id: 'main',
-    name: 'Основной',
+    svgLayer: config.svgLayer,
+    name: MAIN_FLOOR,
     tileUrl: config.tilePath,
     imageUrl: config.svgPath,
     heightRange: readHeightRange(config.heightRange),
+    ownTiles: true,
   }
-  const layers = (config.layers ?? []).map((layer, index) => ({
-    id: `layer-${index}`,
-    name: layer.name ?? `Слой ${index + 1}`,
-    tileUrl: layer.tilePath ?? config.tilePath,
-    imageUrl: layer.svgPath ?? config.svgPath,
-    heightRange: readHeightRange(layer.heightRange) ?? readHeightRange(layer.extents?.[0]?.height),
-  }))
+  const layers = (config.layers ?? []).filter((layer) => layer.name).map((layer, index): MapFloorLayer => {
+    const extents = readExtents(layer.extents)
+    return {
+      id: `layer-${index}`,
+      svgLayer: layer.svgLayer,
+      name: localizeFloorName(layer.name ?? `Слой ${index + 1}`),
+      tileUrl: layer.tilePath ?? config.tilePath,
+      imageUrl: layer.svgPath ?? config.svgPath,
+      heightRange: readHeightRange(layer.heightRange) ?? extents[0]?.height,
+      extents: extents.length ? extents : undefined,
+      ownTiles: Boolean(layer.tilePath || layer.svgPath),
+    }
+  })
   return [primary, ...layers]
+}
+
+function readExtents(value: RawMapLayer['extents']): MapFloorExtent[] {
+  const list = Array.isArray(value) ? value : value ? [value] : []
+  return list.flatMap((extent) => {
+    const height = readHeightRange(extent?.height)
+    if (!height) return []
+    const bounds = (Array.isArray(extent.bounds) ? extent.bounds : []).flatMap((box) => {
+      if (!Array.isArray(box)) return []
+      const first = readPair(box[0])
+      const second = readPair(box[1])
+      return first && second ? [[first, second] as [[number, number], [number, number]]] : []
+    })
+    return [{ height, bounds: bounds.length ? bounds : undefined }]
+  })
 }
 
 function readBounds(value: unknown): [[number, number], [number, number]] | undefined {
