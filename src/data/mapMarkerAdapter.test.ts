@@ -141,3 +141,29 @@ describe('live map catalog resilience', () => {
     expect(grenadier).toHaveLength(0)
   })
 })
+
+describe('boss spawn spots', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const mobs = {
+    bossKilla: { name: 'Килла', normalizedName: 'killa' },
+    pmcBot: { name: 'Рейдеры', normalizedName: 'raider' },
+    bossTest: { name: 'Boss X', normalizedName: 'boss-x' },
+  }
+
+  it('draws separate spots instead of averaging them onto open ground', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { interchange: { normalizedName: 'interchange', bosses: [
+      { mob: 'bossKilla', spawnLocations: [{ name: 'ZoneCenter', positions: [{ x: -100, y: 25, z: 0 }, { x: 100, y: 25, z: 0 }] }] },
+    ] } } }, {}, context)
+    const killa = result.filter((marker) => marker.boss?.key === 'killa').map((marker) => marker.position)
+    expect(killa).toEqual([[0, -100], [0, 100]])
+  })
+
+  it('shows a boss listed twice at one place once, and hides unknown mobs', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { reserve: { normalizedName: 'reserve', bosses: [
+      { mob: 'pmcBot', spawnLocations: [{ name: 'ZoneBarrack', positions: [{ x: 10, y: 0, z: 10 }] }] },
+      { mob: 'pmcBot', spawnLocations: [{ name: 'ZoneBarrack', positions: [{ x: 12, y: 0, z: 11 }] }] },
+      { mob: 'bossTest', spawnLocations: [{ name: 'ZoneX', positions: [{ x: 50, y: 0, z: 50 }] }] },
+    ] } } }, {}, context)
+    expect(result.filter((marker) => marker.layerId === 'boss').map((marker) => marker.title)).toEqual(['Рейдеры'])
+  })
+})

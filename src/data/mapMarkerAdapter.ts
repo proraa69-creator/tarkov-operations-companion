@@ -120,7 +120,24 @@ const EXTRA_BOSS_LOCATIONS: Record<string, Record<string, JsonRecord[]>> = {
   },
 }
 
+/** Real bosses and boss groups; anything else in the feed (test or unreleased mobs) is not shown. */
+const KNOWN_BOSSES = new Set([
+  'reshala', 'killa', 'glukhar', 'shturman', 'sanitar', 'tagilla', 'zryachiy', 'kaban', 'kollontay', 'partisan',
+  'knight', 'big-pipe', 'birdeye', 'cultist-priest', 'rogue', 'raider', 'kollontay', 'relic', 'svetloozerskiy',
+])
+
+/** Spawn points of one boss closer than this are one place on the map. */
+const SAME_SPOT_METRES = 45
+
+/** Zones where a boss must not be drawn although the feed lists them (product owner corrections). */
+function allowedZone(mapId: string, mobId: string, zone: string) {
+  // Rogues (ex-USEC) live only at the water treatment plant on Lighthouse.
+  if (mapId === 'lighthouse' && mobId === 'rogue') return /treatment|water|hellicopter|helicopter|rogue|usec|chalet/i.test(zone) || !zone
+  return true
+}
+
 function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRecord>, items: Map<string, Item>): MapMarker[] {
+  const placed: Array<{ key: string; x: number; z: number }> = []
   return asArray(rawMap.bosses).flatMap((boss, bossIndex) => {
     const mobKey = text(boss.mob)
     const mob = mobs.get(mobKey)
@@ -128,6 +145,9 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
     const mobId = text(mob?.normalizedName)
     const isGoons = mobId === 'knight' || mobKey === 'bossKnight'
     if (map.id === 'lighthouse' && mobId === 'glukhar') return []
+    if (!mob || (!KNOWN_BOSSES.has(mobId) && !text(mob.imagePortraitLink))) return []
+    // Big Pipe and Birdeye are drawn as part of the Goons marker.
+    if (mobId === 'big-pipe' || mobId === 'birdeye') return []
     const name = isGoons ? 'Кочевники' : text(mob?.name, mobKey || 'Босс')
     const spawnChance = number(boss.spawnChance)
     const escorts = asArray(boss.escorts).map((escort) => {
@@ -140,33 +160,55 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
         if (!escorts.some((escort) => escort.toLowerCase().replace(/\s/g, '').includes(member.toLowerCase().replace(/\s/g, '')))) escorts.unshift(member)
       }
     }
-    const info = mob ? bossInfoFromMob(mob, name, items) : { name }
+    const info = bossInfoFromMob(mob, name, items)
     const locations = [...asArray(boss.spawnLocations), ...(EXTRA_BOSS_LOCATIONS[text(rawMap.normalizedName)]?.[mobId] ?? [])]
     return locations.flatMap((location, locationIndex) => {
-      const positions = asArray(location.positions)
-      const position = averagePosition(positions)
-      const base = baseMarker(map, `boss-${bossIndex}-${locationIndex}`, position, undefined, position?.y, position?.y)
-      if (!base) return []
       const zone = prettifyZone(text(location.name))
+      if (!allowedZone(map.id, mobId, text(location.name))) return []
       const locationChance = number(location.chance)
-      return [{
-        ...base,
-        type: 'boss',
-        layerId: 'boss',
-        title: name,
-        description: `Возможная зона появления: ${zone || 'неизвестная зона'}.`,
-        meta: spawnChance ? `${Math.round(spawnChance * 100)}%` : undefined,
-        boss: {
-          ...info,
-          spawnChance: spawnChance || undefined,
-          locationChance: locationChance || undefined,
-          locationName: zone || undefined,
-          escorts: escorts.length ? escorts : undefined,
-        },
-        source: 'json.tarkov.dev/maps',
-      } satisfies MapMarker]
+      // One marker per distinct spot. Averaging a zone's points put bosses on roads and open ground
+      // between buildings (e.g. Killa outside the mall), so every separate point is drawn instead.
+      return spawnSpots(asArray(location.positions)).flatMap((position, spotIndex) => {
+        const x = number(position.x)
+        const z = number(position.z)
+        const key = isGoons ? 'goons' : mobId || name
+        // The same boss listed twice (two raider groups, a duplicated zone) at one place is one marker.
+        if (placed.some((entry) => entry.key === key && Math.hypot(entry.x - x, entry.z - z) < SAME_SPOT_METRES)) return []
+        const base = baseMarker(map, `boss-${bossIndex}-${locationIndex}-${spotIndex}`, position, undefined, position.y, position.y)
+        if (!base) return []
+        placed.push({ key, x, z })
+        return [{
+          ...base,
+          type: 'boss',
+          layerId: 'boss',
+          title: name,
+          description: `Возможная зона появления: ${zone || 'неизвестная зона'}.`,
+          meta: spawnChance ? `${Math.round(spawnChance * 100)}%` : undefined,
+          boss: {
+            ...info,
+            spawnChance: spawnChance || undefined,
+            locationChance: locationChance || undefined,
+            locationName: zone || undefined,
+            escorts: escorts.length ? escorts : undefined,
+          },
+          source: 'json.tarkov.dev/maps',
+        } satisfies MapMarker]
+      })
     })
   })
+}
+
+/** Groups a zone's spawn points into separate spots, each at the centre of its nearby points. */
+function spawnSpots(positions: JsonRecord[]) {
+  const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
+  if (!valid.length) return positions.slice(0, 1)
+  const groups: JsonRecord[][] = []
+  for (const position of valid) {
+    const group = groups.find((entry) => entry.some((other) => Math.hypot(number(other.x) - number(position.x), number(other.z) - number(position.z)) < SAME_SPOT_METRES))
+    if (group) group.push(position)
+    else groups.push([position])
+  }
+  return groups.map(averagePosition).filter((position): position is JsonRecord => Boolean(position))
 }
 
 function averagePosition(positions: JsonRecord[]) {
