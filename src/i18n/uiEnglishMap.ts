@@ -70,5 +70,7 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/Навык\s+/g, 'Skill '],
   [/этап\s+(\d+)\/(\d+)/g, 'stage $1/$2'],
   [/шанс\s+(\d+%)/g, 'chance $1'],
+  [/(\d+)\s*м$/g, '$1 m'],
+  [/(\d+)\s*с назад/g, '$1 s ago'],
   [/зона\s+(\d+%)/g, 'zone $1'],
 ]
