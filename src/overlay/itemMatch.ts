@@ -118,7 +118,8 @@ export function itemTextScore(item: Item, ocrText: string) {
     if (name.length < 3) continue
     for (const line of lines) {
       let score: number
-      if (short) score = line === name ? 0.9 : line.split(' ').includes(name) ? 0.76 : 0
+      // Stash rows run several cell labels together ("kiver m saury can salewa"): match whole words.
+      if (short) score = line === name ? 0.9 : ` ${line} `.includes(` ${name} `) ? 0.8 : 0
       else if (!name.includes(' ') && name.length < 8) score = Math.max(0, ...line.split(' ').map((word) => 1 - levenshtein(word, name) / Math.max(word.length, name.length)))
       else score = partialSimilarity(name, line) * (line.length < name.length * 0.6 ? line.length / (name.length * 0.6) : 1)
       if (score > best) best = score

@@ -20,5 +20,6 @@ describe('collector items', () => {
     const entries = collectorEntries(quests, items)
     expect(findVisibleItems(entries, 'Схрон\nСтаринный топор\nПатрон')).toEqual(['axe'])
     expect(findVisibleItems(entries, '')).toEqual([])
+    expect(findVisibleItems(entries, 'Kiver-M Saury Can Топор Salewa')).toEqual(['axe'])
   })
 })

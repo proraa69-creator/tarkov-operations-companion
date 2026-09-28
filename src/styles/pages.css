@@ -801,3 +801,9 @@ a.quest-stage:hover { color: var(--text); }
 .map-priority-bar { display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .map-priority-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brass); transition: width .25s var(--ease-soft); }
 /* ── end Goons card + map priority ── */
+.profile-live-card { display: flex; flex-direction: column; }
+.profile-live-card > .panel-body { flex: 1; }
+.profile-live-footer { display: flex; justify-content: flex-start; padding: 0 17px 17px; }
+.profile-live-footer a.button { text-decoration: none; }
+.kappa-cell.is-fresh { animation: kappa-fresh 1.6s ease-out 1; }
+@keyframes kappa-fresh { 0% { box-shadow: 0 0 0 0 rgb(127 169 131 / 80%); } 100% { box-shadow: 0 0 0 10px rgb(127 169 131 / 0%); } }

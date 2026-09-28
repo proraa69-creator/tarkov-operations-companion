@@ -6,7 +6,7 @@ import type { RaidMode } from '../src/domain/types.js'
 import { discoverEftLogs, normalizeSelectedLogsFolder } from './logDiscovery.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
 import { fetchPlayerProfile, resolveAccountIdsByNickname, clearPlayerSnapshotCache, humanizeNetworkError } from './playerProfileService.js'
-import { captureQuestFrame, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
+import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { serviceRequest } from './serviceGateway.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
@@ -249,6 +249,7 @@ function registerIpc() {
     return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`) ?? fetchPlayerProfile(mode, accountId)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)
+  ipcMain.handle('collector:scan-screen', () => scanScreenText())
   ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail)))
   ipcMain.handle('quests:recognize-png', async (_event, raw: unknown) => {
     if (typeof raw !== 'string' || raw.length > 18_000_000) throw new Error('Скриншот слишком большой')

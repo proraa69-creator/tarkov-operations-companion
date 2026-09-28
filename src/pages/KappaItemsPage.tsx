@@ -1,10 +1,13 @@
 import { uiText } from '../i18n/renderText'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Check, ScanSearch } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected, scanForCollectorItems } from '../kappa/collector'
+
+/** One press scans continuously for this long, so a whole stash can be scrolled through. */
+const SCAN_WINDOW_MS = 45_000
 
 export function KappaItemsPage() {
   const { data } = useTarkovData()
@@ -25,20 +28,40 @@ export function KappaItemsPage() {
 
   const toggle = (id: string) => saveCollected(raidMode, collected.includes(id) ? collected.filter((entry) => entry !== id) : [...collected, id])
 
+  // Scanning runs pass after pass while you scroll the stash, adding whatever shows up.
+  const scanning = useRef(false)
+  const [passes, setPasses] = useState(0)
+  const [fresh, setFresh] = useState<string[]>([])
+  const stop = useCallback(() => { scanning.current = false }, [])
+  useEffect(() => stop, [stop])
+
   const scan = useCallback(async () => {
+    if (scanning.current) { stop(); return }
+    scanning.current = true
     setBusy(true)
     setMessage('')
+    setPasses(0)
+    const started = Date.now()
+    let addedTotal = 0
     try {
-      const result = await scanForCollectorItems(raidMode, entries)
-      if (!result.ok) setMessage('Сканирование работает только в приложении для Windows.')
-      else if (!result.gameWindow) setMessage('Окно игры не найдено — распознан весь экран. Откройте игру и повторите.')
-      else setMessage(result.added ? `Добавлено предметов: ${result.added}` : result.found ? 'Все найденные предметы уже отмечены.' : 'Нужные предметы на экране не найдены.')
+      while (scanning.current && Date.now() - started < SCAN_WINDOW_MS) {
+        const result = await scanForCollectorItems(raidMode, entries)
+        if (!result.ok) { setMessage('Сканирование работает только в приложении для Windows.'); break }
+        setPasses((count) => count + 1)
+        if (result.added.length) {
+          addedTotal += result.added.length
+          setFresh((current) => [...current, ...result.added])
+        }
+        setMessage(`${result.gameWindow ? '' : 'Окно игры не найдено — читаю весь экран. '}Найдено новых: ${addedTotal}. Листайте схрон — сканирование идёт.`)
+      }
+      if (scanning.current) setMessage(addedTotal ? `Готово. Добавлено предметов: ${addedTotal}` : 'Готово. Новых предметов не найдено.')
     } catch {
       setMessage('Не удалось распознать экран. Попробуйте ещё раз.')
     } finally {
+      scanning.current = false
       setBusy(false)
     }
-  }, [entries, raidMode])
+  }, [entries, raidMode, stop])
 
   const done = entries.filter(({ item }) => collected.includes(item.id)).length
 
@@ -48,11 +71,11 @@ export function KappaItemsPage() {
         <div>
           <div className="eyebrow">{uiText('Капа · ')}{uiText(raidMode.toUpperCase())}</div>
           <h1 className="page-title">{uiText('Предметы для «Коллекционера»')}</h1>
-          <p className="page-subtitle">{uiText('Поместите предметы для квеста в одном экране (схрон или инвентарь), нажмите «Сканировать» — найденные предметы отметятся сами. Остальные можно отметить вручную.')}</p>
+          <p className="page-subtitle">{uiText('Откройте схрон и нажмите «Сканировать»: 45 секунд экран читается непрерывно, пока вы листаете схрон, и найденные предметы отмечаются сами. Остальные можно отметить вручную.')}</p>
         </div>
         <div className="kappa-items-actions">
           <Link className="button ghost" to="/"><ArrowLeft size={14} />{uiText(' Назад')}</Link>
-          <button className="button primary" disabled={!desktop || busy || !entries.length} onClick={() => void scan()}><ScanSearch size={14} />{uiText(busy ? ' Сканирую…' : ' Сканировать')}</button>
+          <button className="button primary" disabled={!desktop || !entries.length} onClick={() => void scan()}><ScanSearch size={14} />{uiText(busy ? ` Остановить (${passes})` : ' Сканировать')}</button>
         </div>
       </header>
 
@@ -67,7 +90,7 @@ export function KappaItemsPage() {
             {entries.map(({ item, count }) => {
               const has = collected.includes(item.id)
               return (
-                <button key={item.id} type="button" className={`kappa-cell${has ? ' is-done' : ''}`} aria-pressed={has} onClick={() => toggle(item.id)} title={uiText(item.name)}>
+                <button key={item.id} type="button" className={`kappa-cell${has ? ' is-done' : ''}${fresh.includes(item.id) ? ' is-fresh' : ''}`} aria-pressed={has} onClick={() => toggle(item.id)} title={uiText(item.name)}>
                   {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span className="kappa-cell-fallback">{uiText(item.shortName)}</span>}
                   <span className="kappa-cell-name">{uiText(item.shortName || item.name)}{count > 1 ? ` ×${count}` : ''}</span>
                   {has && <span className="kappa-cell-check"><Check size={13} /></span>}

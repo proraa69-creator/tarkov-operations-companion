@@ -24,6 +24,8 @@ interface TarkovDesktopApi {
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number }>
+  /** Whole-screen OCR for the Collector checklist (stash / inventory). */
+  scanScreenText?: () => Promise<{ text: string; gameWindow: boolean }>
   recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>

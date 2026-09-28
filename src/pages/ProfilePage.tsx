@@ -18,10 +18,7 @@ export function ProfilePage() {
   return <div className="page">
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Локальная учётная запись")}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Данные персонажа обновляются из Tarkov.dev каждую минуту.")}</p></div>
-      <div className="profile-header-actions">
-        <a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a>
-        <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
-      </div>
+      <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
     </header>
     <div className="profile-operator-layout">
       <section className="panel profile-character-panel">
@@ -45,6 +42,7 @@ export function ProfilePage() {
       <section className="panel profile-live-card">
         <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(state.raidMode.toUpperCase())}</div><div className="panel-title">{uiText(progress.playerSnapshot?.nickname ?? state.activeProfile.displayName)}</div></div>{uiText(progress.playerSnapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(progress.playerSnapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
         <div className="panel-body"><PlayerLoadoutSummary snapshot={progress.playerSnapshot} /></div>
+        <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>
       </section>
     </div>
   </div>

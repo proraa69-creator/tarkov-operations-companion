@@ -10,7 +10,8 @@ import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
 import { MapSlideshow } from '../components/MapSlideshow'
-import { GOON_MAPS, useGoonLocation } from '../data/goonTracker'
+import { GoonCard } from '../components/GoonCard'
+import { MapPriority } from '../components/MapPriority'
 import { useLocale } from '../i18n/LocaleProvider'
 
 export function DashboardPage() {
@@ -18,7 +19,6 @@ export function DashboardPage() {
   const state = useAppState()
   const navigate = useNavigate()
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
-  const [goonPickerOpen, setGoonPickerOpen] = useState(false)
   const { locale } = useLocale()
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
@@ -38,8 +38,7 @@ export function DashboardPage() {
     .filter((row) => row.item)
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const stats = completedQuestStats(data.quests, availability)
-  const { location: goons, reportSighting } = useGoonLocation(state.raidMode)
-  const maxMapQuests = Math.max(1, ...data.maps.map((map) => currentQuests.filter((q) => onMap(q, map.id)).length))
+  const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
 
@@ -53,12 +52,7 @@ export function DashboardPage() {
       <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
       <div className="stat-card kappa-card"><Link className="button small kappa-items-button" to="/kappa-items">{uiText("Предметы")}</Link><div className="stat-label">{uiText("Капа")}</div><div className="stat-value">{uiText(stats.kappaCompleted)}</div><div className="stat-meta">{uiText("Выполнено ")}{uiText(stats.kappaCompleted)}{uiText(" из ")}{uiText(stats.kappaTotal)}</div></div>
-      <div className={`stat-card goon-card ${goonPickerOpen ? 'is-open' : ''}`}>
-        <div className="goon-card-heading"><div className="stat-label">{uiText('Кочевники')}</div><button className="button small" onClick={() => setGoonPickerOpen((open) => !open)}>{uiText(goonPickerOpen ? 'Отмена' : 'Видел')}</button></div>
-        <div className="stat-value goon-map-value">{uiText(data.maps.find((map) => map.id === goons?.mapId)?.name ?? 'Нет данных')}</div>
-        <div className="stat-meta">{goons ? `${uiText(goons.source === 'local' ? 'Ваша отметка' : 'Сообщение сообщества')} · ${new Date(goons.reportedAt).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : uiText('обновление каждую минуту')}</div>
-        <div className="goon-map-picker" aria-hidden={!goonPickerOpen}><div>{GOON_MAPS.map((id) => <button className="button small" key={id} tabIndex={goonPickerOpen ? 0 : -1} onClick={() => { reportSighting(id); setGoonPickerOpen(false) }}>{uiText(data.maps.find((map) => map.id === id)?.name ?? id)}</button>)}</div></div>
-      </div>
+      <GoonCard mode={state.raidMode} mapName={mapName} />
     </section>
 
     <div className="dashboard-layout">
@@ -85,16 +79,7 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section className="panel">
-          <div className="panel-header"><div className="panel-title">{uiText("Приоритет карт")}</div><Link to="/maps" className="dim">{uiText("Все карты ")}<ChevronRight size={13} /></Link></div>
-          <div className="panel-body priority-compact">
-            {uiText(data.maps.slice().sort((a, b) => currentQuests.filter((q) => onMap(q, b.id)).length - currentQuests.filter((q) => onMap(q, a.id)).length).slice(0, 5).map((map, index) => {
-              const count = currentQuests.filter((quest) => onMap(quest, map.id)).length
-              const questWord = count === 1 ? 'задание' : count >= 2 && count <= 4 ? 'задания' : 'заданий'
-              return <button key={map.id} className="priority-row" style={{ width: '100%', color: 'inherit', borderLeft: 0, borderRight: 0, borderTop: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer' }} onClick={() => { state.setSelectedMapId(map.id); navigate(`/maps/${map.id}`) }}><span className="mono dim">0{uiText(index + 1)}</span><span className="priority-map-label"><strong>{uiText(map.name)}</strong><span className="priority-meter" aria-hidden="true"><span style={{ width: `${count / maxMapQuests * 100}%` }} /></span></span><span className="priority-quest-count">{count} {locale === 'en' ? count === 1 ? 'task' : 'tasks' : questWord}</span></button>
-            }))}
-          </div>
-        </section>
+        <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
       </div>
 
       <div className="dashboard-column">

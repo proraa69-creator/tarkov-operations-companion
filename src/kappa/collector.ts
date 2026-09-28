@@ -57,10 +57,10 @@ export function saveCollected(mode: string, ids: string[]) {
 export async function scanForCollectorItems(mode: string, entries: CollectorEntry[]) {
   const api = window.tarkovDesktop
   if (!api) return { ok: false as const, reason: 'desktop' as const }
-  const frame = await api.captureQuestFrame(false, true)
+  const frame = api.scanScreenText ? await api.scanScreenText() : await api.captureQuestFrame(false, true)
   const found = findVisibleItems(entries, frame.text)
   const current = loadCollected(mode)
   const added = found.filter((id) => !current.includes(id))
   if (added.length) saveCollected(mode, [...current, ...added])
-  return { ok: true as const, found: found.length, added: added.length, gameWindow: frame.gameWindow }
+  return { ok: true as const, found: found.length, added, gameWindow: frame.gameWindow }
 }

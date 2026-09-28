@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, desktopCapturer, nativeImage, type NativeImage } from 'electron'
+import { app, desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
 
 const require = createRequire(import.meta.url)
@@ -85,6 +85,62 @@ export async function recognizeRegion(image: NativeImage) {
   const { width } = image.getSize()
   const scaled = width && width < 1000 ? image.resize({ width: width * 2, quality: 'best' }) : image
   return (await recognizeQuestImage(scaled, 'region')).text
+}
+
+/** Workers for the stash scan: sparse-text mode suits the short labels in inventory cells. */
+const STASH_WORKERS = 3
+let stashPool: Promise<OcrWorker[]> | null = null
+
+function stashWorkers() {
+  if (!stashPool) {
+    stashPool = (async () => {
+      const langPath = tessdataDirectory()
+      await mkdir(langPath, { recursive: true })
+      await ensureLanguageData(langPath)
+      return Promise.all(Array.from({ length: STASH_WORKERS }, async () => {
+        const next = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
+        await next.setParameters({ tessedit_pageseg_mode: '11' })
+        return next
+      }))
+    })().catch((error) => { stashPool = null; throw error })
+  }
+  return stashPool
+}
+
+/**
+ * Reads the whole screen (stash, inventory) for the Collector checklist. The picture is cut into
+ * overlapping tiles that are enlarged for the tiny cell labels and read in parallel.
+ */
+export async function scanScreenText() {
+  const display = screen.getPrimaryDisplay()
+  const scale = display.scaleFactor || 1
+  const physical = { width: Math.round(display.bounds.width * scale), height: Math.round(display.bounds.height * scale) }
+  const [workers, sources] = await Promise.all([
+    stashWorkers(),
+    desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: physical }),
+  ])
+  const game = sources.find((source) => isTarkovWindow(source.name) && !source.thumbnail.isEmpty())
+  const source = game ?? sources.find((entry) => entry.id.startsWith('screen') && entry.display_id === String(display.id)) ?? sources.find((entry) => entry.id.startsWith('screen'))
+  if (!source || source.thumbnail.isEmpty()) return { text: '', gameWindow: false }
+  const image = source.thumbnail
+  const { width, height } = image.getSize()
+  const columns = 3
+  const rows = 2
+  const overlap = Math.round(height * 0.03)
+  const tiles: NativeImage[] = []
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x = Math.max(0, Math.round((column * width) / columns) - overlap)
+      const y = Math.max(0, Math.round((row * height) / rows) - overlap)
+      const w = Math.min(width - x, Math.round(width / columns) + overlap * 2)
+      const h = Math.min(height - y, Math.round(height / rows) + overlap * 2)
+      const tile = image.crop({ x, y, width: w, height: h })
+      // Cell labels are ~9 px tall at 1080p; about 2x makes them readable for OCR.
+      tiles.push(h < 900 ? tile.resize({ width: Math.round(w * 1.8), quality: 'best' }) : tile)
+    }
+  }
+  const texts = await Promise.all(tiles.map((tile, index) => workers[index % workers.length]!.recognize(tile.toPNG()).then((result) => result.data.text ?? '').catch(() => '')))
+  return { text: texts.join('\n'), gameWindow: Boolean(game) }
 }
 
 /** Loads the OCR model ahead of the first lookup. */

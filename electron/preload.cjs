@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),
   recognizeQuestPng: (image) => ipcRenderer.invoke('quests:recognize-png', image),
+  scanScreenText: () => ipcRenderer.invoke('collector:scan-screen'),
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch) => ipcRenderer.invoke('experimental:update-settings', patch),
