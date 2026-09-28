@@ -1,7 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { divIcon, type DivIcon, type PointExpression } from 'leaflet'
+import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
 import { ImageOverlay, MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
@@ -16,6 +16,8 @@ import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { FloorSvgOverlay } from '../components/FloorSvgOverlay'
+import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
+import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
 import { useAppState } from '../state/AppState'
 import type { Item, MapMarker, MarkerLayerId, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
@@ -23,7 +25,7 @@ import { calculateAvailability, currentStoryStageIndex, isCurrentTrackedQuest, i
 import { questAppliesToMap } from '../progression/questLocation'
 import { formatPrice } from '../shared/format'
 
-type MarkerStyle = 'realistic' | 'minimal' | 'classic'
+type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
 
 const MARKER_STYLE_KEY = 'tarkov-map-marker-style'
@@ -114,11 +116,19 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       iconSize: [meta.size, meta.size],
       iconAnchor: [meta.size / 2, meta.size],
     })
-  } else if (style === 'classic' || style === 'minimal') {
+  } else if (style === 'modern') {
+    const modernSize = meta.shape === 'pin' || meta.shape === 'boss' ? 32 : meta.shape === 'dot' ? 18 : 28
+    icon = divIcon({
+      className: 'marker-icon',
+      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, Math.round(modernSize * 0.5))}</span>${badgeHtml}</div>`,
+      iconSize: [modernSize, modernSize],
+      iconAnchor: [modernSize / 2, modernSize / 2],
+    })
+  } else if (style === 'minimal') {
     const geometry = shapeGeometry[meta.shape]
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker ${style === 'minimal' ? 'is-minimal' : 'is-classic'} shape-${meta.shape}${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
+      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
       iconSize: geometry.size,
       iconAnchor: geometry.anchor,
     })
@@ -136,14 +146,47 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
 }
 
 function tooltipOffset(style: MarkerStyle, layerId: MarkerLayerId, bust?: string): PointExpression {
-  if (style !== 'realistic' && !bust) return [0, -shapeGeometry[markerMeta[layerId].shape].anchor[1] - 2]
+  if (style === 'modern' && !bust) return [0, -(markerMeta[layerId].shape === 'pin' || markerMeta[layerId].shape === 'boss' ? 16 : 14) - 4]
+  if (style === 'minimal' && !bust) return [0, -shapeGeometry[markerMeta[layerId].shape].anchor[1] - 2]
   return [0, -markerMeta[layerId].size - 2]
+}
+
+/**
+ * Re-places an open marker tooltip on the side where it fits: inside the map and clear of the
+ * HUD, zoom buttons and the quest sheet, instead of always sitting on top of the icon.
+ */
+function placeTooltip(map: LeafletMap, marker: LeafletMarker, tooltip: LeafletTooltip) {
+  const element = tooltip.getElement()
+  const iconOptions = marker.options.icon?.options
+  if (!element || !iconOptions) return
+  const containerElement = map.getContainer()
+  const origin = containerElement.getBoundingClientRect()
+  const [width, height] = (iconOptions.iconSize as [number, number] | undefined) ?? [26, 26]
+  const [ax, ay] = (iconOptions.iconAnchor as [number, number] | undefined) ?? [width / 2, height / 2]
+  const stage = containerElement.closest('.map-stage')
+  const reserved: PlacementBox[] = []
+  stage?.querySelectorAll('.map-hud > *, .leaflet-control-zoom, .map-quest-sheet.is-open, .marker-style-list').forEach((node) => {
+    const rect = (node as HTMLElement).getBoundingClientRect()
+    if (rect.width && rect.height) reserved.push({ left: rect.left - origin.left, top: rect.top - origin.top, right: rect.right - origin.left, bottom: rect.bottom - origin.top })
+  })
+  const anchor = map.latLngToContainerPoint(marker.getLatLng())
+  const choice = chooseTooltipPlacement({
+    point: { x: anchor.x, y: anchor.y },
+    icon: { left: -ax, top: -ay, right: width - ax, bottom: height - ay },
+    tooltip: { width: element.offsetWidth, height: element.offsetHeight },
+    container: { width: origin.width, height: origin.height },
+    reserved,
+  })
+  tooltip.options.direction = choice.side
+  tooltip.options.offset = leafletPoint(choice.offset[0], choice.offset[1])
+  tooltip.update()
 }
 
 function readMarkerStyle(): MarkerStyle {
   try {
     const saved = localStorage.getItem(MARKER_STYLE_KEY)
-    return saved === 'classic' || saved === 'minimal' ? saved : 'realistic'
+    if (saved === 'classic') return 'modern'
+    return saved === 'minimal' || saved === 'modern' ? saved : 'realistic'
   } catch {
     return 'realistic'
   }
@@ -152,9 +195,9 @@ function readMarkerStyle(): MarkerStyle {
 const markerStyleOptions: Array<{ id: MarkerStyle; label: string }> = [
   { id: 'realistic', label: 'Тактические' },
   { id: 'minimal', label: 'Минимал' },
-  { id: 'classic', label: 'Классика' },
+  { id: 'modern', label: 'Новые иконки' },
 ]
-const markerStylePreview: MarkerLayerId[] = ['extract.pmc', 'quest.zone', 'boss']
+const markerStylePreview: MarkerLayerId[] = ['extract.pmc']
 
 function MarkerStyleMenu({ value, onChange }: { value: MarkerStyle; onChange: (style: MarkerStyle) => void }) {
   const [open, setOpen] = useState(false)
@@ -232,6 +275,9 @@ export function MapsPage() {
     try { localStorage.setItem(MARKER_STYLE_KEY, style) } catch { /* storage unavailable */ }
   }
   const [floor, setFloor] = useState(baseFloor)
+  const [tools, setTools] = useState<MapToolsState>(initialMapTools)
+  const mapRef = useRef<LeafletMap | null>(null)
+  const toolActive = tools.tool !== 'none'
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
   const focusedStage = params.get('stage')
@@ -245,6 +291,7 @@ export function MapsPage() {
 
   useEffect(() => {
     setFloor(baseFloor)
+    setTools((current) => ({ ...current, rulerPoints: [], sniperCenter: null }))
   }, [activeMap.id, baseFloor])
 
   const itemsById = useMemo(() => new Map<string, Item>(data.items.map((item) => [item.id, item])), [data.items])
@@ -419,17 +466,18 @@ export function MapsPage() {
         </div>
       </aside>
 
-      <section className="map-stage">
+      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}`}>
         <div className="map-hud">
           <span>{uiText(activeMap.name.toUpperCase())}</span>
           <span>{uiText(floor.toUpperCase())}</span>
           <span>{uiText(mapMarkers.length)}{uiText(" МАРКЕРОВ")}</span>
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
+          <MapToolbar value={tools} onChange={setTools} />
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
-          if (marker) { event.stopPropagation(); showMarker(marker) }
+          if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
         }} onKeyDownCapture={(event) => {
           if (!['Enter', ' '].includes(event.key)) return
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -478,7 +526,9 @@ export function MapsPage() {
             />
           ))}
           <FocusOnMarker marker={flyTarget} />
-          <ClearSelectionOnMapClick onClear={clearQuestSelection} />
+          <MapRefCapture mapRef={mapRef} />
+          {!toolActive && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
+          <MapToolLayer value={tools} onChange={setTools} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
@@ -497,8 +547,12 @@ export function MapsPage() {
                 eventHandlers={{
                   add: (event) => event.target.getElement()?.setAttribute('data-marker-id', marker.id),
                   click: (event) => {
+                    if (toolActive) return
                     event.originalEvent.stopPropagation()
                     showMarker(marker)
+                  },
+                  tooltipopen: (event) => {
+                    if (mapRef.current) placeTooltip(mapRef.current, event.target as LeafletMarker, event.tooltip)
                   },
                   keypress: (event) => {
                     if (['Enter', ' '].includes((event.originalEvent as KeyboardEvent).key)) {
@@ -676,6 +730,15 @@ function QuestMapRow({ quest, selected, onSelect }: { quest: Quest; selected: bo
       </button>
     </div>
   )
+}
+
+function MapRefCapture({ mapRef }: { mapRef: { current: LeafletMap | null } }) {
+  const map = useMap()
+  useEffect(() => {
+    mapRef.current = map
+    return () => { mapRef.current = null }
+  }, [map, mapRef])
+  return null
 }
 
 function FocusOnMarker({ marker }: { marker: MapMarker | null }) {

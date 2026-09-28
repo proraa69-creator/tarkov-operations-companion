@@ -41,11 +41,31 @@ function ItemOverlay() {
       </div>
     )
   }
+  const trader = payload.bestTrader
   return (
     <div className="ov-card ov-item">
-      <div className="ov-prices">
-        <div><span>{uiText("Барахолка")}</span><strong>{uiText(payload.fleaPrice ? rub(payload.fleaPrice) : 'нет цены')}</strong></div>
+      <div className="ov-item-head">
+        {payload.iconUrl && <img className="ov-item-icon" src={payload.iconUrl} alt="" />}
+        <div className="ov-item-title">
+          <p className="ov-title">{uiText(payload.shortName || payload.name)}</p>
+          {payload.shortName && payload.shortName !== payload.name && <p className="ov-muted">{uiText(payload.name)}</p>}
+        </div>
       </div>
+      <div className="ov-tags">
+        {payload.collector && <span className="ov-tag is-collector">{uiText('Коллекционер')}</span>}
+        {payload.kappa && <span className="ov-tag is-kappa">{uiText('Капа')}</span>}
+        {payload.quests.length > 0 && <span className="ov-tag is-warn">{uiText(`Заданий: ${payload.quests.length}`)}</span>}
+        {!payload.collector && !payload.kappa && payload.quests.length === 0 && <span className="ov-tag is-ok">{uiText('Для заданий не нужен')}</span>}
+      </div>
+      <div className="ov-prices">
+        <div><span>{uiText('Барахолка')}</span><strong>{uiText(payload.fleaPrice ? rub(payload.fleaPrice) : 'нет цены')}</strong></div>
+        <div><span>{uiText(trader ? `Торговец · ${trader.name}` : 'Торговец')}</span><strong>{uiText(trader ? rub(trader.price) : 'нет цены')}</strong></div>
+      </div>
+      {payload.quests.length > 0 && (
+        <ul className="ov-quests">
+          {payload.quests.slice(0, 3).map((quest) => <li key={quest.questId}><span>{uiText(quest.name)}</span><em>{uiText(`${quest.purpose} ×${quest.count}`)}</em></li>)}
+        </ul>
+      )}
     </div>
   )
 }

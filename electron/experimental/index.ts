@@ -22,7 +22,7 @@ interface Options {
   raidState: () => { inRaid: boolean; since?: number; location?: string }
 }
 
-const ITEM_OVERLAY = { width: 300, height: 72 }
+const ITEM_OVERLAY = { width: 340, height: 230 }
 const MINIMAP_OVERLAY = { width: 520, height: 520 }
 const ITEM_HIDE_MS = 9000
 const QUERY_TIMEOUT_MS = 5000

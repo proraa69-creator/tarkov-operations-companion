@@ -257,25 +257,12 @@
 .leaflet-marker-icon:hover .map-marker.is-realistic, .leaflet-marker-icon:focus-visible .map-marker.is-realistic { transform: scale(1.2); filter: drop-shadow(0 1px 2px rgb(0 0 0 / 75%)) drop-shadow(0 0 4px color-mix(in srgb, var(--marker-color) 70%, transparent)) brightness(1.08); }
 .leaflet-marker-icon:focus-visible { outline: none; }
 
-.map-marker.is-classic {
-  --marker-fill: radial-gradient(circle at 32% 26%, color-mix(in srgb, var(--marker-color) 55%, #fff) 0%, var(--marker-color) 48%, color-mix(in srgb, var(--marker-color) 62%, #000) 100%);
-  color: #0b110d;
-}
 .map-marker.is-minimal { color: #f5ead0; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 85%)); }
 .map-marker.is-minimal::before { content: ''; position: absolute; inset: 2px; border-radius: 7px; background: color-mix(in srgb, var(--marker-color) 72%, #111 28%); opacity: .88; }
 .map-marker.is-minimal.shape-pin::before { inset: 1px 4px 9px; border-radius: 50% 50% 50% 4px; }
 .leaflet-marker-icon:hover .map-marker.is-minimal { transform: scale(1.16); filter: drop-shadow(0 2px 5px rgb(0 0 0 / 90%)) brightness(1.1); }
-.map-marker.is-classic::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--marker-fill);
-  border: 2px solid #0b110d;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--marker-color) 70%, transparent), 0 0 12px color-mix(in srgb, var(--marker-color) 45%, transparent), 0 4px 10px rgb(0 0 0 / 55%);
-}
 .map-marker-glyph { position: relative; z-index: 1; display: grid; place-items: center; line-height: 0; }
 .map-marker-glyph svg { filter: drop-shadow(0 1px 0 rgb(255 255 255 / 25%)); }
-.leaflet-marker-icon:hover .map-marker.is-classic, .leaflet-marker-icon:focus-visible .map-marker.is-classic { transform: scale(1.15); filter: brightness(1.08); }
 
 .map-marker.shape-pin { transform-origin: 50% 100%; }
 .map-marker.shape-pin::before { inset: 1px 3px 9px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); }
@@ -300,8 +287,6 @@
   border: 2px solid rgb(214 72 56 / 55%);
   animation: map-boss-pulse 2.4s ease-out infinite;
 }
-.map-marker.is-classic.is-focused::before { border-color: #f2d27a; box-shadow: 0 0 0 3px rgb(242 210 122 / 45%), 0 0 18px rgb(242 210 122 / 55%), 0 6px 16px rgb(0 0 0 / 55%); }
-.map-marker.is-classic.is-focused { transform: scale(1.12); }
 
 .map-marker.is-boss::after { content: none; }
 .map-marker.is-bust { filter: drop-shadow(0 2px 2px rgb(0 0 0 / 75%)); }
@@ -671,3 +656,51 @@ a.quest-stage:hover { color: var(--text); }
 .kappa-cell-name { font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.25; }
 .kappa-cell-fallback { font-weight: 700; }
 .kappa-cell-check { position: absolute; top: 5px; right: 5px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--success); color: #0a0f0c; }
+
+.profile-header-actions { display: flex; align-items: center; gap: 10px; }
+.profile-header-actions a.button { text-decoration: none; }
+
+/* Map tools (ruler, sniper range) */
+.map-tools { display: flex; align-items: center; gap: 4px; pointer-events: auto; }
+.map-tool { min-height: 30px; padding: 0 9px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #33433a; border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 11px; font-weight: 700; cursor: pointer; backdrop-filter: blur(10px); }
+.map-tool:hover:not(:disabled) { border-color: #5f553a; color: #f1ece0; }
+.map-tool:disabled { opacity: .4; cursor: default; }
+.map-tool.active { border-color: #6d603f; background: rgb(196 166 101 / 16%); color: #f2e2b8; }
+.map-tool em { font-style: normal; color: #e6d6ad; }
+.map-tool.icon { padding: 0 8px; }
+.map-tool.small { padding: 0 7px; min-height: 26px; }
+.map-tool-ranges { display: inline-flex; gap: 3px; }
+.map-tool-label span { position: absolute; transform: translate(-50%, -50%); padding: 1px 5px; border-radius: 4px; background: rgb(11 17 13 / 85%); color: #f0a58f; font-size: 10px; font-weight: 800; white-space: nowrap; pointer-events: none; }
+.leaflet-tooltip.map-tool-tip { padding: 2px 6px; border: 1px solid #6d603f; border-radius: 5px; background: rgb(11 17 13 / 92%); color: #f2e2b8; font-size: 11px; font-weight: 700; box-shadow: none; }
+.leaflet-tooltip.map-tool-tip::before { display: none; }
+.map-stage.is-tool-active .leaflet-container { cursor: crosshair; }
+
+/* New icons: dark disc with a coloured ring and glyph */
+.map-marker.is-modern { color: var(--marker-color); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
+.map-marker.is-modern::before { content: ''; position: absolute; inset: 1px; border-radius: 50%; background: radial-gradient(circle at 35% 25%, #2a382f 0%, #0d1410 78%); border: 2px solid var(--marker-color); box-shadow: 0 0 0 1px #0b110d, 0 0 9px color-mix(in srgb, var(--marker-color) 40%, transparent); }
+.map-marker.is-modern .map-marker-glyph svg { filter: none; }
+.leaflet-marker-icon:hover .map-marker.is-modern, .leaflet-marker-icon:focus-visible .map-marker.is-modern { transform: scale(1.18); }
+.map-marker.is-modern.is-focused::before { border-color: #f2d27a; box-shadow: 0 0 0 3px rgb(242 210 122 / 40%), 0 0 16px rgb(242 210 122 / 55%); }
+.map-marker.is-modern.is-focused { transform: scale(1.12); }
+
+/* Icon style menu: compact, opens downwards and stays within the HUD column */
+.map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 80px); }
+.marker-style-list { flex-direction: column; gap: 2px; min-width: 156px; padding: 4px; border-radius: 8px; }
+.marker-style-option { min-height: 30px; padding: 0 10px 0 6px; background: transparent; font-size: 11.5px; }
+.marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }
+
+/* Map window: no dead space around the map and side panels */
+.map-shell { height: calc(100vh - var(--topbar) - 48px); min-height: 560px; }
+.map-detail { display: flex; flex-direction: column; min-height: 0; }
+.map-detail-empty { flex: 1; align-content: center; padding: 16px; }
+.map-detail-empty h3 { margin: 8px 0 4px; font-size: 14px; }
+.map-detail-empty p { margin: 0; font-size: 12px; }
+
+/* Tarkov-style popups: flat, angular, dark khaki */
+.leaflet-tooltip.map-marker-tooltip { border: 1px solid #3d3f33; border-top: 2px solid #c9b26a; border-radius: 2px; background: linear-gradient(180deg, rgb(28 30 26 / 97%), rgb(15 17 14 / 97%)); box-shadow: 0 10px 26px rgb(0 0 0 / 65%); backdrop-filter: none; }
+.leaflet-tooltip.map-marker-tooltip::before { display: none; }
+.mmt-type { color: #c9b26a; font-family: "Bender", "Bahnschrift", Inter, sans-serif; }
+.mmt-title { color: #e7e2d0; text-transform: none; }
+.mmt-floor { border-radius: 2px; }
+.mmt-item-icon, .mmt-portrait, .mmt-gear-item { border-radius: 2px; }
+.map-quest-sheet-body { border-radius: 3px; border-color: #3d3f33; border-top: 2px solid #c9b26a; background: rgb(20 22 19 / 96%); }

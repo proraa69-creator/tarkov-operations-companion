@@ -1,5 +1,6 @@
 import { uiText } from '../i18n/renderText'
-import { Pencil, ShieldCheck, UserRound } from 'lucide-react'
+import { ExternalLink, Pencil, ShieldCheck, UserRound } from 'lucide-react'
+import { ACCOUNT_URL } from '../shared/links'
 import { openModeRegistrationDialog } from '../components/ModeRegistrationDialog'
 import { PlayerLoadoutSummary } from '../components/PlayerLoadoutSummary'
 import { useAppState } from '../state/AppState'
@@ -17,7 +18,10 @@ export function ProfilePage() {
   return <div className="page">
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Локальная учётная запись")}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Данные персонажа обновляются из Tarkov.dev каждую минуту.")}</p></div>
-      <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
+      <div className="profile-header-actions">
+        <a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a>
+        <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
+      </div>
     </header>
     <div className="profile-operator-layout">
       <section className="panel profile-character-panel">
