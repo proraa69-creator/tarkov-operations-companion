@@ -22,6 +22,14 @@ For less interruption during ordinary code work, use:
 
 This uses `acceptEdits` mode for the listed project folders. It is intended for project code edits and normal development commands. It still should not be treated as full unattended control of the entire Windows computer.
 
+Claude is also allowed to read and work inside the full local Codex projects tree:
+
+```text
+C:\Users\BANGKOK PC\Documents\Codex
+```
+
+This is the closest practical match to the project-file access used in this Codex workspace. It does not copy Codex-only internal tools, browser state, or system-level permissions into Claude.
+
 If Claude is not authenticated yet, it will ask you to sign in. Log in manually in the browser or terminal prompt.
 
 ## What Claude can safely do

@@ -15,6 +15,7 @@ Set-Location -LiteralPath $projectRoot
 
 & $claudeExe `
   --permission-mode manual `
+  --add-dir "C:\Users\BANGKOK PC\Documents\Codex" `
   --add-dir "C:\Users\BANGKOK PC\Documents\Codex\2026-09-25\escape-from-tarkov" `
   --add-dir "C:\Users\BANGKOK PC\Documents\ChatGPT\Бетховен" `
   --add-dir "C:\Users\BANGKOK PC\AIPASS" `
