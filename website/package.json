@@ -1,0 +1,26 @@
+{
+  "name": "tarkov-operations-website",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Marketing site and personal account for Tarkov Operations Companion. Built from the repository root with the root node_modules.",
+  "scripts": {
+    "dev": "cd .. && vite --config website/vite.config.ts --port 5202",
+    "build": "cd .. && tsc --noEmit -p website/tsconfig.json && vite build --config website/vite.config.ts",
+    "preview": "cd .. && vite preview --config website/vite.config.ts --port 5202",
+    "typecheck": "cd .. && tsc --noEmit -p website/tsconfig.json"
+  },
+  "dependencies": {
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}

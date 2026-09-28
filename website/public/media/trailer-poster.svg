@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <!-- Placeholder poster for the product trailer. Replace with a real frame from the trailer when it is ready. -->
+  <defs>
+    <radialGradient id="glow" cx="72%" cy="18%" r="75%">
+      <stop offset="0" stop-color="#2c3b2f"/>
+      <stop offset=".55" stop-color="#111915"/>
+      <stop offset="1" stop-color="#070b09"/>
+    </radialGradient>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0H0V64" fill="none" stroke="#2b3a30" stroke-width="1" opacity=".55"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset=".45" stop-color="#070b09" stop-opacity="0"/>
+      <stop offset="1" stop-color="#070b09" stop-opacity=".92"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <!-- topographic contours -->
+  <g fill="none" stroke="#3b4d40" stroke-width="2" opacity=".75">
+    <path d="M-40 640C180 560 300 700 520 620S860 470 1080 540 1420 700 1660 610"/>
+    <path d="M-40 700C200 620 320 760 540 690S880 540 1100 610 1440 760 1660 680" opacity=".7"/>
+    <path d="M-40 580C160 500 290 640 500 560S840 400 1060 470 1400 640 1660 540" opacity=".5"/>
+    <path d="M980 170c120-40 260 10 300 110s-50 190-170 200-250-40-270-140 40-140 140-170z"/>
+    <path d="M1010 215c90-28 190 8 220 82s-38 140-126 147-184-30-199-104 32-103 105-125z" opacity=".8"/>
+    <path d="M1045 262c55-16 115 6 133 50s-23 84-76 88-110-18-119-62 20-63 62-76z" opacity=".6"/>
+  </g>
+  <!-- route + markers -->
+  <path d="M260 560 C420 470 560 520 700 430 S960 300 1120 330" fill="none" stroke="#c4a665" stroke-width="4" stroke-dasharray="14 12" opacity=".85"/>
+  <g>
+    <circle cx="260" cy="560" r="14" fill="#141d18" stroke="#7fa183" stroke-width="4"/>
+    <circle cx="700" cy="430" r="10" fill="#c4a665"/>
+    <circle cx="700" cy="430" r="26" fill="none" stroke="#c4a665" stroke-width="2" opacity=".5"/>
+    <path d="M1120 300l24 42h-48z" fill="#d29b58"/>
+  </g>
+  <!-- minimap card -->
+  <g transform="translate(1180 520)">
+    <rect width="300" height="220" rx="18" fill="#101713" stroke="#3b4d40" stroke-width="2"/>
+    <rect x="16" y="16" width="268" height="188" rx="12" fill="#0a0f0c"/>
+    <path d="M40 170 C90 120 130 150 170 100 S240 60 262 70" fill="none" stroke="#7899a5" stroke-width="3" opacity=".8"/>
+    <circle cx="170" cy="100" r="8" fill="#dfbd70"/>
+    <path d="M170 100 l34 -20 l-6 26z" fill="#dfbd70" opacity=".35"/>
+    <text x="32" y="44" font-family="Inter,Arial,sans-serif" font-size="14" font-weight="800" letter-spacing="3" fill="#97a49a">МИНИ-КАРТА</text>
+  </g>
+  <rect width="1600" height="900" fill="url(#fade)"/>
+  <!-- title -->
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="96" y="730" font-size="22" font-weight="800" letter-spacing="7" fill="#c4a665">ТРЕЙЛЕР · СКОРО</text>
+    <text x="96" y="800" font-size="64" font-weight="900" letter-spacing="-2" fill="#edf2ed">Tarkov Operations Companion</text>
+  </g>
+  <!-- frame corners -->
+  <g fill="none" stroke="#c4a665" stroke-width="4" opacity=".7">
+    <path d="M48 110V48h62"/><path d="M1490 48h62v62"/><path d="M1552 790v62h-62"/><path d="M110 852H48v-62"/>
+  </g>
+</svg>
