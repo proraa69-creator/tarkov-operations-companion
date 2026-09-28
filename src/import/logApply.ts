@@ -20,10 +20,13 @@ export function logEventsForMode(result: ModeLogEvents, mode: RaidMode, registra
  * latest logged status. Records from other sources are dropped, except manual edits and scanned
  * story chapters (the game never logs those) that are newer than anything the logs say.
  */
-export function applyLogQuestState(progress: ModeProgress, events: ParsedTaskEvent[]): ModeProgress {
+export function applyLogQuestState(progress: ModeProgress, events: ParsedTaskEvent[], options: { keepPreviousLogRecords?: boolean } = {}): ModeProgress {
   const taskProgress: Record<string, TaskProgressRecord> = {}
   for (const [taskId, record] of Object.entries(progress.taskProgress)) {
     if (record.source === 'manual' || record.source === 'screen-scan') taskProgress[taskId] = record
+    // Game logs are rotated and deleted over time. For the same character, what an earlier scan
+    // read stays true (a wipe or profile reset changes the character or is reported as a reset).
+    else if (options.keepPreviousLogRecords && record.source === 'eft-log') taskProgress[taskId] = record
   }
   for (const event of events) {
     const manual = taskProgress[event.taskId]
@@ -37,13 +40,13 @@ const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 /** Applies each mode's own log events to that mode only. */
 export function applyScanToModes(
-  result: ModeLogEvents & { summaryByMode?: Partial<Record<RaidMode, { lastActivityAt?: string }>> },
+  result: ModeLogEvents & { summaryByMode?: Partial<Record<RaidMode, { lastActivityAt?: string; resetAt?: string }>> },
   registrationOf: (mode: RaidMode) => ModeRegistration,
-  apply: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string) => void,
+  apply: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void,
 ) {
   for (const mode of RAID_MODES) {
     if (!result.summaryByMode?.[mode]?.lastActivityAt) continue
-    apply(mode, logEventsForMode(result, mode, registrationOf(mode)), result.latestCharacterIdByMode?.[mode])
+    apply(mode, logEventsForMode(result, mode, registrationOf(mode)), result.latestCharacterIdByMode?.[mode], result.summaryByMode?.[mode]?.resetAt)
   }
 }
 

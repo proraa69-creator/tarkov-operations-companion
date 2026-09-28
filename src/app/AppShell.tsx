@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       applyScanToModes(
         result,
         (mode) => stateRef.current.activeProfile.modes[mode].registration,
-        (mode, events, characterId) => stateRef.current.applyLogStateForMode(mode, events, characterId),
+        (mode, events, characterId, resetAt) => stateRef.current.applyLogStateForMode(mode, events, characterId, resetAt),
       )
     }
     const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)

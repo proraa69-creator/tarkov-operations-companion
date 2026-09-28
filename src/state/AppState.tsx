@@ -43,7 +43,7 @@ interface AppStateValue extends UiState {
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
   /** Current trader quests read from the in-game Tasks table. */
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
-  applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string) => void
+  applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   setHideoutLevel: (stationId: string, level: number) => void
   toggleFavoriteItem: (id: string) => void
   toggleRaidItem: (id: string) => void
@@ -188,9 +188,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (next === current || logStateFingerprint(next) === logStateFingerprint(current)) return profile
       return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
     }),
-    applyLogStateForMode: (selectedMode, events, characterId) => updateActive((profile) => {
+    applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
-      const next = applyLogQuestState(current, events)
+      const sameCharacter = Boolean(characterId) && current.logCharacterId === characterId
+      const next = applyLogQuestState(current, events, { keepPreviousLogRecords: sameCharacter && !resetAt })
       if (logStateFingerprint(next) === logStateFingerprint(current) && (!characterId || current.logCharacterId === characterId)) return profile
       const now = new Date().toISOString()
       return {

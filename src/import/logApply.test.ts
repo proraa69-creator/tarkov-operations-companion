@@ -35,6 +35,17 @@ describe('log event application', () => {
     expect(next.taskProgress.story?.currentStageIndex).toBe(7)
   })
 
+  it('keeps records read by earlier scans when the logs were rotated (same character, no reset)', () => {
+    const progress = createModeProgress()
+    progress.taskProgress.old = { taskId: 'old', status: 'completed', source: 'eft-log', updatedAt: '2026-09-01T00:00:00.000Z' }
+    progress.taskProgress.moved = { taskId: 'moved', status: 'active', source: 'eft-log', updatedAt: '2026-09-01T00:00:00.000Z' }
+    const events: ParsedTaskEvent[] = [{ taskId: 'moved', status: 'completed', timestamp: '2026-09-27T08:00:00.000Z' }]
+    const kept = applyLogQuestState(progress, events, { keepPreviousLogRecords: true })
+    expect(kept.taskProgress.old).toMatchObject({ status: 'completed' })
+    expect(kept.taskProgress.moved).toMatchObject({ status: 'completed' })
+    expect(applyLogQuestState(progress, events).taskProgress.old).toBeUndefined()
+  })
+
   it('applies every mode only its own events', () => {
     const pvp: ParsedTaskEvent = { ...event, taskId: 'a' }
     const season: ParsedTaskEvent = { ...event, taskId: 'b', mode: 'seasonal' }
