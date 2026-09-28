@@ -9,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "node --import tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "promote": "node --import tsx src/cli/promote-streamer.ts"
+    "promote": "node --import tsx src/cli/promote-streamer.ts",
+    "backup": "node --import tsx src/cli/backup.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

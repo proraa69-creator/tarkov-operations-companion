@@ -41,12 +41,27 @@ function fallbackMessage(status: number) {
   return 'Не удалось выполнить запрос'
 }
 
-async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null } = {}): Promise<T> {
+/** Per-mode data the app sent to the server (GET /v1/me/summary, mirrors server/src/routes/me.ts). */
+export interface ModeSummary {
+  quests: { completed: number; active: number; failed: number }
+  kappa: { completed: number; total: number } | null
+  collector: { collected: number; total: number | null; updatedAt: string | null }
+  lastSyncAt: string | null
+  lastPosition: { at: string; receivedAt: string; map?: string } | null
+}
+
+export interface AccountSummary {
+  account: { email: string; kind: AccountKind; nicknames: Partial<Record<AccountMode, string>> }
+  modes: Record<AccountMode, ModeSummary>
+  generatedAt: string
+}
+
+async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string } = {}): Promise<T> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), 12_000)
   let response: Response
   try {
-    response = await fetch(`${API_URL}/v1/accounts${path}`, {
+    response = await fetch(`${API_URL}${options.root ?? '/v1/accounts'}${path}`, {
       method: options.method ?? 'GET',
       headers: {
         ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -82,6 +97,7 @@ export const api = {
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   setNicknames: (token: string, nicknames: Partial<Record<AccountMode, string>>) => request<Account>('/me/nicknames', { method: 'PUT', token, body: nicknames }),
   referralVisit: (code: string) => request<{ ok: true; code: string }>('/referral-visits', { method: 'POST', body: { code } }),
+  summary: (token: string) => request<AccountSummary>('/summary', { token, root: '/v1/me' }),
 }
 
 export function errorMessage(error: unknown) {

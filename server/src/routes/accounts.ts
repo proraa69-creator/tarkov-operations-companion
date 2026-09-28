@@ -1,9 +1,9 @@
 /**
  * Website personal-account API, mounted at `/v1/accounts`.
  *
- * DEVELOPMENT-ONLY PROTOTYPE: backed by the in-memory `AccountStore` (lost on restart, single process).
- * See server/src/services/accountStore.ts for what is intentionally missing before public deployment
- * (persistent DB, e-mail verification, password reset, payments/webhooks, payouts).
+ * Backed by the SQLite `AccountStore` (survives restarts; single process). See server/src/services/accountStore.ts
+ * for what is intentionally missing before public deployment (e-mail verification, password reset, payments/webhooks,
+ * payouts).
  *
  * Routes:
  *   POST /register          { email, password, referralCode? }   -> 201 { token, referralApplied, account }
@@ -14,7 +14,7 @@
  *   PUT  /me/nicknames      Bearer { pvp?, pve?, seasonal? }     -> 200 account view
  *   POST /referral-visits   { code }                             -> 200 | 404 (counts a `/r/<code>` landing visit)
  *
- * Streamer status is never self-selected: an operator calls `store.promoteToStreamer(email, code)`.
+ * Streamer status is never self-selected: an operator runs `npm --prefix server run promote -- <email> <code>`.
  * Request bodies (including passwords) are never logged here.
  * `req.ip` is the rate-limit key: behind a reverse proxy configure Express `trust proxy` accordingly.
  */

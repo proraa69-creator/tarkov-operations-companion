@@ -5,6 +5,12 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
   openWikiMap: (id: string) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('service:request', method, path, body),
+  account: {
+    status: () => ipcRenderer.invoke('account:status'),
+    login: (email: string, password: string) => ipcRenderer.invoke('account:login', String(email), String(password)),
+    logout: () => ipcRenderer.invoke('account:logout'),
+    openWebsite: (page: 'register' | 'cabinet') => ipcRenderer.invoke('account:open-website', page === 'register' ? 'register' : 'cabinet'),
+  },
   autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,

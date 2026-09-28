@@ -48,9 +48,26 @@ export function loadCollected(mode: string): string[] {
   }
 }
 
-export function saveCollected(mode: string, ids: string[]) {
-  try { localStorage.setItem(STORAGE_PREFIX + mode, JSON.stringify([...new Set(ids)])) } catch { /* storage unavailable */ }
+const DIRTY_PREFIX = 'tarkov-collector-dirty-v1:'
+
+/**
+ * localStorage is the offline cache of the server checklist. A local edit marks the mode "dirty" until the
+ * server has accepted it (src/sync/serverSync.ts); `fromServer` writes the server copy without marking it.
+ */
+export function saveCollected(mode: string, ids: string[], options: { fromServer?: boolean } = {}) {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + mode, JSON.stringify([...new Set(ids)]))
+    if (!options.fromServer) localStorage.setItem(DIRTY_PREFIX + mode, '1')
+  } catch { /* storage unavailable */ }
   window.dispatchEvent(new Event(COLLECTOR_CHANGED_EVENT))
+}
+
+export function isCollectorDirty(mode: string) {
+  try { return localStorage.getItem(DIRTY_PREFIX + mode) === '1' } catch { return false }
+}
+
+export function clearCollectorDirty(mode: string) {
+  try { localStorage.removeItem(DIRTY_PREFIX + mode) } catch { /* storage unavailable */ }
 }
 
 /** Scans the game screen and adds every wanted item that is visible; never unticks anything. */

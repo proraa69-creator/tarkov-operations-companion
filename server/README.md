@@ -1,4 +1,9 @@
-# Hybrid pilot 0.2.0
+# Hybrid pilot 0.3.0
+
+Running the API and the website on the owner's PC (accounts, per-user data, streamer promotion, backups):
+see ../docs/local-server.md and ../scripts/start-local.ps1. Everything persists in one SQLite file
+(TARKOV_DB_PATH, default data/companion.sqlite): accounts, sessions, referral stats, goon sightings,
+quest events and /v1/me data (Collector, latest position, settings).
 
 Node.js 24 LTS. Run from the repository root:
 

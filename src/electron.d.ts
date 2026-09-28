@@ -7,10 +7,29 @@ import type { PlayerPosition } from './overlay/screenshotPosition'
 
 type DesktopLogScanResult = ModeLogScanResult
 
+export interface ServerAccountStatus {
+  signedIn: boolean
+  email?: string
+  kind?: 'user' | 'streamer'
+  /** The API server answered /health. */
+  online: boolean
+  serverUrl: string
+  /** false when the OS offers no secure storage: the session lasts until the app closes. */
+  persistent: boolean
+}
+
 interface TarkovDesktopApi {
   isDesktop: true
   openWikiMap: (id: string) => Promise<boolean>
-  serviceRequest: (method: 'GET' | 'POST', path: string, body?: unknown) => Promise<unknown | null>
+  /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
+  serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>
+  /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */
+  account?: {
+    status: () => Promise<ServerAccountStatus>
+    login: (email: string, password: string) => Promise<ServerAccountStatus>
+    logout: () => Promise<ServerAccountStatus>
+    openWebsite: (page: 'register' | 'cabinet') => Promise<boolean>
+  }
   autoFindAndScanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
   scanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
   startWatchingLogs: (folder: string) => Promise<boolean>

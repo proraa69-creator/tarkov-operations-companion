@@ -7,9 +7,11 @@ const CACHE_PREFIX = 'tarkov-operations-catalog-v11'
 export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru'): Promise<AppDataset> {
   const cacheKey = `${CACHE_PREFIX}-${mode}-${locale}`
   try {
-    const service = locale === 'ru' ? await window.tarkovDesktop?.serviceRequest('GET', `/v1/catalog/${mode}`) : undefined
+    // Server first (its shared cache avoids every client hitting tarkov.dev); a server that is not running
+    // or answers garbage falls back to the direct fetch below.
+    const service = locale === 'ru' ? await window.tarkovDesktop?.serviceRequest('GET', `/v1/catalog/${mode}`).catch(() => null) : undefined
     let dataset: AppDataset
-    if (service) dataset = service as AppDataset
+    if (isDataset(service, mode)) dataset = service
     else if (import.meta.env.VITE_COMPANION_API_URL && locale === 'ru') {
       const response = await fetch(`${import.meta.env.VITE_COMPANION_API_URL}/v1/catalog/${mode}`, { signal: AbortSignal.timeout(45_000) })
       if (!response.ok) throw new Error('Сервис каталога временно недоступен')
@@ -22,4 +24,12 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
     if (cached) return { ...cached, metadata: { ...cached.metadata!, source: 'cache' } }
     throw error
   }
+}
+
+/** Minimal shape check for a catalog that came from the API server. */
+export function isDataset(value: unknown, mode: RaidMode): value is AppDataset {
+  if (!value || typeof value !== 'object') return false
+  const data = value as Partial<AppDataset>
+  return Array.isArray(data.quests) && Array.isArray(data.items) && Array.isArray(data.maps) && Array.isArray(data.markers)
+    && Array.isArray(data.hideout) && Array.isArray(data.traders) && data.quests.length > 0 && (!data.metadata || data.metadata.mode === mode)
 }

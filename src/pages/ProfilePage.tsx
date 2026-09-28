@@ -4,6 +4,7 @@ import { ACCOUNT_URL } from '../shared/links'
 import { openModeRegistrationDialog } from '../components/ModeRegistrationDialog'
 import { PlayerLoadoutSummary } from '../components/PlayerLoadoutSummary'
 import { useAppState } from '../state/AppState'
+import { ServerAccountPanel } from '../components/ServerAccountPanel'
 
 export function ProfilePage() {
   const state = useAppState()
@@ -45,5 +46,6 @@ export function ProfilePage() {
         <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>
       </section>
     </div>
+    <ServerAccountPanel />
   </div>
 }

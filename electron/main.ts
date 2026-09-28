@@ -8,7 +8,7 @@ import { readRaidState, scanLogFolderBySession, type RaidState } from './logScan
 import { fetchPlayerProfile, resolveAccountIdsByNickname, clearPlayerSnapshotCache, humanizeNetworkError } from './playerProfileService.js'
 import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
-import { serviceRequest } from './serviceGateway.js'
+import { accountLogin, accountLogout, accountStatus, serviceRequest } from './serviceGateway.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -19,6 +19,19 @@ let scanInterval: NodeJS.Timeout | null = null
 let scanning = false
 let lastPublished = ''
 let raidState: RaidState = { inRaid: false }
+
+/** The account website on the owner's PC (see scripts/start-local.ps1); override with TARKOV_WEBSITE_URL. */
+const WEBSITE_URL = (process.env.TARKOV_WEBSITE_URL?.trim() || 'http://localhost:5202').replace(/\/+$/, '')
+
+/** Links opened in the system browser: any HTTPS page, or the local website / API on this computer. */
+function isExternalAllowed(url: string) {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname))
+  } catch {
+    return false
+  }
+}
 
 // UI hover ticks must play before the first click in the window.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -43,7 +56,7 @@ function createWindow() {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    if (isExternalAllowed(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
   mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -124,6 +137,17 @@ function registerIpc() {
     return true
   })
   ipcMain.handle('service:request', async (_event, method: string, path: string, body: unknown) => serviceRequest(method, path, body))
+  // Server account: the session token never leaves the main process; the renderer only sees e-mail and status.
+  ipcMain.handle('account:status', () => accountStatus())
+  ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
+  ipcMain.handle('account:logout', () => accountLogout())
+  ipcMain.handle('account:open-website', async (_event, page: unknown) => {
+    const path = page === 'register' ? '/register' : '/cabinet'
+    const target = `${WEBSITE_URL}${path}`
+    if (!isExternalAllowed(target)) return false
+    await shell.openExternal(target)
+    return true
+  })
   ipcMain.handle('logs:auto-find-and-scan', async () => {
     const discovered = await discoverEftLogs(app.getPath('appData'))
     if (!discovered.logsFolder) return null
@@ -186,7 +210,8 @@ function registerIpc() {
 
     const modeLabel = mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : 'сезонного режима'
     try {
-      const remote = await serviceRequest('POST', '/v1/players/resolve', { mode, nickname })
+      // The server resolves through its shared cache; if it is not running or fails, resolve locally.
+      const remote = await serviceRequest('POST', '/v1/players/resolve', { mode, nickname }).catch(() => null)
       if (remote) return remote
 
       const discovered = await discoverEftLogs(app.getPath('appData'))
@@ -246,7 +271,8 @@ function registerIpc() {
   ipcMain.handle('profile:refresh', async (_event, rawMode: unknown, rawAccountId: unknown) => {
     const mode = validateMode(rawMode)
     const accountId = Number(rawAccountId)
-    return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`) ?? fetchPlayerProfile(mode, accountId)
+    if (!Number.isSafeInteger(accountId) || accountId <= 0) throw new Error('Некорректный идентификатор профиля')
+    return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`).catch(() => null) ?? fetchPlayerProfile(mode, accountId)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)
   ipcMain.handle('collector:scan-screen', () => scanScreenText())

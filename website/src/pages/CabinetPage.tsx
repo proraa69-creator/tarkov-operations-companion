@@ -1,7 +1,7 @@
-import { BadgeCheck, CalendarClock, Coins, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, RefreshCw, Save, UserPlus, Users, WifiOff } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { Activity, BadgeCheck, CalendarClock, Coins, CreditCard, Download, Gift, Link2, ListChecks, LoaderCircle, LogOut, MapPin, MousePointerClick, Package, RefreshCw, Save, Trophy, UserPlus, Users, WifiOff } from 'lucide-react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type AccountMode } from '../api'
+import { ApiError, api, errorMessage, type Account, type AccountMode, type AccountSummary } from '../api'
 import { useAuth } from '../auth'
 import { CopyButton } from '../components/CopyButton'
 import { Notice } from '../components/Notice'
@@ -79,6 +79,7 @@ export function CabinetPage() {
 
         <div className="cabinet-grid">
           <div className="cabinet-col">
+            <AppProgressPanel />
             <SubscriptionPanel account={account} />
             {account.kind === 'streamer' && account.referralCode && <ReferralProgramPanel account={account} />}
             <NicknamesPanel account={account} />
@@ -90,6 +91,102 @@ export function CabinetPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+const MAP_NAMES: Record<string, string> = {
+  customs: 'Таможня', woods: 'Лес', shoreline: 'Берег', lighthouse: 'Маяк', interchange: 'Развязка', reserve: 'Резерв',
+  factory: 'Завод', 'the-lab': 'Лаборатория', streets: 'Улицы Таркова', 'streets-of-tarkov': 'Улицы Таркова', 'ground-zero': 'Эпицентр', labyrinth: 'Лабиринт',
+}
+
+function relativeTime(iso: string | null | undefined) {
+  if (!iso) return null
+  const time = Date.parse(iso)
+  if (!Number.isFinite(time)) return null
+  const minutes = Math.round((Date.now() - time) / 60_000)
+  if (minutes < 1) return 'только что'
+  if (minutes < 60) return `${minutes} мин назад`
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} ч назад`
+  return dateTimeFormat.format(new Date(time))
+}
+
+/** What the desktop app sent to the server for each mode (GET /v1/me/summary). PvP, PvE and Season never mix. */
+function AppProgressPanel() {
+  const auth = useAuth()
+  const [mode, setMode] = useState<AccountMode>('pvp')
+  const [summary, setSummary] = useState<AccountSummary | null>(null)
+  const [error, setError] = useState<{ message: string; offline: boolean } | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(() => {
+    if (!auth.token) return Promise.resolve()
+    return api.summary(auth.token).then(
+      (next) => { setSummary(next); setError(null) },
+      (reason: unknown) => setError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network }),
+    )
+  }, [auth.token])
+
+  useEffect(() => {
+    void load()
+    const timer = window.setInterval(() => void load(), 60_000)
+    return () => window.clearInterval(timer)
+  }, [load])
+
+  const refresh = () => {
+    setBusy(true)
+    void load().finally(() => setBusy(false))
+  }
+
+  const data = summary?.modes[mode]
+  const sync = relativeTime(data?.lastSyncAt)
+  const position = data?.lastPosition
+  const cards = data ? [
+    { icon: ListChecks, label: 'Задания', value: numberFormat.format(data.quests.completed), meta: `выполнено · активно ${numberFormat.format(data.quests.active)}` },
+    { icon: Trophy, label: 'Каппа', value: data.kappa ? `${data.kappa.completed} / ${data.kappa.total}` : '—', meta: data.kappa ? 'заданий для Каппы' : 'каталог загружается на сервере' },
+    { icon: Package, label: 'Коллекционер', value: data.collector.total ? `${data.collector.collected} / ${data.collector.total}` : numberFormat.format(data.collector.collected), meta: 'предметов отмечено' },
+    { icon: Activity, label: 'Синхронизация', value: sync ?? '—', meta: sync ? 'журналы игры' : 'ещё не было' },
+  ] : []
+
+  return (
+    <section className="panel" aria-labelledby="progress-title">
+      <div className="panel-header">
+        <div className="panel-title" id="progress-title"><Activity aria-hidden="true" />Прогресс в приложении</div>
+        <button type="button" className="button ghost small" onClick={refresh} disabled={busy} aria-label="Обновить">
+          {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}Обновить
+        </button>
+      </div>
+      <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
+        <div role="tablist" aria-label="Режим" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {MODES.map(({ id, label, color }) => (
+            <button key={id} type="button" role="tab" aria-selected={mode === id} className={`button small ${mode === id ? 'primary' : 'ghost'}`} onClick={() => setMode(id)}>
+              <span className="mode-chip"><span className="mode-dot" style={{ background: color }} />{label}</span>
+            </button>
+          ))}
+        </div>
+        {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
+        {!summary && !error && <div className="muted" style={{ fontSize: 14 }}>Загружаем данные приложения…</div>}
+        {data && (
+          <>
+            <div className="stat-grid">
+              {cards.map(({ icon: Icon, label, value, meta }) => (
+                <div key={label} className="stat-card">
+                  <div className="stat-label"><Icon aria-hidden="true" />{label}</div>
+                  <div className="stat-value mono">{value}</div>
+                  <div className="stat-meta">{meta}</div>
+                </div>
+              ))}
+            </div>
+            <dl className="kv">
+              <div><dt><MapPin size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Последняя позиция</dt><dd>{position ? `${relativeTime(position.at)}${position.map ? ` · ${MAP_NAMES[position.map] ?? position.map}` : ''}` : 'нет данных'}</dd></div>
+              {data.lastSyncAt && <div><dt>Журналы синхронизированы</dt><dd>{dateTimeFormat.format(new Date(data.lastSyncAt))}</dd></div>}
+            </dl>
+            {!data.lastSyncAt && !position && data.collector.collected === 0 && (
+              <p className="dim" style={{ margin: 0, fontSize: 13 }}>Войдите в приложении (Профиль → «Аккаунт сервера») с этим e-mail — прогресс появится здесь после первого запуска игры.</p>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   )
 }
 

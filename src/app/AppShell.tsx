@@ -10,6 +10,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { ModeRegistrationDialog } from '../components/ModeRegistrationDialog'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
+import { pushLogProgress, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
@@ -33,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { raidMode, setRaidMode, activeProfile } = state
   const { source, isFetching, refresh, data } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
+  useServerSync(raidMode)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [registrationOpen, setRegistrationOpen] = useState(false)
@@ -83,6 +85,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         (mode) => stateRef.current.activeProfile.modes[mode].registration,
         (mode, events, characterId, resetAt) => stateRef.current.applyLogStateForMode(mode, events, characterId, resetAt),
       )
+      // Signed in to the server: store this scan there and apply the merged server records (all earlier scans).
+      void pushLogProgress(
+        result,
+        (mode) => stateRef.current.activeProfile.modes[mode].registration,
+        (mode, events, characterId) => { if (active) stateRef.current.applyLogStateForMode(mode, events, characterId) },
+      ).catch(() => {})
     }
     const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)
     const savedFolder = localStorage.getItem(LOG_FOLDER_STORAGE_KEY)
