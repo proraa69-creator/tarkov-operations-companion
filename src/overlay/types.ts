@@ -41,12 +41,15 @@ export type MinimapPayload =
   | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number }
 
 export interface ExperimentalSettings {
-  version: 2
+  version: 3
   itemLookup: boolean
   minimap: boolean
   tracking: boolean
   autoScreenshot: boolean
   screenshotIntervalMs: number
+  itemKey: string
+  minimapKey: string
+  collectorKey: string
 }
 
 export interface ExperimentalStatus {

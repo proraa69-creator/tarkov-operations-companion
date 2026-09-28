@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, Crosshair, Keyboard, Map as MapIcon, MousePointer2 } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
+import { hotkeyLabel, isKnownHotkey } from '../overlay/hotkeys'
 
 export function ExperimentalPage() {
   const api = window.tarkovDesktop?.experimental
@@ -35,8 +36,8 @@ export function ExperimentalPage() {
     <div className="page experimental-page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">{uiText("Экспериментальная сборка")}</div>
-          <h1 className="page-title">{uiText("Эксперименты")}</h1>
+          <div className="eyebrow">{uiText("Окна поверх игры")}</div>
+          <h1 className="page-title">{uiText("Мини Карта")}</h1>
           <p className="page-subtitle">{uiText("Функции поверх игры. Они только читают экран и файлы скриншотов — в игру ничего не внедряется.")}</p>
         </div>
       </header>
@@ -58,17 +59,36 @@ export function ExperimentalPage() {
               <div className="panel-body">
                 <Toggle
                   icon={<MousePointer2 size={16} />}
-                  title={uiText("Информация о предмете — клавиша «Ж»")}
-                  hint="Наведите курсор на предмет, дождитесь подсказки с названием и нажмите «Ж»: только цена на барахолке."
+                  title={uiText("Информация о предмете")}
+                  hint="Наведите курсор на предмет, дождитесь подсказки с названием и нажмите клавишу: цена на барахолке, лучшая цена торговца и нужен ли предмет для заданий и «Коллекционера»."
                   on={Boolean(settings?.itemLookup)}
                   onChange={(itemLookup) => update({ itemLookup })}
                 />
+                <HotkeyRow
+                  label="Клавиша информации о предмете"
+                  value={settings?.itemKey ?? 'Semicolon'}
+                  taken={[settings?.minimapKey, settings?.collectorKey]}
+                  onChange={(itemKey) => update({ itemKey })}
+                />
                 <Toggle
                   icon={<MapIcon size={16} />}
-                  title={uiText("Мини-карта — клавиша «M»")}
+                  title={uiText("Мини-карта")}
                   hint="Показывает карту текущего рейда с выходами и точками текущих квестов. Повторное нажатие скрывает."
                   on={Boolean(settings?.minimap)}
                   onChange={(minimap) => update({ minimap })}
+                />
+                <HotkeyRow
+                  label="Клавиша мини-карты"
+                  value={settings?.minimapKey ?? 'KeyM'}
+                  taken={[settings?.itemKey, settings?.collectorKey]}
+                  onChange={(minimapKey) => update({ minimapKey })}
+                />
+                <HotkeyRow
+                  label="Клавиша сканирования предметов «Коллекционера»"
+                  value={settings?.collectorKey ?? ''}
+                  taken={[settings?.itemKey, settings?.minimapKey]}
+                  optional
+                  onChange={(collectorKey) => update({ collectorKey })}
                 />
                 <Toggle
                   icon={<Crosshair size={16} />}
@@ -148,6 +168,40 @@ function Row({ label, value, ok }: { label: string; value: string; ok?: boolean 
     <div className="exp-row">
       <span>{uiText(label)}</span>
       <strong className={ok ? 'is-ok' : ''}>{uiText(value)}</strong>
+    </div>
+  )
+}
+
+function HotkeyRow({ label, value, taken = [], optional, onChange }: { label: string; value: string; taken?: Array<string | undefined>; optional?: boolean; onChange: (code: string) => void }) {
+  const [listening, setListening] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!listening) return
+    const onKey = (event: KeyboardEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.code === 'Escape') { setListening(false); setError(''); return }
+      if (!isKnownHotkey(event.code)) { setError('Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12 и знаки.'); return }
+      if (taken.includes(event.code)) { setError('Эта клавиша уже занята другой функцией.'); return }
+      setError('')
+      setListening(false)
+      onChange(event.code)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [listening, taken, onChange])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="setting-row exp-hotkey">
+      <span>
+        <strong>{uiText(label)}</strong>
+        <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите нужную клавишу · Esc — отмена' : 'Работает, пока игра на переднем плане'))}</small>
+      </span>
+      <button type="button" className={`button ${listening ? 'primary' : 'ghost'} hotkey-button`} onClick={() => { setError(''); setListening((state) => !state) }}>
+        <kbd>{uiText(listening ? '…' : value ? hotkeyLabel(value) : 'выкл.')}</kbd>
+      </button>
+      {optional && value && !listening && <button type="button" className="button ghost small" onClick={() => onChange('')}>{uiText('Отключить')}</button>}
     </div>
   )
 }

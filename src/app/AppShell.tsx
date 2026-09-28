@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, FlaskConical, Home,
+  ChevronRight, CircleDollarSign, Home, MapPinned,
   Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -23,7 +23,7 @@ const navigation = [
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
-  { to: '/experimental', ru: 'Эксперименты', en: 'Experimental', icon: FlaskConical },
+  { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

@@ -3,6 +3,7 @@ import { BrowserWindow, desktopCapturer, ipcMain, screen, type Display, type Poi
 import type { PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { recognizeRegion } from '../screenOcr.js'
 import { PositionTracker, screenshotsFolder } from './positionTracker.js'
+import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable } from './win32.js'
 
@@ -120,23 +121,32 @@ function applySettings(settings: ExperimentalSettings) {
 
 function startHook() {
   // A native polling fallback works even when a low-level hook misses a game input event.
-  let previousM = false
+  let previousMap = false
   let previousItem = false
+  let previousCollector = false
   keyTimer = setInterval(() => {
-    const m = isVirtualKeyDown(0x4d)
-    const item = isVirtualKeyDown(0xba)
-    if ((m && !previousM || item && !previousItem) && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground()) {
+    const settings = readSettings()
+    const map = isVirtualKeyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d)
+    const item = isVirtualKeyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
+    const collectorVk = HOTKEYS[settings.collectorKey]?.vk
+    const collector = collectorVk ? isVirtualKeyDown(collectorVk) : false
+    if (collector && !previousCollector && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+      lastKeyAt = Date.now()
+      options.mainWindow()?.webContents.send('experimental:collector-scan')
+    }
+    previousCollector = collector
+    if ((map && !previousMap || item && !previousItem) && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground()) {
       const now = Date.now()
       if (now - lastKeyAt >= KEY_REPEAT_MS) {
         lastKeyAt = now
-        if (item) void lookupItem(false)
+        if (item && !previousItem) void lookupItem(false)
         else {
-          if (readSettings().tracking && options.raidState().inRaid && hook) hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
+          if (settings.tracking && options.raidState().inRaid && hook) hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
           void toggleMinimap(false)
         }
       }
     }
-    previousM = m
+    previousMap = map
     previousItem = item
   }, 40)
   try {
@@ -144,8 +154,18 @@ function startHook() {
     const { uIOhook, UiohookKey } = hook
     uIOhook.on('keydown', (event) => {
       if (event.ctrlKey || event.altKey || event.metaKey) return
-      const isItemKey = event.keycode === UiohookKey.Semicolon
-      const isMapKey = event.keycode === UiohookKey.M
+      const settings = readSettings()
+      const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
+      const isMapKey = event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
+      const collectorHook = HOTKEYS[settings.collectorKey]?.hook
+      if (collectorHook && event.keycode === UiohookKey[collectorHook]) {
+        const stamp = Date.now()
+        if (stamp - lastKeyAt >= KEY_REPEAT_MS) {
+          lastKeyAt = stamp
+          options.mainWindow()?.webContents.send('experimental:collector-scan')
+        }
+        return
+      }
       if (!isItemKey && !isMapKey) return
       const now = Date.now()
       if (now - lastKeyAt < KEY_REPEAT_MS) return
@@ -155,7 +175,7 @@ function startHook() {
       else {
         // Opening the map should immediately request a fresh coordinate-bearing EFT screenshot.
         // The tracker will update the marker as soon as the game writes the file.
-        if (readSettings().tracking && options.raidState().inRaid) uIOhook.keyTap(UiohookKey.PrintScreen!)
+        if (settings.tracking && options.raidState().inRaid) uIOhook.keyTap(UiohookKey.PrintScreen!)
         void toggleMinimap(false)
       }
     })

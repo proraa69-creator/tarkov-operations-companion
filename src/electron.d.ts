@@ -34,6 +34,7 @@ interface TarkovDesktopApi {
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
+    onCollectorScan: (callback: () => void) => () => void
   }
   onOverlay?: {
     (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void

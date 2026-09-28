@@ -648,3 +648,26 @@ a.quest-stage:hover { color: var(--text); }
 .goon-map-picker { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .25s, opacity .25s; }
 .goon-map-picker > div { overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .goon-card.is-open .goon-map-picker { grid-template-rows: 1fr; opacity: 1; margin-top: 8px; }
+
+/* Mini map settings: hotkey picker */
+.exp-hotkey small.is-error { color: var(--danger); }
+.hotkey-button { min-width: 84px; justify-content: center; }
+.hotkey-button kbd { font: inherit; font-weight: 700; letter-spacing: .04em; }
+
+/* Kappa · Collector items */
+.kappa-card { position: relative; }
+.kappa-items-button { position: absolute; top: 12px; right: 12px; }
+.kappa-items-actions { display: flex; gap: 8px; align-items: center; }
+.kappa-items-message { margin: 0 0 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); }
+.kappa-items-progress { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.kappa-items-progress strong { font-size: 22px; color: var(--brass-strong); }
+.kappa-items-progress span { color: var(--text-muted); }
+.kappa-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.kappa-cell { position: relative; display: grid; grid-template-rows: 64px auto; place-items: center; gap: 6px; padding: 10px 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); color: var(--text-muted); cursor: pointer; transition: border-color .2s var(--ease-soft), background .2s var(--ease-soft); }
+.kappa-cell:hover { border-color: var(--line-strong); background: var(--panel-2); }
+.kappa-cell img { max-width: 100%; max-height: 64px; object-fit: contain; opacity: .55; filter: grayscale(.7); transition: opacity .2s, filter .2s; }
+.kappa-cell.is-done { border-color: color-mix(in srgb, var(--success) 60%, var(--line)); background: var(--green-soft); color: var(--text); }
+.kappa-cell.is-done img { opacity: 1; filter: none; }
+.kappa-cell-name { font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.25; }
+.kappa-cell-fallback { font-weight: 700; }
+.kappa-cell-check { position: absolute; top: 5px; right: 5px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--success); color: #0a0f0c; }

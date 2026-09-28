@@ -52,7 +52,7 @@ export function DashboardPage() {
     <section className="stat-grid">
       <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
-      <div className="stat-card"><div className="stat-label">{uiText("Капа")}</div><div className="stat-value">{uiText(stats.kappaCompleted)}</div><div className="stat-meta">{uiText("Выполнено ")}{uiText(stats.kappaCompleted)}{uiText(" из ")}{uiText(stats.kappaTotal)}</div></div>
+      <div className="stat-card kappa-card"><Link className="button small kappa-items-button" to="/kappa-items">{uiText("Предметы")}</Link><div className="stat-label">{uiText("Капа")}</div><div className="stat-value">{uiText(stats.kappaCompleted)}</div><div className="stat-meta">{uiText("Выполнено ")}{uiText(stats.kappaCompleted)}{uiText(" из ")}{uiText(stats.kappaTotal)}</div></div>
       <div className={`stat-card goon-card ${goonPickerOpen ? 'is-open' : ''}`}>
         <div className="goon-card-heading"><div className="stat-label">{uiText('Кочевники')}</div><button className="button small" onClick={() => setGoonPickerOpen((open) => !open)}>{uiText(goonPickerOpen ? 'Отмена' : 'Видел')}</button></div>
         <div className="stat-value goon-map-value">{uiText(data.maps.find((map) => map.id === goons?.mapId)?.name ?? 'Нет данных')}</div>

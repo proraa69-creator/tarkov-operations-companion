@@ -7,6 +7,7 @@ import { createItemMatcher } from '../overlay/itemMatch'
 import { describeItem } from '../overlay/itemInfo'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload } from '../overlay/types'
 import type { MarkerLayerId } from '../domain/types'
+import { collectorEntries, scanForCollectorItems } from '../kappa/collector'
 
 const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item'])
 const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
@@ -57,6 +58,15 @@ export function ExperimentalBridge() {
       })
       const questCount = new Set(markers.flatMap((marker) => marker.layerId.startsWith('quest') ? [marker.title] : [])).size
       void api.answer(query.id, { state: 'ready', map, markers, questCount } satisfies MinimapPayload)
+    })
+  }, [])
+
+  useEffect(() => {
+    const api = window.tarkovDesktop?.experimental
+    if (!api) return
+    return api.onCollectorScan(() => {
+      const { data, state } = latest.current
+      void scanForCollectorItems(state.raidMode, collectorEntries(data.quests, data.items)).catch(() => {})
     })
   }, [])
 

@@ -104,3 +104,27 @@ export function createItemMatcher(items: Item[]) {
     return best?.item ?? null
   }
 }
+
+/**
+ * Best similarity (0–1) of the item's name or short name anywhere in a block of OCR text.
+ * Used to tick off several known items on one screen, unlike the matcher that returns one item.
+ */
+export function itemTextScore(item: Item, ocrText: string) {
+  let best = 0
+  const names = [[item.name, false], [item.shortName, true]] as const
+  const lines = ocrText.split(/\r?\n/).map(normalizeOcr).filter((line) => line.length >= 2)
+  for (const [raw, short] of names) {
+    const name = normalizeOcr(raw ?? '')
+    if (name.length < 3) continue
+    for (const line of lines) {
+      let score: number
+      if (short) score = line === name ? 0.9 : line.split(' ').includes(name) ? 0.76 : 0
+      else if (!name.includes(' ') && name.length < 8) score = Math.max(0, ...line.split(' ').map((word) => 1 - levenshtein(word, name) / Math.max(word.length, name.length)))
+      else score = partialSimilarity(name, line) * (line.length < name.length * 0.6 ? line.length / (name.length * 0.6) : 1)
+      if (score > best) best = score
+    }
+  }
+  return best
+}
+
+export const ITEM_TEXT_MIN_SCORE = MIN_SCORE
