@@ -20,6 +20,7 @@ export const defaultHiddenMarkerLayers: MarkerLayerId[] = [
   'loot.provision',
   'loot.technical',
   'loot.container',
+  'loot.documents',
   'landmark',
 ]
 

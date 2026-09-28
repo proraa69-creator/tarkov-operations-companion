@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, MapMarker } from '../domain/types'
 
@@ -12,8 +12,20 @@ interface MapMarkerTooltipProps {
   boss?: BossInfo
 }
 
+/** Screenshots live in public/extract-shots/<mapId>/<extractId>.jpg — see docs/extract-screenshots.md. */
+export function extractScreenshotUrl(marker: Pick<MapMarker, 'mapId' | 'extractId'>) {
+  return marker.extractId ? `${import.meta.env.BASE_URL}extract-shots/${marker.mapId}/${marker.extractId}.jpg` : undefined
+}
+
+function ExtractShot({ url, alt }: { url: string; alt: string }) {
+  const [missing, setMissing] = useState(false)
+  if (missing) return null
+  return <img className="mmt-shot" src={url} alt={alt} loading="lazy" onError={() => setMissing(true)} />
+}
+
 export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }: MapMarkerTooltipProps) {
   const indoor = floor !== 'Основной'
+  const shot = extractScreenshotUrl(marker)
   return (
     <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
       <div className="mmt-head">
@@ -23,6 +35,8 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
           {uiText(floor)}
         </span>
       </div>
+
+      {shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />}
 
       {uiText(boss ? <BossBlock boss={boss} /> : (
         <div className="mmt-title-row">

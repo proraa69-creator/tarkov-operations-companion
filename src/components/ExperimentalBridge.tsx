@@ -9,7 +9,7 @@ import type { ItemOverlayPayload, MinimapMarker, MinimapPayload } from '../overl
 import type { MarkerLayerId } from '../domain/types'
 import { collectorEntries, scanForCollectorItems } from '../kappa/collector'
 
-const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item'])
+const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
 const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
 
 /**

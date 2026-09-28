@@ -1,5 +1,6 @@
 import type { GameMap, Item, MapMarker, MarkerLayerId, MarkerType, Quest } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
+import { BATTLE_PASS_DOCUMENTS } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 
 type JsonRecord = Record<string, unknown>
@@ -29,10 +30,27 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptLoot(map, rawMap, context.items))
     markers.push(...adaptLocks(map, rawMap, context.items))
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
+    markers.push(...adaptBattlePassDocuments(map))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
   return [...new Map(markers.map((marker) => [marker.id, marker])).values()]
+}
+
+function adaptBattlePassDocuments(map: GameMap): MapMarker[] {
+  return (BATTLE_PASS_DOCUMENTS[map.id] ?? []).flatMap((point, index) => {
+    const base = baseMarker(map, `battle-pass-documents-${index}`, { x: point.x, y: point.y ?? 0, z: point.z }, undefined, undefined, undefined)
+    if (!base) return []
+    return [{
+      ...base,
+      type: 'cache' as const,
+      layerId: 'loot.documents' as const,
+      title: 'Документы боевого пропуска',
+      description: point.note ?? 'Место появления документов боевого пропуска.',
+      meta: 'Боевой пропуск',
+      source: 'battle-pass-documents',
+    }]
+  })
 }
 
 const SHARED_EXTRACT_DISTANCE = 15

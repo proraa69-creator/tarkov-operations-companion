@@ -6,7 +6,7 @@ import { ImageOverlay, MapContainer, Marker, TileLayer, Tooltip, ZoomControl, us
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
-  FlaskConical, HeartPulse, KeyRound, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
+  FileText, FlaskConical, HeartPulse, KeyRound, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
 import { markerImages } from '../assets/markerImages'
 import { bossBust } from '../assets/bossBusts'
@@ -47,6 +47,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.provision': { label: 'Провизия', color: '#a9b96f', size: 26, icon: FlaskConical, shape: 'loot' },
   'loot.technical': { label: 'Технический лут', color: '#8aa28f', size: 26, icon: Wrench, shape: 'loot' },
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
+  'loot.documents': { label: 'Документы боевого пропуска', color: '#d9c27a', size: 28, icon: FileText, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
 
@@ -79,13 +80,14 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   'loot.provision': 'Провизия',
   'loot.technical': 'Технический лут',
   'loot.container': 'Контейнер',
+  'loot.documents': 'Документы боевого пропуска',
   landmark: 'Ориентир',
 }
 
 const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Выходы и переходы', layers: ['extract.pmc', 'extract.scav', 'extract.coop', 'transit'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
-  { title: 'Дополнительно', layers: ['key', 'boss', 'spawn', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
+  { title: 'Дополнительно', layers: ['key', 'boss', 'spawn', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents'] },
 ]
 
 const glyphCache = new Map<MarkerLayerId, string>()
@@ -101,8 +103,8 @@ function classicGlyph(layerId: MarkerLayerId, size: number) {
   return glyph
 }
 
-function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string) {
-  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}`
+function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0) {
+  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const meta = markerMeta[layerId]
@@ -114,7 +116,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       className: 'marker-icon',
       html: `<div class="map-marker is-realistic is-bust${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${bust}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [meta.size, meta.size],
-      iconAnchor: [meta.size / 2, meta.size],
+      iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
   } else if (style === 'modern') {
     const modernSize = meta.shape === 'pin' || meta.shape === 'boss' ? 32 : meta.shape === 'dot' ? 18 : 28
@@ -122,7 +124,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       className: 'marker-icon',
       html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, Math.round(modernSize * 0.5))}</span>${badgeHtml}</div>`,
       iconSize: [modernSize, modernSize],
-      iconAnchor: [modernSize / 2, modernSize / 2],
+      iconAnchor: [modernSize / 2 - shiftX, modernSize / 2],
     })
   } else if (style === 'minimal') {
     const geometry = shapeGeometry[meta.shape]
@@ -130,7 +132,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       className: 'marker-icon',
       html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
       iconSize: geometry.size,
-      iconAnchor: geometry.anchor,
+      iconAnchor: [geometry.anchor[0] - shiftX, geometry.anchor[1]],
     })
   } else {
     // Realistic icons stand on a base, so the map point sits at the bottom centre of the image.
@@ -138,7 +140,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       className: 'marker-icon',
       html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [meta.size, meta.size],
-      iconAnchor: [meta.size / 2, meta.size],
+      iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
   }
   iconCache.set(cacheKey, icon)
@@ -328,6 +330,8 @@ export function MapsPage() {
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
   }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests])
+
+  const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
   const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
   const bossProfiles = useBossProfiles(bossesVisible)
@@ -534,7 +538,7 @@ export function MapsPage() {
             const meta = markerMeta[layerId]
             const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId)
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
-            const icon = markerIcon(markerStyle, layerId, focused, noFloorBadgeLayers.has(layerId) ? '' : floorBadge(marker.floor, baseFloor), bust)
+            const icon = markerIcon(markerStyle, layerId, focused, noFloorBadgeLayers.has(layerId) ? '' : floorBadge(marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0)
             return (
               <Marker
                 key={marker.id}
@@ -792,6 +796,29 @@ function markerMatchesStage(
     return marker.stageIndex === requested
   }
   return marker.stageIndex === current
+}
+
+/**
+ * Bosses that spawn in (almost) the same place — e.g. the Cultist Priest and the Goons on Customs —
+ * would hide each other. Each group is fanned out sideways in screen pixels around the true point.
+ */
+const BOSS_OVERLAP_DISTANCE = 40
+const BOSS_FAN_STEP = 38
+
+function bossFanOut(markers: MapMarker[]) {
+  const shifts = new Map<string, number>()
+  const groups: MapMarker[][] = []
+  for (const marker of markers) {
+    const group = groups.find((entry) => entry.some((other) => Math.hypot(other.position[0] - marker.position[0], other.position[1] - marker.position[1]) < BOSS_OVERLAP_DISTANCE))
+    if (group) group.push(marker)
+    else groups.push([marker])
+  }
+  for (const group of groups) {
+    if (group.length < 2) continue
+    const ordered = [...group].sort((a, b) => a.title.localeCompare(b.title, 'ru') || a.id.localeCompare(b.id))
+    ordered.forEach((marker, index) => shifts.set(marker.id, (index - (ordered.length - 1) / 2) * BOSS_FAN_STEP))
+  }
+  return shifts
 }
 
 function isPlottedMarker(marker: MapMarker) {

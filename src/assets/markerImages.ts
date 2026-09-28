@@ -15,6 +15,7 @@ import medicine from './map-markers/14_medicine.png'
 import provisions from './map-markers/15_provisions.png'
 import technicalLoot from './map-markers/16_technical_loot.png'
 import containerStash from './map-markers/17_container_stash.png'
+import battlePassDocuments from './map-markers/18_battle_pass_documents.svg'
 
 export const markerImages: Record<MarkerLayerId, string> = {
   'extract.pmc': pmcExtraction,
@@ -34,4 +35,5 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.provision': provisions,
   'loot.technical': technicalLoot,
   'loot.container': containerStash,
+  'loot.documents': battlePassDocuments,
 }
