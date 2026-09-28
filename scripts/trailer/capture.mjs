@@ -107,14 +107,15 @@ const shot = (page, name, clip) => page.screenshot({ path: join(OUT, `${name}.pn
 
 // ---- main app pages (default theme) -------------------------------------------------------------
 {
-  const { context, page } = await newPage()
+  const { context, page } = await newPage({ scale: 2 })
   await open(page, '#/')
+  await page.waitForTimeout(2500) // let the dashboard's entrance fade finish
   await shot(page, 'dashboard')
 
-  await page.goto(BASE + '#/quests'); await settle(page)
+  await page.goto(BASE + '#/quests'); await settle(page, 2500)
   await shot(page, 'quests')
 
-  await page.goto(BASE + '#/flea'); await settle(page)
+  await page.goto(BASE + '#/flea'); await settle(page, 2500)
   await shot(page, 'flea')
 
   await page.goto(BASE + '#/kappa-items'); await settle(page)
@@ -147,10 +148,10 @@ const shot = (page, name, clip) => page.screenshot({ path: join(OUT, `${name}.pn
 
 // ---- colour themes -----------------------------------------------------------------------------
 for (const theme of ['steel', 'crimson']) {
-  const { context, page } = await newPage({ theme })
+  const { context, page } = await newPage({ theme, scale: 2 })
   await open(page, '#/')
   await page.evaluate((t) => { localStorage.setItem('tarkov-app-theme', t) }, theme)
-  await page.reload(); await settle(page)
+  await page.reload(); await settle(page, 4000)
   await shot(page, `theme-${theme}`)
   await context.close()
 }

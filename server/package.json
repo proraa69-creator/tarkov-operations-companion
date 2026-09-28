@@ -1,14 +1,15 @@
 {
   "name": "tarkov-operations-api",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Application-owned API and catalog cache for Tarkov Operations Companion",
   "scripts": {
-    "test": "node --import tsx --test src/api.test.ts src/routes/goons.test.ts src/routes/accounts.test.ts",
+    "test": "node --import tsx --test src/api.test.ts src/routes/goons.test.ts src/routes/accounts.test.ts src/routes/me.test.ts src/services/persistence.test.ts",
     "dev": "tsx watch src/index.ts",
     "start": "node --import tsx src/index.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "promote": "node --import tsx src/cli/promote-streamer.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
