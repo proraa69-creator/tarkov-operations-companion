@@ -30,6 +30,18 @@ C:\Users\BANGKOK PC\Documents\Codex
 
 This is the closest practical match to the project-file access used in this Codex workspace. It does not copy Codex-only internal tools, browser state, or system-level permissions into Claude.
 
+## Full project mode
+
+If the owner explicitly wants Claude Code to stop asking for routine project edit/run approvals, use:
+
+```powershell
+.\start-claude-full-projects.ps1
+```
+
+This starts Claude Code with `--permission-mode bypassPermissions` for the configured project folders. This is intentionally separate from the default safe launcher because it allows Claude to make project changes with far fewer prompts. Use it only for trusted project work.
+
+This launcher does not change the behavior of Anthropic's hosted Claude web/cloud UI. If the cloud UI itself asks for approval, that approval flow is controlled by Claude's service and project settings.
+
 If Claude is not authenticated yet, it will ask you to sign in. Log in manually in the browser or terminal prompt.
 
 ## What Claude can safely do
