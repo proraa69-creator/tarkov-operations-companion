@@ -712,3 +712,8 @@ a.quest-stage:hover { color: var(--text); }
 .theme-swatch.active { border-color: var(--brass); color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .theme-swatch-preview { width: 100%; height: 26px; border-radius: 5px; border: 1px solid rgb(255 255 255 / 12%); }
 .mmt-shot { display: block; width: 100%; aspect-ratio: 16 / 9; margin: 0 0 8px; object-fit: cover; border: 1px solid #3d3f33; border-radius: 2px; background: #0d100d; }
+.exp-warning.is-alert { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }
+.exp-warning.is-alert .panel-body { color: var(--danger); }
+.live-player svg { width: 40px; height: 40px; overflow: visible; filter: drop-shadow(0 0 6px rgb(79 195 247 / 70%)); }
+.live-player circle { fill: #4fc3f7; stroke: #fff; stroke-width: 2.5; }
+.live-player path { fill: #fff; stroke: #0b3c52; stroke-width: 1.2; }

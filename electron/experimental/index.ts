@@ -5,7 +5,7 @@ import { recognizeRegion } from '../screenOcr.js'
 import { PositionTracker, screenshotsFolder } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
-import { isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable } from './win32.js'
+import { foregroundDisplayMode, isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable, type DisplayMode } from './win32.js'
 
 const require = createRequire(import.meta.url)
 
@@ -24,7 +24,6 @@ interface Options {
 
 const ITEM_OVERLAY = { width: 340, height: 230 }
 const MINIMAP_OVERLAY = { width: 520, height: 520 }
-const ITEM_HIDE_MS = 9000
 const QUERY_TIMEOUT_MS = 5000
 const KEY_REPEAT_MS = 350
 
@@ -36,6 +35,8 @@ let minimapWindow: BrowserWindow | null = null
 let itemHideTimer: NodeJS.Timeout | null = null
 let screenshotTimer: NodeJS.Timeout | null = null
 let keyTimer: NodeJS.Timeout | null = null
+let watchTimer: NodeJS.Timeout | null = null
+let displayMode: DisplayMode = 'unknown'
 let lastPosition: PlayerPosition | null = null
 let lastKeyAt = 0
 let lookupBusy = false
@@ -61,6 +62,20 @@ export function startExperimental(next: Options) {
   registerIpc()
   startHook()
   applySettings(readSettings())
+  watchTimer = setInterval(watchGame, 800)
+}
+
+/**
+ * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
+ * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, clicks and
+ * loading screens, which would otherwise push a topmost overlay under it.
+ */
+function watchGame() {
+  if (!isTarkovForeground()) return
+  displayMode = foregroundDisplayMode()
+  for (const window of [itemWindow, minimapWindow]) {
+    if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
+  }
 }
 
 export function stopExperimental() {
@@ -69,6 +84,8 @@ export function stopExperimental() {
   screenshotTimer = null
   if (keyTimer) clearInterval(keyTimer)
   keyTimer = null
+  if (watchTimer) clearInterval(watchTimer)
+  watchTimer = null
   try { hook?.uIOhook.stop() } catch { /* already stopped */ }
 }
 
@@ -93,6 +110,7 @@ function registerIpc() {
     screenshotsFolder: screenshotsFolder(),
     lastPosition,
     raid: options.raidState(),
+    displayMode,
   }))
   ipcMain.handle('experimental:answer', (_event, id: unknown, payload: unknown) => {
     const resolve = pending.get(Number(id))
@@ -255,9 +273,12 @@ function whenLoaded(window: BrowserWindow) {
 }
 
 async function lookupItem(test: boolean) {
-  if (!readSettings().itemLookup || lookupBusy) return null
+  const settings = readSettings()
+  if (!settings.itemLookup || lookupBusy) return null
   lookupBusy = true
   try {
+    if (!test && isTarkovForeground()) displayMode = foregroundDisplayMode()
+    const extras = { speak: settings.speakItem === 'always' || (settings.speakItem === 'exclusive' && displayMode === 'exclusive'), hideMs: settings.itemHideMs }
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
     itemWindow?.hide()
@@ -274,8 +295,8 @@ async function lookupItem(test: boolean) {
     const answer = test
       ? await askRenderer('item', { text: '', test: true })
       : text ? await askRenderer('item', { text }) : null
-    sendOverlay(window, 'overlay:item', answer ?? { state: 'not-found', text })
-    itemHideTimer = setTimeout(() => window.hide(), ITEM_HIDE_MS)
+    sendOverlay(window, 'overlay:item', { ...(answer && typeof answer === 'object' ? answer : { state: 'not-found', text }), ...extras })
+    itemHideTimer = setTimeout(() => window.hide(), settings.itemHideMs)
     return answer
   } finally {
     lookupBusy = false

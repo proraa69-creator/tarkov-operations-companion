@@ -16,6 +16,7 @@ import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { FloorSvgOverlay } from '../components/FloorSvgOverlay'
+import { LivePlayerMarker } from '../components/LivePlayerMarker'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
@@ -533,6 +534,7 @@ export function MapsPage() {
           <MapRefCapture mapRef={mapRef} />
           {!toolActive && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           <MapToolLayer value={tools} onChange={setTools} />
+          <LivePlayerMarker mapId={activeMap.id} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]

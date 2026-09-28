@@ -30,4 +30,10 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Форма элементов', 'Element shape'], ['Скруглённые или угловые углы панелей', 'Rounded or angular panel corners'],
   ['Скруглённый', 'Rounded'], ['Угловой', 'Angular'], ['Тарков', 'Tarkov'], ['Графит', 'Graphite'], ['Пустыня', 'Desert'], ['Сталь', 'Steel'], ['Багровый', 'Crimson'],
   ['Личный кабинет', 'Account'],
+  ['Карточка предмета держится', 'Item card stays for'], ['с поверх игры', 's over the game'],
+  ['Озвучивать цену', 'Read price aloud'], ['Нет', 'No'], ['Если окна не видны', 'When overlays are hidden'], ['Всегда', 'Always'],
+  ['Голосом Windows: слышно даже в эксклюзивном полноэкранном режиме, где окна поверх игры не видны.', 'Windows voice: audible even in exclusive full screen, where no overlay is visible.'],
+  ['Режим экрана игры', 'Game display mode'], ['эксклюзивный полноэкранный', 'exclusive full screen'],
+  ['полноэкранный (окна поверх видны)', 'full screen (overlays visible)'], ['оконный', 'windowed'],
+  ['определится, когда игра будет на переднем плане', 'detected when the game is in front'],
 ]

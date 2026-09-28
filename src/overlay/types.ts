@@ -23,10 +23,11 @@ export interface ItemOverlayInfo {
   collector: boolean
 }
 
-export type ItemOverlayPayload =
+export type ItemOverlayPayload = (
   | { state: 'loading' }
   | { state: 'not-found'; text?: string }
   | ItemOverlayInfo
+) & { speak?: boolean; hideMs?: number }
 
 export interface MinimapMarker {
   id: string
@@ -50,6 +51,8 @@ export interface ExperimentalSettings {
   itemKey: string
   minimapKey: string
   collectorKey: string
+  itemHideMs: number
+  speakItem: 'off' | 'exclusive' | 'always'
 }
 
 export interface ExperimentalStatus {
@@ -59,6 +62,8 @@ export interface ExperimentalStatus {
   screenshotsFolder: string
   lastPosition: PlayerPosition | null
   raid: { inRaid: boolean; location?: string }
+  /** Display mode of the game the last time it was in front. */
+  displayMode: 'exclusive' | 'fullscreen' | 'normal' | 'unknown'
 }
 
 export type ExperimentalQuery =

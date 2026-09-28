@@ -26,9 +26,42 @@ export function OverlayApp({ kind }: { kind: OverlayKind }) {
 
 const rub = (value: number) => `${Math.round(value).toLocaleString('ru-RU')} ₽`
 
+/** Short spoken summary: the only output that still reaches the player over exclusive full screen. */
+export function itemSpeech(payload: ItemOverlayPayload) {
+  if (payload.state === 'loading') return ''
+  if (payload.state === 'not-found') return 'Предмет не распознан'
+  const money = (value: number) => value >= 1000 ? `${Math.round(value / 1000)} тысяч` : `${Math.round(value)} рублей`
+  const parts = [payload.shortName || payload.name]
+  parts.push(payload.fleaPrice ? `барахолка ${money(payload.fleaPrice)}` : 'на барахолке не продаётся')
+  if (payload.bestTrader) parts.push(`${payload.bestTrader.name} ${money(payload.bestTrader.price)}`)
+  if (payload.collector) parts.push('нужен для Коллекционера')
+  else if (payload.quests.length) parts.push(`нужен для заданий: ${payload.quests.length}`)
+  return parts.join('. ')
+}
+
+function speak(text: string) {
+  const synth = window.speechSynthesis
+  if (!synth || !text) return
+  synth.cancel()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'ru-RU'
+  utterance.rate = 1.15
+  const voice = synth.getVoices().find((entry) => entry.lang.toLowerCase().startsWith('ru'))
+  if (voice) utterance.voice = voice
+  synth.speak(utterance)
+}
+
 function ItemOverlay() {
   const [payload, setPayload] = useState<ItemOverlayPayload>({ state: 'loading' })
-  useEffect(() => window.tarkovDesktop?.onOverlay?.('overlay:item', setPayload), [])
+  const [shownAt, setShownAt] = useState(0)
+  useEffect(() => window.tarkovDesktop?.onOverlay?.('overlay:item', (next) => {
+    setPayload(next)
+    if (next.state !== 'loading') {
+      setShownAt(Date.now())
+      if (next.speak) speak(itemSpeech(next))
+    }
+  }), [])
+  const timer = payload.state !== 'loading' && payload.hideMs ? <span key={shownAt} className="ov-timer" style={{ animationDuration: `${payload.hideMs}ms` }} /> : null
 
   if (payload.state === 'loading') {
     return <div className="ov-card ov-item is-loading"><span className="ov-spinner" />{uiText("Распознаю предмет…")}</div>
@@ -37,7 +70,8 @@ function ItemOverlay() {
     return (
       <div className="ov-card ov-item">
         <p className="ov-title">{uiText("Предмет не распознан")}</p>
-        <p className="ov-muted">{uiText("Наведите курсор на предмет, дождитесь подсказки с названием и нажмите «Ж» ещё раз.")}</p>
+        <p className="ov-muted">{uiText("Наведите курсор на предмет, дождитесь подсказки с названием и нажмите клавишу ещё раз.")}</p>
+        {timer}
       </div>
     )
   }
@@ -66,6 +100,7 @@ function ItemOverlay() {
           {payload.quests.slice(0, 3).map((quest) => <li key={quest.questId}><span>{uiText(quest.name)}</span><em>{uiText(`${quest.purpose} ×${quest.count}`)}</em></li>)}
         </ul>
       )}
+      {timer}
     </div>
   )
 }

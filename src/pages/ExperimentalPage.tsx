@@ -5,6 +5,26 @@ import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { hotkeyLabel, isKnownHotkey } from '../overlay/hotkeys'
 
+const DISPLAY_LABEL: Record<ExperimentalStatus['displayMode'], string> = {
+  exclusive: 'эксклюзивный полноэкранный',
+  fullscreen: 'полноэкранный (окна поверх видны)',
+  normal: 'оконный',
+  unknown: 'определится, когда игра будет на переднем плане',
+}
+
+const DISPLAY_HINT: Record<ExperimentalStatus['displayMode'], string> = {
+  exclusive: 'Игра сейчас в эксклюзивном полноэкранном режиме: Windows не показывает поверх неё никакие окна — ни наши, ни TarkovRaidCompass, ни TarkovQuestie. Выберите в настройках графики EFT «Оконный без рамки» (Borderless) или «Полноэкранный» и проверьте, что в свойствах EscapeFromTarkov.exe → Совместимость НЕ отмечено «Отключить оптимизацию во весь экран». До этого цена предмета озвучивается голосом.',
+  fullscreen: 'Игра в полноэкранном режиме с оптимизацией Windows — мини-карта и карточка предмета показываются поверх игры.',
+  normal: 'Мини-карта и карточка предмета показываются поверх игры.',
+  unknown: 'Окна поверх игры работают в режимах «Оконный без рамки» и «Полноэкранный» (с оптимизацией Windows, как у TarkovRaidCompass). Режим экрана определится автоматически, когда игра будет на переднем плане.',
+}
+
+const SPEAK_OPTIONS: Array<{ id: ExperimentalSettings['speakItem']; label: string }> = [
+  { id: 'off', label: 'Нет' },
+  { id: 'exclusive', label: 'Если окна не видны' },
+  { id: 'always', label: 'Всегда' },
+]
+
 export function ExperimentalPage() {
   const api = window.tarkovDesktop?.experimental
   const [settings, setSettings] = useState<ExperimentalSettings | null>(null)
@@ -46,10 +66,10 @@ export function ExperimentalPage() {
         <section className="panel"><div className="panel-body">{uiText("Эти функции работают только в приложении для Windows.")}</div></section>
       ) : (
         <>
-          <section className="panel exp-warning">
+          <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
             <div className="panel-body">
               <AlertTriangle size={18} />
-              <p>{uiText(" Окна поверх игры видны только в режиме экрана ")}<strong>{uiText("«Оконный без рамки»")}</strong>{uiText(" (Borderless). В полноэкранном режиме Windows не даёт рисовать поверх игры. ")}</p>
+              <p>{uiText(DISPLAY_HINT[status?.displayMode ?? 'unknown'])}</p>
             </div>
           </section>
 
@@ -64,6 +84,22 @@ export function ExperimentalPage() {
                   on={Boolean(settings?.itemLookup)}
                   onChange={(itemLookup) => update({ itemLookup })}
                 />
+                <div className="setting-row">
+                  <span>
+                    <strong>{uiText("Карточка предмета держится")}</strong>
+                    <small>{uiText(((settings?.itemHideMs ?? 6000) / 1000).toFixed(0))}{uiText(" с поверх игры")}</small>
+                  </span>
+                  <input type="range" min={3000} max={15000} step={1000} value={settings?.itemHideMs ?? 6000} onChange={(event) => update({ itemHideMs: Number(event.target.value) })} />
+                </div>
+                <div className="setting-row">
+                  <span>
+                    <strong>{uiText("Озвучивать цену")}</strong>
+                    <small>{uiText("Голосом Windows: слышно даже в эксклюзивном полноэкранном режиме, где окна поверх игры не видны.")}</small>
+                  </span>
+                  <div className="locale-switch">
+                    {SPEAK_OPTIONS.map((option) => <button key={option.id} className={(settings?.speakItem ?? 'exclusive') === option.id ? 'active' : ''} onClick={() => update({ speakItem: option.id })}>{uiText(option.label)}</button>)}
+                  </div>
+                </div>
                 <HotkeyRow
                   label="Клавиша информации о предмете"
                   value={settings?.itemKey ?? 'Semicolon'}
@@ -73,7 +109,7 @@ export function ExperimentalPage() {
                 <Toggle
                   icon={<MapIcon size={16} />}
                   title={uiText("Мини-карта")}
-                  hint="Показывает карту текущего рейда с выходами и точками текущих квестов. Повторное нажатие скрывает."
+                  hint="Карта текущего рейда с выходами, точками текущих квестов и вашей позицией. Позиция берётся из имени файла скриншота EFT (как в TarkovRaidCompass). Повторное нажатие скрывает."
                   on={Boolean(settings?.minimap)}
                   onChange={(minimap) => update({ minimap })}
                 />
@@ -128,6 +164,7 @@ export function ExperimentalPage() {
               <div className="panel-header"><div className="panel-title">{uiText("Состояние")}</div></div>
               <div className="panel-body exp-status">
                 <Row label="Горячие клавиши" value={status?.hookReady ? 'работают' : status?.hookError ? `ошибка: ${status.hookError}` : '…'} ok={status?.hookReady} />
+                <Row label="Режим экрана игры" value={DISPLAY_LABEL[status?.displayMode ?? 'unknown']} ok={status?.displayMode === 'fullscreen' || status?.displayMode === 'normal'} />
                 <Row label="Рейд" value={status?.raid.inRaid ? `в рейде${status.raid.location ? ` · ${status.raid.location}` : ''}` : 'в меню'} ok={status?.raid.inRaid} />
                 <Row label="Отслеживание" value={status?.tracking ? 'включено' : 'выключено'} ok={status?.tracking} />
                 <Row
@@ -190,7 +227,7 @@ function HotkeyRow({ label, value, taken = [], optional, onChange }: { label: st
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [listening, taken, onChange])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [listening, taken, onChange])
 
   return (
     <div className="setting-row exp-hotkey">
