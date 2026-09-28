@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Tarkov Operations Companion — трейлер</title>
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(assets/fonts/inter-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(assets/fonts/inter-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(assets/fonts/oswald-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(assets/fonts/oswald-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+:root {
+  /* From src/styles/tokens.css */
+  --bg: #0a0f0c;
+  --panel: #141d18;
+  --line: #2b3a30;
+  --text: #edf2ed;
+  --text-muted: #97a49a;
+  --brass: #c4a665;
+  --brass-strong: #dfbd70;
+  --green: #7fa183;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #050806; }
+body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+#stage { position: absolute; inset: 0; overflow: hidden; background: #050806; }
+.scene { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+.layer { position: absolute; inset: 0; transform-origin: 0 0; }
+.shot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; will-change: transform; transform-origin: 0 0; }
+.shade { position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(5 8 6 / 0%) 52%, rgb(5 8 6 / 70%) 80%, rgb(5 8 6 / 94%) 100%),
+    linear-gradient(90deg, rgb(5 8 6 / 55%) 0%, rgb(5 8 6 / 0%) 38%); }
+
+/* Captions ----------------------------------------------------------------------------------- */
+.caption { position: absolute; left: 120px; bottom: 104px; z-index: 5; }
+.caption .eyebrow { display: flex; align-items: center; gap: 14px; font: 700 20px/1 Inter, sans-serif; letter-spacing: .26em; text-transform: uppercase; color: var(--brass); }
+.caption .eyebrow b { display: inline-grid; place-items: center; min-width: 44px; height: 30px; padding: 0 8px; border: 1px solid rgb(196 166 101 / 55%); border-radius: 6px; font-size: 16px; letter-spacing: .08em; color: var(--brass-strong); background: rgb(196 166 101 / 10%); }
+.caption h2 { margin-top: 18px; font: 800 72px/1.04 Inter, sans-serif; letter-spacing: -.02em; text-shadow: 0 6px 40px rgb(0 0 0 / 70%); max-width: 1300px; }
+.caption .bar { margin-top: 26px; height: 4px; width: 220px; border-radius: 2px; background: linear-gradient(90deg, var(--brass-strong), rgb(196 166 101 / 0%)); transform-origin: 0 50%; }
+
+/* Intro / outro ------------------------------------------------------------------------------ */
+.title-scene { display: grid; place-items: center; text-align: center; }
+.title-bg { position: absolute; inset: -40px; background-size: cover; filter: blur(14px) saturate(.8) brightness(.32); }
+.title-glow { position: absolute; inset: 0;
+  background:
+    radial-gradient(900px 520px at 50% 48%, rgb(196 166 101 / 22%), rgb(196 166 101 / 0%) 70%),
+    radial-gradient(1400px 900px at 50% 50%, rgb(5 8 6 / 0%), rgb(5 8 6 / 88%) 75%); }
+.title-lines { position: absolute; inset: 0; opacity: .5;
+  background-image: linear-gradient(rgb(196 166 101 / 7%) 1px, transparent 1px), linear-gradient(90deg, rgb(196 166 101 / 7%) 1px, transparent 1px);
+  background-size: 96px 96px; background-position: -1px -1px;
+  mask-image: radial-gradient(900px 600px at 50% 50%, #000 20%, transparent 75%); }
+.title-block { position: relative; z-index: 2; display: grid; justify-items: center; }
+.badge { width: 124px; height: 124px; border-radius: 26px; display: grid; place-items: center; border: 2px solid rgb(223 189 112 / 70%);
+  background: linear-gradient(160deg, #26332b, #121a15); box-shadow: 0 0 0 10px rgb(196 166 101 / 6%), 0 30px 80px rgb(0 0 0 / 60%), inset 0 1px 0 rgb(255 255 255 / 8%);
+  font: 700 52px/1 Oswald, Inter, sans-serif; letter-spacing: .02em; color: var(--brass-strong); }
+.kicker { margin-top: 42px; font: 700 22px/1 Inter, sans-serif; letter-spacing: .5em; text-transform: uppercase; color: var(--brass); padding-left: .5em; }
+.big-title { margin-top: 22px; font: 700 128px/1 Oswald, Inter, sans-serif; letter-spacing: .015em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fbf1d6 0%, #e7cb86 42%, #b8924c 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 10px 40px rgb(0 0 0 / 70%)); white-space: nowrap; }
+.rule { margin-top: 34px; width: 560px; height: 2px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+.tagline { margin-top: 30px; font: 500 30px/1.3 Inter, sans-serif; color: #c9d2ca; letter-spacing: .01em; }
+.tagline span { color: var(--brass); padding: 0 10px; }
+.cta { margin-top: 54px; display: inline-flex; align-items: center; gap: 18px; padding: 28px 58px; border-radius: 16px;
+  background: linear-gradient(180deg, #e2c47c, #b48f4b); color: #17130a; font: 800 44px/1 Inter, sans-serif; letter-spacing: -.01em;
+  box-shadow: 0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%); }
+.cta svg { width: 44px; height: 44px; }
+.fine { margin-top: 26px; font: 600 22px/1 Inter, sans-serif; letter-spacing: .3em; text-transform: uppercase; color: var(--text-muted); padding-left: .3em; }
+
+/* In-game backdrop (drawn here, no game footage) --------------------------------------------- */
+.game { position: absolute; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(1200px 700px at 22% 18%, rgb(170 180 160 / 20%), transparent 65%),
+    radial-gradient(900px 500px at 80% 85%, rgb(60 80 60 / 30%), transparent 70%),
+    linear-gradient(180deg, #2a302b 0%, #1a1f1b 42%, #0f1310 43%, #141a15 70%, #0a0d0b 100%); }
+.game .haze { position: absolute; inset: -10%; filter: blur(40px); opacity: .7;
+  background:
+    radial-gradient(420px 180px at 30% 40%, rgb(200 205 190 / 18%), transparent 70%),
+    radial-gradient(520px 220px at 70% 36%, rgb(180 190 170 / 14%), transparent 70%),
+    radial-gradient(700px 260px at 50% 60%, rgb(0 0 0 / 35%), transparent 70%); }
+.game .ridge { position: absolute; left: -5%; right: -5%; top: 36%; height: 200px; opacity: .55; filter: blur(3px);
+  background: linear-gradient(180deg, #151a16, #0d110e);
+  clip-path: polygon(0 60%, 6% 48%, 12% 55%, 20% 38%, 27% 46%, 34% 30%, 41% 42%, 50% 34%, 58% 44%, 66% 28%, 74% 40%, 82% 33%, 90% 46%, 100% 38%, 100% 100%, 0 100%); }
+.game .grain { position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>"); }
+.game .vignette { position: absolute; inset: 0; background: radial-gradient(1200px 760px at 50% 50%, transparent 40%, rgb(0 0 0 / 78%) 100%); }
+.hud { position: absolute; inset: 44px; pointer-events: none; }
+.hud i { position: absolute; width: 60px; height: 60px; border-color: rgb(220 225 210 / 28%); border-style: solid; }
+.hud i:nth-child(1) { left: 0; top: 0; border-width: 2px 0 0 2px; }
+.hud i:nth-child(2) { right: 0; top: 0; border-width: 2px 2px 0 0; }
+.hud i:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 2px 2px; }
+.hud i:nth-child(4) { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
+.compass { position: absolute; left: 50%; top: 26px; width: 640px; margin-left: -320px; height: 36px; overflow: hidden; opacity: .55;
+  mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent); }
+.compass-strip { position: absolute; top: 0; left: 0; height: 36px; width: 2400px; display: flex; }
+.compass-strip span { flex: 0 0 40px; border-left: 1px solid rgb(230 230 220 / 50%); height: 10px; position: relative; }
+.compass-strip span:nth-child(3n+1) { height: 16px; }
+.compass-strip em { position: absolute; top: 18px; left: -6px; font: 600 14px/1 Inter, sans-serif; font-style: normal; color: rgb(235 235 225 / 80%); }
+.hud-note { position: absolute; right: 0; bottom: -2px; font: 600 15px/1 Inter, sans-serif; letter-spacing: .3em; text-transform: uppercase; color: rgb(220 225 210 / 45%); padding-bottom: 12px; padding-right: 76px; }
+
+/* Minimap overlay */
+.ov-minimap-img { position: absolute; right: 150px; top: 120px; width: 560px; filter: drop-shadow(0 24px 60px rgb(0 0 0 / 70%)); transform-origin: 100% 0; }
+.keycap { position: absolute; display: grid; place-items: center; min-width: 74px; height: 74px; padding: 0 18px; border-radius: 14px;
+  font: 800 34px/1 Inter, sans-serif; color: #f4ecd4; background: linear-gradient(180deg, #37413a, #1d241f);
+  border: 1px solid rgb(255 255 255 / 16%); box-shadow: 0 7px 0 #0c100d, 0 16px 34px rgb(0 0 0 / 60%); }
+.keycap small { font-size: 18px; font-weight: 600; margin-left: 12px; color: var(--brass); letter-spacing: .06em; }
+
+/* Stash grid (generic, drawn here) */
+.stash { position: absolute; left: 330px; top: 170px; width: 700px; height: 560px; border: 1px solid rgb(200 205 190 / 20%); background: rgb(12 15 13 / 72%);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 55%);
+  background-image: linear-gradient(rgb(200 205 190 / 10%) 1px, transparent 1px), linear-gradient(90deg, rgb(200 205 190 / 10%) 1px, transparent 1px);
+  background-size: 70px 70px; }
+.stash .head { position: absolute; left: 0; right: 0; top: -44px; height: 44px; display: flex; align-items: center; padding: 0 16px; font: 700 17px/1 Inter, sans-serif; letter-spacing: .2em; color: rgb(220 225 210 / 70%); background: rgb(30 36 32 / 90%); border: 1px solid rgb(200 205 190 / 20%); }
+.cell { position: absolute; border: 1px solid rgb(200 205 190 / 18%); background: linear-gradient(160deg, rgb(70 80 72 / 55%), rgb(30 36 32 / 55%)); }
+.cell::after { content: ''; position: absolute; inset: 22%; border-radius: 6px; background: rgb(200 205 190 / 10%); }
+.cell.hot { border-color: rgb(223 189 112 / 85%); box-shadow: 0 0 0 2px rgb(223 189 112 / 35%), 0 0 30px rgb(223 189 112 / 25%); }
+.cell.hot::after { background: rgb(223 189 112 / 18%); }
+.cursor { position: absolute; width: 34px; height: 34px; }
+.item-card { position: absolute; left: 840px; top: 500px; width: 540px; filter: drop-shadow(0 22px 50px rgb(0 0 0 / 70%)); transform-origin: 0 0; }
+
+/* Theme flips */
+.theme-shot { position: absolute; inset: 0; }
+.theme-chip { position: absolute; bottom: 118px; right: 120px; z-index: 6; display: flex; gap: 14px; }
+.theme-chip span { display: flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 12px; font: 700 22px/1 Inter, sans-serif; color: #dde3dd;
+  background: rgb(10 14 12 / 78%); border: 1px solid rgb(255 255 255 / 12%); }
+.theme-chip span::before { content: ''; width: 22px; height: 22px; border-radius: 6px; background: var(--sw); }
+
+/* Global film layers */
+#letter { position: absolute; inset: 0; pointer-events: none; z-index: 20; box-shadow: inset 0 0 220px rgb(0 0 0 / 55%); }
+#grain { position: absolute; inset: 0; pointer-events: none; z-index: 21; opacity: .06; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>"); }
+#progress { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; z-index: 22; background: linear-gradient(90deg, var(--brass), var(--brass-strong)); transform-origin: 0 50%; transform: scaleX(0); opacity: .75; }
+#fade { position: absolute; inset: 0; background: #000; z-index: 30; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 1. Intro -->
+  <section class="scene title-scene" id="s-intro">
+    <div class="title-bg" style="background-image:url(shots/dashboard.png)"></div>
+    <div class="title-lines"></div>
+    <div class="title-glow"></div>
+    <div class="title-block">
+      <div class="badge" id="intro-badge">TO</div>
+      <div class="kicker" id="intro-kicker">Field Companion</div>
+      <div class="big-title" id="intro-title">Tarkov Operations Companion</div>
+      <div class="rule" id="intro-rule"></div>
+      <div class="tagline" id="intro-tag">Карты<span>·</span>Задания<span>·</span>Барахолка<span>·</span>Оверлей</div>
+    </div>
+  </section>
+
+  <!-- 2. Maps: ruler + sniper -->
+  <section class="scene" id="s-maps">
+    <div class="layer" id="maps-move">
+      <img class="shot" src="shots/maps-ruler.png" alt="">
+      <img class="shot" id="maps-sniper" src="shots/maps-sniper.png" alt="" style="opacity:0">
+    </div>
+    <div class="shade"></div>
+    <div class="caption"><div class="eyebrow"><b>01</b>Карты</div><h2>Рулетка и радиус снайпера</h2><div class="bar"></div></div>
+  </section>
+
+  <!-- 3. Minimap overlay over a drawn in-game backdrop -->
+  <section class="scene" id="s-minimap">
+    <div class="game" id="game-a">
+      <div class="haze"></div><div class="ridge"></div><div class="grain"></div><div class="vignette"></div>
+    </div>
+    <div class="hud">
+      <i></i><i></i><i></i><i></i>
+      <div class="compass"><div class="compass-strip" id="compass-a"></div></div>
+      <div class="hud-note">Оверлей поверх игры</div>
+    </div>
+    <img class="ov-minimap-img" id="minimap-img" src="shots/overlay-minimap.png" alt="">
+    <div class="keycap" id="key-m" style="right:730px; top:150px">M</div>
+    <div class="shade"></div>
+    <div class="caption"><div class="eyebrow"><b>02</b>В рейде</div><h2>Карты и мини-карта<br>поверх игры</h2><div class="bar"></div></div>
+  </section>
+
+  <!-- 4. Item price overlay -->
+  <section class="scene" id="s-item">
+    <div class="game" id="game-b">
+      <div class="haze"></div><div class="ridge"></div><div class="grain"></div><div class="vignette"></div>
+    </div>
+    <div class="hud"><i></i><i></i><i></i><i></i><div class="hud-note">Оверлей поверх игры</div></div>
+    <div class="stash" id="stash"><div class="head">СХРОН</div></div>
+    <svg class="cursor" id="cursor" viewBox="0 0 24 24"><path d="M3 2l7 19 2.6-7.4L20 11z" fill="#f4f1e8" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>
+    <div class="keycap" id="key-item" style="left:1180px; top:200px">;<small>цена</small></div>
+    <img class="item-card" id="item-card" src="shots/overlay-item.png" alt="">
+    <div class="shade"></div>
+    <div class="caption"><div class="eyebrow"><b>03</b>Предметы</div><h2>Цена предмета<br>по одной клавише</h2><div class="bar"></div></div>
+  </section>
+
+  <!-- 5. Quests -->
+  <section class="scene" id="s-quests">
+    <div class="layer"><img class="shot" id="quests-img" src="shots/quests.png" alt=""></div>
+    <div class="shade"></div>
+    <div class="caption"><div class="eyebrow"><b>04</b>Прогресс</div><h2>Задания и путь к Капе</h2><div class="bar"></div></div>
+  </section>
+
+  <!-- 6. Flea market -->
+  <section class="scene" id="s-flea">
+    <div class="layer"><img class="shot" id="flea-img" src="shots/flea.png" alt=""></div>
+    <div class="shade"></div>
+    <div class="caption"><div class="eyebrow"><b>05</b>Барахолка</div><h2>PvP · PvE · Сезон</h2><div class="bar"></div></div>
+  </section>
+
+  <!-- 7. Themes -->
+  <section class="scene" id="s-themes">
+    <div class="layer" id="themes-move">
+      <img class="shot theme-shot" src="shots/dashboard.png" alt="">
+      <img class="shot theme-shot" id="theme-steel" src="shots/theme-steel.png" alt="" style="clip-path: inset(0 100% 0 0)">
+      <img class="shot theme-shot" id="theme-crimson" src="shots/theme-crimson.png" alt="" style="clip-path: inset(0 100% 0 0)">
+    </div>
+    <div class="theme-chip">
+      <span id="chip-1" style="--sw:#c4a665">Тарков</span>
+      <span id="chip-2" style="--sw:#b9c6d0; opacity:.35">Сталь</span>
+      <span id="chip-3" style="--sw:#e0894f; opacity:.35">Багровый</span>
+    </div>
+    <div class="shade"></div>
+    <div class="caption"><div class="eyebrow"><b>06</b>Оформление</div><h2>Темы оформления</h2><div class="bar"></div></div>
+  </section>
+
+  <!-- 8. Outro -->
+  <section class="scene title-scene" id="s-outro">
+    <div class="title-bg" style="background-image:url(shots/maps-sniper.png)"></div>
+    <div class="title-lines"></div>
+    <div class="title-glow"></div>
+    <div class="title-block">
+      <div class="badge" id="outro-badge">TO</div>
+      <div class="big-title" id="outro-title" style="font-size:96px; margin-top:40px">Tarkov Operations Companion</div>
+      <div class="cta" id="outro-cta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        Скачать приложение
+      </div>
+      <div class="fine" id="outro-fine">Для Windows</div>
+    </div>
+  </section>
+
+  <div id="letter"></div>
+  <div id="grain"></div>
+  <div id="progress"></div>
+  <div id="fade"></div>
+</div>
+
+<script>
+/*
+ * Fixed 15 s timeline built with the Web Animations API. Every animation is created up front with
+ * an absolute delay, so the whole piece can either play in real time (window.__play) or be
+ * stepped frame by frame (window.__seek(seconds)) by render.mjs for a deterministic encode.
+ */
+const DURATION = 15
+const $ = (s) => document.querySelector(s)
+const ms = (s) => Math.round(s * 1000)
+
+// Build the compass ticks and the stash cells.
+const letters = ['С', '', '', 'СВ', '', '', 'В', '', '', 'ЮВ', '', '', 'Ю', '', '', 'ЮЗ', '', '', 'З', '', '', 'СЗ', '', '']
+const strip = $('#compass-a')
+for (let i = 0; i < 60; i++) { const s = document.createElement('span'); const t = letters[i % letters.length]; if (t) s.innerHTML = `<em>${t}</em>`; strip.appendChild(s) }
+const stash = $('#stash')
+const cells = [[0,0,2,1],[2,0,1,1],[3,0,2,2],[5,0,1,1],[6,0,2,1],[8,0,2,2],[0,1,1,2],[1,1,2,2],[5,1,1,1],[6,1,2,2],
+  [3,2,1,1],[4,2,1,2],[5,2,1,1],[8,2,2,1],[0,3,2,2],[2,3,1,1],[5,3,3,2],[8,3,1,1],[9,3,1,2],[2,4,2,1],
+  [0,5,1,1],[1,5,3,2],[4,5,1,1],[5,5,2,1],[7,5,1,2],[8,5,2,2],[4,6,2,1],[0,6,1,2],[1,7,2,1],[5,7,2,1],[3,7,1,1]]
+cells.forEach(([x, y, w, h], i) => {
+  const c = document.createElement('div')
+  c.className = 'cell' + (i === 16 ? ' hot' : '')
+  if (i === 16) c.id = 'hot-cell'
+  Object.assign(c.style, { left: `${x * 70 + 1}px`, top: `${y * 70 + 1}px`, width: `${w * 70 - 2}px`, height: `${h * 70 - 2}px` })
+  stash.appendChild(c)
+})
+
+const EASE = 'cubic-bezier(.22,.61,.36,1)'
+const SMOOTH = 'cubic-bezier(.45,.05,.55,.95)'
+function anim(el, frames, start, dur, easing = EASE) {
+  if (typeof el === 'string') el = $(el)
+  return el.animate(frames, { delay: ms(start), duration: ms(dur), fill: 'both', easing })
+}
+/**
+ * Scene fades in over `f` s from `a`, on top of the previous one (later scenes sit higher in the
+ * DOM), and stays fully opaque until the next scene has finished covering it, then drops out.
+ * That gives a clean cross-dissolve without dipping to black between beats.
+ */
+function scene(id, a, b, f = 0.4) {
+  const d = b - a + f
+  anim(id, [
+    { opacity: 0, offset: 0 }, { opacity: 1, offset: f / d }, { opacity: 1, offset: 0.999 }, { opacity: 0, offset: 1 },
+  ], a, d, 'linear')
+}
+/** Ken Burns: move from one camera to another. Camera = [centerX, centerY, zoom] in screenshot px. */
+function cam([x, y, z]) { return `translate(${960 - x * z}px, ${540 - y * z}px) scale(${z})` }
+function kenBurns(el, from, to, a, b) { anim(el, [{ transform: cam(from) }, { transform: cam(to) }], a, b - a, SMOOTH) }
+function caption(sceneId, a, b) {
+  const root = $(sceneId + ' .caption')
+  const d = b - a
+  anim(root.querySelector('.eyebrow'), [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], a + 0.15, 0.5)
+  anim(root.querySelector('h2'), [{ opacity: 0, transform: 'translateY(34px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.25, 0.6)
+  anim(root.querySelector('.bar'), [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], a + 0.45, 0.7)
+  anim(root, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-10px)' }], b - 0.35, 0.3, 'ease-in')
+}
+
+// ---- timeline ----------------------------------------------------------------------------------
+const T = {
+  intro:   [0.0, 2.3],
+  maps:    [2.0, 4.3],
+  minimap: [4.0, 6.3],
+  item:    [6.0, 8.3],
+  quests:  [8.0, 10.1],
+  flea:    [9.8, 11.8],
+  themes:  [11.5, 13.35],
+  outro:   [13.05, 15.0],
+}
+
+// Global fade from/to black and progress bar.
+anim('#fade', [{ opacity: 1 }, { opacity: 0 }], 0, 0.6, 'ease-out')
+anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, DURATION, 'linear')
+
+// 1. Intro
+scene('#s-intro', ...T.intro)
+anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, 2.3, SMOOTH)
+anim('#s-intro .title-lines', [{ transform: 'translateY(0)' }, { transform: 'translateY(48px)' }], 0, 2.3, 'linear')
+anim('#intro-badge', [{ opacity: 0, transform: 'scale(.6) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], 0.15, 0.7, 'cubic-bezier(.2,1.4,.4,1)')
+anim('#intro-kicker', [{ opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '.5em' }], 0.35, 0.9)
+anim('#intro-title', [{ opacity: 0, transform: 'translateY(30px) scale(.96)', letterSpacing: '.12em', filter: 'blur(12px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' },
+  { opacity: 1, transform: 'none', letterSpacing: '.015em', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 0.4, 0.95)
+anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.85, 0.7)
+anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 1.0, 0.6)
+
+// 2. Maps — ruler, then the sniper rings fade in on top.
+scene('#s-maps', ...T.maps)
+kenBurns('#maps-move', [990, 500, 1.12], [1020, 540, 1.3], ...T.maps)
+anim('#maps-sniper', [{ opacity: 0 }, { opacity: 1 }], 3.05, 0.45, 'ease-in-out')
+caption('#s-maps', ...T.maps)
+
+// 3. Minimap overlay
+scene('#s-minimap', ...T.minimap)
+anim('#game-a', [{ transform: 'scale(1.06) translateX(0)' }, { transform: 'scale(1.1) translateX(-30px)' }], T.minimap[0], 2.3, 'linear')
+anim('#compass-a', [{ transform: 'translateX(-600px)' }, { transform: 'translateX(-760px)' }], T.minimap[0], 2.3, SMOOTH)
+anim('#key-m', [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none', offset: .3 }, { opacity: 1, transform: 'translateY(6px)', boxShadow: '0 1px 0 #0c100d, 0 10px 24px rgb(0 0 0 / 60%)', offset: .45 }, { opacity: 1, transform: 'none', offset: .6 }, { opacity: 0, offset: 1 }], 4.2, 1.2, 'linear')
+anim('#minimap-img', [{ opacity: 0, transform: 'translateX(40px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'scale(1)', offset: .35 }, { opacity: 1, transform: 'scale(1.04)' }], 4.75, 1.55, 'linear')
+caption('#s-minimap', ...T.minimap)
+
+// 4. Item price overlay
+scene('#s-item', ...T.item)
+anim('#game-b', [{ transform: 'scale(1.1) translateX(-30px)' }, { transform: 'scale(1.14) translateX(10px)' }], T.item[0], 2.3, 'linear')
+anim('#stash', [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], 6.05, 0.45)
+// Hot cell sits at grid (5,3) size 3x2 → centre ≈ stash + (455, 280).
+anim('#cursor', [{ left: '1300px', top: '860px', opacity: 0 }, { left: '1300px', top: '860px', opacity: 1, offset: .15 }, { left: '800px', top: '460px', opacity: 1 }], 6.1, 0.8, SMOOTH)
+anim('#hot-cell', [{ opacity: .4 }, { opacity: 1 }], 6.75, 0.2)
+anim('#key-item', [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none', offset: .35 }, { opacity: 1, transform: 'translateY(6px)', boxShadow: '0 1px 0 #0c100d, 0 10px 24px rgb(0 0 0 / 60%)', offset: .55 }, { opacity: 1, transform: 'none', offset: .75 }, { opacity: .0, offset: 1 }], 6.75, 0.9, 'linear')
+anim('#item-card', [{ opacity: 0, transform: 'scale(.92)', easing: EASE }, { opacity: 1, transform: 'scale(1)', offset: .3 }, { opacity: 1, transform: 'scale(1.03)' }], 7.1, 1.2, 'linear')
+caption('#s-item', ...T.item)
+
+// 5. Quests
+scene('#s-quests', ...T.quests)
+kenBurns('#quests-img', [900, 520, 1.12], [1080, 560, 1.3], ...T.quests)
+caption('#s-quests', ...T.quests)
+
+// 6. Flea market — framed below the demo-data notice.
+scene('#s-flea', ...T.flea)
+kenBurns('#flea-img', [880, 700, 1.25], [960, 700, 1.3], ...T.flea)
+caption('#s-flea', ...T.flea)
+
+// 7. Themes — wipe Тарков → Сталь → Багровый.
+scene('#s-themes', ...T.themes)
+kenBurns('#themes-move', [1000, 520, 1.08], [1080, 540, 1.16], ...T.themes)
+anim('#theme-steel', [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)' }], 12.05, 0.45, 'cubic-bezier(.7,0,.3,1)')
+anim('#theme-crimson', [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0% 0 0)' }], 12.65, 0.45, 'cubic-bezier(.7,0,.3,1)')
+anim('#chip-1', [{ opacity: 1 }, { opacity: .35 }], 12.1, 0.3)
+anim('#chip-2', [{ opacity: .35 }, { opacity: 1, offset: .33 }, { opacity: 1, offset: .67 }, { opacity: .35 }], 12.1, 0.9, 'linear')
+anim('#chip-3', [{ opacity: .35 }, { opacity: 1 }], 12.7, 0.3)
+anim('#s-themes .theme-chip', [{ opacity: 0, transform: 'translateY(-12px)' }, { opacity: 1, transform: 'none' }], 11.6, 0.4)
+caption('#s-themes', ...T.themes)
+
+// 8. Outro
+scene('#s-outro', T.outro[0], 15.6, 0.4)
+anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], T.outro[0], 2.0, 'linear')
+anim('#outro-badge', [{ opacity: 0, transform: 'scale(.7)' }, { opacity: 1, transform: 'none' }], 13.2, 0.55, 'cubic-bezier(.2,1.4,.4,1)')
+anim('#outro-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(10px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }, { opacity: 1, transform: 'none', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 13.3, 0.6)
+anim('#outro-cta', [{ opacity: 0, transform: 'translateY(26px) scale(.94)' }, { opacity: 1, transform: 'none' }], 13.6, 0.55, 'cubic-bezier(.2,1.3,.4,1)')
+anim('#outro-cta', [{ boxShadow: '0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%)' },
+  { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], 14.2, 0.8, 'ease-in-out')
+anim('#outro-fine', [{ opacity: 0 }, { opacity: 1 }], 13.9, 0.5)
+
+const all = () => document.getAnimations()
+all().forEach((a) => a.pause())
+window.__seek = (seconds) => { for (const a of all()) { a.pause(); a.currentTime = ms(seconds) } }
+window.__play = () => { for (const a of all()) { a.currentTime = 0; a.play() } }
+window.__duration = DURATION
+window.__ready = (async () => {
+  await document.fonts.ready
+  await Promise.all([...document.images].map((img) => img.decode().catch(() => {})))
+  window.__seek(0)
+  return true
+})()
+if (location.hash === '#autoplay') window.__ready.then(() => window.__play())
+</script>
+</body>
+</html>

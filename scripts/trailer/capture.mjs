@@ -139,7 +139,10 @@ const shot = (page, name, clip) => page.screenshot({ path: join(OUT, `${name}.pn
 
     await page.getByRole('button', { name: /Снайпер/ }).first().click()
     await page.waitForTimeout(300)
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5)
+    // An empty spot, so the click places the scope instead of opening a marker popup.
+    await page.mouse.click(box.x + box.width * 0.70, box.y + box.height * 0.25)
+    await page.waitForTimeout(400)
+    await page.mouse.move(box.x + box.width * 0.97, box.y + box.height * 0.03)
     await page.waitForTimeout(600)
     await shot(page, 'maps-sniper')
   }
