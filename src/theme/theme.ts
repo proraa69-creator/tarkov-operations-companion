@@ -3,7 +3,7 @@ export interface ThemeOption { id: string; label: string; swatch: [string, strin
 export const THEMES: ThemeOption[] = [
   { id: 'tarkov', label: 'Тарков', swatch: ['#0a0f0c', '#19241e', '#c4a665'] },
   { id: 'steel', label: 'Сталь', swatch: ['#0c0e10', '#272c31', '#b9c6d0'] },
-  { id: 'crimson', label: 'Багровый', swatch: ['#100909', '#301c1c', '#e0894f'] },
+  { id: 'crimson', label: 'Багровый', swatch: ['#12060a', '#3a0f1b', '#e6a35c'] },
 ]
 
 export const SHAPES = [

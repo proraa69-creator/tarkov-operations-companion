@@ -44,7 +44,8 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
     fetchTranslated(upstreamMode, 'traders', locale),
     fetchTranslated(upstreamMode, 'hideout', locale),
     fetchMapRenderingConfigs().catch(() => new Map<string, Partial<GameMap>>()),
-    fetchWikiQuestSync().catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
+    // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
+    (locale === 'ru' ? fetchWikiQuestSync() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
   ])
 
   const traderRows = adaptTraders(traders)

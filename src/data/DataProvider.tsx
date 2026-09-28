@@ -8,6 +8,7 @@ import { useAppState } from '../state/AppState'
 import { cleanDatasetText } from '../shared/questText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
+import { useEnglishOverlay } from '../i18n/englishDataset'
 
 interface DataContextValue {
   data: AppDataset
@@ -35,7 +36,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   })
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
-  const data = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
+  const russian = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
+  // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
+  const data = useEnglishOverlay(russian, raidMode, locale)
   const value: DataContextValue = {
     data,
     source,

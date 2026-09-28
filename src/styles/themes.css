@@ -41,30 +41,46 @@
 }
 :root[data-theme="steel"] .page-title { background: linear-gradient(180deg, #ffffff 0%, #b7c2ca 55%, #8a969f 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-/* ---------- Багровый: oxblood leather grain with a warm ember light ---------- */
+/* ---------- Багровый: deep red velvet — soft pile sheen, fabric folds and depth ---------- */
 :root[data-theme="crimson"] {
-  --bg: #100909; --bg-elevated: #170d0d; --panel: #1d1111; --panel-2: #251616; --panel-3: #301c1c;
-  --line: #3e2424; --line-strong: #5c3333; --text: #f4e8e4; --text-muted: #b69c95; --text-dim: #86706a;
-  --brass: #e0894f; --brass-strong: #f4a468; --green: #9aa878; --green-soft: #2e3322; --blue: #a09aa8;
-  --surf-0: #0d0707; --surf-1: #1a0f0f; --surf-2: #251515; --line-soft: #4c2b2b;
-  --tex-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='turbulence' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .5 0 0 0 0 .45 0 0 0 .08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-  --light-ember: radial-gradient(ellipse 120% 80% at 0% 0%, rgb(224 90 60 / 11%), transparent 55%);
+  --bg: #12060a; --bg-elevated: #1a080d; --panel: #230a11; --panel-2: #2d0d16; --panel-3: #3a111c;
+  --line: #4a1a24; --line-strong: #6a2533; --text: #f6e9ea; --text-muted: #c29ba1; --text-dim: #8c6a70;
+  --brass: #e6a35c; --brass-strong: #f5bd7a; --green: #9fae7c; --green-soft: #2c3322; --blue: #a79aae;
+  --surf-0: #0e0508; --surf-1: #1c070d; --surf-2: #280b13; --line-soft: #551d29;
+  /* Fine pile: a dense red-tinted fibre noise. */
+  --velvet-pile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='v'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .45 0 0 0 0 .5 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23v)'/%3E%3C/svg%3E");
+  /* Velvet catches light at a grazing angle: a soft sheen band plus a darker crush. */
+  --velvet-sheen: radial-gradient(ellipse 85% 55% at 28% 0%, rgb(255 110 130 / 16%), transparent 62%), radial-gradient(ellipse 60% 70% at 100% 100%, rgb(0 0 0 / 42%), transparent 70%);
+  --velvet-base: linear-gradient(160deg, #3a0f1b 0%, #260912 45%, #1a060c 100%);
 }
 :root[data-theme="crimson"] body {
   background:
-    radial-gradient(ellipse 70% 50% at 85% -5%, rgb(210 70 45 / 16%), transparent 70%),
-    radial-gradient(ellipse 60% 40% at 10% 110%, rgb(120 20 20 / 20%), transparent 70%),
-    var(--tex-grain),
-    linear-gradient(180deg, #170c0c 0%, #0d0707 100%);
+    radial-gradient(ellipse 70% 45% at 80% -8%, rgb(255 90 110 / 14%), transparent 70%),
+    repeating-linear-gradient(115deg, rgb(255 80 100 / 3.5%) 0 90px, rgb(0 0 0 / 14%) 180px, rgb(255 80 100 / 3.5%) 270px),
+    var(--velvet-pile),
+    linear-gradient(180deg, #1b070d 0%, #0d0407 100%);
   background-attachment: fixed;
 }
 :root[data-theme="crimson"] .panel,
 :root[data-theme="crimson"] .stat-card {
-  background: var(--light-ember), var(--tex-grain), linear-gradient(155deg, #2a1717 0%, #1b0f0f 100%);
-  border-color: #4a2a2a;
-  box-shadow: inset 0 1px 0 rgb(255 170 140 / 7%), 0 0 0 1px rgb(0 0 0 / 40%), 0 12px 30px rgb(0 0 0 / 50%);
+  background: var(--velvet-sheen), var(--velvet-pile), var(--velvet-base);
+  border-color: #521b27;
+  box-shadow:
+    inset 0 1px 0 rgb(255 150 165 / 12%),
+    inset 0 18px 30px -18px rgb(255 120 140 / 14%),
+    inset 0 -22px 34px -12px rgb(0 0 0 / 55%),
+    0 1px 0 rgb(255 255 255 / 3%),
+    0 16px 34px rgb(0 0 0 / 55%);
 }
 :root[data-theme="crimson"] .sidebar,
-:root[data-theme="crimson"] .topbar { background: var(--tex-grain), linear-gradient(180deg, #1c0f0f, #120909); }
-:root[data-theme="crimson"] .nav-link.active { box-shadow: inset 3px 0 0 var(--brass), 0 0 18px rgb(224 90 60 / 14%); }
-:root[data-theme="crimson"] .button.primary { background: linear-gradient(180deg, #e8864d, #b4532c); border-color: #f09a62; color: #1a0b07; box-shadow: 0 0 14px rgb(224 110 60 / 30%); }
+:root[data-theme="crimson"] .topbar {
+  background: radial-gradient(ellipse 120% 60% at 0% 0%, rgb(255 110 130 / 10%), transparent 60%), var(--velvet-pile), linear-gradient(180deg, #220910, #14050a);
+}
+:root[data-theme="crimson"] .nav-link.active { background: linear-gradient(90deg, rgb(230 163 92 / 16%), transparent); box-shadow: inset 3px 0 0 var(--brass), 0 0 22px rgb(255 90 110 / 12%); }
+:root[data-theme="crimson"] .button.primary {
+  background: linear-gradient(180deg, #f2b774 0%, #d8894a 55%, #b8692f 100%);
+  border-color: #f6c388;
+  color: #2a0c05;
+  box-shadow: inset 0 1px 0 rgb(255 240 220 / 55%), 0 6px 18px rgb(230 120 70 / 28%);
+}
+:root[data-theme="crimson"] .page-title { text-shadow: 0 2px 18px rgb(255 80 100 / 25%); }

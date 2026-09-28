@@ -8,3 +8,18 @@ describe('English UI translation', () => {
     expect(translateUiText('Прапор · ур. 12 · Любая карта')).toBe('Прапор · lvl. 12 · Any map')
   })
 })
+
+describe('English for texts built by the app', () => {
+  it('translates marker templates with variable parts', () => {
+    expect(translateUiText('Возможная зона появления: Dormitory.')).toBe('Possible spawn zone: Dormitory.')
+    expect(translateUiText('Переход на карту Woods')).toBe('Transit to Woods')
+    expect(translateUiText('Нужен ключ «Dorm room 314 marked key».')).toBe('Requires key “Dorm room 314 marked key”.')
+    expect(translateUiText('12 000 опыта')).toBe('12 000 XP')
+  })
+})
+
+describe('story chapter stages', () => {
+  it('translates the generated survive stage', () => {
+    expect(translateUiText('Выжить на локации Развязка и выйти или посетить Развязку 3 раза')).toBe('Survive and extract from Interchange or visit Interchange 3 times')
+  })
+})
