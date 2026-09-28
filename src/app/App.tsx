@@ -10,6 +10,7 @@ import { StoryScreenScanner } from '../components/StoryScreenScanner'
 import { UiSounds } from '../components/UiSounds'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { ExperimentalPage } from '../pages/ExperimentalPage'
+import { KeybindsPage } from '../pages/KeybindsPage'
 import { useLocale } from '../i18n/LocaleProvider'
 
 export function App() {
@@ -30,6 +31,7 @@ export function App() {
     <Route path="/hideout" element={<Navigate to="/" replace />} />
     <Route path="/traders" element={<TradersPage />} />
     <Route path="/settings" element={<SettingsPage />} />
+    <Route path="/settings/keybinds" element={<KeybindsPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></>
 }

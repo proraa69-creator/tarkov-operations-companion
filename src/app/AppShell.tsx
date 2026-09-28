@@ -13,6 +13,7 @@ import { applyScanToModes } from '../import/logApply'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { getStoredTheme, setStoredTheme, type Theme, themes } from '../data/themes'
+import { getStoredKeybinds, matchesKeybind } from '../data/keybindsConfig'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -39,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [registrationKey, setRegistrationKey] = useState(0)
   const [currentTheme, setCurrentTheme] = useState<Theme>(getStoredTheme())
   const [themeOpen, setThemeOpen] = useState(false)
+  const [keybinds] = useState(() => getStoredKeybinds())
   const registrationIdentity = `${activeProfile.id}:${raidMode}`
   const navigate = useNavigate()
   const stateRef = useRef(state)
@@ -51,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      if (matchesKeybind(event, keybinds.search)) {
         event.preventDefault()
         setSearchOpen(true)
       }
@@ -63,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [keybinds])
 
   useEffect(() => {
     const open = () => {
