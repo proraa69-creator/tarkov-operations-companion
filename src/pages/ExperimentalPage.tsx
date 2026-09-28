@@ -4,6 +4,7 @@ import { AlertTriangle, Crosshair, Keyboard, Map as MapIcon, MousePointer2 } fro
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { hotkeyLabel, isKnownHotkey } from '../overlay/hotkeys'
+import { playerMarkerSvg } from '../overlay/playerMarker'
 
 const DISPLAY_LABEL: Record<ExperimentalStatus['displayMode'], string> = {
   exclusive: 'эксклюзивный полноэкранный',
@@ -12,17 +13,12 @@ const DISPLAY_LABEL: Record<ExperimentalStatus['displayMode'], string> = {
   unknown: 'определится, когда игра будет на переднем плане',
 }
 
-const DISPLAY_HINT: Record<ExperimentalStatus['displayMode'], string> = {
-  exclusive: 'Игра сейчас в эксклюзивном полноэкранном режиме: Windows не показывает поверх неё никакие окна — ни наши, ни TarkovRaidCompass, ни TarkovQuestie. Выберите в настройках графики EFT «Оконный без рамки» (Borderless) или «Полноэкранный» и проверьте, что в свойствах EscapeFromTarkov.exe → Совместимость НЕ отмечено «Отключить оптимизацию во весь экран». До этого цена предмета озвучивается голосом.',
-  fullscreen: 'Игра в полноэкранном режиме с оптимизацией Windows — мини-карта и карточка предмета показываются поверх игры.',
-  normal: 'Мини-карта и карточка предмета показываются поверх игры.',
-  unknown: 'Окна поверх игры работают в режимах «Оконный без рамки» и «Полноэкранный» (с оптимизацией Windows, как у TarkovRaidCompass). Режим экрана определится автоматически, когда игра будет на переднем плане.',
-}
+const OVERLAY_NOTE = 'Мини-карта и карточка предмета показываются поверх игры. Для этого в настройках графики игры поставьте режим экрана «Безрамочный».'
 
-const SPEAK_OPTIONS: Array<{ id: ExperimentalSettings['speakItem']; label: string }> = [
-  { id: 'off', label: 'Нет' },
-  { id: 'exclusive', label: 'Если окна не видны' },
-  { id: 'always', label: 'Всегда' },
+const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: string }> = [
+  { id: 'arrow', label: 'Стрелка' },
+  { id: 'chevron', label: 'Шеврон' },
+  { id: 'dot', label: 'Точка' },
 ]
 
 export function ExperimentalPage() {
@@ -69,7 +65,7 @@ export function ExperimentalPage() {
           <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
             <div className="panel-body">
               <AlertTriangle size={18} />
-              <p>{uiText(DISPLAY_HINT[status?.displayMode ?? 'unknown'])}</p>
+              <p>{uiText(OVERLAY_NOTE)}{status?.displayMode === 'exclusive' ? <strong>{uiText(' Сейчас игра в эксклюзивном полноэкранном режиме — окна поверх неё не видны.')}</strong> : null}</p>
             </div>
           </section>
 
@@ -84,22 +80,6 @@ export function ExperimentalPage() {
                   on={Boolean(settings?.itemLookup)}
                   onChange={(itemLookup) => update({ itemLookup })}
                 />
-                <div className="setting-row">
-                  <span>
-                    <strong>{uiText("Карточка предмета держится")}</strong>
-                    <small>{uiText(((settings?.itemHideMs ?? 6000) / 1000).toFixed(0))}{uiText(" с поверх игры")}</small>
-                  </span>
-                  <input type="range" min={3000} max={15000} step={1000} value={settings?.itemHideMs ?? 6000} onChange={(event) => update({ itemHideMs: Number(event.target.value) })} />
-                </div>
-                <div className="setting-row">
-                  <span>
-                    <strong>{uiText("Озвучивать цену")}</strong>
-                    <small>{uiText("Голосом Windows: слышно даже в эксклюзивном полноэкранном режиме, где окна поверх игры не видны.")}</small>
-                  </span>
-                  <div className="locale-switch">
-                    {SPEAK_OPTIONS.map((option) => <button key={option.id} className={(settings?.speakItem ?? 'exclusive') === option.id ? 'active' : ''} onClick={() => update({ speakItem: option.id })}>{uiText(option.label)}</button>)}
-                  </div>
-                </div>
                 <HotkeyRow
                   label="Клавиша информации о предмете"
                   value={settings?.itemKey ?? 'Semicolon'}
@@ -113,6 +93,27 @@ export function ExperimentalPage() {
                   on={Boolean(settings?.minimap)}
                   onChange={(minimap) => update({ minimap })}
                 />
+                <div className="setting-row">
+                  <span>
+                    <strong>{uiText("Прозрачность мини-карты")}</strong>
+                    <small>{uiText(`${Math.round((settings?.minimapOpacity ?? 0.9) * 100)}%`)}</small>
+                  </span>
+                  <input type="range" min={30} max={100} step={5} value={Math.round((settings?.minimapOpacity ?? 0.9) * 100)} onChange={(event) => update({ minimapOpacity: Number(event.target.value) / 100 })} />
+                </div>
+                <div className="setting-row">
+                  <span>
+                    <strong>{uiText("Обозначение игрока")}</strong>
+                    <small>{uiText("Как показывать вашу позицию на картах")}</small>
+                  </span>
+                  <div className="marker-pick">
+                    {PLAYER_MARKERS.map((option) => (
+                      <button key={option.id} type="button" className={(settings?.playerMarker ?? 'arrow') === option.id ? 'active' : ''} onClick={() => update({ playerMarker: option.id })} title={uiText(option.label)}>
+                        <span dangerouslySetInnerHTML={{ __html: playerMarkerSvg(option.id, 0) }} />
+                        <small>{uiText(option.label)}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <HotkeyRow
                   label="Клавиша мини-карты"
                   value={settings?.minimapKey ?? 'KeyM'}
@@ -172,7 +173,14 @@ export function ExperimentalPage() {
                   value={position ? `x ${position.x.toFixed(1)} · z ${position.z.toFixed(1)} · ${Math.max(0, Math.round((now - position.at) / 1000))} с назад` : 'ещё нет'}
                   ok={Boolean(position)}
                 />
-                <p className="muted exp-folder">{uiText("Папка скриншотов: ")}{uiText(status?.screenshotsFolder ?? '…')}</p>
+                <div className="exp-folder">
+                  <span className="muted">{uiText("Папка скриншотов: ")}{uiText(status?.screenshotsFolder ?? '…')}{uiText(settings?.screenshotsDir ? ' (выбрана вручную)' : ' (найдена автоматически)')}</span>
+                  <span className="exp-folder-actions">
+                    <button className="button ghost small" onClick={() => void api.pickScreenshotsFolder().then(setSettings)}>{uiText("Выбрать папку")}</button>
+                    {settings?.screenshotsDir ? <button className="button ghost small" onClick={() => update({ screenshotsDir: '' })}>{uiText("Авто")}</button> : null}
+                  </span>
+                  <small className="muted">{uiText("EFT сохраняет скриншоты в «Документы\\Escape from Tarkov\\Screenshots»; в имени файла — координаты. Позиция появится после первого скриншота в рейде (клавиша PrtSc или клавиша мини-карты).")}</small>
+                </div>
                 <div className="exp-actions">
                   <button className="button primary" onClick={() => void api.testItemLookup()}>{uiText("Проверить карточку предмета")}</button>
                   <button className="button ghost" onClick={() => void api.toggleMinimap()}>{uiText("Показать / скрыть мини-карту")}</button>

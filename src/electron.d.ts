@@ -30,12 +30,17 @@ interface TarkovDesktopApi {
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
     getStatus: () => Promise<ExperimentalStatus>
     toggleMinimap: () => Promise<boolean>
+    pickScreenshotsFolder: () => Promise<ExperimentalSettings>
     testItemLookup: () => Promise<unknown>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
     onCollectorScan: (callback: () => void) => () => void
   }
+  /** Overlay windows only: let the mouse through (false) or catch it over controls (true). */
+  overlaySetInteractive?: (value: boolean) => void
+  /** Overlay windows only: fit the window to its content. */
+  overlayResize?: (width: number, height: number) => void
   onOverlay?: {
     (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void

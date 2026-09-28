@@ -108,3 +108,75 @@ html.overlay-root #root {
 .ov-item { position: relative; overflow: hidden; }
 .ov-timer { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: #c9b26a; transform-origin: left; animation: ov-timer linear forwards; }
 @keyframes ov-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Item card in the style of EFT's own inventory windows */
+.eft-card {
+  box-sizing: border-box;
+  margin: 3px;
+  width: calc(100% - 6px);
+  color: #c9c7b7;
+  font-family: "Bender", "Bahnschrift", "Segoe UI", sans-serif;
+  background: rgb(9 10 10 / 94%);
+  border: 1px solid #4b4c47;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 80%), 0 8px 22px rgb(0 0 0 / 70%);
+  animation: ov-in .1s ease-out;
+}
+.eft-card-head {
+  position: relative;
+  padding: 4px 26px 4px 8px;
+  background: linear-gradient(180deg, #34352f 0%, #22231f 100%);
+  border-bottom: 1px solid #4b4c47;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
+}
+.eft-card-head span { display: block; overflow: hidden; color: #e6e4d6; font-size: 12.5px; font-weight: 700; letter-spacing: .03em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.eft-card-body { display: flex; gap: 9px; align-items: center; padding: 7px 8px 8px; }
+.eft-card-body.is-loading { gap: 8px; color: #8e8c80; font-size: 12px; }
+.eft-card-icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; background: rgb(255 255 255 / 4%); border: 1px solid #3a3b37; background-image: linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px); background-size: 8px 8px; }
+.eft-card-icon img { max-width: 48px; max-height: 48px; object-fit: contain; }
+.eft-prices { flex: 1; min-width: 0; display: grid; gap: 4px; margin: 0; }
+.eft-prices div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 3px; border-bottom: 1px solid #2c2d29; }
+.eft-prices div:last-child { border-bottom: 0; padding-bottom: 0; }
+.eft-prices dt { overflow: hidden; color: #8e8c80; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.eft-prices dd { margin: 0; color: #f1efe2; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.eft-hint { margin: 0; color: #8e8c80; font-size: 11.5px; line-height: 1.35; }
+
+/* Player marker (shared by the minimap overlay and the app's map) */
+.pm { width: 40px; height: 40px; overflow: visible; transition: transform .2s ease-out; }
+.pm .pm-core { fill: #4fc3f7; stroke: #fff; stroke-width: 2.4; stroke-linejoin: round; }
+.pm .pm-cone { fill: rgb(79 195 247 / 28%); }
+.pm .pm-halo { fill: rgb(79 195 247 / 22%); }
+.pm .pm-tip { fill: #fff; stroke: #0b3c52; stroke-width: 1; }
+.pm-dot .pm-core { stroke-width: 3; }
+
+/* Compact minimap: the window is sized to this box (see useFitWindow) */
+.ov-minimap {
+  position: static;
+  display: inline-flex;
+  width: auto;
+  margin: 4px;
+  background: rgb(9 10 10 / calc(var(--ov-opacity, .9) * 92%));
+  border: 1px solid #4b4c47;
+  border-top: 0;
+  border-radius: 0;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 55%);
+  font-family: "Bender", "Bahnschrift", "Segoe UI", sans-serif;
+}
+.ov-minimap-head {
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: linear-gradient(180deg, #34352f 0%, #22231f 100%);
+  border-bottom: 1px solid #4b4c47;
+  color: #8e8c80;
+  font-size: 11px;
+}
+.ov-minimap-head strong { color: #e6e4d6; font-size: 12px; letter-spacing: .03em; text-transform: uppercase; }
+.ov-minimap-map { flex: none; opacity: var(--ov-opacity, .9); background: transparent; }
+.ov-opacity { display: inline-flex; align-items: center; gap: 4px; color: #8e8c80; cursor: pointer; }
+.ov-opacity input { width: 70px; height: 12px; accent-color: #c9b26a; cursor: pointer; }
+.ov-marker.is-selected img { filter: drop-shadow(0 0 4px #f2d27a) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }
+.ov-quest-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px; max-height: 64px; overflow-y: auto; margin: 0; padding: 5px 6px; list-style: none; border-top: 1px solid #4b4c47; background: rgb(9 10 10 / 92%); }
+.ov-quest-list button { max-width: 200px; overflow: hidden; padding: 2px 7px; border: 1px solid #3a3b37; background: #1c1d1a; color: #c9c7b7; font: inherit; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.ov-quest-list button:hover { border-color: #6d603f; color: #f1efe2; }
+.ov-quest-list button.active { border-color: #c9b26a; background: #2f2a1b; color: #f2e2b8; }
+.ov-player { background: transparent; border: 0; }

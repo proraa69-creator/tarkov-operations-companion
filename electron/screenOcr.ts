@@ -87,6 +87,11 @@ export async function recognizeRegion(image: NativeImage) {
   return (await recognizeQuestImage(scaled, 'region')).text
 }
 
+/** Loads the OCR model ahead of the first lookup. */
+export async function warmUpOcr() {
+  await getWorker()
+}
+
 export { clearScanFrames, countScanFrames, MAX_SCAN_FRAMES } from './scanFrameBuffer.js'
 
 async function persistFrame(image: Buffer | NativeImage) {

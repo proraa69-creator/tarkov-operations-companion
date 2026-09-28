@@ -31,12 +31,15 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     updateSettings: (patch) => ipcRenderer.invoke('experimental:update-settings', patch),
     getStatus: () => ipcRenderer.invoke('experimental:status'),
     toggleMinimap: () => ipcRenderer.invoke('experimental:toggle-minimap'),
+    pickScreenshotsFolder: () => ipcRenderer.invoke('experimental:pick-screenshots'),
     testItemLookup: () => ipcRenderer.invoke('experimental:test-item'),
     answer: (id, payload) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback) => subscribe('experimental:query', callback),
     onPosition: (callback) => subscribe('experimental:position', callback),
     onCollectorScan: (callback) => subscribe('experimental:collector-scan', () => callback()),
   },
+  overlaySetInteractive: (value) => ipcRenderer.send('overlay:interactive', Boolean(value)),
+  overlayResize: (width, height) => ipcRenderer.send('overlay:resize', Number(width), Number(height)),
   onOverlay: (channel, callback) => {
     if (!['overlay:item', 'overlay:minimap', 'overlay:position'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)

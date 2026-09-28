@@ -5,7 +5,7 @@ import { useAppState } from '../state/AppState'
 import { isCurrentTrackedQuest } from '../progression/requirementEngine'
 import { createItemMatcher } from '../overlay/itemMatch'
 import { describeItem } from '../overlay/itemInfo'
-import type { ItemOverlayPayload, MinimapMarker, MinimapPayload } from '../overlay/types'
+import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
 import type { MarkerLayerId } from '../domain/types'
 import { collectorEntries, scanForCollectorItems } from '../kappa/collector'
 
@@ -54,10 +54,17 @@ export function ExperimentalBridge() {
         if (marker.mapId !== map.id || !layerId || !MINIMAP_LAYERS.has(layerId) || PLOTTED_SOURCES_EXCLUDED.has(marker.source ?? '')) return []
         const isQuest = layerId.startsWith('quest')
         if (isQuest ? !marker.questId || !current.has(marker.questId) : false) return []
-        return [{ id: marker.id, position: marker.position, layerId, title: marker.title, subtitle: marker.meta }]
+        return [{ id: marker.id, position: marker.position, layerId, title: marker.title, subtitle: marker.meta, questId: isQuest ? marker.questId : undefined }]
       })
-      const questCount = new Set(markers.flatMap((marker) => marker.layerId.startsWith('quest') ? [marker.title] : [])).size
-      void api.answer(query.id, { state: 'ready', map, markers, questCount } satisfies MinimapPayload)
+      const quests: MinimapQuest[] = []
+      for (const marker of markers) {
+        if (!marker.questId) continue
+        const existing = quests.find((entry) => entry.questId === marker.questId)
+        if (existing) { existing.markerIds.push(marker.id); continue }
+        const quest = data.quests.find((entry) => entry.id === marker.questId)
+        if (quest) quests.push({ questId: quest.id, name: quest.name, trader: quest.trader, markerIds: [marker.id] })
+      }
+      void api.answer(query.id, { state: 'ready', map, markers, questCount: quests.length, quests } satisfies MinimapPayload)
     })
   }, [])
 

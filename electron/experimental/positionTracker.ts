@@ -1,4 +1,5 @@
-import { watch, type FSWatcher } from 'node:fs'
+import { existsSync, readdirSync, statSync, watch, type FSWatcher } from 'node:fs'
+import { homedir } from 'node:os'
 import { mkdir, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
@@ -6,9 +7,42 @@ import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } fr
 
 const POLL_MS = 1000
 
+let override = ''
+
+/** A folder the player picked by hand in the Mini Map section; empty means auto-detect. */
+export function setScreenshotsOverride(folder: string) {
+  override = folder
+}
+
+/** Where EFT may write screenshots: Documents (possibly redirected to OneDrive) under the user profile. */
+export function screenshotFolderCandidates() {
+  const home = homedir()
+  const documents = [app.getPath('documents'), join(home, 'Documents'), join(home, 'OneDrive', 'Documents'), join(home, 'OneDrive', 'Документы')]
+  if (process.env.OneDrive) documents.push(join(process.env.OneDrive, 'Documents'), join(process.env.OneDrive, 'Документы'))
+  return [...new Set(documents.map((folder) => join(folder, 'Escape from Tarkov', 'Screenshots')))]
+}
+
+function newestScreenshotTime(folder: string) {
+  try {
+    let newest = 0
+    for (const name of readdirSync(folder)) {
+      if (!isPositionScreenshot(name)) continue
+      newest = Math.max(newest, statSync(join(folder, name)).mtimeMs)
+    }
+    return newest
+  } catch {
+    return -1
+  }
+}
+
 export function screenshotsFolder() {
+  if (override) return override
   if (process.env.TARKOV_SCREENSHOTS_DIR) return process.env.TARKOV_SCREENSHOTS_DIR
-  return join(app.getPath('documents'), 'Escape from Tarkov', 'Screenshots')
+  const candidates = screenshotFolderCandidates()
+  const existing = candidates.filter((folder) => existsSync(folder))
+  // Prefer the folder EFT wrote coordinate screenshots to most recently.
+  const best = existing.map((folder) => ({ folder, time: newestScreenshotTime(folder) })).sort((a, b) => b.time - a.time)[0]
+  return best?.folder ?? candidates[0]!
 }
 
 /**
@@ -20,6 +54,8 @@ export class PositionTracker {
   private poll: NodeJS.Timeout | null = null
   private startedAt = 0
   private lastFile = ''
+  private folder = ''
+  private lastFolderCheck = 0
   private busy = false
   /** Screenshots that existed before the tracker started belong to the player and are never touched. */
   private preexisting = new Set<string>()
@@ -34,6 +70,7 @@ export class PositionTracker {
     if (this.running) return
     this.startedAt = Date.now()
     const folder = screenshotsFolder()
+    this.folder = folder
     await mkdir(folder, { recursive: true }).catch(() => {})
     this.preexisting = new Set(await readdir(folder).catch(() => [] as string[]))
     try {
@@ -62,7 +99,13 @@ export class PositionTracker {
     if (this.busy || !this.running) return
     this.busy = true
     try {
-      const folder = screenshotsFolder()
+      // EFT may start writing to another candidate folder (e.g. Documents moved to OneDrive).
+      if (Date.now() - this.lastFolderCheck > 15_000) {
+        this.lastFolderCheck = Date.now()
+        const detected = screenshotsFolder()
+        if (detected !== this.folder) { this.stop(); await this.start(); return }
+      }
+      const folder = this.folder
       const names = (await readdir(folder).catch(() => [] as string[])).filter((name) => isPositionScreenshot(name) && (includePreexisting || !this.preexisting.has(name)))
       const files = (await Promise.all(names.map(async (name) => {
         const info = await stat(join(folder, name)).catch(() => null)

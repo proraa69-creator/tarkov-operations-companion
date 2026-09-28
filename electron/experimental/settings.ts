@@ -16,10 +16,10 @@ export interface ExperimentalSettings {
   minimapKey: string
   /** Empty string = no hotkey for the Collector item scan. */
   collectorKey: string
-  /** How long the item card stays over the game. */
-  itemHideMs: number
-  /** Read the item card aloud: works even over exclusive full screen, where no window can be drawn. */
-  speakItem: 'off' | 'exclusive' | 'always'
+  minimapOpacity: number
+  playerMarker: 'arrow' | 'chevron' | 'dot'
+  /** EFT screenshots folder chosen by hand; empty = auto-detect. */
+  screenshotsDir: string
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
@@ -32,8 +32,9 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   itemKey: DEFAULT_ITEM_KEY,
   minimapKey: DEFAULT_MINIMAP_KEY,
   collectorKey: '',
-  itemHideMs: 6000,
-  speakItem: 'exclusive',
+  minimapOpacity: 0.9,
+  playerMarker: 'arrow',
+  screenshotsDir: '',
 }
 
 let current: ExperimentalSettings | null = null
@@ -73,7 +74,8 @@ function sanitize(raw: unknown): ExperimentalSettings {
     itemKey: isKnownHotkey(value.itemKey) ? value.itemKey : DEFAULT_ITEM_KEY,
     minimapKey: isKnownHotkey(value.minimapKey) ? value.minimapKey : DEFAULT_MINIMAP_KEY,
     collectorKey: isKnownHotkey(value.collectorKey) ? value.collectorKey : '',
-    itemHideMs: Number.isFinite(Number(value.itemHideMs)) ? Math.min(15000, Math.max(3000, Math.round(Number(value.itemHideMs)))) : DEFAULT_SETTINGS.itemHideMs,
-    speakItem: value.speakItem === 'off' || value.speakItem === 'always' ? value.speakItem : 'exclusive',
+    minimapOpacity: Number.isFinite(Number(value.minimapOpacity)) ? Math.min(1, Math.max(0.3, Number(value.minimapOpacity))) : DEFAULT_SETTINGS.minimapOpacity,
+    playerMarker: value.playerMarker === 'chevron' || value.playerMarker === 'dot' ? value.playerMarker : 'arrow',
+    screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
   }
 }

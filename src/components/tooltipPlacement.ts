@@ -17,7 +17,8 @@ export interface PlacementInput {
 
 export interface Placement { side: TooltipSide; offset: [number, number] }
 
-const ORDER: TooltipSide[] = ['top', 'bottom', 'right', 'left']
+/** Beside the icon first: above/below a marker near the map edge used to jump around. */
+const ORDER: TooltipSide[] = ['right', 'left', 'bottom', 'top']
 
 function rectFor(input: PlacementInput, side: TooltipSide): { box: Box; offset: [number, number] } {
   const { point, icon, tooltip } = input
@@ -30,12 +31,14 @@ function rectFor(input: PlacementInput, side: TooltipSide): { box: Box; offset: 
   } else if (side === 'bottom') {
     offset = [0, icon.bottom + gap]
     box = { left: point.x - tooltip.width / 2, right: point.x + tooltip.width / 2, top: point.y + offset[1], bottom: point.y + offset[1] + tooltip.height }
-  } else if (side === 'right') {
-    offset = [icon.right + gap, 0]
-    box = { left: point.x + offset[0], right: point.x + offset[0] + tooltip.width, top: point.y - tooltip.height / 2, bottom: point.y + tooltip.height / 2 }
   } else {
-    offset = [icon.left - gap, 0]
-    box = { right: point.x + offset[0], left: point.x + offset[0] - tooltip.width, top: point.y - tooltip.height / 2, bottom: point.y + tooltip.height / 2 }
+    // Vertically centred on the icon, not on its anchor (which is the icon's foot for pins).
+    const middle = (icon.top + icon.bottom) / 2
+    offset = side === 'right' ? [icon.right + gap, middle] : [icon.left - gap, middle]
+    const top = point.y + middle - tooltip.height / 2
+    box = side === 'right'
+      ? { left: point.x + offset[0], right: point.x + offset[0] + tooltip.width, top, bottom: top + tooltip.height }
+      : { right: point.x + offset[0], left: point.x + offset[0] - tooltip.width, top, bottom: top + tooltip.height }
   }
   return { box, offset }
 }
@@ -45,7 +48,7 @@ const area = (box: Box) => (box.right - box.left) * (box.bottom - box.top)
 
 /**
  * Picks the side of the marker where the tooltip stays inside the map and off the reserved blocks.
- * The first side that fits completely wins (top, bottom, right, left); otherwise the least-covered one.
+ * The first side that fits completely wins (right, left, bottom, top); otherwise the least-covered one.
  */
 export function chooseTooltipPlacement(input: PlacementInput): Placement {
   const margin = input.margin ?? 8

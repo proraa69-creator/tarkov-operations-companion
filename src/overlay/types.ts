@@ -23,11 +23,10 @@ export interface ItemOverlayInfo {
   collector: boolean
 }
 
-export type ItemOverlayPayload = (
+export type ItemOverlayPayload =
   | { state: 'loading' }
   | { state: 'not-found'; text?: string }
   | ItemOverlayInfo
-) & { speak?: boolean; hideMs?: number }
 
 export interface MinimapMarker {
   id: string
@@ -35,11 +34,20 @@ export interface MinimapMarker {
   layerId: MarkerLayerId
   title: string
   subtitle?: string
+  questId?: string
 }
 
 export type MinimapPayload =
   | { state: 'no-data'; reason?: string }
-  | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number }
+  | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; playerMarker?: 'arrow' | 'chevron' | 'dot' }
+
+/** A current quest that has at least one point on this map. */
+export interface MinimapQuest {
+  questId: string
+  name: string
+  trader: string
+  markerIds: string[]
+}
 
 export interface ExperimentalSettings {
   version: 3
@@ -51,8 +59,9 @@ export interface ExperimentalSettings {
   itemKey: string
   minimapKey: string
   collectorKey: string
-  itemHideMs: number
-  speakItem: 'off' | 'exclusive' | 'always'
+  minimapOpacity: number
+  playerMarker: 'arrow' | 'chevron' | 'dot'
+  screenshotsDir: string
 }
 
 export interface ExperimentalStatus {
@@ -60,6 +69,8 @@ export interface ExperimentalStatus {
   hookError: string
   tracking: boolean
   screenshotsFolder: string
+  /** Folders checked automatically, for the settings page. */
+  screenshotCandidates: string[]
   lastPosition: PlayerPosition | null
   raid: { inRaid: boolean; location?: string }
   /** Display mode of the game the last time it was in front. */

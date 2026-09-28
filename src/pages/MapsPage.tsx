@@ -9,6 +9,7 @@ import {
   FileText, FlaskConical, HeartPulse, KeyRound, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
 import { markerImages } from '../assets/markerImages'
+import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
 import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor } from '../data/mapProjection'
@@ -33,16 +34,16 @@ const MARKER_STYLE_KEY = 'tarkov-map-marker-style'
 
 const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: number; icon: typeof Target; shape: MarkerShape }> = {
   'extract.pmc': { label: 'Выходы ЧВК', color: '#6fb47c', size: 32, icon: DoorOpen, shape: 'badge' },
-  'extract.scav': { label: 'Выходы Диких', color: '#c9b463', size: 32, icon: DoorOpen, shape: 'badge' },
+  'extract.scav': { label: 'Выходы диких', color: '#c9b463', size: 32, icon: DoorOpen, shape: 'badge' },
   'extract.coop': { label: 'Совместные выходы', color: '#70a6ba', size: 32, icon: Users, shape: 'badge' },
   transit: { label: 'Переходы', color: '#9bb2d0', size: 30, icon: ArrowRightLeft, shape: 'badge' },
   'quest.zone': { label: 'Квесты', color: '#d5b76f', size: 34, icon: Target, shape: 'pin' },
   'quest.item': { label: 'Квестовые предметы', color: '#e0c76f', size: 32, icon: Box, shape: 'pin' },
   key: { label: 'Ключи', color: '#8ea8c4', size: 26, icon: KeyRound, shape: 'round' },
   boss: { label: 'Боссы', color: '#d0584a', size: 36, icon: Skull, shape: 'boss' },
-  spawn: { label: 'Спавны', color: '#b789be', size: 24, icon: CircleDot, shape: 'dot' },
+  spawn: { label: 'Спавн', color: '#b789be', size: 24, icon: CircleDot, shape: 'dot' },
   hazard: { label: 'Опасности', color: '#e07a54', size: 28, icon: AlertTriangle, shape: 'diamond' },
-  'loot.valuable': { label: 'Ценный лут', color: '#cc9fe0', size: 26, icon: Diamond, shape: 'loot' },
+  'loot.valuable': { label: 'Драгоценности', color: '#cc9fe0', size: 26, icon: Diamond, shape: 'loot' },
   'loot.weapon': { label: 'Оружие/боеприпасы', color: '#c18b65', size: 26, icon: Crosshair, shape: 'loot' },
   'loot.medical': { label: 'Медицина', color: '#d97878', size: 26, icon: HeartPulse, shape: 'loot' },
   'loot.provision': { label: 'Провизия', color: '#a9b96f', size: 26, icon: FlaskConical, shape: 'loot' },
@@ -66,7 +67,7 @@ const noFloorBadgeLayers = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav'
 
 const markerTypeLabel: Record<MarkerLayerId, string> = {
   'extract.pmc': 'Выход ЧВК',
-  'extract.scav': 'Выход Диких',
+  'extract.scav': 'Выход дикого',
   'extract.coop': 'Совместный выход',
   transit: 'Переход',
   'quest.zone': 'Квест',
@@ -75,7 +76,7 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   boss: 'Босс',
   spawn: 'Спавн',
   hazard: 'Опасность',
-  'loot.valuable': 'Ценный лут',
+  'loot.valuable': 'Драгоценности',
   'loot.weapon': 'Оружие/боеприпасы',
   'loot.medical': 'Медицина',
   'loot.provision': 'Провизия',
@@ -120,12 +121,13 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
   } else if (style === 'modern') {
-    const modernSize = meta.shape === 'pin' || meta.shape === 'boss' ? 32 : meta.shape === 'dot' ? 18 : 28
+    // New icons: a bare silhouette without a plate, centred on the point.
+    const size = Math.round(meta.size * 0.85)
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, Math.round(modernSize * 0.5))}</span>${badgeHtml}</div>`,
-      iconSize: [modernSize, modernSize],
-      iconAnchor: [modernSize / 2 - shiftX, modernSize / 2],
+      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2 - shiftX, size / 2],
     })
   } else if (style === 'minimal') {
     const geometry = shapeGeometry[meta.shape]
@@ -148,10 +150,15 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
   return icon
 }
 
+/** Initial offset for a tooltip opening to the right of the icon (placeTooltip refines it). */
 function tooltipOffset(style: MarkerStyle, layerId: MarkerLayerId, bust?: string): PointExpression {
-  if (style === 'modern' && !bust) return [0, -(markerMeta[layerId].shape === 'pin' || markerMeta[layerId].shape === 'boss' ? 16 : 14) - 4]
-  if (style === 'minimal' && !bust) return [0, -shapeGeometry[markerMeta[layerId].shape].anchor[1] - 2]
-  return [0, -markerMeta[layerId].size - 2]
+  const meta = markerMeta[layerId]
+  if (style === 'minimal' && !bust) {
+    const geometry = shapeGeometry[meta.shape]
+    return [geometry.size[0] - geometry.anchor[0] + 4, geometry.size[1] / 2 - geometry.anchor[1]]
+  }
+  if (style === 'modern' && !bust) return [Math.round(meta.size * 0.85) / 2 + 4, 0]
+  return [meta.size / 2 + 4, -meta.size / 2]
 }
 
 /**
@@ -200,7 +207,7 @@ const markerStyleOptions: Array<{ id: MarkerStyle; label: string }> = [
   { id: 'minimal', label: 'Минимал' },
   { id: 'modern', label: 'Новые иконки' },
 ]
-const markerStylePreview: MarkerLayerId[] = ['extract.pmc']
+const markerStylePreview: MarkerLayerId[] = ['quest.zone']
 
 function MarkerStyleMenu({ value, onChange }: { value: MarkerStyle; onChange: (style: MarkerStyle) => void }) {
   const [open, setOpen] = useState(false)
@@ -251,6 +258,7 @@ function MarkerStyleMenu({ value, onChange }: { value: MarkerStyle; onChange: (s
 }
 
 function LayerIcon({ style, layerId, active }: { style: MarkerStyle; layerId: MarkerLayerId; active?: boolean }) {
+  if (style === 'modern') return <img className={`layer-icon${active ? ' is-preview' : ''}`} src={newMarkerImages[layerId]} alt={uiText("")} />
   if (active) {
     if (style === 'realistic') return <img className="layer-icon is-preview" src={markerImages[layerId]} alt={uiText("")} />
     const { icon: Symbol, color } = markerMeta[layerId]
@@ -558,7 +566,11 @@ export function MapsPage() {
                     showMarker(marker)
                   },
                   tooltipopen: (event) => {
-                    if (mapRef.current) placeTooltip(mapRef.current, event.target as LeafletMarker, event.tooltip)
+                    const map = mapRef.current
+                    if (!map) return
+                    placeTooltip(map, event.target as LeafletMarker, event.tooltip)
+                    // The React content is measured again once it has rendered into the tooltip.
+                    requestAnimationFrame(() => { if (event.tooltip.isOpen()) placeTooltip(map, event.target as LeafletMarker, event.tooltip) })
                   },
                   keypress: (event) => {
                     if (['Enter', ' '].includes((event.originalEvent as KeyboardEvent).key)) {
@@ -574,7 +586,7 @@ export function MapsPage() {
                   },
                 }}
               >
-                <Tooltip key={markerStyle} direction="top" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
+                <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
                   <MapMarkerTooltip
                     marker={marker}
                     typeLabel={markerTypeLabel[layerId]}

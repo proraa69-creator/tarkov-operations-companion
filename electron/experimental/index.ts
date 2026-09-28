@@ -1,8 +1,8 @@
 import { createRequire } from 'node:module'
-import { BrowserWindow, desktopCapturer, ipcMain, screen, type Display, type Point } from 'electron'
+import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, type Display, type Point } from 'electron'
 import type { PlayerPosition } from '../../src/overlay/screenshotPosition.js'
-import { recognizeRegion } from '../screenOcr.js'
-import { PositionTracker, screenshotsFolder } from './positionTracker.js'
+import { recognizeRegion, warmUpOcr } from '../screenOcr.js'
+import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { foregroundDisplayMode, isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable, type DisplayMode } from './win32.js'
@@ -22,8 +22,11 @@ interface Options {
   raidState: () => { inRaid: boolean; since?: number; location?: string }
 }
 
-const ITEM_OVERLAY = { width: 340, height: 230 }
-const MINIMAP_OVERLAY = { width: 520, height: 520 }
+const ITEM_OVERLAY = { width: 300, height: 118 }
+const ITEM_HIDE_MS = 5000
+/** Screen area read around the cursor, in 1080p units: the EFT name tooltip and the cell label. */
+const CAPTURE = { left: 300, right: 520, up: 110, down: 150 }
+const MINIMAP_OVERLAY = { width: 436, height: 360 }
 const QUERY_TIMEOUT_MS = 5000
 const KEY_REPEAT_MS = 350
 
@@ -43,6 +46,8 @@ let lookupBusy = false
 let queryId = 0
 const pending = new Map<number, (payload: unknown) => void>()
 const overlayPayloads = new WeakMap<BrowserWindow, Map<string, unknown>>()
+/** Overlay windows currently catching the mouse (pointer over a slider or the quest list). */
+const interactive = new WeakSet<BrowserWindow>()
 function sendOverlay(window: BrowserWindow | null, channel: string, payload: unknown) {
   if (!window || window.isDestroyed()) return
   let messages = overlayPayloads.get(window)
@@ -53,9 +58,14 @@ function sendOverlay(window: BrowserWindow | null, channel: string, payload: unk
 const tracker = new PositionTracker((position) => {
   lastPosition = position
   options.mainWindow()?.webContents.send('experimental:position', position)
-  const raid = options.raidState()
-  if (raid.inRaid && (!raid.since || position.at >= raid.since)) sendOverlay(minimapWindow, 'overlay:position', position)
+  // Raid detection from the logs can lag or miss offline/training raids, so the position is not
+  // gated on it: a fresh screenshot from the game is proof enough of where the player stands.
+  sendOverlay(minimapWindow, 'overlay:position', position)
 })
+
+/** A position older than this probably belongs to a previous raid. */
+const POSITION_MAX_AGE_MS = 20 * 60 * 1000
+const freshPosition = () => lastPosition && Date.now() - lastPosition.at < POSITION_MAX_AGE_MS ? lastPosition : null
 
 export function startExperimental(next: Options) {
   options = next
@@ -63,6 +73,8 @@ export function startExperimental(next: Options) {
   startHook()
   applySettings(readSettings())
   watchTimer = setInterval(watchGame, 800)
+  // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
+  if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
 }
 
 /**
@@ -97,6 +109,27 @@ function registerIpc() {
     const messages = overlayPayloads.get(window)
     if (messages?.has(channel)) event.sender.send(channel, messages.get(channel))
   })
+  ipcMain.on('overlay:interactive', (event, value: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window !== minimapWindow) return
+    if (value === true) interactive.add(window)
+    else interactive.delete(window)
+    window.setIgnoreMouseEvents(value !== true, { forward: true })
+  })
+  ipcMain.on('overlay:resize', (event, width: unknown, height: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window !== minimapWindow || window.isDestroyed()) return
+    const w = Math.round(Number(width))
+    const h = Math.round(Number(height))
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 120 || h < 60) return
+    const bounds = window.getBounds()
+    const area = screen.getDisplayMatching(bounds).workArea
+    const nextWidth = Math.min(w, area.width - 16)
+    const nextHeight = Math.min(h, area.height - 16)
+    if (nextWidth === bounds.width && nextHeight === bounds.height) return
+    // Keep the top-right corner where it is.
+    window.setBounds({ x: bounds.x + bounds.width - nextWidth, y: bounds.y, width: nextWidth, height: nextHeight })
+  })
   ipcMain.handle('experimental:get-settings', () => readSettings())
   ipcMain.handle('experimental:update-settings', async (_event, patch: unknown) => {
     const settings = await updateSettings(patch)
@@ -108,7 +141,8 @@ function registerIpc() {
     hookError,
     tracking: tracker.running,
     screenshotsFolder: screenshotsFolder(),
-    lastPosition,
+    screenshotCandidates: screenshotFolderCandidates(),
+    lastPosition: freshPosition(),
     raid: options.raidState(),
     displayMode,
   }))
@@ -117,11 +151,25 @@ function registerIpc() {
     pending.delete(Number(id))
     resolve?.(payload)
   })
+  ipcMain.handle('experimental:pick-screenshots', async () => {
+    const parent = options.mainWindow()
+    const options_ = { title: 'Папка скриншотов EFT', defaultPath: screenshotsFolder(), properties: ['openDirectory' as const] }
+    const result = parent ? await dialog.showOpenDialog(parent, options_) : await dialog.showOpenDialog(options_)
+    if (result.canceled || !result.filePaths[0]) return readSettings()
+    const settings = await updateSettings({ screenshotsDir: result.filePaths[0] })
+    applySettings(settings)
+    return settings
+  })
   ipcMain.handle('experimental:toggle-minimap', () => toggleMinimap(true))
   ipcMain.handle('experimental:test-item', () => lookupItem(true))
 }
 
+let appliedScreenshotsDir: string | null = null
+
 function applySettings(settings: ExperimentalSettings) {
+  if (appliedScreenshotsDir !== null && appliedScreenshotsDir !== settings.screenshotsDir) tracker.stop()
+  appliedScreenshotsDir = settings.screenshotsDir
+  setScreenshotsOverride(settings.screenshotsDir)
   if (settings.tracking) void tracker.start()
   else tracker.stop()
   if (screenshotTimer) clearInterval(screenshotTimer)
@@ -159,7 +207,7 @@ function startHook() {
         lastKeyAt = now
         if (item && !previousItem) void lookupItem(false)
         else {
-          if (settings.tracking && options.raidState().inRaid && hook) hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
+          if (settings.tracking && hook) hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
           void toggleMinimap(false)
         }
       }
@@ -193,7 +241,7 @@ function startHook() {
       else {
         // Opening the map should immediately request a fresh coordinate-bearing EFT screenshot.
         // The tracker will update the marker as soon as the game writes the file.
-        if (settings.tracking && options.raidState().inRaid) uIOhook.keyTap(UiohookKey.PrintScreen!)
+        if (settings.tracking) uIOhook.keyTap(UiohookKey.PrintScreen!)
         void toggleMinimap(false)
       }
     })
@@ -232,7 +280,7 @@ function overlayWindow(route: 'item' | 'minimap', size: { width: number; height:
     webPreferences: { preload: options.preload, contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false },
   })
   window.setAlwaysOnTop(true, 'screen-saver')
-  window.setIgnoreMouseEvents(true)
+  window.setIgnoreMouseEvents(true, { forward: true })
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   options.load(window, `/overlay/${route}`)
   return window
@@ -244,7 +292,7 @@ function reassertOverlay(window: BrowserWindow) {
   // minimize/restore cycle. Re-apply the native flags before every display.
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  window.setIgnoreMouseEvents(true)
+  if (!interactive.has(window)) window.setIgnoreMouseEvents(true, { forward: true })
   window.moveTop()
 }
 
@@ -277,36 +325,34 @@ async function lookupItem(test: boolean) {
   if (!settings.itemLookup || lookupBusy) return null
   lookupBusy = true
   try {
-    if (!test && isTarkovForeground()) displayMode = foregroundDisplayMode()
-    const extras = { speak: settings.speakItem === 'always' || (settings.speakItem === 'exclusive' && displayMode === 'exclusive'), hideMs: settings.itemHideMs }
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
-    itemWindow?.hide()
-    // Capture the tooltip before drawing our own window above it.
-    const text = test ? '' : await captureAroundCursor(point, display).catch(() => '')
+    // The card appears at once, outside the captured area, so it never hides the tooltip being read.
     const window = ensureItemWindow()
     await whenLoaded(window)
-    reassertOverlay(window)
-    placeNearCursor(window, point, display)
+    placeOutsideCapture(window, point, display)
     sendOverlay(window, 'overlay:item', { state: 'loading' })
     showOverlay(window)
     if (itemHideTimer) clearTimeout(itemHideTimer)
-
+    const text = test ? '' : await captureAroundCursor(point, display).catch(() => '')
     const answer = test
       ? await askRenderer('item', { text: '', test: true })
       : text ? await askRenderer('item', { text }) : null
-    sendOverlay(window, 'overlay:item', { ...(answer && typeof answer === 'object' ? answer : { state: 'not-found', text }), ...extras })
-    itemHideTimer = setTimeout(() => window.hide(), settings.itemHideMs)
+    sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text })
+    itemHideTimer = setTimeout(() => window.hide(), ITEM_HIDE_MS)
     return answer
   } finally {
     lookupBusy = false
   }
 }
 
-function placeNearCursor(window: BrowserWindow, point: Point, display: Display) {
+function placeOutsideCapture(window: BrowserWindow, point: Point, display: Display) {
   const area = display.workArea
-  const x = Math.min(point.x + 28, area.x + area.width - ITEM_OVERLAY.width - 8)
-  const y = Math.min(Math.max(point.y + 24, area.y + 8), area.y + area.height - ITEM_OVERLAY.height - 8)
+  const unit = display.bounds.height / 1080
+  const x = Math.min(Math.max(point.x + 12, area.x + 8), area.x + area.width - ITEM_OVERLAY.width - 8)
+  const below = point.y + CAPTURE.down * unit + 8
+  const above = point.y - CAPTURE.up * unit - ITEM_OVERLAY.height - 8
+  const y = below + ITEM_OVERLAY.height <= area.y + area.height ? below : Math.max(area.y + 8, above)
   window.setBounds({ x: Math.round(x), y: Math.round(y), ...ITEM_OVERLAY })
 }
 
@@ -323,10 +369,10 @@ async function captureAroundCursor(point: Point, display: Display) {
   const unit = size.height / 1080
   const cx = (point.x - display.bounds.x) * ratio
   const cy = (point.y - display.bounds.y) * ratio
-  const left = Math.max(0, Math.round(cx - 400 * unit))
-  const top = Math.max(0, Math.round(cy - 220 * unit))
-  const width = Math.min(size.width - left, Math.round(900 * unit))
-  const height = Math.min(size.height - top, Math.round(440 * unit))
+  const left = Math.max(0, Math.round(cx - CAPTURE.left * unit))
+  const top = Math.max(0, Math.round(cy - CAPTURE.up * unit))
+  const width = Math.min(size.width - left, Math.round((CAPTURE.left + CAPTURE.right) * unit))
+  const height = Math.min(size.height - top, Math.round((CAPTURE.up + CAPTURE.down) * unit))
   if (width < 40 || height < 20) return ''
   return recognizeRegion(image.crop({ x: left, y: top, width, height }))
 }
@@ -341,13 +387,17 @@ async function toggleMinimap(fromApp: boolean) {
   await whenLoaded(window)
   reassertOverlay(window)
   const raid = options.raidState()
+  const settings = readSettings()
   const payload = await askRenderer('minimap', { location: raid.location, fromApp })
-  sendOverlay(window, 'overlay:minimap', payload ?? { state: 'no-data' })
-  sendOverlay(window, 'overlay:position', raid.inRaid && lastPosition && (!raid.since || lastPosition.at >= raid.since) ? lastPosition : null)
+  const ready = payload && typeof payload === 'object' && (payload as { state?: string }).state === 'ready'
+  sendOverlay(window, 'overlay:minimap', ready ? { ...payload, opacity: settings.minimapOpacity, playerMarker: settings.playerMarker } : payload ?? { state: 'no-data' })
+  sendOverlay(window, 'overlay:position', freshPosition())
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const area = display.workArea
-  const width = Math.min(MINIMAP_OVERLAY.width, Math.max(320, area.width - 48))
-  const height = Math.min(MINIMAP_OVERLAY.height, Math.max(320, area.height - 48))
+  // The renderer resizes the window to the map; keep its last size and pin it to the top-right corner.
+  const current = window.getBounds()
+  const width = Math.min(current.width || MINIMAP_OVERLAY.width, area.width - 48)
+  const height = Math.min(current.height || MINIMAP_OVERLAY.height, area.height - 48)
   window.setBounds({ x: area.x + area.width - width - 24, y: area.y + 24, width, height })
   showOverlay(window)
   return true
