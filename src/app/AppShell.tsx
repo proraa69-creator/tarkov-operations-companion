@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, CircleDollarSign, FlaskConical, Home,
-  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
+  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X, Palette,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -12,6 +12,7 @@ import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
+import { getStoredTheme, setStoredTheme, type Theme, themes } from '../data/themes'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -36,10 +37,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState('')
   const [registrationOpen, setRegistrationOpen] = useState(false)
   const [registrationKey, setRegistrationKey] = useState(0)
+  const [currentTheme, setCurrentTheme] = useState<Theme>(getStoredTheme())
+  const [themeOpen, setThemeOpen] = useState(false)
   const registrationIdentity = `${activeProfile.id}:${raidMode}`
   const navigate = useNavigate()
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
+
+  useEffect(() => {
+    const storedTheme = getStoredTheme()
+    setCurrentTheme(storedTheme)
+  }, [])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -50,6 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (event.key === 'Escape') {
         setSearchOpen(false)
         setRegistrationOpen(false)
+        setThemeOpen(false)
       }
     }
     window.addEventListener('keydown', handler)
@@ -141,6 +150,36 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+        <div className="theme-menu" style={{ position: 'relative' }}>
+          <button className="icon-button" onClick={() => setThemeOpen(!themeOpen)} title={uiText("Тема")}><Palette size={16} /></button>
+          {themeOpen && (
+            <div className="theme-dropdown" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '8px', minWidth: '160px', marginTop: '4px', boxShadow: 'var(--shadow)' }}>
+              {(Object.keys(themes) as Theme[]).map((theme) => (
+                <button
+                  key={theme}
+                  onClick={() => {
+                    setStoredTheme(theme)
+                    setCurrentTheme(theme)
+                    setThemeOpen(false)
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    textAlign: 'left',
+                    background: currentTheme === theme ? 'var(--line)' : 'transparent',
+                    color: 'var(--text)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    borderBottom: '1px solid var(--line)',
+                  }}
+                >
+                  {themes[theme].name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
       </header>
 
