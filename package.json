@@ -4,7 +4,7 @@
   "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
   "author": "Tarkov Operations Companion contributors",
   "private": true,
-  "version": "0.5.4",
+  "version": "0.5.5",
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {
