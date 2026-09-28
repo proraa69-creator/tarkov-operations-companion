@@ -10,6 +10,9 @@ import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
 import { OverlayApp, overlayKind } from './overlay/OverlayApp'
 import { LocaleProvider } from './i18n/LocaleProvider'
+import { applyAppearance } from './theme/theme'
+
+applyAppearance()
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
 const overlay = overlayKind(window.location.hash)

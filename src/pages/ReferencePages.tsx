@@ -553,11 +553,20 @@ export function TradersPage() {
   );
 }
 
+import { SHAPES, THEMES, currentShape, currentTheme, saveAppearance } from "../theme/theme";
+
 export function SettingsPage() {
   const { data, source, updatedAt, refresh, isFetching } = useTarkovData();
   const state = useAppState();
   const { locale, setLocale } = useLocale();
   const [compact, setCompact] = useState(true);
+  const [theme, setTheme] = useState(currentTheme);
+  const [shape, setShape] = useState<string>(currentShape);
+  const chooseAppearance = (nextTheme: string, nextShape: string) => {
+    setTheme(nextTheme);
+    setShape(nextShape);
+    saveAppearance(nextTheme, nextShape);
+  };
   const counts = data.metadata?.counts;
   return (
     <div className="page">
@@ -589,6 +598,27 @@ export function SettingsPage() {
               >
                 <span />
               </button>
+            </div>
+            <div className="setting-row theme-row">
+              <span>
+                <strong>{uiText("Цветовая схема")}</strong>
+                <small>{uiText("Оформление оболочки приложения")}</small>
+              </span>
+              <div className="theme-picker" role="radiogroup" aria-label={uiText("Цветовая схема")}>
+                {THEMES.map((option) => (
+                  <button key={option.id} type="button" role="radio" aria-checked={theme === option.id} className={`theme-swatch${theme === option.id ? " active" : ""}`} onClick={() => chooseAppearance(option.id, shape)} title={uiText(option.label)}>
+                    <span className="theme-swatch-preview" style={{ background: `linear-gradient(135deg, ${option.swatch[0]} 0 45%, ${option.swatch[1]} 45% 75%, ${option.swatch[2]} 75%)` }} />
+                    <span>{uiText(option.label)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="setting-row">
+              <span>
+                <strong>{uiText("Форма элементов")}</strong>
+                <small>{uiText("Скруглённые или угловые углы панелей")}</small>
+              </span>
+              <div className="locale-switch">{SHAPES.map((option) => <button key={option.id} className={shape === option.id ? "active" : ""} onClick={() => chooseAppearance(theme, option.id)}>{uiText(option.label)}</button>)}</div>
             </div>
             <div className="setting-row">
               <span>
