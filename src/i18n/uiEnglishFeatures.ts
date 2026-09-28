@@ -30,6 +30,8 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Форма элементов', 'Element shape'], ['Скруглённые или угловые углы панелей', 'Rounded or angular panel corners'],
   ['Скруглённый', 'Rounded'], ['Угловой', 'Angular'], ['Тарков', 'Tarkov'], ['Графит', 'Graphite'], ['Пустыня', 'Desert'], ['Сталь', 'Steel'], ['Багровый', 'Crimson'],
   ['Личный кабинет', 'Account'],
+  ['Откройте схрон и нажмите «Сканировать»: 45 секунд экран читается непрерывно, пока вы листаете схрон, и найденные предметы отмечаются сами. Остальные можно отметить вручную.', 'Open your stash and press “Scan”: for 45 seconds the screen is read continuously while you scroll, and found items are ticked. Tick the rest by hand.'],
+  ['Готово. Новых предметов не найдено.', 'Done. No new items found.'], ['Остановить', 'Stop'],
   ['Сменить цветовую схему', 'Change colour scheme'], ['Прозрачность мини-карты', 'Mini map opacity'], ['Прозрачность', 'Opacity'],
   ['Обозначение игрока', 'Player marker'], ['Как показывать вашу позицию на картах', 'How your position is shown on maps'],
   ['Стрелка', 'Arrow'], ['Шеврон', 'Chevron'], ['Точка', 'Dot'], ['Выбрать папку', 'Choose folder'], ['Авто', 'Auto'],
