@@ -1,4 +1,4 @@
-# Builds the Windows portable exe and copies it to the desktop.
+﻿# Builds the Windows portable exe and copies it to the desktop.
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1 [-Desktop "C:\path"] [-SkipInstall]
 param(
   [string]$Desktop = "C:\Users\BANGKOK PC\Desktop",
