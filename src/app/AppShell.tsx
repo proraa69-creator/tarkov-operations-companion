@@ -40,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [registrationKey, setRegistrationKey] = useState(0)
   const [currentTheme, setCurrentTheme] = useState<Theme>(getStoredTheme())
   const [themeOpen, setThemeOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const [keybinds] = useState(() => getStoredKeybinds())
   const registrationIdentity = `${activeProfile.id}:${raidMode}`
   const navigate = useNavigate()
@@ -61,6 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         setSearchOpen(false)
         setRegistrationOpen(false)
         setThemeOpen(false)
+        setProfileOpen(false)
       }
     }
     window.addEventListener('keydown', handler)
@@ -150,7 +152,78 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
-        <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
+        <div style={{ position: 'relative' }}>
+          <button
+            className="profile-chip"
+            onClick={() => setProfileOpen(!profileOpen)}
+            title={uiText("Профиль")}
+            style={{ cursor: 'pointer' }}
+          >
+            <UserRound size={15} />
+            <span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span>
+          </button>
+          {profileOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                zIndex: 1000,
+                background: 'var(--panel)',
+                border: '1px solid var(--line)',
+                borderRadius: '8px',
+                minWidth: '200px',
+                marginTop: '4px',
+                boxShadow: 'var(--shadow)',
+                overflow: 'hidden'
+              }}
+            >
+              <button
+                onClick={() => {
+                  navigate('/profile')
+                  setProfileOpen(false)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  background: 'transparent',
+                  color: 'var(--text)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  borderBottom: '1px solid var(--line)',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.background = 'var(--line)' }}
+                onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = 'transparent' }}
+              >
+                {uiText('Просмотр профиля')}
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/settings')
+                  setProfileOpen(false)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  textAlign: 'left',
+                  background: 'transparent',
+                  color: 'var(--text)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.background = 'var(--line)' }}
+                onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = 'transparent' }}
+              >
+                {uiText('Настройки')}
+              </button>
+            </div>
+          )}
+        </div>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <div className="theme-menu" style={{ position: 'relative' }}>
           <button className="icon-button" onClick={() => setThemeOpen(!themeOpen)} title={uiText("Тема")}><Palette size={16} /></button>
