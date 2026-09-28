@@ -5,7 +5,9 @@ import { Info, MapPin, Search, Trophy } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isLiveGameQuest, isCurrentTrackedQuest, isTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { matchesQuestSearch, sortQuests } from '../shared/questSearch'
 import type { Quest, TaskProgressStatus } from '../domain/types'
+import { useLocale } from '../i18n/LocaleProvider'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -29,6 +31,7 @@ export function QuestsPage() {
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [trader, setTrader] = useState('Все торговцы')
+  const { locale } = useLocale()
   const initialFilter = params.get('filter')
   const statusFilter = initialFilter && initialFilter in filterLabels ? initialFilter : 'active'
   const progress = state.activeProfile.modes[state.raidMode]
@@ -37,17 +40,24 @@ export function QuestsPage() {
   const stats = completedQuestStats(data.quests, availability)
   const storyQuests = data.quests.filter((quest) => isStoryQuest(quest) && isTrackedQuest(quest, progress) && isCurrentTrackedQuest(quest, progress))
 
-  const filtered = useMemo(() => data.quests.filter((quest) => {
-    const status = availability.get(quest.id)?.status ?? 'unknown'
-    const matchesQuery = `${quest.name} ${quest.trader} ${quest.description} ${uiText(quest.name)} ${uiText(quest.trader)}`.toLowerCase().includes(query.toLowerCase())
-    const matchesTrader = trader === 'Все торговцы' || quest.trader === trader
-    if (statusFilter === 'story') return isStoryQuest(quest) && matchesQuery && matchesTrader
-    if (isStoryQuest(quest)) return statusFilter === 'active' && isCurrentTrackedQuest(quest, progress) && matchesQuery
-    if (!isLiveGameQuest(quest)) return false
-    const matchesStatus = statusFilter === 'all'
-      || (statusFilter === 'kappa' ? quest.kappa : statusFilter === 'active' ? isCurrentTrackedQuest(quest, progress) : status === statusFilter)
-    return matchesQuery && matchesTrader && matchesStatus
-  }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, progress, query, trader, statusFilter])
+  const filtered = useMemo(() => {
+    let quests = data.quests.filter((quest) => {
+      const status = availability.get(quest.id)?.status ?? 'unknown'
+      const matchesQuery = matchesQuestSearch(quest, query, state.raidMode)
+      const matchesTrader = trader === 'Все торговцы' || quest.trader === trader
+
+      if (statusFilter === 'story') return isStoryQuest(quest) && matchesQuery && matchesTrader
+      if (isStoryQuest(quest)) return statusFilter === 'active' && isCurrentTrackedQuest(quest, progress) && matchesQuery
+      if (!isLiveGameQuest(quest)) return false
+
+      const matchesStatus = statusFilter === 'all'
+        || (statusFilter === 'kappa' ? quest.kappa : statusFilter === 'active' ? isCurrentTrackedQuest(quest, progress) : status === statusFilter)
+
+      return matchesQuery && matchesTrader && matchesStatus
+    })
+
+    return sortQuests(quests, locale)
+  }, [availability, data.quests, progress, query, trader, statusFilter, state.raidMode, locale])
   const selectedId = params.get('selected') ?? filtered[0]?.id
   const selected = data.quests.find((quest) => quest.id === selectedId)
   const selectedAvailability = selected ? availability.get(selected.id) : undefined
