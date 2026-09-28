@@ -12,6 +12,8 @@ import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
 import { MapSlideshow } from '../components/MapSlideshow'
 import { GOON_MAPS, useGoonLocation } from '../data/goonTracker'
 import { useLocale } from '../i18n/LocaleProvider'
+import { getIncompleteKappaItems } from '../shared/kappaItems'
+import { KappaItemsModal } from '../components/KappaItemsModal'
 
 export function DashboardPage() {
   const { data } = useTarkovData()
@@ -19,6 +21,7 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
   const [goonPickerOpen, setGoonPickerOpen] = useState(false)
+  const [kappaItemsOpen, setKappaItemsOpen] = useState(false)
   const { locale } = useLocale()
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
@@ -41,6 +44,19 @@ export function DashboardPage() {
   const { location: goons, reportSighting } = useGoonLocation(state.raidMode)
   const maxMapQuests = Math.max(1, ...data.maps.map((map) => currentQuests.filter((q) => onMap(q, map.id)).length))
 
+  const completedQuestIds = useMemo(() => {
+    const completed = new Set<string>()
+    availability.forEach((status, questId) => {
+      if (status.status === 'completed') completed.add(questId)
+    })
+    return completed
+  }, [availability])
+
+  const kappaItems = useMemo(() =>
+    getIncompleteKappaItems(data.quests, data.items, completedQuestIds),
+    [data.quests, data.items, completedQuestIds]
+  )
+
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
 
   return <div className="page">
@@ -52,7 +68,33 @@ export function DashboardPage() {
     <section className="stat-grid">
       <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
-      <div className="stat-card"><div className="stat-label">{uiText("Капа")}</div><div className="stat-value">{uiText(stats.kappaCompleted)}</div><div className="stat-meta">{uiText("Выполнено ")}{uiText(stats.kappaCompleted)}{uiText(" из ")}{uiText(stats.kappaTotal)}</div></div>
+      <div className="stat-card" style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+          <div>
+            <div className="stat-label">{uiText("Капа")}</div>
+            <div className="stat-value">{uiText(stats.kappaCompleted)}</div>
+            <div className="stat-meta">{uiText("Выполнено ")}{uiText(stats.kappaCompleted)}{uiText(" из ")}{uiText(stats.kappaTotal)}</div>
+          </div>
+          {kappaItems.size > 0 && (
+            <button
+              onClick={() => setKappaItemsOpen(true)}
+              style={{
+                padding: '4px 8px',
+                background: 'var(--brass)',
+                color: 'var(--bg)',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+              title={uiText('Показать предметы')}
+            >
+              {uiText('Предметы')}
+            </button>
+          )}
+        </div>
+      </div>
       <div className={`stat-card goon-card ${goonPickerOpen ? 'is-open' : ''}`}>
         <div className="goon-card-heading"><div className="stat-label">{uiText('Кочевники')}</div><button className="button small" onClick={() => setGoonPickerOpen((open) => !open)}>{uiText(goonPickerOpen ? 'Отмена' : 'Видел')}</button></div>
         <div className="stat-value goon-map-value">{uiText(data.maps.find((map) => map.id === goons?.mapId)?.name ?? 'Нет данных')}</div>
@@ -142,5 +184,6 @@ export function DashboardPage() {
         </section>
       </div>
     </div>
+    {kappaItemsOpen && <KappaItemsModal items={kappaItems} onClose={() => setKappaItemsOpen(false)} />}
   </div>
 }
