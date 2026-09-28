@@ -65,7 +65,7 @@ export function RegisterPage() {
           </label>
           <label className="field">
             <span className="field-label">Код приглашения <span className="dim">(необязательно)</span></span>
-            <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="Например, HUNTER_TV" />
+            <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="HUNTER_TV" />
             {referral.trim() && <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />По коду приглашения — 3 дня бесплатного доступа.</span>}
           </label>
           <button type="submit" className="button primary large block" disabled={busy}>

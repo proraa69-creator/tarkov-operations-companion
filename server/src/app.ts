@@ -6,6 +6,8 @@ import { fetchPlayerProfile } from '../../electron/playerProfileService'
 import { getCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
+import { createAccountsRouter } from './routes/accounts.js'
+import { AccountStore } from './services/accountStore.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const syncSchema = z.object({
@@ -13,12 +15,14 @@ const syncSchema = z.object({
   events: z.array(z.object({ taskId: z.string().regex(/^[a-f0-9]{24}$/i), status: z.enum(['active', 'completed', 'failed']), timestamp: z.string().datetime().transform((date) => new Date(date).toISOString()) })).max(2000),
 })
 
-export function createApi(store: ProgressStore, token?: string) {
+export function createApi(store: ProgressStore, token?: string, accounts = new AccountStore()) {
   const app = express()
   app.disable('x-powered-by')
-  app.use(cors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' }))
+  // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
+  app.use(cors({ origin: (process.env.WEB_ORIGIN ?? 'http://localhost:5173,http://localhost:5202').split(',').map((origin) => origin.trim()).filter(Boolean) }))
   app.use(express.json({ limit: '1mb' }))
   app.use('/v1/goons', createGoonsRouter())
+  app.use('/v1/accounts', createAccountsRouter(accounts))
   app.get('/health', (_req, res) => res.json({ ok: true, service: 'tarkov-operations-api', version: '0.2.0', syncRequiresToken: true }))
   app.post('/v1/sync/events', (req, res) => {
     const supplied = req.get('authorization')?.replace(/^Bearer /, '') ?? ''
