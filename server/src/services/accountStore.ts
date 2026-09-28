@@ -1,20 +1,23 @@
 /**
  * Website accounts: store + framework-free request handlers.
  *
- * DEVELOPMENT-ONLY PROTOTYPE.
- * - Everything is kept in process memory and is lost on restart. Before any public deployment this must be
- *   replaced by a persistent database (accounts, sessions, referral attribution, visits), see server/schema.sql.
- * - There is no e-mail verification, password reset, payment provider or payout accounting yet.
- *   Subscription state is NEVER taken from the client; `activeSubscriptions` / `earnings` stay 0 until
- *   provider webhooks are implemented server-side.
- * - Streamer status is granted only by an operator through `promoteToStreamer()` (never through HTTP).
+ * Persistence: accounts, sessions, streamer referral codes and referral visit counters live in SQLite
+ * (the same database file as the rest of the server, see services/database.ts), so they survive restarts.
+ * Without a database handle the store uses a private in-memory SQLite database (tests).
+ *
+ * Still missing before any public deployment: e-mail verification, password reset, payment provider and payout
+ * accounting. Subscription state is NEVER taken from the client; `activeSubscriptions` / `earnings` stay 0 until
+ * provider webhooks are implemented server-side.
+ * Streamer status is granted only by an operator through `promoteToStreamer()` (CLI `npm run promote`, never HTTP).
  *
  * The handlers below take a small plain request object and return `{ status, body }`, so they can be unit-tested
  * without Express. `server/src/routes/accounts.ts` adapts them to an Express router.
- * Passwords are never logged or returned; only salted scrypt hashes are kept.
+ * Passwords are never logged or returned; only salted scrypt hashes are kept. Session tokens are stored as SHA-256.
  */
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
+import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
+import { openDatabase } from './database.js'
 
 export type AccountKind = 'user' | 'streamer'
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
@@ -23,6 +26,7 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const VISIT_DEDUPE_MS = 24 * 60 * 60 * 1000
 
 const SCRYPT_KEYLEN = 64
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
@@ -41,8 +45,6 @@ interface Account {
   referredAt?: number
   nicknames: Partial<Record<AccountMode, string>>
 }
-
-interface Session { accountId: string; expiresAt: number }
 
 export interface ReferralStats {
   visits: number
@@ -76,9 +78,14 @@ function hashPassword(password: string, salt: Buffer) {
   })
 }
 
-/** Only the SHA-256 of a session token is stored, so a memory dump does not reveal usable tokens. */
+/** Only the SHA-256 of a session token is stored, so a database copy does not reveal usable tokens. */
 function tokenDigest(token: string) {
   return createHash('sha256').update(token).digest('hex')
+}
+
+/** Visitor addresses are not stored in clear text: only a digest bound to the referral code. */
+function visitorDigest(code: string, visitorKey: string) {
+  return createHash('sha256').update(`${code}\u0000${visitorKey}`).digest('hex')
 }
 
 export function normalizeReferralCode(code: string) {
@@ -88,42 +95,98 @@ export function normalizeReferralCode(code: string) {
 const REFERRAL_CODE = /^[A-Z0-9_-]{3,24}$/
 export const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
+type Row = Record<string, unknown>
+
+function parseNicknames(raw: unknown): Partial<Record<AccountMode, string>> {
+  try {
+    const parsed = JSON.parse(String(raw ?? '{}')) as Record<string, unknown>
+    const result: Partial<Record<AccountMode, string>> = {}
+    for (const mode of ACCOUNT_MODES) if (typeof parsed[mode] === 'string' && NICKNAME.test(parsed[mode] as string)) result[mode] = parsed[mode] as string
+    return result
+  } catch {
+    return {}
+  }
+}
+
+function toAccount(row: Row | undefined): Account | undefined {
+  if (!row) return undefined
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    salt: Buffer.from(row.salt as Uint8Array),
+    passwordHash: Buffer.from(row.password_hash as Uint8Array),
+    kind: row.kind === 'streamer' ? 'streamer' : 'user',
+    createdAt: Number(row.created_at),
+    referralCode: row.referral_code == null ? undefined : String(row.referral_code),
+    referredBy: row.referred_by == null ? undefined : String(row.referred_by),
+    referredAt: row.referred_at == null ? undefined : Number(row.referred_at),
+    nicknames: parseNicknames(row.nicknames),
+  }
+}
+
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    salt BLOB NOT NULL,
+    password_hash BLOB NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('user','streamer')),
+    created_at INTEGER NOT NULL,
+    referral_code TEXT UNIQUE,
+    referred_by TEXT,
+    referred_at INTEGER,
+    nicknames TEXT NOT NULL DEFAULT '{}');
+  CREATE INDEX IF NOT EXISTS accounts_referred_by ON accounts(referred_by);
+  CREATE TABLE IF NOT EXISTS sessions (
+    digest TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);
+  CREATE TABLE IF NOT EXISTS referral_visits (
+    code TEXT PRIMARY KEY,
+    visits INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS referral_visit_seen (
+    visitor TEXT PRIMARY KEY,
+    seen_at INTEGER NOT NULL);
+`
+
 export class AccountStore {
-  private readonly accounts = new Map<string, Account>()
-  private readonly byEmail = new Map<string, string>()
-  private readonly byReferralCode = new Map<string, string>()
-  private readonly sessions = new Map<string, Session>()
-  private readonly visits = new Map<string, number>()
-  private readonly visitSeen = new Map<string, number>()
+  private readonly db: DatabaseSync
+  private readonly ownsDb: boolean
   /** Dummy hash so a login for an unknown e-mail costs the same scrypt work as a real one. */
   private readonly dummySalt = randomBytes(16)
   private readonly now: () => number
+  private lastSweep = 0
 
-  constructor(options: { now?: () => number } = {}) {
+  constructor(options: { now?: () => number; db?: DatabaseSync } = {}) {
     this.now = options.now ?? Date.now
+    this.ownsDb = !options.db
+    this.db = options.db ?? openDatabase(':memory:')
+    this.db.exec(SCHEMA)
   }
 
   async register(email: string, password: string, referralCode?: string) {
     const key = email.trim().toLowerCase()
-    if (this.byEmail.has(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
+    if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
     const salt = randomBytes(16)
     const passwordHash = await hashPassword(password, salt)
-    // Re-check after the async hash to avoid a double registration race.
-    if (this.byEmail.has(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
-    const account: Account = { id: randomBytes(12).toString('hex'), email: key, salt, passwordHash, kind: 'user', createdAt: this.now(), nicknames: {} }
-    this.accounts.set(account.id, account)
-    this.byEmail.set(key, account.id)
-    let referralApplied = false
+    const id = randomBytes(12).toString('hex')
+    const createdAt = this.now()
+    let referredBy: string | null = null
     if (referralCode) {
       const code = normalizeReferralCode(referralCode)
       // An unknown or invalid code must not block registration; it is simply not applied.
-      if (this.byReferralCode.has(code)) {
-        account.referredBy = code
-        account.referredAt = account.createdAt
-        referralApplied = true
-      }
+      if (this.ownerOfCode(code)) referredBy = code
     }
-    return { token: this.createSession(account.id), referralApplied }
+    try {
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}')
+    } catch (error) {
+      // UNIQUE(email) closes the race between two parallel registrations of the same address.
+      if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
+      throw error
+    }
+    return { token: this.createSession(id), referralApplied: referredBy !== null }
   }
 
   async login(email: string, password: string) {
@@ -134,17 +197,17 @@ export class AccountStore {
   }
 
   logout(token: string) {
-    this.sessions.delete(tokenDigest(token))
+    this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(tokenDigest(token))
   }
 
   /** Returns the account id for a valid, non-expired session token. */
   authenticate(token: string | undefined) {
     if (!token) return undefined
     const digest = tokenDigest(token)
-    const session = this.sessions.get(digest)
+    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
     if (!session) return undefined
-    if (session.expiresAt <= this.now()) { this.sessions.delete(digest); return undefined }
-    return this.accounts.has(session.accountId) ? session.accountId : undefined
+    if (Number(session.expires_at) <= this.now()) { this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(digest); return undefined }
+    return String(session.account_id)
   }
 
   view(accountId: string): AccountView {
@@ -171,71 +234,89 @@ export class AccountStore {
     if (account.kind !== 'user') throw new AccountError(403, 'Код приглашения можно указать только в аккаунте пользователя')
     if (account.referredBy) throw new AccountError(409, 'Код приглашения уже указан')
     const code = normalizeReferralCode(rawCode)
-    if (!this.byReferralCode.has(code)) throw new AccountError(404, 'Код приглашения не найден')
-    account.referredBy = code
-    account.referredAt = this.now()
+    if (!this.ownerOfCode(code)) throw new AccountError(404, 'Код приглашения не найден')
+    this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL').run(code, this.now(), account.id)
   }
 
   setNicknames(accountId: string, nicknames: Partial<Record<AccountMode, string | null>>) {
     const account = this.mustGet(accountId)
+    const next = { ...account.nicknames }
     for (const mode of ACCOUNT_MODES) {
       if (!(mode in nicknames)) continue
       const value = nicknames[mode]
-      if (value === null || value === undefined || value === '') delete account.nicknames[mode]
-      else account.nicknames[mode] = value
+      if (value === null || value === undefined || value === '') delete next[mode]
+      else next[mode] = value
     }
+    this.db.prepare('UPDATE accounts SET nicknames = ? WHERE id = ?').run(JSON.stringify(next), account.id)
   }
 
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
   recordReferralVisit(rawCode: string, visitorKey: string) {
     const code = normalizeReferralCode(rawCode)
-    if (!this.byReferralCode.has(code)) return false
-    const seenKey = `${code}\u0000${visitorKey}`
-    const seenAt = this.visitSeen.get(seenKey)
-    if (seenAt !== undefined && this.now() - seenAt < 24 * 60 * 60 * 1000) return true
-    this.visitSeen.set(seenKey, this.now())
-    this.visits.set(code, (this.visits.get(code) ?? 0) + 1)
+    if (!this.ownerOfCode(code)) return false
+    const now = this.now()
+    this.sweep(now)
+    const visitor = visitorDigest(code, visitorKey)
+    const seen = this.db.prepare('SELECT seen_at FROM referral_visit_seen WHERE visitor = ?').get(visitor) as Row | undefined
+    if (seen && now - Number(seen.seen_at) < VISIT_DEDUPE_MS) return true
+    this.db.prepare('INSERT INTO referral_visit_seen (visitor, seen_at) VALUES (?, ?) ON CONFLICT(visitor) DO UPDATE SET seen_at = excluded.seen_at').run(visitor, now)
+    this.db.prepare('INSERT INTO referral_visits (code, visits) VALUES (?, 1) ON CONFLICT(code) DO UPDATE SET visits = visits + 1').run(code)
     return true
   }
 
   /**
-   * Operator-only: grant streamer status and a unique referral code. There is intentionally NO HTTP endpoint for this.
-   * A streamer keeps any existing attribution but can no longer attach a new one.
+   * Operator-only: grant streamer status and a unique referral code. There is intentionally NO HTTP endpoint for this
+   * (see server/src/cli/promote-streamer.ts). A streamer keeps any existing attribution but can no longer attach a new one.
    */
   promoteToStreamer(email: string, rawCode: string) {
     const account = this.findByEmail(email)
     if (!account) throw new AccountError(404, `Account not found: ${email}`)
     const code = normalizeReferralCode(rawCode)
     if (!REFERRAL_CODE.test(code)) throw new AccountError(400, 'Referral code must be 3-24 chars: A-Z, 0-9, _ or -')
-    const owner = this.byReferralCode.get(code)
+    const owner = this.ownerOfCode(code)
     if (owner && owner !== account.id) throw new AccountError(409, `Referral code already taken: ${code}`)
-    if (account.referralCode && account.referralCode !== code) this.byReferralCode.delete(account.referralCode)
-    account.kind = 'streamer'
-    account.referralCode = code
-    this.byReferralCode.set(code, account.id)
+    this.db.prepare("UPDATE accounts SET kind = 'streamer', referral_code = ? WHERE id = ?").run(code, account.id)
     return code
   }
 
+  /** Releases the database when the store opened its own (in-memory) one. */
+  close() {
+    if (this.ownsDb) this.db.close()
+  }
+
   private stats(code: string): ReferralStats {
-    let registrations = 0
-    for (const account of this.accounts.values()) if (account.referredBy === code) registrations += 1
+    const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(code) as Row).n)
+    const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
     // Payments are not implemented: paid conversions and earnings must come from verified provider webhooks.
-    return { visits: this.visits.get(code) ?? 0, registrations, activeSubscriptions: 0, earnings: { amount: 0, currency: 'RUB' } }
+    return { visits, registrations, activeSubscriptions: 0, earnings: { amount: 0, currency: 'RUB' } }
   }
 
   private createSession(accountId: string) {
     const token = randomBytes(32).toString('base64url')
-    this.sessions.set(tokenDigest(token), { accountId, expiresAt: this.now() + SESSION_TTL_MS })
+    this.sweep(this.now())
+    this.db.prepare('INSERT INTO sessions (digest, account_id, expires_at) VALUES (?, ?, ?)').run(tokenDigest(token), accountId, this.now() + SESSION_TTL_MS)
     return token
   }
 
+  /** Drops expired sessions and stale visitor digests at most once an hour. */
+  private sweep(now: number) {
+    if (now - this.lastSweep < 60 * 60 * 1000) return
+    this.lastSweep = now
+    this.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now)
+    this.db.prepare('DELETE FROM referral_visit_seen WHERE seen_at <= ?').run(now - VISIT_DEDUPE_MS)
+  }
+
+  private ownerOfCode(code: string) {
+    const row = this.db.prepare("SELECT id FROM accounts WHERE referral_code = ? AND kind = 'streamer'").get(code) as Row | undefined
+    return row ? String(row.id) : undefined
+  }
+
   private findByEmail(email: string) {
-    const id = this.byEmail.get(email.trim().toLowerCase())
-    return id ? this.accounts.get(id) : undefined
+    return toAccount(this.db.prepare('SELECT * FROM accounts WHERE email = ?').get(email.trim().toLowerCase()) as Row | undefined)
   }
 
   private mustGet(accountId: string) {
-    const account = this.accounts.get(accountId)
+    const account = toAccount(this.db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId) as Row | undefined)
     if (!account) throw new AccountError(401, 'Сессия недействительна')
     return account
   }
@@ -290,7 +371,8 @@ const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameV
 
 const invalid = (message: string): AccountsResponse => ({ status: 400, body: { error: message } })
 
-function bearer(authorization: string | undefined) {
+/** Session token from an `Authorization: Bearer <token>` header (shape-checked only). */
+export function bearer(authorization: string | undefined) {
   const match = /^Bearer\s+([A-Za-z0-9_-]{20,200})$/.exec(authorization ?? '')
   return match?.[1]
 }

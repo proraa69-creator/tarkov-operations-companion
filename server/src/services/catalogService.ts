@@ -19,6 +19,15 @@ export function getCatalogSnapshot(mode: RaidMode): Promise<AppDataset> {
   pending.set(mode, request)
   return request
 }
+/**
+ * Non-blocking read for summaries: the last snapshot (even if older than the cache window), or undefined.
+ * A missing or stale snapshot starts a background refresh; errors are swallowed (the summary just omits Kappa).
+ */
+export function peekCatalogSnapshot(mode: RaidMode): AppDataset | undefined {
+  const entry = cache.get(mode)
+  if (!entry || entry.expires <= Date.now()) void getCatalogSnapshot(mode).catch(() => undefined)
+  return entry?.data
+}
 export async function resolvePlayer(mode: RaidMode, nickname: string) {
   const matches = await resolveAccountIdsByNickname(mode, nickname, { refresh: true })
   if (!matches.length) throw Object.assign(new Error('Профиль этого режима пока не опубликован в Tarkov.dev'), { status: 404 })

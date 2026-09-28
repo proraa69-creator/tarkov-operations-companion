@@ -1,4 +1,5 @@
 /** Goons (Кочевники) sightings reported by app users. PvP, PvE and Seasonal are always kept apart. */
+import type { DatabaseSync } from 'node:sqlite'
 export const GOON_MAP_IDS = ['customs', 'woods', 'shoreline', 'lighthouse'] as const
 export const GOON_MODES = ['pvp', 'pve', 'seasonal'] as const
 export type GoonMapId = typeof GOON_MAP_IDS[number]
@@ -63,6 +64,51 @@ export class MemoryGoonStore implements GoonStore {
   prune(beforeMs: number) {
     const firstKept = this.sightings.findIndex((entry) => Date.parse(entry.reportedAt) >= beforeMs)
     this.sightings = firstKept === -1 ? [] : this.sightings.slice(firstKept)
+  }
+}
+
+type Row = Record<string, unknown>
+const toSighting = (row: Row | undefined): GoonSighting | undefined => row
+  ? { mapId: row.map_id as GoonMapId, mode: row.mode as GoonMode, reportedAt: String(row.reported_at), reporter: String(row.reporter) }
+  : undefined
+
+/**
+ * Persistent store in the shared SQLite database, so sightings survive a server restart.
+ * `reported_at` is an ISO string in UTC with fixed width, so text order equals time order.
+ */
+export class SqliteGoonStore implements GoonStore {
+  constructor(private readonly db: DatabaseSync) {
+    db.exec(`CREATE TABLE IF NOT EXISTS goon_sightings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
+        map_id TEXT NOT NULL,
+        reported_at TEXT NOT NULL,
+        reporter TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS goon_sightings_mode ON goon_sightings(mode, reported_at);
+      CREATE INDEX IF NOT EXISTS goon_sightings_reporter ON goon_sightings(reporter, reported_at);`)
+  }
+
+  add(sighting: GoonSighting) {
+    this.db.prepare('INSERT INTO goon_sightings (mode, map_id, reported_at, reporter) VALUES (?, ?, ?, ?)')
+      .run(sighting.mode, sighting.mapId, sighting.reportedAt, sighting.reporter)
+  }
+
+  list(mode: GoonMode, sinceMs: number) {
+    const rows = this.db.prepare('SELECT * FROM goon_sightings WHERE mode = ? AND reported_at >= ? ORDER BY reported_at DESC, id DESC LIMIT 50000')
+      .all(mode, new Date(sinceMs).toISOString()) as Row[]
+    return rows.map((row) => toSighting(row)!)
+  }
+
+  lastByReporter(reporter: string) {
+    return toSighting(this.db.prepare('SELECT * FROM goon_sightings WHERE reporter = ? ORDER BY reported_at DESC, id DESC LIMIT 1').get(reporter) as Row | undefined)
+  }
+
+  lastByReporterOnMap(reporter: string, mode: GoonMode, mapId: GoonMapId) {
+    return toSighting(this.db.prepare('SELECT * FROM goon_sightings WHERE reporter = ? AND mode = ? AND map_id = ? ORDER BY reported_at DESC, id DESC LIMIT 1').get(reporter, mode, mapId) as Row | undefined)
+  }
+
+  prune(beforeMs: number) {
+    this.db.prepare('DELETE FROM goon_sightings WHERE reported_at < ?').run(new Date(beforeMs).toISOString())
   }
 }
 
