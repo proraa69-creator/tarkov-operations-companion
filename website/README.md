@@ -4,7 +4,7 @@ Russian-language product site and personal account (личный кабинет)
 desktop app. React + react-router (BrowserRouter) + Vite. It has no `node_modules` of its own: every command
 below runs **from the repository root** and uses the root `node_modules`. Do not run `npm install` inside `website/`.
 
-Pages: `/` (главная, трейлер, возможности), `/download`, `/login`, `/register`, `/cabinet`, `/r/<code>` (реферальная ссылка).
+Pages: `/` (главная: трейлер + кнопки «Скачать приложение» и «Личный кабинет»), `/about` (О нас), `/download`, `/login`, `/register`, `/cabinet`, `/r/<code>` (реферальная ссылка).
 
 ## Run, check, build
 
@@ -75,9 +75,18 @@ restart). Once a persistent database exists this becomes an admin CLI/script tha
 
 ## Trailer
 
-`src/components/Trailer.tsx` plays `/media/trailer.mp4`. **The real trailer file is not in the repository** —
-add it as `website/public/media/trailer.mp4` (or point `TRAILER_SRC` at a CDN). Until then the poster
-`public/media/trailer-poster.svg` is shown and pressing play shows a "trailer coming soon" note.
+`src/components/Trailer.tsx` plays `/media/trailer.webm` (preferred) with `/media/trailer.mp4` as a second
+`<source>`, autoplaying muted in a loop (not under `prefers-reduced-motion`) with custom play/pause and sound
+buttons. Drop the files into `website/public/media/` and they are picked up automatically. The poster is
+`/media/trailer-poster.jpg` when that file exists, otherwise the placeholder `trailer-poster.svg`; if no video
+source can be played the poster stays with a "trailer coming soon" note.
+
+## Motion
+
+Button press (spring `scale(.96)`), click ripple (`useRipple` in `src/hooks/motion.ts`, delegated for
+`.button.primary`, `.button.ripple` and trailer controls), route fade/slide (`.route-view` keyed by path in
+`SiteLayout`), staggered hero entrance (`.stagger` + `stagger(i)`), reveal-on-scroll (`src/components/Reveal.tsx`)
+and the animated mobile menu are CSS-first and all switch off under `prefers-reduced-motion`.
 
 ## Not implemented yet (prototype limits)
 

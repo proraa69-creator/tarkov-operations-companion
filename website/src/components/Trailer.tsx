@@ -108,7 +108,7 @@ export function Trailer() {
             </button>
             <button type="button" className="ctrl-button" onClick={toggleMute} aria-label={muted ? 'Включить звук' : 'Выключить звук'} aria-pressed={!muted}>
               {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
-              <span className="ctrl-label">{muted ? 'Со звуком' : 'Без звука'}</span>
+              <span className="ctrl-label">{muted ? 'Включить звук' : 'Выключить звук'}</span>
             </button>
           </div>
         </>
