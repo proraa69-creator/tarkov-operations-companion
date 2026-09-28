@@ -1,0 +1,70 @@
+/*
+ * Colour themes — picked in Settings or cycled with the palette button in the top bar
+ * (src/theme/theme.ts). The default "Тарков" look lives in tokens.css; these override it.
+ * Textures are inline SVG so nothing is downloaded.
+ */
+
+/* ---------- Сталь: gunmetal, brushed plates, scratches and a cold top light ---------- */
+:root[data-theme="steel"] {
+  --bg: #0c0e10; --bg-elevated: #131619; --panel: #171a1d; --panel-2: #1e2226; --panel-3: #272c31;
+  --line: #333a41; --line-strong: #4b545d; --text: #e8ecef; --text-muted: #9ea7ae; --text-dim: #6f7880;
+  --brass: #b9c6d0; --brass-strong: #dde6ec; --green: #7fa3a0; --green-soft: #22302f; --blue: #8fb0c8;
+  --surf-0: #0a0c0e; --surf-1: #15181b; --surf-2: #1d2125; --line-soft: #3a424a;
+  --tex-brushed: repeating-linear-gradient(90deg, rgb(255 255 255 / 2.2%) 0 1px, transparent 1px 3px, rgb(0 0 0 / 3%) 3px 4px, transparent 4px 7px);
+  --tex-scratches: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='300'%3E%3Cg stroke='%23fff' stroke-linecap='round' fill='none'%3E%3Cpath d='M20 40 L180 58' stroke-opacity='.07' stroke-width='.7'/%3E%3Cpath d='M240 22 L400 9' stroke-opacity='.05' stroke-width='.6'/%3E%3Cpath d='M60 170 L150 150' stroke-opacity='.06' stroke-width='.8'/%3E%3Cpath d='M210 230 L380 262' stroke-opacity='.05' stroke-width='.6'/%3E%3Cpath d='M300 120 L330 170' stroke-opacity='.06' stroke-width='.5'/%3E%3Cpath d='M30 260 L90 250 L130 255' stroke-opacity='.05' stroke-width='.6'/%3E%3Cpath d='M170 95 L260 110' stroke-opacity='.04' stroke-width='1.1'/%3E%3C/g%3E%3Cg stroke='%23000' stroke-opacity='.25' stroke-linecap='round'%3E%3Cpath d='M21 41 L181 59' stroke-width='.5'/%3E%3Cpath d='M61 171 L151 151' stroke-width='.5'/%3E%3C/g%3E%3C/svg%3E");
+  --tex-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --light-top: linear-gradient(180deg, rgb(220 235 245 / 7%) 0%, transparent 38%);
+}
+:root[data-theme="steel"] body {
+  background:
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgb(170 195 215 / 12%), transparent 70%),
+    var(--tex-scratches), var(--tex-noise), var(--tex-brushed),
+    linear-gradient(180deg, #15181b 0%, #0b0d0f 100%);
+  background-attachment: fixed;
+}
+:root[data-theme="steel"] .panel,
+:root[data-theme="steel"] .stat-card {
+  background: var(--light-top), var(--tex-scratches), var(--tex-brushed), linear-gradient(160deg, #22272c 0%, #161a1d 60%, #121518 100%);
+  border-color: #3b434b;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), inset 0 -1px 0 rgb(0 0 0 / 60%), 0 10px 26px rgb(0 0 0 / 45%);
+}
+:root[data-theme="steel"] .sidebar,
+:root[data-theme="steel"] .topbar {
+  background: var(--tex-scratches), var(--tex-brushed), linear-gradient(180deg, #1b1f23, #111417);
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 5%);
+}
+:root[data-theme="steel"] .button.primary {
+  background: linear-gradient(180deg, #d9e2e8 0%, #9aa7b1 48%, #7f8c96 52%, #b3bec6 100%);
+  color: #0e1114;
+  border-color: #cfd8de;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 45%);
+}
+:root[data-theme="steel"] .page-title { background: linear-gradient(180deg, #ffffff 0%, #b7c2ca 55%, #8a969f 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---------- Багровый: oxblood leather grain with a warm ember light ---------- */
+:root[data-theme="crimson"] {
+  --bg: #100909; --bg-elevated: #170d0d; --panel: #1d1111; --panel-2: #251616; --panel-3: #301c1c;
+  --line: #3e2424; --line-strong: #5c3333; --text: #f4e8e4; --text-muted: #b69c95; --text-dim: #86706a;
+  --brass: #e0894f; --brass-strong: #f4a468; --green: #9aa878; --green-soft: #2e3322; --blue: #a09aa8;
+  --surf-0: #0d0707; --surf-1: #1a0f0f; --surf-2: #251515; --line-soft: #4c2b2b;
+  --tex-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='turbulence' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .5 0 0 0 0 .45 0 0 0 .08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --light-ember: radial-gradient(ellipse 120% 80% at 0% 0%, rgb(224 90 60 / 11%), transparent 55%);
+}
+:root[data-theme="crimson"] body {
+  background:
+    radial-gradient(ellipse 70% 50% at 85% -5%, rgb(210 70 45 / 16%), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 10% 110%, rgb(120 20 20 / 20%), transparent 70%),
+    var(--tex-grain),
+    linear-gradient(180deg, #170c0c 0%, #0d0707 100%);
+  background-attachment: fixed;
+}
+:root[data-theme="crimson"] .panel,
+:root[data-theme="crimson"] .stat-card {
+  background: var(--light-ember), var(--tex-grain), linear-gradient(155deg, #2a1717 0%, #1b0f0f 100%);
+  border-color: #4a2a2a;
+  box-shadow: inset 0 1px 0 rgb(255 170 140 / 7%), 0 0 0 1px rgb(0 0 0 / 40%), 0 12px 30px rgb(0 0 0 / 50%);
+}
+:root[data-theme="crimson"] .sidebar,
+:root[data-theme="crimson"] .topbar { background: var(--tex-grain), linear-gradient(180deg, #1c0f0f, #120909); }
+:root[data-theme="crimson"] .nav-link.active { box-shadow: inset 3px 0 0 var(--brass), 0 0 18px rgb(224 90 60 / 14%); }
+:root[data-theme="crimson"] .button.primary { background: linear-gradient(180deg, #e8864d, #b4532c); border-color: #f09a62; color: #1a0b07; box-shadow: 0 0 14px rgb(224 110 60 / 30%); }

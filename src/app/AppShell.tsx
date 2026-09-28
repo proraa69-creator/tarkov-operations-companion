@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, Home, MapPinned,
+  ChevronRight, CircleDollarSign, Home, MapPinned, Palette,
   Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -12,6 +12,7 @@ import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
+import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -141,6 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+        <ThemeButton />
         <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
       </header>
 
@@ -160,5 +162,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ModeRegistrationDialog key={`${registrationIdentity}:${registrationKey}`} onClose={() => setRegistrationOpen(false)} />
       ))}
     </div>
+  )
+}
+
+/** Cycles the colour schemes in order; the current one's name is in the tooltip. */
+function ThemeButton() {
+  const [theme, setTheme] = useState(currentTheme)
+  const label = THEMES.find((entry) => entry.id === theme)?.label ?? ''
+  return (
+    <button className="icon-button theme-cycle" onClick={() => setTheme(cycleTheme().id)} title={`${uiText('Цветовая схема')}: ${uiText(label)}`} aria-label={uiText('Сменить цветовую схему')}>
+      <Palette size={16} />
+    </button>
   )
 }

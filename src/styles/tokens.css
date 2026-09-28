@@ -1,3 +1,4 @@
+@import './themes.css';
 :root {
   color-scheme: dark;
   --bg: #0a0f0c;
@@ -33,32 +34,6 @@
   --surf-1: #111915;
   --surf-2: #17211b;
   --line-soft: #33433a;
-}
-
-/* Colour themes — chosen in Settings, stored in localStorage (see src/theme/theme.ts) */
-:root[data-theme="graphite"] {
-  --bg: #0d0e10; --bg-elevated: #131518; --panel: #181b1f; --panel-2: #1e2226; --panel-3: #262b30;
-  --line: #2f353b; --line-strong: #444c54; --text: #eceef0; --text-muted: #9aa2a9; --text-dim: #6c747b;
-  --brass: #c4a665; --brass-strong: #dfbd70; --green: #86a08b; --green-soft: #26362b; --blue: #7d9bb0;
-  --surf-0: #0b0c0e; --surf-1: #14161a; --surf-2: #1c2024; --line-soft: #363d44;
-}
-:root[data-theme="desert"] {
-  --bg: #14110c; --bg-elevated: #1a1610; --panel: #211c14; --panel-2: #29231a; --panel-3: #342c20;
-  --line: #3b3325; --line-strong: #54492f; --text: #f3ecdc; --text-muted: #b1a68d; --text-dim: #857b64;
-  --brass: #d4a45a; --brass-strong: #e8b96a; --green: #a3a26b; --green-soft: #34331d; --blue: #8e9aa0;
-  --surf-0: #100d09; --surf-1: #1b1710; --surf-2: #262016; --line-soft: #4a3f2b;
-}
-:root[data-theme="steel"] {
-  --bg: #090e13; --bg-elevated: #0e151c; --panel: #121b24; --panel-2: #172330; --panel-3: #1e2d3d;
-  --line: #24384a; --line-strong: #35506a; --text: #e9f0f6; --text-muted: #93a6b6; --text-dim: #66798a;
-  --brass: #6fb6d9; --brass-strong: #8fcbe9; --green: #6fae9a; --green-soft: #1b3a38; --blue: #7ea6d0;
-  --surf-0: #070b0f; --surf-1: #101820; --surf-2: #16212c; --line-soft: #2c4256;
-}
-:root[data-theme="crimson"] {
-  --bg: #120b0b; --bg-elevated: #1a1010; --panel: #211515; --panel-2: #291a1a; --panel-3: #352222;
-  --line: #3d2626; --line-strong: #573535; --text: #f3e9e7; --text-muted: #b19b97; --text-dim: #85706c;
-  --brass: #d08a5a; --brass-strong: #e6a06e; --green: #8fa683; --green-soft: #2f3a24; --blue: #94a0b0;
-  --surf-0: #0e0808; --surf-1: #1b1111; --surf-2: #261818; --line-soft: #4a2e2e;
 }
 
 /* Interface shape */

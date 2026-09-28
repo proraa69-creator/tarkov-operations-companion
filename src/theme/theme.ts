@@ -2,10 +2,8 @@ export interface ThemeOption { id: string; label: string; swatch: [string, strin
 
 export const THEMES: ThemeOption[] = [
   { id: 'tarkov', label: 'Тарков', swatch: ['#0a0f0c', '#19241e', '#c4a665'] },
-  { id: 'graphite', label: 'Графит', swatch: ['#0d0e10', '#1e2226', '#c4a665'] },
-  { id: 'desert', label: 'Пустыня', swatch: ['#14110c', '#29231a', '#d4a45a'] },
-  { id: 'steel', label: 'Сталь', swatch: ['#090e13', '#172330', '#6fb6d9'] },
-  { id: 'crimson', label: 'Багровый', swatch: ['#120b0b', '#291a1a', '#d08a5a'] },
+  { id: 'steel', label: 'Сталь', swatch: ['#0c0e10', '#272c31', '#b9c6d0'] },
+  { id: 'crimson', label: 'Багровый', swatch: ['#100909', '#301c1c', '#e0894f'] },
 ]
 
 export const SHAPES = [
@@ -44,3 +42,14 @@ export function saveAppearance(theme: string, shape: string) {
   } catch { /* storage unavailable */ }
   applyAppearance(theme, shape === 'angular' ? 'angular' : 'rounded')
 }
+
+/** Next theme in the list, for the top-bar button that cycles through them. */
+export function cycleTheme() {
+  const index = THEMES.findIndex((theme) => theme.id === currentTheme())
+  const next = THEMES[(index + 1) % THEMES.length]!
+  saveAppearance(next.id, currentShape())
+  window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
+  return next
+}
+
+export const THEME_CHANGED_EVENT = 'tarkov-theme-changed'

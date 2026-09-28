@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -553,7 +553,7 @@ export function TradersPage() {
   );
 }
 
-import { SHAPES, THEMES, currentShape, currentTheme, saveAppearance } from "../theme/theme";
+import { SHAPES, THEMES, THEME_CHANGED_EVENT, currentShape, currentTheme, saveAppearance } from "../theme/theme";
 
 export function SettingsPage() {
   const { data, source, updatedAt, refresh, isFetching } = useTarkovData();
@@ -567,6 +567,11 @@ export function SettingsPage() {
     setShape(nextShape);
     saveAppearance(nextTheme, nextShape);
   };
+  useEffect(() => {
+    const sync = () => setTheme(currentTheme());
+    window.addEventListener(THEME_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
+  }, []);
   const counts = data.metadata?.counts;
   return (
     <div className="page">
