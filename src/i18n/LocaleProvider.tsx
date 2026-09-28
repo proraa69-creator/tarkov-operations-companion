@@ -8,7 +8,9 @@ const LocaleContext = createContext<{ locale: AppLocale; revision: number; setLo
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<AppLocale>(() => localStorage.getItem(KEY) === 'en' ? 'en' : 'ru')
   const [revision, setRevision] = useState(0)
-  setRenderLanguage(locale)
+  useEffect(() => {
+    setRenderLanguage(locale)
+  }, [locale])
   useEffect(() => {
     const refresh = () => setRevision((value) => value + 1)
     window.addEventListener('companion-translations-ready', refresh)
