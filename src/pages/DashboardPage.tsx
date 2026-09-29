@@ -12,6 +12,7 @@ import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
 import { MapSlideshow } from '../components/MapSlideshow'
 import { GoonCard } from '../components/GoonCard'
 import { MapPriority } from '../components/MapPriority'
+import { BossFigures } from '../components/BossFigures'
 import { useLocale } from '../i18n/LocaleProvider'
 
 export function DashboardPage() {
@@ -59,6 +60,7 @@ export function DashboardPage() {
       <div className="dashboard-column">
         <section className="panel raid-card">
           <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
+          <BossFigures mapId={selectedMap.id} />
           <div className="raid-content">
             <div className="raid-main">
               <span className="tag brass">{uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
