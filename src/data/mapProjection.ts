@@ -20,8 +20,13 @@ export function outlineToLatLng(outline: unknown): Array<[number, number]> | und
   return points.length >= 3 ? points : undefined
 }
 
+/**
+ * The marker point, placed like tarkov.dev does: at the feed's `position` (the gate, the door, the quest spot);
+ * the outline centre is only a fallback. Outline centres drifted far from the real point: Labs «Parking Gate»
+ * 23 m out into the parking lot, «Hangar Gate» 27 m, Woods «Ice Cream Cones» bunker zone 448 m off the map.
+ */
 export function markerPosition(position: GamePosition | undefined, outline: unknown): [number, number] | undefined {
-  return polygonCenter(outlineToLatLng(outline)) ?? positionToLatLng(position)
+  return positionToLatLng(position) ?? polygonCenter(outlineToLatLng(outline))
 }
 
 export function heightRange(top: unknown, bottom: unknown): [number, number] | undefined {

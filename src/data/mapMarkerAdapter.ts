@@ -1,4 +1,4 @@
-import type { GameMap, Item, MapMarker, MarkerLayerId, MarkerType, Quest } from '../domain/types'
+import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerType, PossibleSpot, Quest } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { BATTLE_PASS_DOCUMENTS } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -137,7 +137,7 @@ function allowedZone(mapId: string, mobId: string, zone: string) {
 }
 
 function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRecord>, items: Map<string, Item>): MapMarker[] {
-  const placed: Array<{ key: string; x: number; z: number }> = []
+  const placed: Array<{ key: string; origin: string; x: number; z: number }> = []
   return asArray(rawMap.bosses).flatMap((boss, bossIndex) => {
     const mobKey = text(boss.mob)
     const mob = mobs.get(mobKey)
@@ -173,10 +173,12 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
         const z = number(position.z)
         const key = isGoons ? 'goons' : mobId || name
         // The same boss listed twice (two raider groups, a duplicated zone) at one place is one marker.
-        if (placed.some((entry) => entry.key === key && Math.hypot(entry.x - x, entry.z - z) < SAME_SPOT_METRES)) return []
+        const origin = `${bossIndex}-${locationIndex}`
+        // Spots of one zone are already separated by spawnSpots, so only other listings are compared.
+        if (placed.some((entry) => entry.key === key && entry.origin !== origin && Math.hypot(entry.x - x, entry.z - z) < SAME_SPOT_METRES)) return []
         const base = baseMarker(map, `boss-${bossIndex}-${locationIndex}-${spotIndex}`, position, undefined, position.y, position.y)
         if (!base) return []
-        placed.push({ key, x, z })
+        placed.push({ key, origin, x, z })
         return [{
           ...base,
           type: 'boss',
@@ -198,28 +200,28 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
   })
 }
 
-/** Groups a zone's spawn points into separate spots, each at the centre of its nearby points. */
+/**
+ * Groups a zone's spawn points into separate spots. Each spot is drawn at its most central real spawn point
+ * (the medoid): an average of the points landed 10–20 m away from any spawn (Shturman at the sawmill,
+ * Tagilla at ULTRA, the Cultist Priest in the broken village), sometimes outside the building.
+ */
 function spawnSpots(positions: JsonRecord[]) {
   const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
   if (!valid.length) return positions.slice(0, 1)
-  const groups: JsonRecord[][] = []
+  const near = (a: JsonRecord, b: JsonRecord) => Math.hypot(number(a.x) - number(b.x), number(a.z) - number(b.z)) < SAME_SPOT_METRES
+  // Single linkage: a point joins every group it is near, and those groups become one (the order of points
+  // must not split one place into two markers 12 m apart, as happened with Kaban in the car showroom).
+  let groups: JsonRecord[][] = []
   for (const position of valid) {
-    const group = groups.find((entry) => entry.some((other) => Math.hypot(number(other.x) - number(position.x), number(other.z) - number(position.z)) < SAME_SPOT_METRES))
-    if (group) group.push(position)
-    else groups.push([position])
+    const touching = groups.filter((group) => group.some((other) => near(other, position)))
+    groups = [...groups.filter((group) => !touching.includes(group)), [...touching.flat(), position]]
   }
-  return groups.map(averagePosition).filter((position): position is JsonRecord => Boolean(position))
+  return groups.map(centralPosition)
 }
 
-function averagePosition(positions: JsonRecord[]) {
-  if (positions.length < 2) return positions[0]
-  const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
-  if (!valid.length) return positions[0]
-  return {
-    x: valid.reduce((sum, position) => sum + number(position.x), 0) / valid.length,
-    y: valid.reduce((sum, position) => sum + number(position.y), 0) / valid.length,
-    z: valid.reduce((sum, position) => sum + number(position.z), 0) / valid.length,
-  }
+function centralPosition(positions: JsonRecord[]) {
+  const spread = (candidate: JsonRecord) => positions.reduce((sum, other) => sum + Math.hypot(number(other.x) - number(candidate.x), number(other.z) - number(candidate.z)), 0)
+  return positions.reduce((best, candidate) => (spread(candidate) < spread(best) ? candidate : best), positions[0])
 }
 
 function mobIndex(rawMobs: JsonRecord) {
@@ -325,20 +327,73 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
   return [...containerMarkers, ...looseMarkers]
 }
 
+/** TerraGroup Labs keycards by tarkov.dev item id (names are localized, ids are not). */
+const KEYCARD_IDS: Record<string, KeycardColor> = {
+  '5c1d0efb86f7744baf2e7b7b': 'red',
+  '5c1d0dc586f7744baf2e7b79': 'green',
+  '5c1d0c5f86f7744bb2683cf0': 'blue',
+  '5c1e495a86f7743109743dfb': 'violet',
+  '5c1d0d6d86f7744bb2683e1f': 'yellow',
+  '5c1d0f4986f7744bb01837fa': 'black',
+  '5efde6b4f5448336730dbd61': 'blue-marking',
+  '6711039f9e648049e50b3307': 'residential',
+  '5c94bbff86f7747ee735c08f': 'access',
+}
+
+const KEYCARD_NAME_PATTERNS: Array<[RegExp, KeycardColor]> = [
+  [/blue marking|синей (полос|марк|метк)/i, 'blue-marking'],
+  [/residential|жил(ого|ой|ые)/i, 'residential'],
+  [/access keycard|пропуск|доступа/i, 'access'],
+  [/\(red\)|красн/i, 'red'],
+  [/\(green\)|зел[её]н/i, 'green'],
+  [/\(violet\)|фиолет/i, 'violet'],
+  [/\(yellow\)|ж[её]лт/i, 'yellow'],
+  [/\(black\)|ч[её]рн/i, 'black'],
+  [/\(blue\)|син/i, 'blue'],
+]
+
+export function keycardColor(keyId: string, keyName = ''): KeycardColor | undefined {
+  if (KEYCARD_IDS[keyId]) return KEYCARD_IDS[keyId]
+  if (!/keycard|ключ-?карт/i.test(keyName)) return undefined
+  return KEYCARD_NAME_PATTERNS.find(([pattern]) => pattern.test(keyName))?.[1]
+}
+
+const KEYCARD_LABELS: Record<KeycardColor, string> = {
+  red: 'Ключ-карта TerraGroup Labs (красная)',
+  green: 'Ключ-карта TerraGroup Labs (зелёная)',
+  blue: 'Ключ-карта TerraGroup Labs (синяя)',
+  violet: 'Ключ-карта TerraGroup Labs (фиолетовая)',
+  yellow: 'Ключ-карта TerraGroup Labs (жёлтая)',
+  black: 'Ключ-карта TerraGroup Labs (чёрная)',
+  'blue-marking': 'Ключ-карта с синей полосой',
+  residential: 'Ключ-карта жилого блока TerraGroup Labs',
+  access: 'Ключ-карта доступа в Лабораторию',
+}
+
 function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   return asArray(rawMap.locks).flatMap((lock, index) => {
     const base = baseMarker(map, `lock-${text(lock.id, String(index))}`, lock.position, undefined, asRecord(lock.position).y, asRecord(lock.position).y)
     if (!base) return []
-    const keyId = text(lock.key)
+    const keyId = text(lock.key) || text(asRecord(lock.key).id)
     const key = items.get(keyId)
+    const keycard = keycardColor(keyId, key?.name ?? text(asRecord(lock.key).name))
+    // tarkov.dev names the card in the catalog language; a Russian catalog without the name gets our label.
+    const keyName = (key?.name ?? text(asRecord(lock.key).name)).trim()
+    const shownName = keyName || (keycard ? KEYCARD_LABELS[keycard] : '')
+    const needsPower = Boolean(lock.needsPower)
+    const needs = keycard ? `Нужна ключ-карта «${shownName}».` : `Нужен ключ «${shownName}».`
+    const lockType = text(lock.lockType, 'door')
+    const lockLabel = lockType === 'container' ? 'Запертый контейнер' : lockType === 'trunk' ? 'Дверь или багажник машины' : 'Дверь'
     return [{
       ...base,
       type: 'key' as const,
       layerId: 'key' as const,
-      title: key ? `Дверь: ${key.shortName || key.name}` : 'Запертая дверь',
-      description: `${key ? `Нужен ключ «${key.name}».` : 'Требуется ключ.'}${lock.needsPower ? ' Также необходимо питание.' : ''}`,
-      meta: text(lock.lockType, 'door'),
+      title: shownName ? `${lockLabel} · открывает: ${shownName}` : lockType === 'door' ? 'Запертая дверь' : lockLabel,
+      description: `${shownName ? needs : 'Требуется ключ.'}${needsPower ? ' Также необходимо питание.' : ''}`,
+      // Keycard doors show the card colour in the tooltip instead.
+      meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,
+      lock: { keyId: keyId || undefined, keyName: shownName, keycard, needsPower: needsPower || undefined },
       source: 'json.tarkov.dev/maps',
     }]
   })
@@ -363,53 +418,147 @@ function adaptStationaryWeapons(map: GameMap, rawMap: JsonRecord, items: Map<str
   })
 }
 
+/** Candidate points of one objective closer than this (and on one floor) are one room / building. */
+export const POSSIBLE_SPOT_METRES = 20
+/** Height difference that still counts as the same floor. */
+const SAME_FLOOR_METRES = 3
+/** The same zone or spawn point listed twice (e.g. once per map variant) is drawn once; distinct points are all kept. */
+const DUPLICATE_POINT_METRES = 0.25
+
+interface QuestPoint {
+  kind: 'zone' | 'item'
+  map: GameMap
+  x: number
+  y?: number
+  z: number
+  idSuffix: string
+  zone?: JsonRecord
+  position: JsonRecord
+}
+
 function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
   const markers: MapMarker[] = []
   const maps = new Map(context.maps.map((map) => [map.id, map]))
 
   for (const quest of context.quests) {
     const rawTask = asRecord(asRecord(taskRoot.tasks)[quest.id])
+    const questMarkers: MapMarker[] = []
     for (const objective of asArray(rawTask.objectives)) {
+      const objectiveId = text(objective.id)
+      const points: QuestPoint[] = []
       for (const zone of asArray(objective.zones)) {
         const map = resolveMap(text(zone.map) || strings(objective.maps)[0], context, maps)
         if (!map) continue
-        const base = baseMarker(map, `quest-zone-${quest.id}-${text(zone.id, text(objective.id))}`, zone.position, zone.outline, zone.top, zone.bottom)
-        if (!base) continue
-        markers.push({
-          ...base,
-          type: 'quest',
-          layerId: objectiveLayer(objective),
-          title: quest.name,
-          description: text(objective.description, 'Зона выполнения задания.'),
-          meta: `${quest.trader} · ур. ${quest.level}`,
-          questId: quest.id,
-          source: 'json.tarkov.dev/tasks',
-        })
+        const center = asRecord(zone.position)
+        points.push({ kind: 'zone', map, ...pointCoords(center), idSuffix: text(zone.id, objectiveId), zone, position: center })
       }
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
-      for (const location of asArray(objective.possibleLocations)) {
+      asArray(objective.possibleLocations).forEach((location, locationIndex) => {
         const map = resolveMap(text(location.map) || strings(objective.maps)[0], context, maps)
-        if (!map) continue
+        if (!map) return
         asArray(location.positions).forEach((position, index) => {
-          const base = baseMarker(map, `quest-item-${quest.id}-${text(objective.id)}-${index}`, position, undefined, undefined, undefined)
+          const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
+          points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })
+        })
+      })
+      const itemObjective = objectiveLayer(objective) === 'quest.item' || asArray(objective.possibleLocations).length > 0
+      const itemId = text(objective.questItem) || text(asRecord(objective.questItem).id) || undefined
+      for (const mapPoints of groupBy(uniquePoints(points), (point) => point.map.id).values()) {
+        const possible = possibleSpots(mapPoints, itemObjective)
+        mapPoints.forEach((point, index) => {
+          const base = point.kind === 'zone'
+            ? baseMarker(point.map, `quest-zone-${quest.id}-${point.idSuffix}`, point.position, point.zone?.outline, point.zone?.top, point.zone?.bottom)
+            : baseMarker(point.map, `quest-item-${quest.id}-${point.idSuffix}`, point.position, undefined, undefined, undefined)
           if (!base) return
-          markers.push({
+          const spot = possible.get(index)
+          const isItem = point.kind === 'item'
+          questMarkers.push({
             ...base,
             type: 'quest',
-            layerId: 'quest.item',
+            layerId: isItem ? 'quest.item' : objectiveLayer(objective),
             title: quest.name,
-            description: text(objective.description, 'Квестовый предмет.'),
-            meta: `${quest.trader} · ур. ${quest.level} · место предмета`,
+            description: text(objective.description, isItem ? 'Квестовый предмет.' : 'Зона выполнения задания.'),
+            // «Возможное место предмета · 1 из 4» is drawn by the tooltip from `possibleSpot`.
+            meta: `${quest.trader} · ур. ${quest.level}${isItem && !spot ? ' · место предмета' : ''}`,
             questId: quest.id,
-            itemId: text(objective.questItem) || text(asRecord(objective.questItem).id) || undefined,
+            objectiveId: objectiveId || undefined,
+            possibleSpot: spot,
+            itemId: isItem ? itemId : undefined,
             source: 'json.tarkov.dev/tasks',
           })
         })
       }
     }
+    markers.push(...unifyQuestLayers(questMarkers))
   }
 
   return markers
+}
+
+function pointCoords(position: JsonRecord) {
+  const y = Number(position.y)
+  return { x: number(position.x), y: position.y == null || !Number.isFinite(y) ? undefined : y, z: number(position.z) }
+}
+
+function sameFloor(a: { y?: number }, b: { y?: number }, metres: number) {
+  return a.y == null || b.y == null || Math.abs(a.y - b.y) <= metres
+}
+
+/** Drops repeated points of one objective (tarkov.dev lists some zones twice, e.g. once per map variant). */
+function uniquePoints(points: QuestPoint[]) {
+  const kept: QuestPoint[] = []
+  for (const point of points) {
+    const twin = kept.find((other) => other.map.id === point.map.id && other.kind === point.kind
+      && Math.hypot(other.x - point.x, other.z - point.z) < DUPLICATE_POINT_METRES && sameFloor(other, point, DUPLICATE_POINT_METRES))
+    if (!twin) kept.push(point)
+  }
+  return kept
+}
+
+/**
+ * Candidate points of one objective on one map. The item of a find objective lies at one of its listed
+ * spawn points, so all of them are «possible places». Zones of other objectives count as alternatives
+ * only when several of them sit in one room / building (closer than POSSIBLE_SPOT_METRES, same floor).
+ */
+export function possibleSpots(points: Array<{ x: number; y?: number; z: number }>, itemObjective: boolean): Map<number, PossibleSpot> {
+  const result = new Map<number, PossibleSpot>()
+  if (points.length < 2) return result
+  const candidates = itemObjective
+    ? points.map((_, index) => index)
+    : points.map((_, index) => index).filter((index) => points.some((other, otherIndex) => otherIndex !== index
+      && Math.hypot(other.x - points[index].x, other.z - points[index].z) <= POSSIBLE_SPOT_METRES
+      && sameFloor(other, points[index], SAME_FLOOR_METRES)))
+  if (candidates.length < 2) return result
+  candidates.forEach((pointIndex, order) => result.set(pointIndex, { kind: itemObjective ? 'item' : 'zone', index: order + 1, count: candidates.length }))
+  return result
+}
+
+/** «Возможное место предмета · 2 из 4»: the tooltip / card line for a candidate point (also for the map card). */
+export function possibleSpotText(spot: PossibleSpot) {
+  return `${spot.kind === 'item' ? 'Возможное место предмета' : 'Возможная точка задания'} · ${spot.index} из ${spot.count}`
+}
+
+/**
+ * One quest keeps one icon on a map: a quest whose points there are all item spawns stays «Квестовый предмет»,
+ * any other quest (e.g. «visit the room» + «find the drive» in that room) is drawn with the quest icon everywhere.
+ */
+function unifyQuestLayers(markers: MapMarker[]): MapMarker[] {
+  const layerByMap = new Map<string, MarkerLayerId>()
+  for (const [mapId, onMap] of groupBy(markers, (marker) => marker.mapId)) {
+    layerByMap.set(mapId, onMap.every((marker) => marker.layerId === 'quest.item') ? 'quest.item' : 'quest.zone')
+  }
+  return markers.map((marker) => ({ ...marker, layerId: layerByMap.get(marker.mapId) ?? marker.layerId }))
+}
+
+function groupBy<T>(values: T[], key: (value: T) => string) {
+  const groups = new Map<string, T[]>()
+  for (const value of values) {
+    const id = key(value)
+    const group = groups.get(id)
+    if (group) group.push(value)
+    else groups.set(id, [value])
+  }
+  return groups
 }
 
 function resolveApiMapId(rawId: string, context: MarkerContext) {

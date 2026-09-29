@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+<!-- Tactical-style locked door with a keycard reader for the «Ключи/двери» layer. -->
+<defs>
+<linearGradient id="dlbody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9d7e4"/><stop offset="0.55" stop-color="#8ea8c4"/><stop offset="1" stop-color="#4e6479"/></linearGradient>
+<linearGradient id="dlreader" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56636e"/><stop offset="1" stop-color="#23292f"/></linearGradient>
+<radialGradient id="dlshadow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000" stop-opacity="0.6"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+</defs>
+<ellipse cx="30" cy="58" rx="22" ry="4.5" fill="url(#dlshadow)"/>
+<path d="M12 57 V10 A2 2 0 0 1 14 8 H40 A2 2 0 0 1 42 10 V57 Z" fill="#2b343c"/>
+<path d="M16 57 V12 H38 V57 Z" fill="url(#dlbody)"/>
+<path d="M19 15.5 H35 V29 H19 Z M19 33 H35 V53 H19 Z" fill="#dfe8f0" opacity="0.35"/>
+<circle cx="33.5" cy="33" r="2.4" fill="#161a17"/>
+<rect x="45" y="21" width="11" height="19" rx="2" fill="url(#dlreader)" stroke="#11161a" stroke-width="2"/>
+<rect x="47.4" y="24" width="6.2" height="3.4" rx="0.8" fill="#6ee07a"/>
+<path d="M47.8 31.5 H53.2 M47.8 35 H53.2" stroke="#aebdcb" stroke-width="1.4" stroke-linecap="round"/>
+<path d="M12 57 V10 A2 2 0 0 1 14 8 H40 A2 2 0 0 1 42 10 V57 M7 57 H47" fill="none" stroke="#11161a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -5,7 +5,8 @@ import transition from './map-markers/04_transition.png'
 // Quest and quest-item markers are red geotag pins drawn in the tactical style.
 import quest from './map-markers/geotag/quest-tactical.svg'
 import questItem from './map-markers/geotag/quest-item-tactical.svg'
-import key from './map-markers/07_key.png'
+// Locked doors and keycard readers (the «key» layer holds tarkov.dev locks), drawn as a door with a card reader.
+import key from './map-markers/geotag/door-lock-tactical.svg'
 import boss from './map-markers/08_boss.png'
 import spawn from './map-markers/09_spawn.png'
 import danger from './map-markers/10_danger.png'

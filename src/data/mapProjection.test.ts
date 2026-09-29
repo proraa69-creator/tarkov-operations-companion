@@ -16,6 +16,13 @@ describe('map projection helpers', () => {
     ])).toEqual([5, 5])
   })
 
+  it('places the marker at the feed position, not at a drifted outline centre', () => {
+    // Labs «Parking Gate»: the exit zone is the parking lot outside, the marker belongs at the gate.
+    expect(markerPosition({ x: -231.73, z: -434.8 }, [
+      { x: -251.9, z: -477.7 }, { x: -211.1, z: -477.7 }, { x: -211.1, z: -437 }, { x: -251.9, z: -437 },
+    ])).toEqual([-434.8, -231.73])
+  })
+
   it('matches markers to floors by overlapping height range', () => {
     const map = {
       id: 'test',

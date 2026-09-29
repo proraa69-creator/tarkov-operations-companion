@@ -1,7 +1,8 @@
 import { uiText } from '../i18n/renderText'
 import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
-import type { BossInfo, Item, MapMarker } from '../domain/types'
+import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
+import { possibleSpotText } from '../data/mapMarkerAdapter'
 
 interface MapMarkerTooltipProps {
   marker: MapMarker
@@ -48,10 +49,42 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
         </div>
       ))}
 
+      {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
+      {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
       {uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {uiText(!boss && marker.meta && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>
+  )
+}
+
+const possibleRing: CSSProperties = {
+  width: 10, height: 10, flex: '0 0 auto', borderRadius: '50%', border: '1.5px dashed var(--marker-color)', boxSizing: 'border-box',
+}
+
+function PossibleSpotLine({ spot }: { spot: PossibleSpot }) {
+  return (
+    <p className="mmt-meta mmt-possible" style={{ color: 'var(--marker-color)', fontWeight: 700 }}>
+      <span aria-hidden="true" style={possibleRing} />
+      {uiText(possibleSpotText(spot))}
+    </p>
+  )
+}
+
+const KEYCARD_SWATCH: Record<KeycardColor, [string, string]> = {
+  red: ['#d6403a', 'красная'], green: ['#4fae5a', 'зелёная'], blue: ['#3f78d8', 'синяя'], violet: ['#9a5bd6', 'фиолетовая'],
+  yellow: ['#e2c23b', 'жёлтая'], black: ['#1b1b1b', 'чёрная'], 'blue-marking': ['#6fa7e6', 'с синей полосой'],
+  residential: ['#b9c2c9', 'жилой блок'], access: ['#e7e2d0', 'доступ в Лабораторию'],
+}
+
+/** Keycard doors: a swatch in the card's colour next to «Ключ-карта: красная». */
+function KeycardLine({ keycard }: { keycard: KeycardColor }) {
+  const [color, label] = KEYCARD_SWATCH[keycard]
+  return (
+    <p className="mmt-meta mmt-lock">
+      <span aria-hidden="true" style={{ width: 14, height: 9, flex: '0 0 auto', borderRadius: 2, border: '1px solid #cfd6d0', background: color }} />
+      {uiText(`Ключ-карта: ${label}`)}
+    </p>
   )
 }
 

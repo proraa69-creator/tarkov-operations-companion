@@ -149,6 +149,25 @@ export interface BossInfo {
   health?: number
 }
 
+export interface PossibleSpot {
+  kind: 'item' | 'zone'
+  /** 1-based position of this point among the objective's candidates on the map. */
+  index: number
+  /** Number of candidate points of the objective on this map. */
+  count: number
+}
+
+export type KeycardColor = 'red' | 'green' | 'blue' | 'violet' | 'yellow' | 'black' | 'blue-marking' | 'residential' | 'access'
+
+export interface MarkerLock {
+  /** Key or keycard item id (tarkov.dev). */
+  keyId?: string
+  keyName: string
+  /** Set for TerraGroup Labs keycards and other card readers. */
+  keycard?: KeycardColor
+  needsPower?: boolean
+}
+
 export interface MapMarker {
   id: string
   mapId: string
@@ -166,6 +185,15 @@ export interface MapMarker {
   approximate?: boolean
   boss?: BossInfo
   questId?: string
+  /** tarkov.dev objective id; all markers of one objective share it (and one icon). */
+  objectiveId?: string
+  /**
+   * The point is one of several candidates of one quest objective: the item spawns at one of them
+   * (`kind: 'item'`) or any of the close-together zones counts (`kind: 'zone'`). Shown as «Возможное место».
+   */
+  possibleSpot?: PossibleSpot
+  /** Locked door / keycard reader: which key opens it. */
+  lock?: MarkerLock
   stageIndex?: number
   itemId?: string
   extractId?: string

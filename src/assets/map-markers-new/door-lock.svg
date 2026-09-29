@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Locked door with a keycard reader: «Ключи/двери» layer (locks from tarkov.dev map data). -->
+<path d="M8 43 V7.5 A1.5 1.5 0 0 1 9.5 6 H29.5 A1.5 1.5 0 0 1 31 7.5 V43 Z" fill="#8ea8c4"/>
+<path d="M11.5 43 V9.5 H27.5 V43" fill="#b7cadc"/>
+<path d="M13.5 12 H25.5 V22 H13.5 Z M13.5 26 H25.5 V39 H13.5 Z" fill="#8ea8c4" opacity="0.55"/>
+<circle cx="24.5" cy="25" r="1.8" fill="#161a17"/>
+<rect x="34" y="16" width="8.5" height="15" rx="1.5" fill="#39434c"/>
+<rect x="35.8" y="18.2" width="4.9" height="2.6" rx="0.6" fill="#62d06e"/>
+<path d="M36.2 24.2 H40.3 M36.2 27.2 H40.3" stroke="#aebdcb" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M8 43 V7.5 A1.5 1.5 0 0 1 9.5 6 H29.5 A1.5 1.5 0 0 1 31 7.5 V43 M4.5 43 H34.5" fill="none" stroke="#161a17" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<rect x="34" y="16" width="8.5" height="15" rx="1.5" fill="none" stroke="#161a17" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>

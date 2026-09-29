@@ -167,3 +167,118 @@ describe('boss spawn spots', () => {
     expect(result.filter((marker) => marker.layerId === 'boss').map((marker) => marker.title)).toEqual(['Рейдеры'])
   })
 })
+
+describe('boss spot placement', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const mobs = { bossBoar: { name: 'Кабан', normalizedName: 'kaban' } }
+
+  it('draws a spot at a real spawn point (medoid), not at the average of its points', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { 'streets-of-tarkov': { normalizedName: 'streets-of-tarkov', bosses: [
+      { mob: 'bossBoar', spawnLocations: [{ name: 'ZoneCarShowroom', positions: [{ x: 0, y: 0, z: 0 }, { x: 30, y: 0, z: 0 }, { x: 10, y: 0, z: 0 }] }] },
+    ] } } }, {}, context)
+    expect(result.filter((marker) => marker.layerId === 'boss').map((marker) => marker.position)).toEqual([[0, 10]])
+  })
+
+  it('does not split one place into two markers because of the point order', () => {
+    // 0 and 80 are far apart; 40 links them, so all three are one car showroom.
+    const result = adaptLiveMapMarkers({ mobs, maps: { 'streets-of-tarkov': { normalizedName: 'streets-of-tarkov', bosses: [
+      { mob: 'bossBoar', spawnLocations: [{ name: 'ZoneCarShowroom', positions: [{ x: 0, y: 0, z: 0 }, { x: 80, y: 0, z: 0 }, { x: 40, y: 0, z: 0 }] }] },
+    ] } } }, {}, context)
+    expect(result.filter((marker) => marker.layerId === 'boss')).toHaveLength(1)
+  })
+})
+
+describe('marker points follow the feed position', () => {
+  it('puts the Labs Parking Gate marker at the gate, not in the middle of its parking-lot zone', () => {
+    const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const result = adaptLiveMapMarkers({ maps: { lab: { normalizedName: 'the-lab', extracts: [{
+      id: 'parking', faction: 'pmc', name: 'Parking Gate', position: { x: -231.73, y: 0.77, z: -434.82 },
+      outline: [{ x: -251.9, z: -477.7 }, { x: -211.1, z: -477.7 }, { x: -211.1, z: -437 }, { x: -251.9, z: -437 }],
+    }] } } }, {}, context)
+    expect(result[0].position).toEqual([-434.82, -231.73])
+  })
+})
+
+describe('quest markers: one icon per quest and «возможное место»', () => {
+  const quest = (id: string, name: string): Quest => ({ id, name, trader: 'Терапевт', mapId: 'ground-zero', mapIds: ['ground-zero'], level: 1, kappa: true, description: '', objectives: [], rewards: [] })
+  const context = (quests: Quest[]) => ({ maps, quests, items: new Map(), mapNameByApiId: new Map([['gz', 'ground-zero']]) })
+
+  it('draws the visited room and the item spawns in it with one icon and marks the spawns as possible places', () => {
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { mole: { objectives: [
+      { id: 'visit', type: 'visit', description: 'Найти комнату', zones: [{ id: 'room', map: 'gz', position: { x: -13.5, y: 31, z: 51.3 } }] },
+      { id: 'drive', type: 'findQuestItem', description: 'Найти жёсткий диск', questItem: { id: 'hdd' }, possibleLocations: [{ map: 'gz', positions: [
+        { x: -11.95, y: 30.23, z: 49.59 }, { x: -12.36, y: 30.69, z: 49.03 }, { x: -12.13, y: 30.69, z: 48.04 },
+      ] }] },
+    ] } } }, context([quest('mole', 'Спасти крота')]))
+    const markers = result.filter((marker) => marker.questId === 'mole')
+    expect(markers).toHaveLength(4)
+    expect(new Set(markers.map((marker) => marker.layerId))).toEqual(new Set(['quest.zone']))
+    const spawns = markers.filter((marker) => marker.objectiveId === 'drive')
+    expect(spawns.map((marker) => marker.possibleSpot)).toEqual([
+      { kind: 'item', index: 1, count: 3 }, { kind: 'item', index: 2, count: 3 }, { kind: 'item', index: 3, count: 3 },
+    ])
+    expect(spawns.every((marker) => marker.itemId === 'hdd')).toBe(true)
+    expect(markers.find((marker) => marker.objectiveId === 'visit')?.possibleSpot).toBeUndefined()
+  })
+
+  it('keeps the quest-item icon for a quest that only has item spawns; one spawn is not a «possible» place', () => {
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: {
+      many: { objectives: [{ id: 'a', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 0, y: 0, z: 0 }, { x: 200, y: 0, z: 0 }] }] }] },
+      one: { objectives: [{ id: 'b', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 5, y: 0, z: 5 }] }] }] },
+    } }, context([quest('many', 'Много'), quest('one', 'Один')]))
+    const many = result.filter((marker) => marker.questId === 'many')
+    expect(many.map((marker) => marker.layerId)).toEqual(['quest.item', 'quest.item'])
+    expect(many.map((marker) => marker.possibleSpot?.count)).toEqual([2, 2])
+    const one = result.find((marker) => marker.questId === 'one')
+    expect(one?.layerId).toBe('quest.item')
+    expect(one?.possibleSpot).toBeUndefined()
+    expect(one?.meta).toContain('место предмета')
+  })
+
+  it('treats close zones of one objective on one floor as alternatives, keeps far or other-floor zones apart, draws a repeated zone once', () => {
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { mark: { objectives: [
+      { id: 'close', type: 'mark', zones: [
+        { id: 'z1', map: 'gz', position: { x: 0, y: 1, z: 0 } },
+        { id: 'z2', map: 'gz', position: { x: 12, y: 1.5, z: 0 } },
+        { id: 'z2-copy', map: 'gz', position: { x: 12, y: 1.5, z: 0 } },
+        { id: 'upstairs', map: 'gz', position: { x: 6, y: 9, z: 0 } },
+        { id: 'far', map: 'gz', position: { x: 300, y: 1, z: 0 } },
+      ] },
+    ] } } }, context([quest('mark', 'Метка')]))
+    const byId = new Map(result.map((marker) => [marker.id.replace('ground-zero-quest-zone-mark-', ''), marker]))
+    expect([...byId.keys()].sort()).toEqual(['far', 'upstairs', 'z1', 'z2'])
+    expect(byId.get('z1')?.possibleSpot).toEqual({ kind: 'zone', index: 1, count: 2 })
+    expect(byId.get('z2')?.possibleSpot).toEqual({ kind: 'zone', index: 2, count: 2 })
+    expect(byId.get('upstairs')?.possibleSpot).toBeUndefined()
+    expect(byId.get('far')?.possibleSpot).toBeUndefined()
+  })
+})
+
+describe('Labs keycard doors', () => {
+  const items = new Map([
+    ['5c1d0efb86f7744baf2e7b7b', { id: '5c1d0efb86f7744baf2e7b7b', name: 'Ключ-карта TerraGroup Labs (Красная)', shortName: 'Красная', category: 'Ключ' as const, description: '', prices: [] }],
+    ['5c1e2a1e86f77431ea0ea84c', { id: '5c1e2a1e86f77431ea0ea84c', name: 'Ключ от кабинета управляющего TerraGroup Labs', shortName: 'Кабинет', category: 'Ключ' as const, description: '', prices: [] }],
+  ])
+  const context = { maps, quests: [] as Quest[], items, mapNameByApiId: new Map<string, string>() }
+
+  it('says which keycard opens a door and keeps doors on the «key» layer', () => {
+    const result = adaptLiveMapMarkers({ maps: { lab: { normalizedName: 'the-lab', locks: [
+      { id: 'red', lockType: 'door', key: '5c1d0efb86f7744baf2e7b7b', position: { x: -257.2, y: 5.25, z: -322.9 } },
+      { id: 'manager', lockType: 'door', key: '5c1e2a1e86f77431ea0ea84c', position: { x: -165.2, y: 5.16, z: -349.2 } },
+      { id: 'blue-marking', lockType: 'door', key: '5efde6b4f5448336730dbd61', needsPower: true, position: { x: -130.3, y: 5.16, z: -339.9 } },
+      { id: 'safe', lockType: 'container', key: '5c1e2a1e86f77431ea0ea84c', position: { x: -160, y: 5, z: -340 } },
+    ] } } }, {}, context)
+    const red = result.find((marker) => marker.id === 'the-lab-lock-red')
+    expect(red).toMatchObject({ layerId: 'key', title: 'Дверь · открывает: Ключ-карта TerraGroup Labs (Красная)', itemId: '5c1d0efb86f7744baf2e7b7b' })
+    expect(red?.lock).toMatchObject({ keycard: 'red', keyName: 'Ключ-карта TerraGroup Labs (Красная)' })
+    expect(red?.description).toBe('Нужна ключ-карта «Ключ-карта TerraGroup Labs (Красная)».')
+    const manager = result.find((marker) => marker.id === 'the-lab-lock-manager')
+    expect(manager?.lock?.keycard).toBeUndefined()
+    expect(manager?.description).toBe('Нужен ключ «Ключ от кабинета управляющего TerraGroup Labs».')
+    // Not in the item list: the card is still recognised by its id and named in Russian.
+    const marking = result.find((marker) => marker.id === 'the-lab-lock-blue-marking')
+    expect(marking?.title).toBe('Дверь · открывает: Ключ-карта с синей полосой')
+    expect(marking?.description).toContain('Также необходимо питание.')
+    expect(result.find((marker) => marker.id === 'the-lab-lock-safe')?.title).toBe('Запертый контейнер · открывает: Ключ от кабинета управляющего TerraGroup Labs')
+  })
+})

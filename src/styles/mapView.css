@@ -45,3 +45,7 @@
 @media (prefers-reduced-motion: reduce) {
   .map-view-toggle, .map-view-toggle *, .map-hud .marker-style-menu *, .map-sidebar .map-option { transition: none !important; }
 }
+
+/* «Возможное место»: several candidate points of one quest objective — a dashed ring around each pin. */
+.map-marker.is-possible { position: relative; }
+.map-marker.is-possible::after { content: ''; position: absolute; inset: -4px; border: 1.5px dashed var(--marker-color, #d4bc83); border-radius: 50%; pointer-events: none; opacity: .9; }

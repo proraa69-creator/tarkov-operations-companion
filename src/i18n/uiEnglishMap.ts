@@ -60,6 +60,14 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Для этой карты у tarkov.dev нет схемы, только спутник', 'tarkov.dev has no schematic for this map, only satellite'],
   ['Выбранного вида нет у этой карты — показан этот', 'This map lacks the chosen view, so this one is shown'],
   ['только схема', 'schematic only'], ['только спутник', 'satellite only'],
+  // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
+  ['Возможное место предмета', 'Possible item location'], ['Возможная точка задания', 'Possible objective point'],
+  ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],
+  ['Ключ-карта TerraGroup Labs (красная)', 'TerraGroup Labs keycard (Red)'], ['Ключ-карта TerraGroup Labs (зелёная)', 'TerraGroup Labs keycard (Green)'],
+  ['Ключ-карта TerraGroup Labs (синяя)', 'TerraGroup Labs keycard (Blue)'], ['Ключ-карта TerraGroup Labs (фиолетовая)', 'TerraGroup Labs keycard (Violet)'],
+  ['Ключ-карта TerraGroup Labs (жёлтая)', 'TerraGroup Labs keycard (Yellow)'], ['Ключ-карта TerraGroup Labs (чёрная)', 'TerraGroup Labs keycard (Black)'],
+  ['Ключ-карта с синей полосой', 'Keycard with a blue marking'], ['Ключ-карта жилого блока TerraGroup Labs', 'TerraGroup Labs residential unit keycard'],
+  ['Ключ-карта доступа в Лабораторию', 'TerraGroup Labs access keycard'],
 ]
 
 /** Patterns with a variable part, applied after the phrase table. */
@@ -83,4 +91,11 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/(\d+)\s*м$/g, '$1 m'],
   [/(\d+)\s*с назад/g, '$1 s ago'],
   [/зона\s+(\d+%)/g, 'zone $1'],
+  [/(\d+)\s+из\s+(\d+)/g, '$1 of $2'],
+  [/открывает:\s*/g, 'opened by: '],
+  [/Нужна ключ-карта\s*«([^»]+)»/g, 'Requires keycard “$1”'],
+  [/Ключ-карта:\s*красная/g, 'Keycard: red'], [/Ключ-карта:\s*зелёная/g, 'Keycard: green'], [/Ключ-карта:\s*синяя/g, 'Keycard: blue'],
+  [/Ключ-карта:\s*фиолетовая/g, 'Keycard: violet'], [/Ключ-карта:\s*жёлтая/g, 'Keycard: yellow'], [/Ключ-карта:\s*чёрная/g, 'Keycard: black'],
+  [/Ключ-карта:\s*с синей полосой/g, 'Keycard: blue marking'], [/Ключ-карта:\s*жилой блок/g, 'Keycard: residential unit'],
+  [/Ключ-карта:\s*доступ в Лабораторию/g, 'Keycard: Labs access'],
 ]
