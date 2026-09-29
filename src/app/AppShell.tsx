@@ -12,6 +12,7 @@ import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
+import { ParticleLoaderScreen } from '../components/ParticleLoaderScreen'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -144,7 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
       </header>
 
-      <main className="content">{uiText(source === 'demo' && isFetching ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
+      <main className="content">{uiText(source === 'demo' && isFetching ? <ParticleLoaderScreen /> : children)}</main>
 
       {uiText(searchOpen && <div className="search-overlay" onMouseDown={(event) => event.target === event.currentTarget && setSearchOpen(false)}>
         <div className="search-dialog" role="dialog" aria-modal="true" aria-label={uiText("Глобальный поиск")}>
