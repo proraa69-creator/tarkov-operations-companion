@@ -553,7 +553,7 @@ export function TradersPage() {
   );
 }
 
-import { SHAPES, THEMES, THEME_CHANGED_EVENT, currentShape, currentTheme, saveAppearance } from "../theme/theme";
+import { SHAPES, THEMES, THEME_CHANGED_EVENT, applyCustomBackground, currentShape, currentTheme, saveAppearance, setCustomBackground } from "../theme/theme";
 
 export function SettingsPage() {
   const { data, source, updatedAt, refresh, isFetching } = useTarkovData();
@@ -618,6 +618,7 @@ export function SettingsPage() {
                 ))}
               </div>
             </div>
+            <CustomBackgroundRow />
             <div className="setting-row">
               <span>
                 <strong>{uiText("Форма элементов")}</strong>
@@ -685,6 +686,31 @@ export function SettingsPage() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function CustomBackgroundRow() {
+  const [hasBackground, setHasBackground] = useState(() => document.documentElement.hasAttribute("data-custom-bg"));
+  const [error, setError] = useState("");
+  useEffect(() => { void applyCustomBackground().then(setHasBackground).catch(() => {}); }, []);
+  const choose = (file: File | null) => {
+    setError("");
+    void setCustomBackground(file).then(setHasBackground).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Не удалось сохранить картинку."));
+  };
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Свой фон")}</strong>
+        <small className={error ? "is-error" : ""}>{uiText(error || "Картинка с вашего компьютера. Хранится только у вас и никуда не отправляется.")}</small>
+      </span>
+      <span className="custom-bg-actions">
+        <label className="button ghost small">
+          {uiText("Выбрать картинку")}
+          <input type="file" accept="image/*" hidden onChange={(event) => { choose(event.target.files?.[0] ?? null); event.target.value = ""; }} />
+        </label>
+        {hasBackground && <button type="button" className="button ghost small" onClick={() => choose(null)}>{uiText("Убрать")}</button>}
+      </span>
     </div>
   );
 }

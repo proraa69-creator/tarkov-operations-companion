@@ -62,3 +62,37 @@ export function cycleTheme() {
 }
 
 export const THEME_CHANGED_EVENT = 'tarkov-theme-changed'
+
+/**
+ * A background picture the user chooses from their own computer. It is stored only in this
+ * app's local storage (IndexedDB) and never shipped with the app or sent anywhere.
+ */
+const CUSTOM_BG_KEY = 'tarkov-custom-background-v1'
+const MAX_CUSTOM_BG_BYTES = 12 * 1024 * 1024
+let customBgUrl: string | null = null
+
+export async function applyCustomBackground() {
+  const { get } = await import('idb-keyval')
+  const blob = await get<Blob>(CUSTOM_BG_KEY).catch(() => undefined)
+  if (customBgUrl) URL.revokeObjectURL(customBgUrl)
+  customBgUrl = blob ? URL.createObjectURL(blob) : null
+  const root = document.documentElement
+  if (customBgUrl) {
+    root.style.setProperty('--custom-bg', `url("${customBgUrl}")`)
+    root.setAttribute('data-custom-bg', '')
+  } else {
+    root.style.removeProperty('--custom-bg')
+    root.removeAttribute('data-custom-bg')
+  }
+  return Boolean(customBgUrl)
+}
+
+export async function setCustomBackground(file: File | null) {
+  const { del, set } = await import('idb-keyval')
+  if (file) {
+    if (!file.type.startsWith('image/')) throw new Error('Выберите файл изображения.')
+    if (file.size > MAX_CUSTOM_BG_BYTES) throw new Error('Картинка больше 12 МБ.')
+    await set(CUSTOM_BG_KEY, file)
+  } else await del(CUSTOM_BG_KEY)
+  return applyCustomBackground()
+}
