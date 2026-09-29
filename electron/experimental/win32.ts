@@ -18,7 +18,20 @@ let api: {
   scanCode: (code: number, mapType: number) => number
   isAdmin: (() => number) | null
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
+  gdi: Gdi | null
 } | null | undefined
+
+interface Gdi {
+  getDC: (hwnd: unknown) => unknown
+  releaseDC: (hwnd: unknown, dc: unknown) => number
+  createCompatibleDC: (dc: unknown) => unknown
+  createCompatibleBitmap: (dc: unknown, width: number, height: number) => unknown
+  selectObject: (dc: unknown, object: unknown) => unknown
+  bitBlt: (dc: unknown, x: number, y: number, width: number, height: number, source: unknown, sx: number, sy: number, rop: number) => boolean
+  getDIBits: (dc: unknown, bitmap: unknown, start: number, lines: number, bits: Uint8Array, info: Record<string, number>, usage: number) => number
+  deleteObject: (object: unknown) => boolean
+  deleteDC: (dc: unknown) => boolean
+}
 /** Why the Windows functions could not be loaded (shown on the Mini Map page); empty when they work. */
 let loadError = ''
 
@@ -41,6 +54,26 @@ function win32() {
       scanCode: user32.func('uint32 __stdcall MapVirtualKeyW(uint32 uCode, uint32 uMapType)') as (code: number, mapType: number) => number,
       isAdmin: optional(() => shell32.func('int __stdcall IsUserAnAdmin()') as () => number),
       shellExecute: optional(() => shell32.func('intptr_t __stdcall ShellExecuteW(void* hwnd, const char16_t* lpOperation, const char16_t* lpFile, const char16_t* lpParameters, const char16_t* lpDirectory, int nShowCmd)') as (hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint),
+      gdi: optional(() => {
+        const gdi32 = koffi.load('gdi32.dll')
+        // BITMAPINFOHEADER plus room for the colour masks GetDIBits may write after it.
+        koffi.struct('BITMAPINFO_EX', {
+          biSize: 'uint32', biWidth: 'int32', biHeight: 'int32', biPlanes: 'uint16', biBitCount: 'uint16', biCompression: 'uint32',
+          biSizeImage: 'uint32', biXPelsPerMeter: 'int32', biYPelsPerMeter: 'int32', biClrUsed: 'uint32', biClrImportant: 'uint32',
+          mask0: 'uint32', mask1: 'uint32', mask2: 'uint32', mask3: 'uint32',
+        })
+        return {
+          getDC: user32.func('void* __stdcall GetDC(void* hWnd)'),
+          releaseDC: user32.func('int __stdcall ReleaseDC(void* hWnd, void* hDC)'),
+          createCompatibleDC: gdi32.func('void* __stdcall CreateCompatibleDC(void* hdc)'),
+          createCompatibleBitmap: gdi32.func('void* __stdcall CreateCompatibleBitmap(void* hdc, int cx, int cy)'),
+          selectObject: gdi32.func('void* __stdcall SelectObject(void* hdc, void* h)'),
+          bitBlt: gdi32.func('bool __stdcall BitBlt(void* hdc, int x, int y, int cx, int cy, void* hdcSrc, int x1, int y1, uint32 rop)'),
+          getDIBits: gdi32.func('int __stdcall GetDIBits(void* hdc, void* hbm, uint32 start, uint32 cLines, _Out_ uint8_t* lpvBits, _Inout_ BITMAPINFO_EX* lpbmi, uint32 usage)'),
+          deleteObject: gdi32.func('bool __stdcall DeleteObject(void* ho)'),
+          deleteDC: gdi32.func('bool __stdcall DeleteDC(void* hdc)'),
+        } as unknown as Gdi
+      }),
     }
   } catch (error) {
     api = null
@@ -195,5 +228,38 @@ export async function pressKeys(strokes: KeyStroke[], holdMs = 60) {
     for (const stroke of down.reverse()) {
       try { calls.sendInput(1, keyInput(calls, stroke, true), 40) } catch { /* nothing more to release */ }
     }
+  }
+}
+
+const SRCCOPY = 0x00cc0020
+const CAPTUREBLT = 0x40000000
+
+/**
+ * A copy of a screen area (physical pixels) as top-down BGRA — a few milliseconds, against hundreds for a
+ * full-screen desktopCapturer grab. Reads the composed desktop only; nothing touches the game process.
+ * Null when unavailable (not Windows) or when Windows refused.
+ */
+export function captureScreenRegion(x: number, y: number, width: number, height: number): { width: number; height: number; data: Uint8Array } | null {
+  const gdi = win32()?.gdi
+  if (!gdi || width <= 0 || height <= 0) return null
+  const screenDC = gdi.getDC(null)
+  if (!screenDC) return null
+  const memoryDC = gdi.createCompatibleDC(screenDC)
+  const bitmap = memoryDC ? gdi.createCompatibleBitmap(screenDC, width, height) : null
+  const previous = memoryDC && bitmap ? gdi.selectObject(memoryDC, bitmap) : null
+  try {
+    if (!memoryDC || !bitmap || !gdi.bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY | CAPTUREBLT)) return null
+    // GetDIBits wants the bitmap unselected.
+    gdi.selectObject(memoryDC, previous)
+    const data = new Uint8Array(width * height * 4)
+    const info = { biSize: 40, biWidth: width, biHeight: -height, biPlanes: 1, biBitCount: 32, biCompression: 0, biSizeImage: 0, biXPelsPerMeter: 0, biYPelsPerMeter: 0, biClrUsed: 0, biClrImportant: 0, mask0: 0, mask1: 0, mask2: 0, mask3: 0 }
+    const lines = gdi.getDIBits(memoryDC, bitmap, 0, height, data, info, 0)
+    return lines === height ? { width, height, data } : null
+  } catch {
+    return null
+  } finally {
+    if (bitmap) gdi.deleteObject(bitmap)
+    if (memoryDC) gdi.deleteDC(memoryDC)
+    gdi.releaseDC(null, screenDC)
   }
 }

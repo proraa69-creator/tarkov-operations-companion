@@ -149,3 +149,39 @@ export function matchNearest(match: (text: string) => Item | null, lines: Array<
   }
   return null
 }
+
+/**
+ * The item whose full name the game's tooltip shows. The tooltip holds exactly one name, so the whole
+ * line is compared with whole names (OCR noise at the ends is tolerated); short names only on an exact hit.
+ */
+export function createTooltipMatcher(items: Item[]) {
+  const names = items.map((item) => ({ item, text: normalizeOcr(item.name ?? ''), short: normalizeOcr(item.shortName ?? '') })).filter((entry) => entry.text.length >= 2)
+  const index = new Map<string, number[]>()
+  names.forEach((entry, id) => {
+    for (const gram of trigrams(entry.text)) {
+      const bucket = index.get(gram)
+      if (bucket) bucket.push(id)
+      else index.set(gram, [id])
+    }
+  })
+  return function match(ocrText: string): Item | null {
+    const line = normalizeOcr(ocrText)
+    if (line.length < 2) return null
+    const exact = names.find((entry) => entry.text === line) ?? names.find((entry) => entry.short === line)
+    if (exact) return exact.item
+    const hits = new Map<number, number>()
+    for (const gram of trigrams(line)) for (const id of index.get(gram) ?? []) hits.set(id, (hits.get(id) ?? 0) + 1)
+    let best: { item: Item; score: number } | null = null
+    for (const [id] of [...hits.entries()].sort((a, b) => b[1] - a[1]).slice(0, 60)) {
+      const entry = names[id]!
+      const whole = 1 - levenshtein(entry.text, line) / Math.max(entry.text.length, line.length)
+      // OCR may add a stray character or two around the name: allow the name inside a slightly longer line.
+      const inner = line.length > entry.text.length && line.length - entry.text.length <= 4 ? partialSimilarity(entry.text, line) - 0.03 : 0
+      const score = Math.max(whole, inner)
+      if (!best || score > best.score) best = { item: entry.item, score }
+    }
+    return best && best.score >= TOOLTIP_MIN_SCORE ? best.item : null
+  }
+}
+
+const TOOLTIP_MIN_SCORE = 0.8

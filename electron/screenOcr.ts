@@ -88,39 +88,26 @@ export async function recognizeRegion(image: NativeImage) {
   return (await recognizeQuestImage(scaled, 'region')).text
 }
 
-/** A text line near the cursor: its text and centre in the coordinates of the image passed in. */
-export interface RegionLine { text: string; x: number; y: number; height: number }
-
-let itemWorker: Promise<OcrWorker> | null = null
-function itemOcr() {
-  itemWorker ??= (async () => {
+let tooltipWorker: Promise<OcrWorker> | null = null
+function tooltipOcr() {
+  tooltipWorker ??= (async () => {
     const langPath = tessdataDirectory()
     await mkdir(langPath, { recursive: true })
     await ensureLanguageData(langPath)
     const next = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
-    // Sparse text: the tooltip and cell labels are scattered short lines, not a paragraph.
-    await next.setParameters({ tessedit_pageseg_mode: '11' })
+    // One line: the item name inside the game's tooltip.
+    await next.setParameters({ tessedit_pageseg_mode: '7', user_defined_dpi: '300' })
     return next
-  })().catch((error) => { itemWorker = null; throw error })
-  return itemWorker
+  })().catch((error) => { tooltipWorker = null; throw error })
+  return tooltipWorker
 }
 
-/** OCR of the area around the cursor with the position of every line, so the nearest text can win. */
-export async function recognizeRegionLines(image: NativeImage): Promise<RegionLine[]> {
-  const { width } = image.getSize()
-  const factor = width && width < 1000 ? 2 : 1
-  const scaled = factor > 1 ? image.resize({ width: width * factor, quality: 'best' }) : image
-  const ocr = await itemOcr()
-  const result = await ocr.recognize(scaled.toPNG(), {}, { text: true, blocks: true })
-  const lines = (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
-  return lines
-    .filter((line) => line.text.trim().length >= 2)
-    .map((line) => ({
-      text: line.text.trim(),
-      x: (line.bbox.x0 + line.bbox.x1) / 2 / factor,
-      y: (line.bbox.y0 + line.bbox.y1) / 2 / factor,
-      height: (line.bbox.y1 - line.bbox.y0) / factor,
-    }))
+/** The text of the game's name tooltip, prepared as black-on-white BGRA pixels (see tooltipForOcr). */
+export async function recognizeTooltip(pixels: { width: number; height: number; data: Uint8Array }) {
+  const image = nativeImage.createFromBitmap(Buffer.from(pixels.data.buffer, pixels.data.byteOffset, pixels.data.byteLength), { width: pixels.width, height: pixels.height })
+  const ocr = await tooltipOcr()
+  const result = await ocr.recognize(image.toPNG())
+  return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
 }
 
 /** Workers for the stash scan: sparse-text mode suits the short labels in inventory cells. */
@@ -181,7 +168,7 @@ export async function scanScreenText() {
 
 /** Loads the OCR model ahead of the first lookup. */
 export async function warmUpOcr() {
-  await itemOcr()
+  await tooltipOcr()
 }
 
 export { clearScanFrames, countScanFrames, MAX_SCAN_FRAMES } from './scanFrameBuffer.js'

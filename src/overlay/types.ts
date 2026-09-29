@@ -107,7 +107,7 @@ export interface ExperimentalStatus {
 }
 
 export type ExperimentalQuery =
-  | { id: number; kind: 'item'; input: { text: string; test?: boolean; lines?: NearbyLine[] } }
+  | { id: number; kind: 'item'; input: { text: string; test?: boolean; lines?: NearbyLine[]; /** The text is the game's name tooltip (one full name). */ tooltip?: boolean } }
   | { id: number; kind: 'minimap'; input: { location?: string; fromApp?: boolean } }
 
 /** An OCR line around the cursor and its distance from the cursor in screen pixels. */

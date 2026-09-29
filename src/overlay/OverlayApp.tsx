@@ -29,11 +29,14 @@ const rub = (value: number) => `${Math.round(value).toLocaleString('ru-RU')} ₽
 
 function ItemOverlay() {
   const [payload, setPayload] = useState<ItemOverlayPayload>({ state: 'loading' })
+  const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => window.tarkovDesktop?.onOverlay?.('overlay:item', setPayload), [])
+  // The window takes the size of the card: long names wrap instead of running off the edge.
+  useFitWindow(rootRef)
 
   if (payload.state === 'loading') {
     return (
-      <div className="eft-card">
+      <div ref={rootRef} className="eft-card">
         <div className="eft-card-head"><span>{uiText('Поиск предмета')}</span></div>
         <div className="eft-card-body is-loading"><span className="ov-spinner" />{uiText('Распознаю…')}</div>
       </div>
@@ -41,16 +44,19 @@ function ItemOverlay() {
   }
   if (payload.state === 'not-found') {
     return (
-      <div className="eft-card">
+      <div ref={rootRef} className="eft-card">
         <div className="eft-card-head"><span>{uiText('Предмет не распознан')}</span></div>
-        <div className="eft-card-body"><p className="eft-hint">{uiText('Дождитесь подсказки с названием и нажмите клавишу ещё раз.')}</p></div>
+        <div className="eft-card-body"><p className="eft-hint">{uiText('Наведите курсор на предмет, дождитесь подсказки игры с названием и нажмите клавишу ещё раз.')}</p></div>
       </div>
     )
   }
   const trader = payload.bestTrader
   return (
-    <div className="eft-card">
-      <div className="eft-card-head"><span>{uiText(payload.name)}</span></div>
+    <div ref={rootRef} className="eft-card">
+      <div className="eft-card-head">
+        <span>{uiText(payload.name)}</span>
+        {payload.collector && <em className="eft-kappa" title={uiText('Нужен для задания «Коллекционер»')}>{uiText('Каппа')}</em>}
+      </div>
       <div className="eft-card-body">
         {payload.iconUrl && <div className="eft-card-icon"><img src={payload.iconUrl} alt="" /></div>}
         <dl className="eft-prices">
@@ -167,7 +173,25 @@ function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>) {
     const timer = window.setInterval(send, 400)
     const observer = new ResizeObserver(send)
     if (rootRef.current) observer.observe(rootRef.current)
-    return () => { window.clearInterval(timer); observer.disconnect(); report([]) }
+    // While a button is held over a control (dragging the slider or the map) the window must keep the mouse,
+    // even when the cursor slides off the control, or the release is lost and the page stays "pressed".
+    const hold = window.tarkovDesktop?.overlayHold
+    const down = (event: PointerEvent) => { if ((event.target as HTMLElement | null)?.closest('.ov-interactive')) hold?.(true) }
+    const up = () => hold?.(false)
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    window.addEventListener('blur', up)
+    return () => {
+      window.clearInterval(timer)
+      observer.disconnect()
+      report([])
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+      window.removeEventListener('blur', up)
+      hold?.(false)
+    }
   }, [rootRef])
 }
 
@@ -205,7 +229,7 @@ function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { m
   return (
     <MapContainer
       key={map.id}
-      className="ov-minimap-map"
+      className="ov-minimap-map ov-interactive"
       style={{ width: MINIMAP_WIDTH, height }}
       crs={crs}
       bounds={bounds}
@@ -215,9 +239,10 @@ function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { m
       maxZoom={Math.max(7, map.maxZoom ?? 3)}
       zoomControl={false}
       attributionControl={false}
-      dragging={false}
-      scrollWheelZoom={false}
-      doubleClickZoom={false}
+      dragging
+      scrollWheelZoom
+      wheelPxPerZoomLevel={90}
+      doubleClickZoom
       keyboard={false}
     >
       {imageUrl && !tileUrl ? <ImageOverlay url={imageUrl} bounds={bounds} /> : null}
@@ -262,10 +287,23 @@ function PlayerMarker({ position, style, followDisabled }: { position: PlayerPos
   const map = useMap()
   const [angle, setAngle] = useState(0)
   const latLngValue: LatLngExpression | null = position ? [position.z, position.x] : null
+  /** When the player last zoomed or dragged the map by hand. */
+  const touchedAt = useRef(0)
 
   useEffect(() => {
-    if (!position || followDisabled) return
-    map.setView([position.z, position.x], Math.max(map.getZoom(), (map.getMaxZoom() ?? 5) - 3), { animate: true })
+    const touch = () => { touchedAt.current = Date.now() }
+    const container = map.getContainer()
+    map.on('dragstart', touch)
+    container.addEventListener('wheel', touch, { passive: true })
+    return () => { map.off('dragstart', touch); container.removeEventListener('wheel', touch) }
+  }, [map])
+
+  useEffect(() => {
+    // Follow the player, but leave the map alone for a while after the player moved or zoomed it by hand,
+    // and keep the zoom the player chose.
+    if (!position || followDisabled || Date.now() - touchedAt.current < 10_000) return
+    const zoom = touchedAt.current ? map.getZoom() : Math.max(map.getZoom(), (map.getMaxZoom() ?? 5) - 3)
+    map.setView([position.z, position.x], zoom, { animate: true })
   }, [map, position, followDisabled])
 
   useEffect(() => {

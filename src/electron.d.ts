@@ -71,6 +71,8 @@ interface TarkovDesktopApi {
   overlayResize?: (width: number, height: number) => void
   /** Overlay windows only: start (true) or finish (false) dragging the window with the mouse. */
   overlayDrag?: (active: boolean) => void
+  /** Overlay windows only: a mouse button went down (true) or up (false) over a control; the window keeps the mouse meanwhile. */
+  overlayHold?: (held: boolean) => void
   /** Overlay windows only: rectangles (window coordinates) that should catch the mouse. */
   overlayZones?: (zones: Array<{ x: number; y: number; width: number; height: number }>) => void
   onOverlay?: {

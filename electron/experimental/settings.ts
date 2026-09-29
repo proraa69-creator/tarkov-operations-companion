@@ -80,7 +80,8 @@ function sanitize(raw: unknown): ExperimentalSettings {
     version: 3,
     itemLookup: flag('itemLookup'),
     minimap: flag('minimap'),
-    tracking: flag('tracking'),
+    // Always on: the player's position comes from the game's screenshots (the switch was removed).
+    tracking: true,
     autoScreenshot: flag('autoScreenshot'),
     screenshotIntervalMs: Number.isFinite(interval) ? Math.min(2000, Math.max(1000, Math.round(interval))) : DEFAULT_SETTINGS.screenshotIntervalMs,
     itemKey: isKnownHotkey(value.itemKey) ? value.itemKey : DEFAULT_ITEM_KEY,

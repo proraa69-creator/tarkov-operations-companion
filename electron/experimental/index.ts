@@ -1,18 +1,19 @@
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, type Display, type Point } from 'electron'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, type Display, type Point, type Rectangle } from 'electron'
 import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { readScreenshotBinding } from '../logScanner.js'
-import { recognizeRegionLines, warmUpOcr } from '../screenOcr.js'
+import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
+import { findTooltip, tooltipForOcr } from '../../src/overlay/tooltipDetect.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import {
-  foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
+  captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
   type DisplayMode, type KeyStroke,
 } from './win32.js'
 
@@ -36,8 +37,8 @@ interface Options {
 const ITEM_OVERLAY = { width: 300, height: 118 }
 /** The card closes when the cursor leaves the item (moves this far from where the key was pressed). */
 const ITEM_LEAVE_PX = 42
-/** Screen area read around the cursor, in 1080p units: the EFT name tooltip and the cell label. */
-const CAPTURE = { left: 240, right: 520, up: 120, down: 150 }
+/** Screen area searched around the cursor for the game's name tooltip, in 1080p units. */
+const CAPTURE = { left: 520, right: 720, up: 240, down: 160 }
 const MINIMAP_OVERLAY = { width: 436, height: 360 }
 const QUERY_TIMEOUT_MS = 5000
 const KEY_REPEAT_MS = 350
@@ -54,6 +55,9 @@ let dragTimer: NodeJS.Timeout | null = null
 /** Clickable parts of the minimap (header, slider, quest list) in window coordinates, reported by the overlay. */
 let minimapZones: Array<{ x: number; y: number; width: number; height: number }> = []
 let hitTimer: NodeJS.Timeout | null = null
+/** When the mouse button went down over a minimap control; 0 = not pressed. */
+let minimapHeldAt = 0
+const HOLD_MAX_MS = 30_000
 
 /**
  * Makes the minimap clickable exactly over its controls. Forwarded mouse-move events are unreliable over a
@@ -67,7 +71,9 @@ function watchMinimapHits(window: BrowserWindow) {
       hitTimer = null
       return
     }
-    if (dragTimer) return
+    // A press that started over a control (slider, quest list, map) keeps the window catching the mouse
+    // until it is released, or the release would go to the game and the page would think the button is still down.
+    if (dragTimer || (minimapHeldAt && Date.now() - minimapHeldAt < HOLD_MAX_MS)) return
     const point = screen.getCursorScreenPoint()
     const bounds = window.getBounds()
     const x = point.x - bounds.x
@@ -170,6 +176,11 @@ function registerIpc() {
     else interactive.delete(window)
     window.setIgnoreMouseEvents(value !== true, { forward: true })
   })
+  ipcMain.on('overlay:hold', (event, held: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window !== minimapWindow) return
+    minimapHeldAt = held === true ? Date.now() : 0
+  })
   ipcMain.on('overlay:drag', (event, active: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || window !== minimapWindow || window.isDestroyed()) return
@@ -182,12 +193,15 @@ function registerIpc() {
     // Follow the cursor from the main process: the overlay itself cannot move its own window smoothly.
     const start = screen.getCursorScreenPoint()
     const origin = window.getBounds()
+    const startedAt = Date.now()
     dragTimer = setInterval(() => {
       if (window.isDestroyed()) { if (dragTimer) clearInterval(dragTimer); dragTimer = null; return }
       const point = screen.getCursorScreenPoint()
       window.setPosition(origin.x + point.x - start.x, origin.y + point.y - start.y)
-      // A mouse-up outside the window never reaches the renderer; stop when the button is released.
-      if (nativeKeysAvailable() && !isVirtualKeyDown(0x01)) {
+      // The page reports the release (the window holds the mouse while the button is down). The button state
+      // is only a fallback with administrator rights: for an elevated game Windows hides it from this app.
+      const released = isElevated() === true && !isVirtualKeyDown(0x01) && Date.now() - startedAt > 150
+      if (released || Date.now() - startedAt > HOLD_MAX_MS) {
         if (dragTimer) clearInterval(dragTimer)
         dragTimer = null
         const { x, y } = window.getBounds()
@@ -205,15 +219,21 @@ function registerIpc() {
   })
   ipcMain.on('overlay:resize', (event, width: unknown, height: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || window !== minimapWindow || window.isDestroyed()) return
+    if (!window || (window !== minimapWindow && window !== itemWindow) || window.isDestroyed()) return
     const w = Math.round(Number(width))
     const h = Math.round(Number(height))
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 120 || h < 60) return
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 120 || h < 40) return
     const bounds = window.getBounds()
     const area = screen.getDisplayMatching(bounds).workArea
     const nextWidth = Math.min(w, area.width - 16)
     const nextHeight = Math.min(h, area.height - 16)
     if (nextWidth === bounds.width && nextHeight === bounds.height) return
+    if (window === itemWindow) {
+      // The item card keeps its top-left corner (next to the game's tooltip) and stays on screen.
+      const x = Math.max(area.x + 4, Math.min(bounds.x, area.x + area.width - nextWidth - 4))
+      window.setBounds({ x, y: bounds.y, width: nextWidth, height: nextHeight })
+      return
+    }
     // Keep the top-right corner where it is.
     window.setBounds({ x: bounds.x + bounds.width - nextWidth, y: bounds.y, width: nextWidth, height: nextHeight })
   })
@@ -532,20 +552,22 @@ async function lookupItem(test: boolean) {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
     itemWindow?.hide()
-    // Grab the screen first (fast), then show the card next to the item while the text is read.
-    const shot = test ? null : await grabAroundCursor(point, display).catch(() => null)
     const window = ensureItemWindow()
     await whenLoaded(window)
-    placeNearCursor(window, point, display)
-    sendOverlay(window, 'overlay:item', { state: 'loading' })
-    showOverlay(window)
-    followCursor(window, point)
-    const lines = shot ? await recognizeRegionLines(shot.image).catch(() => []) : []
-    const nearby = shot ? lines.map((line) => ({ text: line.text, distance: distanceToLine(line, shot.cursor) })) : []
-    const text = nearby.map((line) => line.text).join('\n')
-    const answer = test
-      ? await askRenderer('item', { text: '', test: true })
-      : text ? await askRenderer('item', { text, lines: nearby }) : null
+    if (test) {
+      const answer = await askRenderer('item', { text: '', test: true })
+      showItemCard(window, point, display, null, answer && typeof answer === 'object' ? answer : { state: 'not-found' })
+      return answer
+    }
+    // Only the game's own name tooltip is read: it holds the full name of exactly the hovered item.
+    const found = await waitForGameTooltip(point, display)
+    if (!found) {
+      showItemCard(window, point, display, null, { state: 'not-found' })
+      return null
+    }
+    showItemCard(window, point, display, found.screen, { state: 'loading' })
+    const text = await recognizeTooltip(tooltipForOcr(found.image, found.rect)).catch(() => '')
+    const answer = text ? await askRenderer('item', { text, tooltip: true }) : null
     if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text })
     return answer
   } finally {
@@ -553,12 +575,25 @@ async function lookupItem(test: boolean) {
   }
 }
 
-/** Distance from the cursor to an OCR line, in image pixels; lines to the right/below (the tooltip) are slightly preferred. */
-function distanceToLine(line: { x: number; y: number; height: number; text: string }, cursor: { x: number; y: number }) {
-  const halfWidth = Math.max(8, line.text.length * line.height * 0.28)
-  const dx = Math.max(0, Math.abs(line.x - cursor.x) - halfWidth)
-  const dy = Math.max(0, Math.abs(line.y - cursor.y) - line.height / 2)
-  return Math.hypot(dx, dy * 1.4)
+/** The tooltip appears a moment after the cursor stops on an item: look again for a short while. */
+const TOOLTIP_WAIT_MS = 900
+
+async function waitForGameTooltip(point: Point, display: Display) {
+  const until = Date.now() + TOOLTIP_WAIT_MS
+  for (;;) {
+    const shot = await grabAroundCursor(point, display).catch(() => null)
+    const rect = shot ? findTooltip(shot.image, shot.cursor, shot.unit) : null
+    if (shot && rect) return { image: shot.image, rect, screen: shot.toScreen(rect) }
+    if (Date.now() >= until) return null
+    await pause(110)
+  }
+}
+
+function showItemCard(window: BrowserWindow, point: Point, display: Display, tooltip: Rectangle | null, payload: unknown) {
+  placeItemCard(window, point, display, tooltip)
+  sendOverlay(window, 'overlay:item', payload)
+  showOverlay(window)
+  followCursor(window, point)
 }
 
 let followTimer: NodeJS.Timeout | null = null
@@ -576,35 +611,52 @@ function followCursor(window: BrowserWindow, origin: Point) {
   }, 80)
 }
 
-/** Next to the item: just below and to the right of the cursor, flipped at the screen edges. */
-function placeNearCursor(window: BrowserWindow, point: Point, display: Display) {
+/**
+ * Right under the game's tooltip, aligned with it — like a part of it — or, without a tooltip, just below
+ * and to the right of the cursor. The card sizes itself to its content (overlay:resize) and stays on screen.
+ */
+function placeItemCard(window: BrowserWindow, point: Point, display: Display, tooltip: Rectangle | null) {
   const area = display.workArea
-  let x = point.x + 16
-  let y = point.y + 22
-  if (x + ITEM_OVERLAY.width > area.x + area.width - 4) x = point.x - ITEM_OVERLAY.width - 12
-  if (y + ITEM_OVERLAY.height > area.y + area.height - 4) y = point.y - ITEM_OVERLAY.height - 12
-  window.setBounds({ x: Math.round(Math.max(area.x + 4, x)), y: Math.round(Math.max(area.y + 4, y)), ...ITEM_OVERLAY })
+  const { width, height } = window.getBounds()
+  let x = tooltip ? tooltip.x - 1 : point.x + 16
+  let y = tooltip ? tooltip.y + tooltip.height + 3 : point.y + 22
+  if (y + height > area.y + area.height - 4) y = tooltip ? tooltip.y - height - 3 : point.y - height - 12
+  if (x + width > area.x + area.width - 4) x = area.x + area.width - width - 4
+  window.setBounds({ x: Math.round(Math.max(area.x + 4, x)), y: Math.round(Math.max(area.y + 4, y)), width: width || ITEM_OVERLAY.width, height: height || ITEM_OVERLAY.height })
 }
 
-/** The EFT item tooltip and the short name on the cell sit right around the cursor. */
+/**
+ * The screen around the cursor in physical pixels (BGRA) with the cursor position in it: a GDI copy of just
+ * that area when possible (milliseconds), otherwise a crop of a full desktopCapturer grab.
+ */
 async function grabAroundCursor(point: Point, display: Display) {
-  const scale = display.scaleFactor || 1
-  const physical = { width: Math.round(display.bounds.width * scale), height: Math.round(display.bounds.height * scale) }
-  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: physical })
+  const physicalDisplay = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
+  const unit = physicalDisplay.height / 1080
+  const cursor = process.platform === 'win32' ? screen.dipToScreenPoint(point) : point
+  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - CAPTURE.left * unit))
+  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - CAPTURE.up * unit))
+  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + CAPTURE.right * unit))
+  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + CAPTURE.down * unit))
+  if (right - left < 40 || bottom - top < 20) return null
+  const toScreen = (rect: Rectangle) => {
+    const physical = { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height }
+    return process.platform === 'win32' ? screen.screenToDipRect(null, physical) : physical
+  }
+  const fast = captureScreenRegion(left, top, right - left, bottom - top)
+  if (fast && !isBlank(fast.data)) return { image: fast, cursor: { x: cursor.x - left, y: cursor.y - top }, unit, toScreen }
+  // Fallback: one full-screen grab (slower), cropped to the same area.
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: physicalDisplay.width, height: physicalDisplay.height } })
   const source = sources.find((entry) => entry.display_id === String(display.id)) ?? sources[0]
   if (!source || source.thumbnail.isEmpty()) return null
-  const image = source.thumbnail
-  const size = image.getSize()
-  const ratio = size.width / display.bounds.width
-  const unit = size.height / 1080
-  const cx = (point.x - display.bounds.x) * ratio
-  const cy = (point.y - display.bounds.y) * ratio
-  const left = Math.max(0, Math.round(cx - CAPTURE.left * unit))
-  const top = Math.max(0, Math.round(cy - CAPTURE.up * unit))
-  const width = Math.min(size.width - left, Math.round((CAPTURE.left + CAPTURE.right) * unit))
-  const height = Math.min(size.height - top, Math.round((CAPTURE.up + CAPTURE.down) * unit))
-  if (width < 40 || height < 20) return null
-  return { image: image.crop({ x: left, y: top, width, height }), cursor: { x: cx - left, y: cy - top } }
+  const crop = source.thumbnail.crop({ x: left - physicalDisplay.x, y: top - physicalDisplay.y, width: right - left, height: bottom - top })
+  const size = crop.getSize()
+  return { image: { width: size.width, height: size.height, data: new Uint8Array(crop.toBitmap()) }, cursor: { x: cursor.x - left, y: cursor.y - top }, unit, toScreen }
+}
+
+/** An all-black copy: the game in exclusive full screen hides from GDI. */
+function isBlank(data: Uint8Array) {
+  for (let index = 0; index < data.length; index += 4 * 97) if (data[index]! > 8 || data[index + 1]! > 8 || data[index + 2]! > 8) return false
+  return true
 }
 
 async function toggleMinimap(fromApp: boolean) {

@@ -1,6 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, Camera, Crosshair, Keyboard, ListChecks, Map as MapIcon, MousePointer2, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, Camera, Keyboard, ListChecks, Map as MapIcon, MousePointer2, ShieldAlert } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotCheck, ScreenshotKeyInfo } from '../overlay/types'
 import { parseScreenshotPosition, type PlayerPosition } from '../overlay/screenshotPosition'
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
@@ -135,7 +135,7 @@ export function ExperimentalPage() {
                 <Toggle
                   icon={<MousePointer2 size={16} />}
                   title={uiText("Информация о предмете")}
-                  hint="Наведите курсор на предмет, дождитесь подсказки с названием и нажмите клавишу: цена на барахолке, лучшая цена торговца и нужен ли предмет для заданий и «Коллекционера»."
+                  hint="Наведите курсор на предмет, дождитесь подсказки игры с названием и нажмите клавишу: цена на барахолке, лучшая цена у торговца и метка «Каппа», если предмет нужен для «Коллекционера»."
                   on={Boolean(settings?.itemLookup)}
                   onChange={(itemLookup) => update({ itemLookup })}
                 />
@@ -187,18 +187,11 @@ export function ExperimentalPage() {
                   onChange={(collectorKey) => update({ collectorKey })}
                 />
                 <Toggle
-                  icon={<Crosshair size={16} />}
-                  title={uiText("Позиция по скриншотам")}
-                  hint="Скриншот EFT хранит координаты в имени файла. Нажимайте в рейде клавишу скриншота игры (по умолчанию PrtSc) или включите автоматические скриншоты. Снимки не удаляются."
-                  on={Boolean(settings?.tracking)}
-                  onChange={(tracking) => update({ tracking })}
-                />
-                <Toggle
                   icon={<Camera size={16} />}
                   title={uiText("Показывать мини-карту при скриншоте")}
                   hint="Когда вы сами делаете скриншот в рейде, мини-карта открывается на 15 секунд с вашей позицией. Работает и без прав администратора."
                   on={Boolean(settings?.showOnScreenshot)}
-                  disabled={!settings?.tracking || !settings?.minimap}
+                  disabled={!settings?.minimap}
                   onChange={(showOnScreenshot) => update({ showOnScreenshot })}
                 />
                 <Toggle
@@ -206,7 +199,6 @@ export function ExperimentalPage() {
                   title={uiText("Автоматические скриншоты")}
                   hint="В рейде, пока игра на переднем плане, приложение само нажимает клавишу скриншота игры. Это эмуляция клавиши — используйте на свой риск."
                   on={Boolean(settings?.autoScreenshot)}
-                  disabled={!settings?.tracking}
                   onChange={(autoScreenshot) => update({ autoScreenshot })}
                 />
                 {uiText(settings?.autoScreenshot ? (
@@ -281,7 +273,6 @@ export function ExperimentalPage() {
                 {status?.lastScreenshot && !status.lastScreenshot.withCoordinates && <p className="muted exp-folder">{uiText('Файл: ')}{status.lastScreenshot.name}{uiText(' — в имени нет координат. Проверьте, что скриншот сделан в рейде, и пришлите имя файла разработчику.')}</p>}
                 <Row label="Режим экрана игры" value={DISPLAY_LABEL[status?.displayMode ?? 'unknown']} ok={status?.displayMode === 'fullscreen' || status?.displayMode === 'normal'} />
                 <Row label="Рейд" value={status?.raid.inRaid ? `в рейде${status.raid.location ? ` · ${status.raid.location}` : ''}` : 'в меню'} ok={status?.raid.inRaid} />
-                <Row label="Отслеживание" value={status?.tracking ? 'включено' : 'выключено'} ok={status?.tracking} />
                 <Row
                   label="Последняя позиция"
                   value={position ? `x ${position.x.toFixed(1)} · z ${position.z.toFixed(1)} · ${Math.max(0, Math.round((now - position.at) / 1000))} с назад` : 'ещё нет'}
