@@ -29,7 +29,10 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   for p in "${PARTS[@]}"; do
     echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
   done
-  echo 'for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)"`) do set "DESK=%%D"'
+  # the owner's desktop first; else the Desktop Windows reports (OneDrive too); else %USERPROFILE%\Desktop
+  echo 'set "DESK="'
+  echo "if exist \"${DESKTOP_HINT:-C:\\Users\\BANGKOK PC\\Desktop}\\\" set \"DESK=${DESKTOP_HINT:-C:\\Users\\BANGKOK PC\\Desktop}\""
+  echo 'if not defined DESK for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)"`) do set "DESK=%%D"'
   echo 'if not defined DESK set "DESK=%USERPROFILE%\Desktop"'
   echo "set \"TARGET=%DESK%\\$NAME\""
   echo 'echo Joining parts into "%TARGET%" ...'
