@@ -232,9 +232,18 @@ function MarkerStyleMenu({ value, onChange }: { value: MarkerStyle; onChange: (s
 
   return (
     <div className={`marker-style-menu${open ? ' is-open' : ''}`} ref={rootRef}>
-      <button type="button" className="marker-style-trigger" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((state) => !state)}>
-        <span className="map-style-label">{uiText("ИКОНКИ")}</span>
-        <span className="marker-style-current">{uiText(current.label)}</span>
+      <button
+        type="button"
+        className="marker-style-trigger is-icon-only"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={uiText(`Иконки на карте: ${current.label}`)}
+        title={uiText(`Иконки на карте: ${current.label}`)}
+        onClick={() => setOpen((state) => !state)}
+      >
+        <span className="marker-style-preview">
+          {markerStylePreview.map((layerId) => <LayerIcon key={layerId} style={current.id} layerId={layerId} active />)}
+        </span>
         <ChevronDown size={13} className="marker-style-chevron" />
       </button>
       <div className="marker-style-list" role="menu" aria-hidden={!open}>
@@ -495,11 +504,9 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
       <section className={`map-stage${toolActive ? ' is-tool-active' : ''}`}>
         <div className="map-hud">
           <span>{uiText(activeMap.name.toUpperCase())}</span>
-          <span>{uiText(floor.toUpperCase())}</span>
-          <span>{uiText(mapMarkers.length)}{uiText(" МАРКЕРОВ")}</span>
-          <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
+          <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
@@ -764,30 +771,66 @@ const mapViewOptions: Array<{ id: MapView; label: string; title: string; missing
   { id: 'digital', label: 'Схема', title: 'Схема: цифровая векторная карта', missing: 'Для этой карты у tarkov.dev нет схемы, только спутник' },
 ]
 
-/** «Вид карты»: one choice for all maps; a kind the current map doesn't have is shown disabled with a hint. */
+/**
+ * «Вид карты»: one choice for all maps. Folded it is a small button with the current mode; a click unfolds the
+ * modes to the right, a pick folds them back. A kind the current map doesn't have is shown disabled with a hint.
+ */
 function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: MapView; shown: MapView; onChange: (view: MapView) => void }) {
   const support = mapViewSupport(map)
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const current = mapViewOptions.find((option) => option.id === shown) ?? mapViewOptions[0]
+  const only = !support.satellite && support.digital ? 'только схема' : support.satellite && !support.digital ? 'только спутник' : ''
+  const onlyHint = !support.satellite ? mapViewOptions[0].missing : mapViewOptions[1].missing
+
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false) }
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
   return (
-    <div className="map-view-toggle" role="radiogroup" aria-label={uiText('Вид карты')}>
-      <span className="map-style-label">{uiText('ВИД')}</span>
-      {mapViewOptions.map((option) => {
-        const available = support[option.id]
-        const hint = available ? (value !== shown && option.id === shown ? 'Выбранного вида нет у этой карты — показан этот' : option.title) : option.missing
-        return (
-          <button
-            key={option.id}
-            type="button"
-            role="radio"
-            aria-checked={shown === option.id}
-            className={`map-view-option${shown === option.id ? ' active' : ''}${available ? '' : ' is-disabled'}`}
-            aria-disabled={!available}
-            title={uiText(hint)}
-            onClick={() => { if (available) onChange(option.id) }}
-          >{uiText(option.label)}</button>
-        )
-      })}
-      {!support.satellite && support.digital && <em className="map-view-hint" title={uiText('Для этой карты у tarkov.dev есть только схема')}>{uiText('только схема')}</em>}
-      {support.satellite && !support.digital && <em className="map-view-hint" title={uiText('Для этой карты у tarkov.dev нет схемы, только спутник')}>{uiText('только спутник')}</em>}
+    <div className={`map-view-toggle${open ? ' is-open' : ''}`} ref={rootRef}>
+      <button
+        type="button"
+        className="map-view-trigger"
+        aria-expanded={open}
+        aria-label={uiText(`Вид карты: ${current.label}`)}
+        title={uiText(only ? onlyHint : 'Вид карты')}
+        onClick={() => setOpen((state) => !state)}
+      >
+        <span className="map-style-label">{uiText('ВИД')}</span>
+        <span className="map-view-current">{uiText(current.label)}</span>
+        <ChevronRight size={13} className="map-view-chevron" />
+      </button>
+      <div className="map-view-drawer" aria-hidden={!open}>
+        <div className="map-view-options" role="radiogroup" aria-label={uiText('Вид карты')}>
+          {mapViewOptions.map((option) => {
+            const available = support[option.id]
+            const hint = available ? (value !== shown && option.id === shown ? 'Выбранного вида нет у этой карты — показан этот' : option.title) : option.missing
+            return (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                tabIndex={open ? 0 : -1}
+                aria-checked={shown === option.id}
+                className={`map-view-option${shown === option.id ? ' active' : ''}${available ? '' : ' is-disabled'}`}
+                aria-disabled={!available}
+                title={uiText(hint)}
+                onClick={() => { if (!available) return; onChange(option.id); setOpen(false) }}
+              >{uiText(option.label)}</button>
+            )
+          })}
+          {only && <em className="map-view-hint" title={uiText(onlyHint)}>{uiText(only)}</em>}
+        </div>
+      </div>
     </div>
   )
 }

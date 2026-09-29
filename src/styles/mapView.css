@@ -1,8 +1,47 @@
-/* «Вид карты» toggle in the map HUD (src/pages/MapsPage.tsx, src/data/mapView.ts) */
-.map-view-toggle { min-height: 30px; padding: 0 3px 0 10px; display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); font-size: 10px; font-weight: 800; letter-spacing: .08em; pointer-events: auto; backdrop-filter: blur(10px); }
-.map-view-toggle .map-style-label { margin-right: 4px; }
-.map-view-option { min-height: 24px; padding: 0 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #b6c0b8; font-size: 11px; font-weight: 700; letter-spacing: 0; cursor: pointer; }
+/* Map page HUD and location list (src/pages/MapsPage.tsx). Motion: slow and soft with a small spring overshoot. */
+.map-page {
+  --hud-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --hud-soft: cubic-bezier(.22, 1, .36, 1);
+}
+
+/* «Вид карты»: folded = one chip with the current mode; unfolds to the right. */
+.map-view-toggle { position: relative; min-height: 30px; display: inline-flex; align-items: stretch; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); pointer-events: auto; backdrop-filter: blur(10px); transition: border-color .4s var(--hud-soft), box-shadow .45s var(--hud-soft); }
+.map-view-toggle:hover, .map-view-toggle.is-open { border-color: #5f553a; }
+.map-view-toggle.is-open { box-shadow: 0 8px 22px rgb(0 0 0 / 35%); }
+.map-view-trigger { display: inline-flex; align-items: center; gap: 7px; padding: 0 8px 0 10px; border: 0; background: transparent; color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; cursor: pointer; transition: transform .42s var(--hud-spring); }
+.map-view-trigger:active { transform: scale(.96); transition-duration: .16s; }
+.map-view-current { color: #e6d6ad; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.map-view-chevron { color: #8e988f; transition: transform .45s var(--hud-spring); }
+.map-view-toggle.is-open .map-view-chevron { transform: rotate(180deg); }
+.map-view-toggle.is-open { z-index: 25; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* The drawer floats to the right over the neighbouring chips, so nothing else in the HUD moves. */
+.map-view-drawer { position: absolute; left: 100%; top: -1px; bottom: -1px; display: flex; margin-left: -1px; border: 1px solid #5f553a; border-left: 0; border-radius: 0 7px 7px 0; background: rgb(10 16 12 / 94%); box-shadow: 10px 8px 22px rgb(0 0 0 / 35%); backdrop-filter: blur(10px); clip-path: inset(-30px 100% -30px -2px); visibility: hidden; transition: clip-path .46s var(--hud-soft), visibility 0s linear .46s; }
+.map-view-toggle.is-open .map-view-drawer { clip-path: inset(-30px -40px -30px -2px); visibility: visible; transition: clip-path .5s var(--hud-soft), visibility 0s; }
+.map-view-options { min-width: 0; display: flex; align-items: center; gap: 3px; padding-right: 3px; white-space: nowrap; opacity: 0; transform: translateX(-16px) scale(.96); transform-origin: left center; transition: opacity .3s var(--hud-soft), transform .46s var(--hud-spring); }
+.map-view-toggle.is-open .map-view-options { opacity: 1; transform: none; transition: opacity .38s var(--hud-soft) .06s, transform .52s var(--hud-spring) .04s; }
+.map-view-options::before { content: ''; width: 1px; align-self: stretch; margin: 6px 5px 6px 0; background: var(--line-soft); }
+.map-view-option { min-height: 24px; padding: 0 8px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #b6c0b8; font-size: 11px; font-weight: 700; letter-spacing: 0; cursor: pointer; transition: background-color .35s var(--hud-soft), border-color .35s var(--hud-soft), color .35s var(--hud-soft), transform .4s var(--hud-spring); }
 .map-view-option:hover:not(.is-disabled):not(.active) { border-color: #5f553a; color: #f1ece0; }
+.map-view-option:active:not(.is-disabled) { transform: scale(.94); transition-duration: .14s; }
 .map-view-option.active { border-color: #6d603f; background: rgb(196 166 101 / 16%); color: #f2e2b8; cursor: default; }
 .map-view-option.is-disabled { opacity: .38; cursor: not-allowed; text-decoration: line-through; text-decoration-thickness: 1px; }
 .map-view-hint { padding: 0 6px 0 3px; color: #8e988f; font-size: 10px; font-style: normal; font-weight: 600; letter-spacing: 0; white-space: nowrap; cursor: help; }
+
+/* Icon style picker: icon-only button; its list opens downwards above every other HUD control. */
+.map-hud .marker-style-menu { z-index: 1; }
+.map-hud .marker-style-menu.is-open { z-index: 30; }
+.marker-style-trigger.is-icon-only { gap: 5px; padding: 0 7px 0 8px; transition: border-color .35s var(--hud-soft), transform .42s var(--hud-spring); }
+.marker-style-trigger.is-icon-only:active { transform: scale(.95); transition-duration: .16s; }
+.marker-style-trigger.is-icon-only .layer-icon.is-preview, .marker-style-trigger.is-icon-only .layer-glyph.is-preview { width: 18px; height: 18px; }
+.map-hud .marker-style-list { transition: opacity .34s var(--hud-soft), transform .48s var(--hud-spring), visibility 0s linear .48s; transform: translateY(-8px) scale(.97); }
+.map-hud .marker-style-menu.is-open .marker-style-list { transition: opacity .34s var(--hud-soft), transform .48s var(--hud-spring), visibility 0s; transform: none; }
+.map-hud .marker-style-chevron { transition: transform .45s var(--hud-spring); }
+
+/* «ЛОКАЦИИ»: compact rows */
+.map-sidebar > div:first-child > .map-side-title { margin: 4px 7px 8px; }
+.map-sidebar .map-option { min-height: 0; padding: 5px 8px; gap: 8px; margin-bottom: 1px; border-radius: 7px; font-size: 12.5px; line-height: 1.25; transition: background-color .3s var(--hud-soft), border-color .3s var(--hud-soft), color .3s var(--hud-soft); }
+.map-sidebar .map-option .map-color { width: 7px; height: 7px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .map-view-toggle, .map-view-toggle *, .map-hud .marker-style-menu *, .map-sidebar .map-option { transition: none !important; }
+}

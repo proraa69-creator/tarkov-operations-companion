@@ -65,6 +65,8 @@ export const MAP_PHRASES: Array<[string, string]> = [
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/Переход на карту\s+/g, 'Transit to '],
+  [/Иконки на карте:\s*/g, 'Map icons: '],
+  [/Вид карты:\s*/g, 'Map view: '],
   [/Выжить на локации\s+(.+?)\s+и выйти или посетить\s+(.+?)\s+3 раза/g, 'Survive and extract from $1 or visit $2 3 times'],
   [/Выйдите с локации\s+(.+?)\s+со статусом «Выжил» \/ «Проскочил» либо посетите её 3 раза\./g, 'Extract from $1 with “Survived” / “Run through”, or visit it 3 times.'],
   [/Конкретной точки нет — вся карта\.?/g, 'No specific point: the whole map.'],
