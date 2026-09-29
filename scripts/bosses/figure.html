@@ -1,37 +1,5 @@
 <!doctype html><html><body style="margin:0;background:transparent">
 <canvas id="c"></canvas>
-<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
-<script type="module">
-// Renders one boss GLB as a standing figure on a transparent background (see render-figures.mjs).
-import * as THREE from 'three'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-const q = new URLSearchParams(location.search)
-const H = +(q.get('h') || 900), W = Math.round(H * 0.75)
-const canvas = document.getElementById('c'); canvas.width = W; canvas.height = H
-const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true })
-r.setSize(W, H, false); r.setClearColor(0x000000, 0)
-r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.15
-r.outputColorSpace = THREE.SRGBColorSpace
-const scene = new THREE.Scene()
-const pm = new THREE.PMREMGenerator(r)
-scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture
-scene.environmentIntensity = 0.55
-scene.add(new THREE.HemisphereLight(0xf1e6cf, 0x1b1d17, 0.7))
-const key = new THREE.DirectionalLight(0xfff1dc, 2.4); key.position.set(-2.2, 3.2, 3); scene.add(key)
-const rim = new THREE.DirectionalLight(0x9fc4dc, 2.2); rim.position.set(2.6, 1.8, -2.6); scene.add(rim)
-const fill = new THREE.DirectionalLight(0xd9c79b, 0.45); fill.position.set(2.5, 0.5, 3); scene.add(fill)
-const yaw = +(q.get('yaw') || -18) * Math.PI / 180
-new GLTFLoader().load(q.get('m'), (g) => {
-  const m = g.scene
-  const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3())
-  m.position.set(-c.x, -box.min.y, -c.z)
-  const upright = new THREE.Group(); upright.add(m); upright.rotation.z = +(q.get('roll') || 0) * Math.PI / 180
-  const holder = new THREE.Group(); holder.add(upright); holder.rotation.y = yaw
-  holder.scale.setScalar(1 / size.y); scene.add(holder)
-  const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 50)
-  cam.position.set(0, 0.62, 3.1); cam.lookAt(0, 0.5, 0)
-  r.render(scene, cam)
-  document.title = 'done'
-}, undefined, (e) => { document.title = 'err ' + e })
-</script></body></html>
+<!-- Renders one boss GLB as a standing figure on a transparent background (see render-figures.mjs, served by Vite). -->
+<script type="module" src="./figure.ts"></script>
+</body></html>

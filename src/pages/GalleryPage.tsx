@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Loader2, RotateCw, Store, X } from 'lucide-react'
 import { allBossFigures, bossMapIds, type BossFigure } from '../data/bossFigures'
 import { GALLERY_BOSS_KEYS, bossDetails, type BossSection } from '../data/bossInfo'
-import { BOSS_GRADE_CSS, BOSS_MODEL_FIX, bossModelUrl } from '../data/bossModels'
+import { BOSS_MODEL_FIX, bossModelUrl } from '../data/bossModels'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useReducedMotion } from '../theme/gear/useGearActive'
@@ -167,7 +167,7 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
         <div className="gallery-viewer-stage">
           {/* The still shows instantly and stays until the model is on screen. */}
           {figure && (loading || failed) && <img className="gallery-viewer-still" src={figure.url} alt="" />}
-          <canvas ref={canvasRef} tabIndex={0} aria-label={uiText('3D модель: перетащите, чтобы повернуть')} className={loading || failed ? 'is-hidden' : ''} style={{ filter: BOSS_GRADE_CSS }} />
+          <canvas ref={canvasRef} tabIndex={0} aria-label={uiText('3D модель: перетащите, чтобы повернуть')} className={loading || failed ? 'is-hidden' : ''} />
           {loading && !failed && <span className="gallery-viewer-status"><Loader2 size={14} className="spin" /> {uiText('Загрузка модели…')}</span>}
           {failed && <span className="gallery-viewer-status is-error">{uiText('Не удалось загрузить 3D модель')}</span>}
           <button type="button" className="gallery-viewer-step is-prev" onClick={() => onStep(-1)} aria-label={uiText('Предыдущий босс')} title={uiText('Предыдущий босс')}><ChevronLeft size={22} /></button>

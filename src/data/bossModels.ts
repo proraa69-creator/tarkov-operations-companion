@@ -14,12 +14,6 @@ export const BOSS_MODEL_FIX: Record<string, BossModelFix> = {
   partisan: { rollDeg: 9.3 },
 }
 
-/**
- * Colour grade for live 3D boss views: the Tripo textures come out pale, so the views are made a touch richer
- * and darker in CSS. The same grade is baked into the stills (sharp modulate in scripts/bosses/render-figures.mjs).
- */
-export const BOSS_GRADE_CSS = 'saturate(1.22) brightness(0.9)'
-
 export function bossModelUrl(key: string): string | undefined {
   return byKey.get(key)
 }

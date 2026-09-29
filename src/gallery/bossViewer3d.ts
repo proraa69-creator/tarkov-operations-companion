@@ -1,17 +1,22 @@
 /**
  * The Gallery's single 3D boss viewer. Loaded with a dynamic import only when a card is opened, so three.js
- * never reaches the main bundle. Rendering is on demand: a frame is drawn only while the model is being dragged,
- * easing to a stop, loading, or (opt-in) slowly spinning — an idle, still viewer costs nothing. Spinning also
- * stops while the canvas is off screen or the window is hidden, and runs at most ~30 fps.
+ * never reaches the main bundle. Rendering is on demand: frames are drawn only while the model is dragged,
+ * easing to a stop, its cloth is still swinging, it is loading, or (opt-in) slowly spinning. After a turn the
+ * loose cloth breathes in a faint breeze for a few seconds at a low frame rate and then the loop stops, so an
+ * idle viewer costs nothing. Nothing is drawn while the canvas is off screen or the window is hidden.
+ * The look (tone mapping, lights, material grade) is shared with the Overview stills: bossLook.ts.
  */
 import {
-  AgXToneMapping, Box3, DirectionalLight, Group, HemisphereLight, PMREMGenerator, PerspectiveCamera, SRGBColorSpace,
-  Scene, Vector3, WebGLRenderer, type Material, type Mesh, type Object3D, type Texture,
+  Box3, Group, PerspectiveCamera, Scene, Vector3, WebGLRenderer,
+  type BufferAttribute, type Material, type Mesh, type Object3D, type Texture,
 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import type { BossModelFix } from '../data/bossModels'
+import { applyBossLighting, gradeBossMaterial } from './bossLook'
 import { addSway, type Sway } from './swayMaterial'
+import { computeSwayWeights, type SwayWeights } from './swayWeights'
+import type { SwayReply, SwayRequest } from './swayWeights.worker'
+import SwayWorker from './swayWeights.worker?worker&inline'
 
 export interface BossViewerHandle {
   /** Swap to another model; the renderer and lights are kept. */
@@ -27,26 +32,17 @@ const PITCH_LIMIT = 18 * DEG
 const DIST_MIN = 1.7, DIST_MAX = 4.2, DIST_START = 3.1
 const TARGET = new Vector3(0, 0.5, 0)
 const SPIN_SPEED = 0.35 // rad/s
-const FRAME_MS = 1000 / 30
+const SPIN_FRAME_MS = 1000 / 30
+const IDLE_FRAME_MS = 1000 / 24
+/** How long the idle breeze lasts after the last interaction, and its fade-out at the end. */
+const BREEZE_MS = 9000, BREEZE_FADE_MS = 2500
 
 export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: boolean; onLoading?: (loading: boolean) => void; onError?: () => void }): BossViewerHandle {
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
   renderer.setClearColor(0x000000, 0)
-  renderer.toneMapping = AgXToneMapping
-  renderer.toneMappingExposure = 1.15
-  renderer.outputColorSpace = SRGBColorSpace
-
   const scene = new Scene()
-  const pmrem = new PMREMGenerator(renderer)
-  const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-  pmrem.dispose()
-  scene.environment = environment
-  scene.environmentIntensity = 0.55
-  scene.add(new HemisphereLight(0xf1e6cf, 0x1b1d17, 0.7))
-  const key = new DirectionalLight(0xfff1dc, 2.4); key.position.set(-2.2, 3.2, 3); scene.add(key)
-  const rim = new DirectionalLight(0x9fc4dc, 2.2); rim.position.set(2.6, 1.8, -2.6); scene.add(rim)
-  const fill = new DirectionalLight(0xd9c79b, 0.45); fill.position.set(2.5, 0.5, 3); scene.add(fill)
+  const disposeLighting = applyBossLighting(renderer, scene)
 
   const camera = new PerspectiveCamera(22, 1, 0.05, 50)
   // The turntable: the model turns (so the lights stay put relative to the viewer), the camera tilts and zooms.
@@ -62,10 +58,14 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   let lastFrame = 0
   let loadToken = 0
   let disposed = false
-  let sway: Sway | null = null
+  let sways: Sway[] = []
   let swaying = false
   let lastYaw = yaw
+  let breezeUntil = 0
+  /** The current model has loose parts with weights (otherwise there is nothing to breeze). */
+  let clothReady = false
   const loader = new GLTFLoader()
+  const weights = createWeightSolver()
 
   function resize() {
     const width = canvas.clientWidth || 1, height = canvas.clientHeight || 1
@@ -81,25 +81,36 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     renderer.render(scene, camera)
   }
 
-  const spinning = () => spin && !options.reduced && visible && !dragging
+  const animated = !options.reduced
+  const spinning = () => spin && animated && visible && !dragging
+  /** Breeze strength 0..1: on after an interaction, fading out, then off (the loop may stop). */
+  const breeze = (now: number) => (animated && clothReady ? Math.max(0, Math.min(1, (breezeUntil - now) / BREEZE_FADE_MS)) : 0)
+  const wake = () => { breezeUntil = performance.now() + BREEZE_MS }
+
   function frame(now: number) {
     raf = 0
+    const busy = dragging || yawVelocity !== 0 || swaying
+    // idle motion (spin, breeze) runs at a reduced frame rate
+    const minGap = busy ? 0 : spinning() ? SPIN_FRAME_MS : IDLE_FRAME_MS
+    if (lastFrame && now - lastFrame < minGap - 1) { raf = requestAnimationFrame(frame); return }
     const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0
-    if (spinning() && lastFrame && now - lastFrame < FRAME_MS) { raf = requestAnimationFrame(frame); return }
     lastFrame = now
     if (!dragging && Math.abs(yawVelocity) > 0.02) {
       yaw += yawVelocity * dt
       yawVelocity *= Math.pow(0.02, dt) // inertia fades out in about a second
     } else if (!dragging) yawVelocity = 0
     if (spinning()) yaw += SPIN_SPEED * dt
-    // hanging cloth / hair follow the turning speed (dragging included) until they settle
-    if (sway && !options.reduced) swaying = sway.step(dt > 0 ? (yaw - lastYaw) / dt : 0, Math.max(dt, 1 / 60))
+    // loose cloth follows the turning speed (dragging included) until it settles
+    const wind = breeze(now)
+    const turnSpeed = dt > 0 ? (yaw - lastYaw) / dt : 0
+    swaying = false
+    if (animated && dt > 0) for (const sway of sways) swaying = sway.step(turnSpeed, dt, wind) || swaying
     lastYaw = yaw
     draw()
-    if (visible && (spinning() || yawVelocity !== 0 || swaying || dragging)) raf = requestAnimationFrame(frame)
+    if (visible && (spinning() || yawVelocity !== 0 || swaying || dragging || wind > 0)) raf = requestAnimationFrame(frame)
     else lastFrame = 0
   }
-  function invalidate() { if (!raf && !disposed) raf = requestAnimationFrame(frame) }
+  function invalidate() { if (!raf && !disposed && visible) raf = requestAnimationFrame(frame) }
 
   // Pointer: drag = turn (and a little tilt), wheel or two-finger pinch = zoom within limits,
   // double-click / double-tap = reset. Touch works through the same pointer events (the canvas has touch-action: none).
@@ -115,6 +126,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     canvas.setPointerCapture(event.pointerId)
     yawVelocity = 0
+    wake()
     if (pointers.size === 2) {
       // Second finger: stop turning and start pinching from the current zoom.
       dragging = false
@@ -146,6 +158,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch + dy * 0.005))
     yawVelocity = turn / Math.max(0.008, (now - lastT) / 1000)
     lastX = event.clientX; lastY = event.clientY; lastT = now
+    wake()
     invalidate()
   }
   const onUp = (event: PointerEvent) => {
@@ -181,6 +194,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     else if (event.key === '-') dist = Math.min(DIST_MAX, dist / 0.88)
     else return
     event.preventDefault()
+    wake()
     invalidate()
   }
   canvas.addEventListener('pointerdown', onDown)
@@ -194,7 +208,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   // Pause when the viewer is off screen or the window is hidden; redraw once when it comes back.
   const updateVisible = (onScreen: boolean) => {
     visible = onScreen && document.visibilityState === 'visible'
-    if (visible) invalidate()
+    if (!visible) { cancelAnimationFrame(raf); raf = 0; lastFrame = 0 } else invalidate()
   }
   let onScreen = true
   const io = new IntersectionObserver(([entry]) => { onScreen = !!entry?.isIntersecting; updateVisible(onScreen) })
@@ -212,7 +226,26 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       if (disposed || token !== loadToken) { release(gltf.scene); return }
       for (const child of [...turntable.children]) { turntable.remove(child); release(child) }
       const model = gltf.scene
-      sway = addSway(model)
+      sways = []
+      swaying = false
+      clothReady = false
+      model.traverse((object) => {
+        const mesh = object as Mesh
+        if (!mesh.isMesh) return
+        if (!animated) { gradeBossMaterial(mesh.material as Material); return }
+        // graded and rigged at once (one shader compile); the weights arrive a moment later from the worker
+        const sway = addSway(mesh)
+        sways.push(sway)
+        const position = (mesh.geometry.getAttribute('position') as BufferAttribute).array as Float32Array
+        const index = (mesh.geometry.index?.array ?? null) as Uint32Array | Uint16Array | null
+        weights.solve(position, index).then((data) => {
+          if (disposed || token !== loadToken || !data) return
+          sway.setWeights(data)
+          clothReady = true
+          wake()
+          invalidate()
+        }, () => { /* no weights: the model simply stays rigid */ })
+      })
       // Straighten first (about the feet), then stand the result on the floor, centred, 1 unit tall.
       const upright = new Group()
       upright.add(model)
@@ -256,10 +289,58 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('keydown', onKey)
       canvas.removeEventListener('dblclick', resetView)
+      weights.dispose()
       release(turntable)
-      environment.dispose()
+      disposeLighting()
       renderer.dispose()
       renderer.forceContextLoss()
+    },
+  }
+}
+
+/**
+ * Cloth weights are computed in a worker (inline, so it also works from file:// in the desktop build);
+ * if a worker cannot be started they are computed on the main thread once the model is already on screen.
+ */
+function createWeightSolver() {
+  let worker: Worker | null = null
+  try { worker = new SwayWorker() } catch { worker = null }
+  let nextId = 0
+  let disposed = false
+  const pending = new Map<number, { resolve: (data: SwayWeights | null) => void; position: Float32Array; index: Uint32Array | Uint16Array | null }>()
+  const onMainThread = (position: Float32Array, index: Uint32Array | Uint16Array | null) => new Promise<SwayWeights | null>((resolve) => setTimeout(() => {
+    if (disposed) { resolve(null); return }
+    try { resolve(computeSwayWeights(position, index)) } catch { resolve(null) }
+  }, 120))
+  if (worker) {
+    worker.onmessage = (event: MessageEvent<SwayReply>) => {
+      pending.get(event.data.id)?.resolve(event.data.result)
+      pending.delete(event.data.id)
+    }
+    // the worker could not start (or crashed): finish what was asked on the main thread
+    worker.onerror = () => {
+      worker?.terminate()
+      worker = null
+      for (const job of pending.values()) void onMainThread(job.position, job.index).then(job.resolve)
+      pending.clear()
+    }
+  }
+  return {
+    solve(position: Float32Array, index: Uint32Array | Uint16Array | null): Promise<SwayWeights | null> {
+      if (!worker) return onMainThread(position, index)
+      const id = ++nextId
+      // copies go to the worker; the originals stay in the geometry
+      const request: SwayRequest = { id, position: position.slice(), index: index ? index.slice() : null }
+      return new Promise((resolve) => {
+        pending.set(id, { resolve, position, index })
+        worker!.postMessage(request, [request.position.buffer, ...(request.index ? [request.index.buffer] : [])])
+      })
+    },
+    dispose() {
+      disposed = true
+      worker?.terminate()
+      worker = null
+      pending.clear()
     },
   }
 }
