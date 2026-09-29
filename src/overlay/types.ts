@@ -1,5 +1,8 @@
 import type { GameMap, MarkerLayerId } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
+import type { ScreenshotKeyInfo } from './screenshotCheck'
+
+export type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from './screenshotCheck'
 
 export interface QuestNeed {
   questId: string
@@ -66,6 +69,12 @@ export interface ExperimentalSettings {
   screenshotsDir: string
   /** Where the player dragged the minimap; null = top-right corner. */
   minimapPosition: { x: number; y: number } | null
+  /** Start the app with administrator rights (the game runs elevated). */
+  runAsAdmin: boolean
+  /** Open the minimap for a moment when the player takes a screenshot in the game. */
+  showOnScreenshot: boolean
+  /** Unity key name the app presses for a screenshot; empty = the key set in the game. */
+  screenshotKey: string
 }
 
 export interface ExperimentalStatus {
@@ -79,6 +88,18 @@ export interface ExperimentalStatus {
   lastScreenshot: { name: string; withCoordinates: boolean; at: number } | null
   /** How many times the app pressed the screenshot key this session. */
   screenshotPresses: number
+  /** Screenshots the game wrote right after one of those presses. */
+  filesAfterPress: number
+  screenshotKey: ScreenshotKeyInfo
+  /** Administrator rights of this app; null = unknown (not Windows). */
+  elevated: boolean | null
+  snipping: 'on' | 'off' | 'unknown'
+  /** Why the Windows functions (game window, keys) could not be loaded; empty when they work. */
+  nativeError: string
+  /** When the game window was last in front; null = not seen since the app started. */
+  gameSeenAt: number | null
+  /** Whether keys pressed while the game is in front reach this app (hidden: the game runs elevated). */
+  gameKeys: 'visible' | 'hidden' | 'unknown'
   lastPosition: PlayerPosition | null
   raid: { inRaid: boolean; location?: string }
   /** Display mode of the game the last time it was in front. */

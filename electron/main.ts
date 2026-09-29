@@ -9,6 +9,8 @@ import { readRaidState, scanLogFolderBySession, type RaidState } from './logScan
 import { fetchPlayerProfile, resolveAccountIdsByNickname, clearPlayerSnapshotCache, humanizeNetworkError } from './playerProfileService.js'
 import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
+import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
+import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest } from './serviceGateway.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
@@ -85,7 +87,11 @@ function loadRenderer(window: BrowserWindow, hash: string) {
   else void window.loadFile(join(appDir, '../../dist/index.html'), hash ? { hash } : undefined)
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
+  // from apps that are not. When the prompt is refused the app simply goes on without the rights.
+  if (process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
+  await waitForPreviousCopy()
   registerIpc()
   createWindow()
   startExperimental({
@@ -93,6 +99,7 @@ app.whenReady().then(() => {
     load: loadRenderer,
     mainWindow: () => mainWindow,
     raidState: () => raidState,
+    logsRoot: async () => watchedFolder || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
   })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 })

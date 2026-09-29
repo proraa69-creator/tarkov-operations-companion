@@ -755,6 +755,32 @@ a.quest-stage:hover { color: var(--text); }
 .marker-pick small { font-size: 10px; font-weight: 700; }
 .exp-folder { display: grid; gap: 6px; }
 .exp-folder-actions { display: flex; gap: 6px; }
+.exp-warning .panel-body > svg { flex: none; }
+.exp-admin-body { display: grid; gap: 8px; min-width: 0; }
+.exp-admin-body > strong { color: var(--text); }
+.exp-admin-body small { line-height: 1.45; }
+.exp-admin-body .is-error, .exp-note.is-alert p { color: var(--danger); }
+.exp-note { display: grid; gap: 8px; justify-items: start; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line)); border-radius: 8px; }
+.exp-note p { margin: 0; line-height: 1.5; font-size: 13px; }
+.exp-check-panel { margin-top: 14px; }
+.exp-check-panel .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.exp-check-panel .panel-title { display: flex; align-items: center; gap: 8px; }
+.exp-check-panel .panel-title svg { color: var(--brass); }
+.exp-check-intro { margin: 0 0 12px; line-height: 1.5; max-width: 860px; }
+.exp-check ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.exp-check-step { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.exp-check-step strong { display: block; color: var(--text); font-weight: 600; }
+.exp-check-step small { display: block; margin-top: 2px; color: var(--text-dim); line-height: 1.45; word-break: break-word; }
+.exp-check-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); font-size: 12px; font-weight: 800; color: var(--text-dim); }
+.exp-check-step.is-ok .exp-check-mark { color: var(--success); border-color: color-mix(in srgb, var(--success) 60%, var(--line)); }
+.exp-check-step.is-warn .exp-check-mark { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 60%, var(--line)); }
+.exp-check-step.is-fail .exp-check-mark { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }
+.exp-check-step.is-wait .exp-check-mark { color: var(--brass); border-color: var(--brass); animation: exp-check-wait 1.2s ease-in-out infinite; }
+@keyframes exp-check-wait { 50% { opacity: .35; } }
+.exp-verdict { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; line-height: 1.5; border: 1px solid var(--line); }
+.exp-verdict.is-ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 50%, var(--line)); }
+.exp-verdict.is-fail { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); }
+@media (prefers-reduced-motion: reduce) { .exp-check-step.is-wait .exp-check-mark { animation: none; } }
 
 /* ── Goons card (src/components/GoonCard.tsx) + compact map priority (src/components/MapPriority.tsx) ──
    Popovers are absolutely positioned: opening/closing them never moves or resizes anything. */

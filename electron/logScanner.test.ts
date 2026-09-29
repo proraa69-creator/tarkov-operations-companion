@@ -1,8 +1,8 @@
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { scanLogFolderBySession } from './logScanner'
+import { readScreenshotBinding, scanLogFolderBySession } from './logScanner'
 
 const V = '1.1.5.1.47510'
 const PVP_PROFILE = '61c4752c091f387bc2448d1c'
@@ -94,5 +94,29 @@ describe('EFT log scanner', () => {
     })
     const result = await scanLogFolderBySession(root)
     expect(result.events).toEqual([])
+  })
+})
+
+describe('screenshot key from the game log', () => {
+  const settings = (key: string) => `{"InvertedXAxis":false,"keyBindings":[{"keyName":"MakeScreenshot","variants":[{"keyCode":["${key}"]},{"keyCode":[]}],"pressType":"Press"}]}`
+
+  it('reads the key the newest launch logged and follows a log that keeps growing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-keys-'))
+    await session(root, 'log_2026.09.28_9-10-00_1.1.5.1.47510', { application: [app('2026-09-28 09:10:05.000', settings('Print'))] })
+    await session(root, 'log_2026.09.29_20-31-00_1.1.5.1.47510', { application: [app('2026-09-29 20:31:05.123', settings('F12')), app('2026-09-29 20:31:06.000', 'Session mode: Regular')] })
+    expect(await readScreenshotBinding(root)).toEqual(['F12'])
+    const log = join(root, 'log_2026.09.29_20-31-00_1.1.5.1.47510', '2026.09.29_20-31-00_1.1.5.1.47510 application_000.log')
+    await appendFile(log, `\n${app('2026-09-29 21:00:00.000', 'LocationLoaded:22.91 real:37.31 diff:14.4')}`)
+    expect(await readScreenshotBinding(root)).toEqual(['F12'])
+    await appendFile(log, `\n${app('2026-09-29 21:30:00.000', settings('Insert'))}`)
+    expect(await readScreenshotBinding(root)).toEqual(['Insert'])
+  })
+
+  it('falls back to an older launch and answers null when nothing was logged', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-keys-'))
+    await session(root, 'log_2026.09.28_9-10-00_1.1.5.1.47510', { application: [app('2026-09-28 09:10:05.000', settings('F9'))] })
+    await session(root, 'log_2026.09.29_20-31-00_1.1.5.1.47510', { application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular')] })
+    expect(await readScreenshotBinding(root)).toEqual(['F9'])
+    expect(await readScreenshotBinding(await mkdtemp(join(tmpdir(), 'eft-empty-')))).toBeNull()
   })
 })

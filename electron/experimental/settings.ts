@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { DEFAULT_ITEM_KEY, DEFAULT_MINIMAP_KEY, isKnownHotkey } from '../../src/overlay/hotkeys.js'
+import { SCREENSHOT_KEY_CHOICES } from '../../src/overlay/gameKeys.js'
 
 export interface ExperimentalSettings {
   version: 3
@@ -21,6 +22,12 @@ export interface ExperimentalSettings {
   /** EFT screenshots folder chosen by hand; empty = auto-detect. */
   screenshotsDir: string
   minimapPosition: { x: number; y: number } | null
+  /** Start with administrator rights: the game runs elevated, and Windows hides its keys from apps that are not. */
+  runAsAdmin: boolean
+  /** Open the minimap for a moment when the player takes a screenshot in the game. */
+  showOnScreenshot: boolean
+  /** Unity key name the app presses for a screenshot; empty = the key set in the game. */
+  screenshotKey: string
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
@@ -37,6 +44,9 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   playerMarker: 'arrow',
   screenshotsDir: '',
   minimapPosition: null,
+  runAsAdmin: false,
+  showOnScreenshot: true,
+  screenshotKey: '',
 }
 
 let current: ExperimentalSettings | null = null
@@ -80,6 +90,9 @@ function sanitize(raw: unknown): ExperimentalSettings {
     playerMarker: value.playerMarker === 'chevron' || value.playerMarker === 'dot' ? value.playerMarker : 'arrow',
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
     minimapPosition: readPoint(value.minimapPosition),
+    runAsAdmin: flag('runAsAdmin'),
+    showOnScreenshot: flag('showOnScreenshot'),
+    screenshotKey: (SCREENSHOT_KEY_CHOICES as readonly unknown[]).includes(value.screenshotKey) ? value.screenshotKey as string : '',
   }
 }
 

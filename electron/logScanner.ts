@@ -1,7 +1,8 @@
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { open, readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildScanResult, readLogSignals, type LogSignal, type ModeLogScanResult } from '../src/import/eftLogTimeline.js'
 import { raidStateFromLogs, type RaidState } from '../src/import/raidState.js'
+import { parseScreenshotBinding } from '../src/overlay/gameKeys.js'
 
 export type { ModeLogScanResult, RaidState }
 
@@ -37,6 +38,60 @@ export async function readRaidState(root: string): Promise<RaidState> {
   const files = (await relevantLogs(folder)).filter((file) => /(application|notifications)[^\\/]*\.log$/i.test(file))
   const texts = await Promise.all(files.map((file) => readFile(file, 'utf8').catch(() => '')))
   return raidStateFromLogs(texts)
+}
+
+/**
+ * The game's screenshot key from the control settings EFT logs when it starts, from the newest of the last
+ * few launches that logged them: [] = not bound, null = not found.
+ */
+export async function readScreenshotBinding(root: string): Promise<string[] | null> {
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
+  const launches = entries
+    .filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))
+    .map((entry) => ({ name: entry.name, key: launchKey(entry.name) }))
+    .sort((a, b) => b.key - a.key)
+    .slice(0, 3)
+    .map((entry) => join(root, entry.name))
+  for (const folder of launches.length ? launches : [root]) {
+    const files = (await relevantLogs(folder)).filter((file) => /application[^\\/]*\.log$/i.test(file)).sort()
+    let keys: string[] | null = null
+    for (const file of files) keys = await fileBinding(file) ?? keys
+    if (keys) return keys
+  }
+  return null
+}
+
+const BINDING_CHUNK = 4 * 1024 * 1024
+/** Chunks overlap so a binding cut in half by a chunk edge is still read whole. */
+const BINDING_OVERLAP = 8 * 1024
+const bindingCache = new Map<string, { size: number; keys: string[] | null }>()
+
+/** A running game keeps appending to its log: only the new part is read, in chunks. */
+async function fileBinding(file: string) {
+  const info = await stat(file).catch(() => null)
+  if (!info) return null
+  const cached = bindingCache.get(file)
+  if (cached && cached.size === info.size) return cached.keys
+  const from = cached && info.size > cached.size ? Math.max(0, cached.size - BINDING_OVERLAP) : 0
+  let keys = cached && from > 0 ? cached.keys : null
+  const handle = await open(file, 'r').catch(() => null)
+  if (!handle) return keys
+  try {
+    const buffer = Buffer.alloc(BINDING_CHUNK)
+    for (let position = from; position < info.size;) {
+      const { bytesRead } = await handle.read(buffer, 0, Math.min(BINDING_CHUNK, info.size - position), position)
+      if (!bytesRead) break
+      keys = parseScreenshotBinding(buffer.toString('utf8', 0, bytesRead)) ?? keys
+      if (position + bytesRead >= info.size) break
+      position += Math.max(1, bytesRead - BINDING_OVERLAP)
+    }
+  } catch {
+    return keys
+  } finally {
+    await handle.close().catch(() => {})
+  }
+  bindingCache.set(file, { size: info.size, keys })
+  return keys
 }
 
 /** «log_2026.09.27_2-33-45_1.1.5.1» → sortable launch time (the hour is not zero-padded). */

@@ -2,7 +2,7 @@ import type { ModeLogScanResult } from './import/eftLogTimeline'
 import type { RaidState } from './import/raidState'
 import type { PlayerProfileSnapshot, RaidMode } from './domain/types'
 import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
-import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload } from './overlay/types'
+import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 
 type DesktopLogScanResult = ModeLogScanResult
@@ -53,6 +53,13 @@ interface TarkovDesktopApi {
     toggleMinimap: () => Promise<boolean>
     pickScreenshotsFolder: () => Promise<ExperimentalSettings>
     testItemLookup: () => Promise<unknown>
+    /** Folder, key, one real press with the game in front, the file and its coordinates. */
+    checkScreenshots: () => Promise<ScreenshotCheck>
+    onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
+    /** Restarts the app with administrator rights; false when refused. */
+    relaunchAsAdmin: () => Promise<boolean>
+    /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
+    openKeyboardSettings: () => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void

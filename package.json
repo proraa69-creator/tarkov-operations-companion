@@ -59,6 +59,9 @@
         "portable"
       ],
       "artifactName": "Tarkov Operator ${version}.exe"
+    },
+    "portable": {
+      "unpackDirName": true
     }
   },
   "dependencies": {

@@ -62,7 +62,11 @@ export class PositionTracker {
   /** Screenshots that existed before the tracker started belong to the player and are never touched. */
   private preexisting = new Set<string>()
 
-  constructor(private readonly onPosition: (position: PlayerPosition) => void) {}
+  constructor(
+    private readonly onPosition: (position: PlayerPosition) => void,
+    /** Every new image in the folder, after its position (if any) was reported. */
+    private readonly onFile?: (file: { name: string; withCoordinates: boolean; at: number }) => void,
+  ) {}
 
   get running() {
     return this.startedAt > 0
@@ -110,10 +114,14 @@ export class PositionTracker {
       const folder = this.folder
       const all = await readdir(folder).catch(() => [] as string[])
       const fresh = all.filter((name) => /\.(png|jpe?g|bmp)$/i.test(name) && !this.preexisting.has(name))
+      let newFile: PositionTracker['lastSeen'] = null
       if (fresh.length) {
         const stats = await Promise.all(fresh.map(async (name) => ({ name, time: (await stat(join(folder, name)).catch(() => null))?.mtimeMs ?? 0 })))
         const newest = stats.sort((a, b) => b.time - a.time)[0]
-        if (newest && newest.name !== this.lastSeen?.name) this.lastSeen = { name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
+        if (newest && newest.name !== this.lastSeen?.name) {
+          this.lastSeen = { name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
+          newFile = this.lastSeen
+        }
       }
       const names = all.filter((name) => isPositionScreenshot(name) && (includePreexisting || !this.preexisting.has(name)))
       const files = (await Promise.all(names.map(async (name) => {
@@ -127,6 +135,7 @@ export class PositionTracker {
         const position = parseScreenshotPosition(newest.name, newest.time)
         if (position) this.onPosition(position)
       }
+      if (newFile) this.onFile?.(newFile)
       // Screenshots belong to the player, including those taken while tracking. Never delete them.
     } finally {
       this.busy = false

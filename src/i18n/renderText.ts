@@ -1,4 +1,4 @@
-import { translateUiText } from './uiEnglish'
+import { exactUiText, translateUiText } from './uiEnglish'
 import { cleanQuestText } from '../shared/questText'
 
 let language: 'ru' | 'en' = 'ru'
@@ -12,7 +12,8 @@ export function installCatalogTranslations(entries: Array<[string, string]>) {
 export function uiText<T>(value: T): T {
   if (language !== 'en') return value
   if (typeof value === 'string') {
-    const exact = catalog.get(value.trim())
+    // A whole phrase first: sentences with commas would otherwise be split into untranslatable pieces.
+    const exact = catalog.get(value.trim()) ?? exactUiText(value)
     if (exact) return value.replace(value.trim(), exact) as T
     // Rendered templates often contain several independently localized names.
     return value.split(/( · | ×\d+|, )/).map((part) => {

@@ -1,11 +1,20 @@
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, type Display, type Point } from 'electron'
-import type { PlayerPosition } from '../../src/overlay/screenshotPosition.js'
+import { join } from 'node:path'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, type Display, type Point } from 'electron'
+import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
+import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
+import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
+import { readScreenshotBinding } from '../logScanner.js'
 import { recognizeRegionLines, warmUpOcr } from '../screenOcr.js'
+import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
-import { foregroundDisplayMode, isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable, pressScreenshotKey, type DisplayMode } from './win32.js'
+import {
+  foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
+  type DisplayMode, type KeyStroke,
+} from './win32.js'
 
 const require = createRequire(import.meta.url)
 
@@ -20,6 +29,8 @@ interface Options {
   load: (window: BrowserWindow, hash: string) => void
   mainWindow: () => BrowserWindow | null
   raidState: () => { inRaid: boolean; since?: number; location?: string }
+  /** The EFT Logs folder (the game logs its control bindings there at start); '' when unknown. */
+  logsRoot: () => Promise<string>
 }
 
 const ITEM_OVERLAY = { width: 300, height: 118 }
@@ -70,6 +81,15 @@ function watchMinimapHits(window: BrowserWindow) {
   }, 50)
 }
 let displayMode: DisplayMode = 'unknown'
+const WATCH_MS = 800
+/** Mouse buttons, W A S D, Shift, Ctrl, Space, Q E R F C: at least one is held now and then while playing. */
+const PROBE_KEYS = [0x01, 0x02, 0x57, 0x41, 0x53, 0x44, 0x10, 0x11, 0x20, 0x51, 0x45, 0x52, 0x46, 0x43]
+let lastGameSeenAt = 0
+let gameFrontMs = 0
+let gameKeysSeenAt = 0
+/** Keys held in the game never reached this app although the game was in front this long: Windows hides them. */
+const GAME_KEYS_HIDDEN_MS = 60_000
+const gameKeysState = () => gameKeysSeenAt ? 'visible' as const : gameFrontMs >= GAME_KEYS_HIDDEN_MS ? 'hidden' as const : 'unknown' as const
 let lastPosition: PlayerPosition | null = null
 let lastKeyAt = 0
 let lookupBusy = false
@@ -91,7 +111,7 @@ const tracker = new PositionTracker((position) => {
   // Raid detection from the logs can lag or miss offline/training raids, so the position is not
   // gated on it: a fresh screenshot from the game is proof enough of where the player stands.
   sendOverlay(minimapWindow, 'overlay:position', position)
-})
+}, (file) => noteScreenshotFile(file))
 
 /** A position older than this probably belongs to a previous raid. */
 const POSITION_MAX_AGE_MS = 20 * 60 * 1000
@@ -102,7 +122,7 @@ export function startExperimental(next: Options) {
   registerIpc()
   startHook()
   applySettings(readSettings())
-  watchTimer = setInterval(watchGame, 800)
+  watchTimer = setInterval(watchGame, WATCH_MS)
   // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
   if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
 }
@@ -114,6 +134,10 @@ export function startExperimental(next: Options) {
  */
 function watchGame() {
   if (!isTarkovForeground()) return
+  lastGameSeenAt = Date.now()
+  gameFrontMs += WATCH_MS
+  // Held movement keys or mouse buttons prove that Windows lets this app see the game's keys.
+  if (!gameKeysSeenAt && PROBE_KEYS.some(isVirtualKeyDown)) gameKeysSeenAt = Date.now()
   displayMode = foregroundDisplayMode()
   for (const window of [itemWindow, minimapWindow]) {
     if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
@@ -199,14 +223,22 @@ function registerIpc() {
     applySettings(settings)
     return settings
   })
-  ipcMain.handle('experimental:status', () => ({
-    hookReady: (Boolean(hook) && !hookError) || nativeKeysAvailable(),
-    hookError,
+  ipcMain.handle('experimental:status', async () => ({
+    // Hotkeys only fire with the game in front, and only the Windows functions can tell that.
+    hookReady: nativeKeysAvailable(),
+    hookError: nativeError() || hookError,
     tracking: tracker.running,
     screenshotsFolder: screenshotsFolder(),
     screenshotCandidates: screenshotFolderCandidates(),
     lastScreenshot: tracker.lastSeen,
     screenshotPresses,
+    filesAfterPress,
+    screenshotKey: await resolveScreenshotKey(),
+    elevated: isElevated(),
+    snipping: await snippingState(),
+    nativeError: nativeError(),
+    gameSeenAt: lastGameSeenAt || null,
+    gameKeys: gameKeysState(),
     lastPosition: freshPosition(),
     raid: options.raidState(),
     displayMode,
@@ -227,6 +259,10 @@ function registerIpc() {
   })
   ipcMain.handle('experimental:toggle-minimap', () => toggleMinimap(true))
   ipcMain.handle('experimental:test-item', () => lookupItem(true))
+  ipcMain.handle('experimental:check-screenshots', () => checkScreenshots())
+  ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
+  // Only opens the Windows settings page; the player changes the setting there.
+  ipcMain.handle('experimental:open-keyboard-settings', () => shell.openExternal('ms-settings:easeofaccess-keyboard').then(() => true, () => false))
 }
 
 let appliedScreenshotsDir: string | null = null
@@ -245,6 +281,8 @@ function applySettings(settings: ExperimentalSettings) {
       // detection from the logs can miss a raid, so a coordinate screenshot in the last minutes also counts.
       const recentlyInRaid = lastPosition && Date.now() - lastPosition.at < 3 * 60_000
       if (!(options.raidState().inRaid || recentlyInRaid) || !isTarkovForeground()) return
+      // Presses that bring no screenshot (the game ignores them) are slowed down until one works again.
+      if (pressesSinceFile >= MISSES_BEFORE_BACKOFF && Date.now() - lastScreenshotPress < BACKOFF_MS) return
       void takeScreenshot()
     }, settings.screenshotIntervalMs)
   }
@@ -320,14 +358,41 @@ function startHook() {
 }
 
 let lastScreenshotPress = 0
-/** One screenshot key press for the position tracker: native scan-code input, uiohook as a fallback. */
+let screenshotPresses = 0
+/** Screenshots the game wrote right after a press by the app. */
+let filesAfterPress = 0
+/** Presses by the app since the last screenshot that followed one. */
+let pressesSinceFile = 0
+/** Times of the latest presses by the app, to tell its screenshots from the player's own. */
+const recentPresses: number[] = []
+/** The game writes the file this long after the key press at most. */
+const PRESS_FILE_MS = 3000
+const MISSES_BEFORE_BACKOFF = 8
+const BACKOFF_MS = 10_000
+
+/**
+ * One press of the game's screenshot key for the position tracker. False when the app cannot press it:
+ * no key bound in the game, a mouse button, or PrtSc while Windows gives that key to the Snipping Tool
+ * (pressing it would open the snipping overlay over the game).
+ */
 async function takeScreenshot() {
   const now = Date.now()
-  if (now - lastScreenshotPress < 500) return
+  if (now - lastScreenshotPress < 500) return false
   lastScreenshotPress = now
+  const key = await resolveScreenshotKey()
+  if (!key.sendable) return false
+  if (isPrintScreen(key.keys) && await snippingState() === 'on') return false
+  return pressScreenshotKeys(key)
+}
+
+async function pressScreenshotKeys(key: ScreenshotKeyInfo) {
+  const strokes = key.keys.map(unityKey).filter((stroke): stroke is KeyStroke => Boolean(stroke))
   screenshotPresses += 1
-  if (await pressScreenshotKey()) return
-  if (!hook) return
+  pressesSinceFile += 1
+  recentPresses.push(Date.now())
+  if (recentPresses.length > 12) recentPresses.shift()
+  if (await pressKeys(strokes)) return true
+  if (!hook || !isPrintScreen(key.keys)) return false
   try {
     hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'down')
     await new Promise((resolve) => setTimeout(resolve, 60))
@@ -335,8 +400,61 @@ async function takeScreenshot() {
   } catch {
     hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
   }
+  return true
 }
-let screenshotPresses = 0
+
+const pressedBefore = (at: number) => recentPresses.some((press) => at >= press - 300 && at <= press + PRESS_FILE_MS)
+/** The app's own presses bring screenshots right now: automatic screenshots keep the minimap fresh by themselves. */
+const autoScreenshotsWork = () => filesAfterPress > 0 && pressesSinceFile < MISSES_BEFORE_BACKOFF && Date.now() - (recentPresses.at(-1) ?? 0) < 10_000
+
+/** Every new screenshot: counts the ones that followed the app's presses; the player's own may open the minimap. */
+function noteScreenshotFile(file: { name: string; withCoordinates: boolean; at: number }) {
+  if (pressedBefore(file.at)) {
+    filesAfterPress += 1
+    pressesSinceFile = 0
+    return
+  }
+  const settings = readSettings()
+  if (!file.withCoordinates || !settings.minimap || !settings.showOnScreenshot || Date.now() - file.at > 10_000 || autoScreenshotsWork()) return
+  // Taken with the game in front: the player pressed the screenshot key in a raid.
+  if (isTarkovForeground()) void peekMinimap()
+}
+
+const GAME_SETTINGS = () => join(app.getPath('appData'), 'Battlestate Games', 'Escape from Tarkov', 'Settings', 'Control.ini')
+const KEY_CACHE_MS = 30_000
+let keyCache: { at: number; key: ScreenshotKeyInfo } | null = null
+
+/**
+ * The key the app presses for a screenshot: chosen on the Mini Map page, else the one set in the game —
+ * its settings file, then the bindings it logs at start — else PrtSc, the game's default.
+ */
+async function resolveScreenshotKey(fresh = false): Promise<ScreenshotKeyInfo> {
+  const chosen = readSettings().screenshotKey
+  if (chosen) return describeKey([chosen], 'setting')
+  if (!fresh && keyCache && Date.now() - keyCache.at < KEY_CACHE_MS) return keyCache.key
+  let keys: string[] | null = parseScreenshotBinding(await readFile(GAME_SETTINGS(), 'utf8').catch(() => ''))
+  let source: ScreenshotKeyInfo['source'] = keys ? 'game-settings' : 'default'
+  if (!keys) {
+    const root = await options.logsRoot().catch(() => '')
+    keys = root ? await readScreenshotBinding(root).catch(() => null) : null
+    if (keys) source = 'game-log'
+  }
+  const key = describeKey(keys ?? ['Print'], source)
+  keyCache = { at: Date.now(), key }
+  return key
+}
+
+function describeKey(keys: string[], source: ScreenshotKeyInfo['source']): ScreenshotKeyInfo {
+  return { keys, label: gameKeyLabel(keys), source, unbound: keys.length === 0, sendable: keys.length > 0 && keys.every((key) => unityKey(key)) }
+}
+
+let snipping: { at: number; value: 'on' | 'off' | 'unknown' } | null = null
+async function snippingState() {
+  if (snipping && Date.now() - snipping.at < 60_000) return snipping.value
+  const value = await printScreenOpensSnipping().catch(() => 'unknown' as const)
+  snipping = { at: Date.now(), value }
+  return value
+}
 
 /** Asks the main window (which holds the catalog and quest progress) to answer a query. */
 function askRenderer(kind: 'item' | 'minimap', input: unknown): Promise<unknown> {
@@ -491,11 +609,45 @@ async function grabAroundCursor(point: Point, display: Display) {
 
 async function toggleMinimap(fromApp: boolean) {
   if (!readSettings().minimap) return false
+  stopPeek()
   const window = ensureMinimapWindow()
   if (window.isVisible()) {
     window.hide()
     return false
   }
+  return openMinimap(window, fromApp)
+}
+
+/** How long the minimap stays open after a screenshot the player took. */
+const PEEK_MS = 15_000
+let peekTimer: NodeJS.Timeout | null = null
+
+function stopPeek() {
+  if (peekTimer) clearTimeout(peekTimer)
+  peekTimer = null
+}
+
+/**
+ * The player took a screenshot in a raid: show the minimap with the new position for a moment. Needs no
+ * hotkey, so it also works when Windows hides the game's keys from the app. A minimap the player opened stays.
+ */
+let peekOpening = false
+async function peekMinimap() {
+  const window = ensureMinimapWindow()
+  if (peekOpening || (window.isVisible() && !peekTimer)) return
+  stopPeek()
+  if (!window.isVisible()) {
+    peekOpening = true
+    const shown = await openMinimap(window, false).finally(() => { peekOpening = false })
+    if (!shown) return
+  }
+  peekTimer = setTimeout(() => {
+    peekTimer = null
+    if (!window.isDestroyed()) window.hide()
+  }, PEEK_MS)
+}
+
+async function openMinimap(window: BrowserWindow, fromApp: boolean) {
   await whenLoaded(window)
   reassertOverlay(window)
   const raid = options.raidState()
@@ -517,3 +669,107 @@ async function toggleMinimap(fromApp: boolean) {
   watchMinimapHits(window)
   return true
 }
+
+const IMAGE = /\.(png|jpe?g|bmp)$/i
+const CHECK_WAIT_GAME_S = 20
+const CHECK_WAIT_FILE_MS = 6000
+let check: ScreenshotCheck | null = null
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * The «Проверить скриншоты» button: where the game saves screenshots and whether coordinates can be read
+ * from their names, which key the app presses, then one real press with the game in front and the file
+ * it brings. A screenshot the player takes meanwhile counts too. Progress goes to the page as it happens.
+ */
+async function checkScreenshots(): Promise<ScreenshotCheck> {
+  if (check && check.phase !== 'done') return { ...check }
+  const folder = screenshotsFolder()
+  const report: ScreenshotCheck = {
+    phase: 'running',
+    countdown: 0,
+    folder: { path: folder, exists: false, images: 0, withCoordinates: 0, newest: null },
+    key: await resolveScreenshotKey(true),
+    snipping: await snippingState(),
+    elevated: isElevated(),
+    nativeError: nativeError(),
+    pressed: false,
+    file: null,
+    raid: options.raidState(),
+    verdict: null,
+  }
+  check = report
+  const emit = () => {
+    report.raid = options.raidState()
+    options.mainWindow()?.webContents.send('experimental:check-progress', { ...report })
+  }
+  const run = async (): Promise<NonNullable<ScreenshotCheck['verdict']>> => {
+    const before = await imagesIn(folder)
+    const withCoordinates = (before ?? []).filter((file) => isPositionScreenshot(file.name))
+    const newest = withCoordinates.sort((a, b) => b.at - a.at)[0]
+    report.folder = {
+      path: folder,
+      exists: before !== null,
+      images: before?.length ?? 0,
+      withCoordinates: withCoordinates.length,
+      newest: newest ? { ...newest, position: parseScreenshotPosition(newest.name, newest.at) } : null,
+    }
+    emit()
+    if (report.nativeError) return 'no-native'
+    if (!report.key.sendable) return 'no-key'
+    if (isPrintScreen(report.key.keys) && report.snipping === 'on') return 'snipping'
+    const known = new Set((before ?? []).map((file) => file.name))
+    report.phase = 'waiting-game'
+    let file: ScreenshotCheckFile | null = null
+    for (let tick = 0; tick < CHECK_WAIT_GAME_S * 4 && !isTarkovForeground(); tick += 1) {
+      const left = CHECK_WAIT_GAME_S - Math.floor(tick / 4)
+      if (left !== report.countdown) { report.countdown = left; emit() }
+      await pause(250)
+      if (tick % 4 === 3 && (file = await newImage(folder, known))) break
+    }
+    report.countdown = 0
+    if (!file) {
+      if (!isTarkovForeground()) return 'no-game'
+      // Let the game take the keyboard after the switch, then press only if it is still in front.
+      await pause(700)
+      if (!isTarkovForeground()) return 'no-game'
+      report.pressed = await pressScreenshotKeys(report.key)
+      report.phase = 'waiting-file'
+      emit()
+      const until = Date.now() + CHECK_WAIT_FILE_MS
+      while (!file && Date.now() < until) {
+        await pause(250)
+        file = await newImage(folder, known)
+      }
+    }
+    report.file = file
+    if (!file) return 'no-file'
+    return file.position ? 'ok' : 'no-coordinates'
+  }
+  try {
+    report.verdict = await run()
+  } catch {
+    report.verdict = report.verdict ?? 'no-file'
+  }
+  report.phase = 'done'
+  report.countdown = 0
+  emit()
+  return { ...report }
+}
+
+/** Images in the folder with their times; null when the folder does not exist. */
+async function imagesIn(folder: string) {
+  const names = await readdir(folder).catch(() => null)
+  if (!names) return null
+  const files = await Promise.all(names.filter((name) => IMAGE.test(name)).map(async (name) => ({ name, at: (await stat(join(folder, name)).catch(() => null))?.mtimeMs ?? 0 })))
+  return files
+}
+
+/** The newest image that was not in the folder before the check. */
+async function newImage(folder: string, known: Set<string>): Promise<ScreenshotCheckFile | null> {
+  const names = (await readdir(folder).catch(() => [] as string[])).filter((name) => IMAGE.test(name) && !known.has(name))
+  if (!names.length) return null
+  const files = await Promise.all(names.map(async (name) => ({ name, at: (await stat(join(folder, name)).catch(() => null))?.mtimeMs ?? Date.now() })))
+  const newest = files.sort((a, b) => b.at - a.at)[0]!
+  return { ...newest, position: parseScreenshotPosition(newest.name, newest.at) }
+}
+

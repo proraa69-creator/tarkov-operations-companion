@@ -94,9 +94,9 @@ const EXTRA: Array<[string, string]> = [
   ['Мини-карта — клавиша «M»', 'Minimap — M key'],
   ['Показывает карту текущего рейда с выходами и точками текущих квестов. Повторное нажатие скрывает.', 'Shows the current raid map with extracts and current task markers. Press again to hide.'],
   ['Позиция по скриншотам', 'Screenshot position tracking'],
-  ['Скриншот EFT хранит координаты в имени файла. Нажимайте PrtSc в рейде или включите автоматические скриншоты. Снимки не удаляются.', 'EFT stores coordinates in screenshot filenames. Press PrtSc in a raid or enable automatic screenshots. Your screenshots are never deleted.'],
+  ['Скриншот EFT хранит координаты в имени файла. Нажимайте в рейде клавишу скриншота игры (по умолчанию PrtSc) или включите автоматические скриншоты. Снимки не удаляются.', 'EFT stores coordinates in screenshot filenames. Press the game’s screenshot key in a raid (PrtSc by default) or enable automatic screenshots. Your screenshots are never deleted.'],
   ['Автоматические скриншоты', 'Automatic screenshots'],
-  ['В рейде, пока игра на переднем плане, приложение само нажимает PrtSc. Это эмуляция клавиши — используйте на свой риск.', 'During a raid, while the game is in the foreground, the app presses PrtSc automatically. This simulates a key press; use at your own risk.'],
+  ['В рейде, пока игра на переднем плане, приложение само нажимает клавишу скриншота игры. Это эмуляция клавиши — используйте на свой риск.', 'During a raid, while the game is in the foreground, the app presses the game’s screenshot key automatically. This simulates a key press; use at your own risk.'],
   ['Интервал', 'Interval'], ['с между снимками', 's between screenshots'], ['Состояние', 'Status'], ['Горячие клавиши', 'Hotkeys'], ['работают', 'ready'], ['ошибка:', 'error:'], ['Рейд', 'Raid'], ['в рейде', 'in raid'], ['в меню', 'in menu'], ['Отслеживание', 'Tracking'], ['включено', 'enabled'], ['выключено', 'disabled'], ['Последняя позиция', 'Last position'], ['с назад', 's ago'], ['ещё нет', 'not yet'], ['Папка скриншотов:', 'Screenshots folder:'], ['Проверить карточку предмета', 'Test item price overlay'], ['Показать / скрыть мини-карту', 'Show / hide minimap'],
   ['Все калибры', 'All calibers'], ['Боеприпас', 'Ammo'], ['Ключ', 'Key'], ['Рынок', 'Market'],
   ['Предметы, ключи и боеприпасы в одном разделе. Карточка предмета открывается здесь же.', 'Items, keys, and ammunition in one place. Select an item to view its details here.'],
@@ -114,6 +114,11 @@ const EXTRA: Array<[string, string]> = [
 const ORDERED = [...EXTRA, ...PHRASES, ...FEATURE_PHRASES, ...GOON_PHRASES, ...MAP_PHRASES, ...SERVER_PHRASES, ...THEME_PHRASES, ...MOBILE_PHRASES].sort((a, b) => b[0].length - a[0].length)
 const EXACT = new Map(ORDERED)
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/** English for a whole interface phrase, when the dictionary has it exactly. */
+export function exactUiText(value: string) {
+  return EXACT.get(value.trim())
+}
 
 export function translateUiText(value: string) {
   if (!/[А-Яа-яЁё]/.test(value)) return value

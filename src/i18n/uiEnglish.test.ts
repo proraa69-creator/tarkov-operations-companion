@@ -23,3 +23,19 @@ describe('story chapter stages', () => {
     expect(translateUiText('Выжить на локации Развязка и выйти или посетить Развязку 3 раза')).toBe('Survive and extract from Interchange or visit Interchange 3 times')
   })
 })
+
+describe('whole interface phrases', () => {
+  it('translates a sentence with commas as one phrase instead of splitting it', async () => {
+    const { setRenderLanguage, uiText } = await import('./renderText')
+    setRenderLanguage('en')
+    try {
+      expect(uiText('Клавиши, нажатые в игре')).toBe('Keys pressed in the game')
+      expect(uiText('Наведите курсор на предмет, дождитесь подсказки с названием и нажмите клавишу: цена на барахолке, лучшая цена торговца и нужен ли предмет для заданий и «Коллекционера».'))
+        .toBe('Hover an item, wait for its name tooltip and press the key: flea price, best trader price and whether the item is needed for tasks and Collector.')
+      expect(uiText('с координатами · 5 с назад')).toBe('with coordinates · 5 s ago')
+      expect(uiText('на переднем плане 5 с назад')).toBe('in front 5 s ago')
+    } finally {
+      setRenderLanguage('ru')
+    }
+  })
+})
