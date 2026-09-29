@@ -14,4 +14,6 @@ export const THEME_PHRASES: Array<[string, string]> = [
   ['Зажмите кнопку и перетащите, чтобы передвинуть маску', 'Press and hold the button, then drag to move the mask'],
   // uiText splits 'Сталь, царапины' at the comma, so its second half needs its own pair.
   ['царапины', 'scratches'],
+  // Settings → Интерфейс: the green signal smoke behind the bosses on the Overview raid card (RaidSmoke)
+  ['Дым за боссами', 'Smoke behind the bosses'], ['Зелёный сигнальный дым в карточке рейда на обзоре', 'Green signal smoke on the Overview raid card'],
 ]

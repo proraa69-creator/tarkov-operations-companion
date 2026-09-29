@@ -13,6 +13,7 @@ import { MapSlideshow } from '../components/MapSlideshow'
 import { GoonCard } from '../components/GoonCard'
 import { MapPriority } from '../components/MapPriority'
 import { BossFigures } from '../components/BossFigures'
+import { RaidSmoke } from '../components/RaidSmoke'
 import { useLocale } from '../i18n/LocaleProvider'
 
 export function DashboardPage() {
@@ -60,6 +61,7 @@ export function DashboardPage() {
       <div className="dashboard-column">
         <section className="panel raid-card">
           <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
+          <RaidSmoke mapId={selectedMap.id} />
           <BossFigures mapId={selectedMap.id} />
           <div className="raid-content">
             <div className="raid-main">

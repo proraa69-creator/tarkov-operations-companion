@@ -18,6 +18,7 @@ import { useTarkovData } from "../data/DataProvider";
 import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
 import { useLocale } from "../i18n/LocaleProvider";
+import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
 import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
@@ -564,6 +565,7 @@ export function SettingsPage() {
   const { locale, setLocale } = useLocale();
   const [compact, setCompact] = useState(true);
   const [theme, setTheme] = useState(currentTheme);
+  const raidSmoke = useRaidSmokeEnabled();
   const chooseTheme = (nextTheme: string) => {
     setTheme(nextTheme);
     saveAppearance(nextTheme);
@@ -601,6 +603,22 @@ export function SettingsPage() {
               <button
                 className={`toggle ${compact ? "on" : ""}`}
                 onClick={() => setCompact(!compact)}
+              >
+                <span />
+              </button>
+            </div>
+            <div className="setting-row">
+              <span>
+                <strong>{uiText("Дым за боссами")}</strong>
+                <small>{uiText("Зелёный сигнальный дым в карточке рейда на обзоре")}</small>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={raidSmoke}
+                aria-label={uiText("Дым за боссами")}
+                className={`toggle ${raidSmoke ? "on" : ""}`}
+                onClick={() => setRaidSmokeEnabled(!raidSmoke)}
               >
                 <span />
               </button>

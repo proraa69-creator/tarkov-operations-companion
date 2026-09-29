@@ -1,0 +1,13 @@
+/* Green signal smoke behind the boss figures (src/components/RaidSmoke.tsx). It sits above the card's dark overlay and
+ * below the figures (same z-index, earlier in the DOM); it fades out toward the text column and the top edge so the
+ * map name and the buttons stay clean. Hidden with the figures on narrow windows. */
+.raid-smoke {
+  position: absolute; z-index: 1; left: 34%; right: 0; top: 0; bottom: 0; pointer-events: none;
+  opacity: 0; transition: opacity 1.6s ease;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(0deg, #000 62%, transparent 98%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(0deg, #000 62%, transparent 98%);
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+.raid-smoke.is-ready { opacity: 1; }
+.raid-smoke > canvas { display: block; width: 100%; height: 100%; }
+@media (max-width: 1100px) { .raid-smoke { display: none; } }
