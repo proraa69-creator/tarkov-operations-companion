@@ -15,6 +15,7 @@ import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
+import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -145,6 +146,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
       </aside>
       <GearDecor />
+      <TelnyashkaTable />
 
       <header className="topbar">
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>

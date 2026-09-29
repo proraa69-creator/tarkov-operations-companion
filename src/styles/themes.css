@@ -102,7 +102,7 @@
 :root .theme-swatch > span:last-child { line-height: 1.2; text-align: center; overflow-wrap: normal; hyphens: manual; }
 @media (max-width: 560px) { :root .theme-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) {
   --tex-size: 2048px;
   --spring: cubic-bezier(.3, 1.55, .55, 1);
   --press-shadow: inset 0 3px 8px rgb(0 0 0 / 75%), inset 0 0 0 1px rgb(0 0 0 / 50%);
@@ -122,84 +122,84 @@
 }
 
 /* --- shell --- */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.sidebar, .topbar) { backdrop-filter: none; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.page-title, .raid-map-name, .panel-title, .stat-value, .brand-name) { font-family: var(--heading-font); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.page-title, .raid-map-name) { font-weight: 700; letter-spacing: .015em; text-transform: uppercase; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .panel-title { font-weight: 600; font-size: 13px; letter-spacing: .15em; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .stat-value { font-weight: 700; font-size: 32px; letter-spacing: .01em; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .brand-name { font-size: 16px; letter-spacing: .16em; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .button { font-family: var(--heading-font); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .nav-link.active::before { display: none; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.sidebar, .topbar) { backdrop-filter: none; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.page-title, .raid-map-name, .panel-title, .stat-value, .brand-name) { font-family: var(--heading-font); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.page-title, .raid-map-name) { font-weight: 700; letter-spacing: .015em; text-transform: uppercase; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .panel-title { font-weight: 600; font-size: 13px; letter-spacing: .15em; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .stat-value { font-weight: 700; font-size: 32px; letter-spacing: .01em; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .brand-name { font-size: 16px; letter-spacing: .16em; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .button { font-family: var(--heading-font); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .nav-link.active::before { display: none; }
 /* text that sits straight on a texture gets a soft dark halo so it keeps AA contrast on light patches */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.page-subtitle, .eyebrow, .panel-body, .price-table, .item-row, .setting-row, .raid-facts) { text-shadow: 0 1px 2px rgb(0 0 0 / 85%), 0 0 6px rgb(0 0 0 / 45%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.page-subtitle, .eyebrow, .panel-body, .price-table, .item-row, .setting-row, .raid-facts) { text-shadow: 0 1px 2px rgb(0 0 0 / 85%), 0 0 6px rgb(0 0 0 / 45%); }
 
 /* --- states: raise on hover (per theme), press with a short spring, clear keyboard focus, calm disabled --- */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .nav-link, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .map-option, .layer-button, .catalog-card, .theme-swatch, .segmented-filter button, .mode-switch button, .locale-switch button) {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .nav-link, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .map-option, .layer-button, .catalog-card, .theme-swatch, .segmented-filter button, .mode-switch button, .locale-switch button) {
   transition: translate .16s var(--spring), box-shadow .16s ease-out, background-color .2s ease-out, color .2s ease-out, border-color .2s ease-out, scale .16s var(--spring);
 }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .nav-link, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .map-option, .catalog-card):active:not(:disabled) {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .nav-link, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .map-option, .catalog-card):active:not(:disabled) {
   translate: 0 1px; box-shadow: var(--press-shadow); transition-duration: .12s;
 }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(button, a, input, select, textarea, summary, [role="button"], [role="radio"], [tabindex]):focus-visible {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(button, a, input, select, textarea, summary, [role="button"], [role="radio"], [tabindex]):focus-visible {
   outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--focus) 22%, transparent);
 }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .icon-button, .kappa-cell, .map-option, .layer-button):disabled {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .icon-button, .kappa-cell, .map-option, .layer-button):disabled {
   opacity: .45; cursor: not-allowed; pointer-events: none; translate: none; box-shadow: none; filter: saturate(.35);
 }
 
 /* --- inputs, selects, toggles: recessed wells with a raised knob --- */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.input, .select, .search-trigger, .segmented-filter, .mode-switch, .locale-switch) {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.input, .select, .search-trigger, .segmented-filter, .mode-switch, .locale-switch) {
   background: var(--well); border-color: var(--well-line); box-shadow: var(--well-shadow); color: var(--text);
 }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.input, .select):focus { border-color: var(--brass); box-shadow: var(--well-shadow), 0 0 0 3px color-mix(in srgb, var(--brass) 22%, transparent); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .input::placeholder { color: var(--text-dim); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.segmented-filter, .mode-switch, .locale-switch) button { color: var(--text-muted); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.segmented-filter, .mode-switch, .locale-switch) button:hover:not(.active) { color: var(--text); background: rgb(255 255 255 / 7%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.segmented-filter, .mode-switch, .locale-switch) button.active {
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.input, .select):focus { border-color: var(--brass); box-shadow: var(--well-shadow), 0 0 0 3px color-mix(in srgb, var(--brass) 22%, transparent); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .input::placeholder { color: var(--text-dim); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.segmented-filter, .mode-switch, .locale-switch) button { color: var(--text-muted); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.segmented-filter, .mode-switch, .locale-switch) button:hover:not(.active) { color: var(--text); background: rgb(255 255 255 / 7%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.segmented-filter, .mode-switch, .locale-switch) button.active {
   background: var(--accent-fill, var(--brass)); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%), 0 1px 3px rgb(0 0 0 / 60%);
 }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle { background: var(--well); box-shadow: inset 0 2px 5px rgb(0 0 0 / 75%), 0 1px 0 rgb(255 255 255 / 8%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle span { background: var(--knob); box-shadow: 0 2px 3px rgb(0 0 0 / 65%), inset 0 1px 0 rgb(255 255 255 / 55%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle.on { background: var(--accent-fill, var(--brass)); box-shadow: inset 0 2px 5px rgb(0 0 0 / 45%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle.on span { background: linear-gradient(180deg, #ffffff, #d4d4cc); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border: 3px solid transparent; background-clip: padding-box; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) ::-webkit-scrollbar-thumb:hover { background: var(--brass); background-clip: padding-box; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle { background: var(--well); box-shadow: inset 0 2px 5px rgb(0 0 0 / 75%), 0 1px 0 rgb(255 255 255 / 8%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle span { background: var(--knob); box-shadow: 0 2px 3px rgb(0 0 0 / 65%), inset 0 1px 0 rgb(255 255 255 / 55%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle.on { background: var(--accent-fill, var(--brass)); box-shadow: inset 0 2px 5px rgb(0 0 0 / 45%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .toggle.on span { background: linear-gradient(180deg, #ffffff, #d4d4cc); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border: 3px solid transparent; background-clip: padding-box; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) ::-webkit-scrollbar-thumb:hover { background: var(--brass); background-clip: padding-box; }
 
 /* --- small parts: tags, thumbs, rows, cards, kappa cells, theme swatches --- */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .tag.brass { background: var(--accent-fill, var(--brass)); border-color: color-mix(in srgb, var(--brass) 60%, #000); color: var(--accent-ink); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.item-thumb, .mmt-item-icon, .mmt-gear-item) { background-color: var(--well); border-color: var(--well-line); box-shadow: inset 0 2px 5px rgb(0 0 0 / 65%), 0 1px 0 rgb(255 255 255 / 6%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.item-row, .price-table th, .price-table td, .setting-row, .divider) { border-color: rgb(255 255 255 / 9%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .price-table tr:hover td { background: rgb(255 255 255 / 4%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .price-table tr.selected-row td { background: var(--accent-soft); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.catalog-card, .kappa-cell, .map-priority-tile, .quest-map-pin) { background: var(--well); border-color: var(--well-line); box-shadow: var(--well-shadow); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.catalog-card.selected, .kappa-cell.is-done) { background: var(--accent-soft); border-color: color-mix(in srgb, var(--brass) 70%, transparent); color: var(--text); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .kappa-cell-check { box-shadow: 0 1px 3px rgb(0 0 0 / 60%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch { background: var(--well); border-color: var(--well-line); color: var(--text-muted); box-shadow: var(--well-shadow); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch.active { border-color: var(--brass); color: var(--text); background: var(--accent-soft); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch-preview { box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), 0 1px 2px rgb(0 0 0 / 60%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .tag.brass { background: var(--accent-fill, var(--brass)); border-color: color-mix(in srgb, var(--brass) 60%, #000); color: var(--accent-ink); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.item-thumb, .mmt-item-icon, .mmt-gear-item) { background-color: var(--well); border-color: var(--well-line); box-shadow: inset 0 2px 5px rgb(0 0 0 / 65%), 0 1px 0 rgb(255 255 255 / 6%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.item-row, .price-table th, .price-table td, .setting-row, .divider) { border-color: rgb(255 255 255 / 9%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .price-table tr:hover td { background: rgb(255 255 255 / 4%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .price-table tr.selected-row td { background: var(--accent-soft); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.catalog-card, .kappa-cell, .map-priority-tile, .quest-map-pin) { background: var(--well); border-color: var(--well-line); box-shadow: var(--well-shadow); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.catalog-card.selected, .kappa-cell.is-done) { background: var(--accent-soft); border-color: color-mix(in srgb, var(--brass) 70%, transparent); color: var(--text); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .kappa-cell-check { box-shadow: 0 1px 3px rgb(0 0 0 / 60%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch { background: var(--well); border-color: var(--well-line); color: var(--text-muted); box-shadow: var(--well-shadow); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch.active { border-color: var(--brass); color: var(--text); background: var(--accent-soft); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch-preview { box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), 0 1px 2px rgb(0 0 0 / 60%); }
 
 /* --- map page chrome (the map canvas itself stays untextured) --- */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-shell { border-color: var(--well-line); background: var(--chrome); box-shadow: 0 0 0 1px rgb(255 255 255 / 5%), 0 18px 36px rgb(0 0 0 / 60%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.map-sidebar, .map-detail) { background: var(--chrome); border-color: var(--well-line); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-side-title { color: var(--brass); letter-spacing: .2em; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.map-option, .layer-button) { color: var(--text-muted); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.map-option, .layer-button):hover { background: rgb(255 255 255 / 6%); color: var(--text); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-option.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--brass) 65%, transparent); color: var(--text); box-shadow: inset 3px 0 0 var(--brass); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .layer-button.active { color: var(--text); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .leaflet-control-zoom a { background: var(--panel-2) !important; border-color: var(--well-line) !important; color: var(--text) !important; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.leaflet-tooltip.map-marker-tooltip, .map-quest-sheet-body) { background: var(--tip-bg); border-color: var(--well-line); border-top-color: var(--brass); box-shadow: 0 1px 0 rgb(255 255 255 / 6%) inset, 0 12px 28px rgb(0 0 0 / 70%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .mmt-type { color: var(--brass); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .mmt-title { color: var(--text); font-family: var(--heading-font); letter-spacing: .02em; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .mmt-desc { color: var(--text-muted); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-shell { border-color: var(--well-line); background: var(--chrome); box-shadow: 0 0 0 1px rgb(255 255 255 / 5%), 0 18px 36px rgb(0 0 0 / 60%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.map-sidebar, .map-detail) { background: var(--chrome); border-color: var(--well-line); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-side-title { color: var(--brass); letter-spacing: .2em; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.map-option, .layer-button) { color: var(--text-muted); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.map-option, .layer-button):hover { background: rgb(255 255 255 / 6%); color: var(--text); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-option.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--brass) 65%, transparent); color: var(--text); box-shadow: inset 3px 0 0 var(--brass); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .layer-button.active { color: var(--text); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .leaflet-control-zoom a { background: var(--panel-2) !important; border-color: var(--well-line) !important; color: var(--text) !important; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.leaflet-tooltip.map-marker-tooltip, .map-quest-sheet-body) { background: var(--tip-bg); border-color: var(--well-line); border-top-color: var(--brass); box-shadow: 0 1px 0 rgb(255 255 255 / 6%) inset, 0 12px 28px rgb(0 0 0 / 70%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .mmt-type { color: var(--brass); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .mmt-title { color: var(--text); font-family: var(--heading-font); letter-spacing: .02em; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .mmt-desc { color: var(--text-muted); }
 
 /* --- dialogs and search --- */
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.search-overlay, .registration-overlay) { background: rgb(0 0 0 / 68%); backdrop-filter: none; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .search-dialog { background: var(--chrome); border-color: var(--well-line); box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 30px 90px #000; }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .search-box { border-color: rgb(255 255 255 / 9%); background: rgb(0 0 0 / 25%); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .search-result:hover { background: var(--accent-soft); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.search-overlay, .registration-overlay) { background: rgb(0 0 0 / 68%); backdrop-filter: none; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .search-dialog { background: var(--chrome); border-color: var(--well-line); box-shadow: 0 0 0 1px rgb(255 255 255 / 6%), 0 30px 90px #000; }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .search-box { border-color: rgb(255 255 255 / 9%); background: rgb(0 0 0 / 25%); }
+:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .search-result:hover { background: var(--accent-soft); }
 
 @media (prefers-reduced-motion: reduce) {
-  :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .nav-link, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .map-option, .catalog-card) { translate: none !important; }
+  :root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.button, .nav-link, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .map-option, .catalog-card) { translate: none !important; }
 }
 
 /* ---------- Чёрный мультикам: MultiCam Black on 500D ripstop — sewn patches, webbing, velcro ---------- */
@@ -316,141 +316,6 @@
 }
 :root[data-theme="blackmc"] .button.primary:hover { background: linear-gradient(rgb(110 128 64 / 60%), rgb(80 94 46 / 62%)), var(--tex) 58% 42% / var(--tex-size); filter: none; }
 :root[data-theme="blackmc"] .map-priority-tile { border-radius: 6px; outline: 1px dashed rgb(176 184 150 / 22%); outline-offset: -4px; }
-
-/* ---------- Мультикам: US MultiCam (OCP) — coyote cordura pouches with MultiCam flaps, tan webbing, name tapes ---------- */
-:root[data-theme="ocp"] {
-  --tex: image-set(url("../assets/textures/ocp/ocp-2048.webp") 1x, url("../assets/textures/ocp/ocp-4096.webp") 2x);
-  --bg: #1d1b15; --bg-elevated: #24221a; --panel: #2a271e; --panel-2: #312d23; --panel-3: #3b362a;
-  --line: #4a4434; --line-strong: #6b624a; --line-soft: #574f3d;
-  --text: #f6f1e2; --text-muted: #d6cdb2; --text-dim: #b0a78a;
-  --brass: #e0c98f; --brass-strong: #f0dfae; --green: #a3b06a; --green-soft: #3a4226; --amber: #d9a05b; --blue: #a5b8b0;
-  --surf-0: #1a1813; --surf-1: #26231b; --surf-2: #2f2b21;
-  --thread: rgb(230 216 176 / 62%);
-  --cordura: repeating-linear-gradient(90deg, rgb(255 255 255 / 3%) 0 1px, transparent 1px 2px), repeating-linear-gradient(0deg, rgb(0 0 0 / 12%) 0 1px, transparent 1px 2px);
-  --webbing: repeating-linear-gradient(90deg, rgb(255 255 255 / 6%) 0 1px, transparent 1px 2px, rgb(0 0 0 / 28%) 2px 3px, transparent 3px 4px);
-  --stitch-a: linear-gradient(90deg, var(--thread) 0 58%, transparent 58%) 0 calc(100% - 5px) / 8px 1.5px repeat-x;
-  --stitch-b: linear-gradient(90deg, var(--thread) 0 58%, transparent 58%) 4px calc(100% - 10px) / 8px 1.5px repeat-x;
-  --sand-fill: linear-gradient(180deg, #e2cf9c, #c2aa6c);
-  /* coyote 500D cordura: warm brown with a fine basket weave and a soft top light */
-  --coyote: var(--cordura), radial-gradient(ellipse 120% 70% at 30% 0%, rgb(255 236 200 / 7%), transparent 70%), linear-gradient(170deg, #4a3c2a, #3a2f21 60%, #30271b);
-  --coyote-dk: var(--cordura), linear-gradient(180deg, #2c241a, #231c14);
-  /* tan name tape: woven twill with a stitched border */
-  --tape: repeating-linear-gradient(135deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 3px), linear-gradient(180deg, #d9c697, #bfa770);
-  --flap: linear-gradient(180deg, rgb(30 25 16 / 30%), rgb(20 16 10 / 55%)), var(--tex) 71% 9% / var(--tex-size);
-  --accent-fill: var(--sand-fill); --accent-ink: #211c11; --focus: #f4e3b0;
-  --well: rgb(22 18 12 / 82%); --well-line: #16110a;
-  --chrome: var(--coyote-dk);
-  --tip-bg: linear-gradient(rgb(36 31 21 / 94%), rgb(26 22 14 / 96%)), var(--tex) 0 0 / var(--tex-size);
-  --knob: linear-gradient(180deg, #e2cf9c, #a8905a);
-  --ov-head: var(--stitch-a), var(--cordura), linear-gradient(180deg, #6c5c40, #57492f);
-}
-:root[data-theme="ocp"] body {
-  background: radial-gradient(ellipse 70% 60% at 30% 5%, rgb(255 240 200 / 10%), transparent 70%),
-    radial-gradient(ellipse 90% 80% at 55% 45%, transparent 35%, rgb(20 16 10 / 70%) 100%),
-    linear-gradient(rgb(30 26 18 / 42%), rgb(30 26 18 / 42%)), var(--tex) 0 0 / var(--tex-size);
-  background-attachment: fixed;
-}
-/* sidebar: a coyote cordura panel with a MultiCam-covered flap edge and a tan webbing column */
-:root[data-theme="ocp"] .sidebar {
-  background: linear-gradient(90deg, transparent calc(100% - 26px), rgb(0 0 0 / 35%) calc(100% - 26px), transparent calc(100% - 22px)), var(--coyote);
-  border-right: 0; padding-right: 30px; box-shadow: 12px 0 30px rgb(0 0 0 / 55%);
-}
-:root[data-theme="ocp"] .sidebar::after {
-  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 22px; pointer-events: none;
-  background:
-    repeating-linear-gradient(180deg, transparent 0 34px, rgb(20 16 10 / 70%) 34px 36px, transparent 36px 40px) 5px 0 / 12px 100% no-repeat,
-    linear-gradient(90deg, rgb(0 0 0 / 40%), transparent 5px, transparent 17px, rgb(0 0 0 / 40%)) 5px 0 / 12px 100% no-repeat,
-    repeating-linear-gradient(90deg, rgb(255 255 255 / 7%) 0 1px, transparent 1px 2px, rgb(0 0 0 / 22%) 2px 3px, transparent 3px 4px) 5px 0 / 12px 100% no-repeat,
-    linear-gradient(#a58e62, #a58e62) 5px 0 / 12px 100% no-repeat,
-    linear-gradient(rgb(20 16 10 / 25%), rgb(20 16 10 / 40%)), var(--tex) 0 0 / 700px;
-  box-shadow: inset 1px 0 0 rgb(0 0 0 / 60%), -2px 0 5px rgb(0 0 0 / 45%);
-}
-:root[data-theme="ocp"] .brand-mark {
-  border-radius: 8px; border: 0; color: #2b2618; font-family: var(--heading-font); font-weight: 700;
-  background: linear-gradient(rgb(240 226 186 / 38%), rgb(240 226 186 / 38%)), var(--tex) 40% 30% / 700px;
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 40%), 0 3px 8px rgb(0 0 0 / 55%);
-  outline: 1.5px dashed rgb(40 34 22 / 70%); outline-offset: -5px;
-}
-:root[data-theme="ocp"] .brand-sub { color: #d0c294; }
-:root[data-theme="ocp"] .nav-label { color: #cbbf98; letter-spacing: .22em; }
-:root[data-theme="ocp"] .nav-link { border-radius: 6px; color: #e8e2ce; border: 1px solid transparent; font-weight: 650; }
-:root[data-theme="ocp"] .nav-link:hover {
-  color: #fffaf0; border-color: #221d13;
-  background: linear-gradient(90deg, rgb(26 22 14 / 45%), rgb(26 22 14 / 20%)), var(--tex) 27% 61% / var(--tex-size);
-  outline: 1.5px dashed var(--thread); outline-offset: -5px;
-  box-shadow: inset 0 1px 0 rgb(255 245 215 / 25%), inset 0 -3px 4px rgb(0 0 0 / 35%), 0 5px 12px rgb(0 0 0 / 50%);
-  text-shadow: 0 1px 2px rgb(0 0 0 / 95%), 0 0 10px rgb(0 0 0 / 80%);
-}
-:root[data-theme="ocp"] .nav-link.active {
-  color: #231f14; font-weight: 800; border-color: #6d5f40; background: var(--webbing), var(--sand-fill);
-  outline: 1.5px dashed rgb(60 50 30 / 60%); outline-offset: -5px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 40%), 0 3px 8px rgb(0 0 0 / 45%);
-}
-:root[data-theme="ocp"] .data-state { border-radius: 6px; background: var(--coyote-dk); border-color: #16110a; box-shadow: inset 0 2px 5px rgb(0 0 0 / 55%); color: #ddd3b8; }
-:root[data-theme="ocp"] .topbar {
-  background: var(--stitch-a), var(--stitch-b), var(--cordura), linear-gradient(180deg, #6c5c40, #57492f);
-  border-bottom: 1px solid #211b10; box-shadow: inset 0 1px 0 rgb(255 240 200 / 15%), 0 10px 24px rgb(0 0 0 / 45%);
-}
-:root[data-theme="ocp"] :is(.search-trigger, .mode-switch, .locale-switch, .icon-button, .profile-chip) { border-radius: 6px; border-color: #221c11; }
-:root[data-theme="ocp"] :is(.icon-button, .profile-chip) { background: rgb(33 28 18 / 80%); color: #ece3c8; box-shadow: inset 0 2px 4px rgb(0 0 0 / 55%), 0 1px 0 rgb(255 240 200 / 14%); }
-:root[data-theme="ocp"] :is(.search-trigger, .icon-button, .profile-chip):hover {
-  background: linear-gradient(rgb(26 22 14 / 40%), rgb(26 22 14 / 40%)), var(--tex) 62% 18% / var(--tex-size); color: #fff; text-shadow: 0 1px 2px #000; outline: 1px dashed var(--thread); outline-offset: -4px;
-}
-:root[data-theme="ocp"] .search-trigger kbd { background: #3a3224; color: var(--brass); border-color: #5c5038; }
-:root[data-theme="ocp"] .eyebrow { color: #f0dda4; text-shadow: 0 1px 3px rgb(0 0 0 / 90%); }
-:root[data-theme="ocp"] :is(.page-title, .raid-map-name) { color: #fbf6e7; text-shadow: 0 2px 0 rgb(0 0 0 / 60%), 0 5px 22px rgb(0 0 0 / 85%); }
-:root[data-theme="ocp"] .panel-title { color: #f6eed4; text-shadow: 0 1px 2px rgb(0 0 0 / 85%); }
-/* panels: coyote cordura pouches; the header is a MultiCam flap with a double stitch and a press-stud */
-:root[data-theme="ocp"] .panel {
-  border-radius: 12px; border: 1px solid #16110a;
-  background: var(--coyote);
-  outline: 1.5px dashed rgb(222 204 160 / 42%); outline-offset: -6px;
-  box-shadow: inset 0 1px 0 rgb(255 236 200 / 12%), inset 0 -4px 10px rgb(0 0 0 / 45%), 0 16px 30px rgb(0 0 0 / 55%);
-}
-:root[data-theme="ocp"] .panel-header {
-  position: relative; margin: 0 0 8px; min-height: 52px; border-radius: 11px 11px 16px 16px; border: 1px solid #16110a; border-top: 0;
-  background: var(--stitch-a), var(--stitch-b), var(--flap);
-  box-shadow: 0 4px 7px rgb(0 0 0 / 50%), inset 0 -1px 0 rgb(255 240 200 / 16%);
-}
-:root[data-theme="ocp"] .panel-header::after {
-  content: ''; position: absolute; left: 50%; bottom: -3px; width: 14px; height: 14px; translate: -50% 0; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle at 35% 30%, #d9cfb4, #8a7f64 45%, #3e3726 70%, #1a160e 100%);
-  box-shadow: 0 2px 3px rgb(0 0 0 / 70%), inset 0 0 0 2px rgb(0 0 0 / 25%);
-}
-/* stat cards: coyote pockets with a MultiCam flap band along the top */
-:root[data-theme="ocp"] .stat-card {
-  position: relative; border-radius: 8px; border: 1px solid #16110a; padding-top: 24px;
-  background: var(--coyote);
-  outline: 1.5px dashed rgb(222 204 160 / 38%); outline-offset: -5px;
-  box-shadow: inset 0 12px 0 rgb(0 0 0 / 0%), inset 0 -3px 6px rgb(0 0 0 / 40%), 0 10px 20px rgb(0 0 0 / 55%);
-}
-:root[data-theme="ocp"] .stat-card::before {
-  /* the MultiCam flap band, stitched along its lower edge */
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 13px; border-radius: 8px 8px 0 0; pointer-events: none;
-  background: linear-gradient(90deg, var(--thread) 0 58%, transparent 58%) 0 100% / 8px 1.5px repeat-x, var(--flap);
-  box-shadow: 0 2px 3px rgb(0 0 0 / 45%);
-}
-:root[data-theme="ocp"] .stat-label { display: inline-block; padding: 3px 9px; border-radius: 2px; color: #2a2214; text-shadow: 0 1px 0 rgb(255 245 215 / 45%); background: var(--tape); outline: 1px dashed rgb(60 48 28 / 55%); outline-offset: -3px; box-shadow: 0 1px 2px rgb(0 0 0 / 55%); }
-:root[data-theme="ocp"] .stat-value { font-size: 34px; color: #f2e8c6; text-shadow: 0 1px 0 rgb(0 0 0 / 70%), 0 -1px 0 rgb(255 255 255 / 18%); }
-:root[data-theme="ocp"] :is(.stat-meta, .stat-card .muted) { color: #e0d7b8; }
-:root[data-theme="ocp"] .raid-card { background: var(--tex) 53% 67% / var(--tex-size); }
-:root[data-theme="ocp"] .raid-card::after { background: linear-gradient(90deg, rgb(26 22 14 / 92%) 10%, rgb(26 22 14 / 60%) 55%, rgb(26 22 14 / 12%)), linear-gradient(0deg, rgb(26 22 14 / 95%), transparent 60%); }
-:root[data-theme="ocp"] .raid-facts { color: #e6ddc3; }
-:root[data-theme="ocp"] .tag { border-radius: 4px; }
-:root[data-theme="ocp"] .tag.brass { background: var(--tape); border-color: #6d5f40; color: #2a2214; outline: 1px dashed rgb(60 48 28 / 50%); outline-offset: -3px; }
-:root[data-theme="ocp"] :is(.price-up, .mono) { color: #f0da98; }
-:root[data-theme="ocp"] .button {
-  border-radius: 5px; border: 1px solid #1c170e; color: #f4ecd4; background: var(--webbing), linear-gradient(180deg, #5b4d34, #463b27);
-  outline: 1px dashed rgb(226 212 170 / 45%); outline-offset: -5px;
-  box-shadow: inset 0 1px 0 rgb(255 240 200 / 18%), inset 0 -2px 3px rgb(0 0 0 / 35%), 0 4px 10px rgb(0 0 0 / 50%);
-}
-:root[data-theme="ocp"] .button.primary { background: var(--webbing), var(--sand-fill); color: #211c11; border-color: #6d5f40; outline-color: rgb(60 50 30 / 55%); }
-:root[data-theme="ocp"] :is(.button, .map-priority-tile, .kappa-cell, .catalog-card):hover {
-  background: linear-gradient(rgb(26 22 14 / 42%), rgb(26 22 14 / 46%)), var(--tex) 38% 52% / var(--tex-size); color: #fffaf0; border-color: #1c170e;
-  text-shadow: 0 1px 2px #000, 0 0 8px rgb(0 0 0 / 80%); translate: 0 -1px;
-  box-shadow: inset 0 1px 0 rgb(255 245 215 / 30%), inset 0 -2px 3px rgb(0 0 0 / 35%), 0 8px 16px rgb(0 0 0 / 55%);
-}
-:root[data-theme="ocp"] .button.primary:hover { background: linear-gradient(rgb(236 220 172 / 52%), rgb(200 176 112 / 52%)), var(--tex) 38% 52% / var(--tex-size); color: #1c170d; text-shadow: 0 0 6px rgb(255 245 215 / 90%); filter: none; }
-:root[data-theme="ocp"] .map-priority-tile { border-radius: 6px; outline: 1px dashed rgb(226 212 170 / 25%); outline-offset: -4px; }
 
 /* ---------- Сланец: dark slate — chiselled slabs, engraved titles, copper inlay ---------- */
 :root[data-theme="slate"] {
@@ -676,12 +541,14 @@
 }
 :root[data-theme="rust"] .button.primary:hover { background: linear-gradient(rgb(240 128 64 / 64%), rgb(200 90 36 / 68%)), var(--tex) 45% 75% / var(--tex-size); filter: none; }
 
-/* ---------- Тельняшка: smoky garage courtyard, near-black tracksuit knit, three white stripes,
- * telnyashka knit as accents, a few original instant photos and props (all drawn for this theme) ---------- */
+/* ---------- Тельняшка: a panel-block courtyard at dusk, near-black tracksuit knit, three white stripes,
+ * diagonal telnyashka knit as accents, a few original instant photos and a table still life (all drawn for this theme) ---------- */
 :root[data-theme="telnyashka"] {
   --tex: image-set(url("../assets/textures/telnyashka/tracksuit-2048.webp") 1x, url("../assets/textures/telnyashka/tracksuit-4096.webp") 2x);
   --stripes: image-set(url("../assets/textures/telnyashka/stripes-1024.webp") 1x, url("../assets/textures/telnyashka/stripes-2048.webp") 2x);
   --stripes-size: 1024px;
+  /* the same knit sheared 45° (tile-preserving), so hover patches read as a telnyashka, not just stripes */
+  --stripes-diag: image-set(url("../assets/textures/telnyashka/stripes-diag-1024.webp") 1x, url("../assets/textures/telnyashka/stripes-diag-2048.webp") 2x);
   --grain: url("../assets/textures/telnyashka/grain-256.webp");
   --bg: #12100e; --bg-elevated: #171513; --panel: #1a1917; --panel-2: #201e1c; --panel-3: #2a2825;
   --line: #2f2c29; --line-strong: #4a4640; --line-soft: #37332f;
@@ -691,7 +558,7 @@
   --bone: #ece7da;
   --three-stripes: linear-gradient(90deg, var(--bone) 0 3px, transparent 3px 5px, var(--bone) 5px 8px, transparent 8px 10px, var(--bone) 10px 13px);
   --tel-band: repeating-linear-gradient(180deg, #1d3f78 0 3px, #e8ebee 3px 6px);
-  --knit-dim: linear-gradient(rgb(12 11 10 / 62%), rgb(12 11 10 / 66%)), var(--stripes) 0 0 / var(--stripes-size);
+  --knit-dim: linear-gradient(rgb(12 11 10 / 64%), rgb(12 11 10 / 68%)), var(--stripes-diag) 0 0 / 512px;
   --teal-fill: linear-gradient(180deg, #7fd0d4, #4aa3aa);
   --accent-fill: var(--teal-fill); --accent-ink: #081617; --focus: #a4e3e6;
   --well: rgb(8 7 6 / 72%); --well-line: #000;
@@ -700,16 +567,18 @@
   --knob: linear-gradient(180deg, #f0ece2, #a9a398);
   --ov-head: var(--tel-band) 0 100% / 100% 6px no-repeat, linear-gradient(180deg, #25231f, #171513);
 }
-/* the courtyard: warm dusty haze, a cold teal rim light from the right, soft light shafts, film grain, vignette */
+/* the courtyard at dusk: a cold teal sky over panel blocks with a few lit windows, a row of garages, laundry
+ * (a telnyashka and tracksuit bottoms) on a line and a warm street lamp; hazed down so panels stay readable */
 :root[data-theme="telnyashka"] body {
   background:
     var(--grain) 0 0 / 256px 256px,
-    radial-gradient(ellipse 100% 90% at 45% 42%, transparent 38%, rgb(0 0 0 / 78%) 100%),
-    linear-gradient(112deg, transparent 18%, rgb(255 226 180 / 5%) 24%, transparent 31%, transparent 38%, rgb(255 226 180 / 4%) 45%, transparent 52%),
-    radial-gradient(ellipse 42% 85% at 104% 38%, rgb(86 168 176 / 30%), transparent 72%),
-    radial-gradient(ellipse 70% 55% at 32% 26%, rgb(140 110 84 / 34%), transparent 76%),
-    radial-gradient(ellipse 90% 40% at 50% 100%, rgb(0 0 0 / 55%), transparent 70%),
-    linear-gradient(180deg, #2c2520 0%, #1b1714 55%, #0e0c0b 100%);
+    radial-gradient(ellipse 110% 95% at 50% 40%, transparent 42%, rgb(0 0 0 / 72%) 100%),
+    linear-gradient(180deg, rgb(14 13 12 / 0%) 45%, rgb(14 13 12 / 38%) 70%, rgb(10 9 8 / 55%) 100%),
+    url("../assets/textures/telnyashka/yard-dusk.svg") 50% 100% / max(100%, 1280px) auto no-repeat,
+    radial-gradient(ellipse 30% 30% at 34% 76%, rgb(224 165 90 / 14%), transparent 72%),
+    radial-gradient(ellipse 60% 40% at 50% 72%, rgb(150 110 80 / 26%), transparent 75%),
+    radial-gradient(ellipse 45% 70% at 104% 20%, rgb(86 168 176 / 22%), transparent 72%),
+    linear-gradient(180deg, #0f171c 0%, #1b2429 38%, #3a2e26 64%, #1a1512 100%);
   background-attachment: fixed;
 }
 /* sidebar: tracksuit jacket with three white stripes down the seam */
@@ -745,30 +614,42 @@
   background: var(--three-stripes) 6px 0 / 13px 100% no-repeat, linear-gradient(90deg, rgb(20 19 18 / 20%), rgb(108 196 201 / 22%)), var(--tex) 70% 30% / var(--tex-size);
   box-shadow: inset -2px 0 0 var(--brass), 0 3px 10px rgb(0 0 0 / 55%);
 }
-/* scattered instant photos, props and a tagline in the empty foot of the sidebar */
+/* scattered instant photos, the table still life (TelnyashkaTable.tsx) and a tagline in the empty foot of the sidebar */
 :root[data-theme="telnyashka"] .sidebar::before,
 :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after {
   content: ''; position: absolute; width: 104px; height: 120px; pointer-events: none;
   background: url("../assets/textures/telnyashka/frame-4x4.svg") center / contain no-repeat;
   filter: drop-shadow(0 6px 8px rgb(0 0 0 / 60%)); opacity: .9;
-  left: 18px; bottom: 214px; rotate: -8deg;
+  left: 18px; bottom: 226px; rotate: -8deg;
 }
-:root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { background-image: url("../assets/textures/telnyashka/frame-mug.svg"); left: 104px; bottom: 196px; rotate: 7deg; }
-:root[data-theme="telnyashka"] .sidebar > .nav-list:first-of-type::after {
-  content: ''; position: absolute; left: 24px; bottom: 104px; width: 186px; height: 54px; pointer-events: none;
-  background: url("../assets/textures/telnyashka/props.svg") center / contain no-repeat; opacity: .85;
-}
+:root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { background-image: url("../assets/textures/telnyashka/frame-mug.svg"); left: 104px; bottom: 208px; rotate: 7deg; }
+/* mug, bottle, sausage and gherkins on a cutting board; only the sausage takes the pointer and its slices slide apart */
+.tel-table { position: fixed; left: 20px; bottom: 90px; z-index: 41; width: 200px; height: 92px; pointer-events: none; }
+.tel-table svg { display: block; overflow: visible; filter: drop-shadow(0 4px 6px rgb(0 0 0 / 45%)); }
+.tel-table .tel-sausage { pointer-events: visiblePainted; cursor: grab; }
+.tel-table :is(.tel-sausage-log, .tel-slice) { transition: transform .45s cubic-bezier(.2, .8, .25, 1); }
+.tel-table .tel-slice-2 { transition-delay: .03s; }
+.tel-table .tel-slice-3 { transition-delay: .06s; }
+.tel-table .tel-slice-4 { transition-delay: .09s; }
+.tel-table .tel-sausage:hover .tel-sausage-log { transform: translate(-2.5px, .4px); }
+.tel-table .tel-sausage:hover .tel-slice-1 { transform: translate(4px, -3px) rotate(-6deg); }
+.tel-table .tel-sausage:hover .tel-slice-2 { transform: translate(8px, 0) rotate(9deg); }
+.tel-table .tel-sausage:hover .tel-slice-3 { transform: translate(4px, 3.5px) rotate(-8deg); }
+.tel-table .tel-sausage:hover .tel-slice-4 { transform: translate(-4px, 4px) rotate(7deg); }
+.tel-table .tel-slice { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) { .tel-table :is(.tel-sausage-log, .tel-slice) { transition: none; } }
+@media (max-height: 740px), (max-width: 1180px) { .tel-table { display: none; } }
 :root[data-theme="telnyashka"] .sidebar > .nav-label:last-of-type::after {
-  content: 'Кружка чая — и в рейд.'; position: absolute; left: 20px; bottom: 44px; width: 190px; padding-top: 10px;
+  content: 'Бутылка водки — и в рейд.'; position: absolute; left: 20px; bottom: 44px; width: 190px; padding-top: 10px;
   border-top: 1px dashed rgb(236 231 218 / 28%); color: var(--brass-strong); font-size: 11.5px; font-style: italic; font-weight: 500;
   letter-spacing: .02em; line-height: 1.35; text-align: center; text-transform: none;
 }
-:root[data-theme="telnyashka"][lang="en"] .sidebar > .nav-label:last-of-type::after { content: 'A mug of tea — then the raid.'; }
+:root[data-theme="telnyashka"][lang="en"] .sidebar > .nav-label:last-of-type::after { content: 'A bottle of vodka — then the raid.'; left: 14px; width: 202px; font-size: 11px; letter-spacing: 0; }
 @media (max-height: 900px) {
   :root[data-theme="telnyashka"] .sidebar::before, :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { display: none; }
 }
 @media (max-height: 740px), (max-width: 1180px) {
-  :root[data-theme="telnyashka"] .sidebar::before, :root[data-theme="telnyashka"] .sidebar > .nav-list::after, :root[data-theme="telnyashka"] .sidebar > .nav-label:last-of-type::after { display: none; }
+  :root[data-theme="telnyashka"] .sidebar::before, :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after, :root[data-theme="telnyashka"] .sidebar > .nav-label:last-of-type::after { display: none; }
 }
 @media (max-width: 1180px) { :root[data-theme="telnyashka"] .sidebar { padding-right: 14px; } :root[data-theme="telnyashka"] .sidebar::after { right: 3px; width: 9px; background: linear-gradient(90deg, var(--bone) 0 2px, transparent 2px 3.5px, var(--bone) 3.5px 5.5px, transparent 5.5px 7px, var(--bone) 7px 9px); } }
 
@@ -825,11 +706,4 @@
   background: var(--knit-dim); color: #fff; border-color: #000; text-shadow: 0 1px 2px #000, 0 0 8px #000; translate: 0 -1px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -2px 3px rgb(0 0 0 / 50%), 0 8px 18px rgb(0 0 0 / 65%);
 }
-:root[data-theme="telnyashka"] .button.primary:hover { background: linear-gradient(rgb(127 208 212 / 70%), rgb(74 163 170 / 76%)), var(--stripes) 0 0 / var(--stripes-size); color: #061213; text-shadow: 0 0 6px rgb(220 250 250 / 80%); filter: none; }
-
-/* The user's own background picture (Settings → «Свой фон»), dimmed so text stays readable. */
-:root[data-custom-bg] body {
-  background: linear-gradient(180deg, rgb(0 0 0 / 55%), rgb(0 0 0 / 72%)), var(--custom-bg) center / cover no-repeat fixed !important;
-}
-.custom-bg-actions { display: flex; gap: 6px; }
-.custom-bg-actions label { cursor: pointer; }
+:root[data-theme="telnyashka"] .button.primary:hover { background: linear-gradient(rgb(127 208 212 / 70%), rgb(74 163 170 / 76%)), var(--stripes-diag) 0 0 / 512px; color: #061213; text-shadow: 0 0 6px rgb(220 250 250 / 80%); filter: none; }

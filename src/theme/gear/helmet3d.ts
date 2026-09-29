@@ -67,6 +67,10 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
       const mesh = object as Mesh
       if (mesh.isMesh) mesh.material = glassMaterial(mesh.material as MeshStandardMaterial)
     })
+    if (options.variant.sway) model.traverse((object) => {
+      const mesh = object as Mesh
+      if (mesh.isMesh && mesh.geometry.getAttribute('_sway')) addSway(mesh.material as MeshStandardMaterial, swing)
+    })
     // Centre the model and fit it to MODEL_SIZE so any export scale works.
     const box = new Box3().setFromObject(model)
     const size = box.getSize(new Vector3())
@@ -80,6 +84,10 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
 
   const pose = options.pose
   let yaw = 0, pitch = 0, roll = 0, scale = 1
+  // Hair swing: a springy lag that follows the mask's turning speed and overshoots when it stops.
+  const swing = { lag: { value: new Vector3() }, time: { value: 0 } }
+  const lagVelocity = new Vector3()
+  let lastTurn = { yaw: 0, pitch: 0, roll: 0, at: 0 }
   let hover = false, nx = 0, ny = 0
   let raf = 0
   let running = !options.reduced
@@ -100,6 +108,18 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
     rig.rotation.set(pitch, yaw, roll, 'YXZ')
     rig.scale.setScalar(scale * breathe)
     rig.position.y = options.reduced ? 0 : Math.sin(time * 1.7 + 0.6) * 0.012
+    if (options.variant.sway && !options.reduced) {
+      const dt = Math.min(0.05, Math.max(0.001, time - lastTurn.at))
+      // turning speed around the mask's own axes (x = nod, y = turn, z = tilt)
+      const speed = new Vector3((pitch - lastTurn.pitch) / dt, (yaw - lastTurn.yaw) / dt, (roll - lastTurn.roll) / dt)
+      lastTurn = { yaw, pitch, roll, at: time }
+      const lag = swing.lag.value
+      // underdamped spring toward the current turning speed: dreads trail, then swing back and settle
+      lagVelocity.addScaledVector(speed.sub(lag), 38 * dt).multiplyScalar(Math.max(0, 1 - 3.2 * dt))
+      lag.addScaledVector(lagVelocity, dt * 9)
+      lag.clampLength(0, 3)
+      swing.time.value = time
+    }
   }
   function frame(now: number) {
     raf = 0
@@ -166,4 +186,39 @@ function glassMaterial(source: MeshStandardMaterial) {
   })
   source.dispose()
   return material
+}
+
+/**
+ * Bends vertices by their _sway weight (x: 0 at the roots → 1 at the tips, y: 1 on the forehead strings):
+ * each point trails the turn (−lag × its offset from the crown), sags a little, and flutters gently.
+ */
+function addSway(material: MeshStandardMaterial, swing: { lag: { value: Vector3 }; time: { value: number } }) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uSwayLag = swing.lag
+    shader.uniforms.uSwayTime = swing.time
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute vec2 _sway;
+uniform vec3 uSwayLag;
+uniform float uSwayTime;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+{
+  float w = _sway.x;
+  float phase = dot(position, vec3(41.3, 17.9, 29.7));
+  vec3 flutter = vec3(sin(uSwayTime * 2.3 + phase), 0.0, cos(uSwayTime * 1.9 + phase * 1.37));
+  if (_sway.y > 0.5) {
+    // loose strings across the forehead: a small wave that follows the turn
+    float wave = sin(uSwayTime * 3.1 + position.x * 24.0);
+    transformed += (vec3(-uSwayLag.y * 0.35, -abs(uSwayLag.y) * 0.25 + wave * 0.12, 0.0) + flutter * 0.25) * 0.02 * w;
+  } else if (w > 0.0) {
+    vec3 arm = position - vec3(0.0, 0.9, 0.0);
+    vec3 trail = -cross(uSwayLag, arm);
+    float lift = length(uSwayLag.xz) * 0.02;
+    transformed += (trail * 0.07 + flutter * 0.006 * (1.0 + length(uSwayLag))) * w * w;
+    transformed.y += lift * w * w;
+  }
+}`)
+  }
+  material.customProgramCacheKey = () => 'helmet-sway'
+  material.needsUpdate = true
 }
