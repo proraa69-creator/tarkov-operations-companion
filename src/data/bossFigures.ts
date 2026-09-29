@@ -19,8 +19,8 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   sanitar: { ru: 'Санитар', en: 'Sanitar' },
   killa: { ru: 'Килла', en: 'Killa' },
   tagilla: { ru: 'Тагилла', en: 'Tagilla' },
-  'tagilla-2': { ru: 'Тагилла 2', en: 'Tagilla 2' },
-  'killa-knight': { ru: 'Килла-рыцарь', en: 'Killa Knight' },
+  'tagilla-2': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
+  'killa-knight': { ru: 'Древний Килла', en: 'Ancient Killa' },
   wadge: { ru: 'Wadge', en: 'Wadge' },
   glukhar: { ru: 'Глухарь', en: 'Glukhar' },
   raiders: { ru: 'Рейдеры', en: 'Raiders' },
@@ -30,6 +30,15 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   kollontay: { ru: 'Колонтай', en: 'Kollontay' },
   'black-division': { ru: 'Black Division', en: 'Black Division' },
   military: { ru: 'Военные', en: 'Military' },
+  // Ancient (medieval) versions: Gallery only, never on a map.
+  'tagilla-knight': { ru: 'Древний Тагилла', en: 'Ancient Tagilla' },
+  'sanitar-knight': { ru: 'Древний Санитар', en: 'Ancient Sanitar' },
+  'dark-knight': { ru: 'Древний рыцарь', en: 'Ancient Knight' },
+  'zryachiy-archer': { ru: 'Древний Зрячий', en: 'Ancient Zryachiy' },
+  'goon-bow': { ru: 'Древний Кочевник (лучник)', en: 'Ancient Goon (archer)' },
+  'goon-axe': { ru: 'Древний Кочевник (топор)', en: 'Ancient Goon (axe)' },
+  'black-division-old': { ru: 'Древний Black Division', en: 'Ancient Black Division' },
+  'ancient-soldier': { ru: 'Древний военный', en: 'Ancient Soldier' },
 }
 
 /** Groups that always stand together. */
@@ -42,11 +51,11 @@ const MAP_BOSSES: Record<string, string[]> = {
   shoreline: ['sanitar', 'rogue', 'military'],
   interchange: ['killa', 'tagilla'],
   factory: ['tagilla'],
-  reserve: ['glukhar', 'raiders'],
+  reserve: ['glukhar', 'rogue'],
   lighthouse: ['zryachiy', 'rogue', 'goons'],
   'streets-of-tarkov': ['kaban', 'kollontay'],
   icebreaker: ['black-division', 'wadge', 'rogue'],
-  'the-lab': ['black-division', 'wadge', 'raiders'],
+  'the-lab': ['black-division', 'wadge', 'rogue'],
   'the-labyrinth': ['tagilla-2'],
   terminal: ['black-division'],
 }

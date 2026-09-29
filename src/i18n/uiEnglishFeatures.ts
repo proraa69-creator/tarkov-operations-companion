@@ -56,10 +56,14 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['полноэкранный (окна поверх видны)', 'full screen (overlays visible)'], ['оконный', 'windowed'],
   ['определится, когда игра будет на переднем плане', 'detected when the game is in front'],
   ['Галерея', 'Gallery'],
-  ['Все модели боссов. Откройте карточку и вращайте модель мышью; колесо — приблизить.', 'All boss models. Open a card and turn the model with the mouse; the wheel zooms.'],
+  ['Откройте карточку и вращайте модель мышью; колесо — приблизить.', 'Open a card and turn the model with the mouse; the wheel zooms.'],
   ['3D модель: перетащите, чтобы повернуть', '3D model: drag to turn'], ['Загрузка модели…', 'Loading model…'],
   ['Не удалось загрузить 3D модель', 'Could not load the 3D model'], ['Предыдущий босс', 'Previous boss'], ['Следующий босс', 'Next boss'],
   // uiText translates " · "-separated parts one by one.
   ['3D модели', '3D models'], ['Перетащите — повернуть', 'Drag to turn'], ['колесо — масштаб', 'wheel to zoom'], ['двойной клик — сброс', 'double-click to reset'],
-  ['Автоповорот', 'Auto-rotate'], ['Сбросить вид', 'Reset view'],
+  ['Автоповорот', 'Auto-rotate'],
+  ['Разделы галереи', 'Gallery sections'], ['Основные', 'Main'], ['Древние боссы', 'Ancient bosses'],
+  ['Модели торговцев скоро появятся', 'Trader models are coming soon'], ['К боссам', 'To bosses'],
+  ['Здесь будут 3D модели торговцев Таркова. Пока загляните в раздел «Боссы».', 'Tarkov’s traders will get 3D models here. Meanwhile, have a look at the Bosses section.'],
+  ['Здоровье', 'Health'], ['Вооружение', 'Weapons'], ['Ценный лут', 'Notable loot'], ['По мотивам', 'Styled after'],
 ]

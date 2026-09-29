@@ -15,6 +15,8 @@ export interface HelmetPose { rotX: number; rotY: number; rotZ: number; scale: n
 export interface HelmetHandle {
   /** Pointer relative to the helmet centre, roughly -1..1 each way; hover = the Overview item is hovered. */
   setPointer(nx: number, ny: number, hover: boolean): void
+  /** The player changed the saved pose (e.g. the tilt slider); the helmet eases to it without remounting. */
+  setPose(pose: HelmetPose): void
   /** Canvas pixel size changed (the badge was resized). */
   resize(): void
   dispose(): void
@@ -82,7 +84,7 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
     wake()
   }, undefined, () => options.onError?.())
 
-  const pose = options.pose
+  let pose: HelmetPose = { ...options.pose }
   let yaw = 0, pitch = 0, roll = 0, scale = 1
   // Hair swing: a springy lag that follows the mask's turning speed and overshoots when it stops.
   const swing = { lag: { value: new Vector3() }, time: { value: 0 } }
@@ -153,6 +155,10 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
   return {
     setPointer(x, y, h) {
       nx = Math.max(-1, Math.min(1, x)); ny = Math.max(-1, Math.min(1, y)); hover = h
+      wake()
+    },
+    setPose(next) {
+      pose = { ...next }
       wake()
     },
     resize() {
