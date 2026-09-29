@@ -43,7 +43,10 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
   echo 'echo OK: "%TARGET%"'
   echo 'echo Starting Tarkov Operator ... You can now delete the .part files and this script.'
-  echo 'start "" "%TARGET%"'
+  # The owner's copy also runs the account server and the website (--enable-local-server) and opens the site;
+  # the exe itself stays a plain app when it is sent to someone else.
+  echo 'echo Starting the app, the server and the website...'
+  echo 'start "" "%TARGET%" --enable-local-server'
   echo 'timeout /t 5 >nul'
 } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator.cmd"
 
