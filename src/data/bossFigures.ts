@@ -32,6 +32,8 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   military: { ru: 'Военные', en: 'Military' },
   // Ancient (medieval) versions: Gallery only, never on a map.
   'tagilla-knight': { ru: 'Древний Тагилла', en: 'Ancient Tagilla' },
+  'tagilla-2-knight': { ru: 'Древняя Тень Тагиллы', en: 'Ancient Shadow of Tagilla' },
+  'reshala-knight': { ru: 'Древний Решала', en: 'Ancient Reshala' },
   'sanitar-knight': { ru: 'Древний Санитар', en: 'Ancient Sanitar' },
   'dark-knight': { ru: 'Древний рыцарь', en: 'Ancient Knight' },
   'zryachiy-archer': { ru: 'Древний Зрячий', en: 'Ancient Zryachiy' },

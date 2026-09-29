@@ -32,10 +32,10 @@ const DEV = 'https://tarkov.dev/boss/'
 export const GALLERY_BOSS_KEYS: Record<BossSection, string[]> = {
   main: [
     'reshala', 'partisan', 'goon-1', 'goon-2', 'goon-3', 'shturman', 'sanitar', 'killa', 'tagilla', 'tagilla-2',
-    'glukhar', 'zryachiy', 'rogue', 'kaban', 'kollontay', 'black-division', 'wadge',
+    'glukhar', 'zryachiy', 'rogue', 'kaban', 'kollontay', 'black-division', 'wadge', 'military',
   ],
   ancient: [
-    'killa-knight', 'tagilla-knight', 'sanitar-knight', 'dark-knight', 'zryachiy-archer', 'goon-bow', 'goon-axe',
+    'killa-knight', 'tagilla-knight', 'tagilla-2-knight', 'reshala-knight', 'sanitar-knight', 'dark-knight', 'zryachiy-archer', 'goon-bow', 'goon-axe',
     'black-division-old', 'ancient-soldier',
   ],
 }
@@ -210,6 +210,10 @@ export const BOSS_INFO: Record<string, BossDetails> = {
     loot: { ru: 'Резиновая дубинка ПР-Таран', en: 'PR-Taran rubber baton' },
     sources: [`${WIKI}Kollontay`, `${DEV}kollontay`, 'https://www.tarkovguide.net/boss/kollontay'],
   },
+  military: {
+    role: { ru: 'Военные', en: 'Military' },
+    about: { ru: 'Вооружённые военные в камуфляже, шлемах с ПНВ и бронежилетах. В приложении стоят на Береге.', en: 'Armed soldiers in camouflage, NVG helmets and plate carriers. Shown on Shoreline in the app.' },
+  },
   'black-division': {
     role: { ru: 'Фракция TerraGroup', en: 'TerraGroup faction' },
     about: {
@@ -241,6 +245,16 @@ export const BOSS_INFO: Record<string, BossDetails> = {
     role: { ru: 'Средневековая версия', en: 'Medieval version' },
     about: { ru: 'Тагилла в сварочной маске «УБЕЙ» и табарде с крестом, с неизменной кувалдой.', en: 'Tagilla in his “UBEY” welding mask and a crusader tabard, sledgehammer in hand.' },
     basedOn: 'tagilla',
+  },
+  'tagilla-2-knight': {
+    role: { ru: 'Средневековая версия', en: 'Medieval version' },
+    about: { ru: 'Тень Тагиллы в рогатой маске, кольчуге и табарде с крестом, с окровавленной косой.', en: 'Shadow of Tagilla in the horned mask, mail and a crusader tabard, with a bloodied scythe.' },
+    basedOn: 'tagilla-2',
+  },
+  'reshala-knight': {
+    role: { ru: 'Средневековая версия', en: 'Medieval version' },
+    about: { ru: 'Решала-крестоносец: кольчуга, латы, белый плащ с красным крестом, меч и щит.', en: 'Reshala as a crusader: mail, plate, a white surcoat with a red cross, sword and shield.' },
+    basedOn: 'reshala',
   },
   'sanitar-knight': {
     role: { ru: 'Средневековая версия', en: 'Medieval version' },
