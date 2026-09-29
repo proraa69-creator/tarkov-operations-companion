@@ -1,12 +1,13 @@
 /**
- * The Gear theme's 3D helmet: the owner's GLB model (src/assets/gear/helmet.glb, textures downscaled to
- * 1024² WebP), soft three-point lighting, idle sway/breathing and a turn toward the cursor. The player can
- * rotate, move and scale it (see HelmetBadge); that pose is applied on top of the idle motion.
+ * The Gear theme's 3D helmet: one of the GLB models in ./helmets, soft three-point lighting plus a small
+ * room environment for reflections, a low "sun" that glints off the visor glass as the helmet turns, idle
+ * sway/breathing and a turn toward the cursor. The saved pose (see HelmetBadge) sits under the idle motion.
  * Loaded with a dynamic import only while the theme is active.
  */
-import { AgXToneMapping, Box3, DirectionalLight, Group, HemisphereLight, Mesh, PerspectiveCamera, Scene, Vector3, WebGLRenderer, type Material, type Object3D, type Texture } from 'three'
+import { AgXToneMapping, Box3, DirectionalLight, Group, HemisphereLight, Mesh, MeshPhysicalMaterial, PMREMGenerator, PerspectiveCamera, Scene, Vector3, WebGLRenderer, type Material, type MeshStandardMaterial, type Object3D, type Texture } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import modelUrl from '../../assets/gear/helmet.glb?url'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import type { HelmetVariant } from './helmets'
 
 /** Rotation in degrees and a size multiplier set by the player. */
 export interface HelmetPose { rotX: number; rotY: number; rotZ: number; scale: number }
@@ -14,7 +15,6 @@ export interface HelmetPose { rotX: number; rotY: number; rotZ: number; scale: n
 export interface HelmetHandle {
   /** Pointer relative to the helmet centre, roughly -1..1 each way; hover = the Overview item is hovered. */
   setPointer(nx: number, ny: number, hover: boolean): void
-  setPose(pose: HelmetPose): void
   /** Canvas pixel size changed (the badge was resized). */
   resize(): void
   dispose(): void
@@ -24,7 +24,7 @@ const DEG = Math.PI / 180
 /** The model is scaled so its largest side is this many units, which the camera frames comfortably. */
 const MODEL_SIZE = 2.1
 
-export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boolean; pose: HelmetPose; onReady?: () => void; onError?: () => void }): HelmetHandle {
+export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boolean; pose: HelmetPose; variant: HelmetVariant; onReady?: () => void; onError?: () => void }): HelmetHandle {
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power', premultipliedAlpha: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * 1.25)
   renderer.setSize(canvas.clientWidth || 86, canvas.clientHeight || 86, false)
@@ -42,6 +42,13 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
   const key = new DirectionalLight(0xfff6ea, 2.6); key.position.set(-3, 4, 3.2); scene.add(key)
   const rim = new DirectionalLight(0xa9c2d8, 1.6); rim.position.set(3.5, 1.6, -3); scene.add(rim)
   const fill = new DirectionalLight(0xd9c79b, 0.4); fill.position.set(2.5, -1, 2.5); scene.add(fill)
+  // Low front sun: its highlight slides across the glossy visor as the helmet follows the cursor.
+  const sun = new DirectionalLight(0xfff2d6, 5); sun.position.set(-1.5, 2.5, 5); scene.add(sun)
+  const pmrem = new PMREMGenerator(renderer)
+  const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+  pmrem.dispose()
+  scene.environment = environment
+  scene.environmentIntensity = 0.45
 
   const rig = new Group()
   const holder = new Group()
@@ -49,9 +56,13 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
   scene.add(rig)
 
   let disposed = false
-  new GLTFLoader().load(modelUrl, (gltf) => {
+  new GLTFLoader().load(options.variant.url, (gltf) => {
     if (disposed) { release(gltf.scene); return }
     const model = gltf.scene
+    if (options.variant.glass) model.traverse((object) => {
+      const mesh = object as Mesh
+      if (mesh.isMesh) mesh.material = glassMaterial(mesh.material as MeshStandardMaterial)
+    })
     // Centre the model and fit it to MODEL_SIZE so any export scale works.
     const box = new Box3().setFromObject(model)
     const size = box.getSize(new Vector3())
@@ -63,7 +74,7 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
     wake()
   }, undefined, () => options.onError?.())
 
-  let pose = options.pose
+  const pose = options.pose
   let yaw = 0, pitch = 0, roll = 0, scale = 1
   let hover = false, nx = 0, ny = 0
   let raf = 0
@@ -120,11 +131,6 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
       nx = Math.max(-1, Math.min(1, x)); ny = Math.max(-1, Math.min(1, y)); hover = h
       wake()
     },
-    setPose(next) {
-      pose = next
-      if (options.reduced) { yaw = pose.rotY * DEG; pitch = pose.rotX * DEG; roll = pose.rotZ * DEG; scale = pose.scale }
-      wake()
-    },
     resize() {
       renderer.setSize(canvas.clientWidth || 86, canvas.clientHeight || 86, false)
       wake()
@@ -135,8 +141,25 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
       cancelAnimationFrame(raf)
       io.disconnect()
       release(scene)
+      environment.dispose()
       renderer.dispose()
       renderer.forceContextLoss()
     },
   }
+}
+
+/**
+ * The same PBR maps on a physical material: the red channel of the roughness/metal map (255 on the visor)
+ * drives a glossy clearcoat and a faint oil-film iridescence, so only the glass sparkles and shifts colour.
+ */
+function glassMaterial(source: MeshStandardMaterial) {
+  const mask = source.roughnessMap
+  const material = new MeshPhysicalMaterial({
+    map: source.map, normalMap: source.normalMap, normalScale: source.normalScale,
+    roughnessMap: source.roughnessMap, metalnessMap: source.metalnessMap, roughness: source.roughness, metalness: source.metalness,
+    clearcoat: 1, clearcoatMap: mask, clearcoatRoughness: 0.03,
+    iridescence: 0.7, iridescenceMap: mask, iridescenceIOR: 1.6, iridescenceThicknessRange: [180, 520],
+  })
+  source.dispose()
+  return material
 }

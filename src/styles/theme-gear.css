@@ -327,9 +327,7 @@
 }
 :root[data-theme="gear"] .raid-map-name { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .02em; }
 
-/* Helmet editor (settings button next to the helmet) */
-.gear-helmet.is-editing { pointer-events: auto; cursor: grab; outline: 1px dashed rgb(236 216 168 / 55%); outline-offset: 2px; touch-action: none; }
-.gear-helmet.is-editing:active { cursor: grabbing; }
+/* Helmet picker (button next to the helmet) */
 .gear-helmet-settings {
   position: fixed; z-index: 43; width: 20px; height: 20px; display: grid; place-items: center; padding: 0;
   border: 1px solid rgb(0 0 0 / 60%); border-radius: 50%; background: linear-gradient(180deg, #4b4a3a, #2c2c22); color: #e8dcbc;
@@ -337,15 +335,15 @@
 }
 .gear-helmet-settings:hover, .gear-helmet-settings.active { opacity: 1; transform: rotate(35deg); }
 .gear-helmet-editor {
-  position: fixed; z-index: 60; width: 250px; padding: 10px 12px 12px; border: 1px solid #5d5a44; border-radius: 6px;
+  position: fixed; z-index: 60; width: 220px; padding: 10px 12px 10px; border: 1px solid #5d5a44; border-radius: 6px;
   background: linear-gradient(180deg, rgb(33 33 26 / 97%), rgb(20 20 16 / 97%)); color: var(--text);
   box-shadow: 0 16px 36px rgb(0 0 0 / 60%);
 }
-.gear-helmet-editor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.gear-helmet-editor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .gear-helmet-editor-head strong { font-family: "Oswald", "Bahnschrift", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
-.gear-helmet-editor-hint { margin: 0 0 8px; color: var(--text-muted); font-size: 11px; line-height: 1.35; }
-.gear-helmet-slider { display: grid; gap: 2px; margin-bottom: 6px; font-size: 11.5px; }
-.gear-helmet-slider span { display: flex; justify-content: space-between; color: var(--text-muted); }
-.gear-helmet-slider em { font-style: normal; color: var(--text); }
-.gear-helmet-slider input { width: 100%; accent-color: #c9ad7a; }
-.gear-helmet-editor-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.gear-helmet-option {
+  display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px;
+  border: 1px solid transparent; border-radius: 4px; background: none; color: var(--text-muted); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.gear-helmet-option:hover { background: rgb(255 255 255 / 5%); color: var(--text); }
+.gear-helmet-option.active { border-color: rgb(201 173 122 / 45%); color: var(--text); }
