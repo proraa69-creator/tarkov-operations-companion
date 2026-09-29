@@ -39,8 +39,9 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo "powershell -NoProfile -Command \"if ((Get-FileHash -Algorithm SHA256 -LiteralPath \$env:TARGET).Hash -ieq '$HASH') { exit 0 } else { exit 1 }\""
   echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
   echo 'echo OK: "%TARGET%"'
-  echo 'echo You can now delete the .part files and this script.'
-  echo 'pause'
+  echo 'echo Starting Tarkov Operator ... You can now delete the .part files and this script.'
+  echo 'start "" "%TARGET%"'
+  echo 'timeout /t 5 >nul'
 } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator.cmd"
 
 echo "sha256 $HASH"
