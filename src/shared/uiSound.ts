@@ -1,3 +1,5 @@
+import clickUrl from '../assets/sounds/click.mp3'
+
 type SoundKind = 'hover' | 'click'
 
 let context: AudioContext | null = null
@@ -58,9 +60,45 @@ export function playUiSound(kind: SoundKind) {
     burst(ctx, at, 3400, 2.2, 0.06, 0.016)
     return
   }
-  // Same dry tick as hover, but lower and heavier, with a latch "clack" right after.
-  burst(ctx, at, 2300, 1.8, 0.24, 0.022)
-  burst(ctx, at, 850, 0.9, 0.34, 0.048)
-  thock(ctx, at, 240, 130, 0.06, 0.032, 'square')
-  burst(ctx, at + 0.026, 1600, 1.4, 0.14, 0.02)
+  playClickSample(ctx, at)
+}
+
+/** The owner's click recording, decoded once; leading silence is skipped so it plays on the press. */
+let clickSample: { buffer: AudioBuffer; offset: number } | null = null
+let clickLoading: Promise<void> | null = null
+
+function loadClickSample(ctx: AudioContext) {
+  clickLoading ??= fetch(clickUrl)
+    .then((response) => response.arrayBuffer())
+    .then((bytes) => ctx.decodeAudioData(bytes))
+    .then((buffer) => {
+      const channel = buffer.getChannelData(0)
+      let first = channel.findIndex((sample) => Math.abs(sample) > 0.01)
+      if (first < 0) first = 0
+      clickSample = { buffer, offset: Math.max(0, first / buffer.sampleRate - 0.003) }
+    })
+    .catch(() => { clickLoading = null })
+  return clickLoading
+}
+
+function playClickSample(ctx: AudioContext, at: number) {
+  if (!clickSample) {
+    // First press: fall back to the synthesized tick while the recording loads.
+    burst(ctx, at, 2300, 1.8, 0.24, 0.022)
+    burst(ctx, at, 850, 0.9, 0.34, 0.048)
+    void loadClickSample(ctx)
+    return
+  }
+  const source = ctx.createBufferSource()
+  source.buffer = clickSample.buffer
+  const gain = ctx.createGain()
+  gain.gain.value = 1.4
+  source.connect(gain).connect(master!)
+  source.start(at, clickSample.offset)
+}
+
+/** Loads the click recording ahead of the first press. */
+export function preloadUiSounds() {
+  const ctx = audio()
+  if (ctx) void loadClickSample(ctx)
 }

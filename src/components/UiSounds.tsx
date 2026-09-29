@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { playUiSound } from '../shared/uiSound'
+import { playUiSound, preloadUiSounds } from '../shared/uiSound'
 
 const INTERACTIVE = [
   'button',
@@ -26,6 +26,7 @@ function interactiveTarget(target: EventTarget | null) {
 
 export function UiSounds() {
   useEffect(() => {
+    preloadUiSounds()
     let hovered: Element | null = null
     let lastHoverAt = 0
 
