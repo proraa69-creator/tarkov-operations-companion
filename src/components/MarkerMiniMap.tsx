@@ -1,20 +1,27 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo } from 'react'
 import { divIcon } from 'leaflet'
-import { ImageOverlay, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
-import type { GameMap } from '../domain/types'
+import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import type { GameMap, MapView } from '../domain/types'
 import { createMapCrs, toLeafletBounds } from './mapCrs'
+import { planMapLayers } from '../data/mapView'
+import { FloorSvgOverlay } from './FloorSvgOverlay'
+import { mainFloor } from '../data/mapProjection'
 
 interface MarkerMiniMapProps {
   map: GameMap
+  /** The player's «Вид карты» choice (falls back to what the map has). */
+  view?: MapView
   position: [number, number]
   color: string
 }
 
 const ZOOM_IN_STEPS = 2.5
 
-export function MarkerMiniMap({ map, position, color }: MarkerMiniMapProps) {
+export function MarkerMiniMap({ map, view = 'satellite', position, color }: MarkerMiniMapProps) {
   const bounds = toLeafletBounds(map)
+  const plan = planMapLayers(map, view, mainFloor(map))
+  const imageBounds = plan.imageBounds ? toLeafletBounds({ ...map, bounds: plan.imageBounds }) : bounds
   const crs = useMemo(() => createMapCrs(map), [map])
   const icon = useMemo(() => divIcon({
     className: 'marker-icon',
@@ -41,10 +48,11 @@ export function MarkerMiniMap({ map, position, color }: MarkerMiniMapProps) {
         boxZoom={false}
         keyboard={false}
       >
-        {uiText(map.imageUrl && !map.tileUrl && <ImageOverlay url={map.imageUrl} bounds={bounds} />)}
-        {uiText(map.tileUrl && (
+        {plan.view === 'digital' && plan.imageUrl && <FloorSvgOverlay key={plan.imageUrl} base url={plan.imageUrl} layers={map.layers ?? []} selected={mainFloor(map)} bounds={imageBounds} />}
+        {plan.view === 'satellite' && plan.tileUrl && (
           <TileLayer
-            url={map.tileUrl}
+            key={plan.tileUrl}
+            url={plan.tileUrl}
             bounds={bounds}
             tileSize={map.tileSize ?? 256}
             minZoom={-5}
@@ -53,7 +61,7 @@ export function MarkerMiniMap({ map, position, color }: MarkerMiniMapProps) {
             maxNativeZoom={map.maxZoom}
             noWrap
           />
-        ))}
+        )}
         <CenterOn position={position} />
         <Marker position={position} icon={icon} interactive={false} keyboard={false} />
       </MapContainer>

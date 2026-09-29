@@ -52,6 +52,14 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Попасть на объект TerraGroup; найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»); осмотреть серверную (1-й уровень, у ангара); осмотреть офисы топ-менеджеров (O21, 2-й уровень).', 'Get into the TerraGroup facility; find the escape route through the drain (basement, by the “Sewage conduit” exit); inspect the server room (level 1, by the hangar); inspect the top managers’ offices (O21, level 2).'],
   ['Развязка', 'Interchange'], ['Развязку', 'Interchange'], ['Таможня', 'Customs'], ['Таможню', 'Customs'], ['Завод', 'Factory'], ['Береге', 'Shoreline'], ['Берег', 'Shoreline'],
   ['Низкая', 'Low'], ['Средняя', 'Medium'], ['Высокая', 'High'], ['Экстремальная', 'Extreme'],
+  // «Вид карты» toggle (src/pages/MapsPage.tsx)
+  ['Вид карты', 'Map view'], ['ВИД', 'VIEW'], ['Спутник', 'Satellite'], ['Схема', 'Schematic'],
+  ['Спутник: объёмный рендер местности сверху', 'Satellite: a top-down render of the terrain'],
+  ['Схема: цифровая векторная карта', 'Schematic: the digital vector map'],
+  ['Для этой карты у tarkov.dev есть только схема', 'tarkov.dev only has a schematic for this map'],
+  ['Для этой карты у tarkov.dev нет схемы, только спутник', 'tarkov.dev has no schematic for this map, only satellite'],
+  ['Выбранного вида нет у этой карты — показан этот', 'This map lacks the chosen view, so this one is shown'],
+  ['только схема', 'schematic only'], ['только спутник', 'satellite only'],
 ]
 
 /** Patterns with a variable part, applied after the phrase table. */

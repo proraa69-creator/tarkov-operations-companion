@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     login: (email: string, password: string) => ipcRenderer.invoke('account:login', String(email), String(password)),
     logout: () => ipcRenderer.invoke('account:logout'),
     openWebsite: (page: 'register' | 'cabinet') => ipcRenderer.invoke('account:open-website', page === 'register' ? 'register' : 'cabinet'),
+    localServerStatus: () => ipcRenderer.invoke('local-server:status'),
+    setLocalServerEnabled: (enabled: boolean) => ipcRenderer.invoke('local-server:set-enabled', Boolean(enabled)),
   },
   autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,

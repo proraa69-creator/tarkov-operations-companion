@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
+import { mapForView, readMapView } from '../data/mapView'
 import { useAppState } from '../state/AppState'
 import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
 import { createItemMatcher, createTooltipMatcher, matchNearest } from '../overlay/itemMatch'
@@ -70,7 +71,8 @@ export function ExperimentalBridge() {
         const objectives = stage ? [stage.title] : (quest.objectives.length ? quest.objectives : [quest.description]).slice(0, 4)
         quests.push({ questId: quest.id, name: quest.name, trader: quest.trader, markerIds: [marker.id], objectives })
       }
-      void api.answer(query.id, { state: 'ready', map, markers, questCount: quests.length, quests } satisfies MinimapPayload)
+      // The overlay follows the map view chosen on the Maps page (satellite or schematic).
+      void api.answer(query.id, { state: 'ready', map: mapForView(map, readMapView()), markers, questCount: quests.length, quests } satisfies MinimapPayload)
     })
   }, [])
 

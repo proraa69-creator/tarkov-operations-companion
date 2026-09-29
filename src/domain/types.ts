@@ -96,6 +96,8 @@ export interface GameMap {
   imageUrl?: string
   tileUrl?: string
   bounds?: [[number, number], [number, number]]
+  /** Game-space bounds of the SVG scheme when they differ from the tile bounds (tarkov.dev `svgBounds`, e.g. Reserve). */
+  svgBounds?: [[number, number], [number, number]]
   transform?: [number, number, number, number]
   coordinateRotation?: number
   tileSize?: number
@@ -107,6 +109,9 @@ export interface GameMap {
   markerCount: number
   attribution?: string
 }
+
+/** How a map is drawn: tarkov.dev's top-down render tiles («Спутник») or its vector SVG scheme («Схема»). */
+export type MapView = 'satellite' | 'digital'
 
 export interface MapFloorExtent {
   height: [number, number]

@@ -11,7 +11,7 @@
     "dev": "vite",
     "build:renderer": "tsc -b && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build": "npm run build:renderer && npm run build:electron",
+    "build": "npm run build:renderer && npm run build:electron && npm run build:local-server",
     "desktop": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win portable",
     "server:dev": "npm --prefix server run dev",
@@ -24,13 +24,15 @@
     "lint": "eslint .",
     "mobile:build": "npm run build:renderer && npx cap sync",
     "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
-    "ios:open": "npx cap open ios"
+    "ios:open": "npx cap open ios",
+    "build:local-server": "node scripts/build-local-server.mjs"
   },
   "build": {
     "appId": "local.tarkov.operations.companion",
     "productName": "Tarkov Operator",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -46,7 +48,8 @@
       "**/node_modules/uiohook-napi/**",
       "**/node_modules/node-gyp-build/**",
       "**/node_modules/koffi/**",
-      "**/node_modules/@koromix/**"
+      "**/node_modules/@koromix/**",
+      "**/dist-electron/local-server/**"
     ],
     "extraResources": [
       {
@@ -58,7 +61,8 @@
       "target": [
         "portable"
       ],
-      "artifactName": "Tarkov Operator ${version}.exe"
+      "artifactName": "Tarkov Operator ${version}.exe",
+      "icon": "build/icon.ico"
     },
     "portable": {
       "unpackDirName": true

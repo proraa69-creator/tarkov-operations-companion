@@ -17,6 +17,7 @@ interface RawMapConfig {
   transform?: number[]
   coordinateRotation?: number
   bounds?: unknown
+  svgBounds?: unknown
   svgPath?: string
   tilePath?: string
   tileSize?: number
@@ -56,6 +57,8 @@ export function adaptMapRenderingConfigs(roots: RawMapConfigRoot[]): Map<string,
       tileUrl: primary.tilePath,
       imageUrl: primary.svgPath,
       bounds: readBounds(primary.bounds),
+      // Only Reserve has it today: the SVG covers a slightly different area than the tiles.
+      svgBounds: primary.svgPath ? readBounds(primary.svgBounds) : undefined,
       transform: readTransform(primary.transform),
       coordinateRotation: number(primary.coordinateRotation),
       tileSize: number(primary.tileSize) || undefined,

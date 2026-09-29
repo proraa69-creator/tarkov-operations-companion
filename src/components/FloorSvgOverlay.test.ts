@@ -15,4 +15,12 @@ describe('SVG floor selection', () => {
     expect(selectSvgFloor(svg, layers, '2')).not.toBe(selectSvgFloor(svg, layers, '3'))
     expect(() => selectSvgFloor(svg, layers, 'missing')).toThrow()
   })
+  it('draws only the selected floor over the satellite render', () => {
+    const withKept = svg.replace('<g id="second"/>', '<g id="second"/><g id="kept"/>')
+    const doc = new DOMParser().parseFromString(selectSvgFloor(withKept, layers, '2', { terrain: false }), 'image/svg+xml')
+    expect(doc.getElementById('second')?.getAttribute('display')).toBe('inline')
+    expect(doc.getElementById('terrain')?.getAttribute('display')).toBe('none')
+    expect(doc.getElementById('kept')?.getAttribute('display')).toBe('none')
+    expect(doc.getElementById('third')?.getAttribute('display')).toBe('none')
+  })
 })

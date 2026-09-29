@@ -1,5 +1,11 @@
 /** English strings for the server account block (Profile) and server sync messages. Wired into uiEnglish.ts by the lead. */
 export const SERVER_PHRASES: Array<[string, string]> = [
+  ['Сервер и сайт на этом компьютере', 'Server and website on this PC'],
+  ['Приложение само запускает сервер аккаунтов и сайт с личным кабинетом, пока оно открыто. Включайте только на своём компьютере.', 'While it is open, the app runs the account server and the website with the personal account itself. Turn it on only on your own PC.'],
+  ['Сервер:', 'Server:'], ['сайт:', 'website:'], ['работает', 'running'], ['уже запущен отдельно', 'already running separately'], ['выключен', 'off'], ['ошибка', 'error'],
+  ['Открыть сайт', 'Open website'],
+  ['Сервер не входит в эту сборку приложения.', 'This build of the app does not include the server.'],
+  ['Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.', 'Server unavailable: turn on “Server and website on this PC” above or start the server another way.'],
   ['Аккаунт сервера', 'Server account'],
   ['Проверяем сервер…', 'Checking the server…'],
   ['Сервер доступен', 'Server online'],

@@ -1,5 +1,6 @@
 import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
+import { Platforms } from '../components/Platforms'
 import { Reveal } from '../components/Reveal'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
@@ -34,6 +35,7 @@ export function DownloadPage() {
             <span className="tag green">Бета</span>
           </div>
           <DownloadButton />
+          <Platforms />
           {!DOWNLOAD_AVAILABLE && (
             <Notice tone="info" title="Ссылка скоро появится">Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.</Notice>
           )}
