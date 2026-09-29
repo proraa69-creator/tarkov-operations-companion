@@ -1,3 +1,5 @@
+import { isNative } from '../platform'
+
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
 export const THEMES: ThemeOption[] = [
@@ -15,13 +17,18 @@ export const THEMES: ThemeOption[] = [
 
 const THEME_KEY = 'tarkov-app-theme'
 
+/** The phone app starts on «Чёрный мультикам»; the desktop app on «Тарков». */
+export function defaultTheme(native = isNative()) {
+  return native ? 'blackmc' : 'tarkov'
+}
+
 function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
 }
 
 export function currentTheme() {
   const saved = read(THEME_KEY)
-  return THEMES.some((theme) => theme.id === saved) ? saved! : 'tarkov'
+  return THEMES.some((theme) => theme.id === saved) ? saved! : defaultTheme()
 }
 
 export function applyAppearance(theme = currentTheme()) {

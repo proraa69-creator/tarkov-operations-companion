@@ -13,11 +13,17 @@ import { ExperimentalPage } from '../pages/ExperimentalPage'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
 import { GalleryPage } from '../pages/GalleryPage'
 import { useLocale } from '../i18n/LocaleProvider'
+import { LiveMapPage } from '../mobile/LiveMapPage'
+import { isDesktopShell, useMobileLayout } from '../platform'
 
 export function App() {
   const { locale, revision } = useLocale()
-  return <><StoryScreenScanner /><UiSounds /><ExperimentalBridge /><AppShell key={`${locale}:${revision}`}><Routes>
-    <Route path="/experimental" element={<ExperimentalPage />} />
+  const mobile = useMobileLayout()
+  const desktop = isDesktopShell()
+  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
+  return <>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><AppShell key={`${locale}:${revision}`}><Routes>
+    <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
+    <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />
     <Route path="/kappa-items" element={<KappaItemsPage />} />
     <Route path="/" element={<DashboardPage />} />

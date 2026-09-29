@@ -101,18 +101,47 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   }
   function invalidate() { if (!raf && !disposed) raf = requestAnimationFrame(frame) }
 
-  // Pointer: drag = turn (and a little tilt), wheel = zoom within limits, double-click = reset.
+  // Pointer: drag = turn (and a little tilt), wheel or two-finger pinch = zoom within limits,
+  // double-click / double-tap = reset. Touch works through the same pointer events (the canvas has touch-action: none).
   let lastX = 0, lastY = 0, lastT = 0
+  const pointers = new Map<number, { x: number; y: number }>()
+  let pinchSpan = 0, pinchDist = dist
+  let lastTap = 0, tapX = 0, tapY = 0, moved = 0
+  const span = () => {
+    const [a, b] = [...pointers.values()]
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0
+  }
   const onDown = (event: PointerEvent) => {
-    dragging = true; yawVelocity = 0
-    lastX = event.clientX; lastY = event.clientY; lastT = performance.now()
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     canvas.setPointerCapture(event.pointerId)
+    yawVelocity = 0
+    if (pointers.size === 2) {
+      // Second finger: stop turning and start pinching from the current zoom.
+      dragging = false
+      pinchSpan = span()
+      pinchDist = dist
+      return
+    }
+    if (pointers.size > 2) return
+    dragging = true; moved = 0
+    lastX = event.clientX; lastY = event.clientY; lastT = performance.now()
   }
   const onMove = (event: PointerEvent) => {
+    const tracked = pointers.get(event.pointerId)
+    if (tracked) { tracked.x = event.clientX; tracked.y = event.clientY }
+    if (pointers.size >= 2) {
+      const current = span()
+      if (pinchSpan > 0 && current > 0) {
+        dist = Math.max(DIST_MIN, Math.min(DIST_MAX, pinchDist * (pinchSpan / current)))
+        invalidate()
+      }
+      return
+    }
     if (!dragging) return
     const dx = event.clientX - lastX, dy = event.clientY - lastY
     const now = performance.now()
     const turn = dx * 0.0105
+    moved += Math.abs(dx) + Math.abs(dy)
     yaw += turn
     pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch + dy * 0.005))
     yawVelocity = turn / Math.max(0.008, (now - lastT) / 1000)
@@ -120,10 +149,24 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     invalidate()
   }
   const onUp = (event: PointerEvent) => {
+    const wasPinch = pointers.size >= 2
+    pointers.delete(event.pointerId)
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
+    if (wasPinch) {
+      // One finger left after a pinch: continue as a drag from where it is, without a jump.
+      const rest = [...pointers.values()][0]
+      if (rest) { dragging = true; lastX = rest.x; lastY = rest.y; lastT = performance.now(); moved = 99 }
+      return
+    }
     if (!dragging) return
     dragging = false
     if (performance.now() - lastT > 80 || options.reduced) yawVelocity = 0
-    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
+    // Double tap (touch has no reliable dblclick): two quick taps close together reset the view.
+    if (event.pointerType === 'touch' && moved < 8 && event.type === 'pointerup') {
+      const now = performance.now()
+      if (now - lastTap < 320 && Math.hypot(event.clientX - tapX, event.clientY - tapY) < 30) { lastTap = 0; resetView(); return }
+      lastTap = now; tapX = event.clientX; tapY = event.clientY
+    }
     invalidate()
   }
   const onWheel = (event: WheelEvent) => {

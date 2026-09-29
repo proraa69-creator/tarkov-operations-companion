@@ -6,13 +6,16 @@ import 'leaflet/dist/leaflet.css'
 import './styles/global.css'
 import './styles/pages.css'
 import './styles/theme-gear.css'
+import './styles/mobile.css'
 import { App } from './app/App'
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
 import { OverlayApp, overlayKind } from './overlay/OverlayApp'
 import { LocaleProvider } from './i18n/LocaleProvider'
 import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
+import { installLayoutAttributes } from './platform'
 
+installLayoutAttributes()
 applyAppearance()
 clearRemovedAppearanceSettings()
 

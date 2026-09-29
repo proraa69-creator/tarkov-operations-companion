@@ -6,7 +6,7 @@
  * to `/v1/me/*` and applies the server's copy back. Without a server or an account everything keeps working
  * locally; nothing here ever throws into the UI. PvP, PvE and Seasonal are always sent and applied separately.
  */
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { ModeRegistration, RaidMode } from '../domain/types'
 import type { ServerAccountStatus } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
@@ -17,6 +17,8 @@ import { canonicalMapId } from '../data/mapIds'
 import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
+import { isDesktopShell, isMobileLayout, isNative } from '../platform'
+import { webAccountLogin, webAccountLogout, webAccountStatus, webServiceRequest } from './webAccount'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 export const STATUS_REFRESH_MS = 30_000
@@ -35,7 +37,23 @@ const listeners = new Set<() => void>()
 const setState = (next: Partial<ServerState>) => { state = { ...state, ...next }; for (const listener of listeners) listener() }
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 
-const accountApi = () => (typeof window === 'undefined' ? undefined : window.tarkovDesktop?.account)
+/**
+ * The phone app (and the browser preview at phone width) talks to the server over fetch (sync/webAccount.ts);
+ * the desktop app through the Electron main process. A desktop browser tab without the shell stays local.
+ */
+export function usesWebAccount() {
+  return typeof window !== 'undefined' && !isDesktopShell() && (isNative() || isMobileLayout())
+}
+
+const webAccountApi = { status: webAccountStatus, login: webAccountLogin, logout: webAccountLogout }
+
+const accountApi = () => (typeof window === 'undefined' ? undefined : window.tarkovDesktop?.account ?? (usesWebAccount() ? webAccountApi : undefined))
+
+const serviceClient = () => {
+  if (typeof window === 'undefined') return undefined
+  if (window.tarkovDesktop?.serviceRequest) return window.tarkovDesktop.serviceRequest
+  return usesWebAccount() ? webServiceRequest : undefined
+}
 
 /** Electron prefixes errors from the main process; keep only the human message. */
 export function cleanIpcError(error: unknown) {
@@ -87,10 +105,10 @@ const connected = () => Boolean(state.status?.signedIn && state.status.online)
 
 /** `/v1/me/*` through the main-process gateway. null = no desktop, not signed in or server offline. */
 async function meRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T | null> {
-  const desktop = typeof window === 'undefined' ? undefined : window.tarkovDesktop
-  if (!desktop?.serviceRequest || !state.status?.signedIn) return null
+  const request = serviceClient()
+  if (!request || !state.status?.signedIn) return null
   try {
-    return await desktop.serviceRequest(method, path, body) as T | null
+    return await request(method, path, body) as T | null
   } catch (error) {
     const message = cleanIpcError(error)
     // Server stopped or the session expired: refresh the status so Profile shows it; retried on reconnect.
@@ -234,7 +252,9 @@ async function applyServerSettings(remote: Record<string, unknown>) {
 let settingsBusy = false
 
 export async function syncSettings() {
-  if (!connected() || settingsBusy) return
+  // The phone keeps its own theme (its default is «Чёрный мультикам») and has no overlay/hotkey settings, so it
+  // neither overwrites the desktop's synced settings nor takes the desktop theme.
+  if (!connected() || settingsBusy || !isDesktopShell()) return
   settingsBusy = true
   try { await syncSettingsOnce() } finally { settingsBusy = false }
 }
@@ -293,6 +313,58 @@ function validPosition(position: PlayerPosition) {
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// Phone: progress and the live position come from the server (the desktop app reads the logs and screenshots)
+// ------------------------------------------------------------------------------------------------------------
+
+/** A position older than this is shown as «нет свежей позиции» on the phone. */
+export const POSITION_FRESH_MS = 3 * 60_000
+export const POSITION_POLL_MS = 3_000
+
+export interface ServerPosition extends PlayerPosition { map?: string; receivedAt?: string }
+
+export function parseServerPosition(value: unknown): ServerPosition | null {
+  const position = (value as { position?: unknown } | null)?.position as Partial<ServerPosition> | null | undefined
+  if (!position || typeof position !== 'object') return null
+  const candidate = { x: position.x, y: position.y, z: position.z, yaw: position.yaw, at: position.at } as PlayerPosition
+  if (!validPosition(candidate)) return null
+  const map = typeof position.map === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(position.map) ? canonicalMapId(position.map) : undefined
+  return { ...candidate, ...(map ? { map } : {}), ...(typeof position.receivedAt === 'string' ? { receivedAt: position.receivedAt } : {}) }
+}
+
+/**
+ * How current the desktop-reported position is. The newer of the capture time and the server receive time counts
+ * (a PC clock that runs slow must not hide a live position); a position without a map cannot be drawn.
+ */
+export function positionFreshness(position: ServerPosition | null, now = Date.now(), maxAgeMs = POSITION_FRESH_MS) {
+  if (!position) return { state: 'none' as const, ageMs: null }
+  const received = position.receivedAt ? Date.parse(position.receivedAt) : NaN
+  const latest = Math.max(position.at, Number.isFinite(received) ? received : 0)
+  const ageMs = Math.max(0, now - latest)
+  if (!position.map) return { state: 'no-map' as const, ageMs }
+  return { state: ageMs <= maxAgeMs ? 'fresh' as const : 'stale' as const, ageMs }
+}
+
+/** The latest position the desktop app pushed for this mode; null when signed out, offline or none yet. */
+export async function fetchServerPosition(mode: RaidMode) {
+  const answer = await meRequest<{ position?: unknown }>('GET', `/v1/me/position/${mode}`)
+  return answer ? parseServerPosition(answer) : null
+}
+
+/** Phone: the merged task records the desktop app uploaded for this mode, applied like a log scan. */
+export async function pullServerProgress(mode: RaidMode, apply: ApplyServerEvents) {
+  if (!connected() || !usesWebAccount() || progressBusy.has(mode)) return
+  progressBusy.add(mode)
+  try {
+    const answer = await meRequest<{ records?: unknown; scope?: { characterId?: unknown } | null }>('GET', `/v1/me/progress/${mode}`)
+    const characterId = typeof answer?.scope?.characterId === 'string' && HEX_ID.test(answer.scope.characterId) ? answer.scope.characterId : null
+    const records = parseServerRecords(answer)
+    if (records && characterId) apply(mode, records, characterId)
+  } finally {
+    progressBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Background loop (mounted once in AppShell)
 // ------------------------------------------------------------------------------------------------------------
 
@@ -311,9 +383,15 @@ export async function runFullSync() {
   }
 }
 
-export function useServerSync(raidMode: RaidMode) {
+export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEvents) {
   const modeRef = useRef(raidMode)
   useEffect(() => { modeRef.current = raidMode }, [raidMode])
+  const applyRef = useRef(applyProgress)
+  useEffect(() => { applyRef.current = applyProgress })
+  const pullProgress = useCallback((mode: RaidMode) => {
+    const apply = applyRef.current
+    if (apply) void pullServerProgress(mode, apply).catch(() => {})
+  }, [])
 
   // Status poll; when the server comes back (or the user signs in) everything cached offline is pushed.
   useEffect(() => {
@@ -326,6 +404,7 @@ export function useServerSync(raidMode: RaidMode) {
       const now = connected()
       if (now && !wasConnected) await runFullSync()
       else if (now) { await syncCollector(modeRef.current); await syncSettings() }
+      if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
     void tick()
@@ -340,7 +419,7 @@ export function useServerSync(raidMode: RaidMode) {
       window.removeEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
       window.removeEventListener(THEME_CHANGED_EVENT, onTheme)
     }
-  }, [])
+  }, [pullProgress])
 
   // Screenshot positions → /v1/me/position/:mode (the mode the app is on when the screenshot arrives).
   useEffect(() => {
@@ -362,6 +441,6 @@ export function useServerSync(raidMode: RaidMode) {
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
   }, [])
 
-  // Switching mode pulls that mode's Collector checklist.
-  useEffect(() => { void syncCollector(raidMode) }, [raidMode])
+  // Switching mode pulls that mode's Collector checklist (and, on the phone, its task progress).
+  useEffect(() => { void syncCollector(raidMode); pullProgress(raidMode) }, [raidMode, pullProgress])
 }

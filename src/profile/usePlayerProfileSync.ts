@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppState } from '../state/AppState'
-import { desktopPlayerProfileGateway } from './playerProfileGateway'
+import { canResolvePlayerProfiles, desktopPlayerProfileGateway } from './playerProfileGateway'
 
 const REFRESH_INTERVAL = 60_000
 
@@ -11,7 +11,7 @@ export function usePlayerProfileSync() {
   const [isSyncing, setIsSyncing] = useState(false)
 
   useEffect(() => {
-    if (!window.tarkovDesktop || progress.registration.status !== 'registered' || !progress.registration.accountId) return
+    if (!canResolvePlayerProfiles() || progress.registration.status !== 'registered' || !progress.registration.accountId) return
     let active = true
     const refresh = async () => {
       setIsSyncing(true)

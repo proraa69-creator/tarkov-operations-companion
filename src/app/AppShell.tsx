@@ -17,6 +17,9 @@ import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
+import { useMobileLayout } from '../platform'
+import { MobileTabBar } from '../mobile/MobileNav'
+import { canResolvePlayerProfiles } from '../profile/playerProfileGateway'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -38,7 +41,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { raidMode, setRaidMode, activeProfile } = state
   const { source, isFetching, refresh, data } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
-  useServerSync(raidMode)
+  // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
+  useServerSync(raidMode, state.applyLogStateForMode)
+  const mobile = useMobileLayout()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [registrationOpen, setRegistrationOpen] = useState(false)
@@ -134,8 +139,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={`app-shell${mobile ? ' is-mobile' : ''}`}>
+      {!mobile && <aside className="sidebar">
         <NavLink to="/" className="brand">
           <div className="brand-mark">TO</div>
           <div className="brand-name">TARKOV OPERATOR<span className="brand-sub">FIELD COMPANION</span></div>
@@ -146,11 +151,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
-      </aside>
-      <GearDecor />
-      <MaskBadge />
-      <TelnyashkaTable />
+      </aside>}
+      {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
+      {!mobile && <><GearDecor /><MaskBadge /><TelnyashkaTable /></>}
 
+      {mobile ? (
+        <header className="topbar mobile-topbar">
+          <NavLink to="/" className="brand mobile-brand" aria-label="Tarkov Operator"><div className="brand-mark">TO</div></NavLink>
+          <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
+          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
+          <ThemeButton />
+        </header>
+      ) : (
       <header className="topbar">
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
@@ -160,6 +172,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ThemeButton />
         <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
       </header>
+      )}
 
       <main className="content">{uiText(source === 'demo' && isFetching ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
 
@@ -173,7 +186,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>)}
-      {uiText(window.tarkovDesktop && registrationOpen && (
+      {mobile && <MobileTabBar onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {uiText(canResolvePlayerProfiles() && registrationOpen && (
         <ModeRegistrationDialog key={`${registrationIdentity}:${registrationKey}`} onClose={() => setRegistrationOpen(false)} />
       ))}
     </div>

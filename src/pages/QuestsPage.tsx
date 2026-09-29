@@ -6,6 +6,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isLiveGameQuest, isCurrentTrackedQuest, isTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import type { Quest, TaskProgressStatus } from '../domain/types'
+import { isMobileLayout } from '../platform'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -56,7 +57,7 @@ export function QuestsPage() {
   const mapTarget = selectedStage?.mapIds[0] ?? selected?.mapId ?? selected?.mapIds?.[0] ?? 'customs'
 
   return <div className="page">
-    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1><p className="page-subtitle">{uiText(statusFilter === 'story' ? 'Глава и этап подхватываются сами, когда в игре открыта вкладка сюжета. Поправить можно в карточке главы.' : 'Принятые в игре задания этого режима по журналам EFT.')}</p></div><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${stats.kappaCompleted} из ${stats.kappaTotal}`)}</span></header>
+    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1><p className="page-subtitle">{uiText(statusFilter === 'story' ? 'Глава и этап подхватываются сами, когда в игре открыта вкладка сюжета. Поправить можно в карточке главы.' : (!isMobileLayout() ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.'))}</p></div><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${stats.kappaCompleted} из ${stats.kappaTotal}`)}</span></header>
     <div className="filter-row quest-filter-bar">
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
       <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
@@ -130,7 +131,9 @@ function mapLink(quest: Quest, stageIndex: number) {
 }
 
 function emptyCopy(filter: string) {
-  if (filter === 'active') return 'В журналах этого режима нет принятых заданий. Примите задание у торговца в игре — оно появится здесь само.'
+  if (filter === 'active') return !isMobileLayout()
+    ? 'В журналах этого режима нет принятых заданий. Примите задание у торговца в игре — оно появится здесь само.'
+    : 'Принятых заданий этого режима пока нет. Их присылает приложение для ПК через сервер: войдите в тот же аккаунт в настройках.'
   if (filter === 'story') return 'Сюжетные главы не найдены.'
   return 'Нет заданий с такими фильтрами.'
 }

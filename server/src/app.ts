@@ -28,8 +28,11 @@ export interface ApiOptions {
   catalog?: CatalogPeek
 }
 
-/** Local site origins allowed by default: the app renderer dev server and the website. */
-export const DEFAULT_WEB_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5202,http://127.0.0.1:5202'
+/**
+ * Origins allowed by default: the app renderer dev server, the website, and the phone app's WebView
+ * (Capacitor: https://localhost on Android, capacitor://localhost on iOS). Personal routes still need a Bearer token.
+ */
+export const DEFAULT_WEB_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5202,http://127.0.0.1:5202,https://localhost,capacitor://localhost'
 
 export function createApi(store: ProgressStore, token?: string, accounts = new AccountStore(), options: ApiOptions = {}) {
   const userData = options.userData ?? new UserDataStore(openDatabase(':memory:'))

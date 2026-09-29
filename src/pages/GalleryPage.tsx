@@ -9,6 +9,7 @@ import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useReducedMotion } from '../theme/gear/useGearActive'
 import type { BossViewerHandle } from '../gallery/bossViewer3d'
+import { isMobileLayout } from '../platform'
 
 const SPIN_STORAGE_KEY = 'tarkov-gallery-spin-v1'
 const TAB_STORAGE_KEY = 'tarkov-gallery-tab-v1'
@@ -48,7 +49,7 @@ export function GalleryPage() {
     <header className="page-header"><div>
       <div className="eyebrow">{uiText('3D модели')}</div>
       <h1 className="page-title">{uiText('Галерея')}</h1>
-      <p className="page-subtitle">{uiText('Откройте карточку и вращайте модель мышью; колесо — приблизить.')}</p>
+      <p className="page-subtitle">{uiText(isMobileLayout() ? 'Откройте карточку и вращайте модель пальцем; щипок — приблизить.' : 'Откройте карточку и вращайте модель мышью; колесо — приблизить.')}</p>
     </div></header>
     <nav className="gallery-tabs" aria-label={uiText('Разделы галереи')}>
       <button type="button" className={section ? 'is-active' : ''} aria-current={section ? 'page' : undefined} onClick={() => setTab('main')}>{uiText('Боссы')}</button>
@@ -184,7 +185,7 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
         </aside>}
       </div>
       <footer className="gallery-viewer-foot">
-        <span className="gallery-viewer-hint">{uiText('Перетащите — повернуть · колесо — масштаб · двойной клик — сброс')}</span>
+        <span className="gallery-viewer-hint">{uiText(isMobileLayout() ? 'Проведите пальцем — повернуть · щипок — масштаб · двойное касание — сброс' : 'Перетащите — повернуть · колесо — масштаб · двойной клик — сброс')}</span>
         {!reduced && <div className="gallery-viewer-actions">
           <button type="button" className={`button ghost${spin ? ' is-on' : ''}`} aria-pressed={spin} onClick={() => setSpin((value) => !value)}><RotateCw size={14} /> {uiText('Автоповорот')}</button>
         </div>}

@@ -1,0 +1,189 @@
+/*
+  Phone layout (iOS/Android app and the browser at ≤ 700 px). Switched by <html data-layout="mobile">
+  (src/platform.ts), so the desktop app never picks these rules up. The themes keep working: the tab bar reuses
+  the themed `.sidebar` / `.nav-link` look, the top bar the themed `.topbar`, the «Ещё» sheet a themed `.panel`.
+*/
+:root[data-layout="mobile"] {
+  --sidebar: 0px;
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --topbar: calc(58px + var(--safe-top));
+  --tabbar: calc(70px + var(--safe-bottom));
+  --gutter: 12px;
+  -webkit-text-size-adjust: 100%;
+}
+:root[data-layout="mobile"] body { overscroll-behavior-y: none; }
+:root[data-layout="mobile"] :is(html, body, #root) { min-width: 0; }
+:root[data-layout="mobile"] .app-shell { overflow-x: clip; }
+
+/* ---------- top bar: logo · PvP/PvE/Season · profile · theme ---------- */
+:root[data-layout="mobile"] .topbar.mobile-topbar {
+  left: 0; height: var(--topbar); padding: var(--safe-top) calc(var(--gutter) + var(--safe-right)) 0 calc(var(--gutter) + var(--safe-left));
+  gap: 8px; justify-content: space-between;
+}
+:root[data-layout="mobile"] .mobile-brand { padding: 0; flex: 0 0 auto; }
+:root[data-layout="mobile"] .mobile-brand .brand-mark { width: 44px; height: 44px; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch { display: flex; flex: 1 1 auto; max-width: 230px; min-width: 0; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch button { flex: 1 1 0; min-height: 38px; min-width: 0; padding: 0 6px; font-size: 12px; }
+:root[data-layout="mobile"] .topbar.mobile-topbar :is(.icon-button, .profile-chip) { width: 44px; height: 44px; min-height: 44px; padding: 0; flex: 0 0 auto; display: grid; place-items: center; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip span { display: none; }
+
+/* ---------- content ---------- */
+:root[data-layout="mobile"] .content {
+  min-height: 100dvh;
+  padding: calc(var(--topbar) + 16px) calc(var(--gutter) + var(--safe-right)) calc(var(--tabbar) + 22px) calc(var(--gutter) + var(--safe-left));
+}
+:root[data-layout="mobile"] .page { max-width: 100%; min-width: 0; }
+:root[data-layout="mobile"] .page-header { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
+:root[data-layout="mobile"] .page-title { font-size: 28px; overflow-wrap: anywhere; }
+:root[data-layout="mobile"] :is(.grid-2, .grid-3, .stat-grid, .settings-grid) { grid-template-columns: minmax(0, 1fr); }
+:root[data-layout="mobile"] .panel-body { padding: 14px; }
+:root[data-layout="mobile"] .panel-header { padding: 0 14px; flex-wrap: wrap; }
+/* Touch targets and no zoom-on-focus in iOS (inputs under 16 px make Safari zoom in). */
+:root[data-layout="mobile"] :is(.button, .select, .input) { min-height: 44px; }
+:root[data-layout="mobile"] .button.small { min-height: 40px; padding: 0 12px; }
+:root[data-layout="mobile"] :is(input, select, textarea) { font-size: 16px; }
+:root[data-layout="mobile"] .input { min-width: 0; max-width: 100%; }
+:root[data-layout="mobile"] .filter-row { gap: 8px; }
+:root[data-layout="mobile"] .filter-row > * { max-width: 100%; }
+:root[data-layout="mobile"] :is(.mode-switch, .locale-switch) button { min-height: 38px; }
+:root[data-layout="mobile"] .toggle { min-width: 48px; }
+:root[data-layout="mobile"] .setting-row { gap: 12px; flex-wrap: wrap; }
+:root[data-layout="mobile"] .setting-row > span:first-child { min-width: 0; flex: 1 1 180px; }
+:root[data-layout="mobile"] .setting-row.theme-row { flex-direction: column; align-items: stretch; }
+:root[data-layout="mobile"] .setting-row.theme-row > span:first-child { flex: none; }
+:root[data-layout="mobile"] .theme-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+:root[data-layout="mobile"] .settings-server { margin-top: 14px; }
+:root[data-layout="mobile"] .settings-server .panel { margin-top: 0 !important; }
+:root[data-layout="mobile"] .server-address-input { width: 100%; margin-top: 6px; }
+:root[data-layout="mobile"] table { max-width: 100%; }
+:root[data-layout="mobile"] .search-overlay { padding-top: calc(var(--safe-top) + 12px); }
+:root[data-layout="mobile"] .search-dialog { width: calc(100vw - 2 * var(--gutter)); max-height: calc(100dvh - var(--safe-top) - var(--tabbar) - 24px); }
+
+/* ---------- lists and tables ---------- */
+:root[data-layout="mobile"] .panel-header .filter-row { width: 100%; padding-bottom: 10px; }
+:root[data-layout="mobile"] .panel-header .filter-row > div { flex: 1 1 auto; min-width: 0; }
+:root[data-layout="mobile"] .panel-header .filter-row .input { width: 100%; }
+:root[data-layout="mobile"] .price-table :is(.col-category, .col-source) { display: none; }
+:root[data-layout="mobile"] .price-table th, :root[data-layout="mobile"] .price-table td { padding: 10px 5px; }
+:root[data-layout="mobile"] .flea-item-link { min-width: 0; }
+:root[data-layout="mobile"] .price-table td.mono { white-space: nowrap; }
+:root[data-layout="mobile"] .flea-item-link strong { overflow-wrap: break-word; hyphens: auto; }
+:root[data-layout="mobile"] .mode-switch.wide { width: 100%; }
+:root[data-layout="mobile"] .mode-switch.wide button { flex: 1 1 0; }
+/* Item card: a bottom sheet over the list instead of a column far below it. */
+:root[data-layout="mobile"] .flea-layout.with-detail .flea-detail {
+  position: fixed; inset: auto 0 var(--tabbar) 0; top: auto; z-index: 43; max-height: calc(100dvh - var(--topbar) - var(--tabbar) - 24px);
+  overflow: auto; border-radius: 16px 16px 0 0; box-shadow: 0 -18px 40px rgb(0 0 0 / 65%);
+  padding-left: var(--safe-left); padding-right: var(--safe-right); animation: mobile-sheet-in .22s var(--ease-soft) both;
+}
+
+/* ---------- bottom tab bar (themed like the sidebar) ---------- */
+:root[data-layout="mobile"] .sidebar.mobile-tabbar {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+  position: fixed; inset: auto 0 0 0; width: auto; height: var(--tabbar); z-index: 45;
+  padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left));
+  border-right: 0; border-top: 1px solid var(--line);
+  box-shadow: 0 -10px 26px rgb(0 0 0 / 45%);
+}
+:root[data-layout="mobile"] .sidebar.mobile-tabbar::before,
+:root[data-layout="mobile"] .sidebar.mobile-tabbar::after { display: none; }
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab {
+  min-height: 56px; min-width: 0; margin: 0; padding: 3px 2px; gap: 3px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700; line-height: 1.1; text-align: center; cursor: pointer; background-color: transparent;
+}
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab span {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-width: 100%; overflow: hidden; overflow-wrap: anywhere;
+}
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab svg { width: 20px; height: 20px; flex: 0 0 auto; }
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.active::before {
+  display: block; left: 50%; top: 2px; width: 22px; height: 3px; translate: -50% 0; border-radius: 2px;
+}
+button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color: inherit; }
+
+/* ---------- «Ещё» sheet ---------- */
+.mobile-more-backdrop {
+  position: fixed; inset: 0; z-index: 44; background: rgb(0 0 0 / 55%); backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; animation: mobile-fade .18s ease both;
+}
+.mobile-more-sheet {
+  width: 100%; margin: 0 0 var(--tabbar); padding: 8px calc(14px + var(--safe-right)) 16px calc(14px + var(--safe-left));
+  border-radius: 16px 16px 0 0; max-height: calc(100dvh - var(--tabbar) - var(--safe-top) - 20px); overflow: auto;
+  animation: mobile-sheet-in .22s var(--ease-soft) both;
+}
+.mobile-more-grip { width: 42px; height: 4px; margin: 2px auto 8px; border-radius: 4px; background: var(--line-strong); }
+.mobile-more-head { display: flex; align-items: center; justify-content: space-between; }
+.mobile-more-head .nav-label { display: block; padding-left: 2px; }
+.mobile-more-head .icon-button { width: 44px; height: 44px; }
+.mobile-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 14px; }
+.mobile-more-grid .nav-link.mobile-more-link {
+  min-height: 76px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  text-align: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line);
+}
+.mobile-more-grid .nav-link.mobile-more-link span { display: block; overflow-wrap: anywhere; }
+.mobile-more-grid .nav-link.mobile-more-link.active::before { display: none; }
+.mobile-more-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mobile-more-tools .button { flex: 1 1 120px; }
+.mobile-more-tools .locale-switch button { min-width: 48px; min-height: 38px; }
+@keyframes mobile-fade { from { opacity: 0; } }
+@keyframes mobile-sheet-in { from { transform: translateY(24px); opacity: 0; } }
+
+/* ---------- maps: one column; locations as a chip row; layer toggles behind «Слои» ---------- */
+.map-layers-toggle { display: none; }
+:root[data-layout="mobile"] .map-shell { height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr); border-radius: 12px; }
+:root[data-layout="mobile"] .map-sidebar { display: block; max-height: none; overflow: visible; padding: 10px 10px 4px; border-right: 0; border-bottom: 1px solid var(--line); }
+:root[data-layout="mobile"] .map-sidebar > div:first-child { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 6px; }
+:root[data-layout="mobile"] .map-sidebar > div:first-child::-webkit-scrollbar { display: none; }
+:root[data-layout="mobile"] .map-sidebar > div:first-child > .map-side-title { display: none; }
+:root[data-layout="mobile"] .map-sidebar .map-option { flex: 0 0 auto; width: auto; min-height: 40px; white-space: nowrap; margin: 0; }
+:root[data-layout="mobile"] .map-sidebar > div:nth-child(2) { display: none; }
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > div:nth-child(2) { display: block; }
+:root[data-layout="mobile"] .map-shell.layers-open .map-sidebar > div:nth-child(2) > .map-side-title:first-child { margin-top: 8px !important; }
+:root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+:root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
+:root[data-layout="mobile"] .layer-button { min-height: 42px; }
+:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px); min-height: 360px; }
+:root[data-layout="mobile"] .map-page.is-live .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 190px); }
+:root[data-layout="mobile"] .map-page.is-live .map-sidebar > div:first-child { display: none; }
+:root[data-layout="mobile"] .map-page.is-live .map-sidebar { padding: 0; border-bottom: 0; }
+:root[data-layout="mobile"] .map-page.is-live .map-shell.layers-open .map-sidebar { padding: 4px 10px 10px; border-bottom: 1px solid var(--line); }
+:root[data-layout="mobile"] .map-hud { left: 8px; top: 8px; gap: 5px; max-width: calc(100% - 64px); }
+:root[data-layout="mobile"] .map-hud > span:nth-child(2), :root[data-layout="mobile"] .map-hud > span:nth-child(3) { display: none; }
+:root[data-layout="mobile"] .map-layers-toggle {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; pointer-events: auto; cursor: pointer;
+  border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #d6ddd7; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+}
+:root[data-layout="mobile"] .map-layers-toggle.active { border-color: var(--brass); color: var(--brass-strong); }
+:root[data-layout="mobile"] .map-detail { border-left: 0; border-top: 1px solid var(--line); min-height: 0; max-height: none; }
+:root[data-layout="mobile"] .leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; }
+:root[data-layout="mobile"] .map-quest-sheet-body { max-height: 60dvh; overflow: auto; }
+
+/* ---------- live map banner (phone «Мини Карта») ---------- */
+.live-banner {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1);
+}
+.live-banner.is-live { border-color: color-mix(in srgb, #4fc3f7 55%, var(--line)); box-shadow: 0 0 0 1px rgb(79 195 247 / 15%), 0 0 22px rgb(79 195 247 / 12%); }
+.live-banner.is-stale { border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); }
+.live-banner-icon { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--surf-2); color: var(--text-muted); }
+.live-banner.is-live .live-banner-icon { color: #4fc3f7; animation: live-pulse 1.8s ease-in-out infinite; }
+.live-banner.is-stale .live-banner-icon { color: var(--amber); }
+.live-banner-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 2px; }
+.live-banner-copy strong { font-size: 14px; line-height: 1.25; }
+.live-banner-copy small { color: var(--text-muted); font-size: 11.5px; line-height: 1.35; }
+.live-banner-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+.live-player.is-stale { opacity: .55; filter: grayscale(.8); }
+@keyframes live-pulse { 50% { box-shadow: 0 0 0 6px rgb(79 195 247 / 12%); } }
+@media (prefers-reduced-motion: reduce) { .live-banner.is-live .live-banner-icon { animation: none; } }
+
+/* ---------- gallery 3D viewer: full screen, clear of the notch and the home indicator ---------- */
+:root[data-layout="mobile"] .gallery-overlay { padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
+
+/* Telnyashka: the sidebar's «sleeve stripes» on the active link would crowd a narrow tab — keep the knit, drop the stripes. */
+:root[data-layout="mobile"][data-theme="telnyashka"] .mobile-tabbar .nav-link.mobile-tab.active {
+  padding-left: 2px; background: linear-gradient(180deg, rgb(20 19 18 / 20%), rgb(108 196 201 / 22%)), var(--tex) 70% 30% / var(--tex-size);
+}
+:root[data-layout="mobile"][data-theme="telnyashka"] .mobile-tabbar .nav-link.mobile-tab.active::before { background: linear-gradient(180deg, var(--bone) 0 1px, transparent 1px 2px, var(--bone) 2px 3px, transparent 3px 4px, var(--bone) 4px 5px); width: 26px; height: 5px; }

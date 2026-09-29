@@ -21,7 +21,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "mobile:build": "npm run build:renderer && npx cap sync",
+    "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
+    "ios:open": "npx cap open ios"
   },
   "build": {
     "appId": "local.tarkov.operations.companion",
@@ -74,6 +77,10 @@
     "uiohook-napi": "^1.5.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "@eslint/js": "latest",
     "@imgly/background-removal-node": "^1.4.5",
     "@playwright/test": "latest",

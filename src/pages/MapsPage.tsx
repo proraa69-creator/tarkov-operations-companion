@@ -1,12 +1,12 @@
 import { uiText } from '../i18n/renderText'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
 import { ImageOverlay, MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
-  FileText, FlaskConical, HeartPulse, KeyRound, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
+  FileText, FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
 import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
@@ -269,8 +269,14 @@ function LayerIcon({ style, layerId, active }: { style: MarkerStyle; layerId: Ma
   return <span className="layer-glyph" style={{ background: color }}><Symbol size={11} strokeWidth={2.6} /></span>
 }
 
-export function MapsPage() {
-  const { mapId } = useParams()
+/**
+ * `forcedMapId` + `liveBanner`: the phone «Мини Карта» screen (mobile/LiveMapPage.tsx) shows the map the player is
+ * on, with the live-position banner above it; the map list is hidden there.
+ */
+export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; liveBanner?: ReactNode } = {}) {
+  const routeParams = useParams()
+  const mapId = forcedMapId ?? routeParams.mapId
+  const [layersOpen, setLayersOpen] = useState(false)
   const [params, setParams] = useSearchParams()
   const { data } = useTarkovData()
   const state = useAppState()
@@ -446,8 +452,9 @@ export function MapsPage() {
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
 
-  return <div className="page map-page">
-    <div className="map-shell">
+  return <div className={`page map-page${liveBanner ? ' is-live' : ''}`}>
+    {liveBanner}
+    <div className={`map-shell${layersOpen ? ' layers-open' : ''}`}>
       <aside className="map-sidebar">
         <div>
           <div className="map-side-title">{uiText("ЛОКАЦИИ")}</div>
@@ -486,6 +493,7 @@ export function MapsPage() {
           <span>{uiText(mapMarkers.length)}{uiText(" МАРКЕРОВ")}</span>
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <MapToolbar value={tools} onChange={setTools} />
+          <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId

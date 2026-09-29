@@ -71,11 +71,11 @@ export function KappaItemsPage() {
         <div>
           <div className="eyebrow">{uiText('Капа · ')}{uiText(raidMode.toUpperCase())}</div>
           <h1 className="page-title">{uiText('Предметы для «Коллекционера»')}</h1>
-          <p className="page-subtitle">{uiText('Откройте схрон и нажмите «Сканировать»: 45 секунд экран читается непрерывно, пока вы листаете схрон, и найденные предметы отмечаются сами. Остальные можно отметить вручную.')}</p>
+          <p className="page-subtitle">{uiText(desktop ? 'Откройте схрон и нажмите «Сканировать»: 45 секунд экран читается непрерывно, пока вы листаете схрон, и найденные предметы отмечаются сами. Остальные можно отметить вручную.' : 'Отметьте собранные предметы — список общий с приложением для ПК через аккаунт сервера.')}</p>
         </div>
         <div className="kappa-items-actions">
           <Link className="button ghost" to="/"><ArrowLeft size={14} />{uiText(' Назад')}</Link>
-          <button className="button primary" disabled={!desktop || !entries.length} onClick={() => void scan()}><ScanSearch size={14} />{uiText(busy ? ` Остановить (${passes})` : ' Сканировать')}</button>
+          {desktop && <button className="button primary" disabled={!entries.length} onClick={() => void scan()}><ScanSearch size={14} />{uiText(busy ? ` Остановить (${passes})` : ' Сканировать')}</button>}
         </div>
       </header>
 

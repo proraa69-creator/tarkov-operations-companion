@@ -76,8 +76,9 @@ if (-not (Test-Path (Join-Path $root 'server\node_modules'))) { throw 'Нет se
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 # --- Окружение для дочерних процессов -------------------------------------------------------------------------
-# CORS: только локальный сайт и dev-сервер интерфейса приложения. Само приложение ходит на сервер из main-процесса.
-$env:WEB_ORIGIN = 'http://localhost:5202,http://127.0.0.1:5202,http://localhost:5173,http://127.0.0.1:5173'
+# CORS: локальный сайт, dev-сервер интерфейса и приложение для телефона (Capacitor: https://localhost, capacitor://localhost).
+# Приложение для ПК ходит на сервер из main-процесса. Доступ телефона по Wi-Fi — см. docs/mobile.md.
+$env:WEB_ORIGIN = 'http://localhost:5202,http://127.0.0.1:5202,http://localhost:5173,http://127.0.0.1:5173,https://localhost,capacitor://localhost'
 $env:TARKOV_DB_PATH = Join-Path $dataDir 'companion.sqlite'
 $env:HOST = '127.0.0.1'
 $env:PORT = '8787'

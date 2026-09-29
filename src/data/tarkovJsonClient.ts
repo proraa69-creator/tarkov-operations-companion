@@ -2,6 +2,8 @@ import { get, set } from 'idb-keyval'
 import type { AppDataset, RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { usesWebAccount } from '../sync/serverSync'
+import { webServiceRequest } from '../sync/webAccount'
 
 const CACHE_PREFIX = 'tarkov-operations-catalog-v11'
 export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru'): Promise<AppDataset> {
@@ -9,7 +11,10 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
   try {
     // Server first (its shared cache avoids every client hitting tarkov.dev); a server that is not running
     // or answers garbage falls back to the direct fetch below.
-    const service = locale === 'ru' ? await window.tarkovDesktop?.serviceRequest('GET', `/v1/catalog/${mode}`).catch(() => null) : undefined
+    const service = locale !== 'ru' ? undefined
+      : window.tarkovDesktop ? await window.tarkovDesktop.serviceRequest('GET', `/v1/catalog/${mode}`).catch(() => null)
+        // The phone app asks the configured server too (Settings → «Адрес сервера»).
+        : usesWebAccount() ? await webServiceRequest('GET', `/v1/catalog/${mode}`).catch(() => null) : undefined
     let dataset: AppDataset
     if (isDataset(service, mode)) dataset = service
     else if (import.meta.env.VITE_COMPANION_API_URL && locale === 'ru') {

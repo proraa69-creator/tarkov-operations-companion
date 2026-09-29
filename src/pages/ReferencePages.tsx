@@ -18,6 +18,9 @@ import { useTarkovData } from "../data/DataProvider";
 import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
 import { useLocale } from "../i18n/LocaleProvider";
+import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
+import { ServerAccountPanel } from "../components/ServerAccountPanel";
+import { usesWebAccount } from "../sync/serverSync";
 
 export function EconomyPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -676,6 +679,12 @@ export function SettingsPage() {
           </div>
         </section>
       </div>
+      {usesWebAccount() && (
+        <div className="settings-server stack">
+          <ServerAddressPanel />
+          <ServerAccountPanel />
+        </div>
+      )}
     </div>
   );
 }

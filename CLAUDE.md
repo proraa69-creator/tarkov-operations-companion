@@ -23,6 +23,7 @@ This repository contains the current Tarkov APP / Tarkov Operator desktop client
 - Lint: `npm run lint`
 - Server dev mode: `npm run server:dev`
 - Server tests: `npm run server:test`
+- Phone app (Capacitor, see `docs/mobile.md`): `npm run mobile:build` (vite build + cap sync), `npm run android:apk`, `npm run ios:open` (macOS/Xcode)
 
 ## Safety rules for this computer
 
