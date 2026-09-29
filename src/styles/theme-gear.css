@@ -411,10 +411,36 @@
 :root[data-theme="gear"] .search-result:hover { background: rgb(255 240 205 / 8%); }
 :root[data-theme="gear"] .toggle.on { background: #8a7552; }
 
+/* ---------- quest detail (Quests page): the header is a MOLLE flap closed with a press stud, like the panel headers ---------- */
+/* every gear .panel is position:relative, which (with the detail panel's `top`) pushed it down instead of sticking */
+:root[data-theme="gear"] .quest-detail { position: sticky; }
+@media (max-width: 980px) { :root[data-theme="gear"] .quest-detail { position: static; } }
+:root[data-theme="gear"] .quest-detail .detail-hero {
+  position: relative; border-bottom: 0; border-radius: 6px 6px 3px 3px;
+  background:
+    linear-gradient(180deg, rgb(255 240 205 / 7%), transparent 40%),
+    var(--gear-shade-flap),
+    var(--gear-molle) calc(var(--gear-tex-x) - 9px) 7px / 2048px 2048px;
+  box-shadow: inset 0 0 0 1px #0a0b07, inset 0 1px 0 1px rgb(255 240 205 / 9%), 0 1px 0 #0b0c08, 0 4px 7px -2px rgb(0 0 0 / 70%);
+}
+:root[data-theme="gear"] .quest-detail .detail-hero::after {
+  content: ''; position: absolute; left: 50%; bottom: -10px; width: 20px; height: 20px; margin-left: -10px;
+  background: var(--gear-snap) center / contain no-repeat; pointer-events: none;
+  filter: drop-shadow(1px 2px 1.5px rgb(0 0 0 / 60%));
+}
+:root[data-theme="gear"] .quest-detail .detail-hero h2 {
+  font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .01em; text-transform: uppercase;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 60%), 0 1px 0 rgb(255 245 220 / 12%), 0 3px 14px rgb(0 0 0 / 60%);
+}
+:root[data-theme="gear"] .quest-detail :is(.detail-section, .quest-objective, .quest-stage) { border-color: color-mix(in srgb, var(--brass) 16%, transparent); }
+:root[data-theme="gear"] .quest-detail .detail-section { text-shadow: 0 1px 1px rgb(0 0 0 / 80%), 0 1px 4px rgb(0 0 0 / 60%); }
+:root[data-theme="gear"] .quest-detail .import-note { background: linear-gradient(180deg, rgb(0 0 0 / 30%), rgb(0 0 0 / 8%)); border-color: #3c3e2c; box-shadow: inset 0 2px 4px rgb(0 0 0 / 55%), 0 1px 0 rgb(255 240 210 / 6%); }
+
 /* ---------- decorations (src/theme/gear) ---------- */
 .gear-hangers { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 41; pointer-events: none; }
+/* top / left / size are set inline by HelmetBadge (next to «Обзор», or wherever it was dragged) */
 .gear-helmet {
-  position: fixed; z-index: 42; width: 86px; height: 86px; margin: -46px 0 0 -92px; pointer-events: none;
+  position: fixed; z-index: 42; width: 86px; height: 86px; pointer-events: none;
 }
 .gear-helmet::before {
   content: ''; position: absolute; left: 14px; right: 10px; bottom: 7px; height: 14px; border-radius: 50%;
@@ -451,18 +477,18 @@
 .gear-helmet-settings {
   position: fixed; z-index: 43; width: 20px; height: 20px; display: grid; place-items: center; padding: 0;
   border: 1px solid rgb(0 0 0 / 60%); border-radius: 50%; background: linear-gradient(180deg, var(--panel-3, #4b4a3a), var(--panel, #2c2c22)); color: var(--text, #e8dcbc);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 60%); cursor: pointer; opacity: .55; transition: opacity .2s, transform .2s, box-shadow .2s, top .25s, left .25s;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 60%); cursor: pointer; opacity: .55; transition: opacity .2s, transform .2s, box-shadow .2s;
   touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .gear-helmet-settings:hover, .gear-helmet-settings.active { opacity: 1; transform: rotate(35deg); }
 .gear-helmet-settings:focus-visible { opacity: 1; outline: 2px solid var(--brass, #b89b62); outline-offset: 2px; }
-/* press-and-hold drag of the button itself */
+/* press and hold the button, then drag: the mask moves with it */
 .gear-helmet-settings.grabbing, .gear-helmet-settings.grabbing:hover {
   opacity: 1; cursor: grabbing; transform: scale(1.18); transition: opacity .2s, transform .12s, box-shadow .2s;
   border-color: color-mix(in srgb, var(--brass, #b89b62) 70%, #000); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass, #b89b62) 30%, transparent), 0 6px 14px rgb(0 0 0 / 60%);
 }
 .gear-helmet-editor {
-  position: fixed; z-index: 60; width: 220px; padding: 10px 12px 10px; border: 1px solid var(--line-strong, #5d5a44); border-radius: 6px;
+  position: fixed; z-index: 60; width: 232px; padding: 10px 12px 10px; border: 1px solid var(--line-strong, #5d5a44); border-radius: 6px;
   background: var(--bg-elevated, #1c1c16); color: var(--text);
   box-shadow: 0 16px 36px rgb(0 0 0 / 60%);
 }
@@ -475,7 +501,10 @@
 .gear-helmet-option:hover { background: rgb(255 255 255 / 5%); color: var(--text); }
 .gear-helmet-option.active { border-color: color-mix(in srgb, var(--brass) 45%, transparent); color: var(--text); }
 .gear-helmet-toggle { margin-top: 6px; border-top-color: var(--line); border-radius: 0 0 4px 4px; }
-/* position: up–down, left–right, tilt */
+.gear-helmet-home { margin-top: 6px; }
+.gear-helmet-note { margin: 6px 2px 0; font-size: 11px; line-height: 1.35; color: var(--text-muted); }
+.gear-helmet-error { color: #e0a08c; }
+/* head pose: nod, tilt, turn (each with its own reset to 0) */
 .gear-helmet-position { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line, #3c3a2e); display: grid; gap: 6px; }
 .gear-helmet-position-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
 .gear-helmet-reset {
@@ -483,9 +512,17 @@
   text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer;
 }
 .gear-helmet-reset:hover, .gear-helmet-reset:focus-visible { color: var(--text); }
+.gear-helmet-reset:disabled { opacity: .45; cursor: default; text-decoration: none; }
 .gear-helmet-slider { display: grid; gap: 2px; }
-.gear-helmet-slider-label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.gear-helmet-slider-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.gear-helmet-slider-label span { flex: 1; min-width: 0; }
 .gear-helmet-slider-label output { font-variant-numeric: tabular-nums; color: var(--text); }
+.gear-helmet-zero {
+  flex: none; width: 16px; height: 16px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 3px; background: none; color: var(--text-muted); cursor: pointer;
+}
+.gear-helmet-zero:hover:not(:disabled), .gear-helmet-zero:focus-visible { color: var(--text); background: rgb(255 255 255 / 6%); }
+.gear-helmet-zero:disabled { opacity: .3; cursor: default; }
 .gear-helmet-slider-row { display: flex; align-items: center; gap: 6px; }
 .gear-helmet-slider-row input[type="range"] { flex: 1; min-width: 0; height: 16px; margin: 0; accent-color: var(--brass, #b89b62); cursor: pointer; }
 .gear-helmet-nudge {
