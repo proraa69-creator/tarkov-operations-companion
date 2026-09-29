@@ -11,8 +11,7 @@ export function BossFigures({ mapId }: { mapId: string }) {
     <div className={`boss-figures${figures.length >= 5 ? ' is-crowded' : ''}`} style={{ '--n': figures.length } as React.CSSProperties} key={mapId}>
       {figures.map((figure, index) => (
         <figure key={figure.key} className="boss-figure" style={{ zIndex: figures.length - Math.abs(index - (figures.length - 1) / 2) * 2 }}>
-          <img src={figure.url} alt="" draggable={false} />
-          <figcaption>{locale === 'en' ? figure.name.en : figure.name.ru}</figcaption>
+          <img src={figure.url} alt={locale === 'en' ? figure.name.en : figure.name.ru} title={locale === 'en' ? figure.name.en : figure.name.ru} draggable={false} />
         </figure>
       ))}
     </div>

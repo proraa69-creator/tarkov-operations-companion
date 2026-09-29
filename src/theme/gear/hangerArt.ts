@@ -100,33 +100,38 @@ function dogtag(scale: number, silenced: boolean, lines: string[]): Piece {
   return finish(silenced ? 'dogtagSilenced' : 'dogtag', canvas, scale, w, h, w / 2, 4)
 }
 
-/** Black anodised D-carabiner with a lighter wire gate and a small maker's etch. */
+/** Small black anodised D-carabiner: a thick asymmetric D with a solid spine, a keylock nose and a straight
+ * spring gate on the left that sits slightly proud of the body (reads as a carabiner, not a paper clip). */
 function carabiner(scale: number): Piece {
-  const w = 16, h = 30
+  const w = 14, h = 22
   const { canvas, ctx } = surface(w, h, scale)
   const body = () => {
     ctx.beginPath()
-    ctx.moveTo(4.5, 5); ctx.quadraticCurveTo(4.5, 1.5, 8, 1.5); ctx.quadraticCurveTo(13.5, 1.5, 13.5, 8)
-    ctx.lineTo(13.5, 22); ctx.quadraticCurveTo(13.5, 28.5, 8, 28.5); ctx.quadraticCurveTo(2.5, 28.5, 2.5, 22)
-    ctx.lineTo(2.5, 10)
+    // nose (top-left) → round top → spine (right, straight) → wide bottom basket → back up to the gate hinge
+    ctx.moveTo(4, 4.6)
+    ctx.bezierCurveTo(4.2, 1.6, 10.8, 0.8, 11.8, 4.6)
+    ctx.lineTo(12, 15.5)
+    ctx.bezierCurveTo(12, 21, 3, 21.2, 2.6, 16)
+    ctx.lineTo(2.4, 13.4)
   }
-  // body stroke with a round-tube shading: dark base, lit crest on the upper-left
-  body(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-  ctx.lineWidth = 3.2; ctx.strokeStyle = '#131412'; ctx.stroke()
-  body(); ctx.lineWidth = 2.2
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+  body(); ctx.lineWidth = 3.6; ctx.strokeStyle = '#0e0f0d'; ctx.stroke()
+  body(); ctx.lineWidth = 2.6
   const g = ctx.createLinearGradient(0, 0, w, h)
-  g.addColorStop(0, '#6c7068'); g.addColorStop(0.45, '#2c2e2a'); g.addColorStop(1, '#1a1b18')
+  g.addColorStop(0, '#5f635b'); g.addColorStop(0.5, '#2a2c28'); g.addColorStop(1, '#161714')
   ctx.strokeStyle = g; ctx.stroke()
-  ctx.save(); ctx.translate(-0.55, -0.55); body(); ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(220,226,210,.55)'; ctx.stroke(); ctx.restore()
-  // gate (spring wire) on the left side with a gap at the nose
-  ctx.beginPath(); ctx.moveTo(2.5, 10); ctx.lineTo(4.3, 5.4)
-  ctx.lineWidth = 1.3; ctx.strokeStyle = '#a7aca2'; ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(2.2, 9.6); ctx.lineTo(4, 5)
-  ctx.lineWidth = 0.5; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.stroke()
-  // etch on the spine
-  ctx.fillStyle = 'rgba(150,152,140,.5)'
-  for (let i = 0; i < 3; i++) ctx.fillRect(12.8, 13 + i * 2.2, 1.2, 0.6)
-  return finish('carabiner', canvas, scale, w, h, 8, 1.5)
+  ctx.save(); ctx.translate(-0.6, -0.5); body(); ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(225,230,215,.5)'; ctx.stroke(); ctx.restore()
+  // spring gate: a straight bar from the hinge (bottom-left) to just under the nose, lighter metal
+  ctx.beginPath(); ctx.moveTo(2.4, 13.4); ctx.lineTo(3.8, 5.6)
+  ctx.lineWidth = 2; ctx.strokeStyle = '#141512'; ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(2.4, 13.4); ctx.lineTo(3.8, 5.6)
+  ctx.lineWidth = 1.3; ctx.strokeStyle = '#8e9389'; ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(2.1, 13); ctx.lineTo(3.4, 5.8)
+  ctx.lineWidth = 0.45; ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.stroke()
+  // hinge rivet and the keylock notch
+  ctx.fillStyle = '#a4a99f'; ctx.beginPath(); ctx.arc(2.5, 13.6, 0.8, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#0c0d0b'; ctx.fillRect(3.5, 4.6, 1.4, 0.8)
+  return finish('carabiner', canvas, scale, w, h, 8, 1.2)
 }
 
 /** Spring cord lock (barrel) with a coyote paracord knot below — a zipper / flap pull. */

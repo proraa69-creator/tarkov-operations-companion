@@ -114,15 +114,14 @@ export class HangerEngine {
     // Panels with a flap (header): carabiner on a sewn loop, or a webbing tail, in the right gutter.
     let count = 0
     document.querySelectorAll('.content .panel').forEach((el) => {
-      if (count >= 6) return
+      if (count >= 5) return
       const header = el.querySelector(':scope > .panel-header')
       const rect = el.getBoundingClientRect()
       if (!header || rect.height < 170 || rect.width < 260 || el.querySelector('.leaflet-container')) return
-      const kind = count % 2 === 0 ? 'carabiner' : 'strapTip'
-      const anchor = (r: DOMRect) => { const h = header.getBoundingClientRect(); return { x: r.right - 13, y: h.bottom + (kind === 'carabiner' ? 3 : 0) } }
-      if (kind === 'carabiner') add(el, { region: 'content', piece: 'carabiner', style: 'webbing', anchor, n: 2, seg: 2, tipMass: 2.5, tipRadius: 10, mount: 'loop' })
-      else add(el, { region: 'content', piece: 'strapTip', style: 'webbing', anchor, n: 6, seg: 6, bend: 0.25, tipMass: 1.2, tipRadius: 6 })
-      count++
+      // only every other block gets a small carabiner on a sewn loop; no strap tails
+      if (count++ % 2 === 1) return
+      const anchor = (r: DOMRect) => { const h = header.getBoundingClientRect(); return { x: r.right - 13, y: h.bottom + 3 } }
+      add(el, { region: 'content', piece: 'carabiner', style: 'webbing', anchor, n: 2, seg: 2, tipMass: 2.5, tipRadius: 9, mount: 'loop' })
     })
     this.hangers = next
     this.wake()
@@ -151,6 +150,13 @@ export class HangerEngine {
     for (const h of this.hangers) {
       if (!h.el.isConnected) { h.visible = false; continue }
       const a = h.anchor(h.el.getBoundingClientRect())
+      // The kit is fastened to its block: when the block scrolls or moves, carry the whole rope with it
+      // rigidly, so nothing stretches, flips or tears off while scrolling.
+      const dx = a.x - h.ax, dy = a.y - h.ay
+      if (dx || dy) {
+        const r = h.rope
+        for (let i = 0; i < r.n; i++) { r.x[i] += dx; r.y[i] += dy; r.px[i] += dx; r.py[i] += dy }
+      }
       h.ax = a.x; h.ay = a.y
       h.visible = a.y > -140 && a.y < vh + 10
     }
