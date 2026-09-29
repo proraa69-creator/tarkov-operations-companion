@@ -54,6 +54,8 @@ function createWindow() {
     minHeight: 700,
     backgroundColor: '#0d1110',
     title: 'Tarkov Operator',
+    // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
+    icon: join(appDir, '../../dist/app-icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(appDir, '../../electron/preload.cjs'),
