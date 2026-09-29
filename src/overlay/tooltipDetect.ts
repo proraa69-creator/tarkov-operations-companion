@@ -12,7 +12,7 @@ const FRAME_MAX = 235
 const GREY_SPREAD = 28
 /** Inside the box: dark background, some bright text. */
 const INSIDE_MAX_MEAN = 70
-const TEXT_MIN = 150
+const TEXT_MIN = 110
 /** The box background right inside the frame. */
 const INSIDE_DARK = 48
 
@@ -66,10 +66,14 @@ export function findTooltip(image: Bitmap, cursor: { x: number; y: number }, uni
     for (const bottom of bottoms) {
       const gap = bottom.y - top.y
       if (gap < minHeight || gap > maxHeight) continue
-      if (Math.abs(bottom.x0 - top.x0) > tolerance || Math.abs(bottom.x1 - top.x1) > tolerance) continue
-      const x0 = Math.max(top.x0, bottom.x0)
-      const x1 = Math.min(top.x1, bottom.x1)
-      if (!sideIsFrame(image, x0, top.y, bottom.y, tolerance) || !sideIsFrame(image, x1, top.y, bottom.y, tolerance)) continue
+      // The edges may run on into other lines of the UI (a grid line touching the box): pair by overlap and
+      // find the box's own sides inside it.
+      const overlap0 = Math.max(top.x0, bottom.x0)
+      const overlap1 = Math.min(top.x1, bottom.x1)
+      if (overlap1 - overlap0 < minWidth || overlap1 - overlap0 < 0.8 * Math.min(top.x1 - top.x0, bottom.x1 - bottom.x0)) continue
+      const x0 = findSide(image, overlap0, top.y, bottom.y, tolerance)
+      const x1 = findSide(image, overlap1, top.y, bottom.y, tolerance)
+      if (x0 == null || x1 == null || x1 - x0 < minWidth) continue
       const inner = { x: x0 + 2, y: top.y + 2, width: x1 - x0 - 3, height: gap - 3 }
       if (inner.width < minWidth / 2 || inner.height < minHeight / 2 || !looksLikeText(image, inner)) continue
       // Nearest to the cursor wins (the tooltip hugs it); boxes far away are other panels.
@@ -80,6 +84,17 @@ export function findTooltip(image: Bitmap, cursor: { x: number; y: number }, uni
     }
   }
   return best && best.score <= 260 * unit ? best.rect : null
+}
+
+/** The frame column nearest to x (searching a few pixels both ways) along the box height, or null. */
+function findSide(image: Bitmap, x: number, y0: number, y1: number, tolerance: number) {
+  const radius = tolerance * 3 + 4
+  for (let offset = 0; offset <= radius; offset += 1) {
+    for (const column of offset ? [x - offset, x + offset] : [x]) {
+      if (column >= 0 && column < image.width && sideIsFrame(image, column, y0, y1, 0)) return column
+    }
+  }
+  return null
 }
 
 /** A vertical frame edge at column x (±tolerance) along most of the box height. */
@@ -109,7 +124,7 @@ function looksLikeText(image: Bitmap, rect: Rect) {
   }
   if (!count) return false
   const share = bright / count
-  return sum / count <= INSIDE_MAX_MEAN && share >= 0.015 && share <= 0.4
+  return sum / count <= INSIDE_MAX_MEAN && share >= 0.002 && share <= 0.4
 }
 
 /**

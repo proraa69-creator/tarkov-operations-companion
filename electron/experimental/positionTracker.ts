@@ -12,6 +12,7 @@ let override = ''
 /** A folder the player picked by hand in the Mini Map section; empty means auto-detect. */
 export function setScreenshotsOverride(folder: string) {
   override = folder
+  folderCache = null
 }
 
 /** Where EFT may write screenshots: Documents (possibly redirected to OneDrive) under the user profile. */
@@ -35,14 +36,31 @@ function newestScreenshotTime(folder: string) {
   }
 }
 
-export function screenshotsFolder() {
-  if (override) return override
-  if (process.env.TARKOV_SCREENSHOTS_DIR) return process.env.TARKOV_SCREENSHOTS_DIR
+function autoFolder() {
   const candidates = screenshotFolderCandidates()
   const existing = candidates.filter((folder) => existsSync(folder))
   // Prefer the folder EFT wrote coordinate screenshots to most recently.
   const best = existing.map((folder) => ({ folder, time: newestScreenshotTime(folder) })).sort((a, b) => b.time - a.time)[0]
-  return best?.folder ?? candidates[0]!
+  return best ?? { folder: candidates[0]!, time: -1 }
+}
+
+let folderCache: { at: number; folder: string } | null = null
+
+/**
+ * The folder to watch. A folder picked by hand wins only while it actually holds the game's screenshots: a
+ * wrong pick (e.g. Pictures\Screenshots) must not hide the game's own folder that has them.
+ */
+export function screenshotsFolder() {
+  if (process.env.TARKOV_SCREENSHOTS_DIR) return process.env.TARKOV_SCREENSHOTS_DIR
+  if (folderCache && Date.now() - folderCache.at < 5000) return folderCache.folder
+  let folder: string
+  if (override && newestScreenshotTime(override) > 0) folder = override
+  else {
+    const auto = autoFolder()
+    folder = override && auto.time <= 0 ? override : auto.folder
+  }
+  folderCache = { at: Date.now(), folder }
+  return folder
 }
 
 /**

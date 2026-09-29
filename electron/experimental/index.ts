@@ -57,7 +57,7 @@ let minimapZones: Array<{ x: number; y: number; width: number; height: number }>
 let hitTimer: NodeJS.Timeout | null = null
 /** When the mouse button went down over a minimap control; 0 = not pressed. */
 let minimapHeldAt = 0
-const HOLD_MAX_MS = 30_000
+const HOLD_MAX_MS = 8_000
 
 /**
  * Makes the minimap clickable exactly over its controls. Forwarded mouse-move events are unreliable over a
@@ -73,7 +73,18 @@ function watchMinimapHits(window: BrowserWindow) {
     }
     // A press that started over a control (slider, quest list, map) keeps the window catching the mouse
     // until it is released, or the release would go to the game and the page would think the button is still down.
-    if (dragTimer || (minimapHeldAt && Date.now() - minimapHeldAt < HOLD_MAX_MS)) return
+    if (dragTimer) return
+    if (minimapHeldAt) {
+      // The page may never get the release (it happened outside the window). Once the button is up — seen
+      // through Windows when the key state is readable — or after a while, release the page ourselves.
+      const readable = isElevated() === true || !isTarkovForeground()
+      const released = readable && Date.now() - minimapHeldAt > 150 && !isVirtualKeyDown(0x01)
+      if (!released && Date.now() - minimapHeldAt < HOLD_MAX_MS) return
+      minimapHeldAt = 0
+      const point = screen.getCursorScreenPoint()
+      const bounds = window.getBounds()
+      window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x - bounds.x, y: point.y - bounds.y, button: 'left', clickCount: 1 })
+    }
     const point = screen.getCursorScreenPoint()
     const bounds = window.getBounds()
     const x = point.x - bounds.x

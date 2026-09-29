@@ -279,7 +279,7 @@ export function ExperimentalPage() {
                   ok={Boolean(position)}
                 />
                 <div className="exp-folder">
-                  <span className="muted">{uiText("Папка скриншотов: ")}{uiText(status?.screenshotsFolder ?? '…')}{uiText(settings?.screenshotsDir ? ' (выбрана вручную)' : ' (найдена автоматически)')}</span>
+                  <span className="muted">{uiText("Папка скриншотов: ")}{uiText(status?.screenshotsFolder ?? '…')}{uiText(!settings?.screenshotsDir ? ' (найдена автоматически)' : status?.screenshotsFolder === settings.screenshotsDir ? ' (выбрана вручную)' : ' (в выбранной вручную папке нет скриншотов игры — использую папку игры)')}</span>
                   <span className="exp-folder-actions">
                     <button className="button ghost small" onClick={() => void api.pickScreenshotsFolder().then(setSettings)}>{uiText("Выбрать папку")}</button>
                     {settings?.screenshotsDir ? <button className="button ghost small" onClick={() => update({ screenshotsDir: '' })}>{uiText("Авто")}</button> : null}
