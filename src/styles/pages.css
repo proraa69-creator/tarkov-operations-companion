@@ -777,11 +777,11 @@ a.quest-stage:hover { color: var(--text); }
   box-shadow: var(--shadow);
   /* slides up out of the card's bottom edge: the clip opens upward while the content rises into place */
   clip-path: inset(100% 0 0 0 round 12px); opacity: 0; visibility: hidden; pointer-events: none;
-  transition: clip-path .26s cubic-bezier(.3, .7, .25, 1), opacity .18s var(--ease-soft), visibility 0s linear .26s;
+  transition: clip-path .78s cubic-bezier(.3, .7, .25, 1), opacity .54s var(--ease-soft), visibility 0s linear .78s;
 }
-.goon-stats-popover > * { transform: translateY(14px); transition: transform .3s cubic-bezier(.3, .7, .25, 1); }
+.goon-stats-popover > * { transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
 .goon-card:hover:not(.is-open) .goon-stats-popover { clip-path: inset(0 0 0 0 round 12px); opacity: 1; visibility: visible; transition-delay: .1s, .1s, 0s; }
-.goon-card:hover:not(.is-open) .goon-stats-popover > * { transform: none; transition-delay: .12s; }
+.goon-card:hover:not(.is-open) .goon-stats-popover > * { transform: none; transition-delay: .16s; }
 @media (prefers-reduced-motion: reduce) {
   .goon-stats-popover, .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
 }
