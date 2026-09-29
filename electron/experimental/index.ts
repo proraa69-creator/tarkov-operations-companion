@@ -543,14 +543,26 @@ function showOverlay(window: BrowserWindow) {
 }
 
 function ensureItemWindow() {
-  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = overlayWindow('item', ITEM_OVERLAY)
+  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), 5 * 60_000, () => { itemWindow = null })
   return itemWindow
+}
+
+/** A hidden overlay window still holds a whole page (~60–100 MB): close it after a while hidden, reopen on demand. */
+function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void) {
+  let timer: NodeJS.Timeout | null = null
+  window.on('hide', () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => { if (!window.isDestroyed() && !window.isVisible()) { forget(); window.destroy() } }, ms)
+  })
+  window.on('show', () => { if (timer) clearTimeout(timer); timer = null })
+  window.on('closed', () => { if (timer) clearTimeout(timer) })
+  return window
 }
 
 const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed() && minimapWindow.isVisible())
 
 function ensureMinimapWindow() {
-  if (!minimapWindow || minimapWindow.isDestroyed()) minimapWindow = overlayWindow('minimap', MINIMAP_OVERLAY)
+  if (!minimapWindow || minimapWindow.isDestroyed()) minimapWindow = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
   return minimapWindow
 }
 

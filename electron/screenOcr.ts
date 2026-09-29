@@ -12,7 +12,21 @@ const { createWorker } = require('tesseract.js') as {
   createWorker: (langs?: string, oem?: number, options?: Record<string, unknown>) => Promise<{
     recognize: (image: Buffer, options?: Record<string, unknown>, output?: Record<string, boolean>) => Promise<{ data: { text?: string; blocks?: Array<{ paragraphs: Array<{ lines: OcrLine[] }> }> | null } }>
     setParameters: (params: Record<string, string>) => Promise<unknown>
+    terminate: () => Promise<unknown>
   }>
+}
+
+/**
+ * Each OCR engine keeps both language models in memory (~100 MB). Engines are freed after a while unused and
+ * started again on the next request (a second or two), so an idle app stays light.
+ */
+function idleRelease(ms: number, release: () => void) {
+  let timer: NodeJS.Timeout | null = null
+  return () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => { timer = null; release() }, ms)
+    timer.unref?.()
+  }
 }
 
 type OcrWorker = Awaited<ReturnType<typeof createWorker>>
@@ -106,9 +120,25 @@ function tooltipOcr() {
 export async function recognizeTooltip(pixels: { width: number; height: number; data: Uint8Array }) {
   const image = nativeImage.createFromBitmap(Buffer.from(pixels.data.buffer, pixels.data.byteOffset, pixels.data.byteLength), { width: pixels.width, height: pixels.height })
   const ocr = await tooltipOcr()
-  const result = await ocr.recognize(image.toPNG())
-  return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
+  try {
+    const result = await ocr.recognize(image.toPNG())
+    return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
+  } finally {
+    touchTooltip()
+  }
 }
+
+const touchTooltip = idleRelease(10 * 60_000, () => {
+  const engine = tooltipWorker
+  tooltipWorker = null
+  void engine?.then((next) => next.terminate()).catch(() => {})
+})
+
+const touchStash = idleRelease(60_000, () => {
+  const pool = stashPool
+  stashPool = null
+  void pool?.then((workers) => Promise.all(workers.map((next) => next.terminate()))).catch(() => {})
+})
 
 /** Workers for the stash scan: sparse-text mode suits the short labels in inventory cells. */
 const STASH_WORKERS = 3
@@ -163,12 +193,14 @@ export async function scanScreenText() {
     }
   }
   const texts = await Promise.all(tiles.map((tile, index) => workers[index % workers.length]!.recognize(tile.toPNG()).then((result) => result.data.text ?? '').catch(() => '')))
+  touchStash()
   return { text: texts.join('\n'), gameWindow: Boolean(game) }
 }
 
 /** Loads the OCR model ahead of the first lookup. */
 export async function warmUpOcr() {
   await tooltipOcr()
+  touchTooltip()
 }
 
 export { clearScanFrames, countScanFrames, MAX_SCAN_FRAMES } from './scanFrameBuffer.js'
@@ -184,10 +216,21 @@ async function persistFrame(image: Buffer | NativeImage) {
 
 async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: string) {
   const ocr = await getWorker()
-  const payload = Buffer.isBuffer(image) ? image : image.toPNG()
-  const result = await ocr.recognize(payload)
-  return { text: result.data.text ?? '', sourceName }
+  try {
+    const payload = Buffer.isBuffer(image) ? image : image.toPNG()
+    const result = await ocr.recognize(payload)
+    return { text: result.data.text ?? '', sourceName }
+  } finally {
+    touchQuestWorker()
+  }
 }
+
+const touchQuestWorker = idleRelease(2 * 60_000, () => {
+  const engine = worker
+  worker = null
+  preparing = null
+  void engine?.terminate().catch(() => {})
+})
 
 function isTarkovWindow(name: string) {
   if (/companion|operations|chrome|cursor|code/i.test(name)) return false
