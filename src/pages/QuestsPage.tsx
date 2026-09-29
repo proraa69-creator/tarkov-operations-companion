@@ -90,7 +90,7 @@ export function QuestsPage() {
         </div>
       </section>
 
-      <aside className="panel detail-panel">
+      <aside className="panel detail-panel quest-detail">
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
         <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(isStoryQuest(selected) ? ` · глава ${selected.storyOrder ?? '—'}` : ` · уровень ${selected.level}`)}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : (selectedStage?.mapIds[0] || selected.mapId) && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === (selectedStage?.mapIds[0] ?? selected.mapId))?.name ?? selected.mapId)}</span>)}</div></div>

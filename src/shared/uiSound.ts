@@ -20,7 +20,8 @@ function audio() {
   return context
 }
 
-function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak: number, decay: number) {
+/** `softAttack` (seconds) fades the burst in linearly instead of the default 1 ms snap. */
+function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak: number, decay: number, softAttack?: number) {
   const source = ctx.createBufferSource()
   source.buffer = noise
   const filter = ctx.createBiquadFilter()
@@ -28,29 +29,20 @@ function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak
   filter.frequency.value = frequency
   filter.Q.value = q
   const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.0001, at)
-  gain.gain.exponentialRampToValueAtTime(peak, at + 0.001)
+  if (softAttack) {
+    gain.gain.setValueAtTime(0, at)
+    gain.gain.linearRampToValueAtTime(peak, at + softAttack)
+  } else {
+    gain.gain.setValueAtTime(0.0001, at)
+    gain.gain.exponentialRampToValueAtTime(peak, at + 0.001)
+  }
   gain.gain.exponentialRampToValueAtTime(0.0001, at + decay)
   source.connect(filter).connect(gain).connect(master!)
   source.start(at)
   source.stop(at + decay + 0.01)
 }
 
-function thock(ctx: AudioContext, at: number, from: number, to: number, peak: number, decay: number, type: OscillatorType = 'triangle') {
-  const osc = ctx.createOscillator()
-  osc.type = type
-  osc.frequency.setValueAtTime(from, at)
-  osc.frequency.exponentialRampToValueAtTime(to, at + decay)
-  const gain = ctx.createGain()
-  gain.gain.setValueAtTime(0.0001, at)
-  gain.gain.exponentialRampToValueAtTime(peak, at + 0.002)
-  gain.gain.exponentialRampToValueAtTime(0.0001, at + decay)
-  osc.connect(gain).connect(master!)
-  osc.start(at)
-  osc.stop(at + decay + 0.01)
-}
-
-/** Short dry mechanical ticks in the spirit of the EFT menu, synthesized so no audio assets are needed. */
+/** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
 export function playUiSound(kind: SoundKind) {
   const ctx = audio()
   if (!ctx || !master) return
@@ -81,19 +73,34 @@ function loadClickSample(ctx: AudioContext) {
   return clickLoading
 }
 
+/*
+  The click is kept soft: the recording's ticks carry most of their energy above 8 kHz, which made it sharp,
+  so it plays through a 4.5 kHz low-pass at a lower level and fades in over 4 ms instead of starting on a hard
+  edge (peak −38 %, spectral centroid ≈ 10.5 → 5.2 kHz). The first-press fallback is softened the same way:
+  lower, darker and with a 4 ms linear fade-in.
+*/
+const CLICK_LEVEL = 1.3
+const CLICK_LOWPASS_HZ = 4500
+const CLICK_ATTACK = 0.004
+
 function playClickSample(ctx: AudioContext, at: number) {
   if (!clickSample) {
-    // First press: fall back to the synthesized tick while the recording loads.
-    burst(ctx, at, 2300, 1.8, 0.24, 0.022)
-    burst(ctx, at, 850, 0.9, 0.34, 0.048)
+    // First press: fall back to a synthesized tick while the recording loads.
+    burst(ctx, at, 1800, 1.5, 0.14, 0.022, CLICK_ATTACK)
+    burst(ctx, at, 750, 0.9, 0.19, 0.048, CLICK_ATTACK)
     void loadClickSample(ctx)
     return
   }
   const source = ctx.createBufferSource()
   source.buffer = clickSample.buffer
+  const tone = ctx.createBiquadFilter()
+  tone.type = 'lowpass'
+  tone.frequency.value = CLICK_LOWPASS_HZ
+  tone.Q.value = Math.SQRT1_2
   const gain = ctx.createGain()
-  gain.gain.value = 1.4
-  source.connect(gain).connect(master!)
+  gain.gain.setValueAtTime(0, at)
+  gain.gain.linearRampToValueAtTime(CLICK_LEVEL, at + CLICK_ATTACK)
+  source.connect(tone).connect(gain).connect(master!)
   source.start(at, clickSample.offset)
 }
 
