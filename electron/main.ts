@@ -63,7 +63,11 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       webviewTag: true,
-      backgroundThrottling: false,
+      // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
+      // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
+      // overlays' questions (experimental:query) and log sync keep working. With `false` a minimized window kept
+      // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
+      backgroundThrottling: true,
     },
   })
 

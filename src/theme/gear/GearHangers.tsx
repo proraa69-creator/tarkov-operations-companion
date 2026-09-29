@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { HangerEngine } from './hangerEngine'
+import { isAppActive, onAppActivityChange } from '../../app/appActivity'
 
 /** Click-through canvas with the swinging kit (dog tags, pulls, carabiners, strap tails). */
 export function GearHangers({ reduced, tagLines }: { reduced: boolean; tagLines: [string[], string[]] }) {
@@ -12,7 +13,10 @@ export function GearHangers({ reduced, tagLines }: { reduced: boolean; tagLines:
     if (!canvas) return
     const engine = new HangerEngine(canvas, reduced, linesRef.current)
     engineRef.current = engine
-    return () => { engine.dispose(); engineRef.current = null }
+    // asleep while the window is not in use (the player is in the game)
+    engine.setActive(isAppActive())
+    const stopFollowing = onAppActivityChange((active) => engine.setActive(active))
+    return () => { stopFollowing(); engine.dispose(); engineRef.current = null }
   }, [reduced])
   const key = tagLines.flat().join('|')
   useEffect(() => {

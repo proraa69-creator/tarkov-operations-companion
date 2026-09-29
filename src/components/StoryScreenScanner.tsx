@@ -39,7 +39,14 @@ export function StoryScreenScanner() {
     if (!desktop) return
     let cancelled = false
     let inRaid = false
-    const unsubscribe = desktop.onRaidStateChanged((next) => { inRaid = next.inRaid })
+    let wakeUp: (() => void) | null = null
+    // Back from a raid: look at once. While the window sits minimized behind the game its timers are throttled,
+    // and a long in-raid wait could otherwise end up to a minute late.
+    const unsubscribe = desktop.onRaidStateChanged((next) => {
+      const ended = inRaid && !next.inRaid
+      inRaid = next.inRaid
+      if (ended) wakeUp?.()
+    })
     void desktop.getRaidState().then((next) => { inRaid = next.inRaid }).catch(() => {})
 
     const loop = async () => {
@@ -82,13 +89,18 @@ export function StoryScreenScanner() {
           }
         }
         onStoryPane = delay === STORY_PANE_MS
-        await wait(delay)
+        await new Promise<void>((resolve) => {
+          const timer = window.setTimeout(done, delay)
+          function done() { window.clearTimeout(timer); wakeUp = null; resolve() }
+          wakeUp = done
+        })
       }
     }
     void loop()
     return () => {
       cancelled = true
       unsubscribe()
+      wakeUp?.()
     }
   }, [])
 

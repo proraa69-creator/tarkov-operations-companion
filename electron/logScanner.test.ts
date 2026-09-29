@@ -1,8 +1,10 @@
-import { appendFile, mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { readScreenshotBinding, scanLogFolderBySession } from './logScanner'
+import { buildScanResult, readLogSignals } from '../src/import/eftLogTimeline'
+import { raidStateFromLogs } from '../src/import/raidState'
+import { readRaidState, readScreenshotBinding, scanLogFolderBySession } from './logScanner'
 
 const V = '1.1.5.1.47510'
 const PVP_PROFILE = '61c4752c091f387bc2448d1c'
@@ -118,5 +120,80 @@ describe('screenshot key from the game log', () => {
     await session(root, 'log_2026.09.29_20-31-00_1.1.5.1.47510', { application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular')] })
     expect(await readScreenshotBinding(root)).toEqual(['F9'])
     expect(await readScreenshotBinding(await mkdtemp(join(tmpdir(), 'eft-empty-')))).toBeNull()
+  })
+})
+
+describe('following the logs of a running game', () => {
+  const NAME = 'log_2026.09.29_20-31-00_1.1.5.1.47510'
+  const logPath = (root: string, file: string) => join(root, NAME, `${NAME.slice(4)} ${file}_000.log`)
+  /** What reading every log whole (the old way) gives right now. */
+  async function wholeRead(root: string) {
+    const files = ['application', 'push-notifications']
+    const texts = await Promise.all(files.map((file) => readFile(logPath(root, file), 'utf8')))
+    return buildScanResult(texts.flatMap((text) => readLogSignals(text)), 1)
+  }
+  const block = (time: string, taskId: string) => quest(time, 10, taskId).split('\n')
+
+  it('reads only what was appended and matches a whole read, also when a notification arrives in halves', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-follow-'))
+    await session(root, NAME, {
+      application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular'), app('2026-09-29 20:31:10.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
+      'push-notifications': block('2026-09-29 20:40:00.000', QUEST_A),
+    })
+    expect((await scanLogFolderBySession(root)).events.map((event) => event.taskId)).toEqual([QUEST_A])
+    const lines = block('2026-09-29 20:50:00.000', QUEST_B)
+    // the game flushed the notification header and half of its JSON block
+    await appendFile(logPath(root, 'push-notifications'), `\n${lines.slice(0, 4).join('\n')}`)
+    expect(await scanLogFolderBySession(root)).toEqual(await wholeRead(root))
+    await appendFile(logPath(root, 'push-notifications'), `\n${lines.slice(4).join('\n')}`)
+    const grown = await scanLogFolderBySession(root)
+    expect(grown).toEqual(await wholeRead(root))
+    expect(grown.events.map((event) => [event.taskId, event.status])).toEqual([[QUEST_A, 'active'], [QUEST_B, 'active']])
+    // unrelated lines: the very same result comes back
+    await appendFile(logPath(root, 'application'), `\n${app('2026-09-29 20:51:00.000', 'GC collected 10 objects')}`)
+    expect(await scanLogFolderBySession(root)).toBe(grown)
+  })
+
+  it('reads a truncated or replaced log again from the start', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-rotate-'))
+    await session(root, NAME, {
+      application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular'), app('2026-09-29 20:31:10.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
+      'push-notifications': [...block('2026-09-29 20:40:00.000', QUEST_A), ...block('2026-09-29 20:41:00.000', QUEST_B)],
+    })
+    expect((await scanLogFolderBySession(root)).events).toHaveLength(2)
+    // truncated: shorter than what was read before
+    await writeFile(logPath(root, 'push-notifications'), block('2026-09-29 21:00:00.000', QUEST_B).join('\n'))
+    const truncated = await scanLogFolderBySession(root)
+    expect(truncated.events.map((event) => event.taskId)).toEqual([QUEST_B])
+    expect(truncated).toEqual(await wholeRead(root))
+    // replaced by a different, longer file of the same name
+    await writeFile(logPath(root, 'push-notifications'), [...block('2026-09-29 21:10:00.000', QUEST_A), app('2026-09-29 21:10:01.000', 'x'.repeat(3000))].join('\n'))
+    const replaced = await scanLogFolderBySession(root)
+    expect(replaced.events.map((event) => [event.taskId, event.timestamp])).toEqual([[QUEST_A, new Date('2026-09-29T21:10:00').toISOString()]])
+    expect(replaced).toEqual(await wholeRead(root))
+  })
+
+  it('follows the raid state of the newest launch as its logs grow', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-raid-'))
+    const now = new Date()
+    const at = (minutes: number) => {
+      const time = new Date(now.getTime() - minutes * 60_000)
+      const pad = (value: number, width = 2) => String(value).padStart(width, '0')
+      return `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())} ${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}.${pad(time.getMilliseconds(), 3)}`
+    }
+    await session(root, NAME, { application: [app(at(30), 'Session mode: Regular')], 'push-notifications': [] })
+    expect(await readRaidState(root)).toEqual({ inRaid: false })
+    await appendFile(logPath(root, 'application'), `\n${app(at(20), 'LocationLoaded:22.91 real:37.31 diff:14.4')}\n`)
+    await appendFile(logPath(root, 'application'), app(at(19), "TRACE-NetworkGameCreate profileStatus: 'Location: Interchange, Sid: X'"))
+    expect(await readRaidState(root)).toMatchObject({ inRaid: true, location: 'Interchange' })
+    await appendFile(logPath(root, 'push-notifications'), `\n${at(2)}|${V}|Info|push-notifications|Got notification | UserMatchOver`)
+    expect(await readRaidState(root)).toEqual({ inRaid: false })
+    const texts = await Promise.all(['application', 'push-notifications'].map((file) => readFile(logPath(root, file), 'utf8')))
+    expect(raidStateFromLogs(texts)).toEqual({ inRaid: false })
+    // a new raid, then the log is cut short: read again from the start
+    await appendFile(logPath(root, 'application'), `\n${app(at(1), 'GameStarted:172.04(172.04) real:200.66(200.66) diff:28.62')}`)
+    expect((await readRaidState(root)).inRaid).toBe(true)
+    await writeFile(logPath(root, 'application'), app(at(1), 'Session mode: Regular'))
+    expect(await readRaidState(root)).toEqual({ inRaid: false })
   })
 })

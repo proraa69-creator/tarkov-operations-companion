@@ -3,7 +3,9 @@
  * sidebar, cord-lock pulls under the pouch-flap snaps of stat cards, carabiners and strap tails under panel
  * flaps. Anchors are read from the live layout, the ropes are simulated at a fixed 60 Hz step and the loop
  * goes to sleep as soon as everything hangs still — it only wakes for the pointer passing close by, for
- * scrolling or for layout changes. With reduced motion the kit is drawn at rest and never animated.
+ * scrolling or for layout changes. The full-window canvas is repainted only when something moved. While the app
+ * window is not in use (see src/app/appActivity.ts) nothing runs at all: layout changes are caught up when it is
+ * used again. With reduced motion the kit is drawn at rest and never animated.
  */
 import { createRope, pushRope, ropeMotion, settleRope, stepRope, tipAngle, type Rope } from './verlet'
 import { PIECE_PAD, paintPieces, type Piece, type PieceKind } from './hangerArt'
@@ -25,6 +27,8 @@ interface Hanger {
 
 const STEP = 1 / 60
 const SLEEP_BELOW = 0.02
+/** Motion (px per step) that still shows on screen; below it a settled rope is not repainted. */
+const REPAINT_ABOVE = 0.001
 const POINTER_RADIUS = 26
 
 export class HangerEngine {
@@ -40,6 +44,12 @@ export class HangerEngine {
   private observer: MutationObserver
   private disposed = false
   private tagLines: [string[], string[]]
+  /** The window is not in use: no frames, no layout reads. */
+  private idle = false
+  /** Layout changed while idle: rescan when the window is used again. */
+  private stale = false
+  /** Something besides the ropes' own motion needs a repaint (new kit, new art, resized canvas). */
+  private dirty = true
 
   constructor(private canvas: HTMLCanvasElement, private reduced: boolean, tagLines: [string[], string[]]) {
     this.ctx = canvas.getContext('2d')!
@@ -47,7 +57,7 @@ export class HangerEngine {
     window.addEventListener('pointermove', this.onPointer, { passive: true })
     window.addEventListener('scroll', this.wake, { passive: true, capture: true })
     window.addEventListener('resize', this.onResize, { passive: true })
-    this.observer = new MutationObserver(this.scheduleScan)
+    this.observer = new MutationObserver(this.onMutations)
     this.observer.observe(document.body, { childList: true, subtree: true })
     this.onResize()
   }
@@ -65,20 +75,44 @@ export class HangerEngine {
   setTagLines(lines: [string[], string[]]) {
     this.tagLines = lines
     this.pieces = paintPieces(this.scale, lines)
+    this.dirty = true
     this.wake()
   }
 
+  /** Window in use or not: asleep while not, catching up on layout changes when it is used again. */
+  setActive(active: boolean) {
+    if (this.disposed || active === !this.idle) return
+    this.idle = !active
+    if (this.idle) {
+      cancelAnimationFrame(this.raf)
+      this.raf = 0
+      window.clearTimeout(this.scanTimer)
+      return
+    }
+    if (this.stale) { this.stale = false; this.onResize() } else this.wake()
+  }
+
+  /** DOM changes inside a Leaflet map (tiles, markers while panning) never move a panel's kit. */
+  private onMutations = (records: MutationRecord[]) => {
+    if (records.every((record) => (record.target as Element).closest?.('.leaflet-container'))) return
+    this.scheduleScan()
+  }
+
   private onResize = () => {
+    if (this.idle) { this.stale = true; return }
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     this.canvas.width = Math.round(window.innerWidth * dpr)
     this.canvas.height = Math.round(window.innerHeight * dpr)
     // paint the art at 2x the screen scale so rotated blits stay crisp
     const scale = dpr * 2
     if (scale !== this.scale || !this.pieces) { this.scale = scale; this.pieces = paintPieces(scale, this.tagLines) }
+    // resizing clears the canvas
+    this.dirty = true
     this.scan()
   }
 
   private scheduleScan = () => {
+    if (this.idle) { this.stale = true; return }
     window.clearTimeout(this.scanTimer)
     this.scanTimer = window.setTimeout(() => this.scan(), 180)
   }
@@ -123,11 +157,13 @@ export class HangerEngine {
       const anchor = (r: DOMRect) => { const h = header.getBoundingClientRect(); return { x: r.right - 13, y: h.bottom + 3 } }
       add(el, { region: 'content', piece: 'carabiner', style: 'webbing', anchor, n: 2, seg: 2, tipMass: 2.5, tipRadius: 9, mount: 'loop' })
     })
+    if (next.length !== this.hangers.length || next.some((h, index) => h !== this.hangers[index])) this.dirty = true
     this.hangers = next
     this.wake()
   }
 
   private onPointer = (event: PointerEvent) => {
+    if (this.idle) return
     const p = this.pointer
     p.x = event.clientX; p.y = event.clientY
     // wake only when the pointer is near some kit
@@ -139,16 +175,20 @@ export class HangerEngine {
     p.lx = p.x; p.ly = p.y
   }
 
+  /** Scrolling or layout: one frame to follow the anchors (the loop keeps going only while something swings). */
   wake = () => {
+    if (this.idle) { this.stale = true; return }
     if (this.disposed || this.raf) return
     this.last = performance.now()
     this.raf = requestAnimationFrame(this.frame)
   }
 
+  /** Follows the blocks the kit hangs from; true when any anchor moved or appeared / disappeared. */
   private updateAnchors() {
     const vh = window.innerHeight
+    let changed = false
     for (const h of this.hangers) {
-      if (!h.el.isConnected) { h.visible = false; continue }
+      if (!h.el.isConnected) { changed ||= h.visible; h.visible = false; continue }
       const a = h.anchor(h.el.getBoundingClientRect())
       // The kit is fastened to its block: when the block scrolls or moves, carry the whole rope with it
       // rigidly, so nothing stretches, flips or tears off while scrolling.
@@ -158,14 +198,17 @@ export class HangerEngine {
         for (let i = 0; i < r.n; i++) { r.x[i] += dx; r.y[i] += dy; r.px[i] += dx; r.py[i] += dy }
       }
       h.ax = a.x; h.ay = a.y
-      h.visible = a.y > -140 && a.y < vh + 10
+      const visible = a.y > -140 && a.y < vh + 10
+      if (dx || dy || visible !== h.visible) changed = true
+      h.visible = visible
     }
+    return changed
   }
 
   private frame = (now: number) => {
     this.raf = 0
     if (this.disposed) return
-    this.updateAnchors()
+    const moved = this.updateAnchors()
     let moving = 0
     if (this.reduced) {
       for (const h of this.hangers) settleRope(h.rope, h.ax, h.ay)
@@ -195,8 +238,10 @@ export class HangerEngine {
       }
       for (const h of this.hangers) if (h.visible) moving = Math.max(moving, ropeMotion(h.rope))
     }
-    this.draw()
-    if (!this.reduced && moving > SLEEP_BELOW) this.raf = requestAnimationFrame(this.frame)
+    // A wake that changed nothing (a scan, a scroll elsewhere) leaves the canvas as it is.
+    if (this.dirty || moved || moving > REPAINT_ABOVE) this.draw()
+    this.dirty = false
+    if (!this.reduced && !this.idle && moving > SLEEP_BELOW) this.raf = requestAnimationFrame(this.frame)
   }
 
   private draw() {

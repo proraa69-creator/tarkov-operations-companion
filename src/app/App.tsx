@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
@@ -15,11 +16,14 @@ import { GalleryPage } from '../pages/GalleryPage'
 import { useLocale } from '../i18n/LocaleProvider'
 import { LiveMapPage } from '../mobile/LiveMapPage'
 import { isDesktopShell, useMobileLayout } from '../platform'
+import { startAppActivity } from './appActivity'
 
 export function App() {
   const { locale, revision } = useLocale()
   const mobile = useMobileLayout()
   const desktop = isDesktopShell()
+  // Decorative motion sleeps while the window is not in use (the player is in the game), see appActivity.ts.
+  useEffect(() => startAppActivity(), [])
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
   return <>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />

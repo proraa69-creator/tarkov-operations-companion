@@ -105,9 +105,18 @@ function modeFromGateway(value: string): RaidMode {
 
 /** Reads the signals of one log file (any of application / backend / push-notifications). */
 export function readLogSignals(text: string): LogSignal[] {
+  return readLogSignalsFrom(text).signals
+}
+
+/**
+ * The same for a log read piece by piece (the desktop app follows the growing logs of a running game): a piece
+ * must end where a timestamped line starts, `gatewayMode` is what the previous piece returned. Reading all pieces
+ * one after another gives exactly the signals of reading the whole text at once.
+ */
+export function readLogSignalsFrom(text: string, gatewayMode?: RaidMode): { signals: LogSignal[]; gatewayMode?: RaidMode } {
   const signals: LogSignal[] = []
   const lines = text.split(/\r?\n/)
-  let lastGatewayMode: RaidMode | undefined
+  let lastGatewayMode = gatewayMode
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!
     const at = parseLogTime(line)
@@ -137,7 +146,7 @@ export function readLogSignals(text: string): LogSignal[] {
       if (quest) signals.push({ kind: 'quest', at, ...quest })
     }
   }
-  return signals
+  return { signals, gatewayMode: lastGatewayMode }
 }
 
 function readQuestMessage(json: string): { taskId: string; status: ParsedTaskEvent['status'] } | undefined {

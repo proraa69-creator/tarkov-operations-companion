@@ -1,10 +1,11 @@
+import { memo } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
  * Original embroidered patches stuck on the sidebar's loop field: a name tape, a blood-type tab and a round
  * morale patch (moon over a ridge line). Text follows the interface language.
  */
-export function GearPatches({ locale, callsign }: { locale: 'ru' | 'en'; callsign: string }) {
+export const GearPatches = memo(function GearPatches({ locale, callsign }: { locale: 'ru' | 'en'; callsign: string }) {
   const en = locale === 'en'
   const blood = en ? 'O POS' : '0(I) RH+'
   const motto = en ? 'NIGHT SHIFT' : 'НОЧНАЯ СМЕНА'
@@ -67,4 +68,4 @@ export function GearPatches({ locale, callsign }: { locale: 'ru' | 'en'; callsig
     </div>,
     document.body,
   )
-}
+})
