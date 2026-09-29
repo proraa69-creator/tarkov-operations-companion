@@ -1,6 +1,6 @@
 import { createReadStream, existsSync } from 'node:fs'
 import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
-import { createServer, type Server } from 'node:http'
+import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect } from 'node:net'
 import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -142,6 +142,8 @@ function startSite() {
       void (async () => {
         const path = decodeURIComponent(new URL(request.url ?? '/', LOCAL_SITE_URL).pathname)
         if (path === '/download/windows') return sendDownload(response)
+        // The API under the site's own address: the site keeps working when opened through the public link.
+        if (path === '/health' || path.startsWith('/v1/')) return proxyToApi(request, response)
         const file = normalize(join(root, path))
         const inside = file.startsWith(root + sep)
         const info = inside ? await stat(file).catch(() => null) : null
@@ -156,8 +158,20 @@ function startSite() {
   })
 }
 
+function proxyToApi(request: IncomingMessage, response: ServerResponse) {
+  const upstream = httpRequest({ host: '127.0.0.1', port: API_PORT, method: request.method, path: request.url, headers: { ...request.headers, host: `127.0.0.1:${API_PORT}` } }, (answer) => {
+    response.writeHead(answer.statusCode ?? 502, answer.headers)
+    answer.pipe(response)
+  })
+  upstream.on('error', () => {
+    if (!response.headersSent) response.writeHead(502, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ error: 'Сервер не запущен' }))
+  })
+  request.pipe(upstream)
+}
+
 /** «Скачать для Windows» on the site: the portable exe this app was started from. */
-function sendDownload(response: import('node:http').ServerResponse) {
+function sendDownload(response: ServerResponse) {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe || !existsSync(exe)) {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })

@@ -30,7 +30,8 @@ await build({
   // The site is served by the app itself: the download button takes the exe the app runs from.
   define: {
     'import.meta.env.VITE_DOWNLOAD_URL': JSON.stringify('/download/windows'),
-    'import.meta.env.VITE_API_URL': JSON.stringify('http://localhost:8787'),
+    // Same address as the site (the app forwards /v1 and /health to the API), so a public link works too.
+    'import.meta.env.VITE_API_URL': JSON.stringify('/'),
   },
   build: { outDir: join(root, 'dist-electron', 'website'), emptyOutDir: true },
   logLevel: 'warn',

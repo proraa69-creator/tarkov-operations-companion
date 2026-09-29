@@ -11,8 +11,9 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { enableFromCommandLine, LOCAL_SITE_URL, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountLogin, accountLogout, accountStatus, serviceRequest } from './serviceGateway.js'
+import { enableFromCommandLine, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
+import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -105,10 +106,14 @@ app.whenReady().then(async () => {
   })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   // «Сервер и сайт на этом компьютере» (Profile → server account): the owner's API and website from this app.
-  void startIfEnabled().then((openSite) => { if (openSite) void shell.openExternal(`${LOCAL_SITE_URL}/`) }).catch(() => {})
+  void startIfEnabled().then(async (openSite) => {
+    if (openSite) void shell.openExternal(`${LOCAL_SITE_URL}/`)
+    // A PC that keeps the server running (e.g. a laptop) reopens the public link for friends on start.
+    if (await localServerEnabled()) await startTunnelIfWanted()
+  }).catch(() => {})
 })
 
-app.on('will-quit', () => stopLocalServer())
+app.on('will-quit', () => { stopTunnel(); stopLocalServer() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
@@ -222,7 +227,13 @@ function registerIpc() {
 
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('local-server:status', () => localServerStatus())
-  ipcMain.handle('local-server:set-enabled', (_event, enabled: unknown) => setLocalServerEnabled(enabled === true))
+  ipcMain.handle('local-server:set-enabled', async (_event, enabled: unknown) => {
+    if (enabled !== true) stopTunnel()
+    return setLocalServerEnabled(enabled === true)
+  })
+  ipcMain.handle('tunnel:status', () => tunnelStatus())
+  ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
+  ipcMain.handle('account:set-server-url', (_event, url: unknown) => setServerUrl(url))
 
   ipcMain.handle('profile:resolve', async (_event, rawMode: unknown, rawNickname: unknown) => {
     const mode = validateMode(rawMode)

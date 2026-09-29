@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { ExternalLink, HardDrive, LogIn, LogOut, RefreshCw, Server, UserPlus } from 'lucide-react'
-import type { LocalServerStatus } from '../electron'
+import { Copy, ExternalLink, Globe, HardDrive, LogIn, LogOut, RefreshCw, Server, UserPlus } from 'lucide-react'
+import type { LocalServerStatus, TunnelStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
@@ -54,6 +54,7 @@ export function ServerAccountPanel() {
       <div className="panel-body stack">
         {!available && <p className="dim" style={{ margin: 0 }}>{uiText('Вход в аккаунт сервера доступен в приложении для Windows.')}</p>}
         {available && <LocalServerRow onChange={() => void refresh()} />}
+        {available && status && <ServerAddressRow current={status.serverUrl} onChange={() => void refresh()} />}
 
         {available && status?.signedIn && (
           <>
@@ -143,6 +144,80 @@ function LocalServerRow({ onChange }: { onChange: () => void }) {
           <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть сайт')}</button>
         </div>
       )}
+      {local.enabled && <TunnelRow />}
+    </div>
+  )
+}
+
+const TUNNEL_LABEL: Record<TunnelStatus['state'], string> = { off: 'выключено', downloading: 'скачиваю cloudflared…', starting: 'получаю ссылку…', on: 'работает', error: 'ошибка' }
+
+/** «Открыть сайт друзьям»: a public https link to this PC's site and server (Cloudflare quick tunnel). */
+function TunnelRow() {
+  const api = window.tarkovDesktop?.account
+  const [tunnel, setTunnel] = useState<TunnelStatus | null>(null)
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!api?.tunnelStatus) return
+    const load = () => void api.tunnelStatus?.().then(setTunnel).catch(() => {})
+    load()
+    const timer = window.setInterval(load, 1500)
+    return () => window.clearInterval(timer)
+  }, [api])
+  if (!api?.setTunnel || !tunnel) return null
+  const on = tunnel.state !== 'off' && tunnel.state !== 'error'
+  const copy = () => {
+    if (!tunnel.url) return
+    void navigator.clipboard.writeText(tunnel.url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500) })
+  }
+  return (
+    <>
+      <div className="setting-row">
+        <span>
+          <strong><Globe size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Открыть сайт друзьям')}</strong>
+          <small>{uiText('Бесплатная ссылка через интернет (Cloudflare): друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён; при каждом запуске ссылка новая. Включённый режим запоминается.')}</small>
+        </span>
+        <button className={`toggle ${on ? 'on' : ''}`} aria-pressed={on} aria-label={uiText('Открыть сайт друзьям')} onClick={() => void api.setTunnel!(!on).then(setTunnel)}><span /></button>
+      </div>
+      {tunnel.state !== 'off' && (
+        <div className="setting-row">
+          <span>
+            <small>{uiText('Ссылка:')} {uiText(TUNNEL_LABEL[tunnel.state])}</small>
+            {tunnel.url && <strong style={{ userSelect: 'text' }}>{tunnel.url}</strong>}
+            {tunnel.error && <small style={{ color: 'var(--danger)' }}>{uiText(tunnel.error)}</small>}
+          </span>
+          {tunnel.url && <button className="button ghost" onClick={copy}><Copy size={14} />{uiText(copied ? 'Скопировано' : 'Скопировать')}</button>}
+        </div>
+      )}
+    </>
+  )
+}
+
+/** For a friend's copy of the app: the owner's public link as the server address; empty = this PC. */
+function ServerAddressRow({ current, onChange }: { current: string; onChange: () => void }) {
+  const api = window.tarkovDesktop?.account
+  const isDefault = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(current)
+  const [value, setValue] = useState(isDefault ? '' : current)
+  const [error, setError] = useState('')
+  if (!api?.setServerUrl) return null
+  const save = async (next: string) => {
+    setError('')
+    try {
+      await api.setServerUrl!(next)
+      onChange()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <label className="field-label">{uiText('Адрес сервера')}
+        <input className="input" value={value} placeholder={uiText('этот компьютер (по умолчанию) или ссылка https://….trycloudflare.com')} onChange={(event) => setValue(event.target.value)} />
+      </label>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button className="button ghost" type="button" onClick={() => void save(value)}>{uiText('Сохранить адрес')}</button>
+        {!isDefault && <button className="button ghost" type="button" onClick={() => { setValue(''); void save('') }}>{uiText('Этот компьютер')}</button>}
+      </div>
+      {error && <small style={{ color: 'var(--danger)' }}>{uiText(error)}</small>}
     </div>
   )
 }

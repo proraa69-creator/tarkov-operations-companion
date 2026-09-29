@@ -40,11 +40,42 @@ export function isServiceUnavailable(error: unknown) {
   return error instanceof ServiceUnavailableError
 }
 
-export function apiBaseUrl() {
-  const raw = (process.env.TARKOV_API_URL?.trim() || DEFAULT_API_URL).replace(/\/+$/, '')
+/** Server address typed in the app (Profile → server account), e.g. the owner's public link; '' = default. */
+let savedServerUrl = ''
+let serverUrlLoaded = false
+const serverUrlFile = () => join(app.getPath('userData'), 'server-url.json')
+
+function checkServerUrl(raw: string) {
   const url = new URL(raw)
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname))) throw new Error('Для сервера требуется HTTPS')
   return raw
+}
+
+export async function loadServerUrl() {
+  if (serverUrlLoaded) return savedServerUrl
+  serverUrlLoaded = true
+  try {
+    const value = (JSON.parse(await readFile(serverUrlFile(), 'utf8')) as { url?: unknown }).url
+    savedServerUrl = typeof value === 'string' ? checkServerUrl(value.trim().replace(/\/+$/, '')) : ''
+  } catch {
+    savedServerUrl = ''
+  }
+  return savedServerUrl
+}
+
+/** Saves another server address; the session of the previous server is dropped (accounts live per server). */
+export async function setServerUrl(raw: unknown) {
+  const value = typeof raw === 'string' ? raw.trim().replace(/\/+$/, '') : ''
+  const next = value ? checkServerUrl(value.includes('://') ? value : `https://${value}`) : ''
+  if (next !== savedServerUrl) await clearSession().catch(() => {})
+  savedServerUrl = next
+  serverUrlLoaded = true
+  await writeFile(serverUrlFile(), JSON.stringify({ url: next }), 'utf8')
+  return accountStatus()
+}
+
+export function apiBaseUrl() {
+  return checkServerUrl((process.env.TARKOV_API_URL?.trim() || savedServerUrl || DEFAULT_API_URL).replace(/\/+$/, ''))
 }
 
 // --------------------------------------------------------------------------------------------------------------
@@ -106,6 +137,7 @@ async function clearSession() {
 // --------------------------------------------------------------------------------------------------------------
 
 async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number } = {}) {
+  await loadServerUrl()
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl()}${path}`, {
@@ -161,6 +193,7 @@ export interface AccountStatus {
 
 export async function accountStatus(): Promise<AccountStatus> {
   await loadSession()
+  await loadServerUrl()
   let serverUrl = DEFAULT_API_URL
   let online: boolean
   try {

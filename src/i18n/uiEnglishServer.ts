@@ -1,5 +1,12 @@
 /** English strings for the server account block (Profile) and server sync messages. Wired into uiEnglish.ts by the lead. */
 export const SERVER_PHRASES: Array<[string, string]> = [
+  ['Открыть сайт друзьям', 'Open the website to friends'],
+  ['Бесплатная ссылка через интернет (Cloudflare): друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён; при каждом запуске ссылка новая. Включённый режим запоминается.', 'A free internet link (Cloudflare): friends open the website and connect their app to the server. Works while this PC is on; the link changes on every start. The choice is remembered.'],
+  ['Ссылка:', 'Link:'], ['выключено', 'off'], ['скачиваю cloudflared…', 'downloading cloudflared…'], ['получаю ссылку…', 'getting the link…'],
+  ['Скопировано', 'Copied'], ['Скопировать', 'Copy'], ['Адрес сервера', 'Server address'],
+  ['этот компьютер (по умолчанию) или ссылка https://….trycloudflare.com', 'this PC (default) or a link https://….trycloudflare.com'],
+  ['Сохранить адрес', 'Save address'], ['Этот компьютер', 'This PC'], ['Для сервера требуется HTTPS', 'The server needs HTTPS'],
+  ['Туннель работает только в Windows.', 'The tunnel works only on Windows.'],
   ['Сервер и сайт на этом компьютере', 'Server and website on this PC'],
   ['Приложение само запускает сервер аккаунтов и сайт с личным кабинетом, пока оно открыто. Включайте только на своём компьютере.', 'While it is open, the app runs the account server and the website with the personal account itself. Turn it on only on your own PC.'],
   ['Сервер:', 'Server:'], ['сайт:', 'website:'], ['работает', 'running'], ['уже запущен отдельно', 'already running separately'], ['выключен', 'off'], ['ошибка', 'error'],
