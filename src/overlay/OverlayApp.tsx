@@ -337,7 +337,7 @@ function PlayerMarker({ position, style, followDisabled }: { position: PlayerPos
     return () => { map.off('zoomend moveend', update) }
   }, [map, position])
 
-  const icon = useMemo(() => divIcon({ className: 'ov-player', html: playerMarkerSvg(style, angle), iconSize: [40, 40], iconAnchor: [20, 20] }), [angle, style])
+  const icon = useMemo(() => divIcon({ className: 'ov-player', html: playerMarkerSvg(style, angle), iconSize: [20, 20], iconAnchor: [10, 10] }), [angle, style])
 
   return latLngValue ? <Marker position={latLngValue} icon={icon} interactive={false} zIndexOffset={1000} /> : null
 }

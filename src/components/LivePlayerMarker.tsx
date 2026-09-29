@@ -35,7 +35,7 @@ function ServerPlayerMarker({ mapId, live }: { mapId: string; live: LivePosition
   const map = useMap()
   const angle = useScreenAngle(position)
   const onThisMap = Boolean(position?.map && position.map === mapId)
-  const icon = useMemo(() => divIcon({ className: `ov-player live-player${fresh ? '' : ' is-stale'}`, html: playerMarkerSvg('arrow', angle), iconSize: [44, 44], iconAnchor: [22, 22] }), [angle, fresh])
+  const icon = useMemo(() => divIcon({ className: `ov-player live-player${fresh ? '' : ' is-stale'}`, html: playerMarkerSvg('arrow', angle), iconSize: [22, 22], iconAnchor: [11, 11] }), [angle, fresh])
   // Dragging the map means the user wants to look around: stop following until «Ко мне» is tapped.
   useMapEvents({ dragstart: () => setFollow(false) })
   const centred = useRef(false)
@@ -78,7 +78,7 @@ function DesktopPlayerMarker({ mapId }: { mapId: string }) {
   }, [])
 
   const angle = useScreenAngle(position)
-  const icon = useMemo(() => divIcon({ className: 'ov-player live-player', html: playerMarkerSvg(style, angle), iconSize: [40, 40], iconAnchor: [20, 20] }), [angle, style])
+  const icon = useMemo(() => divIcon({ className: 'ov-player live-player', html: playerMarkerSvg(style, angle), iconSize: [20, 20], iconAnchor: [10, 10] }), [angle, style])
 
   const onThisMap = raid.inRaid && canonicalMapId(raid.location ?? '') === mapId
   if (!position || !onThisMap || (raid.since && position.at < raid.since)) return null

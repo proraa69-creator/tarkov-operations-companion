@@ -760,7 +760,7 @@ a.quest-stage:hover { color: var(--text); }
 .mmt-shot { display: block; width: 100%; aspect-ratio: 16 / 9; margin: 0 0 8px; object-fit: cover; border: 1px solid #3d3f33; border-radius: 2px; background: #0d100d; }
 .exp-warning.is-alert { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); }
 .exp-warning.is-alert .panel-body { color: var(--danger); }
-.live-player svg { width: 40px; height: 40px; overflow: visible; filter: drop-shadow(0 0 6px rgb(79 195 247 / 70%)); }
+.live-player svg { width: 20px; height: 20px; overflow: visible; filter: drop-shadow(0 0 4px rgb(79 195 247 / 70%)); }
 .marker-pick { display: flex; gap: 6px; }
 .marker-pick button { display: grid; justify-items: center; gap: 2px; width: 64px; padding: 5px 4px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
 .marker-pick button.active { border-color: var(--brass); color: var(--brass-strong); }

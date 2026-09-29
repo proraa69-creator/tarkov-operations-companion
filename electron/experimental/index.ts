@@ -343,7 +343,8 @@ function startHook() {
         lastKeyAt = now
         if (item && !previousItem) void lookupItem(false)
         else {
-          if (settings.tracking) void takeScreenshot()
+          // A screenshot only when the minimap opens — closing it needs no new position.
+          if (settings.tracking && !minimapShown()) void takeScreenshot()
           void toggleMinimap(false)
         }
       }
@@ -377,7 +378,7 @@ function startHook() {
       else {
         // Opening the map should immediately request a fresh coordinate-bearing EFT screenshot.
         // The tracker will update the marker as soon as the game writes the file.
-        if (settings.tracking) void takeScreenshot()
+        if (settings.tracking && !minimapShown()) void takeScreenshot()
         void toggleMinimap(false)
       }
     })
@@ -545,6 +546,8 @@ function ensureItemWindow() {
   if (!itemWindow || itemWindow.isDestroyed()) itemWindow = overlayWindow('item', ITEM_OVERLAY)
   return itemWindow
 }
+
+const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed() && minimapWindow.isVisible())
 
 function ensureMinimapWindow() {
   if (!minimapWindow || minimapWindow.isDestroyed()) minimapWindow = overlayWindow('minimap', MINIMAP_OVERLAY)
