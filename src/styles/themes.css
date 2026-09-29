@@ -547,8 +547,12 @@
   --tex: image-set(url("../assets/textures/telnyashka/tracksuit-2048.webp") 1x, url("../assets/textures/telnyashka/tracksuit-4096.webp") 2x);
   --stripes: image-set(url("../assets/textures/telnyashka/stripes-1024.webp") 1x, url("../assets/textures/telnyashka/stripes-2048.webp") 2x);
   --stripes-size: 1024px;
-  /* the same knit sheared 45° (tile-preserving), so hover patches read as a telnyashka, not just stripes */
-  --stripes-diag: image-set(url("../assets/textures/telnyashka/stripes-diag-1024.webp") 1x, url("../assets/textures/telnyashka/stripes-diag-2048.webp") 2x);
+  /* crumpled telnyashka jersey (scripts/textures/telnyashka/crumpled-knit.mjs): four seamless tiles with different
+   * stripe angles, folds and stretched/bunched areas; hover patches pick a tile, offset and scale per element */
+  --knit-a: url("../assets/textures/telnyashka/knit-crumpled-a.webp");
+  --knit-b: url("../assets/textures/telnyashka/knit-crumpled-b.webp");
+  --knit-c: url("../assets/textures/telnyashka/knit-crumpled-c.webp");
+  --knit-d: url("../assets/textures/telnyashka/knit-crumpled-d.webp");
   --grain: url("../assets/textures/telnyashka/grain-256.webp");
   --bg: #12100e; --bg-elevated: #171513; --panel: #1a1917; --panel-2: #201e1c; --panel-3: #2a2825;
   --line: #2f2c29; --line-strong: #4a4640; --line-soft: #37332f;
@@ -558,7 +562,8 @@
   --bone: #ece7da;
   --three-stripes: linear-gradient(90deg, var(--bone) 0 3px, transparent 3px 5px, var(--bone) 5px 8px, transparent 8px 10px, var(--bone) 10px 13px);
   --tel-band: repeating-linear-gradient(180deg, #1d3f78 0 3px, #e8ebee 3px 6px);
-  --knit-dim: linear-gradient(rgb(12 11 10 / 64%), rgb(12 11 10 / 68%)), var(--stripes-diag) 0 0 / 512px;
+  /* dim veil behind the label: heavier where the text sits, thinner where the cloth shows */
+  --knit-veil: linear-gradient(90deg, rgb(10 9 8 / 76%) 0%, rgb(10 9 8 / 64%) 45%, rgb(10 9 8 / 26%) 100%);
   --teal-fill: linear-gradient(180deg, #7fd0d4, #4aa3aa);
   --accent-fill: var(--teal-fill); --accent-ink: #081617; --focus: #a4e3e6;
   --well: rgb(8 7 6 / 72%); --well-line: #000;
@@ -567,15 +572,16 @@
   --knob: linear-gradient(180deg, #f0ece2, #a9a398);
   --ov-head: var(--tel-band) 0 100% / 100% 6px no-repeat, linear-gradient(180deg, #25231f, #171513);
 }
-/* the courtyard at dusk: a cold teal sky over panel blocks with a few lit windows, a row of garages, laundry
- * (a telnyashka and tracksuit bottoms) on a line and a warm street lamp; hazed down so panels stay readable */
+/* the garage cooperative at dusk (scripts/textures/telnyashka/gsk-junkyard.mjs): brick boxes with painted steel doors,
+ * one open under a bulb, the scrapyard heaps and a grab crane behind the fence, a lamp over the lane and a burning
+ * barrel; the top of the picture is transparent so the cold sky gradient shows; hazed down so panels stay readable */
 :root[data-theme="telnyashka"] body {
   background:
     var(--grain) 0 0 / 256px 256px,
     radial-gradient(ellipse 110% 95% at 50% 40%, transparent 42%, rgb(0 0 0 / 72%) 100%),
-    linear-gradient(180deg, rgb(14 13 12 / 0%) 45%, rgb(14 13 12 / 38%) 70%, rgb(10 9 8 / 55%) 100%),
-    url("../assets/textures/telnyashka/yard-dusk.svg") 50% 100% / max(100%, 1280px) auto no-repeat,
-    radial-gradient(ellipse 30% 30% at 34% 76%, rgb(224 165 90 / 14%), transparent 72%),
+    linear-gradient(180deg, rgb(14 13 12 / 0%) 45%, rgb(14 13 12 / 30%) 70%, rgb(10 9 8 / 50%) 100%),
+    url("../assets/textures/telnyashka/gsk-junkyard.webp") 50% 100% / max(100%, 1280px, 180vh) auto no-repeat,
+    radial-gradient(ellipse 30% 30% at 59% 76%, rgb(224 165 90 / 14%), transparent 72%),
     radial-gradient(ellipse 60% 40% at 50% 72%, rgb(150 110 80 / 26%), transparent 75%),
     radial-gradient(ellipse 45% 70% at 104% 20%, rgb(86 168 176 / 22%), transparent 72%),
     linear-gradient(180deg, #0f171c 0%, #1b2429 38%, #3a2e26 64%, #1a1512 100%);
@@ -602,7 +608,7 @@
 :root[data-theme="telnyashka"] .brand-sub { color: var(--brass); }
 :root[data-theme="telnyashka"] .nav-label { color: #aaa194; letter-spacing: .24em; }
 :root[data-theme="telnyashka"] .nav-link { border-radius: 5px; color: #d9d2c5; border: 1px solid transparent; }
-/* hover: a patch of the striped knit, dimmed so the label stays readable */
+/* hover: a patch of crumpled telnyashka, dimmed behind the label so it stays readable */
 :root[data-theme="telnyashka"] .nav-link:hover {
   color: #fff; border-color: #000; background: var(--knit-dim);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 14%), inset 0 -2px 4px rgb(0 0 0 / 50%), 0 5px 12px rgb(0 0 0 / 60%);
@@ -666,7 +672,8 @@
 }
 :root[data-theme="telnyashka"] :is(.search-trigger, .mode-switch, .locale-switch, .icon-button, .profile-chip) { border-radius: 5px; border-color: #000; }
 :root[data-theme="telnyashka"] :is(.icon-button, .profile-chip) { background: rgb(8 7 6 / 72%); color: #d9d2c5; box-shadow: var(--well-shadow); }
-:root[data-theme="telnyashka"] :is(.search-trigger, .icon-button, .profile-chip):hover { background: var(--knit-dim); color: #fff; text-shadow: 0 1px 2px #000; }
+:root[data-theme="telnyashka"] :is(.search-trigger, .icon-button, .profile-chip):hover { background: var(--knit-dim); color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+:root[data-theme="telnyashka"] .icon-button:hover { background: radial-gradient(circle at 50% 50%, rgb(10 9 8 / 70%) 0 30%, rgb(10 9 8 / 30%) 75%), var(--knit-patch); }
 :root[data-theme="telnyashka"] .search-trigger kbd { background: #1d1b18; color: var(--brass); border-color: #4a4640; }
 :root[data-theme="telnyashka"] .eyebrow { color: var(--brass); text-shadow: 0 1px 2px #000; }
 :root[data-theme="telnyashka"] :is(.page-title, .raid-map-name) { color: #f5f1e8; text-shadow: 0 2px 0 #000, 0 0 26px rgb(108 196 201 / 16%), 0 6px 22px rgb(0 0 0 / 70%); }
@@ -706,4 +713,26 @@
   background: var(--knit-dim); color: #fff; border-color: #000; text-shadow: 0 1px 2px #000, 0 0 8px #000; translate: 0 -1px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -2px 3px rgb(0 0 0 / 50%), 0 8px 18px rgb(0 0 0 / 65%);
 }
-:root[data-theme="telnyashka"] .button.primary:hover { background: linear-gradient(rgb(127 208 212 / 70%), rgb(74 163 170 / 76%)), var(--stripes-diag) 0 0 / 512px; color: #061213; text-shadow: 0 0 6px rgb(220 250 250 / 80%); filter: none; }
+:root[data-theme="telnyashka"] .button:not(.primary):hover { background: radial-gradient(ellipse 62% 95% at 50% 50%, rgb(10 9 8 / 74%) 0 40%, rgb(10 9 8 / 40%) 100%), var(--knit-patch); }
+:root[data-theme="telnyashka"] :is(.map-priority-tile, .kappa-cell, .catalog-card):hover { background: linear-gradient(rgb(10 9 8 / 68%), rgb(10 9 8 / 58%)), var(--knit-patch); }
+:root[data-theme="telnyashka"] :is(.mode-switch, .locale-switch, .segmented-filter) button:hover:not(.active) { background: linear-gradient(rgb(10 9 8 / 62%), rgb(10 9 8 / 50%)), var(--knit-patch); color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000; }
+/* --knit-patch is resolved on each element (not :root) so the per-element --knit-tex/pos/size below take effect */
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button) {
+  --knit-patch: var(--knit-tex, var(--knit-a)) var(--knit-pos, 0 0) / var(--knit-size, 450px);
+  --knit-dim: var(--knit-veil), var(--knit-patch);
+}
+/* no two neighbours alike: tile, offset and scale cycle with co-prime periods (4, 3, 5) over sibling position */
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(4n+2) { --knit-tex: var(--knit-c); }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(4n+3) { --knit-tex: var(--knit-b); }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(4n+4) { --knit-tex: var(--knit-d); }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(3n+1) { --knit-pos: 17% 63%; }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(3n+2) { --knit-pos: 71% 12%; }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(3n) { --knit-pos: 44% 88%; }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(5n+1) { --knit-size: 470px; }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(5n+2) { --knit-size: 390px; }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(5n+3) { --knit-size: 520px; }
+:root[data-theme="telnyashka"] :is(.nav-link, .button, .icon-button, .search-trigger, .profile-chip, .map-priority-tile, .kappa-cell, .catalog-card, .mode-switch button, .locale-switch button, .segmented-filter button):nth-child(5n+4) { --knit-size: 430px; }
+/* the sidebar's last list (Settings) and topbar singles get their own cloth too */
+:root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type .nav-link { --knit-tex: var(--knit-d); --knit-pos: 83% 37%; }
+:root[data-theme="telnyashka"] .topbar .profile-chip { --knit-pos: 29% 51%; }
+:root[data-theme="telnyashka"] .button.primary:hover { background: linear-gradient(rgb(127 208 212 / 72%), rgb(74 163 170 / 78%)), var(--knit-patch); color: #061213; text-shadow: 0 0 6px rgb(220 250 250 / 80%); filter: none; }
