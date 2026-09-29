@@ -47,6 +47,8 @@ export interface MinimapQuest {
   name: string
   trader: string
   markerIds: string[]
+  /** What to do: the current story stage or the task objectives. */
+  objectives: string[]
 }
 
 export interface ExperimentalSettings {
@@ -62,6 +64,8 @@ export interface ExperimentalSettings {
   minimapOpacity: number
   playerMarker: 'arrow' | 'chevron' | 'dot'
   screenshotsDir: string
+  /** Where the player dragged the minimap; null = top-right corner. */
+  minimapPosition: { x: number; y: number } | null
 }
 
 export interface ExperimentalStatus {

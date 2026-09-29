@@ -39,6 +39,7 @@ let itemHideTimer: NodeJS.Timeout | null = null
 let screenshotTimer: NodeJS.Timeout | null = null
 let keyTimer: NodeJS.Timeout | null = null
 let watchTimer: NodeJS.Timeout | null = null
+let dragTimer: NodeJS.Timeout | null = null
 let displayMode: DisplayMode = 'unknown'
 let lastPosition: PlayerPosition | null = null
 let lastKeyAt = 0
@@ -115,6 +116,31 @@ function registerIpc() {
     if (value === true) interactive.add(window)
     else interactive.delete(window)
     window.setIgnoreMouseEvents(value !== true, { forward: true })
+  })
+  ipcMain.on('overlay:drag', (event, active: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window !== minimapWindow || window.isDestroyed()) return
+    if (dragTimer) { clearInterval(dragTimer); dragTimer = null }
+    if (active !== true) {
+      const { x, y } = window.getBounds()
+      void updateSettings({ minimapPosition: { x, y } })
+      return
+    }
+    // Follow the cursor from the main process: the overlay itself cannot move its own window smoothly.
+    const start = screen.getCursorScreenPoint()
+    const origin = window.getBounds()
+    dragTimer = setInterval(() => {
+      if (window.isDestroyed()) { if (dragTimer) clearInterval(dragTimer); dragTimer = null; return }
+      const point = screen.getCursorScreenPoint()
+      window.setPosition(origin.x + point.x - start.x, origin.y + point.y - start.y)
+      // A mouse-up outside the window never reaches the renderer; stop when the button is released.
+      if (nativeKeysAvailable() && !isVirtualKeyDown(0x01)) {
+        if (dragTimer) clearInterval(dragTimer)
+        dragTimer = null
+        const { x, y } = window.getBounds()
+        void updateSettings({ minimapPosition: { x, y } })
+      }
+    }, 16)
   })
   ipcMain.on('overlay:resize', (event, width: unknown, height: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -398,7 +424,9 @@ async function toggleMinimap(fromApp: boolean) {
   const current = window.getBounds()
   const width = Math.min(current.width || MINIMAP_OVERLAY.width, area.width - 48)
   const height = Math.min(current.height || MINIMAP_OVERLAY.height, area.height - 48)
-  window.setBounds({ x: area.x + area.width - width - 24, y: area.y + 24, width, height })
+  const saved = settings.minimapPosition
+  const onScreen = saved && screen.getAllDisplays().some(({ workArea: a }) => saved.x >= a.x - width / 2 && saved.x <= a.x + a.width - width / 2 && saved.y >= a.y && saved.y <= a.y + a.height - 40)
+  window.setBounds(onScreen && saved ? { x: saved.x, y: saved.y, width, height } : { x: area.x + area.width - width - 24, y: area.y + 24, width, height })
   showOverlay(window)
   return true
 }

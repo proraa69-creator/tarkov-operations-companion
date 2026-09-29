@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   },
   overlaySetInteractive: (value) => ipcRenderer.send('overlay:interactive', Boolean(value)),
   overlayResize: (width, height) => ipcRenderer.send('overlay:resize', Number(width), Number(height)),
+  overlayDrag: (active) => ipcRenderer.send('overlay:drag', Boolean(active)),
   onOverlay: (channel, callback) => {
     if (!['overlay:item', 'overlay:minimap', 'overlay:position'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)

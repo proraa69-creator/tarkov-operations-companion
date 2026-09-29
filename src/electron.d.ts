@@ -62,6 +62,8 @@ interface TarkovDesktopApi {
   overlaySetInteractive?: (value: boolean) => void
   /** Overlay windows only: fit the window to its content. */
   overlayResize?: (width: number, height: number) => void
+  /** Overlay windows only: start (true) or finish (false) dragging the window with the mouse. */
+  overlayDrag?: (active: boolean) => void
   onOverlay?: {
     (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void

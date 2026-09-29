@@ -807,3 +807,13 @@ a.quest-stage:hover { color: var(--text); }
 .profile-live-footer a.button { text-decoration: none; }
 .kappa-cell.is-fresh { animation: kappa-fresh 1.6s ease-out 1; }
 @keyframes kappa-fresh { 0% { box-shadow: 0 0 0 0 rgb(127 169 131 / 80%); } 100% { box-shadow: 0 0 0 10px rgb(127 169 131 / 0%); } }
+
+/* Goons card: condensed stencil-like type, values slide up when they change */
+@font-face { font-family: "Oswald"; font-weight: 400 700; font-display: swap; src: url("../assets/fonts/oswald-cyrillic.woff2") format("woff2"); unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Oswald"; font-weight: 400 700; font-display: swap; src: url("../assets/fonts/oswald-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215; }
+.goon-card .goon-map-value { overflow: hidden; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.goon-card .goon-meta { overflow: hidden; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 400; letter-spacing: .03em; }
+.goon-rise { display: inline-block; animation: goon-rise .55s cubic-bezier(.22, 1, .36, 1) both; }
+.goon-rise.is-late { animation-delay: .08s; }
+@keyframes goon-rise { from { opacity: 0; transform: translateY(70%); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .goon-rise { animation: none; } }

@@ -180,3 +180,15 @@ html.overlay-root #root {
 .ov-quest-list button:hover { border-color: #6d603f; color: #f1efe2; }
 .ov-quest-list button.active { border-color: #c9b26a; background: #2f2a1b; color: #f2e2b8; }
 .ov-player { background: transparent; border: 0; }
+
+/* The opacity slider fades the whole minimap — frame, header, list and map alike. */
+.ov-minimap { opacity: var(--ov-opacity, .9); background: rgb(9 10 10 / 92%); }
+.ov-minimap .ov-minimap-map { opacity: 1; }
+.ov-drag { cursor: move; user-select: none; }
+.ov-drag-grip { color: #6b6a60; font-size: 12px; line-height: 1; }
+.ov-quest-task { max-width: 420px; padding: 6px 9px 8px; border-top: 1px solid #4b4c47; background: #111210; animation: ov-in .15s ease-out; }
+.ov-quest-task-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.ov-quest-task-head strong { color: #f2e2b8; font-size: 12px; }
+.ov-quest-task-head span { color: #8e8c80; font-size: 11px; white-space: nowrap; }
+.ov-quest-task ul { margin: 0; padding-left: 15px; color: #c9c7b7; font-size: 11.5px; line-height: 1.35; }
+.ov-quest-task li + li { margin-top: 2px; }

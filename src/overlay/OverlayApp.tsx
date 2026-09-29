@@ -97,13 +97,25 @@ function MinimapOverlay() {
   }
   const age = position ? Math.max(0, Math.round((now - position.at) / 1000)) : null
   const quests = payload.quests ?? []
+  const selected = quests.find((quest) => quest.questId === selectedQuest)
   const changeOpacity = (value: number) => {
     setOpacity(value)
     void window.tarkovDesktop?.experimental?.updateSettings({ minimapOpacity: value })
   }
   return (
     <div ref={rootRef} className="ov-minimap" style={{ '--ov-opacity': opacity } as CSSProperties}>
-      <div className="ov-minimap-head">
+      <div
+        className="ov-minimap-head ov-interactive ov-drag"
+        title={uiText('Перетащите, чтобы передвинуть мини-карту')}
+        onMouseDown={(event) => {
+          if ((event.target as HTMLElement).closest('input, button, label')) return
+          event.preventDefault()
+          window.tarkovDesktop?.overlayDrag?.(true)
+          const end = () => { window.tarkovDesktop?.overlayDrag?.(false); window.removeEventListener('mouseup', end) }
+          window.addEventListener('mouseup', end)
+        }}
+      >
+        <span className="ov-drag-grip" aria-hidden="true">⠿</span>
         <strong>{uiText(payload.map.name)}</strong>
         <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
         <label className="ov-opacity ov-interactive" title={uiText('Прозрачность')}>
@@ -122,6 +134,12 @@ function MinimapOverlay() {
             </li>
           ))}
         </ul>
+      )}
+      {selected && (
+        <div className="ov-quest-task ov-interactive">
+          <div className="ov-quest-task-head"><strong>{uiText(selected.name)}</strong><span>{uiText(selected.trader)}</span></div>
+          <ul>{selected.objectives.map((objective) => <li key={objective}>{uiText(objective)}</li>)}</ul>
+        </div>
       )}
     </div>
   )

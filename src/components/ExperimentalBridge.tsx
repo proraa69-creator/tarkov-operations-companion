@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
 import { useAppState } from '../state/AppState'
-import { isCurrentTrackedQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
 import { createItemMatcher } from '../overlay/itemMatch'
 import { describeItem } from '../overlay/itemInfo'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
@@ -62,7 +62,10 @@ export function ExperimentalBridge() {
         const existing = quests.find((entry) => entry.questId === marker.questId)
         if (existing) { existing.markerIds.push(marker.id); continue }
         const quest = data.quests.find((entry) => entry.id === marker.questId)
-        if (quest) quests.push({ questId: quest.id, name: quest.name, trader: quest.trader, markerIds: [marker.id] })
+        if (!quest) continue
+        const stage = quest.stages?.[currentStoryStageIndex(quest, progress)]
+        const objectives = stage ? [stage.title] : (quest.objectives.length ? quest.objectives : [quest.description]).slice(0, 4)
+        quests.push({ questId: quest.id, name: quest.name, trader: quest.trader, markerIds: [marker.id], objectives })
       }
       void api.answer(query.id, { state: 'ready', map, markers, questCount: quests.length, quests } satisfies MinimapPayload)
     })

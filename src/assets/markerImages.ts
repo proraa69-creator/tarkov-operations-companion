@@ -2,9 +2,9 @@ import type { MarkerLayerId } from '../domain/types'
 import pmcExtraction from './map-markers/01_pmc_extraction.png'
 import coopExtraction from './map-markers/03_coop_extraction.png'
 import transition from './map-markers/04_transition.png'
-// Quest and quest-item icons were redrawn in the new set and replace the old tactical ones.
-import quest from './map-markers-new/quest-zone.svg'
-import questItem from './map-markers-new/quest-item.svg'
+// Quest and quest-item markers are red geotag pins drawn in the tactical style.
+import quest from './map-markers/geotag/quest-tactical.svg'
+import questItem from './map-markers/geotag/quest-item-tactical.svg'
 import key from './map-markers/07_key.png'
 import boss from './map-markers/08_boss.png'
 import spawn from './map-markers/09_spawn.png'

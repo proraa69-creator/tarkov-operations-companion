@@ -20,6 +20,7 @@ export interface ExperimentalSettings {
   playerMarker: 'arrow' | 'chevron' | 'dot'
   /** EFT screenshots folder chosen by hand; empty = auto-detect. */
   screenshotsDir: string
+  minimapPosition: { x: number; y: number } | null
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   minimapOpacity: 0.9,
   playerMarker: 'arrow',
   screenshotsDir: '',
+  minimapPosition: null,
 }
 
 let current: ExperimentalSettings | null = null
@@ -77,5 +79,12 @@ function sanitize(raw: unknown): ExperimentalSettings {
     minimapOpacity: Number.isFinite(Number(value.minimapOpacity)) ? Math.min(1, Math.max(0.3, Number(value.minimapOpacity))) : DEFAULT_SETTINGS.minimapOpacity,
     playerMarker: value.playerMarker === 'chevron' || value.playerMarker === 'dot' ? value.playerMarker : 'arrow',
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
+    minimapPosition: readPoint(value.minimapPosition),
   }
+}
+
+function readPoint(value: unknown) {
+  if (!value || typeof value !== 'object') return null
+  const { x, y } = value as Record<string, unknown>
+  return Number.isFinite(Number(x)) && Number.isFinite(Number(y)) ? { x: Math.round(Number(x)), y: Math.round(Number(y)) } : null
 }

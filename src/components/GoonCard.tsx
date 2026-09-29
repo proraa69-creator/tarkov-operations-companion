@@ -105,9 +105,10 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
         </div>}
       </div>
     </div>
-    <div className="stat-value goon-map-value">{uiText(location ? mapName(location.mapId) : 'Нет данных')}</div>
+    {/* A new value remounts (key) so it slides up into place. */}
+    <div className="stat-value goon-map-value"><span key={location?.mapId ?? 'none'} className="goon-rise">{uiText(location ? mapName(location.mapId) : 'Нет данных')}</span></div>
     <div className={`stat-meta goon-meta ${location?.unsent && !notice ? 'is-unsent' : ''}`} aria-live="polite">
-      <span>{meta}</span>{location?.unsent && !notice && <em>{uiText('не отправлено')}</em>}
+      <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText('не отправлено')}</em>}
     </div>
 
     <div className="goon-stats-popover" aria-hidden="true">

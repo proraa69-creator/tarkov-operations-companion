@@ -3,6 +3,15 @@ import { useQuery } from '@tanstack/react-query'
 import type { AppDataset, RaidMode } from '../domain/types'
 import { fetchTarkovCatalog } from '../data/tarkovJsonClient'
 import { cleanDatasetText } from '../shared/questText'
+import { translateUiText } from './uiEnglish'
+
+const CYRILLIC = /[А-Яа-яЁё]/
+/** Russian text we have no English source for (e.g. from the Russian wiki) is not shown in English mode. */
+const englishOr = (text: string, fallback: string) => {
+  const translated = translateUiText(text)
+  return CYRILLIC.test(translated) ? fallback : translated
+}
+const englishWiki = (name: string) => `https://escapefromtarkov.fandom.com/wiki/${encodeURIComponent(name.replace(/ /g, '_'))}`
 
 /**
  * English text for the catalog. Structure, ids, counts and progress always come from the Russian
@@ -31,14 +40,21 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
     quests: ru.quests.map((quest) => {
       const english = quests.get(quest.id)
       const trader = traderName.get(quest.trader) ?? quest.trader
-      if (!english) return { ...quest, trader }
+      const name = english?.name || quest.name
+      const objectives = english?.objectives.length ? english.objectives : quest.objectives
+      const summary = quest.kind === 'story'
+        ? 'Story chapter: follow the stages below.'
+        : objectives.map((objective) => translateUiText(objective)).filter((line) => !CYRILLIC.test(line)).slice(0, 3).join('; ')
       return {
         ...quest,
         trader,
-        name: english.name || quest.name,
-        description: english.description || quest.description,
-        objectives: english.objectives.length ? english.objectives : quest.objectives,
-        rewards: english.rewards.length ? english.rewards : quest.rewards,
+        name,
+        description: englishOr(english?.description || quest.description, summary || 'See the objectives below.'),
+        objectives,
+        rewards: english?.rewards.length ? english.rewards : quest.rewards,
+        // Story stages parsed from the Russian wiki have no English source; curated ones are translated.
+        stages: quest.stages?.map((stage, index) => ({ ...stage, title: englishOr(stage.title, `Stage ${index + 1} (see the wiki)`), description: stage.description ? englishOr(stage.description, '') : stage.description })),
+        wikiLink: quest.wikiLink && !CYRILLIC.test(name) ? englishWiki(name) : quest.wikiLink,
       }
     }),
     items: ru.items.map((item) => {
