@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
+import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
 
 const require = createRequire(import.meta.url)
 interface OcrLine { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
@@ -41,9 +42,43 @@ let preparing: Promise<OcrWorker> | null = null
 const PROBE_SIZE = { width: 160, height: 90 }
 /** Mean per-channel difference (0–255) below which two probes count as the same picture. */
 const SAME_FRAME_DIFF = 3
-let lastWatch: { fingerprint: Buffer; text: string; sourceName: string } | null = null
+let lastWatch: { fingerprint: Buffer; text: string; sourceName: string; at: number } | null = null
+/** An unchanged picture is read again only this often (story pane / other menus). */
+const REREAD_SAME_MS = { detail: 6000, menu: 20_000 }
+
+/**
+ * The game's screen while it is in front: one GDI copy of its display (a few ms) instead of desktopCapturer,
+ * which renders a thumbnail of every open window (browser, Discord, …) on each call. Null when unavailable.
+ */
+function grabGameDisplay() {
+  if (process.platform !== 'win32' || !isTarkovForeground()) return null
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const rect = screen.dipToScreenRect(null, display.bounds)
+  const shot = captureScreenRegion(rect.x, rect.y, rect.width, rect.height)
+  if (!shot) return null
+  let blank = true
+  for (let index = 0; index < shot.data.length; index += 4 * 997) if (shot.data[index]! > 8 || shot.data[index + 1]! > 8 || shot.data[index + 2]! > 8) { blank = false; break }
+  if (blank) return null
+  const image = nativeImage.createFromBitmap(Buffer.from(shot.data.buffer, shot.data.byteOffset, shot.data.byteLength), { width: shot.width, height: shot.height })
+  return shot.width > 1920 ? image.resize({ width: 1920, quality: 'good' }) : image
+}
 
 export async function captureQuestFrame(watch = false, detail = false) {
+  if (watch && process.platform === 'win32') {
+    // Nothing to read unless the game is in front; then one cheap copy of its screen.
+    if (!isTarkovForeground()) return { text: '', sourceName: '', gameWindow: false }
+    const image = grabGameDisplay()
+    if (image) {
+      const fingerprint = frameFingerprint(image)
+      const reuseFor = detail ? REREAD_SAME_MS.detail : REREAD_SAME_MS.menu
+      if (lastWatch && Date.now() - lastWatch.at < reuseFor && sameFrame(fingerprint, lastWatch.fingerprint)) {
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true }
+      }
+      const result = await recognizeQuestImage(prepareImage(image, detail ? 1500 : 1100), 'EscapeFromTarkov')
+      lastWatch = { fingerprint, ...result, at: Date.now() }
+      return { ...result, gameWindow: true }
+    }
+  }
   if (watch) {
     const names = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 } })
     if (!names.some((source) => isTarkovWindow(source.name))) {
@@ -65,7 +100,7 @@ export async function captureQuestFrame(watch = false, detail = false) {
     const game = sources.find((source) => isTarkovWindow(source.name))
     if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game) }
     const result = await recognizeQuestImage(prepareImage(game.thumbnail, detail ? 1500 : 1100), game.name)
-    lastWatch = fingerprint ? { fingerprint, ...result } : null
+    lastWatch = fingerprint ? { fingerprint, ...result, at: Date.now() } : null
     return { ...result, gameWindow: true }
   }
   const sources = await desktopCapturer.getSources({

@@ -7,9 +7,9 @@ import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
 
 /** Game open, but not on the story pane: look again every few seconds. */
-const MENU_CHECK_MS = 2500
+const MENU_CHECK_MS = 4000
 /** Story pane open: follow stage changes closely. */
-const STORY_PANE_MS = 800
+const STORY_PANE_MS = 1500
 /** Game closed or in a raid. */
 const IDLE_MS = 5000
 
