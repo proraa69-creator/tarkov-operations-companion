@@ -46,3 +46,13 @@ describe('item lookup under the cursor', () => {
     expect(info.bestTrader).toEqual({ name: 'Терапевт', price: 21000 })
   })
 })
+
+describe('matchNearest', () => {
+  it('prefers the line nearest to the cursor over other labels on screen', async () => {
+    const { matchNearest } = await import('./itemMatch')
+    const names: Record<string, string> = { 'бинт': 'bandage', 'коллиматорный прицел burris fastfire 3': 'ff3' }
+    const match = (text: string) => { const id = names[text.toLowerCase()]; return id ? ({ id } as never) : null }
+    const lines = [{ text: 'Бинт', distance: 70 }, { text: 'Коллиматорный прицел Burris', distance: 22 }, { text: 'FastFire 3', distance: 40 }]
+    expect((matchNearest(match, lines) as { id: string } | null)?.id).toBe('ff3')
+  })
+})

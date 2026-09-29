@@ -75,6 +75,10 @@ export interface ExperimentalStatus {
   screenshotsFolder: string
   /** Folders checked automatically, for the settings page. */
   screenshotCandidates: string[]
+  /** Newest screenshot in the folder since tracking started, and whether its name carries coordinates. */
+  lastScreenshot: { name: string; withCoordinates: boolean; at: number } | null
+  /** How many times the app pressed the screenshot key this session. */
+  screenshotPresses: number
   lastPosition: PlayerPosition | null
   raid: { inRaid: boolean; location?: string }
   /** Display mode of the game the last time it was in front. */
@@ -82,5 +86,8 @@ export interface ExperimentalStatus {
 }
 
 export type ExperimentalQuery =
-  | { id: number; kind: 'item'; input: { text: string; test?: boolean } }
+  | { id: number; kind: 'item'; input: { text: string; test?: boolean; lines?: NearbyLine[] } }
   | { id: number; kind: 'minimap'; input: { location?: string; fromApp?: boolean } }
+
+/** An OCR line around the cursor and its distance from the cursor in screen pixels. */
+export interface NearbyLine { text: string; distance: number }

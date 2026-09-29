@@ -3,7 +3,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
 import { useAppState } from '../state/AppState'
 import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
-import { createItemMatcher } from '../overlay/itemMatch'
+import { createItemMatcher, matchNearest } from '../overlay/itemMatch'
 import { describeItem } from '../overlay/itemInfo'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
 import type { MarkerLayerId } from '../domain/types'
@@ -35,7 +35,7 @@ export function ExperimentalBridge() {
       if (query.kind === 'item') {
         const item = query.input.test
           ? data.items.find((entry) => (entry.fleaPrice ?? 0) > 0 && data.quests.some((quest) => quest.requiredItems?.includes(entry.id)))
-          : matcher(query.input.text)
+          : (query.input.lines?.length ? matchNearest(matcher, query.input.lines) : null) ?? matcher(query.input.text)
         const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode) : { state: 'not-found', text: query.input.text }
         void api.answer(query.id, payload)
         return

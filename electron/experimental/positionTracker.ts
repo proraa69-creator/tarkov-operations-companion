@@ -54,6 +54,8 @@ export class PositionTracker {
   private poll: NodeJS.Timeout | null = null
   private startedAt = 0
   private lastFile = ''
+  /** Newest image in the folder (with or without coordinates), for the diagnostics in the Mini Map page. */
+  lastSeen: { name: string; withCoordinates: boolean; at: number } | null = null
   private folder = ''
   private lastFolderCheck = 0
   private busy = false
@@ -106,7 +108,14 @@ export class PositionTracker {
         if (detected !== this.folder) { this.stop(); await this.start(); return }
       }
       const folder = this.folder
-      const names = (await readdir(folder).catch(() => [] as string[])).filter((name) => isPositionScreenshot(name) && (includePreexisting || !this.preexisting.has(name)))
+      const all = await readdir(folder).catch(() => [] as string[])
+      const fresh = all.filter((name) => /\.(png|jpe?g|bmp)$/i.test(name) && !this.preexisting.has(name))
+      if (fresh.length) {
+        const stats = await Promise.all(fresh.map(async (name) => ({ name, time: (await stat(join(folder, name)).catch(() => null))?.mtimeMs ?? 0 })))
+        const newest = stats.sort((a, b) => b.time - a.time)[0]
+        if (newest && newest.name !== this.lastSeen?.name) this.lastSeen = { name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
+      }
+      const names = all.filter((name) => isPositionScreenshot(name) && (includePreexisting || !this.preexisting.has(name)))
       const files = (await Promise.all(names.map(async (name) => {
         const info = await stat(join(folder, name)).catch(() => null)
         return info ? { name, time: info.mtimeMs } : null

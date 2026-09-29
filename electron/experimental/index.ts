@@ -1,17 +1,17 @@
 import { createRequire } from 'node:module'
 import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, type Display, type Point } from 'electron'
 import type { PlayerPosition } from '../../src/overlay/screenshotPosition.js'
-import { recognizeRegion, warmUpOcr } from '../screenOcr.js'
+import { recognizeRegionLines, warmUpOcr } from '../screenOcr.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
-import { foregroundDisplayMode, isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable, type DisplayMode } from './win32.js'
+import { foregroundDisplayMode, isTarkovForeground, isVirtualKeyDown, nativeKeysAvailable, pressScreenshotKey, type DisplayMode } from './win32.js'
 
 const require = createRequire(import.meta.url)
 
 interface HookEvent { keycode: number; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
 interface UiohookModule {
-  uIOhook: { on: (event: 'keydown', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void; keyTap: (key: number) => void }
+  uIOhook: { on: (event: 'keydown', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void; keyTap: (key: number) => void; keyToggle: (key: number, toggle: 'down' | 'up') => void }
   UiohookKey: Record<string, number>
 }
 
@@ -23,9 +23,10 @@ interface Options {
 }
 
 const ITEM_OVERLAY = { width: 300, height: 118 }
-const ITEM_HIDE_MS = 5000
+/** The card closes when the cursor leaves the item (moves this far from where the key was pressed). */
+const ITEM_LEAVE_PX = 42
 /** Screen area read around the cursor, in 1080p units: the EFT name tooltip and the cell label. */
-const CAPTURE = { left: 300, right: 520, up: 110, down: 150 }
+const CAPTURE = { left: 240, right: 520, up: 120, down: 150 }
 const MINIMAP_OVERLAY = { width: 436, height: 360 }
 const QUERY_TIMEOUT_MS = 5000
 const KEY_REPEAT_MS = 350
@@ -35,11 +36,39 @@ let hook: UiohookModule | null = null
 let hookError = ''
 let itemWindow: BrowserWindow | null = null
 let minimapWindow: BrowserWindow | null = null
-let itemHideTimer: NodeJS.Timeout | null = null
 let screenshotTimer: NodeJS.Timeout | null = null
 let keyTimer: NodeJS.Timeout | null = null
 let watchTimer: NodeJS.Timeout | null = null
 let dragTimer: NodeJS.Timeout | null = null
+/** Clickable parts of the minimap (header, slider, quest list) in window coordinates, reported by the overlay. */
+let minimapZones: Array<{ x: number; y: number; width: number; height: number }> = []
+let hitTimer: NodeJS.Timeout | null = null
+
+/**
+ * Makes the minimap clickable exactly over its controls. Forwarded mouse-move events are unreliable over a
+ * full-screen game, so the cursor is checked here and the window stops ignoring the mouse only over a zone.
+ */
+function watchMinimapHits(window: BrowserWindow) {
+  if (hitTimer) clearInterval(hitTimer)
+  hitTimer = setInterval(() => {
+    if (window.isDestroyed() || !window.isVisible()) {
+      if (hitTimer) clearInterval(hitTimer)
+      hitTimer = null
+      return
+    }
+    if (dragTimer) return
+    const point = screen.getCursorScreenPoint()
+    const bounds = window.getBounds()
+    const x = point.x - bounds.x
+    const y = point.y - bounds.y
+    const over = minimapZones.some((zone) => x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height)
+    if (over !== interactive.has(window)) {
+      if (over) interactive.add(window)
+      else interactive.delete(window)
+      window.setIgnoreMouseEvents(!over, { forward: true })
+    }
+  }, 50)
+}
 let displayMode: DisplayMode = 'unknown'
 let lastPosition: PlayerPosition | null = null
 let lastKeyAt = 0
@@ -142,6 +171,14 @@ function registerIpc() {
       }
     }, 16)
   })
+  ipcMain.on('overlay:zones', (event, zones: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || window !== minimapWindow || !Array.isArray(zones)) return
+    minimapZones = zones.slice(0, 40).flatMap((zone) => {
+      const { x, y, width, height } = (zone ?? {}) as Record<string, unknown>
+      return [x, y, width, height].every((value) => Number.isFinite(Number(value))) ? [{ x: Number(x), y: Number(y), width: Number(width), height: Number(height) }] : []
+    })
+  })
   ipcMain.on('overlay:resize', (event, width: unknown, height: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || window !== minimapWindow || window.isDestroyed()) return
@@ -168,6 +205,8 @@ function registerIpc() {
     tracking: tracker.running,
     screenshotsFolder: screenshotsFolder(),
     screenshotCandidates: screenshotFolderCandidates(),
+    lastScreenshot: tracker.lastSeen,
+    screenshotPresses,
     lastPosition: freshPosition(),
     raid: options.raidState(),
     displayMode,
@@ -202,9 +241,11 @@ function applySettings(settings: ExperimentalSettings) {
   screenshotTimer = null
   if (settings.tracking && settings.autoScreenshot) {
     screenshotTimer = setInterval(() => {
-      // Only press the screenshot key in a raid, with the game in front — never into other apps.
-      if (!hook || !options.raidState().inRaid || !isTarkovForeground()) return
-      hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
+      // Only press the screenshot key in a raid, with the game in front — never into other apps. Raid
+      // detection from the logs can miss a raid, so a coordinate screenshot in the last minutes also counts.
+      const recentlyInRaid = lastPosition && Date.now() - lastPosition.at < 3 * 60_000
+      if (!(options.raidState().inRaid || recentlyInRaid) || !isTarkovForeground()) return
+      void takeScreenshot()
     }, settings.screenshotIntervalMs)
   }
   if (!settings.minimap) minimapWindow?.hide()
@@ -233,7 +274,7 @@ function startHook() {
         lastKeyAt = now
         if (item && !previousItem) void lookupItem(false)
         else {
-          if (settings.tracking && hook) hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
+          if (settings.tracking) void takeScreenshot()
           void toggleMinimap(false)
         }
       }
@@ -267,7 +308,7 @@ function startHook() {
       else {
         // Opening the map should immediately request a fresh coordinate-bearing EFT screenshot.
         // The tracker will update the marker as soon as the game writes the file.
-        if (settings.tracking) uIOhook.keyTap(UiohookKey.PrintScreen!)
+        if (settings.tracking) void takeScreenshot()
         void toggleMinimap(false)
       }
     })
@@ -277,6 +318,25 @@ function startHook() {
     hookError = error instanceof Error ? error.message : String(error)
   }
 }
+
+let lastScreenshotPress = 0
+/** One screenshot key press for the position tracker: native scan-code input, uiohook as a fallback. */
+async function takeScreenshot() {
+  const now = Date.now()
+  if (now - lastScreenshotPress < 500) return
+  lastScreenshotPress = now
+  screenshotPresses += 1
+  if (await pressScreenshotKey()) return
+  if (!hook) return
+  try {
+    hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'down')
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'up')
+  } catch {
+    hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
+  }
+}
+let screenshotPresses = 0
 
 /** Asks the main window (which holds the catalog and quest progress) to answer a query. */
 function askRenderer(kind: 'item' | 'minimap', input: unknown): Promise<unknown> {
@@ -353,42 +413,68 @@ async function lookupItem(test: boolean) {
   try {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
-    // The card appears at once, outside the captured area, so it never hides the tooltip being read.
+    itemWindow?.hide()
+    // Grab the screen first (fast), then show the card next to the item while the text is read.
+    const shot = test ? null : await grabAroundCursor(point, display).catch(() => null)
     const window = ensureItemWindow()
     await whenLoaded(window)
-    placeOutsideCapture(window, point, display)
+    placeNearCursor(window, point, display)
     sendOverlay(window, 'overlay:item', { state: 'loading' })
     showOverlay(window)
-    if (itemHideTimer) clearTimeout(itemHideTimer)
-    const text = test ? '' : await captureAroundCursor(point, display).catch(() => '')
+    followCursor(window, point)
+    const lines = shot ? await recognizeRegionLines(shot.image).catch(() => []) : []
+    const nearby = shot ? lines.map((line) => ({ text: line.text, distance: distanceToLine(line, shot.cursor) })) : []
+    const text = nearby.map((line) => line.text).join('\n')
     const answer = test
       ? await askRenderer('item', { text: '', test: true })
-      : text ? await askRenderer('item', { text }) : null
-    sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text })
-    itemHideTimer = setTimeout(() => window.hide(), ITEM_HIDE_MS)
+      : text ? await askRenderer('item', { text, lines: nearby }) : null
+    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text })
     return answer
   } finally {
     lookupBusy = false
   }
 }
 
-function placeOutsideCapture(window: BrowserWindow, point: Point, display: Display) {
+/** Distance from the cursor to an OCR line, in image pixels; lines to the right/below (the tooltip) are slightly preferred. */
+function distanceToLine(line: { x: number; y: number; height: number; text: string }, cursor: { x: number; y: number }) {
+  const halfWidth = Math.max(8, line.text.length * line.height * 0.28)
+  const dx = Math.max(0, Math.abs(line.x - cursor.x) - halfWidth)
+  const dy = Math.max(0, Math.abs(line.y - cursor.y) - line.height / 2)
+  return Math.hypot(dx, dy * 1.4)
+}
+
+let followTimer: NodeJS.Timeout | null = null
+/** Keeps the card open while the cursor stays on the item; no timer. */
+function followCursor(window: BrowserWindow, origin: Point) {
+  if (followTimer) clearInterval(followTimer)
+  followTimer = setInterval(() => {
+    const point = screen.getCursorScreenPoint()
+    const left = Math.hypot(point.x - origin.x, point.y - origin.y) > ITEM_LEAVE_PX
+    if (window.isDestroyed() || !window.isVisible() || left || (nativeKeysAvailable() && !isTarkovForeground() && !lookupBusy)) {
+      if (!window.isDestroyed()) window.hide()
+      if (followTimer) clearInterval(followTimer)
+      followTimer = null
+    }
+  }, 80)
+}
+
+/** Next to the item: just below and to the right of the cursor, flipped at the screen edges. */
+function placeNearCursor(window: BrowserWindow, point: Point, display: Display) {
   const area = display.workArea
-  const unit = display.bounds.height / 1080
-  const x = Math.min(Math.max(point.x + 12, area.x + 8), area.x + area.width - ITEM_OVERLAY.width - 8)
-  const below = point.y + CAPTURE.down * unit + 8
-  const above = point.y - CAPTURE.up * unit - ITEM_OVERLAY.height - 8
-  const y = below + ITEM_OVERLAY.height <= area.y + area.height ? below : Math.max(area.y + 8, above)
-  window.setBounds({ x: Math.round(x), y: Math.round(y), ...ITEM_OVERLAY })
+  let x = point.x + 16
+  let y = point.y + 22
+  if (x + ITEM_OVERLAY.width > area.x + area.width - 4) x = point.x - ITEM_OVERLAY.width - 12
+  if (y + ITEM_OVERLAY.height > area.y + area.height - 4) y = point.y - ITEM_OVERLAY.height - 12
+  window.setBounds({ x: Math.round(Math.max(area.x + 4, x)), y: Math.round(Math.max(area.y + 4, y)), ...ITEM_OVERLAY })
 }
 
 /** The EFT item tooltip and the short name on the cell sit right around the cursor. */
-async function captureAroundCursor(point: Point, display: Display) {
+async function grabAroundCursor(point: Point, display: Display) {
   const scale = display.scaleFactor || 1
   const physical = { width: Math.round(display.bounds.width * scale), height: Math.round(display.bounds.height * scale) }
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: physical })
   const source = sources.find((entry) => entry.display_id === String(display.id)) ?? sources[0]
-  if (!source || source.thumbnail.isEmpty()) return ''
+  if (!source || source.thumbnail.isEmpty()) return null
   const image = source.thumbnail
   const size = image.getSize()
   const ratio = size.width / display.bounds.width
@@ -399,8 +485,8 @@ async function captureAroundCursor(point: Point, display: Display) {
   const top = Math.max(0, Math.round(cy - CAPTURE.up * unit))
   const width = Math.min(size.width - left, Math.round((CAPTURE.left + CAPTURE.right) * unit))
   const height = Math.min(size.height - top, Math.round((CAPTURE.up + CAPTURE.down) * unit))
-  if (width < 40 || height < 20) return ''
-  return recognizeRegion(image.crop({ x: left, y: top, width, height }))
+  if (width < 40 || height < 20) return null
+  return { image: image.crop({ x: left, y: top, width, height }), cursor: { x: cx - left, y: cy - top } }
 }
 
 async function toggleMinimap(fromApp: boolean) {
@@ -428,5 +514,6 @@ async function toggleMinimap(fromApp: boolean) {
   const onScreen = saved && screen.getAllDisplays().some(({ workArea: a }) => saved.x >= a.x - width / 2 && saved.x <= a.x + a.width - width / 2 && saved.y >= a.y && saved.y <= a.y + a.height - 40)
   window.setBounds(onScreen && saved ? { x: saved.x, y: saved.y, width, height } : { x: area.x + area.width - width - 24, y: area.y + 24, width, height })
   showOverlay(window)
+  watchMinimapHits(window)
   return true
 }

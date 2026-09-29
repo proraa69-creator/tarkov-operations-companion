@@ -165,6 +165,13 @@ export function ExperimentalPage() {
               <div className="panel-header"><div className="panel-title">{uiText("Состояние")}</div></div>
               <div className="panel-body exp-status">
                 <Row label="Горячие клавиши" value={status?.hookReady ? 'работают' : status?.hookError ? `ошибка: ${status.hookError}` : '…'} ok={status?.hookReady} />
+                <Row label="Нажатий PrtSc приложением" value={String(status?.screenshotPresses ?? 0)} ok={(status?.screenshotPresses ?? 0) > 0} />
+                <Row
+                  label="Последний скриншот"
+                  value={status?.lastScreenshot ? `${status.lastScreenshot.withCoordinates ? 'с координатами' : 'БЕЗ координат'} · ${Math.max(0, Math.round((now - status.lastScreenshot.at) / 1000))} с назад` : 'новых скриншотов нет'}
+                  ok={Boolean(status?.lastScreenshot?.withCoordinates)}
+                />
+                {status?.lastScreenshot && !status.lastScreenshot.withCoordinates && <p className="muted exp-folder">{uiText('Файл: ')}{status.lastScreenshot.name}{uiText(' — в имени нет координат. Проверьте, что скриншот сделан в рейде, и пришлите имя файла разработчику.')}</p>}
                 <Row label="Режим экрана игры" value={DISPLAY_LABEL[status?.displayMode ?? 'unknown']} ok={status?.displayMode === 'fullscreen' || status?.displayMode === 'normal'} />
                 <Row label="Рейд" value={status?.raid.inRaid ? `в рейде${status.raid.location ? ` · ${status.raid.location}` : ''}` : 'в меню'} ok={status?.raid.inRaid} />
                 <Row label="Отслеживание" value={status?.tracking ? 'включено' : 'выключено'} ok={status?.tracking} />

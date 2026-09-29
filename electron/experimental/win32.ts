@@ -2,13 +2,17 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 
-type Koffi = { load: (name: string) => { func: (signature: string) => (...args: unknown[]) => unknown } }
+type Koffi = {
+  load: (name: string) => { func: (signature: string) => (...args: unknown[]) => unknown }
+  struct: (name: string, fields: Record<string, string>) => unknown
+}
 
 let api: {
   notificationState: (out: Int32Array) => number
   foreground: () => unknown
   windowText: (hwnd: unknown, buffer: Uint16Array, size: number) => number
   keyState: (key: number) => number
+  sendInput: (count: number, input: Record<string, number>, size: number) => number
 } | null | undefined
 
 function win32() {
@@ -18,10 +22,13 @@ function win32() {
     const koffi = require('koffi') as Koffi
     const user32 = koffi.load('user32.dll')
     const shell32 = koffi.load('shell32.dll')
+    // INPUT with the KEYBDINPUT member, laid out for x64 (40 bytes: the union is sized by MOUSEINPUT).
+    koffi.struct('KEYINPUT64', { type: 'uint32', pad0: 'uint32', wVk: 'uint16', wScan: 'uint16', dwFlags: 'uint32', time: 'uint32', pad1: 'uint32', dwExtraInfo: 'uint64', pad2: 'uint64' })
     api = {
       notificationState: shell32.func('long __stdcall SHQueryUserNotificationState(_Out_ int32_t* pquns)') as (out: Int32Array) => number,
       foreground: user32.func('void* __stdcall GetForegroundWindow()') as () => unknown,
       keyState: user32.func('short __stdcall GetAsyncKeyState(int vKey)') as (key: number) => number,
+      sendInput: user32.func('uint32 __stdcall SendInput(uint32 cInputs, KEYINPUT64 *pInputs, int cbSize)') as (count: number, input: Record<string, number>, size: number) => number,
       windowText: user32.func('int __stdcall GetWindowTextW(void* hWnd, _Out_ uint16_t* lpString, int nMaxCount)') as (hwnd: unknown, buffer: Uint16Array, size: number) => number,
     }
   } catch {
@@ -73,5 +80,35 @@ export function foregroundDisplayMode(): DisplayMode {
     return 'normal'
   } catch {
     return 'unknown'
+  }
+}
+
+const INPUT_KEYBOARD = 1
+const KEYEVENTF_EXTENDEDKEY = 0x0001
+const KEYEVENTF_KEYUP = 0x0002
+const KEYEVENTF_SCANCODE = 0x0008
+const VK_SNAPSHOT = 0x2c
+/** PrintScreen is the extended scan code E0 37. */
+const SCAN_PRINTSCREEN = 0x37
+
+function key(flags: number) {
+  return { type: INPUT_KEYBOARD, pad0: 0, wVk: VK_SNAPSHOT, wScan: SCAN_PRINTSCREEN, dwFlags: flags, time: 0, pad1: 0, dwExtraInfo: 0, pad2: 0 }
+}
+
+/**
+ * Presses the game's screenshot key like a real keyboard: scan code + extended flag and a short hold, so a
+ * game that samples input once per frame sees it. Returns false when native input is unavailable.
+ */
+export async function pressScreenshotKey(holdMs = 60) {
+  const calls = win32()
+  if (!calls) return false
+  try {
+    const flags = KEYEVENTF_SCANCODE | KEYEVENTF_EXTENDEDKEY
+    if (calls.sendInput(1, key(flags), 40) !== 1) return false
+    await new Promise((resolve) => setTimeout(resolve, holdMs))
+    calls.sendInput(1, key(flags | KEYEVENTF_KEYUP), 40)
+    return true
+  } catch {
+    return false
   }
 }

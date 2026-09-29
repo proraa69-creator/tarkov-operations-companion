@@ -129,3 +129,23 @@ export function itemTextScore(item: Item, ocrText: string) {
 }
 
 export const ITEM_TEXT_MIN_SCORE = MIN_SCORE
+
+/**
+ * The item the player points at: OCR lines are tried from the nearest to the cursor outwards, so a
+ * neighbouring cell's label or another tooltip on screen never wins over the hovered item. A tooltip
+ * name that wraps onto two lines is also tried joined.
+ */
+export function matchNearest(match: (text: string) => Item | null, lines: Array<{ text: string; distance: number }>) {
+  const ordered = [...lines].sort((a, b) => a.distance - b.distance)
+  for (let index = 0; index < ordered.length; index += 1) {
+    const line = ordered[index]!
+    const next = ordered[index + 1]
+    if (next && next.distance - line.distance < 40) {
+      const joined = match(`${line.text} ${next.text}`)
+      if (joined) return joined
+    }
+    const single = match(line.text)
+    if (single) return single
+  }
+  return null
+}

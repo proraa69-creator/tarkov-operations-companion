@@ -18,3 +18,11 @@ describe('screenshot position', () => {
     expect(parseScreenshotPosition('photo.png')).toBeNull()
   })
 })
+
+describe('screenshot position on comma-decimal locales', () => {
+  it('reads coordinates written with decimal commas', () => {
+    const name = '2026-09-29[21-14]_-181,42, 3,27, -77,07_0,00000, 0,70711, 0,00000, 0,70711_11,02 (0).png'
+    expect(isPositionScreenshot(name)).toBe(true)
+    expect(parseScreenshotPosition(name, 1)).toMatchObject({ x: -181.42, y: 3.27, z: -77.07 })
+  })
+})

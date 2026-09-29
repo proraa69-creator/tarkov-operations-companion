@@ -151,15 +151,23 @@ function formatAge(seconds: number) {
 
 function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
-    const api = window.tarkovDesktop?.overlaySetInteractive
-    if (!api) return
-    let inside = false
-    const onMove = (event: MouseEvent) => {
-      const over = Boolean((event.target as HTMLElement | null)?.closest?.('.ov-interactive'))
-      if (over !== inside) { inside = over; api(over) }
+    const report = window.tarkovDesktop?.overlayZones
+    if (!report) return
+    let last = ''
+    // The main process hit-tests the cursor against these rectangles (see watchMinimapHits).
+    const send = () => {
+      const zones = [...document.querySelectorAll<HTMLElement>('.ov-interactive')].map((element) => {
+        const rect = element.getBoundingClientRect()
+        return { x: Math.round(rect.left), y: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) }
+      }).filter((zone) => zone.width > 0 && zone.height > 0)
+      const key = JSON.stringify(zones)
+      if (key !== last) { last = key; report(zones) }
     }
-    document.addEventListener('mousemove', onMove)
-    return () => { document.removeEventListener('mousemove', onMove); api(false) }
+    send()
+    const timer = window.setInterval(send, 400)
+    const observer = new ResizeObserver(send)
+    if (rootRef.current) observer.observe(rootRef.current)
+    return () => { window.clearInterval(timer); observer.disconnect(); report([]) }
   }, [rootRef])
 }
 
