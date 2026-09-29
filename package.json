@@ -42,7 +42,8 @@
       "**/node_modules/tesseract.js-core/**",
       "**/node_modules/uiohook-napi/**",
       "**/node_modules/node-gyp-build/**",
-      "**/node_modules/koffi/**"
+      "**/node_modules/koffi/**",
+      "**/node_modules/@koromix/**"
     ],
     "extraResources": [
       {
