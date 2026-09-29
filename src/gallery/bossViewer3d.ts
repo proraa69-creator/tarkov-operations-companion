@@ -11,6 +11,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import type { BossModelFix } from '../data/bossModels'
+import { addSway, type Sway } from './swayMaterial'
 
 export interface BossViewerHandle {
   /** Swap to another model; the renderer and lights are kept. */
@@ -61,6 +62,9 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   let lastFrame = 0
   let loadToken = 0
   let disposed = false
+  let sway: Sway | null = null
+  let swaying = false
+  let lastYaw = yaw
   const loader = new GLTFLoader()
 
   function resize() {
@@ -88,8 +92,11 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       yawVelocity *= Math.pow(0.02, dt) // inertia fades out in about a second
     } else if (!dragging) yawVelocity = 0
     if (spinning()) yaw += SPIN_SPEED * dt
+    // hanging cloth / hair follow the turning speed (dragging included) until they settle
+    if (sway && !options.reduced) swaying = sway.step(dt > 0 ? (yaw - lastYaw) / dt : 0, Math.max(dt, 1 / 60))
+    lastYaw = yaw
     draw()
-    if (visible && (spinning() || yawVelocity !== 0)) raf = requestAnimationFrame(frame)
+    if (visible && (spinning() || yawVelocity !== 0 || swaying || dragging)) raf = requestAnimationFrame(frame)
     else lastFrame = 0
   }
   function invalidate() { if (!raf && !disposed) raf = requestAnimationFrame(frame) }
@@ -162,6 +169,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       if (disposed || token !== loadToken) { release(gltf.scene); return }
       for (const child of [...turntable.children]) { turntable.remove(child); release(child) }
       const model = gltf.scene
+      sway = addSway(model)
       // Straighten first (about the feet), then stand the result on the floor, centred, 1 unit tall.
       const upright = new Group()
       upright.add(model)
