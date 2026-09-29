@@ -1,5 +1,6 @@
 /** English strings for the Mini Map section, map tools, themes, Collector items and item overlay. */
 export const FEATURE_PHRASES: Array<[string, string]> = [
+  ['Вне карт', 'Off the maps'],
   ['Мини Карта', 'Mini Map'], ['Окна поверх игры', 'In-game windows'],
   ['Информация о предмете', 'Item info'], ['Мини-карта', 'Mini map'],
   ['Клавиша информации о предмете', 'Item info key'], ['Клавиша мини-карты', 'Mini map key'],
@@ -54,4 +55,11 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Режим экрана игры', 'Game display mode'], ['эксклюзивный полноэкранный', 'exclusive full screen'],
   ['полноэкранный (окна поверх видны)', 'full screen (overlays visible)'], ['оконный', 'windowed'],
   ['определится, когда игра будет на переднем плане', 'detected when the game is in front'],
+  ['Галерея', 'Gallery'],
+  ['Все модели боссов. Откройте карточку и вращайте модель мышью; колесо — приблизить.', 'All boss models. Open a card and turn the model with the mouse; the wheel zooms.'],
+  ['3D модель: перетащите, чтобы повернуть', '3D model: drag to turn'], ['Загрузка модели…', 'Loading model…'],
+  ['Не удалось загрузить 3D модель', 'Could not load the 3D model'], ['Предыдущий босс', 'Previous boss'], ['Следующий босс', 'Next boss'],
+  // uiText translates " · "-separated parts one by one.
+  ['3D модели', '3D models'], ['Перетащите — повернуть', 'Drag to turn'], ['колесо — масштаб', 'wheel to zoom'], ['двойной клик — сброс', 'double-click to reset'],
+  ['Автоповорот', 'Auto-rotate'], ['Сбросить вид', 'Reset view'],
 ]

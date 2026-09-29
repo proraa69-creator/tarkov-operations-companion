@@ -1,5 +1,6 @@
 import tagillaUrl from '../../assets/gear/helmet-tagilla.glb?url'
 import killaUrl from '../../assets/gear/helmet-killa.glb?url'
+import tagilla2Url from '../../assets/gear/helmet-tagilla-2.glb?url'
 import steelUrl from '../../assets/gear/helmet-steel.glb?url'
 import knightUrl from '../../assets/gear/helmet-knight.glb?url'
 
@@ -18,6 +19,8 @@ export const HELMETS: HelmetVariant[] = [
   // the owner's Tagilla welding mask, updated version (Tripo export, packed by scripts/gear/pack-helmet.mjs);
   // the id stays 'original' so a saved choice keeps pointing at it
   { id: 'original', label: 'Маска Тагиллы', url: tagillaUrl },
+  // the owner's second Tagilla mask (packed by scripts/gear/pack-helmet.mjs)
+  { id: 'tagilla-2', label: 'Маска Тагиллы 2', url: tagilla2Url },
   // the owner's Killa helmet (packed by scripts/gear/pack-helmet.mjs)
   { id: 'killa', label: 'Шлем Киллы', url: killaUrl, shine: true },
   // the owner's skull mask with dreadlocks (Tripo export, packed by scripts/gear/pack-helmet.mjs, swing weights by rig-knight.mjs)

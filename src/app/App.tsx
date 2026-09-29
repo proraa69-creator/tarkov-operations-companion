@@ -11,12 +11,14 @@ import { UiSounds } from '../components/UiSounds'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { ExperimentalPage } from '../pages/ExperimentalPage'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
+import { GalleryPage } from '../pages/GalleryPage'
 import { useLocale } from '../i18n/LocaleProvider'
 
 export function App() {
   const { locale, revision } = useLocale()
   return <><StoryScreenScanner /><UiSounds /><ExperimentalBridge /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={<ExperimentalPage />} />
+    <Route path="/gallery" element={<GalleryPage />} />
     <Route path="/kappa-items" element={<KappaItemsPage />} />
     <Route path="/" element={<DashboardPage />} />
     <Route path="/maps" element={<MapsPage />} />

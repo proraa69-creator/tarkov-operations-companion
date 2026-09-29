@@ -8,7 +8,8 @@ const byKey = new Map(Object.entries(images).map(([path, url]) => [path.replace(
 
 export interface BossFigure { key: string; name: { ru: string; en: string }; url: string }
 
-const NAMES: Record<string, { ru: string; en: string }> = {
+/** RU/EN display names by boss key (also used by the Gallery). */
+export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   reshala: { ru: 'Решала', en: 'Reshala' },
   partisan: { ru: 'Партизан', en: 'Partisan' },
   'goon-1': { ru: 'Бёрдай', en: 'Birdeye' },
@@ -19,6 +20,7 @@ const NAMES: Record<string, { ru: string; en: string }> = {
   killa: { ru: 'Килла', en: 'Killa' },
   tagilla: { ru: 'Тагилла', en: 'Tagilla' },
   'tagilla-2': { ru: 'Тагилла 2', en: 'Tagilla 2' },
+  'killa-knight': { ru: 'Килла-рыцарь', en: 'Killa Knight' },
   glukhar: { ru: 'Глухарь', en: 'Glukhar' },
   raiders: { ru: 'Рейдеры', en: 'Raiders' },
   zryachiy: { ru: 'Зрячий', en: 'Zryachiy' },
@@ -51,6 +53,21 @@ const MAP_BOSSES: Record<string, string[]> = {
 export function bossFiguresFor(mapId: string): BossFigure[] {
   return (MAP_BOSSES[mapId] ?? []).flatMap((key) => GROUPS[key] ?? [key]).flatMap((key) => {
     const url = byKey.get(key)
-    return url ? [{ key, name: NAMES[key] ?? { ru: key, en: key }, url }] : []
+    return url ? [{ key, name: BOSS_NAMES[key] ?? { ru: key, en: key }, url }] : []
   })
+}
+
+/** Every boss that has a pre-rendered figure, in the owner's list order (the Gallery grid). */
+export function allBossFigures(): BossFigure[] {
+  return Object.keys(BOSS_NAMES).flatMap((key) => {
+    const url = byKey.get(key)
+    return url ? [{ key, name: BOSS_NAMES[key], url }] : []
+  })
+}
+
+/** Map ids where this boss (or its group) is shown, in MAP_BOSSES order. */
+export function bossMapIds(key: string): string[] {
+  return Object.entries(MAP_BOSSES)
+    .filter(([, bosses]) => bosses.some((entry) => entry === key || GROUPS[entry]?.includes(key)))
+    .map(([mapId]) => mapId)
 }

@@ -2,12 +2,11 @@ import { useAppState } from '../../state/AppState'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { GearHangers } from './GearHangers'
 import { GearPatches } from './GearPatches'
-import { HelmetBadge } from './HelmetBadge'
 import { useGearActive, useReducedMotion } from './useGearActive'
 
 /**
- * Decorations of the «Снаряжение» / "Gear" theme: swinging kit, the 3D helmet by «Обзор» and the sidebar
- * patches. Mounted only while `<html data-theme="gear">` is set; everything unmounts (and the WebGL context
+ * Decorations of the «Снаряжение» / "Gear" theme: swinging kit and the sidebar patches (the 3D mask by
+ * «Обзор» is in every theme, see HelmetBadge). Mounted only while `<html data-theme="gear">` is set; everything unmounts (and the WebGL context
  * is released) when another theme is picked.
  */
 export function GearDecor() {
@@ -29,7 +28,6 @@ function GearDecorActive() {
   return (
     <>
       <GearHangers reduced={reduced} tagLines={tagLines} />
-      <HelmetBadge reduced={reduced} />
       <GearPatches locale={locale} callsign={callsign} />
     </>
   )

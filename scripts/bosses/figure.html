@@ -26,7 +26,8 @@ new GLTFLoader().load(q.get('m'), (g) => {
   const m = g.scene
   const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3())
   m.position.set(-c.x, -box.min.y, -c.z)
-  const holder = new THREE.Group(); holder.add(m); holder.rotation.y = yaw
+  const upright = new THREE.Group(); upright.add(m); upright.rotation.z = +(q.get('roll') || 0) * Math.PI / 180
+  const holder = new THREE.Group(); holder.add(upright); holder.rotation.y = yaw
   holder.scale.setScalar(1 / size.y); scene.add(holder)
   const cam = new THREE.PerspectiveCamera(22, W / H, 0.1, 50)
   cam.position.set(0, 0.62, 3.1); cam.lookAt(0, 0.5, 0)

@@ -15,6 +15,8 @@ const srcDir = path.resolve(process.argv[2] || path.join(root, 'work/bosses-src'
 const outDir = path.join(root, 'src/assets/boss-figures')
 const only = process.argv.slice(3)
 const HEIGHT = 900
+// pose corrections about the feet, same as BOSS_MODEL_FIX in src/data/bossModels.ts
+const ROLL = { partisan: 9.3 }
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.glb': 'model/gltf-binary' }
 const server = http.createServer((req, res) => {
@@ -35,7 +37,7 @@ const files = fs.readdirSync(srcDir).filter((f) => f.endsWith('.glb') && (!only.
 for (const file of files) {
   const key = file.replace(/\.glb$/, '')
   const page = await browser.newPage()
-  await page.goto(`http://127.0.0.1:${port}/scripts/bosses/figure.html?m=/__src/${encodeURIComponent(file)}&h=${HEIGHT}`)
+  await page.goto(`http://127.0.0.1:${port}/scripts/bosses/figure.html?m=/__src/${encodeURIComponent(file)}&h=${HEIGHT}&roll=${ROLL[key] ?? 0}`)
   await page.waitForFunction(() => document.title !== '', null, { timeout: 180000 })
   if (!(await page.title()).startsWith('done')) { console.error(key, await page.title()); await page.close(); continue }
   const png = Buffer.from((await page.evaluate(() => document.getElementById('c').toDataURL('image/png'))).split(',')[1], 'base64')

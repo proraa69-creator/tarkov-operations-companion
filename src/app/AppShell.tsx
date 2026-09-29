@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, Home, MapPinned, Palette,
+  ChevronRight, CircleDollarSign, Home, Images, MapPinned, Palette,
   Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -15,6 +15,7 @@ import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
+import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
@@ -28,6 +29,7 @@ const navigation = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
+  { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -146,6 +148,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
       </aside>
       <GearDecor />
+      <MaskBadge />
       <TelnyashkaTable />
 
       <header className="topbar">
