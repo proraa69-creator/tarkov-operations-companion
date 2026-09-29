@@ -8,7 +8,8 @@ import { mainFloor } from './mapProjection'
  * Both drawings are placed through the same CRS in game coordinates, so markers line up in either view.
  */
 export const MAP_VIEW_KEY = 'tarkov-map-view'
-export const DEFAULT_MAP_VIEW: MapView = 'satellite'
+/** One look for every map by default: the scheme exists for all maps but Labs, Labyrinth and Icebreaker. */
+export const DEFAULT_MAP_VIEW: MapView = 'digital'
 
 export function readMapView(): MapView {
   try {

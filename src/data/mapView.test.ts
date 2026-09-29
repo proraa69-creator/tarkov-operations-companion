@@ -30,12 +30,12 @@ function svgOnly(): GameMap {
 describe('map view preference', () => {
   beforeEach(() => localStorage.removeItem(MAP_VIEW_KEY))
 
-  it('defaults to satellite and remembers the choice', () => {
-    expect(readMapView()).toBe('satellite')
-    saveMapView('digital')
+  it('defaults to the scheme (one style for all maps) and remembers the choice', () => {
     expect(readMapView()).toBe('digital')
-    localStorage.setItem(MAP_VIEW_KEY, 'nonsense')
+    saveMapView('satellite')
     expect(readMapView()).toBe('satellite')
+    localStorage.setItem(MAP_VIEW_KEY, 'nonsense')
+    expect(readMapView()).toBe('digital')
   })
 
   it('knows which drawings a map has and falls back to the one it has', () => {
