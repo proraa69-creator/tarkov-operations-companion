@@ -333,7 +333,7 @@
       }
       const g = Math.abs(gx - P.c) * P.freq + Wl[k] * 5 + Ws[k] * 0.45 + P.ph
       const t = g - Math.floor(g)
-      const lw = sstep(0.74, 0.9, t) * (1 - sstep(0.93, 0.995, t))          // latewood band
+      const lw = sstep(0.78, 0.86, t) * (1 - sstep(0.95, 0.995, t)) + t * 0.18   // sharp latewood + earlywood darkening towards it          // latewood band
       late[k] = lw
       // wood height: latewood ridges stand proud (weathered earlywood erodes), fibres, pores
       let h = lw * 0.9 + fib[k] * 0.55 + fib2[k] * 0.35 - sstep(0.3, 0.45, pore[k]) * 0.6 - knotCore * 0.2 + knotRing * 0.25
@@ -354,7 +354,7 @@
       const wv = wear1[k] * 0.9 + wear2[k] * 0.45 + edgeW * 0.55 + lw * 0.12 + rustHalo * 0.25
       const bare = sstep(0.19, 0.205, wv)
       // crazing cracks inside the paint
-      const cr = (1 - sstep(0.004, 0.011, Math.abs(crackN[k]))) * sstep(0.03, 0.12, crackMask[k])
+      const cr = (1 - sstep(0.006, 0.016, Math.abs(crackN[k]))) * sstep(-0.02, 0.08, crackMask[k])
       const pc = e < gap ? 0 : (1 - bare) * (1 - cr * 0.9)
       paint[k] = pc
       h += pc * 1.7
@@ -364,7 +364,7 @@
       let wr = mix(woodA[0], woodB[0], lw * 0.85), wg = mix(woodA[1], woodB[1], lw * 0.85), wb = mix(woodA[2], woodB[2], lw * 0.85)
       const grey = 0.35 + wear3[k] * 0.4
       wr = mix(wr, woodGrey[0], grey); wg = mix(wg, woodGrey[1], grey); wb = mix(wb, woodGrey[2], grey)
-      const fb = 1 + fib[k] * 0.35 + fib2[k] * 0.2 - sstep(0.3, 0.45, pore[k]) * 0.35
+      const fb = 1 + fib[k] * 0.55 + fib2[k] * 0.3 - sstep(0.28, 0.42, pore[k]) * 0.45
       wr *= fb * P.tone; wg *= fb * P.tone; wb *= fb * P.tone
       if (knotCore) { wr = mix(wr, 60, knotCore * 0.8); wg = mix(wg, 44, knotCore * 0.8); wb = mix(wb, 30, knotCore * 0.8) }
       if (knotRing) { wr *= 1 - knotRing * 0.25; wg *= 1 - knotRing * 0.25; wb *= 1 - knotRing * 0.25 }
@@ -386,6 +386,7 @@
       // grime towards the gaps
       const gr = (1 - sstep(gap, gap + 40 * k1, e)) * 0.5 + sstep(0.1, 0.4, grime[k]) * 0.18
       R *= 1 - gr; Gc *= 1 - gr; Bc *= 1 - gr
+      if (cr && pc < 0.5 && !bare) { const cd = 1 - cr * 0.62; R *= cd; Gc *= cd; Bc *= cd }  // crack floor sits in shadow
       if (e < gap) { R = 12; Gc = 10; Bc = 7 }
       alb[k * 3] = R; alb[k * 3 + 1] = Gc; alb[k * 3 + 2] = Bc
     }
@@ -593,7 +594,7 @@
       const dark = sstep(0.2, 0.45, -grime2[k]) * 0.4
       r *= 1 - dark; g *= 1 - dark; b *= 1 - dark
       const L = 0.4 + 0.65 * lam[k]
-      const s = spec[k] * (60 - gm * 30) + brushed[k] * 10 + fp[k] * 13
+      const s = spec[k] * (60 - gm * 30) + brushed[k] * 10 + fp[k] * 20
       put(out, k, r * L + s, g * L + s, b * L + s * 1.08)
     }
     return {
