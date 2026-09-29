@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-  Запускает API-сервер и сайт Tarkov Operations Companion на этом компьютере.
+  Запускает API-сервер и сайт Tarkov Operator на этом компьютере.
 
 .DESCRIPTION
   Два фоновых процесса:

@@ -1,4 +1,4 @@
-# Tarkov Operations Companion
+# Tarkov Operator
 
 Локальный интерактивный прототип ПК-компаньона для Escape from Tarkov: командный центр, карты, задания, ключи, предметы и экономика.
 

@@ -1,14 +1,14 @@
-# Tarkov Operations Companion — Claude working notes
+# Tarkov Operator — Claude working notes
 
-This repository contains the current Tarkov APP / Tarkov Operations Companion desktop client.
+This repository contains the current Tarkov APP / Tarkov Operator desktop client.
 
 ## Project facts
 
 - Main GitHub repository: `https://github.com/proraa69-creator/tarkov-operations-companion`
 - Current package version: `0.5.4`
 - App type: Electron desktop shell with React/Vite renderer and local/server preparation code.
-- Product name in package config: `Tarkov Operations Companion Beta`
-- Windows portable build output: `release/Tarkov Operations Companion Experimental 0.5.4.exe`
+- Product name in package config: `Tarkov Operator`
+- Windows portable build output: `release/Tarkov Operator 0.5.4.exe`
 - Product/business roadmap and streamer referral context: `docs/product-roadmap-and-business-model.md`
 
 ## Useful commands

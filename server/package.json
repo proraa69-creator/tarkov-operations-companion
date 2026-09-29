@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.3.0",
   "type": "module",
-  "description": "Application-owned API and catalog cache for Tarkov Operations Companion",
+  "description": "Application-owned API and catalog cache for Tarkov Operator",
   "scripts": {
     "test": "node --import tsx --test src/api.test.ts src/routes/goons.test.ts src/routes/accounts.test.ts src/routes/me.test.ts src/services/persistence.test.ts",
     "dev": "tsx watch src/index.ts",

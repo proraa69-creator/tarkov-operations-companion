@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Extend Tarkov Operations Companion from a local quest prototype into a trustworthy multi-mode companion. A user registers a separate Escape from Tarkov nickname for PvP, PvE, and Seasonal PvP. The application links each nickname to a stable Tarkov.dev account identifier, keeps progress isolated by mode, reads supported local EFT logs, and refreshes available profile data every minute.
+Extend Tarkov Operator from a local quest prototype into a trustworthy multi-mode companion. A user registers a separate Escape from Tarkov nickname for PvP, PvE, and Seasonal PvP. The application links each nickname to a stable Tarkov.dev account identifier, keeps progress isolated by mode, reads supported local EFT logs, and refreshes available profile data every minute.
 
 The product must distinguish confirmed source data from inferred or manually entered state. It must not claim to know inventory, quest, or hideout state that cannot be obtained reliably.
 

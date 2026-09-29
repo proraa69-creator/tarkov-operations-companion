@@ -1,4 +1,4 @@
-# План реализации Tarkov Operations Companion Desktop Beta
+# План реализации Tarkov Operator Desktop Beta
 
 Дата: 25 сентября 2026 года  
 Основание: `docs/superpowers/specs/2026-09-25-tarkov-desktop-data-progress-design.md`
@@ -306,7 +306,7 @@
 2. Собрать production renderer и portable Windows EXE.
 3. Запустить упакованное приложение и пройти smoke-сценарий.
 4. Проверить первый запуск без сети и повторный запуск с сохранённым профилем.
-5. Скопировать `Tarkov Operations Companion Beta.exe` на рабочий стол.
+5. Скопировать `Tarkov Operator.exe` на рабочий стол.
 6. Оставить браузерный preview доступным для быстрой визуальной проверки.
 
 Итоговая проверка:
@@ -334,4 +334,4 @@ desktop copy: present
 8. `feat: redesign quest completion controls`
 9. `feat: fill reference sections from complete catalog`
 10. `feat: add profile backup and app attribution`
-11. `build: package Tarkov Operations Companion beta for Windows`
+11. `build: package Tarkov Operator beta for Windows`

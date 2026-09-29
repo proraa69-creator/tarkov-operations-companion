@@ -1,4 +1,4 @@
-# Tarkov Operations Companion — website
+# Tarkov Operator — website
 
 Russian-language product site and personal account (личный кабинет) with the same dark olive/brass look as the
 desktop app. React + react-router (BrowserRouter) + Vite. It has no `node_modules` of its own: every command

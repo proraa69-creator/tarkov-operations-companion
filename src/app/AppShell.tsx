@@ -135,7 +135,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sidebar">
         <NavLink to="/" className="brand">
           <div className="brand-mark">TO</div>
-          <div className="brand-name">TARKOV OPS<span className="brand-sub">FIELD COMPANION</span></div>
+          <div className="brand-name">TARKOV OPERATOR<span className="brand-sub">FIELD COMPANION</span></div>
         </NavLink>
         <div className="nav-label">{uiText(locale === 'en' ? 'OPERATIONS' : 'ОПЕРАЦИИ')}</div>
         <nav className="nav-list" aria-label={uiText("Основная навигация")}>

@@ -5,7 +5,7 @@
 
 ## Результат
 
-Новая portable-сборка `Tarkov Operations Companion Beta.exe` на рабочем столе и в `outputs`, где раздел синхронизации показывает desktop-функции, а карты используют реальные координаты Tarkov.dev вместо демонстрационных или сгенерированных маркеров.
+Новая portable-сборка `Tarkov Operator.exe` на рабочем столе и в `outputs`, где раздел синхронизации показывает desktop-функции, а карты используют реальные координаты Tarkov.dev вместо демонстрационных или сгенерированных маркеров.
 
 ## Принципы
 
@@ -142,7 +142,7 @@
 
 - `package.json`
 - `README.md`, если меняется инструкция запуска;
-- `outputs/Tarkov Operations Companion Beta.exe`.
+- `outputs/Tarkov Operator.exe`.
 
 Работы:
 

@@ -11,18 +11,18 @@ import { ReferralLandingPage } from './pages/ReferralLandingPage'
 import { RegisterPage } from './pages/RegisterPage'
 
 const TITLES: Record<string, string> = {
-  '/': 'Tarkov Operations Companion',
-  '/about': 'О нас — Tarkov Operations Companion',
-  '/download': 'Скачать — Tarkov Operations Companion',
-  '/login': 'Вход — Tarkov Operations Companion',
-  '/register': 'Регистрация — Tarkov Operations Companion',
-  '/cabinet': 'Личный кабинет — Tarkov Operations Companion',
+  '/': 'Tarkov Operator',
+  '/about': 'О нас — Tarkov Operator',
+  '/download': 'Скачать — Tarkov Operator',
+  '/login': 'Вход — Tarkov Operator',
+  '/register': 'Регистрация — Tarkov Operator',
+  '/cabinet': 'Личный кабинет — Tarkov Operator',
 }
 
 export function App() {
   const { pathname } = useLocation()
   useEffect(() => {
-    document.title = TITLES[pathname] ?? 'Tarkov Operations Companion'
+    document.title = TITLES[pathname] ?? 'Tarkov Operator'
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [pathname])
 

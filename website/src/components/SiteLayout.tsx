@@ -12,10 +12,10 @@ const NAV = [
 
 export function Brand() {
   return (
-    <Link to="/" className="brand" aria-label="Tarkov Operations Companion — на главную">
+    <Link to="/" className="brand" aria-label="Tarkov Operator — на главную">
       <span className="brand-mark" aria-hidden="true">TO</span>
       <span className="brand-text">
-        <span className="brand-name">TARKOV OPERATIONS</span>
+        <span className="brand-name">TARKOV OPERATOR</span>
         <span className="brand-sub">COMPANION</span>
       </span>
     </Link>
@@ -75,7 +75,7 @@ export function SiteLayout() {
       <footer className="site-footer">
         <div className="container">
           <div>
-            <div>© {new Date().getFullYear()} Tarkov Operations Companion · версия {APP_VERSION}</div>
+            <div>© {new Date().getFullYear()} Tarkov Operator · версия {APP_VERSION}</div>
             <div>Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.</div>
           </div>
           <nav aria-label="Ссылки в подвале">

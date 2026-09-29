@@ -16,7 +16,7 @@ export function AboutPage() {
             <h1 className="page-title stagger" style={stagger(1)}>Сделано игроками — для игроков</h1>
             <p className="page-subtitle stagger" style={stagger(2)}>
               Мы — небольшая независимая команда, которая сама годами ходит в рейды Escape from Tarkov.
-              Tarkov Operations Companion — это то, чего нам самим не хватало между рейдами.
+              Tarkov Operator — это то, чего нам самим не хватало между рейдами.
             </p>
           </div>
         </header>

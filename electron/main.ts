@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +13,11 @@ import { accountLogin, accountLogout, accountStatus, serviceRequest } from './se
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
+
+// The app was renamed to «Tarkov Operator». Keep using the old data folder (settings, profiles, local
+// storage, session) when it exists, so nobody loses their progress after the update.
+const LEGACY_USER_DATA = join(app.getPath('appData'), 'Tarkov Operations Companion Beta')
+if (existsSync(LEGACY_USER_DATA)) app.setPath('userData', LEGACY_USER_DATA)
 let mainWindow: BrowserWindow | null = null
 const LOG_POLL_MS = 5000
 let watchedFolder = ''
@@ -43,7 +49,7 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 700,
     backgroundColor: '#0d1110',
-    title: 'Tarkov Operations Companion Beta',
+    title: 'Tarkov Operator',
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(appDir, '../../electron/preload.cjs'),

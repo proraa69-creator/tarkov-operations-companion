@@ -5,7 +5,7 @@
 
 ## Результат
 
-Новая portable-сборка `Tarkov Operations Companion Beta.exe` на рабочем столе и в `outputs`. В ней PvP, PvE и сезонный режим имеют независимые привязки к никам Tarkov.dev, смешанные журналы распределяются автоматически, задания вычисляются по подтверждённому уровню и цепочкам, а интерфейс содержит обновлённый обзор, единую барахолку, карточки торговцев и интерактивное убежище.
+Новая portable-сборка `Tarkov Operator.exe` на рабочем столе и в `outputs`. В ней PvP, PvE и сезонный режим имеют независимые привязки к никам Tarkov.dev, смешанные журналы распределяются автоматически, задания вычисляются по подтверждённому уровню и цепочкам, а интерфейс содержит обновлённый обзор, единую барахолку, карточки торговцев и интерактивное убежище.
 
 ## Граница текущей сборки
 
@@ -303,9 +303,9 @@
 
 Результат сборки:
 
-- `release/Tarkov Operations Companion Beta.exe`;
-- `outputs/Tarkov Operations Companion Beta.exe`;
-- `C:\Users\BANGKOK PC\Desktop\Tarkov Operations Companion Beta.exe`.
+- `release/Tarkov Operator.exe`;
+- `outputs/Tarkov Operator.exe`;
+- `C:\Users\BANGKOK PC\Desktop\Tarkov Operator.exe`.
 
 Все копии проверяются по SHA256. Desktop EXE запускается, проходит smoke-проверку и корректно закрывается.
 

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Tarkov Operations Companion API
+  title: Tarkov Operator API
   version: 0.2.0
   description: Local development API. Public billing and per-user authentication are not enabled yet.
 servers:

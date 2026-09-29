@@ -1,4 +1,4 @@
-# План реализации Tarkov Operations Companion
+# План реализации Tarkov Operator
 
 Дата: 25 сентября 2026 года  
 Основание: `docs/superpowers/specs/2026-09-25-tarkov-companion-prototype-design.md`  
@@ -44,7 +44,7 @@
 1. Создать Vite-проект React + TypeScript в корне репозитория.
 2. Установить React Router, TanStack Query, Leaflet и типы Leaflet.
 3. Подключить Vitest, Testing Library, jsdom и Playwright.
-4. Написать падающий тест: приложение показывает название `Tarkov Operations`.
+4. Написать падающий тест: приложение показывает название `Tarkov Operator`.
 5. Реализовать минимальный `App` и добиться прохождения теста.
 6. Добавить скрипты `dev`, `build`, `typecheck`, `test`, `test:e2e`, `lint`.
 7. Проверить запуск, сборку, типы и smoke-тест.

@@ -11,7 +11,7 @@ export function HomePage({ banner }: { banner?: ReactNode }) {
         {banner}
         <div className="hero-head">
           <div className="eyebrow stagger" style={stagger(0)}>Компаньон для Escape from Tarkov</div>
-          <h1 className="hero-title stagger" style={stagger(1)}>Tarkov Operations <span>Companion</span></h1>
+          <h1 className="hero-title stagger" style={stagger(1)}>Tarkov Operator <span>Companion</span></h1>
           <p className="hero-lead stagger" style={stagger(2)}>Всё важное перед рейдом — в одном окне рядом с игрой.</p>
         </div>
 
