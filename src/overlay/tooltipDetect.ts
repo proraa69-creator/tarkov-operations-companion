@@ -130,7 +130,7 @@ function looksLikeText(image: Bitmap, rect: Rect) {
 /**
  * The tooltip text as black on white, upscaled — what the OCR reads best. Returns BGRA pixels.
  */
-export function tooltipForOcr(image: Bitmap, rect: Rect, scale = 3): Bitmap {
+export function tooltipForOcr(image: Bitmap, rect: Rect, scale = 3, black = 45, span = 150): Bitmap {
   const width = rect.width * scale
   const height = rect.height * scale
   const data = new Uint8Array(width * height * 4)
@@ -140,7 +140,7 @@ export function tooltipForOcr(image: Bitmap, rect: Rect, scale = 3): Bitmap {
       const sx = rect.x + Math.floor(x / scale)
       const light = luminance(image.data, (sy * image.width + sx) * 4)
       // Stretch: the dark background goes white, the light text black.
-      const value = 255 - Math.max(0, Math.min(255, Math.round((light - 45) * 255 / 150)))
+      const value = 255 - Math.max(0, Math.min(255, Math.round((light - black) * 255 / span)))
       const index = (y * width + x) * 4
       data[index] = value
       data[index + 1] = value

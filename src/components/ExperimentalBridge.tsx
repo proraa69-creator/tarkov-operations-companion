@@ -38,7 +38,7 @@ export function ExperimentalBridge() {
         const item = query.input.test
           ? data.items.find((entry) => (entry.fleaPrice ?? 0) > 0 && data.quests.some((quest) => quest.requiredItems?.includes(entry.id)))
           : query.input.tooltip
-            ? tooltipMatcher(query.input.text)
+            ? tooltipMatcher(query.input.text) ?? matcher(query.input.text)
             : (query.input.lines?.length ? matchNearest(matcher, query.input.lines) : null) ?? matcher(query.input.text)
         const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode) : { state: 'not-found', text: query.input.text }
         void api.answer(query.id, payload)

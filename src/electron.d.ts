@@ -69,6 +69,8 @@ interface TarkovDesktopApi {
     testItemLookup: () => Promise<unknown>
     /** Folder, key, one real press with the game in front, the file and its coordinates. */
     checkScreenshots: () => Promise<ScreenshotCheck>
+    /** Opens the folder with unrecognised item tooltips (picture + what was read). */
+    openLookupLog?: () => Promise<boolean>
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>

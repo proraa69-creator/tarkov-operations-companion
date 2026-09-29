@@ -288,6 +288,7 @@ export function ExperimentalPage() {
                 </div>
                 <div className="exp-actions">
                   <button className="button primary" onClick={() => void api.testItemLookup()}>{uiText("Проверить карточку предмета")}</button>
+                  <button className="button ghost" onClick={() => void api.openLookupLog?.()} title={uiText("Картинки подсказок, которые не удалось сопоставить с предметом, и что было прочитано — пришлите их разработчику")}>{uiText("Нераспознанные предметы")}</button>
                   <button className="button ghost" onClick={() => void api.toggleMinimap()}>{uiText("Показать / скрыть мини-карту")}</button>
                 </div>
               </div>

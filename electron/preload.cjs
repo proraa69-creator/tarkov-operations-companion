@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     pickScreenshotsFolder: () => ipcRenderer.invoke('experimental:pick-screenshots'),
     testItemLookup: () => ipcRenderer.invoke('experimental:test-item'),
     checkScreenshots: () => ipcRenderer.invoke('experimental:check-screenshots'),
+    openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
     openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),

@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     toggleMinimap: () => ipcRenderer.invoke('experimental:toggle-minimap'),
     testItemLookup: () => ipcRenderer.invoke('experimental:test-item'),
     checkScreenshots: () => ipcRenderer.invoke('experimental:check-screenshots'),
+    openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback: (payload: unknown) => void) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
     openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),

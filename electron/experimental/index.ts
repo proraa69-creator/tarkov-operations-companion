@@ -1,7 +1,7 @@
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, type Display, type Point, type Rectangle } from 'electron'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, screen, shell, type Display, type Point, type Rectangle } from 'electron'
 import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
@@ -291,6 +291,10 @@ function registerIpc() {
   ipcMain.handle('experimental:toggle-minimap', () => toggleMinimap(true))
   ipcMain.handle('experimental:test-item', () => lookupItem(true))
   ipcMain.handle('experimental:check-screenshots', () => checkScreenshots())
+  ipcMain.handle('experimental:open-lookup-log', async () => {
+    await mkdir(lookupLogDir(), { recursive: true })
+    return (await shell.openPath(lookupLogDir())) === ''
+  })
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
   // Only opens the Windows settings page; the player changes the setting there.
   ipcMain.handle('experimental:open-keyboard-settings', () => shell.openExternal('ms-settings:easeofaccess-keyboard').then(() => true, () => false))
@@ -592,13 +596,44 @@ async function lookupItem(test: boolean) {
       return null
     }
     showItemCard(window, point, display, found.screen, { state: 'loading' })
-    const text = await recognizeTooltip(tooltipForOcr(found.image, found.rect)).catch(() => '')
-    const answer = text ? await askRenderer('item', { text, tooltip: true }) : null
-    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text })
+    // The first reading nearly always matches; when it does not, read the tooltip again prepared differently
+    // (larger, darker/lighter cut-off) before giving up.
+    const tries: string[] = []
+    let answer: unknown = null
+    for (const [scale, black, span] of [[3, 45, 150], [4, 30, 170], [3, 70, 120]] as const) {
+      const text = await recognizeTooltip(tooltipForOcr(found.image, found.rect, scale, black, span)).catch(() => '')
+      tries.push(text)
+      if (!text) continue
+      const reply = await askRenderer('item', { text, tooltip: true })
+      if (reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found') { answer = reply; break }
+    }
+    if (!answer) void logFailedLookup(found.image, found.rect, tries)
+    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text: tries[0] ?? '' })
     return answer
   } finally {
     lookupBusy = false
   }
+}
+
+/** Unrecognised items are kept (last 30) so the owner can send them: the tooltip picture and what was read. */
+const lookupLogDir = () => join(app.getPath('userData'), 'item-lookups')
+
+async function logFailedLookup(image: { width: number; height: number; data: Uint8Array }, rect: Rectangle, tries: string[]) {
+  try {
+    const dir = lookupLogDir()
+    await mkdir(dir, { recursive: true })
+    const pad = 6
+    const x = Math.max(0, rect.x - pad), y = Math.max(0, rect.y - pad)
+    const width = Math.min(image.width - x, rect.width + pad * 2), height = Math.min(image.height - y, rect.height + pad * 2)
+    const crop = new Uint8Array(width * height * 4)
+    for (let row = 0; row < height; row += 1) crop.set(image.data.subarray(((y + row) * image.width + x) * 4, ((y + row) * image.width + x + width) * 4), row * width * 4)
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const png = nativeImage.createFromBitmap(Buffer.from(crop.buffer), { width, height }).toPNG()
+    await writeFile(join(dir, `${stamp}.png`), png)
+    await writeFile(join(dir, `${stamp}.json`), JSON.stringify({ read: tries, box: rect }, null, 2), 'utf8')
+    const files = (await readdir(dir)).sort()
+    for (const old of files.slice(0, Math.max(0, files.length - 60))) await rm(join(dir, old), { force: true })
+  } catch { /* diagnostics only */ }
 }
 
 /** The tooltip appears a moment after the cursor stops on an item: look again for a short while. */
