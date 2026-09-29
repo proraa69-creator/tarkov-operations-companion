@@ -951,3 +951,12 @@ a.quest-stage:hover { color: var(--text); }
   .gallery-viewer-body { grid-template-columns: 1fr; grid-template-rows: minmax(300px, 1fr) auto; }
   .gallery-viewer-info { max-height: 38vh; border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* «Сервер» in the top bar (ServerQuickButton) */
+.server-quick { position: relative; }
+.server-quick .icon-button { position: relative; }
+.server-quick-dot { position: absolute; right: 6px; top: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); box-shadow: 0 0 0 2px var(--surf-1); transition: background .3s ease, box-shadow .3s ease; }
+.server-quick .is-on .server-quick-dot { background: var(--success); box-shadow: 0 0 0 2px var(--surf-1), 0 0 8px color-mix(in srgb, var(--success) 70%, transparent); }
+.server-quick-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(420px, 90vw); animation: server-quick-in .28s cubic-bezier(.34, 1.56, .64, 1); transform-origin: top right; }
+@keyframes server-quick-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .server-quick-panel { animation: none; } }

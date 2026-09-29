@@ -1,5 +1,6 @@
 /** English strings for the server account block (Profile) and server sync messages. Wired into uiEnglish.ts by the lead. */
 export const SERVER_PHRASES: Array<[string, string]> = [
+  ['Сервер и сайт работают', 'Server and website are running'], ['Сервер и сайт', 'Server and website'],
   ['Открыть сайт друзьям', 'Open the website to friends'],
   ['Бесплатная ссылка через интернет (Cloudflare): друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён; при каждом запуске ссылка новая. Включённый режим запоминается.', 'A free internet link (Cloudflare): friends open the website and connect their app to the server. Works while this PC is on; the link changes on every start. The choice is remembered.'],
   ['Ссылка:', 'Link:'], ['выключено', 'off'], ['скачиваю cloudflared…', 'downloading cloudflared…'], ['получаю ссылку…', 'getting the link…'],

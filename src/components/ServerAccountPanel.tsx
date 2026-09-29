@@ -103,7 +103,7 @@ const SERVICE_LABEL: Record<LocalServerStatus['api'], string> = { running: 'ра
  * «Сервер и сайт на этом компьютере»: the owner runs the account API and the website from this app — no Node.js
  * or repository needed. Off by default, so a copy of the exe given to someone else stays a plain app.
  */
-function LocalServerRow({ onChange }: { onChange: () => void }) {
+export function LocalServerRow({ onChange }: { onChange: () => void }) {
   const api = window.tarkovDesktop?.account
   const [local, setLocal] = useState<LocalServerStatus | null>(null)
   const [busy, setBusy] = useState(false)
