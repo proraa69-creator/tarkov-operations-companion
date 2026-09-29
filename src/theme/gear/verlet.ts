@@ -24,8 +24,8 @@ export interface Rope {
 
 export interface RopeOptions { bend?: number; tipMass?: number; tipRadius?: number }
 
-export const GRAVITY = 2600
-const DAMPING = 0.986
+export const GRAVITY = 1600
+const DAMPING = 0.99
 const ITERATIONS = 10
 
 export function createRope(n: number, seg: number, ax: number, ay: number, options: RopeOptions = {}): Rope {
@@ -43,7 +43,7 @@ export function settleRope(r: Rope, ax: number, ay: number) {
 
 /** Advance one fixed step. The anchor may have moved (scroll, layout) — the rope follows with inertia. */
 export function stepRope(r: Rope, ax: number, ay: number, dt: number) {
-  const { n, x, y, px, py, w, seg } = r
+  const { n, x, y, px, py, seg } = r
   // A big jump (route change, window resize) would fling the rope: just re-hang it.
   if (Math.abs(ax - x[0]) > 120 || Math.abs(ay - y[0]) > 160) settleRope(r, ax, ay)
   x[0] = px[0] = ax; y[0] = py[0] = ay
@@ -85,7 +85,7 @@ export function pushRope(r: Rope, pxPos: number, pyPos: number, vx: number, vy: 
     const rad = i === r.n - 1 ? radius + r.tipRadius : radius
     const d = Math.hypot(r.x[i] - pxPos, r.y[i] - pyPos)
     if (d >= rad) continue
-    const f = (1 - d / rad) * 0.85 * Math.min(1, 0.45 + r.w[i])
+    const f = (1 - d / rad) * 0.7 * Math.min(1, 0.45 + r.w[i])
     r.px[i] -= cvx * dt * f
     r.py[i] -= cvy * dt * f * 0.6
     if (i === r.n - 1) r.twistV += cvx * 0.018 * (1 - d / rad)

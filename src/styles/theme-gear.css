@@ -111,7 +111,7 @@
 }
 /* …closed with a side-release buckle */
 :root[data-theme="gear"] .topbar::after {
-  content: ''; position: absolute; right: 22%; bottom: -5px; width: 50px; height: 21px; pointer-events: none;
+  content: ''; position: absolute; right: 22%; bottom: -6px; width: 58px; height: 24px; pointer-events: none;
   background: var(--gear-buckle) center / contain no-repeat;
   filter: drop-shadow(1px 2px 1.5px rgb(0 0 0 / 65%));
 }
@@ -185,7 +185,7 @@
 }
 /* press stud closing the flap */
 :root[data-theme="gear"] .panel-header::after {
-  content: ''; position: absolute; left: 50%; bottom: -8px; width: 17px; height: 17px; margin-left: -8.5px;
+  content: ''; position: absolute; left: 50%; bottom: -10px; width: 20px; height: 20px; margin-left: -10px;
   background: var(--gear-snap) center / contain no-repeat; pointer-events: none;
   filter: drop-shadow(1px 2px 1.5px rgb(0 0 0 / 60%));
 }
@@ -298,7 +298,7 @@
 /* ---------- decorations (src/theme/gear) ---------- */
 .gear-hangers { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 41; pointer-events: none; }
 .gear-helmet {
-  position: fixed; z-index: 42; width: 76px; height: 76px; margin: -40px 0 0 -84px; pointer-events: none;
+  position: fixed; z-index: 42; width: 86px; height: 86px; margin: -46px 0 0 -92px; pointer-events: none;
 }
 .gear-helmet::before {
   content: ''; position: absolute; left: 14px; right: 10px; bottom: 7px; height: 14px; border-radius: 50%;

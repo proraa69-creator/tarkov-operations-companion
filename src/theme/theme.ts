@@ -12,6 +12,7 @@ export const THEMES: ThemeOption[] = [
   { id: 'rust', label: 'Ржавая сталь', swatch: ['#62717d', '#7c8d99', '#a4582a'] },
   { id: 'slate', label: 'Сланец', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
+  { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
 ]
 
 export const SHAPES = [

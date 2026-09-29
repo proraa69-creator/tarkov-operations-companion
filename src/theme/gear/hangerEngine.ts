@@ -50,7 +50,6 @@ export class HangerEngine {
     this.observer = new MutationObserver(this.scheduleScan)
     this.observer.observe(document.body, { childList: true, subtree: true })
     this.onResize()
-    ;(window as unknown as { __gear: unknown }).__gear = this // DEBUG-TEMP
   }
 
   dispose() {
@@ -116,7 +115,7 @@ export class HangerEngine {
     document.querySelectorAll('.content .stat-card').forEach((el, i) => {
       // only simple pouches: a busy card (e.g. the Goons tracker) keeps its content clear
       if (i >= 8 || el.classList.contains('goon-card') || el.childElementCount > 4) return
-      add(el, { region: 'content', piece: 'cordlock', style: 'paracord', anchor: (r) => ({ x: r.left + r.width * 0.62, y: r.top + 44 }), n: 4, seg: 4, tipMass: 2, tipRadius: 8 })
+      add(el, { region: 'content', piece: 'cordlock', style: 'paracord', anchor: (r) => ({ x: r.left + r.width * 0.62, y: r.top + 44 }), n: 5, seg: 4.5, tipMass: 2, tipRadius: 8 })
     })
     // Panels with a flap (header): carabiner on a sewn loop, or a webbing tail, in the right gutter.
     let count = 0
