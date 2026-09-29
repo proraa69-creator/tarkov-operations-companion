@@ -629,22 +629,7 @@
   left: 18px; bottom: 226px; rotate: -8deg;
 }
 :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { background-image: url("../assets/textures/telnyashka/frame-mug.svg"); left: 104px; bottom: 208px; rotate: 7deg; }
-/* mug, bottle, sausage and gherkins on a cutting board; only the sausage takes the pointer and its slices slide apart */
-.tel-table { position: fixed; left: 20px; bottom: 90px; z-index: 41; width: 200px; height: 92px; pointer-events: none; }
-.tel-table svg { display: block; overflow: visible; filter: drop-shadow(0 4px 6px rgb(0 0 0 / 45%)); }
-.tel-table .tel-sausage { pointer-events: visiblePainted; cursor: grab; }
-.tel-table :is(.tel-sausage-log, .tel-slice) { transition: transform .45s cubic-bezier(.2, .8, .25, 1); }
-.tel-table .tel-slice-2 { transition-delay: .03s; }
-.tel-table .tel-slice-3 { transition-delay: .06s; }
-.tel-table .tel-slice-4 { transition-delay: .09s; }
-.tel-table .tel-sausage:hover .tel-sausage-log { transform: translate(-2.5px, .4px); }
-.tel-table .tel-sausage:hover .tel-slice-1 { transform: translate(4px, -3px) rotate(-6deg); }
-.tel-table .tel-sausage:hover .tel-slice-2 { transform: translate(8px, 0) rotate(9deg); }
-.tel-table .tel-sausage:hover .tel-slice-3 { transform: translate(4px, 3.5px) rotate(-8deg); }
-.tel-table .tel-sausage:hover .tel-slice-4 { transform: translate(-4px, 4px) rotate(7deg); }
-.tel-table .tel-slice { transform-box: fill-box; transform-origin: center; }
-@media (prefers-reduced-motion: reduce) { .tel-table :is(.tel-sausage-log, .tel-slice) { transition: none; } }
-@media (max-height: 740px), (max-width: 1180px) { .tel-table { display: none; } }
+/* the still life under it (mug, bottle, board with sausage and gherkins) is src/theme/telnyashka/TelnyashkaTable.tsx */
 :root[data-theme="telnyashka"] .sidebar > .nav-label:last-of-type::after {
   content: 'Бутылка водки — и в рейд.'; position: absolute; left: 20px; bottom: 44px; width: 190px; padding-top: 10px;
   border-top: 1px dashed rgb(236 231 218 / 28%); color: var(--brass-strong); font-size: 11.5px; font-style: italic; font-weight: 500;
