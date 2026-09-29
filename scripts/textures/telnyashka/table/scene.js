@@ -3,7 +3,7 @@
 // Everything here is procedural and original: geometry is built from lathes / extrusions / displaced spheres, every
 // texture is painted on a canvas from seeded noise. render.mjs loads this page in headless Chromium and calls
 // window.renderLayers(), which returns one transparent RGBA layer per moving part:
-//   base     — telnyashka towel, cutting board, bottle, enamel mug, gherkins (everything that never moves)
+//   base     — tabletop, cutting board, bottle, enamel mug, gherkins (everything that never moves)
 //   sausage  — the sausage stick with its own shadow on the board
 //   slice-N  — each cut slice with its own shadow, so the hover animation can slide them apart
 // Transparency is recovered by difference matting (the same frame rendered over black and over white), which also
@@ -104,7 +104,7 @@ const fill = new THREE.DirectionalLight(0xdfe6ff, 0.35)
 fill.position.set(10, 30, 60)
 scene.add(fill)
 
-// catches shadows on the (transparent) sidebar surface around the towel
+// catches shadows on the (transparent) sidebar surface around the tabletop
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 120), new THREE.ShadowMaterial({ opacity: 0.55 }))
 ground.rotation.x = -Math.PI / 2
 ground.receiveShadow = true
@@ -126,100 +126,95 @@ function blob(w, d, opacity = 0.6) {
 }
 
 // ---------------------------------------------------------------- layout (cm)
-const TOWEL_T = 0.35
+const TABLE_TOP = 0.35
 const BOARD = { x: 5, z: 1, rot: THREE.MathUtils.degToRad(13), thick: 2.2 }
-const BOARD_TOP = TOWEL_T + BOARD.thick
+const BOARD_TOP = TABLE_TOP + BOARD.thick
 const MUG = { x: -20, z: 7.5 }
 const BOTTLE = { x: 6.5, z: -12.5 }
 
-// ---------------------------------------------------------------- telnyashka towel
-function knitTexture() {
-  // 64 x 40 cm at 32 px/cm; navy / white stripes across the length, stockinette V-stitches
-  const w = 2048, h = 1280
-  const navy = hex(0x0e2170), white = hex(0xd8d3c6)
-  const stitchW = 12, stitchH = 10
+// ---------------------------------------------------------------- tabletop (a piece of an old kitchen table)
+// dark varnished planks with worn-through varnish, scratches, a couple of glass rings and a visible front edge
+function tabletopTextures() {
+  const w = 2048, h = 1400, pxcm = 30, PLANK = 11.5
   const colour = paint(w, h, (x, y) => {
-    const period = 96, sp = (x + 3 * Math.sin(y * 0.01)) % period
-    const isNavy = sp < 42 ? 1 : 0
-    const edge = Math.min(Math.abs(sp - 42), Math.abs(sp), Math.abs(period - sp))
-    const base = edge < 1.5 ? mixc(navy, white, 0.45) : (isNavy ? navy : white)
-    const sx = (x % stitchW) / stitchW, sy = ((y + (Math.floor(x / stitchW) % 2) * 0) % stitchH) / stitchH
-    const lobe = (cx) => { const dx = (sx - cx) / 0.24, dy = (sy - 0.5 - (sx - 0.5) * (cx < 0.5 ? -0.6 : 0.6)) / 0.62; return Math.max(0, 1 - dx * dx - dy * dy) }
-    const ht = Math.max(lobe(0.28), lobe(0.72))
-    const fuzz = fbm(x * 0.35, y * 0.35, 2)
-    const wash = fbm(x * 0.004, y * 0.004, 3)
-    const hem = Math.min(x, w - 1 - x, y, h - 1 - y) < 22 ? 0.82 : 1
-    const k = (0.62 + 0.42 * Math.sqrt(ht)) * (0.9 + 0.2 * fuzz) * (0.92 + 0.14 * wash) * hem
-    return [base[0] * k, base[1] * k, base[2] * k]
+    const cx = x / pxcm, cy = y / pxcm
+    const plank = Math.floor(cy / PLANK), py = cy - plank * PLANK
+    const shift = plank * 37.3
+    const warp = 1.6 * fbm((cx + shift) * 0.04, cy * 0.2, 4)
+    const t = (py + warp + plank * 0.7) * 1.6
+    const ring = Math.pow(Math.abs(Math.sin(t * Math.PI)), 5)
+    const pores = vnoise((cx + shift) * 0.5, cy * 22) * vnoise((cx + shift) * 1.2 + 3, cy * 34)
+    const tone = fbm((cx + shift) * 0.02, plank * 3.1, 3)
+    let c = mixc(hex(0x5a3a22), hex(0x3b2414), clamp(0.3 + 0.6 * tone))
+    c = mixc(c, hex(0x24150b), clamp(ring * 0.5 + (pores > 0.55 ? 0.2 : 0)))
+    // varnish worn off towards the middle (where plates and elbows go): paler, greyer wood
+    const wear = clamp(fbm(cx * 0.05 + 11, cy * 0.05, 3) * 1.4 - 0.45) * Math.exp(-((cx - 34) ** 2) / 500 - ((cy - 23) ** 2) / 260)
+    c = mixc(c, hex(0x8a6a4c), wear * 0.55)
+    // gaps between planks
+    const gap = Math.min(py, PLANK - py)
+    if (gap < 0.18) c = mixc(c, hex(0x0c0704), 0.85)
+    else if (gap < 0.45) c = mixc(c, hex(0x160d07), 0.4)
+    return c
   })
   const bump = paint(w / 2, h / 2, (x, y) => {
-    const sx = ((x * 2) % stitchW) / stitchW, sy = ((y * 2) % stitchH) / stitchH
-    const lobe = (cx) => { const dx = (sx - cx) / 0.24, dy = (sy - 0.5 - (sx - 0.5) * (cx < 0.5 ? -0.6 : 0.6)) / 0.62; return Math.max(0, 1 - dx * dx - dy * dy) }
-    const v = 255 * clamp(Math.sqrt(Math.max(lobe(0.28), lobe(0.72))) * 0.85 + 0.15 * fbm(x * 0.5, y * 0.5, 2))
+    const cx = x * 2 / pxcm, cy = y * 2 / pxcm
+    const plank = Math.floor(cy / PLANK), py = cy - plank * PLANK
+    const gap = Math.min(py, PLANK - py)
+    const v = 150 - vnoise((cx + plank * 37.3) * 0.5, cy * 22) * 30 - (gap < 0.3 ? 110 : 0)
     return [v, v, v]
   })
-  return { map: tex(colour), bump: tex(bump, { srgb: false }) }
-}
-
-function boardSdf(wx, wz) {
-  // signed distance (cm) to the board footprint, handle included (approximate: a rotated rounded box)
-  const c = Math.cos(-BOARD.rot), s = Math.sin(-BOARD.rot)
-  const lx = (wx - BOARD.x) * c - (wz - BOARD.z) * s, lz = (wx - BOARD.x) * s + (wz - BOARD.z) * c
-  const cx = lx - 4.5, hx = 24.5, hz = lx > 20 ? 3.6 : 11
-  const qx = Math.abs(cx) - hx, qz = Math.abs(lz) - hz
-  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0)
-}
-
-const FOLDS = [
-  { x: -19, z: 2, a: 1.45, h: 1.7, w: 3.2, len: 13 },
-  { x: -13, z: -6, a: 1.15, h: 1.1, w: 2.2, len: 8 },
-  { x: -6, z: 13, a: 0.2, h: 1.2, w: 2.6, len: 10 },
-  { x: 8, z: 15, a: -0.25, h: 0.9, w: 2, len: 9 },
-  { x: -20, z: 13, a: 0.7, h: 1.4, w: 2.4, len: 6 },
-  { x: 20, z: -14, a: 0.1, h: 0.8, w: 2, len: 9 },
-  { x: -18, z: -14, a: -0.4, h: 1.0, w: 2.5, len: 7 },
-]
-function buildTowel() {
-  const { map, bump } = knitTexture()
-  const TW = 54, TD = 38
-  const geo = new THREE.PlaneGeometry(TW, TD, 256, 160)
-  geo.rotateX(-Math.PI / 2)
-  const towel = new THREE.Group()
-  const rot = THREE.MathUtils.degToRad(-8)
-  const ox = -6, oz = 2
-  const pos = geo.attributes.position
-  for (let i = 0; i < pos.count; i++) {
-    const lx = pos.getX(i), lz = pos.getZ(i)
-    const wx = ox + lx * Math.cos(rot) + lz * Math.sin(rot), wz = oz - lx * Math.sin(rot) + lz * Math.cos(rot)
-    // soft ripples, a handful of folds of different directions, rolled / lifted edges
-    let h = 0.45 * (fbm(lx * 0.11, lz * 0.11, 4) - 0.5) * 2
-    for (const f of FOLDS) {
-      const along = (lx - f.x) * Math.cos(f.a) + (lz - f.z) * Math.sin(f.a)
-      const across = -(lx - f.x) * Math.sin(f.a) + (lz - f.z) * Math.cos(f.a) + 1.2 * Math.sin(along * 0.25 + f.x)
-      h += f.h * Math.exp(-(across * across) / f.w) * Math.exp(-(along * along) / (f.len * f.len))
-    }
-    const border = Math.min(TW / 2 - Math.abs(lx), TD / 2 - Math.abs(lz))
-    h += smooth(2.5, 0, border) * (0.5 + 0.9 * fbm(lx * 0.2 + 7, lz * 0.2, 2)) * smooth(2, 8, boardSdf(wx, wz))
-    // flat (pressed) under the board, the mug and the bottle
-    const dBoard = boardSdf(wx, wz)
-    const dMug = Math.hypot(wx - MUG.x, wz - MUG.z) - 4.2
-    const dBottle = Math.hypot(wx - BOTTLE.x, wz - BOTTLE.z) - 3
-    const flat = Math.min(smooth(0, 3.5, dBoard), smooth(0, 2.2, dMug), smooth(0, 2.2, dBottle))
-    h = Math.max(h * flat, -0.2)
-    pos.setY(i, TOWEL_T + h)
-    const jit = smooth(3, 0, border) * 0.9
-    pos.setX(i, wx + jit * (fbm(lx * 0.3, lz * 0.3 + 4, 2) - 0.5) * 2); pos.setZ(i, wz + jit * (fbm(lx * 0.3 + 9, lz * 0.3, 2) - 0.5) * 2)
+  const rough = paint(w / 4, h / 4, (x, y) => {
+    const cx = x * 4 / pxcm, cy = y * 4 / pxcm
+    const wear = clamp(fbm(cx * 0.05 + 11, cy * 0.05, 3) * 1.4 - 0.45)
+    const v = 255 * clamp(0.32 + wear * 0.4 + 0.12 * (fbm(cx * 0.3, cy * 0.3, 3) - 0.5))
+    return [v, v, v]
+  })
+  const cctx = colour.getContext('2d'), bctx = bump.getContext('2d')
+  // scratches and dents
+  for (let i = 0; i < 260; i++) {
+    const cx = rr(2, w / pxcm - 2), cy = rr(2, h / pxcm - 2), len = rr(0.6, 7), ang = rr(-0.5, 0.5) + (rnd() < 0.3 ? Math.PI / 2 : 0)
+    const dx = Math.cos(ang) * len / 2, dy = Math.sin(ang) * len / 2
+    cctx.lineCap = 'round'
+    cctx.strokeStyle = `rgba(190,150,110,${rr(0.05, 0.22)})`; cctx.lineWidth = rr(0.6, 1.6)
+    cctx.beginPath(); cctx.moveTo((cx - dx) * pxcm, (cy - dy) * pxcm); cctx.lineTo((cx + dx) * pxcm, (cy + dy) * pxcm); cctx.stroke()
+    bctx.strokeStyle = `rgba(60,60,60,${rr(0.2, 0.6)})`; bctx.lineWidth = 0.8
+    bctx.beginPath(); bctx.moveTo((cx - dx) * pxcm / 2, (cy - dy) * pxcm / 2); bctx.lineTo((cx + dx) * pxcm / 2, (cy + dy) * pxcm / 2); bctx.stroke()
   }
-  // ragged edge: pull the border vertices slightly
-  geo.computeVertexNormals()
-  const mat = new THREE.MeshPhysicalMaterial({ map, bumpMap: bump, bumpScale: 1.6, roughness: 0.92, sheen: 0.35, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xd8d8d8), side: THREE.DoubleSide })
-  const mesh = new THREE.Mesh(geo, mat)
+  // two pale rings from wet glasses
+  for (const [cx, cy, r] of [[14, 30, 3.1], [52, 12, 2.7]]) {
+    cctx.strokeStyle = 'rgba(190,165,130,0.09)'; cctx.lineWidth = 0.28 * pxcm
+    cctx.beginPath(); cctx.arc(cx * pxcm, cy * pxcm, r * pxcm, 0.3, Math.PI * 1.85); cctx.stroke()
+    cctx.strokeStyle = 'rgba(200,175,140,0.05)'; cctx.lineWidth = 0.12 * pxcm
+    cctx.beginPath(); cctx.arc(cx * pxcm + 5, cy * pxcm + 3, r * pxcm * 0.97, 0, Math.PI * 2); cctx.stroke()
+  }
+  const side = paint(512, 64, (x, y) => {
+    const v = vnoise(x * 0.05, y * 0.4) * 0.6 + fbm(x * 0.03, y * 0.1, 3) * 0.4
+    let c = mixc(hex(0x3a2413), hex(0x1f120a), v)
+    if (y < 4) c = mixc(c, hex(0x8a6a4c), 0.35) // the worn top arris
+    return c
+  })
+  const rep = [1 / (w / pxcm), 1 / (h / pxcm)]
+  return { map: tex(colour, { repeat: rep }), bump: tex(bump, { srgb: false, repeat: rep }), rough: tex(rough, { srgb: false, repeat: rep }), side: tex(side) }
+}
+const TABLE = { w: 66, d: 44, thick: 3.2 }
+function buildTabletop() {
+  const t = tabletopTextures()
+  const geo = new THREE.BoxGeometry(TABLE.w, TABLE.thick, TABLE.d, 1, 1, 1)
+  // top face UVs in cm so the texture repeat maps 1:1
+  const uv = geo.attributes.uv, pos = geo.attributes.position, nor = geo.attributes.normal
+  for (let i = 0; i < uv.count; i++) {
+    if (Math.abs(nor.getY(i)) > 0.5) uv.setXY(i, pos.getX(i) + TABLE.w / 2, pos.getZ(i) + TABLE.d / 2)
+  }
+  const top = new THREE.MeshPhysicalMaterial({ map: t.map, bumpMap: t.bump, bumpScale: 0.6, roughnessMap: t.rough, roughness: 1, clearcoat: 0.35, clearcoatRoughness: 0.45 })
+  const edge = new THREE.MeshStandardMaterial({ map: t.side, roughness: 0.7 })
+  const mesh = new THREE.Mesh(geo, [edge, edge, top, top, edge, edge])
   mesh.castShadow = true; mesh.receiveShadow = true
-  towel.add(mesh)
-  return towel
+  mesh.position.set(-4, TABLE_TOP - TABLE.thick / 2, 2)
+  mesh.rotation.y = THREE.MathUtils.degToRad(-6)
+  const g = new THREE.Group(); g.add(mesh)
+  return g
 }
 
-// ---------------------------------------------------------------- cutting board
 function woodTextures() {
   // top face: 50 x 24 cm at 40 px/cm, grain along x
   const w = 2000, h = 960, pxcm = 40
@@ -305,7 +300,7 @@ function buildBoard() {
   const edge = new THREE.MeshPhysicalMaterial({ map: t.side, roughness: 0.62, clearcoat: 0.15, clearcoatRoughness: 0.5 })
   const mesh = new THREE.Mesh(geo, [top, edge])
   mesh.castShadow = true; mesh.receiveShadow = true
-  mesh.position.set(BOARD.x, TOWEL_T, BOARD.z)
+  mesh.position.set(BOARD.x, TABLE_TOP, BOARD.z)
   mesh.rotation.y = BOARD.rot
   mesh.userData.materials = [top, edge]
   return mesh
@@ -574,9 +569,9 @@ function buildMug() {
   const g = new THREE.Group()
   g.add(outer, inner, rimRing, chip, handle)
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
-  g.position.set(MUG.x, TOWEL_T, MUG.z)
+  g.position.set(MUG.x, TABLE_TOP, MUG.z)
   g.rotation.y = THREE.MathUtils.degToRad(30)
-  const b = blob(10, 10, 0.55); b.position.set(MUG.x, TOWEL_T + 0.05, MUG.z)
+  const b = blob(10, 10, 0.55); b.position.set(MUG.x, TABLE_TOP + 0.05, MUG.z)
   return [g, b]
 }
 
@@ -614,17 +609,18 @@ function buildBottle() {
   const g = new THREE.Group()
   g.add(body, label, cap, capTop, ring)
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
-  g.position.set(BOTTLE.x, TOWEL_T, BOTTLE.z)
+  g.position.set(BOTTLE.x, TABLE_TOP, BOTTLE.z)
   g.scale.setScalar(0.74) // a 0.25 l bottle
   g.rotation.y = 0.4
-  const b = blob(7, 7, 0.5); b.position.set(BOTTLE.x, TOWEL_T + 0.05, BOTTLE.z)
+  const b = blob(7, 7, 0.5); b.position.set(BOTTLE.x, TABLE_TOP + 0.05, BOTTLE.z)
   return [g, b]
 }
 
 // ---------------------------------------------------------------- assemble
-const towel = buildTowel()
+const tabletop = buildTabletop()
+ground.position.y = TABLE_TOP - TABLE.thick - 0.05
 const board = buildBoard()
-const boardBlob = blob(56, 30, 0.35); boardBlob.position.set(BOARD.x + 4, TOWEL_T + 0.04, BOARD.z); boardBlob.rotation.z = BOARD.rot
+const boardBlob = blob(56, 30, 0.35); boardBlob.position.set(BOARD.x + 4, TABLE_TOP + 0.04, BOARD.z); boardBlob.rotation.z = BOARD.rot
 const [mug, mugBlob] = buildMug()
 const [bottle, bottleBlob] = buildBottle()
 
@@ -633,7 +629,7 @@ const gherkins = []
 {
   const a = buildGherkin(gt, 7.8, 1.4, 0.45); a.position.copy(onBoard(-8, -6.8, 1.35)); a.rotation.y = 0.35; gherkins.push(a)
   const b = buildGherkin(gt, 7.0, 1.3, -0.4); b.position.copy(onBoard(1.5, -7.4, 1.25)); b.rotation.y = -0.25; b.rotation.x = 0.4; gherkins.push(b)
-  const c = buildGherkin(gt, 7.4, 1.38, 0.5); c.position.set(-18.5, TOWEL_T + 1.3, 17); c.rotation.y = 0.3; gherkins.push(c)
+  const c = buildGherkin(gt, 7.4, 1.38, 0.5); c.position.set(-18.5, TABLE_TOP + 1.3, 17); c.rotation.y = 0.3; gherkins.push(c)
 }
 const gherkinBlobs = gherkins.map((g) => { const b = blob(8.5, 3.6, 0.55); b.position.set(g.position.x, g.position.y - 1.25, g.position.z); b.rotation.z = g.rotation.y; return b })
 
@@ -670,7 +666,7 @@ const slices = SLICE_SPOTS.map(([lx, lz, tx, tz], i) => {
   return g
 })
 
-const base = [towel, board, boardBlob, mug, mugBlob, bottle, bottleBlob, ...gherkins, ...gherkinBlobs, ground]
+const base = [tabletop, board, boardBlob, mug, mugBlob, bottle, bottleBlob, ...gherkins, ...gherkinBlobs, ground]
 scene.add(...base, sausage, ...slices)
 
 // ---------------------------------------------------------------- camera
