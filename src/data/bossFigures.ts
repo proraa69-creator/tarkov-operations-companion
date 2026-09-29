@@ -21,6 +21,7 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   tagilla: { ru: 'Тагилла', en: 'Tagilla' },
   'tagilla-2': { ru: 'Тагилла 2', en: 'Tagilla 2' },
   'killa-knight': { ru: 'Килла-рыцарь', en: 'Killa Knight' },
+  wadge: { ru: 'Wadge', en: 'Wadge' },
   glukhar: { ru: 'Глухарь', en: 'Glukhar' },
   raiders: { ru: 'Рейдеры', en: 'Raiders' },
   zryachiy: { ru: 'Зрячий', en: 'Zryachiy' },
@@ -38,16 +39,16 @@ const GROUPS: Record<string, string[]> = { goons: ['goon-1', 'goon-2', 'goon-3']
 const MAP_BOSSES: Record<string, string[]> = {
   customs: ['reshala', 'partisan'],
   woods: ['shturman', 'goons', 'partisan'],
-  shoreline: ['sanitar'],
+  shoreline: ['sanitar', 'rogue', 'military'],
   interchange: ['killa', 'tagilla'],
-  factory: ['killa'],
+  factory: ['tagilla'],
   reserve: ['glukhar', 'raiders'],
   lighthouse: ['zryachiy', 'rogue', 'goons'],
   'streets-of-tarkov': ['kaban', 'kollontay'],
-  icebreaker: ['black-division'],
-  'the-lab': ['raiders'],
+  icebreaker: ['black-division', 'wadge', 'rogue'],
+  'the-lab': ['black-division', 'wadge', 'raiders'],
   'the-labyrinth': ['tagilla-2'],
-  terminal: ['black-division', 'military'],
+  terminal: ['black-division'],
 }
 
 export function bossFiguresFor(mapId: string): BossFigure[] {

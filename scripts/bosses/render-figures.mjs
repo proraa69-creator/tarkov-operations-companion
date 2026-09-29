@@ -42,7 +42,9 @@ for (const file of files) {
   if (!(await page.title()).startsWith('done')) { console.error(key, await page.title()); await page.close(); continue }
   const png = Buffer.from((await page.evaluate(() => document.getElementById('c').toDataURL('image/png'))).split(',')[1], 'base64')
   await page.close()
-  const trimmed = await sharp(png).trim({ threshold: 1 }).toBuffer()
+  // a touch richer and darker than the raw render (the Tripo textures come out pale): same grade as
+  // the live 3D views, which apply GRADE in CSS (src/data/bossModels.ts)
+  const trimmed = await sharp(png).trim({ threshold: 1 }).modulate({ saturation: 1.22, brightness: 0.9 }).toBuffer()
   const out = path.join(outDir, `${key}.webp`)
   await sharp(trimmed).webp({ quality: 84, alphaQuality: 90, effort: 6 }).toFile(out)
   const meta = await sharp(out).metadata()
