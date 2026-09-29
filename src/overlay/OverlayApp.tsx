@@ -221,7 +221,9 @@ function mapAspect(map: GameMap) {
 
 function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { map: GameMap; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; selectedQuest: string | null }) {
   const crs = useMemo(() => createMapCrs(map), [map])
-  const bounds = toLeafletBounds(map)
+  // Stable between renders: the overlay re-renders every second (the «live» age), and a new bounds object
+  // used to re-run the fit below — the map jumped back to the whole map and lost the player's zoom.
+  const bounds = useMemo(() => toLeafletBounds(map), [map])
   const height = Math.round(Math.min(560, Math.max(180, MINIMAP_WIDTH * mapAspect(map))))
   const base = map.layers?.find((layer) => layer.name === mainFloor(map))
   const tileUrl = base?.tileUrl ?? map.tileUrl
@@ -260,8 +262,13 @@ function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { m
 
 function FocusQuest({ markers, questId, bounds }: { markers: MinimapMarker[]; questId: string | null; bounds: LatLngBoundsExpression }) {
   const map = useMap()
+  const shownQuest = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    if (!questId) { map.fitBounds(bounds, { padding: [0, 0], animate: true }); return }
+    // Only when the selected quest changes (or on first show) — never on an ordinary re-render.
+    if (shownQuest.current === questId) return
+    const first = shownQuest.current === undefined
+    shownQuest.current = questId
+    if (!questId) { if (!first) map.fitBounds(bounds, { padding: [0, 0], animate: true }); return }
     const points = markers.filter((marker) => marker.questId === questId).map((marker) => marker.position)
     if (!points.length) return
     if (points.length === 1) map.flyTo(points[0]!, Math.max(map.getZoom(), map.getMaxZoom() - 3), { duration: 0.5 })
@@ -298,12 +305,22 @@ function PlayerMarker({ position, style, followDisabled }: { position: PlayerPos
     return () => { map.off('dragstart', touch); container.removeEventListener('wheel', touch) }
   }, [map])
 
+  const zoomedIn = useRef(false)
   useEffect(() => {
-    // Follow the player, but leave the map alone for a while after the player moved or zoomed it by hand,
-    // and keep the zoom the player chose.
+    // Follow the player without jumping: the zoom is set once (then it stays as the player leaves it), and the
+    // map pans smoothly only when the marker comes near the edge of the window.
     if (!position || followDisabled || Date.now() - touchedAt.current < 10_000) return
-    const zoom = touchedAt.current ? map.getZoom() : Math.max(map.getZoom(), (map.getMaxZoom() ?? 5) - 3)
-    map.setView([position.z, position.x], zoom, { animate: true })
+    const target = latLng(position.z, position.x)
+    if (!zoomedIn.current) {
+      zoomedIn.current = true
+      map.setView(target, Math.max(map.getZoom(), (map.getMaxZoom() ?? 5) - 3), { animate: false })
+      return
+    }
+    const size = map.getSize()
+    const point = map.latLngToContainerPoint(target)
+    const margin = { x: size.x * 0.22, y: size.y * 0.22 }
+    const inside = point.x > margin.x && point.x < size.x - margin.x && point.y > margin.y && point.y < size.y - margin.y
+    if (!inside) map.panTo(target, { animate: true, duration: 0.8, easeLinearity: 0.2 })
   }, [map, position, followDisabled])
 
   useEffect(() => {
