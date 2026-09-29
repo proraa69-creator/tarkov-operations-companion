@@ -11,7 +11,9 @@ export interface BossFigure { key: string; name: { ru: string; en: string }; url
 const NAMES: Record<string, { ru: string; en: string }> = {
   reshala: { ru: 'Решала', en: 'Reshala' },
   partisan: { ru: 'Партизан', en: 'Partisan' },
-  goons: { ru: 'Кочевники', en: 'The Goons' },
+  'goon-1': { ru: 'Бёрдай', en: 'Birdeye' },
+  'goon-2': { ru: 'Рыцарь', en: 'Knight' },
+  'goon-3': { ru: 'Биг Пайп', en: 'Big Pipe' },
   shturman: { ru: 'Штурман', en: 'Shturman' },
   sanitar: { ru: 'Санитар', en: 'Sanitar' },
   killa: { ru: 'Килла', en: 'Killa' },
@@ -26,6 +28,9 @@ const NAMES: Record<string, { ru: string; en: string }> = {
   'black-division': { ru: 'Black Division', en: 'Black Division' },
   military: { ru: 'Военные', en: 'Military' },
 }
+
+/** Groups that always stand together. */
+const GROUPS: Record<string, string[]> = { goons: ['goon-1', 'goon-2', 'goon-3'] }
 
 /** Map id → bosses shown there, in display order (left to right). */
 const MAP_BOSSES: Record<string, string[]> = {
@@ -44,7 +49,7 @@ const MAP_BOSSES: Record<string, string[]> = {
 }
 
 export function bossFiguresFor(mapId: string): BossFigure[] {
-  return (MAP_BOSSES[mapId] ?? []).flatMap((key) => {
+  return (MAP_BOSSES[mapId] ?? []).flatMap((key) => GROUPS[key] ?? [key]).flatMap((key) => {
     const url = byKey.get(key)
     return url ? [{ key, name: NAMES[key] ?? { ru: key, en: key }, url }] : []
   })

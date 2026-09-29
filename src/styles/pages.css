@@ -3,14 +3,21 @@
 .raid-card { position: relative; height: 450px; overflow: hidden; }
 .raid-card-art { position: absolute; inset: 0; opacity: .19; background-size: cover; background-position: center; filter: grayscale(.3) contrast(1.08); }
 .raid-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, var(--surf-1) 8%, rgb(17 25 21 / 82%) 45%, rgb(17 25 21 / 20%)), linear-gradient(0deg, var(--surf-1) 0%, transparent 58%); }
-/* boss figures of the selected map, standing on the right; the picker and the text stay above them */
+/* boss figures of the selected map, standing in the right half; they share it evenly (overlapping a little),
+ * so more bosses just stand smaller and closer. The text and the map picker stay above them. */
 .boss-figures {
-  position: absolute; right: 18px; bottom: 0; top: 18px; z-index: 1; display: flex; align-items: flex-end; justify-content: flex-end;
+  --overlap: 38px;
+  position: absolute; left: 46%; right: 14px; bottom: 0; top: 16px; z-index: 1; display: flex; align-items: flex-end; justify-content: flex-end;
   pointer-events: none; animation: boss-figures-in .45s ease-out both;
 }
-.boss-figure { position: relative; margin: 0 0 0 -34px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.boss-figure {
+  position: relative; margin: 0 0 0 calc(var(--overlap) * -1); height: 100%; min-width: 0;
+  flex: 0 1 calc((100% + (var(--n) - 1) * var(--overlap)) / var(--n)); max-width: 250px;
+  display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+}
+.boss-figure:first-child { margin-left: 0; }
 .boss-figure img {
-  display: block; height: 92%; width: auto; max-width: 250px; object-fit: contain; object-position: bottom;
+  display: block; width: 100%; height: auto; max-height: 92%; object-fit: contain; object-position: bottom;
   filter: drop-shadow(0 14px 16px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%));
 }
 .boss-figure::before {
@@ -18,10 +25,10 @@
   background: radial-gradient(closest-side, rgb(0 0 0 / 60%), transparent);
 }
 .boss-figure figcaption {
-  position: relative; margin: -6px 0 8px; padding: 2px 8px; border-radius: 3px; font-size: 10.5px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--text); background: rgb(0 0 0 / 55%); box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
+  position: relative; margin: -6px 0 8px; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+  color: var(--text); background: rgb(0 0 0 / 60%); box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
 }
-.count-3 .boss-figure img { max-width: 200px; height: 84%; }
+.boss-figures.is-crowded figcaption { font-size: 8.5px; letter-spacing: .04em; padding: 1px 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 @keyframes boss-figures-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .boss-figures { animation: none; } }
 @media (max-width: 1100px) { .boss-figures { display: none; } }

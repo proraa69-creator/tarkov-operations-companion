@@ -1,4 +1,5 @@
-import originalUrl from '../../assets/gear/helmet.glb?url'
+import tagillaUrl from '../../assets/gear/helmet-tagilla.glb?url'
+import killaUrl from '../../assets/gear/helmet-killa.glb?url'
 import steelUrl from '../../assets/gear/helmet-steel.glb?url'
 import knightUrl from '../../assets/gear/helmet-knight.glb?url'
 
@@ -6,16 +7,21 @@ import knightUrl from '../../assets/gear/helmet-knight.glb?url'
 export interface HelmetVariant {
   id: string; label: string; url: string
   glass?: boolean
+  /** Polished metal: render with reflections and the low sun (like glass variants) so it doesn't turn black. */
+  shine?: boolean
   /** The mesh has a _SWAY attribute (scripts/gear/rig-knight.mjs): hair and strings swing as the mask turns. */
   sway?: boolean
 }
 
 /** Add new helmets here (GLB in src/assets/gear/); the first one is the default. */
 export const HELMETS: HelmetVariant[] = [
-  // the owner's welding helmet as designed (Tripo export, textures downscaled to 1024² WebP)
-  { id: 'original', label: 'Сварочная маска', url: originalUrl },
+  // the owner's Tagilla welding mask, updated version (Tripo export, packed by scripts/gear/pack-helmet.mjs);
+  // the id stays 'original' so a saved choice keeps pointing at it
+  { id: 'original', label: 'Маска Тагиллы', url: tagillaUrl },
+  // the owner's Killa helmet (packed by scripts/gear/pack-helmet.mjs)
+  { id: 'killa', label: 'Шлем Киллы', url: killaUrl, shine: true },
   // the owner's skull mask with dreadlocks (Tripo export, packed by scripts/gear/pack-helmet.mjs, swing weights by rig-knight.mjs)
   { id: 'knight', label: 'Рыцарь', url: knightUrl, sway: true },
-  // scripts/gear/repaint-helmet.mjs: the owner's welding helmet, blackened scratched steel, cracked glass visor
+  // scripts/gear/repaint-helmet.mjs: the first Tagilla mask, blackened scratched steel, cracked glass visor
   { id: 'steel', label: 'Сталь, царапины', url: steelUrl, glass: true },
 ]

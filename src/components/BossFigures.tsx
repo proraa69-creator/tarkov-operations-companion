@@ -1,3 +1,4 @@
+import type React from 'react'
 import { bossFiguresFor } from '../data/bossFigures'
 import { useLocale } from '../i18n/LocaleProvider'
 
@@ -7,7 +8,7 @@ export function BossFigures({ mapId }: { mapId: string }) {
   const figures = bossFiguresFor(mapId)
   if (!figures.length) return null
   return (
-    <div className={`boss-figures count-${Math.min(figures.length, 3)}`} key={mapId}>
+    <div className={`boss-figures${figures.length >= 5 ? ' is-crowded' : ''}`} style={{ '--n': figures.length } as React.CSSProperties} key={mapId}>
       {figures.map((figure, index) => (
         <figure key={figure.key} className="boss-figure" style={{ zIndex: figures.length - Math.abs(index - (figures.length - 1) / 2) * 2 }}>
           <img src={figure.url} alt="" draggable={false} />
