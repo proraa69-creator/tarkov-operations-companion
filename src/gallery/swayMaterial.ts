@@ -3,16 +3,17 @@ import { gradeBossShader } from './bossLook'
 import type { SwayWeights } from './swayWeights'
 
 /**
- * Secondary motion of the loose parts of a boss model — capes, coat hems, loincloths, hoods, straps, strands.
- * Per-vertex weights (_sway: x = swing 0..1, 0 wherever the part is fused to the body; y = 1 on hair) come from
- * swayWeights.ts. The body, head, arms, legs and everything held stay exactly where they are (weight 0).
+ * Secondary motion of the loose parts of a boss model — capes, coat hems, loincloths, hoods, straps, slings,
+ * ropes, hair and dreads, pouches. Per-vertex weights (_sway: x = swing 0..1, 0 wherever the part is fused to the
+ * body; y = liveliness of hair, dreads, cords and slings) come from swayWeights.ts. The body, head, arms, legs
+ * and everything held stay exactly where they are (weight 0).
  *
  * One damped spring per model, stepped on the CPU from the turntable's angular velocity:
  * - turning makes the cloth trail behind (a small rotation about the body axis, growing towards the free
  *   ends), overshoot a little when the turn stops, and settle within about two seconds;
  * - fast turns flare the hems outwards a touch (centrifugal);
  * - an optional very light breeze for the idle view.
- * All displacements are a few percent of the model height at most, so nothing stretches visibly.
+ * All displacements stay within a few percent of the model height, so nothing stretches visibly.
  */
 export interface Sway {
   /** Advance by dt seconds for the model turning at `turnSpeed` rad/s; returns true while the cloth still moves. */
@@ -21,10 +22,10 @@ export interface Sway {
   setWeights(data: SwayWeights): void
 }
 
-const TRAIL = 0.065 // s: steady trailing angle per rad/s of turning
-const MAX_ANGLE = 0.22
+const TRAIL = 0.085 // s: steady trailing angle per rad/s of turning
+const MAX_ANGLE = 0.28
 const FREQUENCY = 1.4 // Hz
-const DAMPING = 0.3 // ratio
+const DAMPING = 0.24 // ratio: a visible overshoot or two when a turn stops
 const K = (2 * Math.PI * FREQUENCY) ** 2
 const D = 2 * DAMPING * Math.sqrt(K)
 
@@ -51,17 +52,20 @@ uniform float uSwing, uFlare, uBreeze, uTime, uHeight;
 uniform vec2 uPivot;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 if (_sway.x > 0.0) {
-  float k = _sway.x * (1.0 + 0.35 * _sway.y);
+  // livelier parts (hair, dreads, cords, slings: _sway.y) swing further and keep a lever arm even close to the axis
+  float k = _sway.x * (1.0 + 0.8 * _sway.y);
   vec2 r = transformed.xz - uPivot;
-  // trailing the turn: rotation by -uSwing about the body axis, weighted
-  transformed.xz += uSwing * k * vec2(-r.y, r.x);
-  // centrifugal flare and the lift that keeps the length
   float lr = length(r);
+  vec2 around = lr > 1e-5 ? vec2(-r.y, r.x) / lr : vec2(0.0);
+  float lever = max(lr, uHeight * 0.1 * _sway.y);
+  // trailing the turn: rotation by -uSwing about the body axis, weighted
+  transformed.xz += uSwing * k * around * lever;
+  // centrifugal flare and the lift that keeps the length
   if (lr > 1e-5) transformed.xz += r / lr * uFlare * k * uHeight;
   transformed.y += uFlare * k * k * uHeight * 0.35;
   // breeze: slow waves running down the cloth
   float phase = (position.y / uHeight) * 7.0 + dot(position.xz, vec2(9.1, 6.3)) / uHeight;
-  transformed.xz += uBreeze * k * uHeight * 0.0045 * vec2(sin(uTime * 1.7 - phase), sin(uTime * 1.25 - phase * 0.8 + 1.3));
+  transformed.xz += uBreeze * k * uHeight * 0.0055 * vec2(sin(uTime * 1.7 - phase), sin(uTime * 1.25 - phase * 0.8 + 1.3));
 }`)
   }
   material.customProgramCacheKey = () => 'boss-grade-sway'

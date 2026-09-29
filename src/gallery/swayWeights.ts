@@ -4,16 +4,20 @@
  *
  * The Tripo exports are one fused mesh with no skeleton, so parts are told apart by shape:
  * 1. on a voxel grid the surface is rasterised and the inside filled (flood fill of the outside);
- * 2. a morphological opening of that solid with a ball of radius CORE_RADIUS keeps everything at least that
- *    thick — torso, head, arms, legs, boots, pouches, weapon bodies — as the rigid core; vertices outside it
- *    are loose (sheets, straps, cords, strands);
- * 3. on the mesh, connected loose vertices form pieces; a piece hangs from its highest seam with the core.
- *    Its weight grows with the distance along the surface from that seam (0 at the seam → 1 over REACH) and
- *    drops back to 0 near every other seam (PIN), so nothing tears off or stretches where it is fused;
- * 4. only pieces hanging from the torso/hips/head column swing: straight rods (barrels, handles, blades),
- *    anything bulky or high in front of the chest (weapons in the hands) and parts above their seam stay rigid.
+ * 2. morphological openings of that solid: what survives a ball of CORE_RADIUS is the rigid body (torso,
+ *    head, limbs, boots, weapon bodies); what only a POUCH_RADIUS ball removes is a lump (pouch, pocket — or
+ *    a hand, told apart below); the rest is thin (sheets, straps, cords, strands);
+ * 3. a cape lying on the back merges with it in the voxels; on the mesh those patches are islands inside the
+ *    sheet, so they are handed back to the sheet and the whole cape hangs from its top seam only;
+ * 4. thin pieces hang from their highest seam: the weight grows along the surface from it (0 → 1 over REACH)
+ *    and drops back to 0 near every other seam (PIN), so nothing tears or stretches where it is fused.
+ *    Rigid, whatever their shape: straight rods and long straight pieces (barrels, hafts, blades), anything
+ *    held in front of the chest (weapons), pieces hanging from the ankles;
+ * 5. cords — rifle slings, ropes — are split out of the weapon or hand they are fused into (STRAND_RADIUS)
+ *    and swing if they hang; cords, hair and dreads are marked livelier;
+ * 6. pouches on the torso, hips and thighs swing a little (POUCH_SWING) from their top seam.
  * Coincident vertices (UV seams) always get the same weight, so the surface never cracks open.
- * Runs once per model, off the main thread (swayWeights.worker.ts): 0.1–0.6 s for a 30k-vertex model.
+ * Runs once per model, off the main thread (swayWeights.worker.ts): about 0.2–1.5 s for a 30k-vertex model.
  */
 const CELLS_PER_HEIGHT = 150
 /** Parts thinner than this (radius, fraction of the model height) count as loose. */
@@ -24,11 +28,25 @@ const REACH = 0.18
 const PIN = 0.04
 /** A loose part swings only if it is attached within this distance of the body's vertical axis (fraction of height). */
 const ATTACH_RADIUS = 0.12
+/** Radius of the second opening: lumps thinner than this on the body are pouches and pockets. */
+const POUCH_RADIUS = 0.034
+/** How far a pouch swings compared with cloth. */
+const POUCH_SWING = 0.45
+/** Strands thinner than this (radius, fraction of height) inside a weapon or a hand are cords (slings, ropes). */
+const STRAND_RADIUS = 0.013
+/** Distance along a cord or strand over which its weight reaches 1 (they are short but swing fully). */
+const CORD_REACH = 0.07
 /** Attachments above this height (fraction) are head/hair: lighter and livelier. */
 const HEAD_HEIGHT = 0.82
 
+export interface SwayOptions {
+  coreRadius?: number
+  /** Also return each vertex's class (debug views): 0 body, 1 swinging cloth, 2 cord/hair, 3 pouch, 4 loose but held rigid. */
+  debug?: boolean
+}
+
 export interface SwayWeights {
-  /** Per vertex: x = swing weight 0..1, y = 1 on hair/head cloth. */
+  /** Per vertex: x = swing weight 0..1, y = liveliness 0..1 (hair, dreads, cords and straps swing more). */
   weights: Float32Array
   /** Body axis (model space) the swing turns around. */
   pivotX: number
@@ -37,11 +55,14 @@ export interface SwayWeights {
   height: number
   /** Share of vertices that move at all (for diagnostics). */
   share: number
+  kind?: Uint8Array
+  info?: string[]
 }
 
 const smooth = (t: number) => { const c = t < 0 ? 0 : t > 1 ? 1 : t; return c * c * (3 - 2 * c) }
 
-export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike<number> | null, coreRadius = CORE_RADIUS): SwayWeights | null {
+export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike<number> | null, options: SwayOptions = {}): SwayWeights | null {
+  const coreRadius = options.coreRadius ?? CORE_RADIUS
   const n = Math.floor(position.length / 3)
   if (n < 3) return null
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
@@ -135,6 +156,15 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
   for (let k = 0; k < N; k++) if (solid[k] && toEroded[k] <= grow) { core[k] = 1; coreCount++ }
   // not watertight (inside leaked out) or nothing solid: no reliable split, leave the model rigid
   if (coreCount < solidCount * 0.3) return null
+  // a second, wider opening: what it removes on top of the first is pouches, pockets, buckles (and hands,
+  // forearms, weapon parts — told apart below)
+  const r2 = POUCH_RADIUS * CELLS_PER_HEIGHT
+  const eroded2 = new Uint8Array(N)
+  for (let k = 0; k < N; k++) if (solid[k] && toOutside[k] > r2 * r2) eroded2[k] = 1
+  const toEroded2 = distanceTransform(eroded2, 1, nx, ny, nz)
+  const core2 = new Uint8Array(N)
+  const grow2 = (r2 + 1) * (r2 + 1)
+  for (let k = 0; k < N; k++) if (solid[k] && toEroded2[k] <= grow2) core2[k] = 1
 
   // body axis per height layer: centre of the core, smoothed over a few layers
   const axisX = new Float64Array(ny), axisZ = new Float64Array(ny), axisN = new Float64Array(ny)
@@ -169,120 +199,286 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
       if (a !== b) { neighbours[a].push(b); neighbours[b].push(a) }
     }
   }
-  const loose = new Uint8Array(n)
+  // vertex classes: 0 body, 1 thin (sheets, straps, cords, strands), 2 medium (pouch candidates)
+  const BODY = 0, THIN = 1, MEDIUM = 2
+  const cls = new Uint8Array(n)
   for (let i = 0; i < n; i++) {
     if (weld[i] !== i) continue
     const k = cellOf(position[i * 3], position[i * 3 + 1], position[i * 3 + 2])
-    if (k >= 0 && solid[k] && !core[k]) loose[i] = 1
+    if (k < 0 || !solid[k]) continue
+    cls[i] = !core[k] ? THIN : !core2[k] ? MEDIUM : BODY
   }
+  // A cape lying against the back is merged with it in the voxels, so patches of it read as body (or as a
+  // lump) and pin it there. On the mesh those patches are islands inside the sheet — they share no triangles
+  // with the body — so every small island mostly surrounded by thin vertices is part of the sheet.
+  const absorb = (from: number, share: number) => {
+    const comp = new Int32Array(n).fill(-1)
+    const sizes: number[] = [], thinEdge: number[] = [], allEdge: number[] = []
+    for (let i = 0; i < n; i++) {
+      if (weld[i] !== i || cls[i] !== from || comp[i] >= 0) continue
+      const id = sizes.length
+      const stack = [i]; comp[i] = id
+      let size = 0, thin = 0, all = 0
+      while (stack.length) {
+        const v = stack.pop()!
+        size++
+        for (const j of neighbours[v]) {
+          if (cls[j] === from) { if (comp[j] < 0) { comp[j] = id; stack.push(j) } } else { all++; if (cls[j] === THIN) thin++ }
+        }
+      }
+      sizes.push(size); thinEdge.push(thin); allEdge.push(all)
+    }
+    for (let i = 0; i < n; i++) {
+      const id = comp[i]
+      if (id >= 0 && sizes[id] < n * 0.04 && allEdge[id] > 0 && thinEdge[id] >= allEdge[id] * share) cls[i] = THIN
+    }
+  }
+  absorb(MEDIUM, 0.6)
+  absorb(BODY, 0.6)
 
-  // 5. loose pieces (connected loose vertices) and the rigid vertices each one is fused to
-  const piece = new Int32Array(n).fill(-1)
-  const pieces: { rigid: boolean; top: number }[] = []
-  const seedsAny: number[] = [], seedsTop: number[] = []
-  for (let i = 0; i < n; i++) {
-    if (!loose[i] || piece[i] >= 0) continue
-    const id = pieces.length
-    const members = [i]
-    const seams = new Set<number>()
-    piece[i] = id
-    for (let m = 0; m < members.length; m++) for (const j of neighbours[members[m]]) {
-      if (loose[j]) { if (piece[j] < 0) { piece[j] = id; members.push(j) } } else seams.add(j)
-    }
-    // it hangs from its highest seam (a cape from the shoulders). Rigid things, not cloth: straight rods
-    // (barrels, handles, a blade; hanging hair strands may be straight) and anything hanging in front of
-    // the chest or bulky in depth there — that is where the hands hold weapons; loincloths and tabards
-    // start at the belt and are flat.
-    let top = -1
-    for (const a of seams) if (top < 0 || position[a * 3 + 1] > position[top * 3 + 1]) top = a
-    let rigid = top < 0 || members.length < 12
-    if (!rigid) {
-      const topY = (position[top * 3 + 1] - minY) / height
-      const layer = Math.max(0, Math.min(ny - 1, Math.floor((position[top * 3 + 1] - oy) / cell)))
-      const front = (position[top * 3 + 2] - oz) / cell - 0.5 - layerZ[layer]
-      let zMin = Infinity, zMax = -Infinity
-      for (const m of members) { zMin = Math.min(zMin, position[m * 3 + 2]); zMax = Math.max(zMax, position[m * 3 + 2]) }
-      const heldInFront = front * cell > 0.03 * height && (topY > 0.58 || zMax - zMin > 0.05 * height)
-      rigid = heldInFront || (topY < HEAD_HEIGHT && isRod(members, position, height))
-    }
-    pieces.push({ rigid, top })
-    if (rigid) continue
-    for (const a of seams) {
-      seedsAny.push(a)
-      if (position[a * 3 + 1] > position[top * 3 + 1] - 0.08 * height) seedsTop.push(a)
-    }
-  }
-  // distance along the surface from any seam (the part is pinned there) and from its top seam (it hangs from there)
   const edge = (a: number, b: number) => Math.hypot(position[a * 3] - position[b * 3], position[a * 3 + 1] - position[b * 3 + 1], position[a * 3 + 2] - position[b * 3 + 2])
-  const walk = (seeds: number[]) => {
+  /** Distance along the surface from the seeds through vertices of the given class. */
+  const walk = (seeds: number[], through: number) => {
     const dist = new Float32Array(n).fill(Infinity)
     const heap = new MinHeap()
     for (const a of seeds) if (dist[a] !== 0) { dist[a] = 0; heap.push(0, a) }
     while (heap.size) {
       const i = heap.pop()
       for (const j of neighbours[i]) {
-        if (!loose[j]) continue
+        if (cls[j] !== through) continue
         const d = dist[i] + edge(i, j)
         if (d < dist[j] - 1e-9) { dist[j] = d; heap.push(d, j) }
       }
     }
     return dist
   }
-  const fromAny = walk(seedsAny), fromTop = walk(seedsTop)
-
-  const raw = new Float32Array(n), hair = new Uint8Array(n)
-  for (let i = 0; i < n; i++) {
-    if (!loose[i]) continue
-    const p = pieces[piece[i]]
-    if (p.rigid) continue
-    const a = p.top
-    const attachY = position[a * 3 + 1], vy = position[i * 3 + 1]
-    const layer = Math.max(0, Math.min(ny - 1, Math.floor((attachY - oy) / cell)))
-    const radial = Math.hypot((position[a * 3] - ox) / cell - 0.5 - layerX[layer], (position[a * 3 + 2] - oz) / cell - 0.5 - layerZ[layer]) * cell / height
-    // hanging from the torso/hips/head column, wider behind the shoulders where capes, hoods and hair start
-    // (in front of the shoulders the hands hold things)
-    const behind = smooth((layerZ[layer] - ((position[a * 3 + 2] - oz) / cell - 0.5)) * cell / (0.03 * height))
-    const reach = ATTACH_RADIUS + smooth(((attachY - minY) / height - 0.62) / 0.12) * behind * 0.1
-    const onBody = smooth((reach + 0.02 - radial) / 0.03)
-    const hang = smooth((attachY - vy) / (0.04 * height))
-    const w = smooth(fromTop[i] / (REACH * height)) * smooth(fromAny[i] / (PIN * height)) * hang * onBody
-    if (!(w > 0.001)) continue
-    raw[i] = w
-    if ((attachY - minY) / height > HEAD_HEIGHT) hair[i] = 1
+  const layerOf = (y: number) => Math.max(0, Math.min(ny - 1, Math.floor((y - oy) / cell)))
+  /** Horizontal offset of a point from the body axis at its height (fraction of height) and how far it is in front. */
+  const offset = (v: number) => {
+    const layer = layerOf(position[v * 3 + 1])
+    const dx = (position[v * 3] - ox) / cell - 0.5 - layerX[layer], dz = (position[v * 3 + 2] - oz) / cell - 0.5 - layerZ[layer]
+    return { radial: Math.hypot(dx, dz) * cell / height, front: dz * cell / height }
+  }
+  interface Piece { members: number[]; seams: Set<number>; top: number; topY: number; box: number[] }
+  const collect = (want: number, stopAt: (c: number) => boolean) => {
+    const pieceOf = new Int32Array(n).fill(-1)
+    const list: Piece[] = []
+    for (let i = 0; i < n; i++) {
+      if (cls[i] !== want || pieceOf[i] >= 0 || weld[i] !== i) continue
+      const members = [i], seams = new Set<number>()
+      pieceOf[i] = list.length
+      for (let m = 0; m < members.length; m++) for (const j of neighbours[members[m]]) {
+        if (cls[j] === want) { if (pieceOf[j] < 0) { pieceOf[j] = list.length; members.push(j) } } else if (stopAt(cls[j])) seams.add(j)
+      }
+      let top = -1
+      for (const a of seams) if (top < 0 || position[a * 3 + 1] > position[top * 3 + 1]) top = a
+      const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity]
+      for (const m of members) for (let c = 0; c < 3; c++) { box[c] = Math.min(box[c], position[m * 3 + c]); box[c + 3] = Math.max(box[c + 3], position[m * 3 + c]) }
+      list.push({ members, seams, top, topY: top < 0 ? 0 : (position[top * 3 + 1] - minY) / height, box })
+    }
+    return { pieceOf, list }
   }
 
-  // smooth over the mesh; rigid vertices stay exactly still, seam twins share one value
-  let w = raw
-  for (let pass = 0; pass < 3; pass++) {
-    const next = new Float32Array(n)
-    for (let i = 0; i < n; i++) {
-      if (weld[i] !== i || !loose[i]) continue
-      const list = neighbours[i]
-      let s = w[i]
-      for (const j of list) s += w[j]
-      next[i] = s / (list.length + 1)
+  const raw = new Float32Array(n), lively = new Float32Array(n), kind = new Uint8Array(n)
+  const debugInfo: string[] = []
+
+  // 6. pouches and pockets: small lumps on the torso, hips and thighs swing a little from their top seam as
+  // if hung there (hands, forearms and weapons are larger, or sit in front of the chest or out at the sides)
+  const pouches = collect(MEDIUM, (c) => c === BODY)
+  for (const p of pouches.list) {
+    if (p.top < 0 || p.members.length < 12) continue
+    const extent = Math.max(p.box[3] - p.box[0], p.box[4] - p.box[1], p.box[5] - p.box[2]) / height
+    const { radial, front } = offset(p.top)
+    const inFront = front > 0.03 && p.topY > 0.58
+    if (extent > 0.14 || p.topY < 0.15 || p.topY > 0.8 || radial > ATTACH_RADIUS + 0.02 || inFront) { for (const m of p.members) kind[m] = 4; continue }
+    const topSeams = [...p.seams].filter((a) => position[a * 3 + 1] > position[p.top * 3 + 1] - 0.02 * height)
+    const from = walk(topSeams, MEDIUM)
+    const drop = Math.max(0.03 * height, position[p.top * 3 + 1] - p.box[1])
+    for (const m of p.members) {
+      const hang = smooth((position[p.top * 3 + 1] - position[m * 3 + 1]) / (0.02 * height))
+      raw[m] = POUCH_SWING * smooth(from[m] / drop) * hang
+      kind[m] = 3
     }
-    w = next
+  }
+
+  // 7. thin pieces: cloth, straps, cords and strands hang from their highest seam
+  const thins = collect(THIN, () => true)
+  const seedsAny: number[] = [], seedsTop: number[] = []
+  const areas = pieceAreas(thins.pieceOf, thins.list.length, index, triCount, weld, position)
+  const accept: { cord: boolean; hair: boolean; reach: number; base: number; onBody: number }[] = []
+  for (const p of thins.list) {
+    const top = p.top
+    let ok = top >= 0 && p.members.length >= 12
+    let cord = false, hair = false, onBody = 1
+    if (ok) {
+      hair = p.topY > HEAD_HEIGHT
+      const { radial, front } = offset(top)
+      const topPos = position[top * 3 + 1]
+      let cy = 0
+      for (const m of p.members) cy += position[m * 3 + 1]
+      cy /= p.members.length
+      const spanY = p.box[4] - p.box[1]
+      const hanging = topPos - cy > 0.3 * spanY && topPos - p.box[1] > 0.03 * height
+      // cord: a thin strand or loop (its surface area per length is small) hanging down — a rope, a sling
+      const seamsTop = [...p.seams].filter((a) => position[a * 3 + 1] > topPos - 0.08 * height)
+      const along = walk(seamsTop, THIN)
+      let longest = 0
+      for (const m of p.members) if (Number.isFinite(along[m])) longest = Math.max(longest, along[m])
+      const girth = areas[thins.pieceOf[p.members[0]]] / Math.max(longest, 1e-6) / height
+      // (not wider than a hand's reach sideways: a bow limb with its string is not a cord)
+      const narrow = Math.max(p.box[3] - p.box[0], p.box[5] - p.box[2]) < 0.25 * height
+      cord = hanging && narrow && girth < 0.06 && longest > 0.03 * height
+      // a long piece this straight is a blade or a haft (a sword, an axe), however it hangs
+      const rod = !hair && (isRod(p.members, position, height) || (longest > 0.3 * height && principal(p.members, position).share > 0.94))
+      const zSpan = p.box[5] - p.box[2]
+      // weapons in the hands: in front of the chest, or bulky in depth in front; a tabard or loincloth there
+      // is flat and long, a coat skirt wraps round to the back
+      const drop = (topPos - p.box[1]) / height
+      const flatAndLong = zSpan < 0.06 * height && drop > 0.2
+      const wraps = (p.box[2] - oz) / cell - 0.5 < layerZ[layerOf(topPos)] - 0.02 * height / cell
+      const heldInFront = front > 0.03 && (p.topY > 0.58 || zSpan > 0.05 * height) && !flatAndLong && !wraps
+      const behind = smooth(-front / 0.03)
+      const reach = ATTACH_RADIUS + smooth((p.topY - 0.62) / 0.12) * behind * 0.1
+      // a long sheet hanging close around the body is a cape or a coat skirt even when its highest seam is
+      // out at the side (a weapon or a shield is held in front, a scythe blade or a bow away from the body)
+      let meanRadial = 0
+      for (const m of p.members) meanRadial += offset(m).radial
+      meanRadial /= p.members.length
+      const sheet = longest > 0.3 * height && girth < 0.3 && drop > 0.2 && !heldInFront && meanRadial < 0.33
+      onBody = cord || sheet ? 1 : smooth((reach + 0.02 - radial) / 0.03)
+      // nothing hangs from the ankles: boot edges and laces stay put
+      ok = !rod && (cord || sheet || (!heldInFront && onBody > 0)) && hanging && p.topY > 0.2
+      if (rod || !ok) for (const m of p.members) kind[m] = 4
+      if (options.debug && p.members.length > 30) debugInfo.push(JSON.stringify({ id: thins.pieceOf[p.members[0]], n: p.members.length, topY: +p.topY.toFixed(3), radial: +radial.toFixed(3), front: +front.toFixed(3), hanging, girth: +girth.toFixed(3), longest: +(longest / height).toFixed(3), cord, rod, heldInFront, sheet, x: +(((p.box[0] + p.box[3]) / 2 - ox) / height).toFixed(2), y: +((p.box[1] - minY) / height).toFixed(2), w: +((p.box[3] - p.box[0]) / height).toFixed(2), zs: +((p.box[5] - p.box[2]) / height).toFixed(2), straight: +principal(p.members, position).share.toFixed(3), meanRadial: +meanRadial.toFixed(3), onBody: +onBody.toFixed(2), ok }))
+    }
+    // a strap hanging from a pouch moves with the pouch
+    accept.push({ cord, hair, reach: cord ? CORD_REACH : REACH, base: top >= 0 ? raw[top] : 0, onBody })
+    if (!ok) { accept[accept.length - 1].reach = 0; continue }
+    const topPos = position[top * 3 + 1]
+    for (const a of p.seams) {
+      seedsAny.push(a)
+      if (position[a * 3 + 1] > topPos - 0.08 * height) seedsTop.push(a)
+    }
+  }
+  const fromAny = walk(seedsAny, THIN), fromTop = walk(seedsTop, THIN)
+  for (let i = 0; i < n; i++) {
+    const id = thins.pieceOf[i]
+    if (id < 0) continue
+    const p = thins.list[id], a = accept[id]
+    if (!a.reach) continue
+    const hang = smooth((position[p.top * 3 + 1] - position[i * 3 + 1]) / (0.04 * height))
+    const pin = a.base > 0 ? 1 : smooth(fromAny[i] / (PIN * height))
+    const w = Math.min(1, a.base + smooth(fromTop[i] / (a.reach * height)) * pin * hang * a.onBody)
+    if (!(w > 0.001)) continue
+    raw[i] = w
+    kind[i] = a.cord || a.hair ? 2 : 1
+    if (a.cord || a.hair) lively[i] = 1
+  }
+
+  // 8. cords inside rejected pieces: a rifle sling or a rope is fused into the weapon or the hand that holds
+  // it. Their strands (thinner than STRAND_RADIUS) are split off and swing if they hang and are not straight.
+  const rc = STRAND_RADIUS * CELLS_PER_HEIGHT
+  const erodedC = new Uint8Array(N)
+  for (let k = 0; k < N; k++) if (solid[k] && toOutside[k] > rc * rc) erodedC[k] = 1
+  const toErodedC = distanceTransform(erodedC, 1, nx, ny, nz)
+  const STRAND = 5
+  for (let id = 0; id < thins.list.length; id++) {
+    if (accept[id].reach) continue
+    for (const m of thins.list[id].members) {
+      const k = cellOf(position[m * 3], position[m * 3 + 1], position[m * 3 + 2])
+      if (k >= 0 && toErodedC[k] > (rc + 1) * (rc + 1)) cls[m] = STRAND
+    }
+  }
+  const strands = collect(STRAND, () => true)
+  const strandArea = pieceAreas(strands.pieceOf, strands.list.length, index, triCount, weld, position)
+  const strandSeeds: number[] = [], strandTop: number[] = []
+  const strandOk: boolean[] = []
+  for (const [id, p] of strands.list.entries()) {
+    let ok = p.top >= 0 && p.members.length >= 12
+    if (ok) {
+      const topPos = position[p.top * 3 + 1]
+      let cy = 0
+      for (const m of p.members) cy += position[m * 3 + 1]
+      cy /= p.members.length
+      const tops = [...p.seams].filter((a) => position[a * 3 + 1] > topPos - 0.08 * height)
+      const along = walk(tops, STRAND)
+      let longest = 0
+      for (const m of p.members) if (Number.isFinite(along[m])) longest = Math.max(longest, along[m])
+      const girth = strandArea[id] / Math.max(longest, 1e-6) / height
+      ok = topPos - cy > 0.3 * (p.box[4] - p.box[1]) && topPos - p.box[1] > 0.04 * height && longest > 0.05 * height
+        && girth < 0.06 && !isRod(p.members, position, height) && p.topY > 0.2
+        && Math.max(p.box[3] - p.box[0], p.box[5] - p.box[2]) < 0.25 * height
+      if (options.debug) debugInfo.push('strand ' + JSON.stringify({ id, n: p.members.length, topY: +p.topY.toFixed(3), girth: +girth.toFixed(3), longest: +(longest / height).toFixed(3), hang: +((topPos - cy) / (p.box[4] - p.box[1])).toFixed(2), drop: +((topPos - p.box[1]) / height).toFixed(3), w: +((p.box[3] - p.box[0]) / height).toFixed(3), d: +((p.box[5] - p.box[2]) / height).toFixed(3), rod: isRod(p.members, position, height), ok }))
+      if (ok) { for (const a of p.seams) strandSeeds.push(a); strandTop.push(...tops) }
+    }
+    strandOk.push(ok)
+  }
+  const strandAny = walk(strandSeeds, STRAND), strandFromTop = walk(strandTop, STRAND)
+  for (let i = 0; i < n; i++) {
+    const id = strands.pieceOf[i]
+    if (id < 0 || !strandOk[id]) continue
+    const p = strands.list[id]
+    const hang = smooth((position[p.top * 3 + 1] - position[i * 3 + 1]) / (0.03 * height))
+    const w = smooth(strandFromTop[i] / (CORD_REACH * height)) * smooth(strandAny[i] / (PIN * height)) * hang
+    if (!(w > 0.001)) continue
+    raw[i] = w; lively[i] = 1; kind[i] = 2
+  }
+
+  // smooth over the mesh; body vertices stay exactly still, seam twins share one value
+  let w = raw, live = lively
+  for (let pass = 0; pass < 3; pass++) {
+    const next = new Float32Array(n), nextLive = new Float32Array(n)
+    for (let i = 0; i < n; i++) {
+      // only inside the parts that swing: the body, hands and weapons around them keep exactly 0
+      if (weld[i] !== i || kind[i] === 0 || kind[i] === 4) continue
+      const list = neighbours[i]
+      let s = w[i], l = live[i]
+      for (const j of list) { s += w[j]; l += live[j] }
+      next[i] = s / (list.length + 1); nextLive[i] = l / (list.length + 1)
+    }
+    w = next; live = nextLive
   }
   const weights = new Float32Array(n * 2)
   let moving = 0
   for (let i = 0; i < n; i++) {
     const v = w[weld[i]]
     weights[i * 2] = v < 0.002 ? 0 : v
-    weights[i * 2 + 1] = hair[weld[i]]
+    weights[i * 2 + 1] = v < 0.002 ? 0 : live[weld[i]]
     if (v >= 0.002) moving++
   }
-  if (!moving) return null
+  if (!moving && !options.debug) return null
   return {
     weights,
     pivotX: ox + (pivotX / Math.max(1, pivotN) + 0.5) * cell,
     pivotZ: oz + (pivotZ / Math.max(1, pivotN) + 0.5) * cell,
     minY, height, share: moving / n,
+    kind: options.debug ? Uint8Array.from({ length: n }, (_, i) => kind[weld[i]]) : undefined,
+    info: options.debug ? debugInfo : undefined,
   }
+}
+
+/** Surface area of each piece (triangles whose corners all belong to it). */
+function pieceAreas(pieceOf: Int32Array, count: number, index: ArrayLike<number> | null, triCount: number, weld: Int32Array, position: ArrayLike<number>): Float64Array {
+  const areas = new Float64Array(count)
+  for (let t = 0; t < triCount; t++) {
+    const a = weld[index ? index[t * 3] : t * 3], b = weld[index ? index[t * 3 + 1] : t * 3 + 1], c = weld[index ? index[t * 3 + 2] : t * 3 + 2]
+    const id = pieceOf[a]
+    if (id < 0 || pieceOf[b] !== id || pieceOf[c] !== id) continue
+    const ux = position[b * 3] - position[a * 3], uy = position[b * 3 + 1] - position[a * 3 + 1], uz = position[b * 3 + 2] - position[a * 3 + 2]
+    const vx = position[c * 3] - position[a * 3], vy = position[c * 3 + 1] - position[a * 3 + 1], vz = position[c * 3 + 2] - position[a * 3 + 2]
+    areas[id] += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2
+  }
+  return areas
 }
 
 /** A long, straight loose piece (a barrel, a handle, a blade): its principal axis carries nearly all of its spread. */
 function isRod(members: number[], position: ArrayLike<number>, height: number): boolean {
+  const { share, length } = principal(members, position)
+  return share > 0.97 && length > 0.06 * height
+}
+
+/** Share of the spread along the principal axis, and the piece's length along it. */
+function principal(members: number[], position: ArrayLike<number>): { share: number; length: number } {
   let mx = 0, my = 0, mz = 0
   for (const i of members) { mx += position[i * 3]; my += position[i * 3 + 1]; mz += position[i * 3 + 2] }
   mx /= members.length; my /= members.length; mz /= members.length
@@ -301,7 +497,7 @@ function isRod(members: number[], position: ArrayLike<number>, height: number): 
   const total = xx + yy + zz
   const major = xx * ax * ax + yy * ay * ay + zz * az * az + 2 * (xy * ax * ay + xz * ax * az + yz * ay * az)
   const length = Math.sqrt(major / members.length) * 3.4
-  return major > total * 0.97 && length > 0.06 * height
+  return { share: total > 0 ? major / total : 1, length }
 }
 
 /**

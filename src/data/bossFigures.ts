@@ -3,10 +3,21 @@
  * the pre-rendered figure images (src/assets/boss-figures, made by scripts/bosses/render-figures.mjs from
  * the owner's models). A boss without an image yet is simply skipped, so new models can be added one by one.
  */
+import figureSizes from '../assets/boss-figures/sizes.json'
+
 const images = import.meta.glob<string>('../assets/boss-figures/*.webp', { eager: true, import: 'default' })
 const byKey = new Map(Object.entries(images).map(([path, url]) => [path.replace(/^.*\/|\.webp$/g, ''), url]))
+/** Height of each still in body heights (feet to the top of the head = 1; a raised rifle or antlers add to it). */
+const SIZES: Record<string, number> = figureSizes
 
-export interface BossFigure { key: string; name: { ru: string; en: string }; url: string }
+export interface BossFigure {
+  key: string
+  name: { ru: string; en: string }
+  url: string
+  /** Still height in body heights: every still is drawn at the same scale per body, so sizing by this keeps
+   * bosses standing together at one real-world scale. */
+  height: number
+}
 
 /** RU/EN display names by boss key (also used by the Gallery). */
 export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
@@ -65,7 +76,7 @@ const MAP_BOSSES: Record<string, string[]> = {
 export function bossFiguresFor(mapId: string): BossFigure[] {
   return (MAP_BOSSES[mapId] ?? []).flatMap((key) => GROUPS[key] ?? [key]).flatMap((key) => {
     const url = byKey.get(key)
-    return url ? [{ key, name: BOSS_NAMES[key] ?? { ru: key, en: key }, url }] : []
+    return url ? [{ key, name: BOSS_NAMES[key] ?? { ru: key, en: key }, url, height: SIZES[key] ?? 1 }] : []
   })
 }
 
@@ -73,7 +84,7 @@ export function bossFiguresFor(mapId: string): BossFigure[] {
 export function allBossFigures(): BossFigure[] {
   return Object.keys(BOSS_NAMES).flatMap((key) => {
     const url = byKey.get(key)
-    return url ? [{ key, name: BOSS_NAMES[key], url }] : []
+    return url ? [{ key, name: BOSS_NAMES[key], url, height: SIZES[key] ?? 1 }] : []
   })
 }
 
