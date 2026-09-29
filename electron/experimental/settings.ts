@@ -83,7 +83,7 @@ function sanitize(raw: unknown): ExperimentalSettings {
     // Always on: the player's position comes from the game's screenshots (the switch was removed).
     tracking: true,
     autoScreenshot: flag('autoScreenshot'),
-    screenshotIntervalMs: Number.isFinite(interval) ? Math.min(2000, Math.max(1000, Math.round(interval))) : DEFAULT_SETTINGS.screenshotIntervalMs,
+    screenshotIntervalMs: Number.isFinite(interval) ? Math.min(15000, Math.max(1000, Math.round(interval))) : DEFAULT_SETTINGS.screenshotIntervalMs,
     itemKey: isKnownHotkey(value.itemKey) ? value.itemKey : DEFAULT_ITEM_KEY,
     minimapKey: isKnownHotkey(value.minimapKey) ? value.minimapKey : DEFAULT_MINIMAP_KEY,
     collectorKey: isKnownHotkey(value.collectorKey) ? value.collectorKey : '',

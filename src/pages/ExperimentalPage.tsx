@@ -210,8 +210,8 @@ export function ExperimentalPage() {
                     <input
                       type="range"
                       min={1000}
-                      max={2000}
-                      step={250}
+                      max={15000}
+                      step={500}
                       value={settings.screenshotIntervalMs}
                       onChange={(event) => update({ screenshotIntervalMs: Number(event.target.value) })}
                     />
