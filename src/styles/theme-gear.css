@@ -2,7 +2,7 @@
  * «Снаряжение» / "Gear" theme — tactical load-bearing kit. Everything is scoped to :root[data-theme="gear"].
  * Materials (procedural, lit from the top-left, see scripts/gear/): camo cordura, PALS/MOLLE webbing rows,
  * loop velcro, nylon webbing. Blocks are built like kit: panels are carrier fronts with a MOLLE flap and a
- * press stud, stat cards are pouches with a flap, buttons are webbing pull tabs with bartacks, the sidebar is
+ * press stud, stat cards carry a name-tape patch and a raised multicam number patch, buttons are webbing pull tabs with bartacks, the sidebar is
  * a loop field with patches. The swinging kit, helmet and patches live in src/theme/gear/.
  * Text sits on heavily shaded fabric or on solid tapes so it keeps WCAG AA contrast.
  */
@@ -202,43 +202,67 @@
 :root[data-theme="gear"] .panel-header > button:not(.button) { color: #e2dac2; }
 :root[data-theme="gear"] .divider { background: repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px); height: 1px; }
 
-/* ---------- stat cards: magazine/admin pouches with a flap on top ---------- */
+/* ---------- stat cards: a multicam panel with two sewn-on patches — a name tape and a raised multicam number ---------- */
 :root[data-theme="gear"] .stat-card {
   position: relative; isolation: isolate;
+  display: flex; flex-direction: column; align-items: flex-start;
   border: 0;
-  border-radius: 6px 6px 10px 10px;
+  border-radius: 7px;
   background:
-    radial-gradient(ellipse 120% 60% at 50% 100%, rgb(0 0 0 / 35%), transparent 70%),
-    var(--gear-shade-body),
+    var(--gear-light),
+    linear-gradient(170deg, rgb(20 21 15 / 58%) 0%, rgb(13 14 10 / 72%) 100%),
     var(--gear-cordura) calc(var(--gear-tex-x) - 220px) calc(var(--gear-tex-y) - 140px) / 2048px 2048px,
     #1a1b14;
-  box-shadow: inset 0 0 0 1px #0a0b07, inset 0 0 0 3px rgb(74 72 52 / 55%), 0 8px 18px rgb(0 0 0 / 50%), 0 2px 3px rgb(0 0 0 / 55%);
-  outline: 1.3px dashed var(--gear-thread-dim);
-  outline-offset: -6px;
+  box-shadow:
+    inset 0 0 0 1px #0a0b07,
+    inset 0 0 0 4px rgb(58 56 40 / 70%),
+    inset 0 0 0 5px rgb(10 11 7 / 70%),
+    inset 0 1px 0 4px rgb(255 240 205 / 8%),
+    0 8px 18px rgb(0 0 0 / 50%), 0 2px 3px rgb(0 0 0 / 55%);
 }
-:root[data-theme="gear"] .stat-card:nth-child(2) { --gear-tex-x: -540px; --gear-tex-y: -260px; }
-:root[data-theme="gear"] .stat-card:nth-child(3) { --gear-tex-x: -1180px; --gear-tex-y: -820px; }
-:root[data-theme="gear"] .stat-card:nth-child(4) { --gear-tex-x: -1610px; --gear-tex-y: -1400px; }
-/* the flap */
-:root[data-theme="gear"] .stat-card::before {
-  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 40px; z-index: -1; pointer-events: none;
-  border-radius: 6px 6px 12px 12px / 6px 6px 8px 8px;
+:root[data-theme="gear"] .stat-card:nth-child(2) { --gear-tex-x: -540px; --gear-tex-y: -260px; --gear-patch-x: -610px; --gear-patch-y: -380px; --gear-tilt: .8deg; }
+:root[data-theme="gear"] .stat-card:nth-child(3) { --gear-tex-x: -1180px; --gear-tex-y: -820px; --gear-patch-x: -1320px; --gear-patch-y: -140px; --gear-tilt: -.6deg; }
+:root[data-theme="gear"] .stat-card:nth-child(4) { --gear-tex-x: -1610px; --gear-tex-y: -1400px; --gear-patch-x: -300px; --gear-patch-y: -1210px; --gear-tilt: .5deg; }
+/* name tape: dark ranger webbing, merrowed (thick overlocked) edge, the text embroidered in tan thread */
+:root[data-theme="gear"] .stat-label {
+  display: inline-block; padding: 5px 11px 4px; border-radius: 4px;
+  color: #e3d3a6; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; font-size: 11px; letter-spacing: .16em;
+  background: linear-gradient(180deg, rgb(255 244 214 / 9%), rgb(0 0 0 / 18%)), var(--gear-web-ranger) 0 0 / 256px 256px;
+  box-shadow:
+    inset 0 0 0 1px #0d0f09,
+    inset 0 0 0 3px #6d6446,
+    inset 0 0 0 3.5px rgb(0 0 0 / 55%),
+    inset 0 1px 0 3px rgb(255 238 196 / 16%),
+    0 1px 0 rgb(0 0 0 / 80%), 0 3px 5px rgb(0 0 0 / 55%);
+  text-shadow: 0 1px 0 #16150d, 0 -1px 0 rgb(255 240 200 / 14%);
+  transform: rotate(calc(var(--gear-tilt, -.5deg) * -1));
+}
+/* the number: a raised multicam patch with a thick merrowed rim; digits embroidered, standing off the fabric */
+:root[data-theme="gear"] .stat-value {
+  display: inline-block; max-width: 100%; margin-top: 12px; padding: 3px 16px 5px; border-radius: 8px;
+  font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 700; font-size: 34px; line-height: 1.1; letter-spacing: .02em;
+  color: #f3ead0;
+  -webkit-text-stroke: 3px #17160e; paint-order: stroke fill;
+  text-shadow: 0 1px 0 #b9a77c, 0 2px 0 #6f6245, 0 3px 0 #2d281b, 0 4px 5px rgb(0 0 0 / 75%);
   background:
-    linear-gradient(180deg, rgb(255 240 205 / 8%), transparent 60%),
-    repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px) 0 calc(100% - 5px) / 100% 1px no-repeat,
-    var(--gear-shade-flap),
-    var(--gear-cordura) calc(var(--gear-tex-x) - 900px) calc(var(--gear-tex-y) - 300px) / 2048px 2048px;
-  box-shadow: inset 0 0 0 1px #0a0b07, inset 0 1px 0 1px rgb(255 240 205 / 9%), 0 3px 5px rgb(0 0 0 / 60%);
+    radial-gradient(ellipse 90% 80% at 30% 15%, rgb(255 244 214 / 16%), transparent 60%),
+    linear-gradient(180deg, rgb(0 0 0 / 0%) 55%, rgb(0 0 0 / 28%)),
+    var(--gear-cordura) var(--gear-patch-x, -900px) var(--gear-patch-y, -620px) / 1024px 1024px,
+    #4a4a36;
+  box-shadow:
+    inset 0 0 0 1.5px #0e0f09,
+    inset 0 0 0 4px #7b7250,
+    inset 0 0 0 5px rgb(0 0 0 / 55%),
+    inset 0 2px 0 4px rgb(255 240 200 / 22%),
+    inset 0 -2px 0 4px rgb(0 0 0 / 30%),
+    0 2px 0 #0b0c07,
+    0 5px 9px rgb(0 0 0 / 60%);
+  transform: rotate(var(--gear-tilt, -.5deg));
 }
-/* press stud on the flap; the hanging pull (canvas) is anchored to it */
-:root[data-theme="gear"] .stat-card::after {
-  content: ''; position: absolute; left: calc(62% - 8px); top: 32px; width: 16px; height: 16px; z-index: 2; pointer-events: none;
-  background: var(--gear-snap) center / contain no-repeat;
-  filter: drop-shadow(1px 1.5px 1px rgb(0 0 0 / 60%));
-}
-:root[data-theme="gear"] .stat-label { color: #cdc2a1; text-shadow: 0 1px 1px rgb(0 0 0 / 85%); }
-:root[data-theme="gear"] .stat-value { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: 0; color: #f4ecd6; text-shadow: 0 1px 0 #000, 0 2px 8px rgb(0 0 0 / 60%); }
-:root[data-theme="gear"] .stat-meta { color: #c4bda5; }
+:root[data-theme="gear"] .stat-meta { color: #d4ccb2; text-shadow: 0 1px 2px rgb(0 0 0 / 90%); margin-top: 8px; }
+:root[data-theme="gear"] .goon-card .goon-card-heading { align-self: stretch; }
+:root[data-theme="gear"] .goon-card .goon-map-value { font-size: 26px; }
+:root[data-theme="gear"] .stat-value { min-width: 64px; text-align: center; }
 
 /* ---------- buttons: webbing pull tabs with bartacks and a stitched edge ---------- */
 :root[data-theme="gear"] .button {

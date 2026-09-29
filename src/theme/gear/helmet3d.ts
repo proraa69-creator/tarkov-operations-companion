@@ -1,6 +1,6 @@
 /**
- * The Gear theme's 3D helmet: one of the GLB models in ./helmets, soft three-point lighting plus a small
- * room environment for reflections, a low "sun" that glints off the visor glass as the helmet turns, idle
+ * The Gear theme's 3D helmet: one of the GLB models in ./helmets, soft three-point lighting (glass-visor
+ * variants add reflections and a low "sun" that glints off the visor as the helmet turns), idle
  * sway/breathing and a turn toward the cursor. The saved pose (see HelmetBadge) sits under the idle motion.
  * Loaded with a dynamic import only while the theme is active.
  */
@@ -42,13 +42,17 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
   const key = new DirectionalLight(0xfff6ea, 2.6); key.position.set(-3, 4, 3.2); scene.add(key)
   const rim = new DirectionalLight(0xa9c2d8, 1.6); rim.position.set(3.5, 1.6, -3); scene.add(rim)
   const fill = new DirectionalLight(0xd9c79b, 0.4); fill.position.set(2.5, -1, 2.5); scene.add(fill)
-  // Low front sun: its highlight slides across the glossy visor as the helmet follows the cursor.
-  const sun = new DirectionalLight(0xfff2d6, 5); sun.position.set(-1.5, 2.5, 5); scene.add(sun)
-  const pmrem = new PMREMGenerator(renderer)
-  const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
-  pmrem.dispose()
-  scene.environment = environment
-  scene.environmentIntensity = 0.45
+  // Glass-visor helmets get reflections and a low front sun whose highlight slides across the visor as the
+  // helmet follows the cursor; the original model keeps the plain three-point light it was tuned for.
+  let environment: Texture | null = null
+  if (options.variant.glass) {
+    const sun = new DirectionalLight(0xfff2d6, 5); sun.position.set(-1.5, 2.5, 5); scene.add(sun)
+    const pmrem = new PMREMGenerator(renderer)
+    environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    pmrem.dispose()
+    scene.environment = environment
+    scene.environmentIntensity = 0.45
+  }
 
   const rig = new Group()
   const holder = new Group()
@@ -141,7 +145,7 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: { reduced: boole
       cancelAnimationFrame(raf)
       io.disconnect()
       release(scene)
-      environment.dispose()
+      environment?.dispose()
       renderer.dispose()
       renderer.forceContextLoss()
     },

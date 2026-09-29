@@ -1,4 +1,4 @@
-// Repaints the owner's welding-helmet model (scripts/gear/source/helmet-welding.glb) into the
+// Repaints the owner's welding-helmet model (src/assets/gear/helmet.glb) into the
 // «Сталь, царапины» variant: bare scratched steel instead of the printed art/inscription, and a cracked
 // dark visor. The textures are baked from 3D position, so the fragmented Tripo UV atlas shows no seams.
 //   node scripts/gear/repaint-helmet.mjs            -> src/assets/gear/helmet-steel.glb
@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..', '..')
-const SOURCE = join(here, 'source', 'helmet-welding.glb')
+const SOURCE = join(root, 'src', 'assets', 'gear', 'helmet.glb')
 const TARGET = join(root, 'src', 'assets', 'gear', 'helmet-steel.glb')
 const DEBUG = process.argv.includes('--debug')
 const N = 1024

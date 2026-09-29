@@ -8,5 +8,5 @@ export const THEME_PHRASES: Array<[string, string]> = [
   ['Тельняшка', 'Telnyashka'],
   // Telnyashka sidebar tagline: drawn by CSS (themes.css) in both languages via :root[lang]; listed here for the audit.
   ['Кружка чая — и в рейд.', 'A mug of tea — then the raid.'],
-  ['Выбрать шлем', 'Choose helmet'], ['Шлем', 'Helmet'], ['Сталь, царапины', 'Scratched steel'],
+  ['Выбрать шлем', 'Choose helmet'], ['Шлем', 'Helmet'], ['Сталь, царапины', 'Scratched steel'], ['Сварочная маска', 'Welding mask'],
 ]
