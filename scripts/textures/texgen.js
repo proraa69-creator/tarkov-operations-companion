@@ -177,7 +177,7 @@
   }
 
   // plain weave with ripstop grid: returns height map (0..~1.4)
-  function weave(S, p, ripEvery, fibreSeed, fibreAmp = 0.18, twill = 0) {
+  function weave(S, p, ripEvery, fibreSeed, fibreAmp = 0.18, twill = 0, ripAmp = 0.9) {
     const H = new Float32Array(S * S)
     const fib = fbm(S, S / p * 2, S / p / 3, 2, 0.5, fibreSeed)          // along-thread fibre streaks (vertical)
     const fib2 = fbm(S, S / p / 3, S / p * 2, 2, 0.5, fibreSeed + 7)    // (horizontal)
@@ -196,8 +196,8 @@
         let h
         if (warpTop) h = Math.pow(cu, 0.55) * (flat + (1 - flat) * cv) + fib[k] * fibreAmp * cu
         else h = Math.pow(cv, 0.55) * (0.6 + 0.4 * cu) + fib2[k] * fibreAmp * cv
-        if (ripC) h += 0.9 * Math.pow(cu, 0.6) * (warpTop ? 1 : 0.6)
-        if (ripR) h += 0.9 * Math.pow(cv, 0.6) * (warpTop ? 0.6 : 1)
+        if (ripC) h += ripAmp * Math.pow(cu, 0.6) * (warpTop ? 1 : 0.6)
+        if (ripR) h += ripAmp * Math.pow(cv, 0.6) * (warpTop ? 0.6 : 1)
         H[k] = h
       }
     }
@@ -258,7 +258,7 @@
     let Tw = fbm(S, 12, 7, 3, 0.5, 41); Tw = warp(Tw, S, fx, fy, 70 * k1)
     const Twm = fbm(S, 8, 8, 2, 0.5, 42)
     const dot = fbm(S, 110, 110, 2, 0.4, 43)
-    const W = weave(S, Math.max(2, 4 * k1), 16, 44, 0.3, 2)
+    const W = weave(S, Math.max(2, 4 * k1), 16, 44, 0.3, 2, 0.5)
     const fuzz = fbm(S, 700, 700, 2, 0.5, 45)
     const F = fbm(S, 2, 2, 3, 0.5, 46)
     const H = new Float32Array(S * S)
@@ -308,9 +308,10 @@
     // camo paint: M81 woodland shapes, big and blobby
     const wx = fbm(S, 4, 4, 3, 0.5, 56), wy = fbm(S, 4, 4, 3, 0.5, 57)
     const ex = fbm(S, 28, 28, 2, 0.5, 58), ey = fbm(S, 28, 28, 2, 0.5, 59)
-    let CA = fbm(S, 3, 4, 4, 0.45, 60); CA = warp(CA, S, wx, wy, 240 * k1); CA = warp(CA, S, ex, ey, 20 * k1)
-    let CB = fbm(S, 4, 5, 4, 0.45, 61); CB = warp(CB, S, wy, wx, 240 * k1); CB = warp(CB, S, ey, ex, 20 * k1)
-    let CC = fbm(S, 5, 6, 4, 0.45, 62); CC = warp(CC, S, wx, wy, 200 * k1); CC = warp(CC, S, ex, ey, 18 * k1)
+    const bx = fbm(S, 110, 40, 2, 0.5, 70), by = fbm(S, 110, 40, 2, 0.5, 71)     // brush-edge roughness
+    let CA = fbm(S, 3, 4, 4, 0.45, 60); CA = warp(CA, S, wx, wy, 240 * k1); CA = warp(CA, S, ex, ey, 20 * k1); CA = warp(CA, S, bx, by, 7 * k1)
+    let CB = fbm(S, 4, 5, 4, 0.45, 61); CB = warp(CB, S, wy, wx, 240 * k1); CB = warp(CB, S, ey, ex, 20 * k1); CB = warp(CB, S, by, bx, 7 * k1)
+    let CC = fbm(S, 5, 6, 4, 0.45, 62); CC = warp(CC, S, wx, wy, 200 * k1); CC = warp(CC, S, ex, ey, 18 * k1); CC = warp(CC, S, bx, by, 7 * k1)
     // wear: blotchy + stretched along the grain
     const wear1 = fbm(S, 10, 10, 5, 0.55, 63), wear2 = fbm(S, 90, 12, 3, 0.5, 64), wear3 = fbm(S, 40, 40, 3, 0.5, 65)
         const grime = fbm(S, 6, 6, 4, 0.5, 67)
@@ -375,7 +376,7 @@
       if (CC[k] > 0.19 || (CB[k] < -0.2 && CA[k] < 0)) ci = 3
       const cc = cam[ci]
       // paint follows the wood: grain & fibres print through
-      const through = 1 + (lw - 0.4) * 0.16 + fib[k] * 0.12
+      const through = (1 + (lw - 0.4) * 0.16 + fib[k] * 0.12) * (1 + wear2[k] * 0.14 + wear3[k] * 0.1)   // brush streaks + mottling
       let pr = cc[0] * through, pg = cc[1] * through, pb = cc[2] * through
       // chalky weathering of the paint + rust halo
       const chalk = sstep(0.1, 0.3, wv) * 0.18
@@ -485,7 +486,7 @@
       const v = n1[k] * 0.7 + n2[k] * 0.3
       const q = k * 4
       const w = v > 0 ? 255 : 0
-      out[q] = w; out[q + 1] = w; out[q + 2] = w; out[q + 3] = Math.min(255, Math.abs(v) * 150)
+      out[q] = w; out[q + 1] = w; out[q + 2] = w; out[q + 3] = Math.min(255, Math.abs(v) * 80)
     }
     return { data: out }
   }

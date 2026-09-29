@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64">
+  <!-- Original decorative props for the Telnyashka theme: enamel mug, football, bottle cap, peaked cap -->
+  <defs>
+    <linearGradient id="m" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#54544f"/><stop offset=".5" stop-color="#a7a79f"/><stop offset=".8" stop-color="#7fa3a3"/><stop offset="1" stop-color="#34342f"/></linearGradient>
+    <radialGradient id="b" cx=".38" cy=".32" r=".7"><stop offset="0" stop-color="#e9e6dc"/><stop offset=".75" stop-color="#9c998f"/><stop offset="1" stop-color="#4a4843"/></radialGradient>
+    <radialGradient id="c" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#d9b25e"/><stop offset=".7" stop-color="#8a6a2a"/><stop offset="1" stop-color="#3d2d10"/></radialGradient>
+  </defs>
+  <g opacity=".92">
+    <!-- mug -->
+    <path d="M8 22 H34 V52 Q34 57 29 57 H13 Q8 57 8 52 Z" fill="url(#m)"/>
+    <ellipse cx="21" cy="22" rx="13" ry="3.4" fill="#1d140d"/>
+    <path d="M34 28 q10 0 10 9 q0 9 -10 9" stroke="#6f6f69" stroke-width="3.4" fill="none"/>
+    <path d="M12 54 H30" stroke="#000" stroke-opacity=".3" stroke-width="2"/>
+    <!-- football -->
+    <circle cx="80" cy="38" r="19" fill="url(#b)"/>
+    <path d="M80 30 l7 5 -3 8 h-8 l-3 -8 z" fill="#1c1c1a"/>
+    <path d="M80 30 V19 M87 35 L98 31 M84 43 L91 53 M76 43 L69 53 M73 35 L62 31" stroke="#2a2a27" stroke-width="1.4"/>
+    <path d="M62 31 l-1 10 M98 31 l1 10 M69 53 l11 4 11 -4 M76 20 l4 -1 4 1" stroke="#1c1c1a" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+    <!-- bottle cap -->
+    <circle cx="128" cy="46" r="10" fill="url(#c)"/>
+    <circle cx="128" cy="46" r="10" fill="none" stroke="#3d2d10" stroke-width="2.4" stroke-dasharray="2.2 1.6"/>
+    <circle cx="128" cy="46" r="5.5" fill="none" stroke="#f1d58b" stroke-opacity=".5"/>
+    <!-- peaked cap -->
+    <path d="M160 44 Q162 24 184 22 Q204 22 206 42 Z" fill="#26282b"/>
+    <path d="M160 44 Q182 40 206 42 Q214 46 216 50 Q190 54 160 48 Z" fill="#141517"/>
+    <path d="M168 30 Q184 26 200 30" stroke="#f0f0ea" stroke-opacity=".75" stroke-width="1.6" fill="none"/>
+    <path d="M166 34 Q184 30 202 34" stroke="#f0f0ea" stroke-opacity=".75" stroke-width="1.6" fill="none"/>
+    <circle cx="184" cy="22.5" r="1.8" fill="#3a3c40"/>
+  </g>
+</svg>

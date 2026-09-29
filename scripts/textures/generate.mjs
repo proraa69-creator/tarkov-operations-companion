@@ -27,7 +27,7 @@ export const TEXTURES = {
   slate: { theme: 'slate', master: 4096, out: [{ size: 2048, quality: 0.84 }, { size: 4096, quality: 0.58 }] },
   tracksuit: { theme: 'telnyashka', master: 4096, out: [{ size: 2048, quality: 0.84 }, { size: 4096, quality: 0.6 }] },
   stripes: { theme: 'telnyashka', master: 2048, out: [{ size: 1024, quality: 0.86 }, { size: 2048, quality: 0.72 }] },
-  grain: { theme: 'telnyashka', master: 512, out: [{ size: 512, quality: 0.8 }] },
+  grain: { theme: 'telnyashka', master: 256, out: [{ size: 256, quality: 0.7 }] },
 }
 
 const args = process.argv.slice(2)

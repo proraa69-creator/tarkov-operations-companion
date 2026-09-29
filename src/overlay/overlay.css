@@ -192,3 +192,23 @@ html.overlay-root #root {
 .ov-quest-task-head span { color: #8e8c80; font-size: 11px; white-space: nowrap; }
 .ov-quest-task ul { margin: 0; padding-left: 15px; color: #c9c7b7; font-size: 11.5px; line-height: 1.35; }
 .ov-quest-task li + li { margin-top: 2px; }
+
+/* Material themes (themes.css): the in-game cards pick up the theme's chrome, accent and head strip.
+   The window stays transparent — only the cards are themed. */
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.eft-card, .ov-card) {
+  color: var(--text); background: var(--ov-bg); border-color: var(--line-strong);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 80%), inset 0 1px 0 rgb(255 255 255 / 6%), 0 8px 22px rgb(0 0 0 / 70%);
+}
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.eft-card-head, .ov-minimap-head) { background: var(--ov-head); border-bottom-color: var(--line-strong); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.eft-card-head span, .ov-minimap-head strong) { color: var(--text); font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .08em; text-shadow: 0 1px 2px #000; }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.eft-prices dt, .eft-hint, .ov-minimap-head, .ov-opacity) { color: var(--text-muted); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .eft-prices dd { color: var(--brass-strong); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .eft-prices div { border-bottom-color: rgb(255 255 255 / 9%); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .eft-card-icon { background-color: var(--well); border-color: var(--well-line); box-shadow: inset 0 2px 5px rgb(0 0 0 / 65%); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-minimap { background: var(--ov-bg); border-color: var(--line-strong); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-quest-list, .ov-quest-task) { background: var(--ov-bg); border-top-color: var(--line-strong); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-quest-list button { background: var(--well); border-color: var(--well-line); color: var(--text-muted); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-quest-list button.active { border-color: var(--brass); background: var(--accent-soft); color: var(--text); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-timer) { background: var(--brass); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-opacity input { accent-color: var(--brass); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="woodland"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-quest-task-head strong { color: var(--brass-strong); }

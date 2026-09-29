@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 120" width="20" height="120"><g transform="translate(0 50)">
+  <defs>
+    <radialGradient id="rs" cx=".5" cy=".55" r=".5"><stop offset=".6" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <linearGradient id="rh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c9ccd1"/><stop offset=".45" stop-color="#6d7178"/><stop offset="1" stop-color="#26282c"/></linearGradient>
+    <linearGradient id="rt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8e9298"/><stop offset="1" stop-color="#3a3d42"/></linearGradient>
+  </defs>
+  <circle cx="10.6" cy="11" r="9" fill="url(#rs)"/>
+  <circle cx="10" cy="10" r="8.2" fill="#15171a"/>
+  <circle cx="10" cy="10" r="7.6" fill="url(#rt)"/>
+  <polygon points="10,3.6 15.5,6.8 15.5,13.2 10,16.4 4.5,13.2 4.5,6.8" fill="url(#rh)" stroke="#111" stroke-width=".6"/>
+  <polygon points="10,5.6 13.8,7.8 13.8,12.2 10,14.4 6.2,12.2 6.2,7.8" fill="#5b5f66" opacity=".55"/>
+  <path d="M5 7 L10 4.1 L15 7" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".7"/>
+</g></svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 138">
+  <!-- Original decorative instant-photo: an enamel mug on a crate, steam, teal side light -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2d2621"/><stop offset=".8" stop-color="#1e1a17"/><stop offset="1" stop-color="#2f4a4c"/></linearGradient>
+    <linearGradient id="mug" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6d6d68"/><stop offset=".55" stop-color="#b8b8b0"/><stop offset=".8" stop-color="#8fb3b3"/><stop offset="1" stop-color="#3c3c38"/></linearGradient>
+    <filter id="g"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="11"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .16 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+  </defs>
+  <rect width="120" height="138" rx="2" fill="#dbd4c4"/>
+  <rect x="8" y="8" width="104" height="100" fill="url(#bg)"/>
+  <!-- crate -->
+  <rect x="18" y="74" width="84" height="34" fill="#4a3a28"/>
+  <path d="M18 85 H102 M18 96 H102" stroke="#2a2016" stroke-width="1.4"/>
+  <rect x="18" y="74" width="84" height="3" fill="#6b5538"/>
+  <!-- mug -->
+  <path d="M46 48 H70 V72 Q70 76 66 76 H50 Q46 76 46 72 Z" fill="url(#mug)"/>
+  <ellipse cx="58" cy="48" rx="12" ry="3" fill="#2a1c12"/>
+  <path d="M70 53 q9 0 9 8 q0 8 -9 8" stroke="#8a8a84" stroke-width="3" fill="none"/>
+  <path d="M54 44 q-4 -6 1 -12 q4 -6 0 -12 M62 44 q-4 -6 1 -12 q4 -6 0 -12" stroke="#e8e2d2" stroke-width="1.6" fill="none" opacity=".35" stroke-linecap="round"/>
+  <rect x="8" y="8" width="104" height="100" filter="url(#g)"/>
+</svg>
