@@ -109,15 +109,15 @@ export function HelmetBadge({ reduced }: { reduced: boolean }) {
         className={`gear-helmet-settings${picking ? ' active' : ''}`}
         style={{ top: top - size / 2 - 3, left: left - 10 }}
         onClick={() => setPicking((state) => !state)}
-        title={uiText('Выбрать шлем')}
-        aria-label={uiText('Выбрать шлем')}
+        title={uiText('Выбрать маску')}
+        aria-label={uiText('Выбрать маску')}
         aria-expanded={picking}
       >
         <Settings2 size={12} />
       </button>
       {picking && (
-        <div className="gear-helmet-editor" style={{ top: Math.max(12, top - 40), left: left + 16 }} role="menu" aria-label={uiText('Выбрать шлем')}>
-          <div className="gear-helmet-editor-head"><strong>{uiText('Шлем')}</strong></div>
+        <div className="gear-helmet-editor" style={{ top: Math.max(12, top - 40), left: left + 16 }} role="menu" aria-label={uiText('Выбрать маску')}>
+          <div className="gear-helmet-editor-head"><strong>{uiText('Маска')}</strong></div>
           {HELMETS.map((helmet) => (
             <button key={helmet.id} type="button" role="menuitemradio" aria-checked={helmet.id === variant.id} className={`gear-helmet-option${helmet.id === variant.id ? ' active' : ''}`} onClick={() => choose(helmet)}>
               <span>{uiText(helmet.label)}</span>{helmet.id === variant.id && <Check size={13} />}

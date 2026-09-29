@@ -1,12 +1,11 @@
 /** English strings for the colour themes (Settings picker, top-bar theme button) and their small jokes. */
 export const THEME_PHRASES: Array<[string, string]> = [
   ['Чёрный мультикам', 'Black MultiCam'],
-  ['Мультикам', 'MultiCam'],
   ['Перфорация', 'Perforated steel'],
   ['Ржавая сталь', 'Rusted steel'],
-  ['Сланец', 'Slate'],
+  ['Металл', 'Metal'],
   ['Тельняшка', 'Telnyashka'],
   // Telnyashka sidebar tagline: drawn by CSS (themes.css) in both languages via :root[lang]; listed here for the audit.
-  ['Кружка чая — и в рейд.', 'A mug of tea — then the raid.'],
-  ['Выбрать шлем', 'Choose helmet'], ['Шлем', 'Helmet'], ['Сталь, царапины', 'Scratched steel'], ['Сварочная маска', 'Welding mask'],
+  ['Бутылка водки — и в рейд.', 'A bottle of vodka — then the raid.'],
+  ['Выбрать маску', 'Choose mask'], ['Маска', 'Mask'], ['Сталь, царапины', 'Scratched steel'], ['Сварочная маска', 'Welding mask'], ['Рыцарь', 'Knight'],
 ]

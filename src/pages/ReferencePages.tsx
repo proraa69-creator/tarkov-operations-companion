@@ -553,7 +553,7 @@ export function TradersPage() {
   );
 }
 
-import { SHAPES, THEMES, THEME_CHANGED_EVENT, applyCustomBackground, currentShape, currentTheme, saveAppearance, setCustomBackground } from "../theme/theme";
+import { THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from "../theme/theme";
 
 export function SettingsPage() {
   const { data, source, updatedAt, refresh, isFetching } = useTarkovData();
@@ -561,11 +561,9 @@ export function SettingsPage() {
   const { locale, setLocale } = useLocale();
   const [compact, setCompact] = useState(true);
   const [theme, setTheme] = useState(currentTheme);
-  const [shape, setShape] = useState<string>(currentShape);
-  const chooseAppearance = (nextTheme: string, nextShape: string) => {
+  const chooseTheme = (nextTheme: string) => {
     setTheme(nextTheme);
-    setShape(nextShape);
-    saveAppearance(nextTheme, nextShape);
+    saveAppearance(nextTheme);
   };
   useEffect(() => {
     const sync = () => setTheme(currentTheme());
@@ -611,20 +609,12 @@ export function SettingsPage() {
               </span>
               <div className="theme-picker" role="radiogroup" aria-label={uiText("Цветовая схема")}>
                 {THEMES.map((option) => (
-                  <button key={option.id} type="button" role="radio" aria-checked={theme === option.id} className={`theme-swatch${theme === option.id ? " active" : ""}`} onClick={() => chooseAppearance(option.id, shape)} title={uiText(option.label)}>
+                  <button key={option.id} type="button" role="radio" aria-checked={theme === option.id} className={`theme-swatch${theme === option.id ? " active" : ""}`} onClick={() => chooseTheme(option.id)} title={uiText(option.label)}>
                     <span className="theme-swatch-preview" style={{ background: `linear-gradient(135deg, ${option.swatch[0]} 0 45%, ${option.swatch[1]} 45% 75%, ${option.swatch[2]} 75%)` }} />
                     <span>{uiText(option.label)}</span>
                   </button>
                 ))}
               </div>
-            </div>
-            <CustomBackgroundRow />
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Форма элементов")}</strong>
-                <small>{uiText("Скруглённые или угловые углы панелей")}</small>
-              </span>
-              <div className="locale-switch">{SHAPES.map((option) => <button key={option.id} className={shape === option.id ? "active" : ""} onClick={() => chooseAppearance(theme, option.id)}>{uiText(option.label)}</button>)}</div>
             </div>
             <div className="setting-row">
               <span>
@@ -686,31 +676,6 @@ export function SettingsPage() {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function CustomBackgroundRow() {
-  const [hasBackground, setHasBackground] = useState(() => document.documentElement.hasAttribute("data-custom-bg"));
-  const [error, setError] = useState("");
-  useEffect(() => { void applyCustomBackground().then(setHasBackground).catch(() => {}); }, []);
-  const choose = (file: File | null) => {
-    setError("");
-    void setCustomBackground(file).then(setHasBackground).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Не удалось сохранить картинку."));
-  };
-  return (
-    <div className="setting-row">
-      <span>
-        <strong>{uiText("Свой фон")}</strong>
-        <small className={error ? "is-error" : ""}>{uiText(error || "Картинка с вашего компьютера. Хранится только у вас и никуда не отправляется.")}</small>
-      </span>
-      <span className="custom-bg-actions">
-        <label className="button ghost small">
-          {uiText("Выбрать картинку")}
-          <input type="file" accept="image/*" hidden onChange={(event) => { choose(event.target.files?.[0] ?? null); event.target.value = ""; }} />
-        </label>
-        {hasBackground && <button type="button" className="button ghost small" onClick={() => choose(null)}>{uiText("Убрать")}</button>}
-      </span>
     </div>
   );
 }

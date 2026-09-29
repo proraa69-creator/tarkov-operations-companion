@@ -342,12 +342,16 @@
 @media (max-width: 1180px), (max-height: 640px) { .gear-patches { display: none; } }
 @media (max-width: 1180px) { .gear-helmet { display: none; } }
 
-/* Goons card popovers: the same dark fabric, stitched */
+/* Goons card popovers: the same dark fabric */
 :root[data-theme="gear"] :is(.goon-stats-popover, .goon-report-menu) {
   background: var(--gear-shade-body), var(--gear-cordura) -1500px -200px / 2048px 2048px, #1a1b14;
   border-color: #0a0b07; border-radius: 6px;
-  outline: 1.3px dashed var(--gear-thread-dim); outline-offset: -5px;
   box-shadow: inset 0 0 0 3px rgb(74 72 52 / 55%), 0 14px 30px rgb(0 0 0 / 60%);
+}
+/* the stats sheet's heading is plain text, not a sewn-on name tape */
+:root[data-theme="gear"] .goon-stats-popover .stat-label {
+  display: block; padding: 0; background: none; box-shadow: none; transform: none;
+  font-size: 10.5px; letter-spacing: .14em; color: #cdc2a1; text-shadow: 0 1px 1px #000;
 }
 :root[data-theme="gear"] .raid-map-name { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .02em; }
 

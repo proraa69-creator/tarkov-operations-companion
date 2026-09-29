@@ -14,7 +14,7 @@ import { logEventsForMode } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { clearCollectorDirty, COLLECTOR_CHANGED_EVENT, isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { canonicalMapId } from '../data/mapIds'
-import { currentShape, currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
+import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 
@@ -200,7 +200,7 @@ const SETTINGS_META_KEY = 'tarkov-server-settings-sync-v1'
 /** Machine-specific values (like the screenshots folder) never leave this computer. */
 const SYNCED_EXPERIMENTAL_KEYS = ['itemLookup', 'minimap', 'tracking', 'autoScreenshot', 'screenshotIntervalMs', 'itemKey', 'minimapKey', 'collectorKey', 'minimapOpacity', 'playerMarker'] as const
 
-interface SyncedSettings { theme: string; shape: string; experimental?: Partial<ExperimentalSettings> }
+interface SyncedSettings { theme: string; experimental?: Partial<ExperimentalSettings> }
 
 function readMeta(): { hash?: string; serverUpdatedAt?: string } {
   try { return JSON.parse(localStorage.getItem(SETTINGS_META_KEY) ?? '{}') as { hash?: string; serverUpdatedAt?: string } } catch { return {} }
@@ -210,7 +210,7 @@ function writeMeta(meta: { hash: string; serverUpdatedAt?: string }) {
 }
 
 async function collectLocalSettings(): Promise<SyncedSettings> {
-  const settings: SyncedSettings = { theme: currentTheme(), shape: currentShape() }
+  const settings: SyncedSettings = { theme: currentTheme() }
   const experimental = await window.tarkovDesktop?.experimental?.getSettings().catch(() => null)
   if (experimental) settings.experimental = Object.fromEntries(SYNCED_EXPERIMENTAL_KEYS.map((key) => [key, experimental[key]])) as Partial<ExperimentalSettings>
   return settings
@@ -218,9 +218,8 @@ async function collectLocalSettings(): Promise<SyncedSettings> {
 
 async function applyServerSettings(remote: Record<string, unknown>) {
   const theme = typeof remote.theme === 'string' && THEMES.some((entry) => entry.id === remote.theme) ? remote.theme : currentTheme()
-  const shape = remote.shape === 'angular' ? 'angular' : remote.shape === 'rounded' ? 'rounded' : currentShape()
-  if (theme !== currentTheme() || shape !== currentShape()) {
-    saveAppearance(theme, shape)
+  if (theme !== currentTheme()) {
+    saveAppearance(theme)
     window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   }
   const experimental = remote.experimental
