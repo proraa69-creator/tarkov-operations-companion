@@ -14,6 +14,7 @@ import { pushLogProgress, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
+import { GearDecor } from '../theme/gear/GearDecor'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -143,6 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
       </aside>
+      <GearDecor />
 
       <header className="topbar">
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>

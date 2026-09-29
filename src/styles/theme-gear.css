@@ -1,0 +1,328 @@
+/*
+ * «Снаряжение» / "Gear" theme — tactical load-bearing kit. Everything is scoped to :root[data-theme="gear"].
+ * Materials (procedural, lit from the top-left, see scripts/gear/): camo cordura, PALS/MOLLE webbing rows,
+ * loop velcro, nylon webbing. Blocks are built like kit: panels are carrier fronts with a MOLLE flap and a
+ * press stud, stat cards are pouches with a flap, buttons are webbing pull tabs with bartacks, the sidebar is
+ * a loop field with patches. The swinging kit, helmet and patches live in src/theme/gear/.
+ * Text sits on heavily shaded fabric or on solid tapes so it keeps WCAG AA contrast.
+ */
+:root[data-theme="gear"] {
+  --bg: #12130e; --bg-elevated: #181a13; --panel: #1b1d16; --panel-2: #22251b; --panel-3: #2b2e22;
+  --line: #3a3c2d; --line-strong: #5a5942; --text: #f0ebdc; --text-muted: #c4bda5; --text-dim: #9d967e;
+  --brass: #d1b57f; --brass-strong: #e6cd98; --green: #9aa672; --green-soft: #2b3122; --blue: #9eb0b8;
+  --amber: #d9a45c; --danger: #cf7a68; --success: #9cb57e;
+  --surf-0: #0f100c; --surf-1: #1a1c15; --surf-2: #22241b; --line-soft: #474833;
+
+  --gear-cordura: url("../assets/gear/cordura-multicam.webp");
+  --gear-molle: url("../assets/gear/molle-multicam.webp");
+  --gear-velcro: url("../assets/gear/velcro-ranger.webp");
+  --gear-web-coyote: url("../assets/gear/webbing-coyote.webp");
+  --gear-web-ranger: url("../assets/gear/webbing-ranger.webp");
+  --gear-snap: url("../assets/gear/snap.webp");
+  --gear-buckle: url("../assets/gear/buckle.webp");
+  /* thread colours */
+  --gear-thread: rgb(214 196 150 / 62%);
+  --gear-thread-dim: rgb(214 196 150 / 34%);
+  /* Shade layers: fabric under text is kept dark enough for AA. */
+  --gear-shade-body: linear-gradient(170deg, rgb(20 21 15 / 78%) 0%, rgb(13 14 10 / 86%) 100%);
+  --gear-shade-flap: linear-gradient(180deg, rgb(20 21 15 / 64%) 0%, rgb(14 15 10 / 74%) 100%);
+  --gear-light: radial-gradient(ellipse 110% 90% at 0% 0%, rgb(255 238 200 / 9%), transparent 62%);
+  --gear-tex-x: 0px; --gear-tex-y: 0px;
+}
+
+/* ---------- page: the kit bag's inside — dark fabric, one soft top-left light ---------- */
+:root[data-theme="gear"] body {
+  background:
+    radial-gradient(ellipse 70% 55% at 22% -8%, rgb(255 232 190 / 9%), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 100% 110%, rgb(0 0 0 / 55%), transparent 70%),
+    linear-gradient(180deg, rgb(15 16 11 / 88%), rgb(9 10 7 / 93%)),
+    var(--gear-cordura) 0 0 / 2048px 2048px,
+    #11120d;
+  background-attachment: fixed;
+}
+:root[data-theme="gear"] ::selection { background: rgb(209 181 127 / 36%); }
+:root[data-theme="gear"] ::-webkit-scrollbar-thumb {
+  background: var(--gear-web-ranger) 0 0 / 256px 256px; border: 2px solid transparent; background-clip: padding-box;
+  box-shadow: inset 0 1px 0 rgb(255 240 210 / 14%);
+}
+
+/* ---------- sidebar: loop-velcro field with bound, stitched edge ---------- */
+:root[data-theme="gear"] .sidebar {
+  background:
+    linear-gradient(90deg, transparent calc(100% - 7px), rgb(0 0 0 / 35%) calc(100% - 7px)),
+    radial-gradient(ellipse 140% 50% at 0% 0%, rgb(255 238 200 / 8%), transparent 60%),
+    linear-gradient(180deg, rgb(14 15 10 / 30%), rgb(8 9 6 / 55%)),
+    var(--gear-velcro) 0 0 / 1024px 1024px,
+    #2d3124;
+  border-right: 5px solid #1f2218;
+  box-shadow: inset -1px 0 0 rgb(255 240 210 / 8%), 1px 0 0 #070805, 8px 0 22px rgb(0 0 0 / 45%);
+  backdrop-filter: none;
+}
+:root[data-theme="gear"] .sidebar::after {
+  content: ''; position: absolute; top: 6px; bottom: 6px; right: 5px; width: 0;
+  border-right: 1.4px dashed var(--gear-thread-dim); pointer-events: none;
+}
+:root[data-theme="gear"] .brand-mark {
+  border: 0; border-radius: 6px; color: #1c1a12; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 700; letter-spacing: .02em;
+  background: linear-gradient(145deg, rgb(255 246 222 / 22%), transparent 55%), var(--gear-web-coyote) 0 0 / 256px 256px;
+  box-shadow: inset 0 0 0 2px rgb(40 32 18 / 45%), inset 0 0 0 3.5px rgb(236 220 180 / 26%), 0 2px 0 #0a0b07, 0 4px 10px rgb(0 0 0 / 50%);
+}
+:root[data-theme="gear"] .brand-name { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .14em; font-size: 14px; color: #efe6cc; text-shadow: 0 1px 0 #000; }
+:root[data-theme="gear"] .brand-sub { color: #aaa38b; }
+:root[data-theme="gear"] .nav-label { color: #aaa38a; text-shadow: 0 1px 0 rgb(0 0 0 / 70%); }
+:root[data-theme="gear"] .nav-link { color: #ddd6c0; text-shadow: 0 1px 1px rgb(0 0 0 / 80%); border-radius: 4px; }
+:root[data-theme="gear"] .nav-link svg { color: #cdb683; }
+/* hover: a tape patch pressed onto the loop field */
+:root[data-theme="gear"] .nav-link:hover {
+  color: #fbf5e4;
+  background: linear-gradient(180deg, rgb(255 244 214 / 7%), transparent), var(--gear-web-ranger) 0 0 / 256px 256px;
+  box-shadow: inset 0 0 0 1px #15170f, inset 0 1px 0 1px rgb(255 240 210 / 10%), 0 2px 5px rgb(0 0 0 / 45%);
+  outline: 1px dashed var(--gear-thread-dim); outline-offset: -4px;
+}
+/* active: a name tape — solid webbing, merrowed edge, stitched border */
+:root[data-theme="gear"] .nav-link.active {
+  color: #f6e7bd;
+  background: linear-gradient(180deg, rgb(255 244 214 / 10%), rgb(0 0 0 / 12%)), var(--gear-web-ranger) 0 0 / 256px 256px;
+  box-shadow: inset 0 0 0 2px #14160e, inset 0 0 0 3px rgb(90 92 64 / 70%), 0 1px 0 rgb(255 240 210 / 8%), 0 3px 8px rgb(0 0 0 / 55%);
+  outline: 1px dashed var(--gear-thread); outline-offset: -5px;
+}
+:root[data-theme="gear"] .nav-link.active::before { left: 7px; width: 3px; height: 16px; border-radius: 1px; background: #d1b57f; box-shadow: 0 0 0 1px rgb(0 0 0 / 50%); }
+:root[data-theme="gear"] .nav-link:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 1px; }
+
+/* ---------- top bar: dark cordura with a coyote strap and a side-release buckle along the bottom ---------- */
+:root[data-theme="gear"] .topbar {
+  background:
+    var(--gear-shade-body),
+    var(--gear-cordura) -300px -600px / 2048px 2048px,
+    #16170f;
+  border-bottom: 1px solid #070805;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
+  backdrop-filter: none;
+}
+/* coyote strap sewn along the bottom edge… */
+:root[data-theme="gear"] .topbar::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 11px; pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgb(58 44 24 / 55%) 0 3px, transparent 3px 6px) 0 2px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, rgb(58 44 24 / 55%) 0 3px, transparent 3px 6px) 0 calc(100% - 3px) / 100% 1px no-repeat,
+    linear-gradient(180deg, rgb(255 246 222 / 20%), rgb(0 0 0 / 22%)),
+    var(--gear-web-coyote) 0 0 / 256px 256px;
+  box-shadow: 0 -1px 0 rgb(0 0 0 / 60%), 0 -3px 6px rgb(0 0 0 / 35%);
+}
+/* …closed with a side-release buckle */
+:root[data-theme="gear"] .topbar::after {
+  content: ''; position: absolute; right: 22%; bottom: -5px; width: 50px; height: 21px; pointer-events: none;
+  background: var(--gear-buckle) center / contain no-repeat;
+  filter: drop-shadow(1px 2px 1.5px rgb(0 0 0 / 65%));
+}
+
+/* ---------- inputs & switches: rubberised fields in dark fabric ---------- */
+:root[data-theme="gear"] .search-trigger,
+:root[data-theme="gear"] .input,
+:root[data-theme="gear"] .select {
+  background: linear-gradient(180deg, rgb(0 0 0 / 30%), rgb(0 0 0 / 5%)), #16180f;
+  border-color: #3c3e2c; color: var(--text-muted);
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 55%), 0 1px 0 rgb(255 240 210 / 6%);
+}
+:root[data-theme="gear"] .input, :root[data-theme="gear"] .select { color: var(--text); }
+:root[data-theme="gear"] .search-trigger:hover { border-color: #6a664b; background: linear-gradient(180deg, rgb(0 0 0 / 22%), rgb(0 0 0 / 0%)), #1b1d14; }
+:root[data-theme="gear"] .search-trigger kbd { background: #0d0e09; border-color: #4b4a36; color: #b2ab92; }
+:root[data-theme="gear"] .mode-switch,
+:root[data-theme="gear"] .locale-switch {
+  background: var(--gear-web-ranger) 0 0 / 256px 256px; border-color: #14160f; border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgb(255 240 210 / 7%), 0 2px 5px rgb(0 0 0 / 45%);
+}
+:root[data-theme="gear"] .mode-switch button,
+:root[data-theme="gear"] .locale-switch button { color: #cfc8b0; border-radius: 3px; text-shadow: 0 1px 0 rgb(0 0 0 / 70%); }
+:root[data-theme="gear"] .mode-switch button.active,
+:root[data-theme="gear"] .locale-switch button.active {
+  color: #1d190f; text-shadow: 0 1px 0 rgb(255 245 220 / 35%);
+  background: linear-gradient(180deg, rgb(255 246 222 / 34%), rgb(255 246 222 / 12%)), var(--gear-web-coyote) 0 0 / 256px 256px;
+  box-shadow: inset 0 1px 0 rgb(255 248 228 / 35%), 0 1px 2px rgb(0 0 0 / 60%);
+}
+:root[data-theme="gear"] .icon-button,
+:root[data-theme="gear"] .profile-chip {
+  background: linear-gradient(180deg, rgb(255 244 214 / 6%), rgb(0 0 0 / 16%)), var(--gear-web-ranger) 0 0 / 256px 256px;
+  border-color: #13150e; color: #ddd4ba; border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgb(255 240 210 / 12%), 0 2px 5px rgb(0 0 0 / 45%);
+}
+:root[data-theme="gear"] .icon-button:hover,
+:root[data-theme="gear"] .profile-chip:hover { color: #fff6de; border-color: #6f6a4c; }
+
+/* ---------- panels: carrier fronts — stitched binding, MOLLE flap with a press stud ---------- */
+:root[data-theme="gear"] .panel {
+  position: relative;
+  border: 1px solid #07080500;
+  border-radius: 7px;
+  background:
+    var(--gear-light),
+    var(--gear-shade-body),
+    var(--gear-cordura) var(--gear-tex-x) var(--gear-tex-y) / 2048px 2048px,
+    #1a1b14;
+  box-shadow:
+    inset 0 0 0 1px #0a0b07,
+    inset 0 0 0 3px rgb(74 72 52 / 60%),
+    inset 0 1px 0 3px rgb(255 240 205 / 7%),
+    0 1px 0 rgb(255 240 210 / 5%),
+    0 10px 24px rgb(0 0 0 / 50%),
+    0 2px 4px rgb(0 0 0 / 55%);
+  outline: 1.3px dashed var(--gear-thread-dim);
+  outline-offset: -7px;
+}
+:root[data-theme="gear"] .panel:nth-of-type(3n + 2) { --gear-tex-x: -712px; --gear-tex-y: -388px; }
+:root[data-theme="gear"] .panel:nth-of-type(3n + 3) { --gear-tex-x: -1301px; --gear-tex-y: -1090px; }
+:root[data-theme="gear"] .panel:nth-of-type(4n + 4) { --gear-tex-x: -420px; --gear-tex-y: -1530px; }
+:root[data-theme="gear"] .panel-header {
+  position: relative;
+  border-bottom: 0;
+  border-radius: 6px 6px 3px 3px;
+  background:
+    linear-gradient(180deg, rgb(255 240 205 / 7%), transparent 40%),
+    var(--gear-shade-flap),
+    var(--gear-molle) calc(var(--gear-tex-x) - 9px) 7px / 2048px 2048px;
+  box-shadow: inset 0 0 0 1px #0a0b07, inset 0 1px 0 1px rgb(255 240 205 / 9%), 0 1px 0 #0b0c08, 0 4px 7px -2px rgb(0 0 0 / 70%);
+  z-index: 1;
+}
+/* press stud closing the flap */
+:root[data-theme="gear"] .panel-header::after {
+  content: ''; position: absolute; left: 50%; bottom: -8px; width: 17px; height: 17px; margin-left: -8.5px;
+  background: var(--gear-snap) center / contain no-repeat; pointer-events: none;
+  filter: drop-shadow(1px 2px 1.5px rgb(0 0 0 / 60%));
+}
+:root[data-theme="gear"] .panel-title {
+  display: inline-flex; align-items: center; min-height: 24px; padding: 0 10px;
+  color: #f1e3bb; font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .12em;
+  background: linear-gradient(180deg, rgb(255 244 214 / 8%), rgb(0 0 0 / 14%)), var(--gear-web-ranger) 0 0 / 256px 256px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1.5px #12140d, inset 0 0 0 2.5px rgb(96 97 68 / 60%), 0 2px 4px rgb(0 0 0 / 60%);
+  text-shadow: 0 1px 0 rgb(0 0 0 / 80%);
+}
+:root[data-theme="gear"] .panel-header :is(a, button:not(.button), span, small) { text-shadow: 0 1px 2px rgb(0 0 0 / 90%); }
+:root[data-theme="gear"] .panel-header > a,
+:root[data-theme="gear"] .panel-header > button:not(.button) { color: #e2dac2; }
+:root[data-theme="gear"] .divider { background: repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px); height: 1px; }
+
+/* ---------- stat cards: magazine/admin pouches with a flap on top ---------- */
+:root[data-theme="gear"] .stat-card {
+  position: relative; isolation: isolate;
+  border: 0;
+  border-radius: 6px 6px 10px 10px;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 100%, rgb(0 0 0 / 35%), transparent 70%),
+    var(--gear-shade-body),
+    var(--gear-cordura) calc(var(--gear-tex-x) - 220px) calc(var(--gear-tex-y) - 140px) / 2048px 2048px,
+    #1a1b14;
+  box-shadow: inset 0 0 0 1px #0a0b07, inset 0 0 0 3px rgb(74 72 52 / 55%), 0 8px 18px rgb(0 0 0 / 50%), 0 2px 3px rgb(0 0 0 / 55%);
+  outline: 1.3px dashed var(--gear-thread-dim);
+  outline-offset: -6px;
+}
+:root[data-theme="gear"] .stat-card:nth-child(2) { --gear-tex-x: -540px; --gear-tex-y: -260px; }
+:root[data-theme="gear"] .stat-card:nth-child(3) { --gear-tex-x: -1180px; --gear-tex-y: -820px; }
+:root[data-theme="gear"] .stat-card:nth-child(4) { --gear-tex-x: -1610px; --gear-tex-y: -1400px; }
+/* the flap */
+:root[data-theme="gear"] .stat-card::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 40px; z-index: -1; pointer-events: none;
+  border-radius: 6px 6px 12px 12px / 6px 6px 8px 8px;
+  background:
+    linear-gradient(180deg, rgb(255 240 205 / 8%), transparent 60%),
+    repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px) 0 calc(100% - 5px) / 100% 1px no-repeat,
+    var(--gear-shade-flap),
+    var(--gear-cordura) calc(var(--gear-tex-x) - 900px) calc(var(--gear-tex-y) - 300px) / 2048px 2048px;
+  box-shadow: inset 0 0 0 1px #0a0b07, inset 0 1px 0 1px rgb(255 240 205 / 9%), 0 3px 5px rgb(0 0 0 / 60%);
+}
+/* press stud on the flap; the hanging pull (canvas) is anchored to it */
+:root[data-theme="gear"] .stat-card::after {
+  content: ''; position: absolute; left: calc(62% - 8px); top: 32px; width: 16px; height: 16px; z-index: 2; pointer-events: none;
+  background: var(--gear-snap) center / contain no-repeat;
+  filter: drop-shadow(1px 1.5px 1px rgb(0 0 0 / 60%));
+}
+:root[data-theme="gear"] .stat-label { color: #cdc2a1; text-shadow: 0 1px 1px rgb(0 0 0 / 85%); }
+:root[data-theme="gear"] .stat-value { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: 0; color: #f4ecd6; text-shadow: 0 1px 0 #000, 0 2px 8px rgb(0 0 0 / 60%); }
+:root[data-theme="gear"] .stat-meta { color: #c4bda5; }
+
+/* ---------- buttons: webbing pull tabs with bartacks and a stitched edge ---------- */
+:root[data-theme="gear"] .button {
+  border: 1px solid #0f110b; border-radius: 4px;
+  color: #efe7cf; text-shadow: 0 1px 0 rgb(0 0 0 / 80%);
+  background:
+    linear-gradient(90deg, rgb(214 196 150 / 55%) 0 1px, transparent 1px 2px, rgb(214 196 150 / 55%) 2px 3px) 6px 50% / 3px 55% no-repeat,
+    linear-gradient(90deg, rgb(214 196 150 / 55%) 0 1px, transparent 1px 2px, rgb(214 196 150 / 55%) 2px 3px) calc(100% - 6px) 50% / 3px 55% no-repeat,
+    repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px) 0 3px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px) 0 calc(100% - 3px) / 100% 1px no-repeat,
+    linear-gradient(180deg, rgb(255 244 214 / 9%), rgb(0 0 0 / 18%)),
+    var(--gear-web-ranger) 0 0 / 256px 256px;
+  box-shadow: inset 0 1px 0 rgb(255 240 210 / 12%), 0 2px 0 #090a06, 0 4px 9px rgb(0 0 0 / 45%);
+  transition: translate .16s cubic-bezier(.3, 1.6, .5, 1), box-shadow .16s ease, filter .2s ease;
+}
+:root[data-theme="gear"] .button:hover { translate: 0 -1px; filter: brightness(1.12); border-color: #0f110b; box-shadow: inset 0 1px 0 rgb(255 240 210 / 16%), 0 3px 0 #090a06, 0 7px 14px rgb(0 0 0 / 50%); }
+:root[data-theme="gear"] .button:active { translate: 0 1px; box-shadow: inset 0 2px 5px rgb(0 0 0 / 55%), 0 0 0 #090a06; }
+:root[data-theme="gear"] .button:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 2px; }
+:root[data-theme="gear"] .button:disabled { filter: saturate(.4) brightness(.8); cursor: not-allowed; translate: none; }
+:root[data-theme="gear"] .button.primary {
+  color: #1a160d; text-shadow: 0 1px 0 rgb(255 246 222 / 40%);
+  background:
+    linear-gradient(90deg, rgb(60 44 22 / 60%) 0 1px, transparent 1px 2px, rgb(60 44 22 / 60%) 2px 3px) 6px 50% / 3px 55% no-repeat,
+    linear-gradient(90deg, rgb(60 44 22 / 60%) 0 1px, transparent 1px 2px, rgb(60 44 22 / 60%) 2px 3px) calc(100% - 6px) 50% / 3px 55% no-repeat,
+    repeating-linear-gradient(90deg, rgb(60 44 22 / 45%) 0 3px, transparent 3px 6px) 0 3px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, rgb(60 44 22 / 45%) 0 3px, transparent 3px 6px) 0 calc(100% - 3px) / 100% 1px no-repeat,
+    linear-gradient(180deg, rgb(255 246 222 / 36%), rgb(255 246 222 / 12%) 60%, rgb(0 0 0 / 6%)),
+    var(--gear-web-coyote) 0 0 / 256px 256px;
+  border-color: #2c2412;
+  box-shadow: inset 0 1px 0 rgb(255 250 232 / 40%), 0 2px 0 #2a2213, 0 5px 12px rgb(0 0 0 / 50%);
+}
+:root[data-theme="gear"] .button.primary svg { color: #2b2212; }
+:root[data-theme="gear"] .button.ghost { background: repeating-linear-gradient(90deg, var(--gear-thread-dim) 0 3px, transparent 3px 6px) 0 calc(100% - 3px) / 100% 1px no-repeat, rgb(0 0 0 / 22%); box-shadow: inset 0 0 0 1px rgb(214 196 150 / 18%); }
+:root[data-theme="gear"] .button.danger { color: #f3c4b8; background: linear-gradient(180deg, rgb(255 244 214 / 6%), rgb(0 0 0 / 20%)), #3a1f19; border-color: #140a07; }
+
+/* ---------- small parts ---------- */
+:root[data-theme="gear"] .eyebrow { color: #d9bd86; text-shadow: 0 1px 1px rgb(0 0 0 / 80%); }
+:root[data-theme="gear"] .page-title {
+  font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .01em; text-transform: uppercase;
+  color: #f1e9d2; text-shadow: 0 -1px 0 rgb(0 0 0 / 60%), 0 1px 0 rgb(255 245 220 / 12%), 0 3px 14px rgb(0 0 0 / 60%);
+}
+:root[data-theme="gear"] .page-subtitle { color: #cfc8b1; }
+:root[data-theme="gear"] .tag {
+  border-radius: 3px; border: 0; color: #e6dcc0;
+  background: linear-gradient(180deg, rgb(255 244 214 / 6%), rgb(0 0 0 / 14%)), var(--gear-web-ranger) 0 0 / 256px 256px;
+  box-shadow: inset 0 0 0 1px #11130c, inset 0 0 0 2px rgb(96 97 68 / 55%), 0 1px 2px rgb(0 0 0 / 55%);
+}
+:root[data-theme="gear"] .tag.brass { color: #1c170d; background: linear-gradient(180deg, rgb(255 246 222 / 34%), rgb(255 246 222 / 12%)), var(--gear-web-coyote) 0 0 / 256px 256px; box-shadow: inset 0 0 0 1px #2c2412, 0 1px 2px rgb(0 0 0 / 55%); }
+:root[data-theme="gear"] .tag.green { color: #e3ecd0; background: #33402a; box-shadow: inset 0 0 0 1px #151b10, 0 1px 2px rgb(0 0 0 / 55%); }
+:root[data-theme="gear"] .tag.danger { color: #f5cbbf; background: #4a2119; box-shadow: inset 0 0 0 1px #1a0a07, 0 1px 2px rgb(0 0 0 / 55%); }
+:root[data-theme="gear"] .muted { color: var(--text-muted); }
+:root[data-theme="gear"] .dim { color: var(--text-dim); }
+:root[data-theme="gear"] .search-dialog { border-radius: 8px; border-color: #0a0b07; background: var(--gear-shade-body), var(--gear-cordura) -800px -300px / 2048px 2048px, #1a1b14; outline: 1.3px dashed var(--gear-thread-dim); outline-offset: -6px; }
+:root[data-theme="gear"] .search-result:hover { background: rgb(255 240 205 / 8%); }
+:root[data-theme="gear"] .toggle.on { background: #8a7552; }
+
+/* ---------- decorations (src/theme/gear) ---------- */
+.gear-hangers { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 41; pointer-events: none; }
+.gear-helmet {
+  position: fixed; z-index: 42; width: 76px; height: 76px; margin: -40px 0 0 -84px; pointer-events: none;
+}
+.gear-helmet::before {
+  content: ''; position: absolute; left: 14px; right: 10px; bottom: 7px; height: 14px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 55%), transparent);
+}
+.gear-helmet canvas { position: relative; width: 100%; height: 100%; display: block; }
+.gear-patches {
+  position: fixed; left: 22px; bottom: 22px; z-index: 41; width: 190px; pointer-events: none;
+  display: grid; gap: 10px; justify-items: start;
+}
+.gear-patch-row { display: flex; align-items: center; gap: 12px; }
+.gear-patch { display: block; filter: drop-shadow(0 1.5px 0 rgb(0 0 0 / 70%)) drop-shadow(1px 3px 3px rgb(0 0 0 / 45%)); }
+.gear-patch-name { transform: rotate(-1.2deg); }
+.gear-patch-blood { transform: rotate(1.5deg); }
+.gear-patch-moon { transform: rotate(-4deg); }
+.gear-patch-text { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; }
+@media (max-width: 1180px), (max-height: 640px) { .gear-patches { display: none; } }
+@media (max-width: 1180px) { .gear-helmet { display: none; } }
+
+/* Goons card popovers: the same dark fabric, stitched */
+:root[data-theme="gear"] :is(.goon-stats-popover, .goon-report-menu) {
+  background: var(--gear-shade-body), var(--gear-cordura) -1500px -200px / 2048px 2048px, #1a1b14;
+  border-color: #0a0b07; border-radius: 6px;
+  outline: 1.3px dashed var(--gear-thread-dim); outline-offset: -5px;
+  box-shadow: inset 0 0 0 3px rgb(74 72 52 / 55%), 0 14px 30px rgb(0 0 0 / 60%);
+}
+:root[data-theme="gear"] .raid-map-name { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .02em; }
