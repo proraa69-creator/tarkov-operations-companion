@@ -19,9 +19,8 @@ const outRoot = path.resolve(here, '../../src/assets/textures')
 
 // texture -> theme folder, master size and the exported sizes (quality tuned so each theme stays inside budget)
 export const TEXTURES = {
-  blackmc: { theme: 'blackmc', master: 4096, out: [{ size: 2048, quality: 0.84 }, { size: 4096, quality: 0.6 }] },
+  blackmc: { theme: 'blackmc', master: 4096, out: [{ size: 2048, quality: 0.9 }, { size: 4096, quality: 0.72 }] },
   ocp: { theme: 'ocp', master: 4096, out: [{ size: 2048, quality: 0.82 }, { size: 4096, quality: 0.55 }] },
-  woodland: { theme: 'woodland', master: 4096, out: [{ size: 2048, quality: 0.86 }, { size: 4096, quality: 0.66 }] },
   perforated: { theme: 'perforated', master: 4096, out: [{ size: 2048, quality: 0.86 }, { size: 4096, quality: 0.62 }] },
   rust: { theme: 'rust', master: 4096, out: [{ size: 2048, quality: 0.86 }, { size: 4096, quality: 0.66 }] },
   slate: { theme: 'slate', master: 4096, out: [{ size: 2048, quality: 0.84 }, { size: 4096, quality: 0.58 }] },

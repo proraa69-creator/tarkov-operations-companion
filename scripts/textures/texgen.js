@@ -224,16 +224,16 @@
     const { lam, spec } = light(H, S, 0.75, 22)
     const cav = cavity(W, S, 3, 0.9)
     const out = emit(S)
-    const c0 = hex('#0d0d0e'), c1 = hex('#212123'), c2 = hex('#2e2e31'), c3 = hex('#3a3a3d')
+    const c0 = hex('#060607'), c1 = hex('#121213'), c2 = hex('#1b1b1d'), c3 = hex('#242426')
     for (let k = 0; k < H.length; k++) {
       let r = c0[0], g = c0[1], b = c0[2]
-      const t0 = G[k] * 10; r += t0; g += t0; b += t0
+      const t0 = G[k] * 5; r += t0; g += t0; b += t0
       const a = sstep(0.07, 0.085, A[k]); r = mix(r, c1[0], a); g = mix(g, c1[1], a); b = mix(b, c1[2], a)
       const bb = sstep(0.15, 0.165, B[k]); r = mix(r, c2[0], bb); g = mix(g, c2[1], bb); b = mix(b, c2[2], bb)
       const tw = sstep(0.972, 0.984, 1 - Math.abs(T[k])) * sstep(0.08, 0.16, Tm[k]); r = mix(r, c2[0], tw); g = mix(g, c2[1], tw); b = mix(b, c2[2], tw)
-      const sp = sstep(0.36, 0.4, Sp[k]); r = mix(r, c2[0], sp); g = mix(g, c2[1], sp); b = mix(b, c2[2], sp)
+      const sp = sstep(0.36, 0.4, Sp[k]); r = mix(r, c3[0], sp); g = mix(g, c3[1], sp); b = mix(b, c3[2], sp)
       const L = (0.45 + 0.62 * lam[k]) * cav[k]
-      const s = spec[k] * 34 * (0.6 + W[k] * 0.4)
+      const s = spec[k] * 22 * (0.6 + W[k] * 0.4)
       put(out, k, r * L + s, g * L + s, b * L + s * 1.05)
     }
     return { data: out }
@@ -286,118 +286,6 @@
       const L = (0.62 + 0.42 * lam[k]) * cav[k] * (1 + fuzz[k] * 0.16)
       const s = spec[k] * 10
       put(out, k, c[0] * L + s, c[1] * L + s, c[2] * L + s)
-    }
-    return { data: out }
-  }
-
-  // ================================================================ 3. Weathered wood planks painted in woodland camo
-  GEN.woodland = function (S) {
-    const k1 = S / 4096
-    const planks = 8, pw = S / planks, gap = Math.round(9 * k1), bev = 16 * k1
-    const r = rng(303)
-    const PL = Array.from({ length: planks }, () => ({
-      freq: (0.013 + r() * 0.012) / k1, c: (r() - 0.5) * pw * 1.6, ph: r() * 20, tone: 0.86 + r() * 0.22,
-      knots: Array.from({ length: 1 + Math.floor(r() * 2.2) }, () => ({ x: pw * (0.2 + r() * 0.6), y: r() * S, rad: (14 + r() * 26) * k1 })),
-      nailY: [S * (0.22 + (r() - 0.5) * 0.01), S * (0.72 + (r() - 0.5) * 0.01)],
-    }))
-    const Wl = fbm(S, 3, 5, 3, 0.5, 51)               // ring wander (large)
-    const Ws = fbm(S, 12, 16, 3, 0.5, 52)             // ring wobble (small)
-    const fib = fbm(S, 900, 24, 2, 0.5, 53)           // fibres: very fine vertical streaks
-    const fib2 = fbm(S, 300, 12, 2, 0.5, 54)
-    const pore = fbm(S, 600, 70, 1, 0.5, 55)          // pores: tiny dark dashes
-    // camo paint: M81 woodland shapes, big and blobby
-    const wx = fbm(S, 4, 4, 3, 0.5, 56), wy = fbm(S, 4, 4, 3, 0.5, 57)
-    const ex = fbm(S, 28, 28, 2, 0.5, 58), ey = fbm(S, 28, 28, 2, 0.5, 59)
-    const bx = fbm(S, 110, 40, 2, 0.5, 70), by = fbm(S, 110, 40, 2, 0.5, 71)     // brush-edge roughness
-    let CA = fbm(S, 3, 4, 4, 0.45, 60); CA = warp(CA, S, wx, wy, 240 * k1); CA = warp(CA, S, ex, ey, 20 * k1); CA = warp(CA, S, bx, by, 7 * k1)
-    let CB = fbm(S, 4, 5, 4, 0.45, 61); CB = warp(CB, S, wy, wx, 240 * k1); CB = warp(CB, S, ey, ex, 20 * k1); CB = warp(CB, S, by, bx, 7 * k1)
-    let CC = fbm(S, 5, 6, 4, 0.45, 62); CC = warp(CC, S, wx, wy, 200 * k1); CC = warp(CC, S, ex, ey, 18 * k1); CC = warp(CC, S, bx, by, 7 * k1)
-    // wear: blotchy + stretched along the grain
-    const wear1 = fbm(S, 10, 10, 5, 0.55, 63), wear2 = fbm(S, 90, 12, 3, 0.5, 64), wear3 = fbm(S, 40, 40, 3, 0.5, 65)
-        const grime = fbm(S, 6, 6, 4, 0.5, 67)
-    const crackN = fbm(S, 150, 9, 2, 0.5, 68), crackMask = fbm(S, 7, 7, 3, 0.5, 69)   // hairline paint cracks along the grain
-    const H = new Float32Array(S * S), paint = new Float32Array(S * S), late = new Float32Array(S * S)
-    const alb = new Float32Array(S * S * 3)
-    const woodA = hex('#a08b6c'), woodB = hex('#6a5540'), woodGrey = hex('#8c8579')
-    const cam = [hex('#9a8a60'), hex('#4c5f33'), hex('#62452b'), hex('#1e1d18')]
-    for (let j = 0, k = 0; j < S; j++) for (let i = 0; i < S; i++, k++) {
-      const p = Math.floor(i / pw), P = PL[p], lx = i - p * pw
-      // push grain around knots
-      let gx = lx, knotCore = 0, knotRing = 0
-      for (const kn of P.knots) {
-        let dy = j - kn.y; if (dy > S / 2) dy -= S; if (dy < -S / 2) dy += S
-        const dx = lx - kn.x, d = Math.hypot(dx, dy * 0.55)
-        gx += Math.sign(dx || 1) * kn.rad * 2.2 * Math.exp(-((d / (kn.rad * 2.6)) ** 2))
-        const dd = Math.hypot(dx, dy) / kn.rad
-        knotCore = Math.max(knotCore, 1 - sstep(0.75, 1.05, dd))
-        if (dd < 1.6) knotRing = Math.max(knotRing, (0.5 + 0.5 * Math.cos(dd * 14)) * (1 - sstep(1.0, 1.6, dd)))
-      }
-      const g = Math.abs(gx - P.c) * P.freq + Wl[k] * 5 + Ws[k] * 0.45 + P.ph
-      const t = g - Math.floor(g)
-      const lw = sstep(0.78, 0.86, t) * (1 - sstep(0.95, 0.995, t)) + t * 0.18   // sharp latewood + earlywood darkening towards it          // latewood band
-      late[k] = lw
-      // wood height: latewood ridges stand proud (weathered earlywood erodes), fibres, pores
-      let h = lw * 0.9 + fib[k] * 0.55 + fib2[k] * 0.35 - sstep(0.3, 0.45, pore[k]) * 0.6 - knotCore * 0.2 + knotRing * 0.25
-      // plank bevel + gap
-      const e = Math.min(lx, pw - lx)
-      if (e < gap) h = -9
-      else if (e < gap + bev) h -= ((gap + bev - e) / bev) ** 2 * 3.2
-      // nails
-      let nail = 0, rustHalo = 0
-      for (const ny of P.nailY) for (const nx of [pw * 0.18, pw * 0.82]) {
-        const d = Math.hypot(lx - nx, j - ny) / k1
-        if (d < 11) { nail = Math.max(nail, 1); h = Math.max(h, 2.2 + Math.sqrt(1 - (d / 11) ** 2) * 2.4) }
-        else if (d < 13) h -= 0.6
-        rustHalo = Math.max(rustHalo, 1 - sstep(10, 34 + wear3[k] * 30, d))
-      }
-      // paint coverage: worn off near edges, on ridges, around nails, and in blotches
-      const edgeW = 1 - sstep(gap, gap + 60 * k1, e)
-      const wv = wear1[k] * 0.9 + wear2[k] * 0.45 + edgeW * 0.55 + lw * 0.12 + rustHalo * 0.25
-      const bare = sstep(0.19, 0.205, wv)
-      // crazing cracks inside the paint
-      const cr = (1 - sstep(0.006, 0.016, Math.abs(crackN[k]))) * sstep(-0.02, 0.08, crackMask[k])
-      const pc = e < gap ? 0 : (1 - bare) * (1 - cr * 0.9)
-      paint[k] = pc
-      h += pc * 1.7
-      if (nail) h = Math.max(h, 2.2)
-      H[k] = h
-      // albedo
-      let wr = mix(woodA[0], woodB[0], lw * 0.85), wg = mix(woodA[1], woodB[1], lw * 0.85), wb = mix(woodA[2], woodB[2], lw * 0.85)
-      const grey = 0.35 + wear3[k] * 0.4
-      wr = mix(wr, woodGrey[0], grey); wg = mix(wg, woodGrey[1], grey); wb = mix(wb, woodGrey[2], grey)
-      const fb = 1 + fib[k] * 0.55 + fib2[k] * 0.3 - sstep(0.28, 0.42, pore[k]) * 0.45
-      wr *= fb * P.tone; wg *= fb * P.tone; wb *= fb * P.tone
-      if (knotCore) { wr = mix(wr, 60, knotCore * 0.8); wg = mix(wg, 44, knotCore * 0.8); wb = mix(wb, 30, knotCore * 0.8) }
-      if (knotRing) { wr *= 1 - knotRing * 0.25; wg *= 1 - knotRing * 0.25; wb *= 1 - knotRing * 0.25 }
-      // camo colour
-      let ci = 1
-      if (CA[k] > 0.04) ci = 0
-      if (CB[k] > 0.1) ci = 2
-      if (CC[k] > 0.19 || (CB[k] < -0.2 && CA[k] < 0)) ci = 3
-      const cc = cam[ci]
-      // paint follows the wood: grain & fibres print through
-      const through = (1 + (lw - 0.4) * 0.16 + fib[k] * 0.12) * (1 + wear2[k] * 0.14 + wear3[k] * 0.1)   // brush streaks + mottling
-      let pr = cc[0] * through, pg = cc[1] * through, pb = cc[2] * through
-      // chalky weathering of the paint + rust halo
-      const chalk = sstep(0.1, 0.3, wv) * 0.18
-      pr = mix(pr, 150, chalk); pg = mix(pg, 145, chalk); pb = mix(pb, 125, chalk)
-      let R = mix(wr, pr, pc), Gc = mix(wg, pg, pc), Bc = mix(wb, pb, pc)
-      if (rustHalo) { const rh = rustHalo * 0.55; R = mix(R, 92, rh); Gc = mix(Gc, 50, rh); Bc = mix(Bc, 24, rh) }
-      if (nail) { const n = 64 + wear3[k] * 30; R = n; Gc = n * 0.93; Bc = n * 0.86 }
-      // grime towards the gaps
-      const gr = (1 - sstep(gap, gap + 40 * k1, e)) * 0.5 + sstep(0.1, 0.4, grime[k]) * 0.18
-      R *= 1 - gr; Gc *= 1 - gr; Bc *= 1 - gr
-      if (cr && pc < 0.5 && !bare) { const cd = 1 - cr * 0.62; R *= cd; Gc *= cd; Bc *= cd }  // crack floor sits in shadow
-      if (e < gap) { R = 12; Gc = 10; Bc = 7 }
-      alb[k * 3] = R; alb[k * 3 + 1] = Gc; alb[k * 3 + 2] = Bc
-    }
-    const { lam, spec } = light(H, S, 0.9, 30)
-    const cav = cavity(H, S, Math.round(5 * k1) || 1, 0.18)
-    const out = emit(S)
-    for (let k = 0; k < H.length; k++) {
-      const L = (0.38 + 0.66 * lam[k]) * cav[k]
-      const s = spec[k] * (paint[k] * 26 + 6)
-      put(out, k, alb[k * 3] * L + s, alb[k * 3 + 1] * L + s, alb[k * 3 + 2] * L + s * 0.95)
     }
     return { data: out }
   }

@@ -2,7 +2,6 @@
 export const THEME_PHRASES: Array<[string, string]> = [
   ['Чёрный мультикам', 'Black MultiCam'],
   ['Мультикам', 'MultiCam'],
-  ['Вудланд', 'Woodland'],
   ['Перфорация', 'Perforated steel'],
   ['Ржавая сталь', 'Rusted steel'],
   ['Сланец', 'Slate'],

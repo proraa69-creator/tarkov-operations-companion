@@ -5,9 +5,8 @@ export const THEMES: ThemeOption[] = [
   { id: 'steel', label: 'Сталь', swatch: ['#0c0e10', '#272c31', '#b9c6d0'] },
   { id: 'crimson', label: 'Багровый', swatch: ['#12060a', '#3a0f1b', '#e6a35c'] },
   // Material themes: procedural textures from scripts/textures, styles in src/styles/themes.css
-  { id: 'blackmc', label: 'Чёрный мультикам', swatch: ['#0d0d0e', '#2e2e31', '#a9b973'] },
-  { id: 'ocp', label: 'Мультикам', swatch: ['#b6a27c', '#6d7446', '#7a5b41'] },
-  { id: 'woodland', label: 'Вудланд', swatch: ['#4c5f33', '#8c7f58', '#e6c35c'] },
+  { id: 'blackmc', label: 'Чёрный мультикам', swatch: ['#060607', '#1b1b1d', '#a9b973'] },
+  { id: 'ocp', label: 'Мультикам', swatch: ['#4a3c2a', '#b6a27c', '#8d955e'] },
   { id: 'perforated', label: 'Перфорация', swatch: ['#0b0c0e', '#26282c', '#f0a92a'] },
   { id: 'rust', label: 'Ржавая сталь', swatch: ['#62717d', '#7c8d99', '#a4582a'] },
   { id: 'slate', label: 'Сланец', swatch: ['#16191e', '#3b414b', '#d89e68'] },
