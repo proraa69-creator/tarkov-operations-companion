@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   screenshotsDir: '',
   minimapPosition: null,
   runAsAdmin: false,
-  showOnScreenshot: true,
+  showOnScreenshot: false,
   screenshotKey: '',
 }
 
@@ -98,7 +98,8 @@ function sanitize(raw: unknown): ExperimentalSettings {
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
     minimapPosition: readPoint(value.minimapPosition),
     runAsAdmin: flag('runAsAdmin'),
-    showOnScreenshot: flag('showOnScreenshot'),
+    // The owner removed «Показывать мини-карту при скриншоте»: the minimap opens only by its key.
+    showOnScreenshot: false,
     screenshotKey: (SCREENSHOT_KEY_CHOICES as readonly unknown[]).includes(value.screenshotKey) ? value.screenshotKey as string : '',
   }
 }

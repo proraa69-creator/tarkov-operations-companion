@@ -1,6 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, Camera, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, ShieldAlert } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
 import { hotkeyLabel, isKnownHotkey } from '../overlay/hotkeys'
@@ -148,13 +148,6 @@ export function ExperimentalPage() {
                   value={settings?.collectorKey ?? ''}
                   taken={[settings?.itemKey, settings?.minimapKey]}
                   onChange={(collectorKey) => update({ collectorKey })}
-                />
-                <Toggle
-                  icon={<Camera size={16} />}
-                  title="Показывать мини-карту при скриншоте"
-                  hint="Когда вы сами делаете скриншот в рейде, мини-карта открывается на 15 секунд с вашей позицией. Работает и без прав администратора."
-                  on={Boolean(settings?.showOnScreenshot)}
-                  onChange={(showOnScreenshot) => update({ showOnScreenshot })}
                 />
                 <div className="setting-row exp-screenshot-key">
                   <span>
