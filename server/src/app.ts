@@ -10,6 +10,7 @@ import { createAccountsRouter } from './routes/accounts.js'
 import { AccountStore } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createPaymentsRouter } from './routes/payments.js'
+import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
 import { UserDataStore } from './services/userDataStore.js'
@@ -48,6 +49,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore()))
   app.use('/v1/payments', createPaymentsRouter(accounts, options.payments ?? new PaymentStore(openDatabase(':memory:'), undefined)))
   app.use('/v1/accounts', createAccountsRouter(accounts))
+  app.use('/v1/admin', createAdminRouter(accounts))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   app.get('/health', (_req, res) => res.json({ ok: true, service: 'tarkov-operations-api', version: '0.3.0', syncRequiresToken: true, accounts: true }))
   app.post('/v1/sync/events', (req, res) => {

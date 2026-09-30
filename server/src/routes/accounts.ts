@@ -13,6 +13,8 @@
  *   POST /me/referral       Bearer { code }                      -> 200 account view (ordinary users only, once)
  *   PUT  /me/nicknames      Bearer { pvp?, pve?, seasonal? }     -> 200 account view
  *   POST /referral-visits   { code }                             -> 200 | 404 (counts a `/r/<code>` landing visit)
+ *   POST /streamer-invite   { token }                            -> 200 { code, expiresAt } | 404 (secret invitation page)
+ *   POST /me/streamer-invite Bearer { token }                    -> 200 account view (the account becomes a streamer)
  *
  * Streamer status is never self-selected: an operator runs `npm --prefix server run promote -- <email> <code>`.
  * Request bodies (including passwords) are never logged here.
@@ -46,5 +48,7 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.post('/me/referral', adapt(handlers.applyReferral))
   router.put('/me/nicknames', adapt(handlers.setNicknames))
   router.post('/referral-visits', adapt(handlers.referralVisit))
+  router.post('/streamer-invite', adapt(handlers.streamerInvite))
+  router.post('/me/streamer-invite', adapt(handlers.redeemStreamerInvite))
   return router
 }

@@ -156,7 +156,17 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS referral_visit_seen (
     visitor TEXT PRIMARY KEY,
     seen_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS streamer_invites (
+    digest TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used_by TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+    used_at INTEGER);
 `
+
+/** Streamer invitation links live a week and work once. */
+export const STREAMER_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 export class AccountStore {
   private readonly db: DatabaseSync
@@ -301,6 +311,49 @@ export class AccountStore {
     return code
   }
 
+  /**
+   * Operator-only (admin API used by the owner's app): a one-time secret link that turns whoever opens it and signs in
+   * into a streamer with `code`. Only the token's SHA-256 is stored; the link itself is shown to the owner once.
+   */
+  createStreamerInvite(rawCode: string) {
+    const code = normalizeReferralCode(rawCode)
+    if (!REFERRAL_CODE.test(code)) throw new AccountError(400, 'Код стримера: 3–24 символа, латиница, цифры, «_» или «-»')
+    if (this.ownerOfCode(code)) throw new AccountError(409, `Код ${code} уже занят`)
+    const token = randomBytes(24).toString('base64url')
+    const expiresAt = this.now() + STREAMER_INVITE_TTL_MS
+    this.db.prepare('INSERT INTO streamer_invites (digest, code, created_at, expires_at) VALUES (?, ?, ?, ?)').run(tokenDigest(token), code, this.now(), expiresAt)
+    return { token, code, expiresAt: new Date(expiresAt).toISOString() }
+  }
+
+  /** What the invitation page shows before sign-in; undefined for unknown, used or expired links. */
+  streamerInvite(token: string) {
+    const row = this.db.prepare('SELECT code, expires_at, used_at FROM streamer_invites WHERE digest = ?').get(tokenDigest(token)) as Row | undefined
+    if (!row || row.used_at != null || Number(row.expires_at) <= this.now()) return undefined
+    return { code: String(row.code), expiresAt: new Date(Number(row.expires_at)).toISOString() }
+  }
+
+  /** The signed-in account accepts the invitation and becomes a streamer with the invited code. */
+  redeemStreamerInvite(accountId: string, token: string) {
+    const account = this.mustGet(accountId)
+    const invite = this.streamerInvite(token)
+    if (!invite) throw new AccountError(404, 'Приглашение не найдено, уже использовано или истекло')
+    if (account.kind === 'streamer') throw new AccountError(409, 'Этот аккаунт уже стримерский')
+    const owner = this.ownerOfCode(invite.code)
+    if (owner && owner !== account.id) throw new AccountError(409, `Код ${invite.code} уже занят`)
+    this.db.prepare('UPDATE streamer_invites SET used_by = ?, used_at = ? WHERE digest = ? AND used_at IS NULL').run(account.id, this.now(), tokenDigest(token))
+    this.db.prepare("UPDATE accounts SET kind = 'streamer', referral_code = ? WHERE id = ?").run(invite.code, account.id)
+  }
+
+  /** Owner's overview: every streamer with the numbers from their cabinet, plus open invitations. */
+  streamers() {
+    const rows = this.db.prepare("SELECT email, referral_code, created_at FROM accounts WHERE kind = 'streamer' ORDER BY created_at").all() as Row[]
+    const invites = this.db.prepare('SELECT code, expires_at FROM streamer_invites WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC').all(this.now()) as Row[]
+    return {
+      streamers: rows.map((row) => ({ email: String(row.email), code: String(row.referral_code), stats: this.stats(String(row.referral_code)) })),
+      invites: invites.map((row) => ({ code: String(row.code), expiresAt: new Date(Number(row.expires_at)).toISOString() })),
+    }
+  }
+
   /** Releases the database when the store opened its own (in-memory) one. */
   close() {
     if (this.ownsDb) this.db.close()
@@ -389,6 +442,7 @@ const passwordSchema = z.string().min(8).max(128)
 const credentialsSchema = z.object({ email: emailSchema, password: passwordSchema })
 const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional() })
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
+const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
 const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
@@ -464,6 +518,22 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = nicknamesSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Никнейм: 3–15 символов, латиница, цифры, «_» или «-»')
       store.setNicknames(accountId, parsed.data)
+      return { status: 200, body: store.view(accountId) }
+    }),
+
+    /** The secret streamer invitation page: is the link still valid, and for which code. */
+    streamerInvite: (req: AccountsRequest) => guard(() => {
+      const blocked = limited(visitLimiter, `invite:${req.ip ?? 'unknown'}`)
+      if (blocked) return blocked
+      const parsed = inviteSchema.safeParse(req.body)
+      const invite = parsed.success ? store.streamerInvite(parsed.data.token) : undefined
+      return invite ? { status: 200, body: invite } : { status: 404, body: { error: 'Приглашение не найдено, уже использовано или истекло' } }
+    }),
+
+    redeemStreamerInvite: (req: AccountsRequest) => authed(req, (accountId) => {
+      const parsed = inviteSchema.safeParse(req.body)
+      if (!parsed.success) return { status: 404, body: { error: 'Приглашение не найдено, уже использовано или истекло' } }
+      store.redeemStreamerInvite(accountId, parsed.data.token)
       return { status: 200, body: store.view(accountId) }
     }),
 

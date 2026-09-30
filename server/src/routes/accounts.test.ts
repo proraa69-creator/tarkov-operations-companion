@@ -161,3 +161,30 @@ test('express router wires the handlers (skipped when server dependencies are no
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
+
+test('streamer invitation links work once, for the invited code, and expire', async () => {
+  const { store, api, advance } = setup()
+  const { token: session } = (await api.register({ ip: '1', body: { email: 'tv@example.com', password } })).body as { token: string }
+  const invite = store.createStreamerInvite('hunter_tv')
+  assert.equal(invite.code, 'HUNTER_TV')
+  assert.match(invite.token, /^[A-Za-z0-9_-]{32}$/)
+  assert.throws(() => store.createStreamerInvite('x'), /3–24/)
+
+  assert.deepEqual((await api.streamerInvite({ ip: '1', body: { token: invite.token } })).body, { code: 'HUNTER_TV', expiresAt: invite.expiresAt })
+  assert.equal((await api.streamerInvite({ ip: '1', body: { token: 'y'.repeat(32) } })).status, 404)
+  assert.equal((await api.redeemStreamerInvite({ body: { token: invite.token } })).status, 401)
+
+  const redeemed = await api.redeemStreamerInvite({ authorization: auth(session), body: { token: invite.token } })
+  assert.equal(redeemed.status, 200)
+  assert.equal((redeemed.body as AccountView).kind, 'streamer')
+  assert.equal((redeemed.body as AccountView).referralCode, 'HUNTER_TV')
+  assert.equal((await api.streamerInvite({ ip: '1', body: { token: invite.token } })).status, 404, 'used once')
+  assert.throws(() => store.createStreamerInvite('HUNTER_TV'), /занят/)
+  assert.deepEqual(store.streamers().streamers.map((row) => [row.email, row.code]), [['tv@example.com', 'HUNTER_TV']])
+
+  const late = store.createStreamerInvite('LATE_TV')
+  assert.equal(store.streamers().invites.length, 1)
+  advance(8 * 24 * 60 * 60 * 1000)
+  assert.equal((await api.streamerInvite({ ip: '2', body: { token: late.token } })).status, 404, 'expired')
+  assert.equal(store.streamers().invites.length, 0)
+})
