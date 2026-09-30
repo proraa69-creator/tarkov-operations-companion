@@ -1,8 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
-  <ellipse cx="48" cy="86" rx="20" ry="5" fill="#000" opacity=".35"/>
-  <path d="M28 12h30l14 14v52a4 4 0 0 1-4 4H28a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4z" fill="#d9c27a" stroke="#0b110d" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M58 12v14h14" fill="#a68f4d" stroke="#0b110d" stroke-width="3" stroke-linejoin="round"/>
-  <g stroke="#0b110d" stroke-width="3.5" stroke-linecap="round"><path d="M34 40h28M34 51h28M34 62h18"/></g>
-  <circle cx="66" cy="68" r="11" fill="#6fb47c" stroke="#0b110d" stroke-width="3"/>
-  <path d="M60.5 68l4 4 7-8" fill="none" stroke="#0b110d" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- TerraGroup «Consolidated Statement of Comprehensive Income»: the battle pass document, standing on the map point -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e9edf0"/><stop offset=".6" stop-color="#cfd6dc"/><stop offset="1" stop-color="#aab4bd"/></linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6f93ad"/><stop offset="1" stop-color="#48708e"/></linearGradient>
+  </defs>
+  <ellipse cx="48" cy="87" rx="22" ry="5" fill="#000" opacity=".38"/>
+  <g transform="rotate(-6 48 48)">
+    <rect x="23" y="9" width="50" height="72" rx="2.5" fill="#1c2226" opacity=".55" transform="translate(2.5 2.5)"/>
+    <rect x="23" y="9" width="50" height="72" rx="2.5" fill="url(#paper)" stroke="#0b110d" stroke-width="3"/>
+    <g stroke="#1d2a36" stroke-width="2.6" stroke-linecap="round"><path d="M29 18h34M29 23.5h26"/></g>
+    <g stroke="#56697a" stroke-width="1.4" stroke-linecap="round"><path d="M29 29h20M29 32.5h24"/></g>
+    <path d="M29 38h26v7l-17 13h17v6H29v-7l17-13H29z" fill="url(#steel)" stroke="#20374a" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M52 62l14-17v17z" fill="#f4f6f8" stroke="#20374a" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M57 58.5l5-6v6z" fill="#6f93ad"/>
+    <rect x="23" y="69" width="50" height="12" fill="#5d7f98"/>
+    <g stroke="#e9eef2" stroke-width="1.8" stroke-linecap="round"><path d="M29 75h30"/></g>
+    <rect x="23" y="9" width="50" height="72" rx="2.5" fill="none" stroke="#0b110d" stroke-width="3"/>
+  </g>
 </svg>

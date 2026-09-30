@@ -1,4 +1,5 @@
 import { uiText } from '../i18n/renderText'
+import { DocumentGlyph } from '../components/DocumentGlyph'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
@@ -6,7 +7,7 @@ import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEv
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
-  FileText, FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
+  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
 import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
@@ -34,7 +35,7 @@ type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'do
 
 const MARKER_STYLE_KEY = 'tarkov-map-marker-style'
 
-const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: number; icon: typeof Target; shape: MarkerShape }> = {
+const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: number; icon: typeof Target | typeof DocumentGlyph; shape: MarkerShape }> = {
   'extract.pmc': { label: 'Выходы ЧВК', color: '#6fb47c', size: 32, icon: DoorOpen, shape: 'badge' },
   'extract.scav': { label: 'Выходы диких', color: '#c9b463', size: 32, icon: DoorOpen, shape: 'badge' },
   'extract.coop': { label: 'Совместные выходы', color: '#70a6ba', size: 32, icon: Users, shape: 'badge' },
@@ -51,7 +52,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.provision': { label: 'Провизия', color: '#a9b96f', size: 26, icon: FlaskConical, shape: 'loot' },
   'loot.technical': { label: 'Технический лут', color: '#8aa28f', size: 26, icon: Wrench, shape: 'loot' },
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
-  'loot.documents': { label: 'Документы боевого пропуска', color: '#d9c27a', size: 28, icon: FileText, shape: 'loot' },
+  'loot.documents': { label: 'Документы боевого пропуска', color: '#7fa3bf', size: 28, icon: DocumentGlyph, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
 
