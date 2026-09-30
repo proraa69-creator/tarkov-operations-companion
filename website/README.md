@@ -4,7 +4,7 @@ Russian-language product site and personal account (личный кабинет)
 desktop app. React + react-router (BrowserRouter) + Vite. It has no `node_modules` of its own: every command
 below runs **from the repository root** and uses the root `node_modules`. Do not run `npm install` inside `website/`.
 
-Pages: `/` (главная: трейлер + кнопки «Скачать приложение» и «Личный кабинет»), `/about` (О нас), `/download`, `/login`, `/register`, `/cabinet`, `/r/<code>` (реферальная ссылка).
+Pages: `/` (главная: трейлер + кнопки «Скачать приложение» и «Личный кабинет»), `/about` (О нас), `/download`, `/login`, `/register`, `/cabinet`, `/r/<code>` (реферальная ссылка), `/streamer/<token>` (секретное одноразовое приглашение стримера, не в меню, `noindex`). Возврат из ЮKassa: `/cabinet?payment=<id>`.
 
 ## Run, check, build
 

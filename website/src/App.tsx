@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { StreamerInvitePage } from './pages/StreamerInvitePage'
 
 const TITLES: Record<string, string> = {
   '/': 'Tarkov Operator',
@@ -22,7 +23,7 @@ const TITLES: Record<string, string> = {
 export function App() {
   const { pathname } = useLocation()
   useEffect(() => {
-    document.title = TITLES[pathname] ?? 'Tarkov Operator'
+    document.title = TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Tarkov Operator' : 'Tarkov Operator')
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [pathname])
 
@@ -36,6 +37,8 @@ export function App() {
         <Route path="register" element={<RegisterPage />} />
         <Route path="cabinet" element={<CabinetPage />} />
         <Route path="r/:code" element={<ReferralLandingPage />} />
+        {/* Secret one-time streamer invitation; intentionally not linked from any menu. */}
+        <Route path="streamer/:token" element={<StreamerInvitePage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

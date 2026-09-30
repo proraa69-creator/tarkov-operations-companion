@@ -9,8 +9,8 @@ interface AuthState {
   account: Account | null
   status: Status
   error: ApiError | null
-  login(email: string, password: string): Promise<void>
-  register(email: string, password: string, referralCode?: string): Promise<{ referralApplied: boolean }>
+  login(email: string, password: string): Promise<{ token: string }>
+  register(email: string, password: string, referralCode?: string): Promise<{ token: string; referralApplied: boolean }>
   logout(): Promise<void>
   reload(): void
   setAccount(account: Account): void
@@ -54,11 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async login(email, password) {
       const result = await api.login(email, password)
       adoptSession(result.token, result.account)
+      return { token: result.token }
     },
     async register(email, password, referralCode) {
       const result = await api.register(email, password, referralCode)
       adoptSession(result.token, result.account)
-      return { referralApplied: Boolean(result.referralApplied) }
+      return { token: result.token, referralApplied: Boolean(result.referralApplied) }
     },
     async logout() {
       const current = token
