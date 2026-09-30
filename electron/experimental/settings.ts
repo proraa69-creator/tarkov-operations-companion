@@ -7,9 +7,12 @@ import { SCREENSHOT_KEY_CHOICES } from '../../src/overlay/gameKeys.js'
 
 export interface ExperimentalSettings {
   version: 3
+  /** Always true (kept for older settings files and the server sync). */
   itemLookup: boolean
+  /** Always true (kept for older settings files and the server sync). */
   minimap: boolean
   tracking: boolean
+  /** Always false: automatic screenshots were removed. */
   autoScreenshot: boolean
   screenshotIntervalMs: number
   /** KeyboardEvent.code values, see src/overlay/hotkeys.ts */
@@ -26,7 +29,7 @@ export interface ExperimentalSettings {
   runAsAdmin: boolean
   /** Open the minimap for a moment when the player takes a screenshot in the game. */
   showOnScreenshot: boolean
-  /** Unity key name the app presses for a screenshot; empty = the key set in the game. */
+  /** Unity key name the app presses for a screenshot when the minimap opens; empty = detected from the game settings. */
   screenshotKey: string
 }
 
@@ -35,7 +38,7 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   itemLookup: true,
   minimap: true,
   tracking: true,
-  autoScreenshot: true,
+  autoScreenshot: false,
   screenshotIntervalMs: 1500,
   itemKey: DEFAULT_ITEM_KEY,
   minimapKey: DEFAULT_MINIMAP_KEY,
@@ -59,7 +62,7 @@ export function readSettings(): ExperimentalSettings {
   if (current) return current
   try {
     const saved = JSON.parse(readFileSync(file(), 'utf8')) as Record<string, unknown>
-    current = sanitize(saved.version === 2 || saved.version === 3 ? saved : { ...saved, autoScreenshot: true })
+    current = sanitize(saved)
   } catch {
     current = { ...DEFAULT_SETTINGS }
   }
@@ -78,11 +81,14 @@ function sanitize(raw: unknown): ExperimentalSettings {
   const interval = Number(value.screenshotIntervalMs)
   return {
     version: 3,
-    itemLookup: flag('itemLookup'),
-    minimap: flag('minimap'),
+    // Always on: the item card and the minimap work by their keys (the on/off switches were removed).
+    itemLookup: true,
+    minimap: true,
     // Always on: the player's position comes from the game's screenshots (the switch was removed).
     tracking: true,
-    autoScreenshot: flag('autoScreenshot'),
+    // Removed: the game's «screenshot taken» notice kept popping up and distracted the player. The app
+    // still takes one screenshot when the minimap opens, and the player's own screenshots update the position.
+    autoScreenshot: false,
     screenshotIntervalMs: Number.isFinite(interval) ? Math.min(15000, Math.max(1000, Math.round(interval))) : DEFAULT_SETTINGS.screenshotIntervalMs,
     itemKey: isKnownHotkey(value.itemKey) ? value.itemKey : DEFAULT_ITEM_KEY,
     minimapKey: isKnownHotkey(value.minimapKey) ? value.minimapKey : DEFAULT_MINIMAP_KEY,

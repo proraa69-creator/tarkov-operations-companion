@@ -11,6 +11,7 @@ import { findTooltip, tooltipForOcr } from '../../src/overlay/tooltipDetect.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
+import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
@@ -48,54 +49,59 @@ let hook: UiohookModule | null = null
 let hookError = ''
 let itemWindow: BrowserWindow | null = null
 let minimapWindow: BrowserWindow | null = null
-let screenshotTimer: NodeJS.Timeout | null = null
 let keyTimer: NodeJS.Timeout | null = null
 let watchTimer: NodeJS.Timeout | null = null
 let dragTimer: NodeJS.Timeout | null = null
 /** Clickable parts of the minimap (header, slider, quest list) in window coordinates, reported by the overlay. */
 let minimapZones: Array<{ x: number; y: number; width: number; height: number }> = []
 let hitTimer: NodeJS.Timeout | null = null
-/** When the mouse button went down over a minimap control; 0 = not pressed. */
-let minimapHeldAt = 0
-const HOLD_MAX_MS = 8_000
+/** Click-through state of the minimap window (see src/overlay/minimapClicks.ts). */
+const minimapClicks = initialMinimapClicks()
+
+function setMinimapInteractive(window: BrowserWindow, value: boolean) {
+  if (value) interactive.add(window)
+  else interactive.delete(window)
+  window.setIgnoreMouseEvents(!value, { forward: true })
+}
 
 /**
  * Makes the minimap clickable exactly over its controls. Forwarded mouse-move events are unreliable over a
  * full-screen game, so the cursor is checked here and the window stops ignoring the mouse only over a zone.
+ * The loop runs for as long as the window exists: it used to stop the first time the window was not visible
+ * (minimized by Alt+Tab or «show desktop», a display change), and a minimap shown again after that stayed
+ * click-through until it was closed and reopened.
  */
 function watchMinimapHits(window: BrowserWindow) {
   if (hitTimer) clearInterval(hitTimer)
+  forgetApplied(minimapClicks)
   hitTimer = setInterval(() => {
-    if (window.isDestroyed() || !window.isVisible()) {
+    if (window.isDestroyed() || window !== minimapWindow) {
       if (hitTimer) clearInterval(hitTimer)
       hitTimer = null
       return
     }
-    // A press that started over a control (slider, quest list, map) keeps the window catching the mouse
-    // until it is released, or the release would go to the game and the page would think the button is still down.
-    if (dragTimer) return
-    if (minimapHeldAt) {
-      // The page may never get the release (it happened outside the window). Once the button is up — seen
-      // through Windows when the key state is readable — or after a while, release the page ourselves.
-      const readable = isElevated() === true || !isTarkovForeground()
-      const released = readable && Date.now() - minimapHeldAt > 150 && !isVirtualKeyDown(0x01)
-      if (!released && Date.now() - minimapHeldAt < HOLD_MAX_MS) return
-      minimapHeldAt = 0
-      const point = screen.getCursorScreenPoint()
-      const bounds = window.getBounds()
-      window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x - bounds.x, y: point.y - bounds.y, button: 'left', clickCount: 1 })
-    }
+    const visible = window.isVisible()
     const point = screen.getCursorScreenPoint()
     const bounds = window.getBounds()
-    const x = point.x - bounds.x
-    const y = point.y - bounds.y
-    const over = minimapZones.some((zone) => x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height)
-    if (over !== interactive.has(window)) {
-      if (over) interactive.add(window)
-      else interactive.delete(window)
-      window.setIgnoreMouseEvents(!over, { forward: true })
-    }
+    // The button state is readable with administrator rights, or while the (elevated) game is not in front.
+    const readable = minimapClicks.heldAt > 0 && (isElevated() === true || !isTarkovForeground())
+    const step = stepMinimapClicks(minimapClicks, {
+      now: Date.now(),
+      visible,
+      cursor: { x: point.x - bounds.x, y: point.y - bounds.y },
+      zones: minimapZones,
+      dragging: Boolean(dragTimer),
+      buttonDown: readable ? isVirtualKeyDown(0x01) : null,
+    })
+    // The page may never get the release (it happened outside the window): release the page ourselves.
+    if (step.releaseHold) window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x - bounds.x, y: point.y - bounds.y, button: 'left', clickCount: 1 })
+    if (step.interactive !== null) setMinimapInteractive(window, step.interactive)
   }, 50)
+}
+
+/** Shown again, game back in front, display changed: set the minimap's click-through state up again. */
+function resyncMinimapClicks() {
+  forgetApplied(minimapClicks)
 }
 let displayMode: DisplayMode = 'unknown'
 const WATCH_MS = 800
@@ -140,17 +146,28 @@ export function startExperimental(next: Options) {
   startHook()
   applySettings(readSettings())
   watchTimer = setInterval(watchGame, WATCH_MS)
+  // A game switching resolution (Alt+Tab, minimize) changes the displays under the overlay.
+  screen.on('display-metrics-changed', resyncMinimapClicks)
+  screen.on('display-added', resyncMinimapClicks)
+  screen.on('display-removed', resyncMinimapClicks)
   // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
   if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
 }
 
+let gameWasForeground = false
 /**
  * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
  * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, clicks and
  * loading screens, which would otherwise push a topmost overlay under it.
  */
 function watchGame() {
-  if (!isTarkovForeground()) return
+  const front = isTarkovForeground()
+  // Alt+Tab back into the game (or out of it): the game may have re-raised itself over the overlay.
+  if (front !== gameWasForeground) {
+    gameWasForeground = front
+    resyncMinimapClicks()
+  }
+  if (!front) return
   lastGameSeenAt = Date.now()
   gameFrontMs += WATCH_MS
   // Held movement keys or mouse buttons prove that Windows lets this app see the game's keys.
@@ -163,8 +180,6 @@ function watchGame() {
 
 export function stopExperimental() {
   tracker.stop()
-  if (screenshotTimer) clearInterval(screenshotTimer)
-  screenshotTimer = null
   if (keyTimer) clearInterval(keyTimer)
   keyTimer = null
   if (watchTimer) clearInterval(watchTimer)
@@ -183,14 +198,13 @@ function registerIpc() {
   ipcMain.on('overlay:interactive', (event, value: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || window !== minimapWindow) return
-    if (value === true) interactive.add(window)
-    else interactive.delete(window)
-    window.setIgnoreMouseEvents(value !== true, { forward: true })
+    noteApplied(minimapClicks, value === true, Date.now())
+    setMinimapInteractive(window, value === true)
   })
   ipcMain.on('overlay:hold', (event, held: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || window !== minimapWindow) return
-    minimapHeldAt = held === true ? Date.now() : 0
+    noteHold(minimapClicks, held === true, Date.now())
   })
   ipcMain.on('overlay:drag', (event, active: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -308,21 +322,8 @@ function applySettings(settings: ExperimentalSettings) {
   setScreenshotsOverride(settings.screenshotsDir)
   if (settings.tracking) void tracker.start()
   else tracker.stop()
-  if (screenshotTimer) clearInterval(screenshotTimer)
-  screenshotTimer = null
-  if (settings.tracking && settings.autoScreenshot) {
-    screenshotTimer = setInterval(() => {
-      // Only press the screenshot key in a raid, with the game in front — never into other apps. Raid
-      // detection from the logs can miss a raid, so a coordinate screenshot in the last minutes also counts.
-      const recentlyInRaid = lastPosition && Date.now() - lastPosition.at < 3 * 60_000
-      if (!(options.raidState().inRaid || recentlyInRaid) || !isTarkovForeground()) return
-      // Presses that bring no screenshot (the game ignores them) are slowed down until one works again.
-      if (pressesSinceFile >= MISSES_BEFORE_BACKOFF && Date.now() - lastScreenshotPress < BACKOFF_MS) return
-      void takeScreenshot()
-    }, settings.screenshotIntervalMs)
-  }
-  if (!settings.minimap) minimapWindow?.hide()
-  if (!settings.itemLookup) itemWindow?.hide()
+  // No automatic screenshots any more (the game's «screenshot taken» notice distracted the player): the app
+  // presses the screenshot key once when the minimap opens, and the player's own screenshots move the marker.
 }
 
 function startHook() {
@@ -404,7 +405,6 @@ const recentPresses: number[] = []
 /** The game writes the file this long after the key press at most. */
 const PRESS_FILE_MS = 3000
 const MISSES_BEFORE_BACKOFF = 8
-const BACKOFF_MS = 10_000
 
 /**
  * One press of the game's screenshot key for the position tracker. False when the app cannot press it:
@@ -566,7 +566,13 @@ function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void
 const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed() && minimapWindow.isVisible())
 
 function ensureMinimapWindow() {
-  if (!minimapWindow || minimapWindow.isDestroyed()) minimapWindow = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
+  if (!minimapWindow || minimapWindow.isDestroyed()) {
+    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
+    // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again.
+    window.on('show', resyncMinimapClicks)
+    window.on('restore', resyncMinimapClicks)
+    minimapWindow = window
+  }
   return minimapWindow
 }
 

@@ -160,14 +160,16 @@ function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>) {
     const report = window.tarkovDesktop?.overlayZones
     if (!report) return
     let last = ''
-    // The main process hit-tests the cursor against these rectangles (see watchMinimapHits).
+    let sentAt = 0
+    // The main process hit-tests the cursor against these rectangles (see watchMinimapHits). They are sent
+    // again every few seconds even unchanged, so the main process never keeps stale zones (window re-shown).
     const send = () => {
       const zones = [...document.querySelectorAll<HTMLElement>('.ov-interactive')].map((element) => {
         const rect = element.getBoundingClientRect()
         return { x: Math.round(rect.left), y: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) }
       }).filter((zone) => zone.width > 0 && zone.height > 0)
       const key = JSON.stringify(zones)
-      if (key !== last) { last = key; report(zones) }
+      if (key !== last || Date.now() - sentAt > 2000) { last = key; sentAt = Date.now(); report(zones) }
     }
     send()
     const timer = window.setInterval(send, 400)
