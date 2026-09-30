@@ -75,6 +75,22 @@ describe('computeSwayWeights', () => {
     expect(result.weights[twin * 2]).toBe(result.weights[source * 2])
   })
 
+  it('holds a rigid hint box still and swings a whole-piece box about its pivot', () => {
+    const positions: number[] = [], indices: number[] = []
+    const column = body(positions, indices)
+    const sheet = cape(positions, indices, column)
+    // the model is 1 tall and centred on x = 0, z ≈ 0: hint boxes are in the same units
+    const rigid = computeSwayWeights(new Float32Array(positions), new Uint32Array(indices), { hints: { rigid: [[-0.2, 0.3, -0.3, 0.2, 0.7, 0]] } })!
+    for (let i = sheet.from; i < sheet.to; i++) if (positions[i * 3 + 1] > 0.33 && positions[i * 3 + 1] < 0.67) expect(rigid.weights[i * 2]).toBe(0)
+    const whole = computeSwayWeights(new Float32Array(positions), new Uint32Array(indices), { hints: { pieces: [{ box: [-0.2, 0.3, -0.3, 0.2, 0.9, -0.105], pivot: [0, 0.9, -0.1] }] } })!
+    expect(whole.parts).toBeDefined()
+    const inside = sheet.to - 2
+    expect(whole.parts![inside * 4 + 3]).toBeCloseTo(1)
+    expect(whole.parts![inside * 4 + 1]).toBeCloseTo(0.9)
+    // the body column never becomes part of the piece
+    for (let i = column.from; i < column.to; i++) expect(whole.parts![i * 4 + 3]).toBe(0)
+  })
+
   it('returns null for a model without loose parts', () => {
     const positions: number[] = [], indices: number[] = []
     body(positions, indices)

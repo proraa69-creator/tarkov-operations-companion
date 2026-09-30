@@ -16,9 +16,14 @@
  * 5. cords — rifle slings, ropes — are split out of the weapon or hand they are fused into (STRAND_RADIUS)
  *    and swing if they hang; cords, hair and dreads are marked livelier;
  * 6. pouches on the torso, hips and thighs swing a little (POUCH_SWING) from their top seam.
+ * 7. per-model hints (bossSwayHints.ts), measured on each model by hand, have the last word: weapons stay
+ *    rigid whatever their shape, holsters/backpacks/buckles swing as one whole piece, antennas bend towards the
+ *    tip, hair hangs from its roots.
  * Coincident vertices (UV seams) always get the same weight, so the surface never cracks open.
  * Runs once per model, off the main thread (swayWeights.worker.ts): about 0.2–1.5 s for a 30k-vertex model.
  */
+import type { BossSwayHints, HintBox } from './bossSwayHints'
+
 const CELLS_PER_HEIGHT = 150
 /** Parts thinner than this (radius, fraction of the model height) count as loose. */
 const CORE_RADIUS = 0.02
@@ -38,10 +43,16 @@ const STRAND_RADIUS = 0.013
 const CORD_REACH = 0.07
 /** Attachments above this height (fraction) are head/hair: lighter and livelier. */
 const HEAD_HEIGHT = 0.82
+/** Hint boxes fade out over this distance outside the box (fraction of height), so nothing tears at their edge. */
+const HINT_MARGIN = 0.014
+/** Whole pieces fade out faster: the leg or the back they sit on must not be dragged along. */
+const PIECE_MARGIN = 0.007
 
 export interface SwayOptions {
   coreRadius?: number
-  /** Also return each vertex's class (debug views): 0 body, 1 swinging cloth, 2 cord/hair, 3 pouch, 4 loose but held rigid. */
+  /** Hand-made corrections for this model (see bossSwayHints.ts). */
+  hints?: BossSwayHints
+  /** Also return each vertex's class (debug views): 0 body, 1 swinging cloth, 2 cord/hair/antenna, 3 pouch, 4 held rigid, 5 whole piece. */
   debug?: boolean
 }
 
@@ -53,6 +64,8 @@ export interface SwayWeights {
   pivotZ: number
   minY: number
   height: number
+  /** Per vertex, only when the model has whole swinging pieces: pivot x, y, z (model space) and the swing amount 0..1. */
+  parts?: Float32Array
   /** Share of vertices that move at all (for diagnostics). */
   share: number
   kind?: Uint8Array
@@ -438,23 +451,94 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
     }
     w = next; live = nextLive
   }
+  // 9. the model's hints: hair and antennas added, weapons held still, whole pieces swinging about a pivot
+  const parts = options.hints ? applyHints(options.hints, { n, weld, position, w, live, kind, minY, height, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 }) : null
   const weights = new Float32Array(n * 2)
   let moving = 0
   for (let i = 0; i < n; i++) {
     const v = w[weld[i]]
     weights[i * 2] = v < 0.002 ? 0 : v
     weights[i * 2 + 1] = v < 0.002 ? 0 : live[weld[i]]
-    if (v >= 0.002) moving++
+    if (v >= 0.002 || (parts && parts[i * 4 + 3] > 0)) moving++
   }
   if (!moving && !options.debug) return null
   return {
     weights,
+    parts: parts ?? undefined,
     pivotX: ox + (pivotX / Math.max(1, pivotN) + 0.5) * cell,
     pivotZ: oz + (pivotZ / Math.max(1, pivotN) + 0.5) * cell,
     minY, height, share: moving / n,
     kind: options.debug ? Uint8Array.from({ length: n }, (_, i) => kind[weld[i]]) : undefined,
     info: options.debug ? debugInfo : undefined,
   }
+}
+
+interface HintContext {
+  n: number; weld: Int32Array; position: ArrayLike<number>
+  /** Per welded vertex swing weight and liveliness (changed in place). */
+  w: Float32Array; live: Float32Array; kind: Uint8Array
+  minY: number; height: number; cx: number; cz: number
+}
+
+/** How far a point (fractions of height) is outside a box; 0 inside. */
+function outside(box: HintBox, x: number, y: number, z: number) {
+  const dx = Math.max(box[0] - x, 0, x - box[3]), dy = Math.max(box[1] - y, 0, y - box[4]), dz = Math.max(box[2] - z, 0, z - box[5])
+  return Math.hypot(dx, dy, dz)
+}
+
+/**
+ * Applies a model's hints to the swing weights (in place) and returns the whole-piece attribute
+ * (pivot xyz + amount per vertex), or null when the model has no whole pieces.
+ */
+function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
+  const { n, weld, position, w, live, kind, minY, height, cx, cz } = c
+  const parts = hints.pieces?.length ? new Float32Array(n * 4) : null
+  for (let i = 0; i < n; i++) {
+    if (weld[i] !== i) continue
+    const x = (position[i * 3] - cx) / height, y = (position[i * 3 + 1] - minY) / height, z = (position[i * 3 + 2] - cz) / height
+    // hair: everything in the box hangs from its roots (the scalp line `root`) and swings like hair
+    for (const hair of hints.hair ?? []) {
+      const fade = 1 - smooth(outside(hair.box, x, y, z) / HINT_MARGIN)
+      if (fade <= 0) continue
+      // (around the head the hair is close to the body axis: only a little livelier, no flaring disc)
+      const hang = smooth((hair.root - y) / (hair.reach ?? 0.07)) * fade * (hair.amount ?? 0.6)
+      if (hang > w[i]) { w[i] = hang; live[i] = 0.3 * fade; kind[i] = 2 }
+    }
+    // antennas: fixed at the bottom of the box, bending more and more towards the tip
+    for (const whip of hints.whips ?? []) {
+      const [x0, y0, z0, x1, y1, z1] = whip.box
+      if (x < x0 || x > x1 || z < z0 || z > z1 || y < y0 || y > y1) continue
+      const t = (y - y0) / Math.max(1e-6, y1 - y0)
+      const bend = t * t * (whip.amount ?? 0.6)
+      if (bend > w[i]) { w[i] = bend; live[i] = 1; kind[i] = 2 }
+    }
+    for (const soft of hints.soften ?? []) {
+      const fade = 1 - smooth(outside(soft.box, x, y, z) / HINT_MARGIN)
+      if (fade > 0) w[i] *= 1 - fade * (1 - soft.factor)
+    }
+    // weapons: still, fading back in just outside the box
+    let hold = 1
+    for (const box of hints.rigid ?? []) hold = Math.min(hold, smooth(outside(box, x, y, z) / HINT_MARGIN))
+    if (hold < 1) { w[i] *= hold; if (hold === 0) kind[i] = 4 }
+    // whole pieces: the piece turns about its pivot as one; its own cloth motion is replaced by that
+    if (parts) for (const piece of hints.pieces!) {
+      const d = outside(piece.box, x, y, z)
+      if (d >= PIECE_MARGIN) continue
+      const fade = 1 - smooth(d / PIECE_MARGIN)
+      const b = piece.box
+      const pivot = piece.pivot ?? [(b[0] + b[3]) / 2, b[4], (b[2] + b[5]) / 2]
+      const amount = fade * (piece.amount ?? 1) * hold
+      if (amount <= parts[i * 4 + 3]) continue
+      parts[i * 4] = pivot[0] * height + cx; parts[i * 4 + 1] = pivot[1] * height + minY; parts[i * 4 + 2] = pivot[2] * height + cz
+      parts[i * 4 + 3] = amount
+      w[i] *= 1 - fade
+      kind[i] = 5
+    }
+  }
+  if (!parts) return null
+  // seam twins share their first vertex's values
+  for (let i = 0; i < n; i++) if (weld[i] !== i) parts.copyWithin(i * 4, weld[i] * 4, weld[i] * 4 + 4)
+  return parts
 }
 
 /** Surface area of each piece (triangles whose corners all belong to it). */

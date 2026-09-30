@@ -9,6 +9,8 @@ import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useReducedMotion } from '../theme/gear/useGearActive'
 import type { BossViewerHandle } from '../gallery/bossViewer3d'
+import { BOSS_SWAY_HINTS } from '../gallery/bossSwayHints'
+import { BossInfoPanel } from '../gallery/BossInfoPanel'
 import { isMobileLayout } from '../platform'
 
 const SPIN_STORAGE_KEY = 'tarkov-gallery-spin-v1'
@@ -132,7 +134,7 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
   useEffect(() => {
     const url = bossModelUrl(bossKey)
     if (!ready || !url) return
-    handleRef.current?.load(url, BOSS_MODEL_FIX[bossKey])
+    handleRef.current?.load(url, BOSS_MODEL_FIX[bossKey], BOSS_SWAY_HINTS[bossKey])
   }, [bossKey, ready])
 
   useEffect(() => {
@@ -151,7 +153,6 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
     return () => window.removeEventListener('keydown', onKey)
   }, [onKey])
 
-  const maps = mapLine(bossKey)
   const basedOn = info?.basedOn ? withModel.get(info.basedOn)?.name[locale] : undefined
   // Portalled to <body>: the page's entry animation would otherwise trap position: fixed inside it.
   return createPortal(<div className="gallery-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
@@ -173,16 +174,7 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
           <button type="button" className="gallery-viewer-step is-prev" onClick={() => onStep(-1)} aria-label={uiText('Предыдущий босс')} title={uiText('Предыдущий босс')}><ChevronLeft size={22} /></button>
           <button type="button" className="gallery-viewer-step is-next" onClick={() => onStep(1)} aria-label={uiText('Следующий босс')} title={uiText('Следующий босс')}><ChevronRight size={22} /></button>
         </div>
-        {info && <aside className="gallery-viewer-info" aria-label={uiText('Описание')}>
-          <p className="gallery-info-about">{info.about[locale]}</p>
-          <dl className="gallery-info-facts">
-            {maps && <><dt>{uiText('Карты')}</dt><dd>{maps}</dd></>}
-            {info.health ? <><dt>{uiText('Здоровье')}</dt><dd className="gallery-info-hp">{info.health} HP</dd></> : null}
-            {info.weapons && <><dt>{uiText('Вооружение')}</dt><dd>{info.weapons[locale]}</dd></>}
-            {info.loot && <><dt>{uiText('Ценный лут')}</dt><dd>{info.loot[locale]}</dd></>}
-            {basedOn && <><dt>{uiText('По мотивам')}</dt><dd>{basedOn}</dd></>}
-          </dl>
-        </aside>}
+        {info && <BossInfoPanel bossKey={bossKey} basedOn={basedOn} />}
       </div>
       <footer className="gallery-viewer-foot">
         <span className="gallery-viewer-hint">{uiText(isMobileLayout() ? 'Проведите пальцем — повернуть · щипок — масштаб · двойное касание — сброс' : 'Перетащите — повернуть · колесо — масштаб · двойной клик — сброс')}</span>

@@ -13,14 +13,15 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { BossModelFix } from '../data/bossModels'
 import { applyBossLighting, gradeBossMaterial } from './bossLook'
+import type { BossSwayHints } from './bossSwayHints'
 import { addSway, type Sway } from './swayMaterial'
 import { computeSwayWeights, type SwayWeights } from './swayWeights'
 import type { SwayReply, SwayRequest } from './swayWeights.worker'
 import SwayWorker from './swayWeights.worker?worker&inline'
 
 export interface BossViewerHandle {
-  /** Swap to another model; the renderer and lights are kept. */
-  load(url: string, fix?: BossModelFix): void
+  /** Swap to another model; the renderer and lights are kept. `hints`: the model's cloth-motion hints. */
+  load(url: string, fix?: BossModelFix, hints?: BossSwayHints): void
   resetView(): void
   setSpin(on: boolean): void
   dispose(): void
@@ -219,7 +220,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   ro.observe(canvas)
   resize()
 
-  function load(url: string, fix?: BossModelFix) {
+  function load(url: string, fix?: BossModelFix, hints?: BossSwayHints) {
     const token = ++loadToken
     options.onLoading?.(true)
     loader.load(url, (gltf) => {
@@ -238,7 +239,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
         sways.push(sway)
         const position = (mesh.geometry.getAttribute('position') as BufferAttribute).array as Float32Array
         const index = (mesh.geometry.index?.array ?? null) as Uint32Array | Uint16Array | null
-        weights.solve(position, index).then((data) => {
+        weights.solve(position, index, hints).then((data) => {
           if (disposed || token !== loadToken || !data) return
           sway.setWeights(data)
           clothReady = true
@@ -307,10 +308,10 @@ function createWeightSolver() {
   try { worker = new SwayWorker() } catch { worker = null }
   let nextId = 0
   let disposed = false
-  const pending = new Map<number, { resolve: (data: SwayWeights | null) => void; position: Float32Array; index: Uint32Array | Uint16Array | null }>()
-  const onMainThread = (position: Float32Array, index: Uint32Array | Uint16Array | null) => new Promise<SwayWeights | null>((resolve) => setTimeout(() => {
+  const pending = new Map<number, { resolve: (data: SwayWeights | null) => void; position: Float32Array; index: Uint32Array | Uint16Array | null; hints?: BossSwayHints }>()
+  const onMainThread = (position: Float32Array, index: Uint32Array | Uint16Array | null, hints?: BossSwayHints) => new Promise<SwayWeights | null>((resolve) => setTimeout(() => {
     if (disposed) { resolve(null); return }
-    try { resolve(computeSwayWeights(position, index)) } catch { resolve(null) }
+    try { resolve(computeSwayWeights(position, index, { hints })) } catch { resolve(null) }
   }, 120))
   if (worker) {
     worker.onmessage = (event: MessageEvent<SwayReply>) => {
@@ -321,18 +322,18 @@ function createWeightSolver() {
     worker.onerror = () => {
       worker?.terminate()
       worker = null
-      for (const job of pending.values()) void onMainThread(job.position, job.index).then(job.resolve)
+      for (const job of pending.values()) void onMainThread(job.position, job.index, job.hints).then(job.resolve)
       pending.clear()
     }
   }
   return {
-    solve(position: Float32Array, index: Uint32Array | Uint16Array | null): Promise<SwayWeights | null> {
-      if (!worker) return onMainThread(position, index)
+    solve(position: Float32Array, index: Uint32Array | Uint16Array | null, hints?: BossSwayHints): Promise<SwayWeights | null> {
+      if (!worker) return onMainThread(position, index, hints)
       const id = ++nextId
       // copies go to the worker; the originals stay in the geometry
-      const request: SwayRequest = { id, position: position.slice(), index: index ? index.slice() : null }
+      const request: SwayRequest = { id, position: position.slice(), index: index ? index.slice() : null, hints }
       return new Promise((resolve) => {
-        pending.set(id, { resolve, position, index })
+        pending.set(id, { resolve, position, index, hints })
         worker!.postMessage(request, [request.position.buffer, ...(request.index ? [request.index.buffer] : [])])
       })
     },
