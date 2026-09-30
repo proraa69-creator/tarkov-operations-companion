@@ -18,9 +18,9 @@ const times = (value: number) => `×${value.toFixed(2)}`
  * so the plume can be tuned without going to the Overview, and a readout of every value.
  */
 export function RaidSmokePreview() {
-  const { selectedMapId } = useAppState()
+  const { selectedMapId, raidMode } = useAppState()
   const { data } = useTarkovData()
-  const mapId = bossFiguresFor(selectedMapId).length ? selectedMapId : 'customs'
+  const mapId = bossFiguresFor(selectedMapId, raidMode).length ? selectedMapId : 'customs'
   const art = data.maps.find((map) => map.id === mapId)?.imageUrl
   return (
     <div className="smoke-preview" aria-label={uiText('Предпросмотр дыма')}>

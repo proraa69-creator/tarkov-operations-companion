@@ -24,6 +24,7 @@ interface RawMapConfig {
   heightRange?: number[]
   layers?: RawMapLayer[]
   author?: string
+  labels?: Array<{ text?: unknown; position?: unknown }>
 }
 
 interface RawMapLayer {
@@ -67,9 +68,19 @@ export function adaptMapRenderingConfigs(roots: RawMapConfigRoot[]): Map<string,
       floors: mapFloors(primary),
       layers: mapLayers(primary),
       attribution: primary.author ? `Карта © ${primary.author} / tarkov.dev · CC BY-NC-SA 4.0` : ATTRIBUTION,
+      labels: readLabels(primary.labels),
     })
   }
   return configs
+}
+
+/** Map labels: text and game [x, z] position (the same space as tarkov.dev's spawn positions). */
+function readLabels(value: RawMapConfig['labels']): GameMap['labels'] {
+  const labels = (Array.isArray(value) ? value : []).flatMap((label) => {
+    const position = readPair(label?.position)
+    return typeof label?.text === 'string' && label.text.trim() && position ? [{ text: label.text.trim(), x: position[0], z: position[1] }] : []
+  })
+  return labels.length ? labels : undefined
 }
 
 function mapFloors(config: RawMapConfig) {

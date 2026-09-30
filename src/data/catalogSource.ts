@@ -61,7 +61,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
     wiki.storyQuests,
   ), locale))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
-  const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById })
+  const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
 
   return {

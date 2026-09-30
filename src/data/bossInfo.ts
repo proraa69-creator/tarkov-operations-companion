@@ -212,7 +212,7 @@ export const BOSS_INFO: Record<string, BossDetails> = {
   },
   military: {
     role: { ru: 'Военные', en: 'Military' },
-    about: { ru: 'Вооружённые военные в камуфляже, шлемах с ПНВ и бронежилетах. В приложении стоят на Береге.', en: 'Armed soldiers in camouflage, NVG helmets and plate carriers. Shown on Shoreline in the app.' },
+    about: { ru: 'Вооружённые военные в камуфляже, шлемах с ПНВ и бронежилетах. В приложении стоят за Рейдеров на Резерве и в Лаборатории.', en: 'Armed soldiers in camouflage, NVG helmets and plate carriers. Stand for the Raiders on Reserve and in the Lab in the app.' },
   },
   'black-division': {
     role: { ru: 'Фракция TerraGroup', en: 'TerraGroup faction' },

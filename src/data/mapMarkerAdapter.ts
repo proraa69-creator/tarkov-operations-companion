@@ -1,7 +1,8 @@
-import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerType, PossibleSpot, Quest } from '../domain/types'
+import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
+import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
 
 type JsonRecord = Record<string, unknown>
 
@@ -10,6 +11,8 @@ interface MarkerContext {
   mapNameByApiId: Map<string, string>
   quests: Quest[]
   items: Map<string, Item>
+  /** Game mode of the loaded feed; bosses from the research list (bossSpawnSupplement) are added only when it is known. */
+  mode?: RaidMode
 }
 
 export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
@@ -24,7 +27,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     if (!map) continue
     markers.push(...adaptExtracts(map, rawMap, context.items))
     markers.push(...adaptTransits(map, rawMap, context))
-    markers.push(...adaptBosses(map, rawMap, mobs, context.items))
+    markers.push(...adaptBosses(map, rawMap, mobs, context.items, context.mode))
     markers.push(...adaptSpawns(map, rawMap))
     markers.push(...adaptHazards(map, rawMap))
     markers.push(...adaptLoot(map, rawMap, context.items))
@@ -161,8 +164,10 @@ export const BOSS_MERGE_METRES = 120
 
 /** Zones where a boss must not be drawn although the feed lists them (product owner corrections). */
 function allowedZone(mapId: string, mobId: string, zone: string) {
-  // Rogues (ex-USEC) live only at the water treatment plant on Lighthouse.
-  if (mapId === 'lighthouse' && mobId === 'rogue') return /treatment|water|hellicopter|helicopter|rogue|usec|chalet/i.test(zone) || !zone
+  // Rogues (ex-USEC): since patch 1.1.5.0 (8 Sep 2026) their base on Lighthouse is the chalets, not the water treatment
+  // plant (research list 30.09.2026). Old treatment-plant zones are not drawn; without a chalet zone the research
+  // supplement puts them in the chalets.
+  if (mapId === 'lighthouse' && mobId === 'rogue') return /chalet|шале/i.test(zone) || !zone
   return true
 }
 
@@ -186,10 +191,12 @@ interface BossGroup {
   points: BossSpawnPoint[]
 }
 
-function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRecord>, items: Map<string, Item>): MapMarker[] {
+function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRecord>, items: Map<string, Item>, mode?: RaidMode): MapMarker[] {
   // All listings of one boss on this map (two raider groups, a duplicated zone, tarkov.dev + our extra zone)
   // are collected first and merged together, so the map never shows the same boss twice within ~100 m.
   const groups = new Map<string, BossGroup>()
+  /** Bosses the feed lists with an explicit 0 % for this mode: the research supplement must not add them back. */
+  const zeroed: Array<{ key: string; name: string }> = []
   asArray(rawMap.bosses).forEach((boss, bossIndex) => {
     const mobKey = text(boss.mob)
     const mob = mobs.get(mobKey)
@@ -202,9 +209,9 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
     if (mobId === 'big-pipe' || mobId === 'birdeye') return
     // The maps feed is loaded per game mode (regular / pve / pvp-season). A boss the feed lists with an explicit
     // 0 % chance does not spawn in this mode; one started by a trigger (a lever, an extract switch) still does.
-    if (explicitZero(boss.spawnChance) && !text(boss.spawnTrigger)) return
     const name = isGoons ? 'Кочевники' : text(mob?.name, mobKey || 'Босс')
     const key = isGoons ? 'goons' : mobId || name
+    if (explicitZero(boss.spawnChance) && !text(boss.spawnTrigger)) { zeroed.push({ key, name }); return }
     const group = groups.get(key) ?? { key, name, spawnChance: 0, escorts: [], info: bossInfoFromMob(mob, name, items), points: [] }
     groups.set(key, group)
     group.spawnChance = Math.max(group.spawnChance, number(boss.spawnChance))
@@ -225,7 +232,7 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
     })
   })
 
-  return [...groups.values()].flatMap((group) => mergeBossSpawnPoints(group.points).flatMap((cluster, clusterIndex) => {
+  const liveMarkers = [...groups.values()].flatMap((group) => mergeBossSpawnPoints(group.points).flatMap((cluster, clusterIndex) => {
     const center = cluster.center
     const base = baseMarker(map, `boss-${group.key}-${clusterIndex}`, center.position, undefined, center.position.y, center.position.y)
     if (!base) return []
@@ -250,6 +257,53 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
       source: 'json.tarkov.dev/maps',
     } satisfies MapMarker]
   }))
+  if (!mode) return liveMarkers
+  // Placed only when the live group has a drawable point (a zone-less listing or one filtered out does not count).
+  const present = [...groups.values()].filter((group) => group.points.some((point) => Number.isFinite(Number(point.position.x)) && Number.isFinite(Number(point.position.z))))
+  const liveZones: LiveBossZone[] = [...groups.values()].flatMap((group) => group.points.filter((point) => Number.isFinite(Number(point.position.x)) && Number.isFinite(Number(point.position.z))).map((point) => ({ zone: point.zone, x: point.x, y: Number.isFinite(Number(point.position.y)) ? Number(point.position.y) : undefined, z: point.z })))
+  return [...liveMarkers, ...adaptSupplementBosses(map, mode, present, zeroed, liveZones, mobs, items)]
+}
+
+/**
+ * Bosses from the owner's research list that the live feed has no points for on this map in this mode
+ * (see bossSpawnSupplement.ts): approximate area markers with the research chance per mode.
+ */
+function adaptSupplementBosses(map: GameMap, mode: RaidMode, present: BossGroup[], zeroed: Array<{ key: string; name: string }>, liveZones: LiveBossZone[], mobs: Map<string, JsonRecord>, items: Map<string, Item>): MapMarker[] {
+  return supplementBossesFor(map.id, mode, { present, zeroed }).flatMap((boss) => {
+    const points = boss.areas.map((area) => ({ ...resolveSupplementArea(area, map, liveZones), zone: area.zone }))
+    const mob = mobs.get(boss.infoKey) ?? [...mobs.values()].find((entry) => text(entry.normalizedName) === boss.infoKey)
+    const info = mob ? bossInfoFromMob(mob, boss.name, items) : { key: boss.infoKey, name: boss.name }
+    const chance = boss.modes[mode]?.chance
+    return mergeBossSpawnPoints(points).flatMap((cluster, clusterIndex) => {
+      const center = cluster.center
+      const base = baseMarker(map, `boss-${boss.key}-supplement-${clusterIndex}`, { x: center.x, y: center.y, z: center.z }, undefined, center.y, center.y)
+      if (!base) return []
+      const zones = [...new Set(cluster.points.map((point) => point.zone))]
+      return [{
+        ...base,
+        type: 'boss',
+        layerId: 'boss',
+        title: boss.name,
+        description: [
+          `Возможная зона появления: ${zones.join(', ')}.`,
+          boss.note,
+          supplementChanceText(boss),
+          'Tarkov.dev пока не отмечает этого босса здесь — зона по списку боссов, точка приблизительная.',
+        ].filter(Boolean).join(' '),
+        meta: chance ? `${Math.round(chance * 100)}%` : undefined,
+        approximate: true,
+        boss: {
+          ...info,
+          key: boss.infoKey,
+          name: boss.name,
+          spawnChance: chance,
+          locationName: zones.join(', '),
+          escorts: boss.escorts,
+        },
+        source: 'boss-spawn-supplement',
+      } satisfies MapMarker]
+    })
+  })
 }
 
 /** Our extra zones are added once per boss (to its first listing), not to every raider group. */

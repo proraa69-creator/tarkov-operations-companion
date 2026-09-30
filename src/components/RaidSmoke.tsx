@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { isAppActive, onAppActivityChange } from '../app/appActivity'
 import { SMOKE_GREEN_HUE, useRaidSmokeEnabled, useRaidSmokeOptions, type RaidSmokeOptions } from '../app/raidSmokeSetting'
 import { bossFiguresFor } from '../data/bossFigures'
+import { useAppState } from '../state/AppState'
 import puff1 from '../assets/smoke/puff-1.webp'
 import puff2 from '../assets/smoke/puff-2.webp'
 import puff3 from '../assets/smoke/puff-3.webp'
@@ -19,8 +20,10 @@ import '../styles/raidSmoke.css'
  */
 export function RaidSmoke({ mapId }: { mapId: string }) {
   const enabled = useRaidSmokeEnabled()
-  if (!enabled || !bossFiguresFor(mapId).length) return null
-  return <SmokeLayer key={mapId} />
+  const { raidMode } = useAppState()
+  // The figures follow the game mode (Black Division only in Season), so the smoke does too; a new key re-measures them.
+  if (!enabled || !bossFiguresFor(mapId, raidMode).length) return null
+  return <SmokeLayer key={`${mapId}-${raidMode}`} />
 }
 
 const PERIOD = 72 // s — puff lives are PERIOD / 2 and PERIOD / 3 (36 s, 24 s): very slow

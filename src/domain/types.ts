@@ -108,6 +108,8 @@ export interface GameMap {
   layers?: MapFloorLayer[]
   markerCount: number
   attribution?: string
+  /** Named places of the map (tarkov.dev maps.json `labels`, game x/z), used to anchor curated markers by name. */
+  labels?: Array<{ text: string; x: number; z: number }>
 }
 
 /** How a map is drawn: tarkov.dev's top-down render tiles («Спутник») or its vector SVG scheme («Схема»). */
