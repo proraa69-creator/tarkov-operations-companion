@@ -11,3 +11,18 @@
 .raid-smoke.is-ready { opacity: 1; }
 .raid-smoke > canvas { display: block; width: 100%; height: 100%; }
 @media (max-width: 1100px) { .raid-smoke { display: none; } }
+
+/* Settings → Интерфейс: plume width, speed and colour (src/components/RaidSmokeSettings.tsx) */
+.raid-smoke-settings { display: grid; gap: 10px; padding: 4px 0 15px; border-bottom: 1px solid var(--line); }
+.raid-smoke-settings label { display: grid; grid-template-columns: minmax(130px, 190px) 1fr 52px; align-items: center; gap: 12px; }
+.raid-smoke-settings label > span { color: var(--text-dim); font-size: 13px; }
+.raid-smoke-settings input[type="range"] { width: 100%; }
+.raid-smoke-settings output { font-variant-numeric: tabular-nums; font-size: 13px; text-align: right; }
+.raid-smoke-hue { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; background: linear-gradient(90deg, hsl(0 80% 52%), hsl(60 80% 52%), hsl(120 80% 52%), hsl(180 80% 52%), hsl(240 80% 52%), hsl(300 80% 52%), hsl(359 80% 52%)); }
+.raid-smoke-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgb(0 0 0 / 55%); cursor: pointer; }
+.raid-smoke-dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; vertical-align: middle; box-shadow: 0 0 8px currentColor; }
+.raid-smoke-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.raid-smoke-swatches > button:not(.raid-smoke-reset) { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.raid-smoke-swatches > button.active { border-color: var(--text); }
+.raid-smoke-reset { margin-left: auto; }
+@media (max-width: 560px) { .raid-smoke-settings label { grid-template-columns: 1fr 52px; } .raid-smoke-settings label > span { grid-column: 1 / -1; } }

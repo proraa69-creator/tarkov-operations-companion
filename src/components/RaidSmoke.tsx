@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { isAppActive, onAppActivityChange } from '../app/appActivity'
-import { useRaidSmokeEnabled } from '../app/raidSmokeSetting'
+import { SMOKE_GREEN_HUE, useRaidSmokeEnabled, useRaidSmokeOptions, type RaidSmokeOptions } from '../app/raidSmokeSetting'
 import { bossFiguresFor } from '../data/bossFigures'
 import puff1 from '../assets/smoke/puff-1.webp'
 import puff2 from '../assets/smoke/puff-2.webp'
@@ -14,7 +14,8 @@ import '../styles/raidSmoke.css'
  * ~40 pre-baked puff sprites (src/assets/smoke, made by the smoke prototype's bake script) rise very slowly from
  * behind the middle of the figure group; every puff is a pure function of the loop time, so the loop is seamless.
  * Canvas at half resolution and ≤ 30 fps; it sleeps while the card is off-screen, the window is hidden or
- * unfocused (the game is in front), and draws one still frame for reduced motion. Setting «Дым за боссами».
+ * unfocused (the game is in front), and draws one still frame for reduced motion. Setting «Дым за боссами»
+ * (on/off, plume width, speed, colour).
  */
 export function RaidSmoke({ mapId }: { mapId: string }) {
   const enabled = useRaidSmokeEnabled()
@@ -46,16 +47,53 @@ function loadImage(url: string) {
   return image.decode().then(() => image)
 }
 
+type Sprite = HTMLImageElement | HTMLCanvasElement
+
+/** The baked sprites are green; another colour keeps each pixel's saturation and lightness and swaps the hue. */
+function tint(image: HTMLImageElement, hue: number): Sprite {
+  if (hue === SMOKE_GREEN_HUE) return image
+  const canvas = document.createElement('canvas')
+  canvas.width = image.naturalWidth; canvas.height = image.naturalHeight
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return image
+  ctx.drawImage(image, 0, 0)
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const data = pixels.data, h = hue / 360
+  const channel = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p
+  }
+  for (let i = 0; i < data.length; i += 4) {
+    if (!data[i + 3]) continue
+    const r = data[i]! / 255, g = data[i + 1]! / 255, b = data[i + 2]! / 255
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min
+    if (!d) continue
+    const sat = d / (1 - Math.abs(2 * l - 1))
+    const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q
+    data[i] = Math.round(channel(p, q, h + 1 / 3) * 255)
+    data[i + 1] = Math.round(channel(p, q, h) * 255)
+    data[i + 2] = Math.round(channel(p, q, h - 1 / 3) * 255)
+  }
+  ctx.putImageData(pixels, 0, 0)
+  return canvas
+}
+
 function SmokeLayer() {
   const layerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const options = useRaidSmokeOptions()
+  const optionsRef = useRef<RaidSmokeOptions>(options)
+  const redrawRef = useRef<() => void>(() => {})
+  useEffect(() => { optionsRef.current = options; redrawRef.current() }, [options])
 
   useEffect(() => {
     const layer = layerRef.current, canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!layer || !canvas || !ctx) return
     const puffs = makePuffs()
-    let sprites: HTMLImageElement[] = [], glow: HTMLImageElement | null = null
+    let baked: HTMLImageElement[] = [], bakedGlow: HTMLImageElement | null = null, bakedHue = SMOKE_GREEN_HUE
+    let sprites: Sprite[] = [], glow: Sprite | null = null
     let clearing: HTMLCanvasElement | null = null // soft hole behind the buttons, so they always stay clean
     let W = 0, H = 0, sourceX = 0, spread = 0
     let time = STILL_TIME, raf = 0, last = 0, onScreen = false, disposed = false
@@ -90,6 +128,7 @@ function SmokeLayer() {
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, W, H)
       if (!sprites.length) return
+      const wide = optionsRef.current.width
       const sx = sourceX, sy = H * 0.965
       const phase = (t / PERIOD) * Math.PI * 2
       const gust = Math.sin(phase) * 0.5 + Math.sin(phase * 2 + 1) * 0.25
@@ -97,15 +136,15 @@ function SmokeLayer() {
         const u = (t / puff.life + puff.off) % 1
         let x, y, size, alpha
         if (puff.ground) { // low drift rolling outwards along the ground behind the legs
-          x = sx + puff.dir * spread * 0.5 * Math.pow(u, 0.7) + puff.jx * 20 * SCALE
+          x = sx + puff.dir * spread * 0.5 * wide * Math.pow(u, 0.7) + puff.jx * 20 * SCALE
           y = sy - H * 0.12 * Math.pow(u, 1.3) - 8 * SCALE
-          size = W * (0.14 + 0.3 * Math.pow(u, 0.7)) * puff.size
+          size = W * (0.14 + 0.3 * Math.pow(u, 0.7)) * puff.size * wide
           alpha = Math.min(1, u / 0.12) * Math.pow(1 - u, 1.1) * 0.6
         } else { // the column: quick out of the can, then slows, widens and leans with the wind
           const rise = 1 - Math.pow(1 - u, 1.7)
           y = sy - H * 1.02 * rise
-          x = sx + puff.jx * (6 + 55 * u) * (spread / (W * 0.8)) - W * 0.14 * rise * rise * (1 + gust * 0.6) + Math.sin(u * 7 + puff.sway) * 10 * SCALE * u
-          size = W * (0.06 + 0.34 * Math.pow(u, 0.75)) * puff.size
+          x = sx + puff.jx * (6 + 55 * u) * (spread / (W * 0.8)) * wide - W * 0.14 * rise * rise * (1 + gust * 0.6) + Math.sin(u * 7 + puff.sway) * 10 * SCALE * u
+          size = W * (0.06 + 0.34 * Math.pow(u, 0.75)) * puff.size * wide
           alpha = Math.min(1, u / 0.06) * Math.pow(1 - u, 0.9) * 1.5
         }
         return { puff, u, x, y, size, alpha }
@@ -139,7 +178,7 @@ function SmokeLayer() {
       if (last && now - last < FRAME_MS - 2) return
       const dt = last ? Math.min(now - last, 100) : 0
       last = now
-      time = (time + dt / 1000) % PERIOD
+      time = (time + dt / 1000 * optionsRef.current.speed) % PERIOD
       draw(time)
     }
     const stop = () => { if (raf) cancelAnimationFrame(raf); raf = 0; last = 0 }
@@ -149,6 +188,16 @@ function SmokeLayer() {
       else if (!run) { stop(); if (reduced.matches) draw(STILL_TIME) }
     }
 
+    const recolour = () => {
+      bakedHue = optionsRef.current.hue
+      sprites = baked.map((image) => tint(image, bakedHue))
+      glow = bakedGlow && tint(bakedGlow, bakedHue)
+    }
+    redrawRef.current = () => {
+      if (!baked.length) return
+      if (optionsRef.current.hue !== bakedHue) recolour()
+      if (!raf) draw(reduced.matches ? STILL_TIME : time)
+    }
     const observer = new IntersectionObserver(([entry]) => { onScreen = !!entry?.isIntersecting; sync() })
     observer.observe(layer)
     const resize = new ResizeObserver(() => { measure(); if (!raf) draw(reduced.matches ? STILL_TIME : time) })
@@ -160,7 +209,8 @@ function SmokeLayer() {
 
     Promise.all([Promise.all([puff1, puff2, puff3, puff4].map(loadImage)), loadImage(glowUrl)]).then(([puffImages, glowImage]) => {
       if (disposed) return
-      sprites = puffImages; glow = glowImage
+      baked = puffImages; bakedGlow = glowImage
+      recolour()
       measure(); draw(time)
       layer.classList.add('is-ready')
       sync()
@@ -168,6 +218,7 @@ function SmokeLayer() {
 
     return () => {
       disposed = true
+      redrawRef.current = () => {}
       stop()
       observer.disconnect()
       resize.disconnect()

@@ -19,6 +19,7 @@ import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
 import { useLocale } from "../i18n/LocaleProvider";
 import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
+import { RaidSmokeSettings } from "../components/RaidSmokeSettings";
 import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
@@ -610,7 +611,7 @@ export function SettingsPage() {
             <div className="setting-row">
               <span>
                 <strong>{uiText("Дым за боссами")}</strong>
-                <small>{uiText("Зелёный сигнальный дым в карточке рейда на обзоре")}</small>
+                <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
               </span>
               <button
                 type="button"
@@ -623,6 +624,7 @@ export function SettingsPage() {
                 <span />
               </button>
             </div>
+            {raidSmoke && <RaidSmokeSettings />}
             <div className="setting-row theme-row">
               <span>
                 <strong>{uiText("Цветовая схема")}</strong>
