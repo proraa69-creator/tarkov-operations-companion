@@ -6,6 +6,8 @@ import { connect } from 'node:net'
 import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, utilityProcess, type UtilityProcess } from 'electron'
+import { apiEnvironment } from './ownerAdmin.js'
+import { publicSiteUrl } from './publicTunnel.js'
 
 /**
  * «Сервер и сайт на этом компьютере»: the owner's PC runs the account API (server/, bundled into
@@ -109,7 +111,7 @@ export async function startLocalServer() {
   if (!apiProcess) {
     if (await portTaken(API_PORT)) apiState = 'external'
     else if (!existsSync(serverScript())) { apiState = 'error'; lastError = 'Сервер не входит в эту сборку приложения.' }
-    else startApi()
+    else await startApi()
   }
   if (!siteServer) {
     if (await portTaken(SITE_PORT)) siteState = 'external'
@@ -118,12 +120,14 @@ export async function startLocalServer() {
   return localServerStatus()
 }
 
-function startApi() {
+async function startApi() {
   const log = join(dataDir(), 'logs', 'api.log')
+  // Owner token, ЮKassa settings and the public address travel only in the process environment (electron/ownerAdmin.ts).
+  const extra = await apiEnvironment(await publicSiteUrl())
   const child = utilityProcess.fork(serverScript(), [], {
     serviceName: 'Tarkov Operator API',
     stdio: 'pipe',
-    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN },
+    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...extra },
   })
   const write = (chunk: Buffer) => void appendFile(log, chunk).catch(() => {})
   child.stdout?.on('data', write)
@@ -154,6 +158,8 @@ function startSite() {
         if (path === '/download/windows') return sendDownload(response)
         if (path === '/download/version.json') return sendVersion(response)
         // The API under the site's own address: the site keeps working when opened through the public link.
+        // The owner's admin API is for this PC's app only, never through the site or the public link.
+        if (/^\/+v1\/+admin(\/|$)/i.test(path.replace(/\\/g, '/'))) { response.writeHead(404); response.end(); return }
         if (path === '/health' || path.startsWith('/v1/')) return proxyToApi(request, response)
         const file = normalize(join(root, path))
         const inside = file.startsWith(root + sep)
@@ -230,6 +236,17 @@ function sendVersion(response: ServerResponse) {
     const { version, build, commit } = await runningBuild()
     response.end(JSON.stringify({ version, build, commit, size: info.size, sha256: exeHash.sha256 }))
   })().catch(() => { if (!response.headersSent) response.writeHead(500); response.end() })
+}
+
+/** New payment settings or public address: restart only the API (the site and the public link keep running). */
+export async function restartApi() {
+  if (!apiProcess) return localServerStatus()
+  const old = apiProcess
+  apiProcess = null
+  await new Promise<void>((resolve) => { old.once('exit', () => resolve()); old.kill(); setTimeout(resolve, 3000) })
+  lastError = ''
+  await startApi()
+  return localServerStatus()
 }
 
 export function stopLocalServer() {

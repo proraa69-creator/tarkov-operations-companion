@@ -60,6 +60,12 @@ async function namedTunnel(): Promise<{ hostname: string; token: string } | null
   }
 }
 
+/** The permanent public site address (https://hostname), or '' without one. */
+export async function publicSiteUrl() {
+  const { hostname } = await readSaved()
+  return hostname ? `https://${hostname}` : ''
+}
+
 export async function tunnelStatus(): Promise<TunnelStatus> {
   const { hostname } = await readSaved()
   return { state, ...(url ? { url } : {}), ...(error ? { error } : {}), autoStart: await autoStart(), ...(hostname ? { hostname } : {}) }

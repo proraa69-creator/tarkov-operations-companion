@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Copy, ExternalLink, Globe, HardDrive, LogIn, LogOut, RefreshCw, Server, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
+import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
 import { uiText } from '../i18n/renderText'
 import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
@@ -145,6 +146,8 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
         </div>
       )}
       {local.enabled && <TunnelRow />}
+      {local.enabled && <PaymentsPanel />}
+      {local.enabled && <StreamersPanel />}
     </div>
   )
 }

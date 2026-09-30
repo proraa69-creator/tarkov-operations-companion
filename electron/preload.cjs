@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     setNamedTunnel: (hostname, token) => ipcRenderer.invoke('tunnel:set-named', String(hostname ?? ''), String(token ?? '')),
     setServerUrl: (url) => ipcRenderer.invoke('account:set-server-url', String(url ?? '')),
   },
+  owner: {
+    payments: () => ipcRenderer.invoke('owner:payments'),
+    setPayments: (settings) => ipcRenderer.invoke('owner:set-payments', settings),
+    streamers: () => ipcRenderer.invoke('owner:streamers'),
+    inviteStreamer: (code) => ipcRenderer.invoke('owner:invite-streamer', String(code ?? '')),
+  },
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     install: () => ipcRenderer.invoke('update:install'),

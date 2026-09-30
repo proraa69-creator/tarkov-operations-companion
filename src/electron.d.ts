@@ -27,8 +27,18 @@ export interface ServerAccountStatus {
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
 export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string }
 
+/** Owner controls for the server on this PC (electron/ownerAdmin.ts). */
+export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean }
+export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
+
 interface TarkovDesktopApi {
   isDesktop: true
+  owner?: {
+    payments: () => Promise<PaymentSettings>
+    setPayments: (settings: { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; secretKey?: string; clearKey?: boolean }) => Promise<PaymentSettings>
+    streamers: () => Promise<{ streamers: StreamerRow[]; invites: Array<{ code: string; expiresAt: string }> }>
+    inviteStreamer: (code: string) => Promise<{ link: string; code: string; expiresAt: string }>
+  }
   update?: {
     status: () => Promise<UpdateStatus>
     install: () => Promise<UpdateStatus>

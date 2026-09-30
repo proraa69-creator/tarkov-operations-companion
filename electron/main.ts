@@ -11,9 +11,10 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
+import { inviteStreamer, listStreamers, paymentSettings, setPaymentSettings } from './ownerAdmin.js'
+import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
-import { enableTunnelFromCommandLine, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
+import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, installUpdate, startUpdateChecks, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
@@ -251,12 +252,25 @@ function registerIpc() {
   })
   ipcMain.handle('tunnel:status', () => tunnelStatus())
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
-  ipcMain.handle('tunnel:set-named', (_event, hostname: unknown, token: unknown) => setNamedTunnel(hostname, token))
+  ipcMain.handle('tunnel:set-named', async (_event, hostname: unknown, token: unknown) => {
+    const status = await setNamedTunnel(hostname, token)
+    await restartApi() // the API builds ЮKassa return links from the public address
+    return status
+  })
   ipcMain.handle('account:set-server-url', async (_event, url: unknown) => {
     const result = await setServerUrl(url)
     void checkForUpdate()
     return result
   })
+  // Owner: ЮKassa settings and streamer invitations for the server on this PC (electron/ownerAdmin.ts).
+  ipcMain.handle('owner:payments', () => paymentSettings())
+  ipcMain.handle('owner:set-payments', async (_event, settings: unknown) => {
+    const result = await setPaymentSettings(settings)
+    await restartApi()
+    return result
+  })
+  ipcMain.handle('owner:streamers', () => listStreamers())
+  ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:install', () => installUpdate())
 
