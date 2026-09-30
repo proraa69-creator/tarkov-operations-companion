@@ -49,9 +49,12 @@ function loadImage(url: string) {
 
 type Sprite = HTMLImageElement | HTMLCanvasElement
 
-/** The baked sprites are green; another colour keeps each pixel's saturation and lightness and swaps the hue. */
-function tint(image: HTMLImageElement, hue: number): Sprite {
-  if (hue === SMOKE_GREEN_HUE) return image
+/**
+ * The baked sprites are green; another colour keeps each pixel's saturation and lightness and swaps the hue. Tone
+ * moves the lightness toward black (−1) or white (+1), keeping the shading.
+ */
+function tint(image: HTMLImageElement, hue: number, tone: number): Sprite {
+  if (hue === SMOKE_GREEN_HUE && !tone) return image
   const canvas = document.createElement('canvas')
   canvas.width = image.naturalWidth; canvas.height = image.naturalHeight
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -67,9 +70,10 @@ function tint(image: HTMLImageElement, hue: number): Sprite {
   for (let i = 0; i < data.length; i += 4) {
     if (!data[i + 3]) continue
     const r = data[i]! / 255, g = data[i + 1]! / 255, b = data[i + 2]! / 255
-    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), base = (max + min) / 2, d = max - min
     if (!d) continue
-    const sat = d / (1 - Math.abs(2 * l - 1))
+    const l = tone > 0 ? base + (1 - base) * tone * 0.7 : base * (1 + tone * 0.7)
+    const sat = Math.min(1, d / (1 - Math.abs(2 * base - 1)))
     const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q
     data[i] = Math.round(channel(p, q, h + 1 / 3) * 255)
     data[i + 1] = Math.round(channel(p, q, h) * 255)
@@ -92,8 +96,8 @@ function SmokeLayer() {
     const ctx = canvas?.getContext('2d')
     if (!layer || !canvas || !ctx) return
     const puffs = makePuffs()
-    let baked: HTMLImageElement[] = [], bakedGlow: HTMLImageElement | null = null, bakedHue = SMOKE_GREEN_HUE
-    let sprites: Sprite[] = [], glow: Sprite | null = null
+    let baked: HTMLImageElement[] = [], bakedGlow: HTMLImageElement | null = null, bakedKey = ''
+    let sprites: Sprite[] = [], topSprites: Sprite[] = [], glow: Sprite | null = null
     let clearing: HTMLCanvasElement | null = null // soft hole behind the buttons, so they always stay clean
     let W = 0, H = 0, sourceX = 0, spread = 0
     let time = STILL_TIME, raf = 0, last = 0, onScreen = false, disposed = false
@@ -154,7 +158,12 @@ function SmokeLayer() {
         ctx.setTransform(1, 0, 0, 1, item.x, item.y)
         if (item.puff.ground) ctx.scale(1.25, 0.6) // ground smoke lies flat
         ctx.rotate(item.puff.rot + item.puff.spin * item.u)
-        ctx.drawImage(sprites[item.puff.sprite]!, -item.size / 2, -item.size / 2, item.size, item.size)
+        if (topSprites.length) { // gradient: the colour shifts from the base hue to the top hue as the puff rises
+          const mix = Math.min(1, Math.max(0, (item.u - 0.15) / 0.6))
+          const alpha = ctx.globalAlpha
+          if (mix < 1) { ctx.globalAlpha = alpha * (1 - mix); ctx.drawImage(sprites[item.puff.sprite]!, -item.size / 2, -item.size / 2, item.size, item.size) }
+          if (mix > 0) { ctx.globalAlpha = alpha * mix; ctx.drawImage(topSprites[item.puff.sprite]!, -item.size / 2, -item.size / 2, item.size, item.size) }
+        } else ctx.drawImage(sprites[item.puff.sprite]!, -item.size / 2, -item.size / 2, item.size, item.size)
       }
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       if (glow) { // the burning can: a soft glow breathing every ~7 s
@@ -188,14 +197,17 @@ function SmokeLayer() {
       else if (!run) { stop(); if (reduced.matches) draw(STILL_TIME) }
     }
 
+    const colourKey = () => { const o = optionsRef.current; return `${o.hue}|${o.tone}|${o.gradient ? o.topHue : ''}` }
     const recolour = () => {
-      bakedHue = optionsRef.current.hue
-      sprites = baked.map((image) => tint(image, bakedHue))
-      glow = bakedGlow && tint(bakedGlow, bakedHue)
+      const { hue, tone, gradient, topHue } = optionsRef.current
+      bakedKey = colourKey()
+      sprites = baked.map((image) => tint(image, hue, tone))
+      topSprites = gradient && topHue !== hue ? baked.map((image) => tint(image, topHue, tone)) : []
+      glow = bakedGlow && tint(bakedGlow, hue, tone)
     }
     redrawRef.current = () => {
       if (!baked.length) return
-      if (optionsRef.current.hue !== bakedHue) recolour()
+      if (colourKey() !== bakedKey) recolour()
       if (!raf) draw(reduced.matches ? STILL_TIME : time)
     }
     const observer = new IntersectionObserver(([entry]) => { onScreen = !!entry?.isIntersecting; sync() })

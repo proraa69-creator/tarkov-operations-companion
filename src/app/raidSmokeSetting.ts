@@ -2,15 +2,16 @@ import { useSyncExternalStore } from 'react'
 
 /**
  * Settings «Дым за боссами»: the signal smoke behind the boss figures on the Overview raid card (default on, green).
- * Width and speed are multipliers; hue is the colour wheel angle the pre-baked green sprites are turned to.
+ * Width and speed are multipliers; hue is the colour wheel angle the pre-baked green sprites are turned to; tone makes
+ * the colour darker (−1) or lighter (+1); with gradient on, the smoke shifts to topHue as it rises.
  */
 const KEY = 'tarkov-raid-smoke'
 const OPTIONS_KEY = 'tarkov-raid-smoke-options'
 const EVENT = 'tarkov-raid-smoke-changed'
 
 export const SMOKE_GREEN_HUE = 115
-export interface RaidSmokeOptions { width: number; speed: number; hue: number }
-export const DEFAULT_SMOKE_OPTIONS: RaidSmokeOptions = { width: 1, speed: 1, hue: SMOKE_GREEN_HUE }
+export interface RaidSmokeOptions { width: number; speed: number; hue: number; tone: number; gradient: boolean; topHue: number }
+export const DEFAULT_SMOKE_OPTIONS: RaidSmokeOptions = { width: 1, speed: 1, hue: SMOKE_GREEN_HUE, tone: 0, gradient: false, topHue: 55 }
 export const SMOKE_WIDTH = { min: 0.5, max: 2 }
 export const SMOKE_SPEED = { min: 0.25, max: 4 }
 
@@ -41,12 +42,15 @@ export function raidSmokeOptions(): RaidSmokeOptions {
     width: clamp(parsed.width, SMOKE_WIDTH.min, SMOKE_WIDTH.max, 1),
     speed: clamp(parsed.speed, SMOKE_SPEED.min, SMOKE_SPEED.max, 1),
     hue: Math.round(clamp(parsed.hue, 0, 359, SMOKE_GREEN_HUE)),
+    tone: Math.round(clamp(parsed.tone, -1, 1, 0) * 100) / 100,
+    gradient: parsed.gradient === true,
+    topHue: Math.round(clamp(parsed.topHue, 0, 359, DEFAULT_SMOKE_OPTIONS.topHue)),
   }
   return cachedOptions
 }
 
 export function setRaidSmokeOptions(next: Partial<RaidSmokeOptions>) {
-  const value = next.width === undefined && next.speed === undefined && next.hue === undefined ? DEFAULT_SMOKE_OPTIONS : { ...raidSmokeOptions(), ...next }
+  const value = Object.keys(next).length ? { ...raidSmokeOptions(), ...next } : DEFAULT_SMOKE_OPTIONS
   try { localStorage.setItem(OPTIONS_KEY, JSON.stringify(value)) } catch { /* storage unavailable */ }
   window.dispatchEvent(new Event(EVENT))
 }

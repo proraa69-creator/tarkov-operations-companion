@@ -16,6 +16,6 @@ export const THEME_PHRASES: Array<[string, string]> = [
   ['царапины', 'scratches'],
   // Settings → Интерфейс: the green signal smoke behind the bosses on the Overview raid card (RaidSmoke)
   ['Дым за боссами', 'Smoke behind the bosses'], ['Сигнальный дым в карточке рейда на обзоре', 'Signal smoke on the Overview raid card'],
-  ['Ширина факела', 'Plume width'], ['Скорость анимации', 'Animation speed'], ['Цвет факела', 'Plume colour'],
+  ['Ширина факела', 'Plume width'], ['Темнее — светлее', 'Darker — lighter'], ['Градиент', 'Gradient'], ['Дым меняет цвет по мере подъёма', 'The smoke changes colour as it rises'], ['Цвет верхушки', 'Top colour'], ['Скорость анимации', 'Animation speed'], ['Цвет факела', 'Plume colour'],
   ['Зелёный', 'Green'], ['Красный', 'Red'], ['Оранжевый', 'Orange'], ['Жёлтый', 'Yellow'], ['Голубой', 'Light blue'], ['Фиолетовый', 'Purple'],
 ]
