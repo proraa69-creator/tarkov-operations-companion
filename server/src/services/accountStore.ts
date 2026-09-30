@@ -5,9 +5,9 @@
  * (the same database file as the rest of the server, see services/database.ts), so they survive restarts.
  * Without a database handle the store uses a private in-memory SQLite database (tests).
  *
- * Still missing before any public deployment: e-mail verification, password reset, payment provider and payout
- * accounting. Subscription state is NEVER taken from the client; `activeSubscriptions` / `earnings` stay 0 until
- * provider webhooks are implemented server-side.
+ * Still missing before any public deployment: e-mail verification, password reset and payouts. Subscription state is
+ * NEVER taken from the client: paid periods and streamer revenue come from verified ЮKassa payments
+ * (services/paymentStore.ts, attached through `SubscriptionSource`).
  * Streamer status is granted only by an operator through `promoteToStreamer()` (CLI `npm run promote`, never HTTP).
  *
  * The handlers below take a small plain request object and return `{ status, body }`, so they can be unit-tested
@@ -50,7 +50,15 @@ export interface ReferralStats {
   visits: number
   registrations: number
   activeSubscriptions: number
+  /** Paid by referred users, roubles. */
+  revenue: { amount: number; currency: 'RUB' }
   earnings: { amount: number; currency: 'RUB' }
+}
+
+/** Paid periods and referral revenue (PaymentStore); amounts in kopecks. */
+export interface SubscriptionSource {
+  paidUntil(accountId: string): number | undefined
+  referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number }
 }
 
 export interface AccountView {
@@ -60,7 +68,7 @@ export interface AccountView {
   referralCode?: string
   referredBy?: string
   nicknames: Partial<Record<AccountMode, string>>
-  subscription: { status: 'trial' | 'inactive'; trialEndsAt?: string }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string }
   stats?: ReferralStats
 }
 
@@ -157,12 +165,24 @@ export class AccountStore {
   private readonly dummySalt = randomBytes(16)
   private readonly now: () => number
   private lastSweep = 0
+  private subscriptions?: SubscriptionSource
 
   constructor(options: { now?: () => number; db?: DatabaseSync } = {}) {
     this.now = options.now ?? Date.now
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
     this.db.exec(SCHEMA)
+  }
+
+  /** Payments (index.ts): paid subscriptions and streamer revenue. */
+  attachSubscriptions(source: SubscriptionSource) {
+    this.subscriptions = source
+  }
+
+  /** What a payment needs to know about the payer. */
+  billingInfo(accountId: string) {
+    const account = this.mustGet(accountId)
+    return { id: account.id, email: account.email, ...(account.referredBy ? { referredBy: account.referredBy } : {}) }
   }
 
   async register(email: string, password: string, referralCode?: string) {
@@ -220,6 +240,8 @@ export class AccountStore {
       nicknames: { ...account.nicknames },
       subscription: trialEndsAt !== undefined && trialEndsAt > this.now() ? { status: 'trial', trialEndsAt: new Date(trialEndsAt).toISOString() } : { status: 'inactive' },
     }
+    const paidUntil = this.subscriptions?.paidUntil(account.id)
+    if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
     if (account.kind === 'streamer' && account.referralCode) {
       view.referralCode = account.referralCode
@@ -287,8 +309,9 @@ export class AccountStore {
   private stats(code: string): ReferralStats {
     const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(code) as Row).n)
     const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
-    // Payments are not implemented: paid conversions and earnings must come from verified provider webhooks.
-    return { visits, registrations, activeSubscriptions: 0, earnings: { amount: 0, currency: 'RUB' } }
+    // Paid conversions and money come only from verified ЮKassa payments (PaymentStore).
+    const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
+    return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
   private createSession(accountId: string) {
