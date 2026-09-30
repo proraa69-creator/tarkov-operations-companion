@@ -59,6 +59,27 @@ export interface ReferralStats {
 export interface SubscriptionSource {
   paidUntil(accountId: string): number | undefined
   referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number }
+  /** Paid subscriptions of referred users grouped by period key (see `periodKeySql`). */
+  referralSeries(code: string, keySql: (column: string) => string): Array<{ key: string; payments: number; months: Record<string, number>; revenue: number; earnings: number }>
+}
+
+export type StatsPeriod = 'day' | 'month' | 'year'
+/** Statistics days follow Moscow time (UTC+3, no daylight saving). */
+const STATS_OFFSET_MS = 3 * 60 * 60 * 1000
+const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
+/** SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. */
+export const periodKeySql = (period: StatsPeriod) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${STATS_OFFSET_MS}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
+const statsDay = (time: number) => new Date(time + STATS_OFFSET_MS).toISOString().slice(0, 10)
+
+export interface ReferralSeriesRow {
+  period: string
+  visits: number
+  registrations: number
+  /** Successful payments by referred users and how many of them were for 1 / 3 / 6 / 12 months. */
+  payments: number
+  months: { '1m': number; '3m': number; '6m': number; '12m': number }
+  revenue: number
+  earnings: number
 }
 
 export interface AccountView {
@@ -156,6 +177,11 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS referral_visit_seen (
     visitor TEXT PRIMARY KEY,
     seen_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS referral_visit_days (
+    code TEXT NOT NULL,
+    day TEXT NOT NULL,
+    visits INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (code, day));
   CREATE TABLE IF NOT EXISTS streamer_invites (
     digest TEXT PRIMARY KEY,
     code TEXT NOT NULL,
@@ -293,6 +319,7 @@ export class AccountStore {
     if (seen && now - Number(seen.seen_at) < VISIT_DEDUPE_MS) return true
     this.db.prepare('INSERT INTO referral_visit_seen (visitor, seen_at) VALUES (?, ?) ON CONFLICT(visitor) DO UPDATE SET seen_at = excluded.seen_at').run(visitor, now)
     this.db.prepare('INSERT INTO referral_visits (code, visits) VALUES (?, 1) ON CONFLICT(code) DO UPDATE SET visits = visits + 1').run(code)
+    this.db.prepare('INSERT INTO referral_visit_days (code, day, visits) VALUES (?, ?, 1) ON CONFLICT(code, day) DO UPDATE SET visits = visits + 1').run(code, statsDay(now))
     return true
   }
 
@@ -352,6 +379,40 @@ export class AccountStore {
       streamers: rows.map((row) => ({ email: String(row.email), code: String(row.referral_code), stats: this.stats(String(row.referral_code)) })),
       invites: invites.map((row) => ({ code: String(row.code), expiresAt: new Date(Number(row.expires_at)).toISOString() })),
     }
+  }
+
+  /**
+   * Streamer cabinet table: visits, registrations and paid subscriptions (by plan) per day (last 31 days), month (last
+   * 12) or year. Newest first; periods without anything still appear for days and months so the table has no gaps.
+   */
+  referralSeries(accountId: string, period: StatsPeriod): ReferralSeriesRow[] {
+    const account = this.mustGet(accountId)
+    if (account.kind !== 'streamer' || !account.referralCode) throw new AccountError(403, 'Статистика доступна только стримерам')
+    const code = account.referralCode
+    const length = PERIOD_LENGTH[period]
+    const rows = new Map<string, ReferralSeriesRow>()
+    const row = (key: string) => {
+      let entry = rows.get(key)
+      if (!entry) { entry = { period: key, visits: 0, registrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 }; rows.set(key, entry) }
+      return entry
+    }
+    const today = statsDay(this.now())
+    if (period === 'day') for (let i = 0; i < 31; i++) row(statsDay(this.now() - i * 86_400_000))
+    if (period === 'month') for (let i = 0; i < 12; i++) { const d = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - i); row(d.toISOString().slice(0, 7)) }
+    if (period === 'year') row(today.slice(0, 4))
+    // Days and months: only the prefilled window; years: all of them.
+    const cutoff = period === 'year' ? '' : [...rows.keys()].sort()[0]!
+    for (const item of this.db.prepare(`SELECT substr(day, 1, ${length}) AS k, SUM(visits) AS n FROM referral_visit_days WHERE code = ? GROUP BY k`).all(code) as Row[]) row(String(item.k)).visits = Number(item.n)
+    const key = periodKeySql(period)
+    for (const item of this.db.prepare(`SELECT ${key('referred_at')} AS k, COUNT(*) AS n FROM accounts WHERE referred_by = ? AND referred_at IS NOT NULL GROUP BY k`).all(code) as Row[]) row(String(item.k)).registrations = Number(item.n)
+    for (const item of this.subscriptions?.referralSeries(code, key) ?? []) {
+      const entry = row(item.key)
+      entry.payments = item.payments
+      entry.revenue = item.revenue / 100
+      entry.earnings = item.earnings / 100
+      for (const plan of ['1m', '3m', '6m', '12m'] as const) entry.months[plan] = item.months[plan] ?? 0
+    }
+    return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
   }
 
   /** Releases the database when the store opened its own (in-memory) one. */
@@ -429,7 +490,7 @@ export class FixedWindowRateLimiter {
 // Framework-free handlers
 // ---------------------------------------------------------------------------------------------------------------
 
-export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string }
+export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string; query?: unknown }
 export interface AccountsResponse { status: number; body: unknown; headers?: Record<string, string> }
 export interface AccountsHandlerOptions {
   /** Max login/register attempts per IP per window. Default 10 per 15 minutes. */
@@ -443,6 +504,7 @@ const credentialsSchema = z.object({ email: emailSchema, password: passwordSchem
 const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional() })
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
+const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
 const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
@@ -519,6 +581,12 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (!parsed.success) return invalid('Никнейм: 3–15 символов, латиница, цифры, «_» или «-»')
       store.setNicknames(accountId, parsed.data)
       return { status: 200, body: store.view(accountId) }
+    }),
+
+    referralSeries: (req: AccountsRequest) => authed(req, (accountId) => {
+      const parsed = periodSchema.safeParse(req.query ?? {})
+      if (!parsed.success) return invalid('Период: day, month или year')
+      return { status: 200, body: { period: parsed.data.period, rows: store.referralSeries(accountId, parsed.data.period) } }
     }),
 
     /** The secret streamer invitation page: is the link still valid, and for which code. */

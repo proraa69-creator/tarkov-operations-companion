@@ -15,6 +15,7 @@
  *   POST /referral-visits   { code }                             -> 200 | 404 (counts a `/r/<code>` landing visit)
  *   POST /streamer-invite   { token }                            -> 200 { code, expiresAt } | 404 (secret invitation page)
  *   POST /me/streamer-invite Bearer { token }                    -> 200 account view (the account becomes a streamer)
+ *   GET  /me/referral-stats?period=day|month|year  Bearer        -> 200 { period, rows } (streamers only)
  *
  * Streamer status is never self-selected: an operator runs `npm --prefix server run promote -- <email> <code>`.
  * Request bodies (including passwords) are never logged here.
@@ -35,7 +36,7 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   })
 
   const adapt = (handler: (req: AccountsRequest) => Promise<AccountsResponse>) => async (req: Request, res: Response) => {
-    const result = await handler({ body: req.body, ip: req.ip, authorization: req.get('authorization') })
+    const result = await handler({ body: req.body, ip: req.ip, authorization: req.get('authorization'), query: req.query })
     if (result.headers) res.set(result.headers)
     if (result.body === undefined) res.status(result.status).end()
     else res.status(result.status).json(result.body)
@@ -49,6 +50,7 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.put('/me/nicknames', adapt(handlers.setNicknames))
   router.post('/referral-visits', adapt(handlers.referralVisit))
   router.post('/streamer-invite', adapt(handlers.streamerInvite))
+  router.get('/me/referral-stats', adapt(handlers.referralSeries))
   router.post('/me/streamer-invite', adapt(handlers.redeemStreamerInvite))
   return router
 }

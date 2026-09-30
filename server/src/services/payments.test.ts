@@ -116,3 +116,26 @@ test('canceled, tampered and unknown payments never grant a subscription', async
   assert.notEqual(accounts.view(accountId).subscription.status, 'active')
   await assert.rejects(payments.status('someone-else', first.paymentId), /не найден/)
 })
+
+test('streamer statistics by day, month and year: visits, sign-ups and paid plans', async () => {
+  const { accounts, payments, yoo, accountId, advance } = await setup()
+  const streamerId = accounts.authenticate((await accounts.login('streamer@example.com', 'correct horse battery')).token)!
+  accounts.recordReferralVisit('HUNTER', '1.1.1.1')
+  accounts.recordReferralVisit('HUNTER', '2.2.2.2')
+  const paid = await payments.create(accounts.billingInfo(accountId), '3m', 'https://tarkov.example.com')
+  yoo.pay(providerId(paid.confirmationUrl))
+  await payments.sync(providerId(paid.confirmationUrl))
+
+  const days = accounts.referralSeries(streamerId, 'day')
+  assert.equal(days.length, 31)
+  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, revenue: 900, earnings: 180 })
+  assert.equal(days[1]!.period, '2026-09-30')
+
+  advance(40 * 86_400_000)
+  accounts.recordReferralVisit('HUNTER', '1.1.1.1')
+  const months = accounts.referralSeries(streamerId, 'month')
+  assert.equal(months.length, 12)
+  assert.deepEqual(months.slice(0, 2).map((row) => [row.period, row.visits, row.payments]), [['2026-11', 1, 0], ['2026-10', 2, 1]])
+  assert.deepEqual(accounts.referralSeries(streamerId, 'year').map((row) => [row.period, row.visits, row.registrations, row.revenue]), [['2026', 3, 1, 900]])
+  assert.throws(() => accounts.referralSeries(accountId, 'day'), /только стримерам/)
+})

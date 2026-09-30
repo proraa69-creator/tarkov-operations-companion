@@ -137,6 +137,22 @@ export class PaymentStore {
     return { activeSubscriptions: active, revenue, earnings: Math.floor(revenue * percent / 100) }
   }
 
+  referralSeries(code: string, keySql: (column: string) => string) {
+    const percent = this.config?.streamerPercent ?? 0
+    const rows = this.db.prepare(`SELECT ${keySql('paid_at')} AS k, plan, COUNT(*) AS n, SUM(amount) AS total FROM payments WHERE referral_code = ? AND status = 'succeeded' GROUP BY k, plan`).all(code) as Row[]
+    const byKey = new Map<string, { key: string; payments: number; months: Record<string, number>; revenue: number; earnings: number }>()
+    for (const row of rows) {
+      const key = String(row.k)
+      const entry = byKey.get(key) ?? { key, payments: 0, months: {}, revenue: 0, earnings: 0 }
+      entry.payments += Number(row.n)
+      entry.months[String(row.plan)] = (entry.months[String(row.plan)] ?? 0) + Number(row.n)
+      entry.revenue += Number(row.total)
+      entry.earnings = Math.floor(entry.revenue * percent / 100)
+      byKey.set(key, entry)
+    }
+    return [...byKey.values()]
+  }
+
   list(accountId: string): PaymentView[] {
     return (this.db.prepare('SELECT * FROM payments WHERE account_id = ? ORDER BY created_at DESC LIMIT 50').all(accountId) as Row[]).map(toView)
   }
