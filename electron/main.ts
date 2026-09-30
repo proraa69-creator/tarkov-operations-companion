@@ -14,6 +14,7 @@ import { readSettings as readExperimentalSettings } from './experimental/setting
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { enableTunnelFromCommandLine, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
+import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, installUpdate, startUpdateChecks, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
@@ -22,7 +23,9 @@ const appDir = dirname(fileURLToPath(import.meta.url))
 // The app was renamed to «Tarkov Operator». Keep using the old data folder (settings, profiles, local
 // storage, session) when it exists, so nobody loses their progress after the update.
 const LEGACY_USER_DATA = join(app.getPath('appData'), 'Tarkov Operations Companion Beta')
-if (existsSync(LEGACY_USER_DATA)) app.setPath('userData', LEGACY_USER_DATA)
+// The test build for friends is a separate app with its own data folder (electron/trial.ts).
+if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_APP_NAME)) }
+else if (existsSync(LEGACY_USER_DATA)) app.setPath('userData', LEGACY_USER_DATA)
 let mainWindow: BrowserWindow | null = null
 const LOG_POLL_MS = 5000
 let watchedFolder = ''
@@ -54,7 +57,7 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 700,
     backgroundColor: '#0d1110',
-    title: 'Tarkov Operator',
+    title: trialLaunchesAtStart() ? 'Tarkov Operator — тестовая версия' : 'Tarkov Operator',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
     icon: join(appDir, '../../dist/app-icon.ico'),
     autoHideMenuBar: true,
@@ -106,10 +109,12 @@ app.whenReady().then(async () => {
   await waitForPreviousCopy()
   registerIpc()
   createWindow()
+  // A test build for friends counts its launches and removes itself after the last one (electron/trial.ts).
+  if (!serverMode && !(await startTrial(() => mainWindow))) return
   // The server laptop: no game features, the window waits minimized (closing it stops the server).
   if (serverMode) mainWindow?.minimize()
   // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
-  else startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status))
+  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status))
   if (!serverMode) startExperimental({
     preload: join(appDir, '../../electron/preload.cjs'),
     load: loadRenderer,
@@ -126,7 +131,7 @@ app.whenReady().then(async () => {
   }).catch(() => {})
 })
 
-app.on('will-quit', () => { stopTunnel(); stopLocalServer() })
+app.on('will-quit', () => { stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return

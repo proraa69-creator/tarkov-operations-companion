@@ -42,12 +42,18 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo "powershell -NoProfile -Command \"if ((Get-FileHash -Algorithm SHA256 -LiteralPath \$env:TARGET).Hash -ieq '$HASH') { exit 0 } else { exit 1 }\""
   echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
   echo 'echo OK: "%TARGET%"'
-  echo 'echo Starting Tarkov Operator ... You can now delete the .part files and this script.'
+  echo 'echo You can now delete the .part files and this script.'
   # The owner's copy also runs the account server and the website (--enable-local-server) and opens the site;
   # the exe itself stays a plain app when it is sent to someone else.
-  echo 'echo Starting the app, the server and the website...'
-  echo 'start "" "%TARGET%" --enable-local-server'
-  echo 'timeout /t 5 >nul'
+  if [ "${JOIN_LAUNCH:-1}" = "0" ]; then
+    # Test builds for friends: only put the exe on the desktop (starting it here would use up one of its launches).
+    echo 'echo The exe is on your desktop. Send this file to the tester, do not start it here.'
+    echo 'pause'
+  else
+    echo 'echo Starting the app, the server and the website...'
+    echo 'start "" "%TARGET%" --enable-local-server'
+    echo 'timeout /t 5 >nul'
+  fi
 } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator.cmd"
 
 # The laptop that keeps the server on (docs/laptop-server.md): the same exe, installed to a fixed folder and started

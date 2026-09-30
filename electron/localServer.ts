@@ -201,12 +201,12 @@ function sendDownload(response: ServerResponse) {
 }
 
 /** The build this app runs (scripts/write-build-info.mjs); build 0 in development. */
-export async function runningBuild(): Promise<{ version: string; build: number; commit: string }> {
+export async function runningBuild(): Promise<{ version: string; build: number; commit: string; trialLaunches: number }> {
   try {
-    const info = JSON.parse(await readFile(join(appDir, '..', 'build-info.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown }
-    return { version: String(info.version ?? app.getVersion()), build: Number(info.build) || 0, commit: String(info.commit ?? '') }
+    const info = JSON.parse(await readFile(join(appDir, '..', 'build-info.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown; trialLaunches?: unknown }
+    return { version: String(info.version ?? app.getVersion()), build: Number(info.build) || 0, commit: String(info.commit ?? ''), trialLaunches: Math.max(0, Math.floor(Number(info.trialLaunches) || 0)) }
   } catch {
-    return { version: app.getVersion(), build: 0, commit: '' }
+    return { version: app.getVersion(), build: 0, commit: '', trialLaunches: 0 }
   }
 }
 
@@ -227,7 +227,8 @@ function sendVersion(response: ServerResponse) {
     const key = `${info.size}:${info.mtimeMs}`
     if (exeHash?.key !== key) exeHash = { key, sha256: await hashFile(exe) }
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' })
-    response.end(JSON.stringify({ ...(await runningBuild()), size: info.size, sha256: exeHash.sha256 }))
+    const { version, build, commit } = await runningBuild()
+    response.end(JSON.stringify({ version, build, commit, size: info.size, sha256: exeHash.sha256 }))
   })().catch(() => { if (!response.headersSent) response.writeHead(500); response.end() })
 }
 
