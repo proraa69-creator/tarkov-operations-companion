@@ -24,8 +24,16 @@ export interface ServerAccountStatus {
   persistent: boolean
 }
 
+/** Auto-update from the server laptop's site (electron/appUpdate.ts). */
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string }
+
 interface TarkovDesktopApi {
   isDesktop: true
+  update?: {
+    status: () => Promise<UpdateStatus>
+    install: () => Promise<UpdateStatus>
+    onStatus: (callback: (status: UpdateStatus) => void) => () => void
+  }
   openWikiMap: (id: string) => Promise<boolean>
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
   serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>

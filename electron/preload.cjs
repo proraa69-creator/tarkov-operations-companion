@@ -16,6 +16,15 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     setNamedTunnel: (hostname, token) => ipcRenderer.invoke('tunnel:set-named', String(hostname ?? ''), String(token ?? '')),
     setServerUrl: (url) => ipcRenderer.invoke('account:set-server-url', String(url ?? '')),
   },
+  update: {
+    status: () => ipcRenderer.invoke('update:status'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onStatus: (callback) => {
+      const listener = (_event, status) => callback(status)
+      ipcRenderer.on('update:status', listener)
+      return () => ipcRenderer.removeListener('update:status', listener)
+    },
+  },
   autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan'),
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan'),
   startWatchingLogs: (folder) => ipcRenderer.invoke('logs:start-watching', folder),

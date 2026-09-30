@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createReadStream, existsSync } from 'node:fs'
 import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
@@ -151,6 +152,7 @@ function startSite() {
       void (async () => {
         const path = decodeURIComponent(new URL(request.url ?? '/', LOCAL_SITE_URL).pathname)
         if (path === '/download/windows') return sendDownload(response)
+        if (path === '/download/version.json') return sendVersion(response)
         // The API under the site's own address: the site keeps working when opened through the public link.
         if (path === '/health' || path.startsWith('/v1/')) return proxyToApi(request, response)
         const file = normalize(join(root, path))
@@ -196,6 +198,37 @@ function sendDownload(response: ServerResponse) {
     })
     createReadStream(exe).pipe(response)
   }, () => { response.writeHead(404); response.end() })
+}
+
+/** The build this app runs (scripts/write-build-info.mjs); build 0 in development. */
+export async function runningBuild(): Promise<{ version: string; build: number; commit: string }> {
+  try {
+    const info = JSON.parse(await readFile(join(appDir, '..', 'build-info.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown }
+    return { version: String(info.version ?? app.getVersion()), build: Number(info.build) || 0, commit: String(info.commit ?? '') }
+  } catch {
+    return { version: app.getVersion(), build: 0, commit: '' }
+  }
+}
+
+let exeHash: { key: string; sha256: string } | null = null
+
+async function hashFile(file: string) {
+  const hash = createHash('sha256')
+  for await (const chunk of createReadStream(file)) hash.update(chunk as Buffer)
+  return hash.digest('hex')
+}
+
+/** Auto-update (electron/appUpdate.ts): which build the site hands out, with the exe's size and SHA-256. */
+function sendVersion(response: ServerResponse) {
+  const exe = process.env.PORTABLE_EXECUTABLE_FILE
+  void (async () => {
+    if (!exe || !existsSync(exe)) { response.writeHead(404, { 'content-type': 'application/json' }); response.end('{}'); return }
+    const info = await stat(exe)
+    const key = `${info.size}:${info.mtimeMs}`
+    if (exeHash?.key !== key) exeHash = { key, sha256: await hashFile(exe) }
+    response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' })
+    response.end(JSON.stringify({ ...(await runningBuild()), size: info.size, sha256: exeHash.sha256 }))
+  })().catch(() => { if (!response.headersSent) response.writeHead(500); response.end() })
 }
 
 export function stopLocalServer() {

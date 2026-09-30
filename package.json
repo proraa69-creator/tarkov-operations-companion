@@ -11,7 +11,7 @@
     "dev": "vite",
     "build:renderer": "tsc -b && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build": "npm run build:renderer && npm run build:electron && npm run build:local-server",
+    "build": "npm run build:renderer && npm run build:electron && npm run build:local-server && node scripts/write-build-info.mjs",
     "desktop": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win portable",
     "server:dev": "npm --prefix server run dev",

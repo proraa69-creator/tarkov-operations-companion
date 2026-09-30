@@ -14,6 +14,7 @@ import { readSettings as readExperimentalSettings } from './experimental/setting
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { enableTunnelFromCommandLine, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
+import { checkForUpdate, installUpdate, startUpdateChecks, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -107,7 +108,9 @@ app.whenReady().then(async () => {
   createWindow()
   // The server laptop: no game features, the window waits minimized (closing it stops the server).
   if (serverMode) mainWindow?.minimize()
-  else startExperimental({
+  // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
+  else startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status))
+  if (!serverMode) startExperimental({
     preload: join(appDir, '../../electron/preload.cjs'),
     load: loadRenderer,
     mainWindow: () => mainWindow,
@@ -244,7 +247,13 @@ function registerIpc() {
   ipcMain.handle('tunnel:status', () => tunnelStatus())
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
   ipcMain.handle('tunnel:set-named', (_event, hostname: unknown, token: unknown) => setNamedTunnel(hostname, token))
-  ipcMain.handle('account:set-server-url', (_event, url: unknown) => setServerUrl(url))
+  ipcMain.handle('account:set-server-url', async (_event, url: unknown) => {
+    const result = await setServerUrl(url)
+    void checkForUpdate()
+    return result
+  })
+  ipcMain.handle('update:status', () => updateStatus())
+  ipcMain.handle('update:install', () => installUpdate())
 
   ipcMain.handle('profile:resolve', async (_event, rawMode: unknown, rawNickname: unknown) => {
     const mode = validateMode(rawMode)

@@ -54,4 +54,11 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Постоянный адрес через ваш аккаунт Cloudflare: друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён. Включённый режим запоминается.', 'Permanent address through your Cloudflare account: friends open the website and connect their app to the server. Works while this computer is on. The setting is remembered.'],
   ['Введите адрес вида tarkov.example.com', 'Enter an address like tarkov.example.com'], ['Это не похоже на токен туннеля Cloudflare', 'This does not look like a Cloudflare tunnel token'],
   ['Windows не даёт зашифровать токен на этом компьютере', 'Windows cannot encrypt the token on this computer'], ['Вставьте токен туннеля', 'Paste the tunnel token'],
+  // Auto-update (UpdateButton, electron/appUpdate.ts)
+  ['Обновить приложение', 'Update the app'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
+  ['Ошибка обновления', 'Update failed'], ['Доступна новая версия', 'A new version is available'],
+  ['Приложение перезапустится, настройки и прогресс сохранятся.', 'The app restarts; settings and progress are kept.'],
+  ['Сервер не отдал файл: HTTP', 'The server did not send the file: HTTP'], ['Файл обновления повреждён, попробуйте ещё раз', 'The update file is damaged, try again'],
+  ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],
+  ['Не удалось подготовить обновление', 'Could not prepare the update'],
 ]
