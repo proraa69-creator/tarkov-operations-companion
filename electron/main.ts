@@ -11,9 +11,9 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { enableFromCommandLine, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
+import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
-import { setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
+import { enableTunnelFromCommandLine, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -97,13 +97,17 @@ function loadRenderer(window: BrowserWindow, hash: string) {
 
 app.whenReady().then(async () => {
   await enableFromCommandLine(process.argv)
+  await enableTunnelFromCommandLine(process.argv)
+  const serverMode = isServerMode()
   // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
   // from apps that are not. When the prompt is refused the app simply goes on without the rights.
-  if (process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
+  if (!serverMode && process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
   await waitForPreviousCopy()
   registerIpc()
   createWindow()
-  startExperimental({
+  // The server laptop: no game features, the window waits minimized (closing it stops the server).
+  if (serverMode) mainWindow?.minimize()
+  else startExperimental({
     preload: join(appDir, '../../electron/preload.cjs'),
     load: loadRenderer,
     mainWindow: () => mainWindow,

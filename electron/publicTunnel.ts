@@ -46,6 +46,11 @@ export async function setTunnel(enabled: boolean) {
   return tunnelStatus()
 }
 
+/** `--enable-tunnel` (Server-Laptop-Setup.cmd): the public link is opened on every start from now on. */
+export async function enableTunnelFromCommandLine(argv: string[]) {
+  if (argv.includes('--enable-tunnel')) await writeFile(settingsFile(), JSON.stringify({ autoStart: true }), 'utf8').catch(() => {})
+}
+
 export async function startTunnelIfWanted() {
   if (await autoStart()) await startTunnel()
 }

@@ -66,6 +66,15 @@ export async function setLocalServerEnabled(enabled: boolean) {
  */
 export async function enableFromCommandLine(argv: string[]) {
   if (argv.includes('--enable-local-server')) await save({ ...(await readSaved()), enabled: true, openSite: true })
+  else if (isServerMode(argv)) await save({ ...(await readSaved()), enabled: true })
+}
+
+/**
+ * `--server-mode` (the laptop that keeps the server on, Server-Laptop-Setup.cmd): only the server, the site and the
+ * public link — no overlays, screen reading or game hotkeys, no administrator prompt, the window starts minimized.
+ */
+export function isServerMode(argv: string[] = process.argv) {
+  return argv.includes('--server-mode')
 }
 
 /** Starts the server and site when the mode is on; true once when the site should be opened in the browser. */

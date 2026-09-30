@@ -50,5 +50,37 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo 'timeout /t 5 >nul'
 } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator.cmd"
 
+# The laptop that keeps the server on (docs/laptop-server.md): the same exe, installed to a fixed folder and started
+# with --server-mode (server + site + public link only). Running it again is the update: it stops the old copy first.
+{
+  echo '@echo off'
+  echo 'setlocal'
+  echo 'cd /d "%~dp0"'
+  echo "title Tarkov Operator - server laptop setup / update"
+  for p in "${PARTS[@]}"; do
+    echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
+  done
+  echo 'set "DIR=%LOCALAPPDATA%\TarkovOperatorServer"'
+  echo 'set "TARGET=%DIR%\Tarkov Operator Server.exe"'
+  echo 'if not exist "%DIR%" mkdir "%DIR%"'
+  echo 'echo Stopping the running server copy (if any) ...'
+  # The portable stub (Tarkov Operator Server.exe) runs the app unpacked as «Tarkov Operator.exe»: close its window
+  # normally (the database is closed cleanly), then make sure the stub is gone so its file can be replaced.
+  echo 'taskkill /im "Tarkov Operator.exe" >nul 2>&1'
+  echo 'timeout /t 6 >nul'
+  echo 'taskkill /im "Tarkov Operator Server.exe" /f >nul 2>&1'
+  echo 'timeout /t 2 >nul'
+  echo 'echo Joining parts into "%TARGET%" ...'
+  echo "copy /b /y $JOIN \"%TARGET%\" >nul"
+  echo 'if errorlevel 1 ( echo Join failed. Close the server app and try again. & pause & exit /b 1 )'
+  echo 'echo Checking SHA256 ...'
+  echo "powershell -NoProfile -Command \"if ((Get-FileHash -Algorithm SHA256 -LiteralPath \$env:TARGET).Hash -ieq '$HASH') { exit 0 } else { exit 1 }\""
+  echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
+  echo 'echo Starting the server, the website and the public link ...'
+  echo 'start "" "%TARGET%" --server-mode --enable-tunnel'
+  echo 'echo Done. The database is kept between updates. You can delete the .part files and this script.'
+  echo 'timeout /t 8 >nul'
+} | sed 's/$/\r/' > "$OUT/Server-Laptop-Setup.cmd"
+
 echo "sha256 $HASH"
 ls -la "$OUT"
