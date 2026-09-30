@@ -1,0 +1,58 @@
+/* Payment region dialog and the autopayment block of the cabinet (components/PaymentRegionDialog.tsx). */
+.pay-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px;
+  background: rgb(4 7 5 / 72%); backdrop-filter: blur(4px);
+  animation: pay-fade .18s var(--ease-soft);
+}
+.pay-dialog {
+  width: min(560px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
+  display: grid; gap: 14px; padding: 20px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--panel-2), var(--panel));
+  box-shadow: var(--shadow);
+  animation: pay-rise .28s var(--ease-out);
+}
+.pay-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pay-dialog-head h2 { margin: 4px 0 0; font-size: 22px; letter-spacing: -.01em; }
+.pay-regions { margin: 0; padding: 0; border: 0; display: grid; gap: 10px; min-width: 0; }
+.pay-regions legend { padding: 0; margin-bottom: 8px; color: var(--text-muted); font-size: 13.5px; }
+.pay-region {
+  display: grid; grid-template-columns: 18px 22px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); cursor: pointer;
+  transition: border-color .2s var(--ease-soft), background .2s var(--ease-soft);
+}
+.pay-region:hover { border-color: var(--line-strong); }
+.pay-region.is-selected { border-color: #625537; background: linear-gradient(160deg, rgb(117 99 60 / 18%), var(--surf-1) 72%); }
+.pay-region.is-disabled { cursor: not-allowed; opacity: .55; }
+.pay-region input { width: 16px; height: 16px; margin: 0; accent-color: var(--brass); }
+.pay-region > svg { width: 20px; height: 20px; color: var(--brass); }
+.pay-region-text { display: grid; gap: 2px; min-width: 0; }
+.pay-region-text strong { font-size: 15px; }
+.pay-region-text small { color: var(--text-muted); font-size: 12.5px; }
+.pay-region-price { color: var(--text); font-weight: 750; font-size: 14px; text-align: right; max-width: 150px; }
+.pay-dialog-note { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.pay-autopay { font-size: 13px; }
+.pay-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.pay-dialog-actions .button svg { width: 16px; height: 16px; }
+
+.autopay-card {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1);
+}
+.autopay-card.is-active { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.autopay-card > svg { width: 20px; height: 20px; color: var(--text-dim); }
+.autopay-card.is-active > svg { color: var(--success); }
+.autopay-text { display: grid; gap: 3px; min-width: 0; font-size: 13.5px; color: var(--text-muted); }
+.autopay-text strong { color: var(--text); font-size: 14.5px; }
+.autopay-error { color: var(--danger); }
+
+@media (max-width: 560px) {
+  .pay-region { grid-template-columns: 18px 22px minmax(0, 1fr); }
+  .pay-region-price { grid-column: 3; text-align: left; max-width: none; }
+  .autopay-card { grid-template-columns: 22px minmax(0, 1fr); }
+  .autopay-card .button { grid-column: 1 / -1; }
+  .pay-dialog-actions .button { flex: 1 1 auto; }
+}
+@keyframes pay-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pay-rise { from { opacity: 0; transform: translateY(10px) scale(.98) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .pay-dialog-backdrop, .pay-dialog { animation: none } }

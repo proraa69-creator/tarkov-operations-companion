@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, existsSync } from 'node:fs'
-import { appendFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { connect } from 'node:net'
 import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { apiEnvironment } from './ownerAdmin.js'
+import { buildEdition, type BuildEdition } from './buildEdition.js'
 import { publicSiteUrl } from './publicTunnel.js'
 
 /**
@@ -187,14 +188,49 @@ function proxyToApi(request: IncomingMessage, response: ServerResponse) {
   request.pipe(upstream)
 }
 
-/** «Скачать для Windows» on the site: the portable exe this app was started from. */
-function sendDownload(response: ServerResponse) {
-  const exe = process.env.PORTABLE_EXECUTABLE_FILE
-  if (!exe || !existsSync(exe)) {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-    response.end('Файл приложения доступен только в собранной версии (portable exe).')
-    return
+interface Published { exe: string; info: { version: string; build: number; commit: string; edition: BuildEdition } | null }
+
+/**
+ * What «Скачать для Windows» and auto-update hand out: the players' (client) exe.
+ * - The owner publishes it next to the server exe: `<server exe folder>\client\*.exe` with `version.json`
+ *   ({ version, build, commit } of that build), put there by Server-Laptop-Setup.cmd (scripts/split-exe-for-chat.sh).
+ *   TARKOV_CLIENT_DIR overrides the folder.
+ * - Without it, the running exe, but only when it is itself a client build: the owner's own app is never handed out.
+ */
+async function publishedClient(): Promise<Published | null> {
+  const running = process.env.PORTABLE_EXECUTABLE_FILE
+  const dir = process.env.TARKOV_CLIENT_DIR?.trim() || (running ? join(dirname(running), 'client') : '')
+  if (dir) {
+    const names = (await readdir(dir).catch(() => [] as string[])).filter((name) => name.toLowerCase().endsWith('.exe'))
+    // Normally one exe; with several the newest one.
+    const dated = await Promise.all(names.map(async (name) => ({ name, time: (await stat(join(dir, name)).catch(() => null))?.mtimeMs ?? 0 })))
+    const newest = dated.sort((a, b) => a.time - b.time).at(-1)?.name
+    if (newest) {
+      let info: Published['info'] = null
+      try {
+        const raw = JSON.parse(await readFile(join(dir, 'version.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown }
+        if (Number(raw.build) > 0) info = { version: String(raw.version ?? ''), build: Number(raw.build), commit: String(raw.commit ?? ''), edition: 'client' }
+      } catch { /* no version.json: downloads work, auto-update does not */ }
+      return { exe: join(dir, newest), info }
+    }
   }
+  if (!running || !existsSync(running) || buildEdition() !== 'client') return null
+  return { exe: running, info: await runningBuild() }
+}
+
+/** «Скачать для Windows» on the site: the players' exe (see publishedClient). */
+function sendDownload(response: ServerResponse) {
+  void publishedClient().then((published) => {
+    if (!published) {
+      response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
+      response.end('Версия приложения для игроков ещё не опубликована на этом сервере.')
+      return
+    }
+    streamExe(response, published.exe)
+  }, () => { response.writeHead(500); response.end() })
+}
+
+function streamExe(response: ServerResponse, exe: string) {
   const name = basename(exe)
   void stat(exe).then((info) => {
     response.writeHead(200, {
@@ -207,12 +243,12 @@ function sendDownload(response: ServerResponse) {
 }
 
 /** The build this app runs (scripts/write-build-info.mjs); build 0 in development. */
-export async function runningBuild(): Promise<{ version: string; build: number; commit: string; trialLaunches: number }> {
+export async function runningBuild(): Promise<{ version: string; build: number; commit: string; trialLaunches: number; edition: BuildEdition }> {
   try {
     const info = JSON.parse(await readFile(join(appDir, '..', 'build-info.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown; trialLaunches?: unknown }
-    return { version: String(info.version ?? app.getVersion()), build: Number(info.build) || 0, commit: String(info.commit ?? ''), trialLaunches: Math.max(0, Math.floor(Number(info.trialLaunches) || 0)) }
+    return { version: String(info.version ?? app.getVersion()), build: Number(info.build) || 0, commit: String(info.commit ?? ''), trialLaunches: Math.max(0, Math.floor(Number(info.trialLaunches) || 0)), edition: buildEdition() }
   } catch {
-    return { version: app.getVersion(), build: 0, commit: '', trialLaunches: 0 }
+    return { version: app.getVersion(), build: 0, commit: '', trialLaunches: 0, edition: buildEdition() }
   }
 }
 
@@ -224,17 +260,18 @@ async function hashFile(file: string) {
   return hash.digest('hex')
 }
 
-/** Auto-update (electron/appUpdate.ts): which build the site hands out, with the exe's size and SHA-256. */
+/** Auto-update (electron/appUpdate.ts): which build the site hands out, with the exe's size, SHA-256 and edition. */
 function sendVersion(response: ServerResponse) {
-  const exe = process.env.PORTABLE_EXECUTABLE_FILE
   void (async () => {
-    if (!exe || !existsSync(exe)) { response.writeHead(404, { 'content-type': 'application/json' }); response.end('{}'); return }
+    const published = await publishedClient()
+    if (!published?.info) { response.writeHead(404, { 'content-type': 'application/json' }); response.end('{}'); return }
+    const { exe } = published
     const info = await stat(exe)
-    const key = `${info.size}:${info.mtimeMs}`
+    const key = `${exe}:${info.size}:${info.mtimeMs}`
     if (exeHash?.key !== key) exeHash = { key, sha256: await hashFile(exe) }
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' })
-    const { version, build, commit } = await runningBuild()
-    response.end(JSON.stringify({ version, build, commit, size: info.size, sha256: exeHash.sha256 }))
+    const { version, build, commit, edition } = published.info
+    response.end(JSON.stringify({ version, build, commit, edition, size: info.size, sha256: exeHash.sha256 }))
   })().catch(() => { if (!response.headersSent) response.writeHead(500); response.end() })
 }
 

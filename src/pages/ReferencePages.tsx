@@ -1,6 +1,7 @@
 import { uiText } from '../i18n/renderText'
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { TraderQuestBoard } from "../components/TraderQuestBoard";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -11,7 +12,6 @@ import {
   KeyRound,
   Minus,
   Plus,
-  RotateCcw,
   Search,
 } from "lucide-react";
 import { useTarkovData } from "../data/DataProvider";
@@ -521,14 +521,23 @@ export function HideoutPage() {
 
 export function TradersPage() {
   const { data } = useTarkovData();
-  const [selectedId, setSelectedId] = useState(data.traders[0]?.id ?? "");
+  // The selected trader (and the opened quest) live in the address, so «Назад» returns to the previous quest.
+  const [params, setParams] = useSearchParams();
+  const selectedTrader = data.traders.find((trader) => trader.id === params.get("trader")) ?? data.traders[0];
+  const selectedId = selectedTrader?.id ?? "";
+  const setSelectedId = (id: string) => setParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set("trader", id);
+    if (id !== selectedId) next.delete("quest");
+    return next;
+  });
   return (
     <div className="page">
       <header className="page-header">
         <div>
           <div className="eyebrow">{uiText("Контакты")}</div>
           <h1 className="page-title">{uiText("Торговцы")}</h1>
-          <p className="page-subtitle">{uiText(" Выберите портрет торговца, подробные данные появятся в следующих версиях. ")}</p>
+          <p className="page-subtitle">{uiText("Выберите торговца: его задания идут по порядку выдачи в игре. Выполненные зачёркнуты, доступное задание открывается с полным описанием.")}</p>
         </div>
       </header>
       <div className="trader-grid">
@@ -554,28 +563,20 @@ export function TradersPage() {
           </button>
         )))}
       </div>
+      {selectedTrader && <TraderQuestBoard trader={selectedTrader} />}
     </div>
   );
 }
 
-import { THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from "../theme/theme";
+import { ThemePicker } from "../components/ThemePicker";
+import { AppUpdateSettings } from "../components/AppUpdateSettings";
 
 export function SettingsPage() {
-  const { data, source, updatedAt, refresh, isFetching } = useTarkovData();
+  const { data, source, updatedAt } = useTarkovData();
   const state = useAppState();
   const { locale, setLocale } = useLocale();
   const [compact, setCompact] = useState(true);
-  const [theme, setTheme] = useState(currentTheme);
   const raidSmoke = useRaidSmokeEnabled();
-  const chooseTheme = (nextTheme: string) => {
-    setTheme(nextTheme);
-    saveAppearance(nextTheme);
-  };
-  useEffect(() => {
-    const sync = () => setTheme(currentTheme());
-    window.addEventListener(THEME_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
-  }, []);
   const counts = data.metadata?.counts;
   return (
     <div className="page">
@@ -625,20 +626,7 @@ export function SettingsPage() {
               </button>
             </div>
             {raidSmoke && <RaidSmokeSettings />}
-            <div className="setting-row theme-row">
-              <span>
-                <strong>{uiText("Цветовая схема")}</strong>
-                <small>{uiText("Оформление оболочки приложения")}</small>
-              </span>
-              <div className="theme-picker" role="radiogroup" aria-label={uiText("Цветовая схема")}>
-                {THEMES.map((option) => (
-                  <button key={option.id} type="button" role="radio" aria-checked={theme === option.id} className={`theme-swatch${theme === option.id ? " active" : ""}`} onClick={() => chooseTheme(option.id)} title={uiText(option.label)}>
-                    <span className="theme-swatch-preview" style={{ background: `linear-gradient(135deg, ${option.swatch[0]} 0 45%, ${option.swatch[1]} 45% 75%, ${option.swatch[2]} 75%)` }} />
-                    <span>{uiText(option.label)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <ThemePicker />
             <div className="setting-row">
               <span>
                 <strong>{uiText("Язык интерфейса")}</strong>
@@ -667,35 +655,7 @@ export function SettingsPage() {
                 </span>
               </div>
             ))}
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Обновить сейчас")}</strong>
-                <small>
-                  {uiText(isFetching
-                    ? "Запрос выполняется…"
-                    : `Последнее: ${timeAgo(updatedAt)}`)}
-                </small>
-              </span>
-              <button className="button small" onClick={refresh}>
-                <RotateCcw size={13} />{uiText(" Обновить ")}</button>
-            </div>
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Локальный прогресс")}</strong>
-                <small>{uiText(" Сбросить этот аккаунт и создать заново: задания, избранное и привязки режимов ")}</small>
-              </span>
-              <button
-                className="button small danger"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Сбросить аккаунт и создать локальный прогресс заново?",
-                    )
-                  )
-                    state.reset();
-                }}
-              >{uiText(" Сбросить аккаунт ")}</button>
-            </div>
+            <AppUpdateSettings />
           </div>
         </section>
       </div>

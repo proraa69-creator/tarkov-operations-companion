@@ -12,7 +12,9 @@ export default defineConfig({
   envDir: root,
   base: '/',
   plugins: [react()],
-  server: { port: 5202, strictPort: true },
+  // The click sound is the desktop app's own module and recording (src/components/UiSounds.tsx), imported from the
+  // repository root, so the dev server may serve files from there.
+  server: { port: 5202, strictPort: true, fs: { allow: ['..'] } },
   preview: { port: 5202 },
   build: { outDir: fileURLToPath(new URL('./dist', import.meta.url)), emptyOutDir: true },
 })

@@ -2,9 +2,11 @@ import { useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { SiteLayout } from './components/SiteLayout'
 import { AboutPage } from './pages/AboutPage'
+import { AppLoginPage } from './pages/AppLoginPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
 import { HomePage } from './pages/HomePage'
+import { LegalPage } from './pages/LegalPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
@@ -18,6 +20,11 @@ const TITLES: Record<string, string> = {
   '/login': 'Вход — Tarkov Operator',
   '/register': 'Регистрация — Tarkov Operator',
   '/cabinet': 'Личный кабинет — Tarkov Operator',
+  '/legal': 'Реквизиты и документы — Tarkov Operator',
+  '/legal/offer': 'Публичная оферта — Tarkov Operator',
+  '/legal/privacy': 'Политика обработки персональных данных — Tarkov Operator',
+  '/legal/consent': 'Согласие на обработку персональных данных — Tarkov Operator',
+  '/legal/cookies': 'Cookie и хранилище браузера — Tarkov Operator',
 }
 
 export function App() {
@@ -34,8 +41,11 @@ export function App() {
         <Route path="about" element={<AboutPage />} />
         <Route path="download" element={<DownloadPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="app-login" element={<AppLoginPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="cabinet" element={<CabinetPage />} />
+        <Route path="legal" element={<LegalPage />} />
+        <Route path="legal/:slug" element={<LegalPage />} />
         <Route path="r/:code" element={<ReferralLandingPage />} />
         {/* Secret one-time streamer invitation; intentionally not linked from any menu. */}
         <Route path="streamer/:token" element={<StreamerInvitePage />} />

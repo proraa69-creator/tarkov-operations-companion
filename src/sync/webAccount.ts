@@ -10,7 +10,8 @@
  */
 import type { ServerAccountStatus } from '../electron.d'
 
-export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'http://127.0.0.1:8787'
+/** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
+export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
 export const API_URL_STORAGE_KEY = 'tarkov-mobile-api-url-v1'
 const SESSION_STORAGE_KEY = 'tarkov-mobile-session-v1'
 const TOKEN = /^[A-Za-z0-9_-]{20,200}$/
@@ -27,6 +28,15 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/settings$/ },
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Кабинет стримера» on the phone too.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
+  { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/payouts$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
+  // Approving a website QR sign-in from the phone (docs/mobile.md).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -108,7 +118,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/')
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   if (personal && !session) return null
   const { response, result } = await send(method, path, { body, token: personal ? session?.token : null, timeoutMs: /^\/v1\/(?:players|catalog)\//.test(path) ? 45_000 : 15_000 })
   if (response.status === 401 && personal) {
@@ -123,6 +133,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
+  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription'> = {}
   try {
     const health = await send('GET', '/health', { timeoutMs: 4000 })
     online = health.response.ok
@@ -130,13 +141,32 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
+        details = accountDetails(view)
       }
     }
   } catch { online = false }
-  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind } : {}), online, serverUrl, persistent: true }
+  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true }
+}
+
+/** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription'> {
+  const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
+  const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    const value = raw[mode]
+    if (typeof value === 'string' && /^[a-zA-Z0-9_-]{3,15}$/.test(value)) nicknames[mode] = value
+  }
+  const sub = view.subscription && typeof view.subscription === 'object' ? view.subscription as Record<string, unknown> : {}
+  type Status = NonNullable<ServerAccountStatus['subscription']>['status']
+  // Streamers use the service free of charge for good: { status: 'active', lifetime: true } on the server.
+  const status: Status = sub.lifetime === true ? 'lifetime' : ['active', 'trial', 'inactive'].includes(String(sub.status)) ? sub.status as Status : 'inactive'
+  const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
+  const paidUntil = date(sub.paidUntil)
+  const trialEndsAt = date(sub.trialEndsAt)
+  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) } }
 }
 
 export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
@@ -149,6 +179,20 @@ export async function webAccountLogin(rawEmail: string, rawPassword: string): Pr
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
+  return webAccountStatus()
+}
+
+/**
+ * QR sign-in on the phone: the one-time code from «Войти в мобильную версию» on the desktop (two minutes, works once)
+ * is exchanged for a session of the same account. The server address must already be set (setApiBaseUrl).
+ */
+export async function webAccountRedeemLoginCode(code: string): Promise<ServerAccountStatus> {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(code)) throw new Error('Некорректный код входа')
+  const { response, result } = await send('POST', '/v1/accounts/login-codes/redeem', { body: { code } })
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  saveSession({ token: answer.token, email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
   return webAccountStatus()
 }
 

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, Check, ScanSearch } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
+import { KappaCongrats } from '../components/KappaCongrats'
 import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected, scanForCollectorItems } from '../kappa/collector'
 
 /** One press scans continuously for this long, so a whole stash can be scrolled through. */
@@ -11,7 +12,7 @@ const SCAN_WINDOW_MS = 45_000
 
 export function KappaItemsPage() {
   const { data } = useTarkovData()
-  const { raidMode } = useAppState()
+  const { raidMode, activeProfile } = useAppState()
   const entries = useMemo(() => collectorEntries(data.quests, data.items), [data.quests, data.items])
   const quest = useMemo(() => findCollectorQuest(data.quests), [data.quests])
   const [collected, setCollected] = useState(() => loadCollected(raidMode))
@@ -64,6 +65,12 @@ export function KappaItemsPage() {
   }, [entries, raidMode, stop])
 
   const done = entries.filter(({ item }) => collected.includes(item.id)).length
+  // read from storage for this very mode: right after a mode switch `collected` still holds the previous mode's list
+  const complete = useMemo(() => {
+    const stored = loadCollected(raidMode)
+    return entries.length > 0 && entries.every(({ item }) => stored.includes(item.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collected, raidMode, entries])
 
   return (
     <div className="page kappa-items-page">
@@ -71,7 +78,7 @@ export function KappaItemsPage() {
         <div>
           <div className="eyebrow">{uiText('Капа · ')}{uiText(raidMode.toUpperCase())}</div>
           <h1 className="page-title">{uiText('Предметы для «Коллекционера»')}</h1>
-          <p className="page-subtitle">{uiText(desktop ? 'Откройте схрон и нажмите «Сканировать»: 45 секунд экран читается непрерывно, пока вы листаете схрон, и найденные предметы отмечаются сами. Остальные можно отметить вручную.' : 'Отметьте собранные предметы — список общий с приложением для ПК через аккаунт сервера.')}</p>
+          <p className="page-subtitle">{uiText(desktop ? 'Откройте схрон и нажмите «Сканировать». Все предметы должны быть в одном контейнере.' : 'Отметьте собранные предметы — список общий с приложением для ПК через аккаунт сервера.')}</p>
         </div>
         <div className="kappa-items-actions">
           <Link className="button ghost" to="/"><ArrowLeft size={14} />{uiText(' Назад')}</Link>
@@ -85,6 +92,7 @@ export function KappaItemsPage() {
         <section className="panel"><div className="panel-body">{uiText(quest ? 'В каталоге нет списка предметов этого задания. Обновите данные.' : 'Задание «Коллекционер» не найдено в каталоге. Обновите данные.')}</div></section>
       ) : (
         <>
+          <KappaCongrats profileId={activeProfile.id} mode={raidMode} complete={complete} total={entries.length} />
           <div className="kappa-items-progress"><strong>{uiText(done)} / {uiText(entries.length)}</strong><span>{uiText('предметов собрано')}</span></div>
           <div className="kappa-items-grid">
             {entries.map(({ item, count }) => {

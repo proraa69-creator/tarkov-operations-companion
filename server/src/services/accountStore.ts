@@ -50,8 +50,8 @@ export interface ReferralStats {
   visits: number
   registrations: number
   activeSubscriptions: number
-  /** Paid by referred users, roubles. */
-  revenue: { amount: number; currency: 'RUB' }
+  /** Paid by referred users, roubles. Owner only: the streamer's own view leaves it out (he sees only his share). */
+  revenue?: { amount: number; currency: 'RUB' }
   earnings: { amount: number; currency: 'RUB' }
 }
 
@@ -78,7 +78,8 @@ export interface ReferralSeriesRow {
   /** Successful payments by referred users and how many of them were for 1 / 3 / 6 / 12 months. */
   payments: number
   months: { '1m': number; '3m': number; '6m': number; '12m': number }
-  revenue: number
+  /** Owner only (left out of the streamer's own table). */
+  revenue?: number
   earnings: number
 }
 
@@ -89,9 +90,28 @@ export interface AccountView {
   referralCode?: string
   referredBy?: string
   nicknames: Partial<Record<AccountMode, string>>
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string }
+  /** `lifetime`: streamers use the service free of charge, for good. */
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
   stats?: ReferralStats
+  /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
+  owner?: true
 }
+
+/** Owner e-mails from `TARKOV_OWNER_EMAILS` (comma, semicolon or space separated), set by the owner's desktop app. */
+export function parseOwnerEmails(raw: string | undefined) {
+  return [...new Set((raw ?? '').split(/[\s,;]+/).map((email) => email.trim().toLowerCase()).filter((email) => z.string().email().max(254).safeParse(email).success))]
+}
+
+/** Campaign label of an audience link (`/r/CODE?c=youtube`): lowercase latin letters, digits, «_» or «-». */
+export const CAMPAIGN = /^[a-z0-9_-]{1,32}$/
+export function normalizeCampaign(raw: unknown) {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  return CAMPAIGN.test(value) ? value : undefined
+}
+
+/** Documents a user accepts with a checkbox; the version is the date of the published text (website/src/legal). */
+export type ConsentKind = 'registration' | 'payment'
+export const CONSENT_VERSION = /^\d{4}-\d{2}-\d{2}(\.\d{1,3})?$/
 
 export class AccountError extends Error {
   readonly status: number
@@ -189,6 +209,18 @@ const SCHEMA = `
     expires_at INTEGER NOT NULL,
     used_by TEXT REFERENCES accounts(id) ON DELETE SET NULL,
     used_at INTEGER);
+  CREATE TABLE IF NOT EXISTS referral_visit_campaigns (
+    code TEXT NOT NULL,
+    campaign TEXT NOT NULL,
+    day TEXT NOT NULL,
+    visits INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (code, campaign, day));
+  CREATE TABLE IF NOT EXISTS account_consents (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    version TEXT NOT NULL,
+    accepted_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, kind, version));
 `
 
 /** Streamer invitation links live a week and work once. */
@@ -202,9 +234,12 @@ export class AccountStore {
   private readonly now: () => number
   private lastSweep = 0
   private subscriptions?: SubscriptionSource
+  private readonly ownerEmails: ReadonlySet<string>
 
-  constructor(options: { now?: () => number; db?: DatabaseSync } = {}) {
+  /** `ownerEmails` defaults to TARKOV_OWNER_EMAILS (the owner's desktop app passes it to the API process). */
+  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[] } = {}) {
     this.now = options.now ?? Date.now
+    this.ownerEmails = new Set(options.ownerEmails ? parseOwnerEmails(options.ownerEmails.join(',')) : parseOwnerEmails(process.env.TARKOV_OWNER_EMAILS))
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
     this.db.exec(SCHEMA)
@@ -224,6 +259,9 @@ export class AccountStore {
   async register(email: string, password: string, referralCode?: string) {
     const key = email.trim().toLowerCase()
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
+    // An owner e-mail must be registered BEFORE it is listed in TARKOV_OWNER_EMAILS (e-mails are not verified), so a
+    // stranger cannot register the listed address and receive owner rights.
+    if (this.ownerEmails.has(key)) throw new AccountError(403, 'Этот e-mail нельзя зарегистрировать')
     const salt = randomBytes(16)
     const passwordHash = await hashPassword(password, salt)
     const id = randomBytes(12).toString('hex')
@@ -281,9 +319,37 @@ export class AccountStore {
     if (account.referredBy) view.referredBy = account.referredBy
     if (account.kind === 'streamer' && account.referralCode) {
       view.referralCode = account.referralCode
-      view.stats = this.stats(account.referralCode)
+      // The streamer sees his share, never the amounts his viewers paid.
+      const { revenue: _revenue, ...own } = this.stats(account.referralCode)
+      void _revenue
+      view.stats = own
     }
+    // Streamers use the service free of charge, for good (the desktop app reads the same view).
+    if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
+    if (this.ownerEmails.has(account.email)) view.owner = true
     return view
+  }
+
+  /** Owner rights are decided only here, on the server, from the configured owner e-mails. */
+  isOwner(accountId: string) {
+    return this.ownerEmails.has(this.mustGet(accountId).email)
+  }
+
+  /** Whether an account exists for this e-mail (the owner's app checks it before listing an owner e-mail). */
+  hasAccount(email: string) {
+    return this.findByEmail(email) !== undefined
+  }
+
+  /** Remembers that the account accepted the documents of `version` (registration or a payment). */
+  recordConsent(accountId: string, kind: ConsentKind, version: string) {
+    if (!CONSENT_VERSION.test(version)) throw new AccountError(400, 'Некорректная версия документов')
+    this.mustGet(accountId)
+    this.db.prepare('INSERT INTO account_consents (account_id, kind, version, accepted_at) VALUES (?, ?, ?, ?) ON CONFLICT(account_id, kind, version) DO NOTHING').run(accountId, kind, version, this.now())
+  }
+
+  consents(accountId: string) {
+    return (this.db.prepare('SELECT kind, version, accepted_at FROM account_consents WHERE account_id = ? ORDER BY accepted_at').all(accountId) as Row[])
+      .map((row) => ({ kind: String(row.kind) as ConsentKind, version: String(row.version), acceptedAt: new Date(Number(row.accepted_at)).toISOString() }))
   }
 
   /** Attach a streamer referral code to an ordinary user. Allowed once; a streamer cannot refer anyone to himself. */
@@ -309,7 +375,7 @@ export class AccountStore {
   }
 
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
-  recordReferralVisit(rawCode: string, visitorKey: string) {
+  recordReferralVisit(rawCode: string, visitorKey: string, campaign?: string) {
     const code = normalizeReferralCode(rawCode)
     if (!this.ownerOfCode(code)) return false
     const now = this.now()
@@ -320,6 +386,8 @@ export class AccountStore {
     this.db.prepare('INSERT INTO referral_visit_seen (visitor, seen_at) VALUES (?, ?) ON CONFLICT(visitor) DO UPDATE SET seen_at = excluded.seen_at').run(visitor, now)
     this.db.prepare('INSERT INTO referral_visits (code, visits) VALUES (?, 1) ON CONFLICT(code) DO UPDATE SET visits = visits + 1').run(code)
     this.db.prepare('INSERT INTO referral_visit_days (code, day, visits) VALUES (?, ?, 1) ON CONFLICT(code, day) DO UPDATE SET visits = visits + 1').run(code, statsDay(now))
+    const label = normalizeCampaign(campaign)
+    if (label) this.db.prepare('INSERT INTO referral_visit_campaigns (code, campaign, day, visits) VALUES (?, ?, ?, 1) ON CONFLICT(code, campaign, day) DO UPDATE SET visits = visits + 1').run(code, label, statsDay(now))
     return true
   }
 
@@ -376,7 +444,7 @@ export class AccountStore {
     const rows = this.db.prepare("SELECT email, referral_code, created_at FROM accounts WHERE kind = 'streamer' ORDER BY created_at").all() as Row[]
     const invites = this.db.prepare('SELECT code, expires_at FROM streamer_invites WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC').all(this.now()) as Row[]
     return {
-      streamers: rows.map((row) => ({ email: String(row.email), code: String(row.referral_code), stats: this.stats(String(row.referral_code)) })),
+      streamers: rows.map((row) => ({ email: String(row.email), code: String(row.referral_code), createdAt: new Date(Number(row.created_at)).toISOString(), stats: this.stats(String(row.referral_code)) })),
       invites: invites.map((row) => ({ code: String(row.code), expiresAt: new Date(Number(row.expires_at)).toISOString() })),
     }
   }
@@ -388,7 +456,48 @@ export class AccountStore {
   referralSeries(accountId: string, period: StatsPeriod): ReferralSeriesRow[] {
     const account = this.mustGet(accountId)
     if (account.kind !== 'streamer' || !account.referralCode) throw new AccountError(403, 'Статистика доступна только стримерам')
-    const code = account.referralCode
+    // Per period the streamer sees his earnings, not the revenue.
+    return this.seriesForCode(account.referralCode, period).map(({ revenue: _revenue, ...row }) => { void _revenue; return row })
+  }
+
+  /** The streamer code of an account, or undefined when it is not (or no longer) a streamer. */
+  streamerCode(accountId: string) {
+    const row = this.db.prepare("SELECT referral_code FROM accounts WHERE id = ? AND kind = 'streamer'").get(accountId) as Row | undefined
+    return row?.referral_code == null ? undefined : String(row.referral_code)
+  }
+
+  emailOf(accountId: string) {
+    const row = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row ? String(row.email) : undefined
+  }
+
+  /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
+  streamerSeries(rawCode: string, period: StatsPeriod) {
+    const code = normalizeReferralCode(rawCode)
+    if (!this.ownerOfCode(code)) throw new AccountError(404, 'Стример не найден')
+    return this.seriesForCode(code, period)
+  }
+
+  /** Visits per campaign label of the streamer's audience links, all time, most visited first. */
+  referralCampaigns(accountId: string) {
+    const account = this.mustGet(accountId)
+    if (account.kind !== 'streamer' || !account.referralCode) throw new AccountError(403, 'Статистика доступна только стримерам')
+    return this.campaignsForCode(account.referralCode)
+  }
+
+  streamerCampaigns(rawCode: string) {
+    const code = normalizeReferralCode(rawCode)
+    if (!this.ownerOfCode(code)) throw new AccountError(404, 'Стример не найден')
+    return this.campaignsForCode(code)
+  }
+
+  private campaignsForCode(code: string) {
+    const since = statsDay(this.now() - 29 * 86_400_000)
+    return (this.db.prepare('SELECT campaign, SUM(visits) AS total, SUM(CASE WHEN day >= ? THEN visits ELSE 0 END) AS recent, MAX(day) AS last FROM referral_visit_campaigns WHERE code = ? GROUP BY campaign ORDER BY total DESC, campaign').all(since, code) as Row[])
+      .map((row) => ({ campaign: String(row.campaign), visits: Number(row.total), visits30d: Number(row.recent), lastVisitDay: String(row.last) }))
+  }
+
+  private seriesForCode(code: string, period: StatsPeriod): ReferralSeriesRow[] {
     const length = PERIOD_LENGTH[period]
     const rows = new Map<string, ReferralSeriesRow>()
     const row = (key: string) => {
@@ -426,6 +535,12 @@ export class AccountStore {
     // Paid conversions and money come only from verified ЮKassa payments (PaymentStore).
     const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
     return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
+  }
+
+  /** A new session for an existing account, after an approved one-time QR / device code (services/loginCodes.ts). */
+  startSession(accountId: string) {
+    this.mustGet(accountId)
+    return this.createSession(accountId)
   }
 
   private createSession(accountId: string) {
@@ -505,6 +620,10 @@ const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim(
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
 const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
+const visitSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/), campaign: z.string().max(64).optional() })
+const consentSchema = z.object({ kind: z.enum(['registration', 'payment']), version: z.string().regex(CONSENT_VERSION) })
+const ownerSeriesSchema = periodSchema.extend({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
+const ownerInviteSchema = z.object({ code: z.string().trim().max(24) })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
 const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
@@ -540,6 +659,11 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     if (!accountId) return { status: 401, body: { error: 'Требуется вход в аккаунт' } }
     return run(accountId)
   })
+
+  /** Owner-only routes answer 404 to everybody else, so they do not even reveal that they exist. */
+  const owner = (req: AccountsRequest, run: () => AccountsResponse) => authed(req, (accountId) => (
+    store.isOwner(accountId) ? run() : { status: 404, body: { error: 'Не найдено' } }
+  ))
 
   return {
     register: (req: AccountsRequest) => guard(async () => {
@@ -608,10 +732,38 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     referralVisit: (req: AccountsRequest) => guard(() => {
       const blocked = limited(visitLimiter, `visit:${req.ip ?? 'unknown'}`)
       if (blocked) return blocked
-      const parsed = referralSchema.safeParse(req.body)
+      const parsed = visitSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Некорректный код приглашения')
-      const known = store.recordReferralVisit(parsed.data.code, req.ip ?? 'unknown')
+      // An unusable campaign label is ignored: the visit itself still counts.
+      const known = store.recordReferralVisit(parsed.data.code, req.ip ?? 'unknown', parsed.data.campaign)
       return known ? { status: 200, body: { ok: true, code: normalizeReferralCode(parsed.data.code) } } : { status: 404, body: { error: 'Код приглашения не найден' } }
+    }),
+
+    /** Streamer cabinet: visits per campaign label of the audience links. */
+    referralCampaigns: (req: AccountsRequest) => authed(req, (accountId) => ({ status: 200, body: { campaigns: store.referralCampaigns(accountId) } })),
+
+    /** The signed-in user accepted the offer / privacy documents of `version` (checkbox on the site). */
+    recordConsent: (req: AccountsRequest) => authed(req, (accountId) => {
+      const parsed = consentSchema.safeParse(req.body)
+      if (!parsed.success) return invalid('Некорректные данные согласия')
+      store.recordConsent(accountId, parsed.data.kind, parsed.data.version)
+      return { status: 200, body: { consents: store.consents(accountId) } }
+    }),
+
+    /** Owner section of the website: every streamer with the numbers from his cabinet, plus open invitations. */
+    ownerStreamers: (req: AccountsRequest) => owner(req, () => ({ status: 200, body: store.streamers() })),
+
+    ownerStreamerStats: (req: AccountsRequest) => owner(req, () => {
+      const parsed = ownerSeriesSchema.safeParse(req.query ?? {})
+      if (!parsed.success) return invalid('Укажите код стримера и период: day, month или year')
+      return { status: 200, body: { code: normalizeReferralCode(parsed.data.code), period: parsed.data.period, rows: store.streamerSeries(parsed.data.code, parsed.data.period), campaigns: store.streamerCampaigns(parsed.data.code) } }
+    }),
+
+    /** «Сгенерировать ссылку для стримера»: a one-time secret link /streamer/<token>; the token is shown once. */
+    ownerCreateStreamerInvite: (req: AccountsRequest) => owner(req, () => {
+      const parsed = ownerInviteSchema.safeParse(req.body)
+      if (!parsed.success) return invalid('Код стримера: 3–24 символа, латиница, цифры, «_» или «-»')
+      return { status: 201, body: store.createStreamerInvite(parsed.data.code) }
     }),
   }
 }

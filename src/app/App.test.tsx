@@ -70,7 +70,7 @@ describe('App', () => {
     renderApp('/quests')
     await user.click(screen.getByRole('button', { name: 'Сюжетные' }))
     expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
-    expect(screen.getByText(/когда в игре открыта вкладка сюжета/i)).toBeInTheDocument()
+    expect(screen.getByText(/откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест/i)).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Тур' }).length).toBeGreaterThan(0)
     expect(screen.queryByText('Где вы в этой главе')).not.toBeInTheDocument()
   })
@@ -87,8 +87,13 @@ describe('App', () => {
   it('keeps trader portraits compact and does not show extra trader details', () => {
     renderApp('/traders')
     expect(screen.getByRole('heading', { name: 'Торговцы' })).toBeInTheDocument()
-    expect(screen.getByText(/выберите портрет торговца, подробные данные появятся в следующих версиях/i)).toBeInTheDocument()
+    expect(screen.getByText(/задания идут по порядку выдачи в игре/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Прапор' })).toBeInTheDocument()
+    // the selected trader's quests, in the order the game gives them out
+    expect(screen.getByRole('tab', { name: /Общий список/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /Завершённые/ })).toBeInTheDocument()
+    const rows = [...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)
+    expect(rows.indexOf('Дебют')).toBeLessThan(rows.indexOf('Проверка'))
     expect(screen.queryByText(/ассортимент, репутация/i)).not.toBeInTheDocument()
   })
 

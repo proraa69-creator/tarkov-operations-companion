@@ -3,6 +3,8 @@ import type { LogParseResult } from '../src/import/logParser.js'
 
 contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
+  /** 'owner' | 'client' (electron/buildEdition.ts), fixed at build time. */
+  edition: ipcRenderer.sendSync('app:edition') === 'owner' ? 'owner' : 'client',
   openWikiMap: (id: string) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('service:request', method, path, body),
   account: {
@@ -15,6 +17,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     tunnelStatus: () => ipcRenderer.invoke('tunnel:status'),
     setTunnel: (enabled: boolean) => ipcRenderer.invoke('tunnel:set', Boolean(enabled)),
     setNamedTunnel: (hostname: string, token: string) => ipcRenderer.invoke('tunnel:set-named', String(hostname ?? ''), String(token ?? '')),
+    mobileLogin: () => ipcRenderer.invoke('account:mobile-login'),
+    websiteUrl: () => ipcRenderer.invoke('account:website-url'),
     setServerUrl: (url: string) => ipcRenderer.invoke('account:set-server-url', String(url ?? '')),
   },
   owner: {
@@ -22,10 +26,15 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     setPayments: (settings: unknown) => ipcRenderer.invoke('owner:set-payments', settings),
     streamers: () => ipcRenderer.invoke('owner:streamers'),
     inviteStreamer: (code: string) => ipcRenderer.invoke('owner:invite-streamer', String(code ?? '')),
+    ownerEmails: () => ipcRenderer.invoke('owner:emails'),
+    setOwnerEmails: (emails: string) => ipcRenderer.invoke('owner:set-emails', String(emails ?? '')),
   },
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     install: () => ipcRenderer.invoke('update:install'),
+    check: () => ipcRenderer.invoke('update:check'),
+    settings: () => ipcRenderer.invoke('update:settings'),
+    setSettings: (patch: unknown) => ipcRenderer.invoke('update:set-settings', patch),
     onStatus: (callback: (status: unknown) => void) => {
       const listener = (_event: unknown, status: unknown) => callback(status)
       ipcRenderer.on('update:status', listener)

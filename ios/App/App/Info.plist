@@ -37,6 +37,17 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Tarkov Operator connects to the Tarkov Operator server on your computer in the same Wi-Fi network to show your tasks and live position.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.tarkovoperator.app.login</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tarkovoperator</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

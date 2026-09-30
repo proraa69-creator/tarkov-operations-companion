@@ -11,6 +11,7 @@
 import { app, safeStorage } from 'electron'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { buildDefaultServerUrl } from './buildEdition.js'
 
 export const DEFAULT_API_URL = 'http://127.0.0.1:8787'
 const MODE = '(?:pvp|pve|seasonal)'
@@ -30,6 +31,15 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/settings$/ },
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
+  // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
+  // «Кабинет стримера» (server/src/routes/accounts.ts, payouts.ts): statistics, audience links, payouts.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
+  { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/payouts$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
 ]
 
 export class ServiceUnavailableError extends Error {
@@ -74,8 +84,17 @@ export async function setServerUrl(raw: unknown) {
   return accountStatus()
 }
 
+/** The address this build connects to by default: TARKOV_DEFAULT_SERVER_URL at build time, else this PC. */
+export function defaultApiUrl() {
+  return buildDefaultServerUrl() || DEFAULT_API_URL
+}
+
 export function apiBaseUrl() {
-  return checkServerUrl((process.env.TARKOV_API_URL?.trim() || savedServerUrl || DEFAULT_API_URL).replace(/\/+$/, ''))
+  return checkServerUrl((process.env.TARKOV_API_URL?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
+}
+
+export const isLocalAddress = (url: string) => {
+  try { return ['127.0.0.1', 'localhost'].includes(new URL(url).hostname) } catch { return true }
 }
 
 // --------------------------------------------------------------------------------------------------------------
@@ -157,7 +176,7 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
   if (!route || !route.methods.includes(method as Method)) throw new Error('Неизвестный запрос сервиса')
-  const personal = path.startsWith('/v1/me/')
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   await loadSession()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
@@ -181,10 +200,16 @@ export async function serviceRequestOrNull(method: string, path: string, body?: 
   }
 }
 
+export type AccountMode = 'pvp' | 'pve' | 'seasonal'
+export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+
 export interface AccountStatus {
   signedIn: boolean
   email?: string
   kind?: 'user' | 'streamer'
+  /** From the server account (GET /v1/accounts/me) while online. */
+  nicknames?: Partial<Record<AccountMode, string>>
+  subscription?: AccountSubscription
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -194,8 +219,9 @@ export interface AccountStatus {
 export async function accountStatus(): Promise<AccountStatus> {
   await loadSession()
   await loadServerUrl()
-  let serverUrl = DEFAULT_API_URL
+  let serverUrl = defaultApiUrl()
   let online: boolean
+  let details: Pick<AccountStatus, 'nicknames' | 'subscription'> = {}
   try {
     serverUrl = apiBaseUrl()
     const health = await send('GET', '/health', { timeoutMs: 3000 })
@@ -204,13 +230,48 @@ export async function accountStatus(): Promise<AccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
+        details = accountDetails(view)
       }
     }
   } catch { online = false }
-  return { signedIn: Boolean(sessionToken), ...(account && sessionToken ? { email: account.email, kind: account.kind } : {}), online, serverUrl, persistent: canPersistToken() }
+  return { signedIn: Boolean(sessionToken), ...(account && sessionToken ? { email: account.email, kind: account.kind, ...details } : {}), online, serverUrl, persistent: canPersistToken() }
+}
+
+const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
+
+/** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription'> {
+  const nicknames: Partial<Record<AccountMode, string>> = {}
+  const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    const value = raw[mode]
+    if (typeof value === 'string' && NICKNAME.test(value)) nicknames[mode] = value
+  }
+  const sub = view.subscription && typeof view.subscription === 'object' ? view.subscription as Record<string, unknown> : {}
+  // Streamers use the service free of charge for good: { status: 'active', lifetime: true } on the server.
+  const status = sub.lifetime === true ? 'lifetime' : ['active', 'trial', 'inactive'].includes(String(sub.status)) ? sub.status as AccountSubscription['status'] : 'inactive'
+  const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
+  const paidUntil = date(sub.paidUntil)
+  const trialEndsAt = date(sub.trialEndsAt)
+  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) } }
+}
+
+/**
+ * «Войти в мобильную версию»: a one-time code for the phone app (POST /v1/accounts/me/login-codes, two minutes, works
+ * once). The session token itself never leaves this process; only the short-lived code goes into the QR code.
+ */
+export async function createMobileLoginCode(): Promise<{ code: string; expiresAt: string }> {
+  await loadSession()
+  if (!sessionToken) throw new Error('Сначала войдите в аккаунт')
+  const { response, result } = await send('POST', '/v1/accounts/me/login-codes', { token: sessionToken, timeoutMs: 8000 })
+  if (response.status === 401) { await clearSession(); throw new Error('Сессия истекла. Войдите в аккаунт снова.') }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Сервер не создал код: ${response.status}`)
+  const answer = result as { code?: unknown; expiresAt?: unknown } | null
+  if (typeof answer?.code !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(answer.code) || typeof answer.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  return { code: answer.code, expiresAt: answer.expiresAt }
 }
 
 export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<AccountStatus> {

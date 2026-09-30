@@ -16,6 +16,14 @@
  *   POST /streamer-invite   { token }                            -> 200 { code, expiresAt } | 404 (secret invitation page)
  *   POST /me/streamer-invite Bearer { token }                    -> 200 account view (the account becomes a streamer)
  *   GET  /me/referral-stats?period=day|month|year  Bearer        -> 200 { period, rows } (streamers only)
+ *   GET  /me/referral-campaigns  Bearer                          -> 200 { campaigns } (streamers only; visits per ?c= label)
+ *   POST /me/consents        Bearer { kind, version }            -> 200 { consents } (offer / personal data checkbox)
+ *   GET  /me/admin/streamers Bearer (owner)                      -> 200 { streamers, invites } | 404 for non-owners
+ *   GET  /me/admin/streamer-stats?code=&period= Bearer (owner)   -> 200 { code, period, rows, campaigns }
+ *   POST /me/admin/streamer-invites Bearer (owner) { code }      -> 201 { token, code, expiresAt }
+ *
+ * The owner is whoever signs in with an e-mail listed in TARKOV_OWNER_EMAILS (set in the owner's desktop app); owner
+ * rights are checked on the server for every request. A listed e-mail cannot be registered anew (see register()).
  *
  * Streamer status is never self-selected: an operator runs `npm --prefix server run promote -- <email> <code>`.
  * Request bodies (including passwords) are never logged here.
@@ -52,5 +60,11 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.post('/streamer-invite', adapt(handlers.streamerInvite))
   router.get('/me/referral-stats', adapt(handlers.referralSeries))
   router.post('/me/streamer-invite', adapt(handlers.redeemStreamerInvite))
+  router.get('/me/referral-campaigns', adapt(handlers.referralCampaigns))
+  router.post('/me/consents', adapt(handlers.recordConsent))
+  // Owner section of the website (Bearer session of an account listed in TARKOV_OWNER_EMAILS; 404 for everybody else).
+  router.get('/me/admin/streamers', adapt(handlers.ownerStreamers))
+  router.get('/me/admin/streamer-stats', adapt(handlers.ownerStreamerStats))
+  router.post('/me/admin/streamer-invites', adapt(handlers.ownerCreateStreamerInvite))
   return router
 }

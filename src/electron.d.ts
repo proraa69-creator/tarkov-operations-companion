@@ -22,26 +22,48 @@ export interface ServerAccountStatus {
   serverUrl: string
   /** false when the OS offers no secure storage: the session lasts until the app closes. */
   persistent: boolean
+  /** From the server account while online: nicknames per mode and the subscription. */
+  nicknames?: Partial<Record<RaidMode, string>>
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
 }
 
+/** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */
+export interface MobileLoginLink { url: string; expiresAt: string; reachable: boolean }
+
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string }
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean }
+/** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
+export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
+/** Settings → «Проверить обновление приложения». */
+export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'no-server' | 'not-portable' | 'disabled' | 'busy'; status: UpdateStatus; current: string; checkedAt: string }
 
 /** Owner controls for the server on this PC (electron/ownerAdmin.ts). */
-export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean }
+export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
+/** `autopay`/`lava` are missing when the main process is older than the renderer. */
+export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean; lava?: LavaSettings }
 export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
 
 interface TarkovDesktopApi {
   isDesktop: true
+  /** 'owner': server, tunnel, payments and streamers controls; 'client' (default): the players' app. */
+  edition?: 'owner' | 'client'
   owner?: {
     payments: () => Promise<PaymentSettings>
-    setPayments: (settings: { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; secretKey?: string; clearKey?: boolean }) => Promise<PaymentSettings>
+    setPayments: (settings:
+      | { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }
+      | { section: 'lava'; offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: LavaSettings['paymentMethod']; apiKey?: string; webhookKey?: string; clearKeys?: boolean }) => Promise<PaymentSettings>
     streamers: () => Promise<{ streamers: StreamerRow[]; invites: Array<{ code: string; expiresAt: string }> }>
     inviteStreamer: (code: string) => Promise<{ link: string; code: string; expiresAt: string }>
+    /** «E-mail владельца»: accounts that see the owner section of the website (TARKOV_OWNER_EMAILS). */
+    ownerEmails: () => Promise<string[]>
+    setOwnerEmails: (emails: string) => Promise<string[]>
   }
   update?: {
     status: () => Promise<UpdateStatus>
     install: () => Promise<UpdateStatus>
+    check?: () => Promise<UpdateCheckResult>
+    settings?: () => Promise<UpdateSettings>
+    setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
   }
   openWikiMap: (id: string) => Promise<boolean>
@@ -61,6 +83,10 @@ interface TarkovDesktopApi {
     setTunnel?: (enabled: boolean) => Promise<TunnelStatus>
     /** Permanent address from the owner's Cloudflare account (hostname + tunnel token); empty values remove it. */
     setNamedTunnel?: (hostname: string, token: string) => Promise<TunnelStatus>
+    /** A one-time code for the phone app, as a website link for a QR code. */
+    mobileLogin?: () => Promise<MobileLoginLink>
+    /** The public address of the account website (for links a streamer shares). */
+    websiteUrl?: () => Promise<string>
     /** Another server address (e.g. the owner's public link); '' = this PC. */
     setServerUrl?: (url: string) => Promise<ServerAccountStatus>
   }

@@ -11,12 +11,14 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { inviteStreamer, listStreamers, paymentSettings, setPaymentSettings } from './ownerAdmin.js'
+import { inviteStreamer, listStreamers, ownerEmails, paymentSettings, setOwnerEmails, setPaymentSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { buildEdition, isOwnerBuild } from './buildEdition.js'
+import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, trialLaunchesAtStart } from './trial.js'
-import { checkForUpdate, installUpdate, startUpdateChecks, updateStatus } from './appUpdate.js'
+import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -35,8 +37,6 @@ let scanning = false
 let lastPublished = ''
 let raidState: RaidState = { inRaid: false }
 
-/** The account website on the owner's PC (see scripts/start-local.ps1); override with TARKOV_WEBSITE_URL. */
-const WEBSITE_URL = (process.env.TARKOV_WEBSITE_URL?.trim() || 'http://localhost:5202').replace(/\/+$/, '')
 
 /** Links opened in the system browser: any HTTPS page, or the local website / API on this computer. */
 function isExternalAllowed(url: string) {
@@ -101,9 +101,14 @@ function loadRenderer(window: BrowserWindow, hash: string) {
 }
 
 app.whenReady().then(async () => {
-  await enableFromCommandLine(process.argv)
-  await enableTunnelFromCommandLine(process.argv)
-  const serverMode = isServerMode()
+  // Server, tunnel and owner controls exist only in the owner build (electron/buildEdition.ts): a player's copy
+  // ignores --enable-local-server / --server-mode / --enable-tunnel.
+  const ownerBuild = isOwnerBuild()
+  if (ownerBuild) {
+    await enableFromCommandLine(process.argv)
+    await enableTunnelFromCommandLine(process.argv)
+  }
+  const serverMode = ownerBuild && isServerMode()
   // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
   // from apps that are not. When the prompt is refused the app simply goes on without the rights.
   if (!serverMode && process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
@@ -115,7 +120,7 @@ app.whenReady().then(async () => {
   // The server laptop: no game features, the window waits minimized (closing it stops the server).
   if (serverMode) mainWindow?.minimize()
   // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
-  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status))
+  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: () => raidState.inRaid })
   if (!serverMode) startExperimental({
     preload: join(appDir, '../../electron/preload.cjs'),
     load: loadRenderer,
@@ -125,7 +130,7 @@ app.whenReady().then(async () => {
   })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   // «Сервер и сайт на этом компьютере» (Profile → server account): the owner's API and website from this app.
-  void startIfEnabled().then(async (openSite) => {
+  if (ownerBuild) void startIfEnabled().then(async (openSite) => {
     if (openSite) void shell.openExternal(`${LOCAL_SITE_URL}/`)
     // A PC that keeps the server running (e.g. a laptop) reopens the public link for friends on start.
     if (await localServerEnabled()) await startTunnelIfWanted()
@@ -151,6 +156,11 @@ app.on('window-all-closed', () => {
   stopWatchingLogs()
   if (process.platform !== 'darwin') app.quit()
 })
+
+const OWNER_CHANNELS = [
+  'local-server:status', 'local-server:set-enabled', 'tunnel:status', 'tunnel:set', 'tunnel:set-named',
+  'owner:payments', 'owner:set-payments', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
+]
 
 function registerIpc() {
   ipcMain.handle('app:clear-data', async () => {
@@ -182,11 +192,17 @@ function registerIpc() {
   ipcMain.handle('service:request', async (_event, method: string, path: string, body: unknown) => serviceRequest(method, path, body))
   // Server account: the session token never leaves the main process; the renderer only sees e-mail and status.
   ipcMain.handle('account:status', () => accountStatus())
+  // Which app this is: 'owner' (server controls) or 'client' (players). Read once by the preload, synchronously.
+  ipcMain.on('app:edition', (event) => { event.returnValue = buildEdition() })
+  // «Войти в мобильную версию»: a two-minute one-time code in a website link, never the session token.
+  ipcMain.handle('account:mobile-login', () => mobileLoginLink())
+  // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
+  ipcMain.handle('account:website-url', () => websiteBase({ forPhone: true }))
   ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
   ipcMain.handle('account:logout', () => accountLogout())
   ipcMain.handle('account:open-website', async (_event, page: unknown) => {
     const path = page === 'register' ? '/register' : '/cabinet'
-    const target = `${WEBSITE_URL}${path}`
+    const target = `${await websiteBase()}${path}`
     if (!isExternalAllowed(target)) return false
     await shell.openExternal(target)
     return true
@@ -270,9 +286,21 @@ function registerIpc() {
     return result
   })
   ipcMain.handle('owner:streamers', () => listStreamers())
+  ipcMain.handle('owner:emails', () => ownerEmails())
+  ipcMain.handle('owner:set-emails', async (_event, emails: unknown) => {
+    const result = await setOwnerEmails(emails)
+    await restartApi() // the API reads TARKOV_OWNER_EMAILS on start
+    return result
+  })
   ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:install', () => installUpdate())
+  // Settings → «Проверить обновление приложения», «Автообновление», «Автоустановка»
+  ipcMain.handle('update:check', () => checkForUpdateNow())
+  ipcMain.handle('update:settings', () => updateSettings())
+  ipcMain.handle('update:set-settings', (_event, patch: unknown) => setUpdateSettings(patch))
+  // A player's copy (client build) has no server, tunnel or owner controls at all, not even hidden ones.
+  if (!isOwnerBuild()) for (const channel of OWNER_CHANNELS) ipcMain.removeHandler(channel)
 
   ipcMain.handle('profile:resolve', async (_event, rawMode: unknown, rawNickname: unknown) => {
     const mode = validateMode(rawMode)

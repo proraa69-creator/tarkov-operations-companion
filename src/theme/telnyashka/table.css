@@ -1,6 +1,6 @@
 /* Telnyashka theme — the rendered still life at the foot of the sidebar (TelnyashkaTable.tsx).
    Layers are absolutely placed in a 204x104 box; only the hit shapes over the sausage take the pointer. */
-.tel-still { position: fixed; left: 16px; bottom: 84px; z-index: 41; pointer-events: none; user-select: none; }
+.tel-still { position: fixed; left: 16px; bottom: 148px; z-index: 41; pointer-events: none; user-select: none; }
 .tel-still-layer { position: absolute; display: block; max-width: none; pointer-events: none; }
 .tel-still-sausage { position: absolute; inset: 0; pointer-events: none; }
 .tel-still-hit { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
@@ -9,4 +9,4 @@
 .tel-still-sausage:hover .tel-still-log { transform: translate(var(--dx), var(--dy)); }
 .tel-still-sausage:hover .tel-still-slice { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); }
 @media (prefers-reduced-motion: reduce) { .tel-still :is(.tel-still-log, .tel-still-slice) { transition: none; } }
-@media (max-height: 740px), (max-width: 1180px) { .tel-still { display: none; } }
+@media (max-height: 800px), (max-width: 1180px) { .tel-still { display: none; } }

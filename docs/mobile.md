@@ -62,6 +62,35 @@ Platform settings for LAN HTTP:
   asks for local-network access on first use. **Check on a device**: if WKWebView still blocks `http://<LAN IP>`,
   put the server behind HTTPS (for example a local reverse proxy with a certificate the phone trusts).
 
+## QR sign-in
+
+Nobody types a password on the phone:
+
+- **Desktop → phone.** Windows app → Профиль оператора → «Войти в мобильную версию» shows a QR code with
+  `https://<site>/app-login#login=<code>&server=<site>`. The code is made by the server
+  (`POST /v1/accounts/me/login-codes`), lives 2 minutes, works once and is stored only as a SHA-256 hash. The
+  long-lived session token never leaves the desktop main process. The phone camera opens the website page; its
+  «Открыть в приложении» button starts the app with `tarkovoperator://login?code=…&server=…` (Android: an `intent://`
+  link that falls back to the website). The app asks «Войти в аккаунт?», switches to that server and exchanges the
+  code for its own session (`POST /v1/accounts/login-codes/redeem`). Without the app, «Войти на сайте» signs in to
+  the website cabinet instead.
+- **Website → phone or desktop.** The website's login page → «Войти по QR-коду» shows a QR code and a short code
+  (`XXXX-XXXX`, 2 minutes). A signed-in phone scans it (`/app-login#approve=…` → `tarkovoperator://approve?…`), or the
+  desktop app takes the typed code (Профиль → «Подтвердить вход на сайте»). The approving app first shows which
+  browser asks (`inspect`) and signs in only after «Разрешить вход». The browser polls with a secret only it knows and
+  gets a new session once. A phone browser already signed in to the site can approve right on the page.
+
+Server side: `server/src/services/loginCodes.ts` (in memory, hashed, rate limited per IP and per account; tests in
+`server/src/routes/loginCodes.test.ts`). Phone side: `src/mobile/deepLink.ts` (parser, tests) and
+`src/mobile/DeepLinkLogin.tsx` (`@capacitor/app` `appUrlOpen` / `getLaunchUrl`). The scheme is registered in
+`android/app/src/main/AndroidManifest.xml` (intent filter) and `ios/App/App/Info.plist` (`CFBundleURLTypes`);
+`npm run mobile:build` (cap sync) wires the `@capacitor/app` plugin into both projects.
+
+The phone's default server is `https://raidos.app` (the owner's permanent address; `VITE_TARKOV_API_URL` overrides it
+at build time). After signing in, nicknames saved on the account are bound on the phone automatically.
+
+**Not verified on a device yet:** opening the app from the camera on Android and iOS (needs a signed APK / Xcode build).
+
 ## Build
 
 Common step (any OS):

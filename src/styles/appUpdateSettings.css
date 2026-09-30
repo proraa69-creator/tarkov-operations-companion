@@ -1,0 +1,5 @@
+/* Settings → Данные: app update row and its switches (src/components/AppUpdateSettings.tsx) */
+.app-update-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex: none; max-width: 60%; }
+.app-update-actions .button { gap: 5px; white-space: nowrap; }
+.app-update-row small { overflow-wrap: anywhere; }
+.settings-grid .toggle:disabled { opacity: .4; cursor: default; }

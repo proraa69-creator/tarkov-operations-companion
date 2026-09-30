@@ -395,14 +395,16 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   useEffect(() => {
     if (!focusedQuestId) return
     const quest = data.quests.find((entry) => entry.id === focusedQuestId)
-    const stageIndex = quest ? currentStoryStageIndex(quest, progress) : Number(focusedStage ?? 0)
+    // «Показать на карте» of a story chapter names its stage (?stage=N); without it the chapter's current stage is shown.
+    const requestedStage = focusedStage != null && focusedStage !== '' && Number.isFinite(Number(focusedStage)) ? Number(focusedStage) : null
+    const stageIndex = requestedStage ?? (quest ? currentStoryStageIndex(quest, progress) : 0)
     const marker = mapMarkers.find((entry) => (
       entry.questId === focusedQuestId
-      && (entry.stageIndex == null || entry.stageIndex === stageIndex || focusedStage == null)
+      && (entry.stageIndex == null || entry.stageIndex === stageIndex)
     ))
       ?? plottedMarkers.find((entry) => (
         entry.questId === focusedQuestId
-        && (entry.stageIndex == null || entry.stageIndex === stageIndex || (focusedStage != null && entry.stageIndex === Number(focusedStage)))
+        && (entry.stageIndex == null || entry.stageIndex === stageIndex)
       ))
     if (marker) {
       setSelectedMarker(marker)
@@ -457,7 +459,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     ? data.quests.find((quest) => quest.id === selectedMarker.questId)
     : undefined
   const relatedAvailability = relatedQuest ? availability.get(relatedQuest.id) : undefined
-  const relatedStageIndex = relatedQuest ? currentStoryStageIndex(relatedQuest, progress) : 0
+  const relatedStageIndex = relatedQuest ? (selectedMarker?.stageIndex ?? currentStoryStageIndex(relatedQuest, progress)) : 0
   const relatedStage = relatedQuest?.stages?.[relatedStageIndex]
   const flyTarget = selectedMarker && selectedMarker.source !== 'quest-info' && hasRealCoordinates(selectedMarker)
     ? selectedMarker
@@ -483,7 +485,6 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         </div>
         <div>
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
-          <p className="map-layer-hint">{uiText("Включены только выходы и текущие квесты. Остальное можно открыть здесь.")}</p>
           {uiText(layerGroups.map((group) => (
             <div key={group.title} className="map-layer-group">
               <div className="map-side-title">{uiText(group.title)}</div>
@@ -648,7 +649,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                 <div className="map-quest-sheet-section">
                   {uiText(relatedStage ? (
                     <>
-                      <h4>{uiText("Текущий этап")}</h4>
+                      <h4>{uiText(relatedQuest && relatedStageIndex !== currentStoryStageIndex(relatedQuest, progress) ? `Этап ${relatedStageIndex + 1}` : 'Текущий этап')}</h4>
                       <p><strong>{uiText(relatedStage.title)}</strong></p>
                       {uiText(relatedStage.description && <p className="dim">{uiText(relatedStage.description)}</p>)}
                     </>

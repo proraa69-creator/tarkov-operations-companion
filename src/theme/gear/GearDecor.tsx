@@ -28,7 +28,7 @@ function GearDecorActive() {
   return (
     <>
       <GearHangers reduced={reduced} tagLines={tagLines} />
-      <GearPatches locale={locale} callsign={callsign} />
+      <GearPatches locale={locale} callsign={callsign} faction={activeProfile.modes[raidMode].faction} />
     </>
   )
 }

@@ -14,6 +14,8 @@ interface AuthState {
   logout(): Promise<void>
   reload(): void
   setAccount(account: Account): void
+  /** A session from QR sign-in (qrLogin.ts): approved on a signed-in phone or desktop app. */
+  adopt(token: string, account: Account): void
 }
 
 const AuthContext = createContext<AuthState | null>(null)
@@ -72,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAttempt((n) => n + 1)
     },
     setAccount(next) { setAccount(next) },
+    adopt(nextToken, nextAccount) { adoptSession(nextToken, nextAccount) },
   }), [token, account, status, error, adoptSession])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

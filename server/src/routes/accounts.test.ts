@@ -99,7 +99,9 @@ test('streamer promotion is server-side only and exposes referral stats only to 
   const me = (await api.me({ authorization: auth(streamer.token) })).body as AccountView
   assert.equal(me.kind, 'streamer')
   assert.equal(me.referralCode, 'HUNTER_TV')
-  assert.deepEqual(me.stats, { visits: 2, registrations: 2, activeSubscriptions: 0, revenue: { amount: 0, currency: 'RUB' }, earnings: { amount: 0, currency: 'RUB' } })
+  // The streamer sees his share, never the revenue; streamers use the service free of charge.
+  assert.deepEqual(me.stats, { visits: 2, registrations: 2, activeSubscriptions: 0, earnings: { amount: 0, currency: 'RUB' } })
+  assert.deepEqual(me.subscription, { status: 'active', lifetime: true })
 
   advance(REFERRAL_TRIAL_MS + 1)
   const fan = (await api.me({ authorization: auth(referredBody.token) })).body as AccountView

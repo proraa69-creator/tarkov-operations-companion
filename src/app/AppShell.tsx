@@ -1,5 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
+import { SidebarOperator } from '../components/SidebarOperator'
 import { UpdateButton } from '../components/UpdateButton'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
@@ -10,6 +11,7 @@ import {
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { ModeRegistrationDialog } from '../components/ModeRegistrationDialog'
+import { AccountController } from '../account/AccountController'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
 import { pushLogProgress, useServerSync } from '../sync/serverSync'
@@ -153,6 +155,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
+        <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
       {!mobile && <><GearDecor /><MaskBadge /><TelnyashkaTable /></>}
@@ -191,6 +194,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>)}
       {mobile && <MobileTabBar onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      <AccountController />
       {uiText(canResolvePlayerProfiles() && registrationOpen && (
         <ModeRegistrationDialog key={`${registrationIdentity}:${registrationKey}`} onClose={() => setRegistrationOpen(false)} />
       ))}

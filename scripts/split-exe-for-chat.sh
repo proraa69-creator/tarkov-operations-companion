@@ -1,14 +1,36 @@
 #!/usr/bin/env bash
 # Splits a built exe into <=25 MB parts (chat upload limit is 30 MB) and writes a
 # one-click Windows script that joins them into the exe on the user's Desktop.
-# Usage: scripts/split-exe-for-chat.sh "<path to exe>" <new empty output dir>
+# Usage: scripts/split-exe-for-chat.sh "<owner exe>" <new empty output dir> ["<client exe>" "<client build-info.json>"]
+#
+# Two editions (electron/buildEdition.ts, scripts/write-build-info.mjs):
+#   - the owner exe (OWNER_BUILD=1): the owner's gaming PC (Join-Tarkov-Operator.cmd) and the server laptop
+#     (Server-Laptop-Setup.cmd). Parts: TarkovOperator.part*
+#   - the client exe (default build): what players download from the site. Parts: TarkovOperatorClient.part*
+#     Server-Laptop-Setup.cmd puts it into %LOCALAPPDATA%\TarkovOperatorServer\client\ with version.json (from the
+#     client's dist-electron/build-info.json, saved right after the client build), and the laptop's site then serves
+#     it for «Скачать для Windows» and auto-update (electron/localServer.ts). Join-Tarkov-Operator-Client.cmd only
+#     puts the client exe on the desktop (to test it or send it to someone).
 set -euo pipefail
 
 EXE="${1:?path to exe}"
 OUT="${2:?output dir (must not exist or be empty)}"
+CLIENT_EXE="${3:-}"
+CLIENT_INFO="${4:-}"
 PART_SIZE="${PART_SIZE:-25M}"
 
 [ -f "$EXE" ] || { echo "exe not found: $EXE" >&2; exit 1; }
+if [ -n "$CLIENT_EXE" ]; then
+  [ -f "$CLIENT_EXE" ] || { echo "client exe not found: $CLIENT_EXE" >&2; exit 1; }
+  [ -f "$CLIENT_INFO" ] || { echo "client build-info.json not found: $CLIENT_INFO (copy dist-electron/build-info.json right after the client build)" >&2; exit 1; }
+  # One line of JSON with only the fields the site needs; refuse anything that is not a client build.
+  CLIENT_VERSION_JSON="$(node -e '
+    const info = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
+    if (info.edition !== "client") { console.error("not a client build-info.json (edition: " + info.edition + ")"); process.exit(1) }
+    const safe = (value) => String(value ?? "").replace(/[^0-9A-Za-z._-]/g, "")
+    process.stdout.write(JSON.stringify({ version: safe(info.version), build: Number(info.build) || 0, commit: safe(info.commit) }))
+  ' "$CLIENT_INFO")"
+fi
 mkdir -p "$OUT"
 if [ -n "$(ls -A "$OUT")" ]; then echo "output dir is not empty: $OUT" >&2; exit 1; fi
 
@@ -56,8 +78,39 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   fi
 } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator.cmd"
 
-# The laptop that keeps the server on (docs/laptop-server.md): the same exe, installed to a fixed folder and started
+if [ -n "$CLIENT_EXE" ]; then
+  CLIENT_NAME="$(basename "$CLIENT_EXE")"
+  CLIENT_HASH="$(sha256sum "$CLIENT_EXE" | cut -d' ' -f1)"
+  split -b "$PART_SIZE" -d -a 1 "$CLIENT_EXE" "$OUT/TarkovOperatorClient.part"
+  CLIENT_PARTS=()
+  for f in "$OUT"/TarkovOperatorClient.part*; do CLIENT_PARTS+=("$(basename "$f")"); done
+  CLIENT_JOIN="$(IFS=+; echo "${CLIENT_PARTS[*]}")"
+
+  # The players' exe on the desktop, not started (to test it or to send it to someone).
+  {
+    echo '@echo off'
+    echo 'setlocal'
+    echo 'cd /d "%~dp0"'
+    echo "title Tarkov Operator (players) - join exe"
+    for p in "${CLIENT_PARTS[@]}"; do
+      echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
+    done
+    echo 'set "DESK="'
+    echo 'for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)"`) do set "DESK=%%D"'
+    echo 'if not defined DESK set "DESK=%USERPROFILE%\Desktop"'
+    echo "set \"TARGET=%DESK%\\$CLIENT_NAME\""
+    echo "copy /b /y $CLIENT_JOIN \"%TARGET%\" >nul"
+    echo 'if errorlevel 1 ( echo Join failed. & pause & exit /b 1 )'
+    echo "powershell -NoProfile -Command \"if ((Get-FileHash -Algorithm SHA256 -LiteralPath \$env:TARGET).Hash -ieq '$CLIENT_HASH') { exit 0 } else { exit 1 }\""
+    echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
+    echo 'echo OK: "%TARGET%" (players version, not started)'
+    echo 'pause'
+  } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator-Client.cmd"
+fi
+
+# The laptop that keeps the server on (docs/laptop-server.md): the owner exe, installed to a fixed folder and started
 # with --server-mode (server + site + public link only). Running it again is the update: it stops the old copy first.
+# With a client exe it also publishes the players' version for the site's «Скачать для Windows».
 {
   echo '@echo off'
   echo 'setlocal'
@@ -66,6 +119,11 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   for p in "${PARTS[@]}"; do
     echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
   done
+  if [ -n "$CLIENT_EXE" ]; then
+    for p in "${CLIENT_PARTS[@]}"; do
+      echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
+    done
+  fi
   echo 'set "DIR=%LOCALAPPDATA%\TarkovOperatorServer"'
   echo 'set "TARGET=%DIR%\Tarkov Operator Server.exe"'
   echo 'if not exist "%DIR%" mkdir "%DIR%"'
@@ -82,6 +140,18 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo 'echo Checking SHA256 ...'
   echo "powershell -NoProfile -Command \"if ((Get-FileHash -Algorithm SHA256 -LiteralPath \$env:TARGET).Hash -ieq '$HASH') { exit 0 } else { exit 1 }\""
   echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
+  if [ -n "$CLIENT_EXE" ]; then
+    echo 'set "CLIENT=%DIR%\client"'
+    echo 'if not exist "%CLIENT%" mkdir "%CLIENT%"'
+    echo 'del /f /q "%CLIENT%\*.exe" >nul 2>&1'
+    echo "set \"CLIENT_TARGET=%CLIENT%\\$CLIENT_NAME\""
+    echo 'echo Publishing the players version for the website ...'
+    echo "copy /b /y $CLIENT_JOIN \"%CLIENT_TARGET%\" >nul"
+    echo 'if errorlevel 1 ( echo Join of the players version failed. & pause & exit /b 1 )'
+    echo "powershell -NoProfile -Command \"if ((Get-FileHash -Algorithm SHA256 -LiteralPath \$env:CLIENT_TARGET).Hash -ieq '$CLIENT_HASH') { exit 0 } else { exit 1 }\""
+    echo 'if errorlevel 1 ( echo HASH MISMATCH in the players version - download the parts again. & pause & exit /b 1 )'
+    echo ">\"%CLIENT%\\version.json\" echo $CLIENT_VERSION_JSON"
+  fi
   echo 'echo Starting the server, the website and the public link ...'
   echo 'start "" "%TARGET%" --server-mode --enable-tunnel'
   echo 'echo Done. The database is kept between updates. You can delete the .part files and this script.'
@@ -89,4 +159,5 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
 } | sed 's/$/\r/' > "$OUT/Server-Laptop-Setup.cmd"
 
 echo "sha256 $HASH"
+[ -n "$CLIENT_EXE" ] && echo "client sha256 $CLIENT_HASH · $CLIENT_VERSION_JSON"
 ls -la "$OUT"

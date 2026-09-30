@@ -1,9 +1,11 @@
 import { Gift, LoaderCircle, UserPlus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ApiError, errorMessage } from '../api'
+import { ApiError, api, errorMessage } from '../api'
 import { useAuth } from '../auth'
+import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { Notice } from '../components/Notice'
+import { LEGAL_VERSION } from '../legal/documents'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 
 export function RegisterPage() {
@@ -12,7 +14,11 @@ export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
-  const [referral, setReferral] = useState(() => loadReferralCode() ?? '')
+  // A code remembered from a streamer's link (/r/CODE) is applied automatically: no promo code to type.
+  const [linkCode] = useState(() => loadReferralCode())
+  const [referral, setReferral] = useState(() => linkCode ?? '')
+  const [showCode, setShowCode] = useState(false)
+  const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -26,10 +32,13 @@ export function RegisterPage() {
     if (password.length < 8) { setLocalError('Пароль должен быть не короче 8 символов.'); return }
     if (password !== repeat) { setLocalError('Пароли не совпадают.'); return }
     if (code && !REFERRAL_CODE_PATTERN.test(code)) { setLocalError('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».'); return }
+    if (!consent) { setLocalError('Отметьте согласие с офертой и на обработку персональных данных.'); return }
     setLocalError(null)
     setBusy(true)
     try {
-      const { referralApplied } = await auth.register(email, password, code || undefined)
+      const { token, referralApplied } = await auth.register(email, password, code || undefined)
+      // The server keeps the version of the accepted documents and the time (152-ФЗ: consent must be provable).
+      void api.recordConsent(token, 'registration', LEGAL_VERSION).catch(() => undefined)
       saveReferralCode(null)
       navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected: Boolean(code) && !referralApplied } })
     } catch (reason) {
@@ -63,12 +72,22 @@ export function RegisterPage() {
             <span className="field-label">Повторите пароль</span>
             <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
           </label>
-          <label className="field">
-            <span className="field-label">Код приглашения <span className="dim">(необязательно)</span></span>
-            <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="HUNTER_TV" />
-            {referral.trim() && <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />По коду приглашения — 3 дня бесплатного доступа.</span>}
-          </label>
-          <button type="submit" className="button primary large block" disabled={busy}>
+          {linkCode && !showCode ? (
+            <div className="notice success" role="status">
+              <Gift aria-hidden="true" />
+              <div><strong>Вы пришли по приглашению · {linkCode}</strong>Код применится автоматически — 3 дня бесплатного доступа. Вводить ничего не нужно.</div>
+            </div>
+          ) : showCode || referral.trim() ? (
+            <label className="field">
+              <span className="field-label">Код приглашения <span className="dim">(необязательно)</span></span>
+              <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="HUNTER_TV" />
+              {referral.trim() && <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />По коду приглашения — 3 дня бесплатного доступа.</span>}
+            </label>
+          ) : (
+            <button type="button" className="button ghost small" style={{ justifySelf: 'start' }} onClick={() => setShowCode(true)}><Gift aria-hidden="true" />У меня есть код приглашения</button>
+          )}
+          <ConsentCheckbox checked={consent} onChange={setConsent} id="register-consent" />
+          <button type="submit" className="button primary large block" disabled={busy || !consent}>
             {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
             {busy ? 'Создаём аккаунт…' : 'Зарегистрироваться'}
           </button>

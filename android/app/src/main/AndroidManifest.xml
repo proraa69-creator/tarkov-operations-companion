@@ -23,6 +23,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- QR sign-in (docs/mobile.md): tarkovoperator://login?code=…&server=… and tarkovoperator://approve?… -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tarkovoperator" />
+            </intent-filter>
+
         </activity>
 
         <provider

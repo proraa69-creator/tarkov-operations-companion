@@ -1,8 +1,11 @@
 ﻿# Builds the Windows portable exe and copies it to the desktop.
-# Usage: powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1 [-Desktop "C:\path"] [-SkipInstall]
+# Usage: powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1 [-Desktop "C:\path"] [-SkipInstall] [-Client]
+# Default: the owner's build (OWNER_BUILD=1: «Аккаунт сервера», the «Сервер» button) for this PC.
+# -Client: the players' build (account sign-in, «Личный кабинет», server https://raidos.app), see electron/buildEdition.ts.
 param(
   [string]$Desktop = "C:\Users\BANGKOK PC\Desktop",
-  [switch]$SkipInstall
+  [switch]$SkipInstall,
+  [switch]$Client
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,10 +22,14 @@ if (-not $SkipInstall -and -not (Test-Path (Join-Path $root 'node_modules'))) {
   if ($LASTEXITCODE -ne 0) { throw 'npm install завершился с ошибкой.' }
 }
 
+if ($Client) { Remove-Item Env:OWNER_BUILD -ErrorAction SilentlyContinue; Write-Host '== версия для игроков (client)' }
+else { $env:OWNER_BUILD = '1'; Write-Host '== версия владельца (owner)' }
 Write-Host '== npm run dist:win'
 $buildStart = Get-Date
 npm run dist:win
-if ($LASTEXITCODE -ne 0) { throw 'Сборка exe завершилась с ошибкой.' }
+$buildExit = $LASTEXITCODE
+Remove-Item Env:OWNER_BUILD -ErrorAction SilentlyContinue
+if ($buildExit -ne 0) { throw 'Сборка exe завершилась с ошибкой.' }
 
 $exe = Get-ChildItem -Path (Join-Path $root 'release') -Filter '*.exe' -File |
   Where-Object { $_.LastWriteTime -ge $buildStart.AddSeconds(-5) } |

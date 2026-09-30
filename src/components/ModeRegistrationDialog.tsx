@@ -2,17 +2,24 @@ import { uiText } from '../i18n/renderText'
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, LoaderCircle, ShieldCheck, UserRound, X } from 'lucide-react'
 import type { PlayerProfileCandidate } from '../profile/playerProfileGateway'
-import { desktopPlayerProfileGateway } from '../profile/playerProfileGateway'
 import { useAppState } from '../state/AppState'
+import { modeTitle } from '../account/nicknameBinding'
+import { useNicknameBinder } from '../account/useNicknameBinder'
 
+/**
+ * «Привязать ник» for the mode selected in the top bar (also opened when the app switches to a mode without a bound
+ * nickname: by the mode buttons or by the game mode read from the EFT logs, see account/AccountController.tsx).
+ */
 export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
   const state = useAppState()
+  const bind = useNicknameBinder()
   const inputRef = useRef<HTMLInputElement>(null)
   const [nickname, setNickname] = useState('')
-  const [candidate, setCandidate] = useState<PlayerProfileCandidate | null>(null)
+  const [bound, setBound] = useState<PlayerProfileCandidate | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const label = state.raidMode === 'pvp' ? 'PvP' : state.raidMode === 'pve' ? 'PvE' : 'сезонного режима'
+  const mode = state.raidMode
+  const label = modeTitle(mode)
 
   useEffect(() => {
     const focus = () => {
@@ -26,77 +33,60 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
     return () => timers.forEach((id) => window.clearTimeout(id))
   }, [])
 
-  const findProfile = async () => {
-    if (loading) return
-    const cleaned = nickname.trim().replace(/[\u200B-\u200D\uFEFF]/g, '')
-    if (cleaned.length < 3) {
-      setError('Введите ник Escape from Tarkov (минимум 3 символа)')
-      return
-    }
-    setNickname(cleaned)
+  const closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose })
+  useEffect(() => {
+    if (!bound) return
+    const timer = window.setTimeout(() => closeRef.current(), 1400)
+    return () => window.clearTimeout(timer)
+  }, [bound])
+
+  const submit = async () => {
+    if (loading || bound) return
     setLoading(true)
     setError('')
-    setCandidate(null)
     try {
-      setCandidate(await desktopPlayerProfileGateway().resolveByNickname(state.raidMode, cleaned))
-    } catch (findError) {
-      const raw = findError instanceof Error ? findError.message : 'Профиль не найден'
-      setError(raw
-        .replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, '')
-        .replace(/^TimeoutError:\s*/i, '')
-        .replace(/^Error:\s*/i, '')
-      )
+      setBound(await bind(mode, nickname))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Профиль не найден')
+      window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0)
     } finally {
       setLoading(false)
-      window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0)
     }
   }
 
-  const confirm = () => {
-    if (!candidate) return
-    const verifiedAt = new Date().toISOString()
-    state.registerModeProfile(state.raidMode, {
-      accountId: candidate.accountId,
-      enteredNickname: nickname.trim(),
-      nickname: candidate.nickname,
-      verifiedAt,
-    })
-    state.updatePlayerSnapshot(state.raidMode, candidate.snapshot)
-    onClose()
-  }
-
-  const close = () => {
-    onClose()
-  }
-
-  return <div className="registration-overlay" role="dialog" aria-modal="true" aria-label={uiText(`Регистрация ${label}`)} onMouseDown={(event) => {
-    if (event.target === event.currentTarget) close()
+  return <div className="registration-overlay" role="dialog" aria-modal="true" aria-label={uiText(`Привязать ник · ${label}`)} onMouseDown={(event) => {
+    if (event.target === event.currentTarget) onClose()
   }}>
     <section className="panel registration-dialog" onMouseDown={(event) => event.stopPropagation()}>
-      <button className="registration-close" onClick={close} aria-label={uiText("Закрыть")}><X size={18} /></button>
+      <button className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
       <div className="registration-icon"><UserRound size={28} /></div>
-      <div className="eyebrow">{uiText("Привязка профиля · ")}{uiText(label)}</div>
-      <h2>{uiText("Привяжите игровой профиль")}</h2>
-      <p className="muted">{uiText("Введите ник именно из режима ")}{uiText(label)}{uiText(". Программа ищет профиль в индексе Tarkov.dev для этого режима и сверяет с журналами, если они есть.")}</p>
-      <label className="field-label">{uiText("Ник Escape from Tarkov ")}<input
+      <div className="eyebrow">{uiText('Режим · ')}{uiText(label)}</div>
+      <h2>{uiText('Привязать ник')}</h2>
+      <p className="muted">{uiText(`Для режима ${label} ник ещё не привязан. Введите ник, который у вас в этом режиме игры: программа найдёт профиль на Tarkov.dev и закрепит его за режимом.`)}</p>
+      <label className="field-label">{uiText('Ник Escape from Tarkov')}<input
           ref={inputRef}
           className="input"
           value={nickname}
           autoComplete="off"
           spellCheck={false}
-          onChange={(event) => { setNickname(event.target.value); setCandidate(null); setError('') }}
-          onKeyDown={(event) => event.key === 'Enter' && nickname.trim() && void findProfile()}
-          placeholder={uiText("Например: shaurma")}
+          maxLength={15}
+          disabled={Boolean(bound)}
+          onChange={(event) => { setNickname(event.target.value); setError('') }}
+          onKeyDown={(event) => { if (event.key === 'Enter' && nickname.trim()) void submit() }}
+          placeholder={uiText('Например: shaurma')}
         />
       </label>
-      {uiText(error && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>)}
-      {uiText(candidate && <button type="button" className="profile-candidate" onClick={confirm}>
+      {error && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
+      {bound && <div className="profile-candidate account-bound" role="status">
         <span className="profile-avatar small"><UserRound size={20} /></span>
-        <span><strong>{uiText(candidate.nickname)}</strong><small>{uiText(candidate.mode.toUpperCase())}{uiText(" · уровень ")}{uiText(candidate.level)} · {uiText(candidate.faction.toUpperCase())}</small></span>
-        <span className="tag green"><Check size={12} />{uiText(" Подтвердить")}</span>
-      </button>)}
-      <div className="import-note"><ShieldCheck size={14} />{uiText(" Ник закрепляется отдельно за этим режимом. Изменить его можно позже в профиле.")}</div>
-      {uiText(!candidate && <button type="button" className="button primary" disabled={loading || nickname.trim().length < 3} onClick={() => void findProfile()}>{uiText(loading ? <LoaderCircle className="spin" size={16} /> : <UserRound size={16} />)}{uiText(" Найти профиль")}</button>)}
+        <span><strong>{bound.nickname}</strong><small>{bound.mode.toUpperCase()}{uiText(' · уровень ')}{bound.level} · {bound.faction.toUpperCase()}</small></span>
+        <span className="tag green"><Check size={12} />{uiText('Привязан')}</span>
+      </div>}
+      <div className="import-note"><ShieldCheck size={14} />{uiText('Ник закрепляется отдельно за этим режимом и сохраняется в вашем аккаунте. Изменить его можно позже в профиле.')}</div>
+      {!bound && <button type="button" className="button primary" disabled={loading || nickname.trim().length < 3} onClick={() => void submit()}>
+        {loading ? <LoaderCircle className="spin" size={16} /> : <UserRound size={16} />}{uiText(loading ? 'Ищем профиль…' : 'Привязать ник')}
+      </button>}
     </section>
   </div>
 }

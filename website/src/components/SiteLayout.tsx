@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { APP_VERSION } from '../config'
 import { useRipple } from '../hooks/motion'
+import { CookieNotice } from './CookieNotice'
 
 const NAV = [
   { to: '/', label: 'Главная', end: true },
@@ -83,8 +84,16 @@ export function SiteLayout() {
             <Link to="/download">Скачать</Link>
             <Link to="/cabinet">Личный кабинет</Link>
           </nav>
+          <nav className="legal-links" aria-label="Документы">
+            <Link to="/legal/offer">Публичная оферта</Link>
+            <Link to="/legal/privacy">Политика конфиденциальности</Link>
+            <Link to="/legal/consent">Согласие на обработку ПД</Link>
+            <Link to="/legal/cookies">Cookie</Link>
+            <Link to="/legal">Реквизиты, оплата и возврат</Link>
+          </nav>
         </div>
       </footer>
+      <CookieNotice />
     </div>
   )
 }

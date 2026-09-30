@@ -1,10 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Copy, ExternalLink, Globe, HardDrive, LogIn, LogOut, RefreshCw, Server, UserPlus } from 'lucide-react'
+import { Copy, ExternalLink, Globe, HardDrive, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
 import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
+import { LavaPaymentsPanel } from './OwnerLavaPanel'
 import { uiText } from '../i18n/renderText'
 import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
+import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
+import { isOwnerApp } from '../app/buildEdition'
 
 /** Opens a website page in the system browser (desktop) or a new tab (browser build). */
 function openWebsite(page: 'register' | 'cabinet') {
@@ -23,6 +26,7 @@ export function ServerAccountPanel() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -54,7 +58,7 @@ export function ServerAccountPanel() {
       </div>
       <div className="panel-body stack">
         {!available && <p className="dim" style={{ margin: 0 }}>{uiText('Вход в аккаунт сервера доступен в приложении для Windows.')}</p>}
-        {available && <LocalServerRow onChange={() => void refresh()} />}
+        {available && isOwnerApp() && <LocalServerRow onChange={() => void refresh()} />}
         {available && status && <ServerAddressRow current={status.serverUrl} onChange={() => void refresh()} />}
 
         {available && status?.signedIn && (
@@ -69,9 +73,13 @@ export function ServerAccountPanel() {
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button>
+              {window.tarkovDesktop?.account?.mobileLogin && <button className="button ghost" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
+              <button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
               <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
               <button className="button danger" onClick={() => void logout()}><LogOut size={14} />{uiText('Выйти')}</button>
             </div>
+            {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}
+            {dialog === 'approve' && <ApproveWebLoginDialog onClose={() => setDialog(null)} />}
           </>
         )}
 
@@ -147,6 +155,7 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
       )}
       {local.enabled && <TunnelRow />}
       {local.enabled && <PaymentsPanel />}
+      {local.enabled && <LavaPaymentsPanel />}
       {local.enabled && <StreamersPanel />}
     </div>
   )

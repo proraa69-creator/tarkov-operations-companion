@@ -89,8 +89,9 @@ test('a paid payment activates the subscription once and credits the streamer', 
 
   const streamer = accounts.view(accounts.authenticate((await accounts.login('streamer@example.com', 'correct horse battery')).token)!)
   assert.equal(streamer.stats?.activeSubscriptions, 1)
-  assert.deepEqual(streamer.stats?.revenue, { amount: 900, currency: 'RUB' })
+  assert.equal(streamer.stats?.revenue, undefined, 'the streamer never sees what his viewers paid')
   assert.deepEqual(streamer.stats?.earnings, { amount: 180, currency: 'RUB' })
+  assert.deepEqual(accounts.streamers().streamers[0]!.stats.revenue, { amount: 900, currency: 'RUB' }, 'the owner does')
 
   // A second payment extends the period from its end, not from today.
   advance(10 * 86_400_000)
@@ -128,7 +129,8 @@ test('streamer statistics by day, month and year: visits, sign-ups and paid plan
 
   const days = accounts.referralSeries(streamerId, 'day')
   assert.equal(days.length, 31)
-  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, revenue: 900, earnings: 180 })
+  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 180 })
+  assert.equal(accounts.streamerSeries('HUNTER', 'day')[0]!.revenue, 900, 'the owner sees the revenue per period')
   assert.equal(days[1]!.period, '2026-09-30')
 
   advance(40 * 86_400_000)
@@ -136,6 +138,6 @@ test('streamer statistics by day, month and year: visits, sign-ups and paid plan
   const months = accounts.referralSeries(streamerId, 'month')
   assert.equal(months.length, 12)
   assert.deepEqual(months.slice(0, 2).map((row) => [row.period, row.visits, row.payments]), [['2026-11', 1, 0], ['2026-10', 2, 1]])
-  assert.deepEqual(accounts.referralSeries(streamerId, 'year').map((row) => [row.period, row.visits, row.registrations, row.revenue]), [['2026', 3, 1, 900]])
+  assert.deepEqual(accounts.referralSeries(streamerId, 'year').map((row) => [row.period, row.visits, row.registrations, row.earnings]), [['2026', 3, 1, 180]])
   assert.throws(() => accounts.referralSeries(accountId, 'day'), /только стримерам/)
 })

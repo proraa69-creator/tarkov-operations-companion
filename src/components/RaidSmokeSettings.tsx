@@ -1,8 +1,12 @@
 import { DEFAULT_SMOKE_OPTIONS, SMOKE_GREEN_HUE, SMOKE_SPEED, SMOKE_WIDTH, setRaidSmokeOptions, useRaidSmokeOptions } from '../app/raidSmokeSetting'
 import { uiText } from '../i18n/renderText'
+import { RaidSmokePreview, RaidSmokeReadout } from './RaidSmokePreview'
 import '../styles/raidSmoke.css'
 
-/** Settings → Интерфейс, under «Дым за боссами»: plume width, animation speed, colour, tone and gradient. */
+/**
+ * Settings → Интерфейс, under «Дым за боссами»: a live preview, plume width, animation speed, colour, tone and gradient,
+ * and a readout of every value (the owner sends it; the next build hard-codes the smoke and keeps only the switch).
+ */
 const SWATCHES: Array<{ hue: number; label: string }> = [
   { hue: SMOKE_GREEN_HUE, label: 'Зелёный' },
   { hue: 0, label: 'Красный' },
@@ -20,6 +24,7 @@ export function RaidSmokeSettings() {
   const light = (hue: number) => `hsl(${hue} 80% ${Math.round(52 + options.tone * (options.tone > 0 ? 33 : 36))}%)`
   return (
     <div className="raid-smoke-settings">
+      <RaidSmokePreview />
       <label>
         <span>{uiText('Ширина факела')}</span>
         <input type="range" min={SMOKE_WIDTH.min} max={SMOKE_WIDTH.max} step={0.05} value={options.width} onChange={(event) => setRaidSmokeOptions({ width: Number(event.target.value) })} aria-valuetext={times(options.width)} />
@@ -61,6 +66,7 @@ export function RaidSmokeSettings() {
         ))}
         <button type="button" className="button ghost raid-smoke-reset" disabled={!changed} onClick={() => setRaidSmokeOptions({})}>{uiText('Сбросить')}</button>
       </div>
+      <RaidSmokeReadout />
     </div>
   )
 }

@@ -94,13 +94,7 @@
  * variables each theme sets; then one block per theme with its own panels, buttons and details.
  * ===================================================================================================== */
 
-/* Theme picker: ten themes → the row stacks and the swatches form a tidy 5-column grid (applies to every theme). */
-/* :root raises these above pages.css, which loads after this file */
-:root .setting-row.theme-row { flex-direction: column; align-items: stretch; gap: 12px; }
-:root .theme-picker { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: none; justify-content: stretch; }
-:root .theme-swatch { width: auto; min-height: 64px; align-content: start; padding: 7px 6px 8px; }
-:root .theme-swatch > span:last-child { line-height: 1.2; text-align: center; overflow-wrap: normal; hyphens: manual; }
-@media (max-width: 560px) { :root .theme-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* The Settings theme chooser (thumbnails of every theme) has its own styles: src/styles/themePicker.css */
 
 :root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) {
   --tex-size: 2048px;
@@ -174,9 +168,6 @@
 :root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.catalog-card, .kappa-cell, .map-priority-tile, .quest-map-pin) { background: var(--well); border-color: var(--well-line); box-shadow: var(--well-shadow); }
 :root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.catalog-card.selected, .kappa-cell.is-done) { background: var(--accent-soft); border-color: color-mix(in srgb, var(--brass) 70%, transparent); color: var(--text); }
 :root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .kappa-cell-check { box-shadow: 0 1px 3px rgb(0 0 0 / 60%); }
-:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch { background: var(--well); border-color: var(--well-line); color: var(--text-muted); box-shadow: var(--well-shadow); }
-:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch.active { border-color: var(--brass); color: var(--text); background: var(--accent-soft); }
-:root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .theme-swatch-preview { box-shadow: inset 0 1px 0 rgb(255 255 255 / 25%), 0 1px 2px rgb(0 0 0 / 60%); }
 
 /* --- map page chrome (the map canvas itself stays untextured) --- */
 :root:is([data-theme="blackmc"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .map-shell { border-color: var(--well-line); background: var(--chrome); box-shadow: 0 0 0 1px rgb(255 255 255 / 5%), 0 18px 36px rgb(0 0 0 / 60%); }
@@ -626,12 +617,13 @@
   content: ''; position: absolute; width: 104px; height: 120px; pointer-events: none;
   background: url("../assets/textures/telnyashka/frame-4x4.svg") center / contain no-repeat;
   filter: drop-shadow(0 6px 8px rgb(0 0 0 / 60%)); opacity: .9;
-  left: 18px; bottom: 226px; rotate: -8deg;
+  left: 18px; bottom: 290px; rotate: -8deg;
 }
-:root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { background-image: url("../assets/textures/telnyashka/frame-mug.svg"); left: 104px; bottom: 208px; rotate: 7deg; }
-/* the still life under it (mug, bottle, board with sausage and gherkins) is src/theme/telnyashka/TelnyashkaTable.tsx */
+:root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { background-image: url("../assets/textures/telnyashka/frame-mug.svg"); left: 104px; bottom: 272px; rotate: 7deg; }
+/* the still life under it (mug, bottle, board with sausage and gherkins) is src/theme/telnyashka/TelnyashkaTable.tsx;
+ * everything sits above the nickname patch and the version at the very foot (SidebarOperator) */
 :root[data-theme="telnyashka"] .sidebar > .nav-label:last-of-type::after {
-  content: 'Бутылка водки — и в рейд.'; position: absolute; left: 20px; bottom: 44px; width: 190px; padding-top: 10px;
+  content: 'Бутылка водки — и в рейд.'; position: absolute; left: 20px; bottom: 108px; width: 190px; padding-top: 10px;
   border-top: 1px dashed rgb(236 231 218 / 28%); color: var(--brass-strong); font-size: 11.5px; font-style: italic; font-weight: 500;
   letter-spacing: .02em; line-height: 1.35; text-align: center; text-transform: none;
 }
@@ -639,7 +631,7 @@
 @media (max-height: 900px) {
   :root[data-theme="telnyashka"] .sidebar::before, :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { display: none; }
 }
-@media (max-height: 740px), (max-width: 1180px) {
+@media (max-height: 800px), (max-width: 1180px) {
   :root[data-theme="telnyashka"] .sidebar::before, :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after, :root[data-theme="telnyashka"] .sidebar > .nav-label:last-of-type::after { display: none; }
 }
 @media (max-width: 1180px) { :root[data-theme="telnyashka"] .sidebar { padding-right: 14px; } :root[data-theme="telnyashka"] .sidebar::after { right: 3px; width: 9px; background: linear-gradient(90deg, var(--bone) 0 2px, transparent 2px 3.5px, var(--bone) 3.5px 5.5px, transparent 5.5px 7px, var(--bone) 7px 9px); } }

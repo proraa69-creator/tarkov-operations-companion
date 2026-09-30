@@ -3,10 +3,11 @@ import { Server } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import type { LocalServerStatus } from '../electron'
 import { LocalServerRow } from './ServerAccountPanel'
+import { isOwnerApp } from '../app/buildEdition'
 
 /**
  * «Сервер» in the top bar: start/stop the account server and the website on this PC, open the site and the
- * link for friends — the same controls as Profile → server account, one click away. Desktop only.
+ * link for friends — the same controls as Profile → server account, one click away. Owner's desktop build only.
  */
 export function ServerQuickButton() {
   const api = window.tarkovDesktop?.account
@@ -15,7 +16,7 @@ export function ServerQuickButton() {
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!api?.localServerStatus) return
+    if (!api?.localServerStatus || !isOwnerApp()) return
     const load = () => void api.localServerStatus?.().then(setStatus).catch(() => {})
     load()
     const timer = window.setInterval(load, open ? 2000 : 8000)
@@ -31,7 +32,8 @@ export function ServerQuickButton() {
     return () => { window.removeEventListener('mousedown', close); window.removeEventListener('keydown', escape) }
   }, [open])
 
-  if (!api?.localServerStatus) return null
+  // Only the owner's build has the server on this PC (electron/buildEdition.ts); players never see this button.
+  if (!api?.localServerStatus || !isOwnerApp()) return null
   const running = Boolean(status?.enabled && (status.api === 'running' || status.api === 'external'))
   return (
     <div className="server-quick" ref={rootRef}>

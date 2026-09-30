@@ -90,9 +90,8 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
             <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>
           </>
           return <li key={quest.id}>
-            {done
-              ? <div className={`trader-quest-row is-${status}`} aria-disabled="true" title={uiText(questStatusText(status))}>{body}</div>
-              : <button type="button" className={`trader-quest-row is-${status}${quest.id === selected?.id ? ' is-selected' : ''}`} aria-current={quest.id === selected?.id ? 'true' : undefined} onClick={() => openQuest(quest.id)}>{body}<ChevronRight size={15} className="trader-quest-chevron" /></button>}
+            {/* Completed quests stay struck through but open like the rest (the owner reads them back). */}
+            <button type="button" className={`trader-quest-row is-${status}${quest.id === selected?.id ? ' is-selected' : ''}`} aria-current={quest.id === selected?.id ? 'true' : undefined} title={done ? uiText(questStatusText(status)) : undefined} onClick={() => openQuest(quest.id)}>{body}<ChevronRight size={15} className="trader-quest-chevron" /></button>
           </li>
         })}
       </ol>

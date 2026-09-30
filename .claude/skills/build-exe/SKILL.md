@@ -5,6 +5,18 @@ description: Собрать Windows exe приложения (portable) и до�
 
 # Сборка exe на рабочий стол
 
+## Две версии (обязательно прочитать)
+
+С появлением входа в аккаунт есть два exe (`electron/buildEdition.ts`, флаг ставит `scripts/write-build-info.mjs`):
+
+- **Версия владельца** — `OWNER_BUILD=1`. «Аккаунт сервера», кнопка «Сервер», сервер/туннель/оплата/стримеры.
+  Для игрового ПК владельца и для ноутбука-сервера (`Server-Laptop-Setup.cmd`).
+- **Версия для игроков** — без `OWNER_BUILD` (по умолчанию). Окно входа в аккаунт при первом запуске, «Личный кабинет»,
+  сервер `https://raidos.app` вшит (`TARKOV_DEFAULT_SERVER_URL` меняет адрес, пустое значение убирает). Именно её
+  сайт отдаёт по кнопке «Скачать для Windows».
+
+Если пользователь не сказал, какую версию, собирай **обе** (облако) или версию владельца (его ПК, `-Client` для игроков).
+
 Два режима:
 - **Windows (ПК пользователя)** — «Шаги на Windows» ниже, exe сразу на рабочий стол.
 - **Облако / Linux** — «Сборка в облаке и отправка в чат»: собрать exe, разрезать на части, отправить сюда, пользователь одним двойным кликом собирает exe на рабочем столе.
@@ -16,7 +28,8 @@ description: Собрать Windows exe приложения (portable) и до�
 3. Запусти из корня репозитория (сборка идёт несколько минут, таймаут ставь с запасом, до 10 минут):
 
    ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1
+   powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1           # версия владельца
+   powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1 -Client   # версия для игроков
    ```
 
    - Другая папка: добавь `-Desktop "D:\путь"`.
@@ -36,17 +49,28 @@ description: Собрать Windows exe приложения (portable) и до�
    tar -xzf "$SP"/koromix-koffi-win32-x64-<версия>.tgz -C node_modules/@koromix/koffi-win32-x64 --strip-components=1
    ```
    Это только локальная папка сборки, в `package.json` не добавляй.
-3. Сборка (до 10 минут):
+3. Сборка обеих версий (каждая до 10 минут). Сначала версия для игроков, её `build-info.json` сохраняется сразу после
+   сборки (следующая сборка его перезапишет):
    ```bash
    npm run build
+   cp dist-electron/build-info.json "$SP/client-build-info.json"
    npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false
+   # → release/Tarkov Operator <версия>.exe  (игроки)
+   OWNER_BUILD=1 npm run build
+   npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false -c.win.artifactName='Tarkov Operator Owner ${version}.exe'
+   # → release/Tarkov Operator Owner <версия>.exe  (владелец)
    ```
-   Результат: `release/Tarkov Operator <версия>.exe`. Проверь, что в `release/win-unpacked/resources/app.asar.unpacked` есть `.node` koffi для `win32_x64`, prebuild `uiohook-napi` для `win32-x64` и `tessdata`.
+   Сборка печатает `Build <версия> <коммит> · client · server https://raidos.app` / `· owner` — проверь строку.
+   Проверь, что в `release/win-unpacked/resources/app.asar.unpacked` есть `.node` koffi для `win32_x64`, prebuild `uiohook-napi` для `win32-x64` и `tessdata`.
 4. Разрежь exe в **новую** папку scratchpad (скрипт сам откажется писать в непустую; `rm` для очистки не используй — бери новое имя папки):
    ```bash
-   scripts/split-exe-for-chat.sh "release/Tarkov Operator <версия>.exe" "$SP/exe-parts-<метка>"
+   scripts/split-exe-for-chat.sh "release/Tarkov Operator Owner <версия>.exe" "$SP/exe-parts-<метка>" \
+     "release/Tarkov Operator <версия>.exe" "$SP/client-build-info.json"
    ```
-   Получатся `TarkovOperator.part0..N` и `Join-Tarkov-Operator.cmd` (ASCII, CRLF, со вшитым SHA256).
+   Получатся `TarkovOperator.part0..N` (владелец), `TarkovOperatorClient.part0..N` (игроки), `Join-Tarkov-Operator.cmd`
+   (владелец на рабочий стол + запуск), `Join-Tarkov-Operator-Client.cmd` (игроки на рабочий стол, без запуска) и
+   `Server-Laptop-Setup.cmd` (ноутбук: сервер + публикация версии для игроков на сайт). Все ASCII, CRLF, со вшитыми SHA256.
+   Скрипт откажется, если `client-build-info.json` не от версии для игроков. Только одна версия — только первые два аргумента.
 5. Отправь через `SendUserFile` (`display: "attach"`) сначала `Join-Tarkov-Operator.cmd`, затем все части — по 1 файлу за вызов (каждый ≤ 30 МБ).
 6. Инструкция пользователю: скачать все файлы в одну папку (например «Загрузки») и дважды кликнуть `Join-Tarkov-Operator.cmd`. Он проверит, что все части на месте, соберёт `Tarkov Operator <версия>.exe` на рабочем столе (сначала `C:\Users\BANGKOK PC\Desktop`, иначе рабочий стол из Windows, работает и с OneDrive), сверит SHA256, напишет `OK` и сам запустит приложение (окно cmd закроется через 5 секунд — это нормально). После этого части и cmd можно удалить.
 7. Если SmartScreen ругается на неподписанный exe — «Подробнее» → «Выполнить в любом случае».

@@ -1,6 +1,6 @@
 import { Gift, UserPlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, api } from '../api'
 import { useAuth } from '../auth'
 import { normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
@@ -10,6 +10,9 @@ import { HomePage } from './HomePage'
 export function ReferralLandingPage() {
   const params = useParams()
   const code = normalizeReferralCode(params.code ?? '')
+  // Optional campaign label of an audience link: /r/CODE?c=youtube (the server ignores unusable labels).
+  const [search] = useSearchParams()
+  const campaign = (search.get('c') ?? '').trim().toLowerCase().slice(0, 32)
   const valid = REFERRAL_CODE_PATTERN.test(code)
   const { account } = useAuth()
   const [unknown, setUnknown] = useState(false)
@@ -22,13 +25,13 @@ export function ReferralLandingPage() {
     let seen = false
     try { seen = window.sessionStorage.getItem(seenKey) === '1' } catch { /* ignore */ }
     if (seen) return
-    api.referralVisit(code).then(
+    api.referralVisit(code, /^[a-z0-9_-]{1,32}$/.test(campaign) ? campaign : undefined).then(
       () => { try { window.sessionStorage.setItem(seenKey, '1') } catch { /* ignore */ } },
       (error: unknown) => {
         if (error instanceof ApiError && error.status === 404) { saveReferralCode(null); setUnknown(true) }
       },
     )
-  }, [code, valid])
+  }, [code, valid, campaign])
 
   if (!valid) return <Navigate to="/" replace />
 

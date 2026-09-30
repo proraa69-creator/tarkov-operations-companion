@@ -11,9 +11,8 @@ describe('platform gating', () => {
     expect(isMobileLayout({ native: false, desktop: false, width: MOBILE_MAX_WIDTH + 1 })).toBe(false)
   })
 
-  it('starts the phone app on «Чёрный мультикам» and the desktop app on «Тарков»', () => {
-    expect(defaultTheme(true)).toBe('blackmc')
-    expect(defaultTheme(false)).toBe('tarkov')
+  it('starts everyone (phone and desktop) on «Чёрный мультикам» until a scheme is picked', () => {
+    expect(defaultTheme()).toBe('blackmc')
   })
 })
 

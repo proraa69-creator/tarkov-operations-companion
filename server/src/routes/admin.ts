@@ -5,6 +5,7 @@
  *
  *   GET  /streamers          -> { streamers: [{ email, code, stats }], invites: [{ code, expiresAt }] }
  *   POST /streamer-invites   { code } -> 201 { token, code, expiresAt }  (the site link is /streamer/<token>)
+ *   GET  /accounts?email=    -> { exists }  (the app checks an owner e-mail is registered before listing it)
  */
 import express from 'express'
 import { timingSafeEqual } from 'node:crypto'
@@ -34,6 +35,10 @@ export function createAdminRouter(accounts: AccountStore, adminToken = process.e
   router.post('/streamer-invites', guard((req, res) => {
     const { code } = z.object({ code: z.string().trim().max(24) }).parse(req.body)
     res.status(201).json(accounts.createStreamerInvite(code))
+  }))
+  router.get('/accounts', guard((req, res) => {
+    const { email } = z.object({ email: z.string().trim().max(254).email() }).parse(req.query)
+    res.json({ exists: accounts.hasAccount(email) })
   }))
   return router
 }

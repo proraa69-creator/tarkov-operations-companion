@@ -1,35 +1,55 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { createWriteStream, existsSync } from 'node:fs'
-import { rm, writeFile } from 'node:fs/promises'
+import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { app } from 'electron'
 import { runningBuild } from './localServer.js'
 import { apiBaseUrl, loadServerUrl } from './serviceGateway.js'
 
 /**
- * Auto-update from the owner's server: the server laptop's site hands out the exe it runs
- * (/download/windows) and says which build that is (/download/version.json, electron/localServer.ts).
+ * Auto-update from the owner's server: the server laptop's site hands out the players' (client) exe the owner
+ * published next to it (/download/windows) and says which build that is (/download/version.json with `edition`,
+ * electron/localServer.ts). Only an app of the same edition updates from it.
  * A newer build is offered in the top bar; «Обновить» downloads it next to this exe, checks size and SHA-256,
  * then a small helper replaces the exe once this copy has quit and starts the new one. Only for the portable exe
  * pointed at another computer's server (Profile → «Адрес сервера»); the server laptop itself is updated by
  * Server-Laptop-Setup.cmd.
+ *
+ * Settings → «Проверить обновление приложения» checks by hand (checkForUpdateNow). Two switches, kept in userData
+ * (update-settings.json): «Автообновление» — look for a new build on start and every few hours; «Автоустановка» —
+ * put it in by itself at a safe moment: right after the start-up check (the app restarts at once, never while a raid
+ * is on), otherwise it is downloaded in the background and swapped in when the app is closed.
  */
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
-export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string }
+/** ready: the new exe is already downloaded and checked (installed on close when «Автоустановка» is on). */
+export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean }
+export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
+/** Result of a check by hand: what the settings line says. */
+export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'no-server' | 'not-portable' | 'disabled' | 'busy'
+export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: UpdateStatus; current: string; checkedAt: string }
 
 interface Remote { version: string; build: number; commit: string; size: number; sha256: string }
 
 const CHECK_DELAY_MS = 20_000
 const CHECK_EVERY_MS = 6 * 60 * 60_000
+const DEFAULT_SETTINGS: UpdateSettings = { autoCheck: true, autoInstall: false }
 
 let status: UpdateStatus = { state: 'idle' }
 let remote: Remote | null = null
 let source = ''
 let notify: (status: UpdateStatus) => void = () => {}
 let timer: NodeJS.Timeout | null = null
+let firstCheck: NodeJS.Timeout | null = null
+/** startUpdateChecks was called: a normal (not server, not test) copy of the app. */
+let enabled = false
+let inRaid: () => boolean = () => false
+let settings: UpdateSettings | null = null
+/** The downloaded and checked exe waiting to be swapped in (auto-install on close). */
+let downloaded: { file: string; build: number } | null = null
+let swapStarted = false
 
 function set(next: UpdateStatus) {
   status = next
@@ -49,39 +69,144 @@ async function updateSource() {
   return base.origin
 }
 
-export async function checkForUpdate() {
+async function probe(): Promise<UpdateCheckOutcome> {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
-  if (!exe || status.state === 'downloading' || status.state === 'installing') return status
+  if (status.state === 'downloading' || status.state === 'installing') return 'busy'
+  if (!exe) return 'not-portable'
   const local = await runningBuild()
   const base = await updateSource()
-  if (!base || !local.build) return status
+  if (!base) return 'no-server'
+  if (!local.build) return 'not-portable'
   try {
     const response = await fetch(`${base}/download/version.json`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' } })
-    if (!response.ok) return status
-    const data = await response.json() as Partial<Remote>
-    if (typeof data.build !== 'number' || typeof data.size !== 'number' || typeof data.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(data.sha256)) return status
-    if (data.build <= local.build) { remote = null; if (status.state === 'available') set({ state: 'idle' }); return status }
+    if (!response.ok) return 'offline'
+    const data = await response.json() as Partial<Remote> & { edition?: unknown }
+    if (typeof data.build !== 'number' || typeof data.size !== 'number' || typeof data.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(data.sha256)) return 'offline'
+    // The site hands out the players' (client) exe: the owner's own app never replaces itself with it.
+    if ((data.edition === 'owner' || data.edition === 'client') && data.edition !== local.edition) return 'latest'
+    if (data.build <= local.build) { remote = null; if (status.state === 'available') set({ state: 'idle' }); return 'latest' }
+    const known = remote?.build === data.build && status.state === 'available'
     remote = { version: String(data.version ?? ''), build: data.build, commit: String(data.commit ?? ''), size: data.size, sha256: data.sha256 }
     source = base
-    set({ state: 'available', version: remote.version, commit: remote.commit })
-  } catch { /* server offline: try again later */ }
+    if (!known) set({ state: 'available', version: remote.version, commit: remote.commit, ready: downloaded?.build === remote.build })
+    return 'available'
+  } catch { return 'offline' } // server offline: try again later
+}
+
+export async function checkForUpdate() {
+  await probe()
   return status
 }
 
-export function startUpdateChecks(onStatus: (status: UpdateStatus) => void) {
-  notify = onStatus
-  if (timer || !app.isPackaged) return
-  setTimeout(() => void checkForUpdate(), CHECK_DELAY_MS)
-  timer = setInterval(() => void checkForUpdate(), CHECK_EVERY_MS)
+/** Settings → «Проверить обновление приложения». */
+export async function checkForUpdateNow(): Promise<UpdateCheckResult> {
+  const outcome = enabled ? await probe() : 'disabled'
+  return { outcome, status, current: (await runningBuild()).version, checkedAt: new Date().toISOString() }
 }
 
-/** Downloads the new exe, checks it and hands over to the helper that swaps the files; the app then quits. */
+function settingsFile() {
+  return join(app.getPath('userData'), 'update-settings.json')
+}
+
+export function updateSettings(): UpdateSettings {
+  if (settings) return settings
+  try {
+    const saved = JSON.parse(readFileSync(settingsFile(), 'utf8')) as Partial<UpdateSettings>
+    settings = { autoCheck: saved.autoCheck !== false, autoInstall: saved.autoInstall === true }
+  } catch { settings = { ...DEFAULT_SETTINGS } }
+  return settings
+}
+
+export function setUpdateSettings(patch: unknown): UpdateSettings {
+  const input = patch && typeof patch === 'object' ? patch as Record<string, unknown> : {}
+  const next = { ...updateSettings() }
+  if (typeof input.autoCheck === 'boolean') next.autoCheck = input.autoCheck
+  if (typeof input.autoInstall === 'boolean') next.autoInstall = input.autoInstall
+  settings = next
+  try {
+    mkdirSync(dirname(settingsFile()), { recursive: true })
+    writeFileSync(settingsFile(), JSON.stringify(next))
+  } catch { /* kept for this session */ }
+  schedule()
+  if (next.autoInstall && status.state === 'available') void autoInstall(false)
+  return next
+}
+
+/** A check made by the timer; with «Автоустановка» on, a found build is installed at a safe moment. */
+async function automaticCheck(startup: boolean) {
+  if (!updateSettings().autoCheck) return
+  if (await probe() === 'available' && updateSettings().autoInstall) await autoInstall(startup)
+}
+
+async function autoInstall(startup: boolean) {
+  if (!remote || status.state === 'downloading' || status.state === 'installing') return
+  // just started and not in a raid: restart on the new version right away; otherwise download now, swap on close
+  if (startup && !inRaid()) { await installUpdate(); return }
+  if (downloaded?.build === remote.build && existsSync(downloaded.file)) return
+  const target = remote
+  try {
+    const file = await download(target)
+    downloaded = { file, build: target.build }
+    set({ state: 'available', version: target.version, commit: target.commit, ready: true })
+  } catch (error) {
+    set({ state: 'error', version: target.version, commit: target.commit, error: failure(error) })
+  }
+}
+
+function schedule() {
+  if (timer) { clearInterval(timer); timer = null }
+  if (!enabled || !app.isPackaged || !updateSettings().autoCheck) return
+  timer = setInterval(() => void automaticCheck(false), CHECK_EVERY_MS)
+}
+
+export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean } = {}) {
+  notify = onStatus
+  if (options.inRaid) inRaid = options.inRaid
+  if (enabled) return
+  enabled = true
+  // «Автоустановка»: a build downloaded earlier in this session is swapped in once the app has quit (no restart).
+  app.on('will-quit', () => {
+    const exe = process.env.PORTABLE_EXECUTABLE_FILE
+    if (swapStarted || !exe || !downloaded || !updateSettings().autoInstall || !existsSync(downloaded.file)) return
+    swapStarted = true
+    try { startSwapHelper(exe, downloaded.file, false) } catch { /* the next start offers the update again */ }
+  })
+  if (!app.isPackaged) return
+  if (updateSettings().autoCheck) firstCheck = setTimeout(() => { firstCheck = null; void automaticCheck(true) }, CHECK_DELAY_MS)
+  schedule()
+}
+
+function failure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return /EPERM|EACCES/.test(message) ? 'Нет доступа к папке с приложением: переместите exe, например, на рабочий стол' : message
+}
+
+/** Downloads the new exe (unless «Автоустановка» already did), checks it and hands over to the helper that swaps the files; the app then quits. */
 export async function installUpdate() {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe || !remote || status.state === 'downloading' || status.state === 'installing') return status
   const target = remote
+  const base = { version: target.version, commit: target.commit }
+  try {
+    const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : await download(target)
+    set({ state: 'installing', ...base, progress: 100 })
+    swapStarted = true
+    startSwapHelper(exe, file, true)
+    setTimeout(() => app.quit(), 300)
+  } catch (error) {
+    swapStarted = false
+    set({ state: 'error', ...base, error: failure(error) })
+  }
+  return status
+}
+
+/** Downloads the new exe next to this one and checks its size and SHA-256; returns the file. */
+async function download(target: Remote) {
+  const exe = process.env.PORTABLE_EXECUTABLE_FILE
+  if (!exe) throw new Error('Обновление доступно только для portable-версии')
   const partial = `${exe}.update`
   const base = { version: target.version, commit: target.commit }
+  if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   set({ state: 'downloading', ...base, progress: 0 })
   try {
     const response = await fetch(`${source}/download/windows`, { signal: AbortSignal.timeout(30 * 60_000) })
@@ -100,25 +225,23 @@ export async function installUpdate() {
     }
     await Promise.race([new Promise<void>((resolve) => out.end(resolve)), failed])
     if (received !== target.size || hash.digest('hex') !== target.sha256) throw new Error('Файл обновления повреждён, попробуйте ещё раз')
-    set({ state: 'installing', ...base, progress: 100 })
-    await startSwapHelper(exe, partial)
-    setTimeout(() => app.quit(), 300)
+    return partial
   } catch (error) {
     await rm(partial, { force: true }).catch(() => {})
-    const message = error instanceof Error ? error.message : String(error)
-    set({ state: 'error', ...base, error: /EPERM|EACCES/.test(message) ? 'Нет доступа к папке с приложением: переместите exe, например, на рабочий стол' : message })
+    if (downloaded?.file === partial) downloaded = null
+    throw error
   }
-  return status
 }
 
 /**
  * The portable exe stays locked until this copy and its launcher have quit, so a hidden cmd waits for that, moves the
- * new file over the old one and starts it. Paths travel in environment variables: cmd reads them correctly even
- * with non-Latin folder names, which a batch file's own text would garble.
+ * new file over the old one and starts it (unless the update is put in on close). Paths travel in environment
+ * variables: cmd reads them correctly even with non-Latin folder names, which a batch file's own text would garble.
+ * Synchronous, so it also works from the quit handler.
  */
-async function startSwapHelper(exe: string, partial: string) {
+function startSwapHelper(exe: string, partial: string, relaunch: boolean) {
   const script = join(tmpdir(), `tarkov-operator-update-${process.pid}.cmd`)
-  await writeFile(script, [
+  writeFileSync(script, [
     '@echo off',
     'timeout /t 2 /nobreak >nul',
     'set n=0',
@@ -129,7 +252,7 @@ async function startSwapHelper(exe: string, partial: string) {
     'timeout /t 1 /nobreak >nul',
     'goto move',
     ':run',
-    'start "" "%TO_EXE%"',
+    'if "%TO_RUN%"=="1" start "" "%TO_EXE%"',
     '(goto) 2>nul & del "%~f0"',
   ].join('\r\n'), 'utf8')
   if (!existsSync(script)) throw new Error('Не удалось подготовить обновление')
@@ -137,7 +260,7 @@ async function startSwapHelper(exe: string, partial: string) {
     detached: true,
     windowsHide: true,
     stdio: 'ignore',
-    env: { ...process.env, TO_NEW: partial, TO_EXE: exe },
+    env: { ...process.env, TO_NEW: partial, TO_EXE: exe, TO_RUN: relaunch ? '1' : '0' },
   })
   child.unref()
 }
