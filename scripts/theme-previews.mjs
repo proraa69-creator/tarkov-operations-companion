@@ -2,7 +2,7 @@
 // strip with the active tab, a stat card with a number, a primary button and a switch — rendered by the app's own CSS in
 // every theme, saved as src/assets/theme-previews/<theme>.webp (2× for sharp screens).
 //   1. start the renderer: npm run dev   (or any Vite server of this repo)
-//   2. node scripts/theme-previews.mjs [http://127.0.0.1:5173/]
+//   2. node scripts/theme-previews.mjs [http://127.0.0.1:5173/] [theme ids…]   (no ids: every theme)
 // Needs Playwright's Chromium (PLAYWRIGHT_CHROMIUM=/path/to/chromium to use a specific build).
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -12,7 +12,8 @@ import { chromium } from 'playwright'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const url = process.argv[2] || 'http://127.0.0.1:5173/'
 const out = join(root, 'src', 'assets', 'theme-previews')
-const THEMES = ['tarkov', 'steel', 'crimson', 'blackmc', 'perforated', 'rust', 'slate', 'telnyashka', 'gear']
+const ALL = ['tarkov', 'steel', 'crimson', 'blackmc', 'perforated', 'rust', 'slate', 'telnyashka', 'gear', 'alcantara']
+const THEMES = process.argv.length > 3 ? process.argv.slice(3) : ALL
 const W = 200, H = 120
 
 // lucide-style outline icons (home, target, map) so the strip reads as the app's navigation

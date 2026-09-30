@@ -49,7 +49,9 @@ export function playUiSound(kind: SoundKind) {
   if (ctx.state === 'suspended') void ctx.resume()
   const at = ctx.currentTime + 0.002
   if (kind === 'hover') {
-    burst(ctx, at, 3400, 2.2, 0.06, 0.016)
+    // «Алькантара»: a soft brush over suede instead of the tick
+    if (document.documentElement.dataset.theme === 'alcantara') burst(ctx, at, 1500, 0.7, 0.045, 0.06, 0.012)
+    else burst(ctx, at, 3400, 2.2, 0.06, 0.016)
     return
   }
   playClickSample(ctx, at)

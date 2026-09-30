@@ -5,6 +5,9 @@ export const THEME_PHRASES: Array<[string, string]> = [
   ['Ржавая сталь', 'Rusted steel'],
   ['Металл', 'Metal'],
   ['Тельняшка', 'Telnyashka'],
+  // «Алькантара»: the theme and its thread-colour option (src/theme/alcantara/StitchChooser.tsx)
+  ['Алькантара', 'Alcantara'], ['Строчка', 'Stitching'], ['Цвет ниток на швах', 'Thread colour of the seams'],
+  ['Серая', 'Grey'], ['Контрастная', 'Contrast'],
   // Telnyashka sidebar tagline: drawn by CSS (themes.css) in both languages via :root[lang]; listed here for the audit.
   ['Бутылка водки — и в рейд.', 'A bottle of vodka — then the raid.'],
   ['Маска', 'Mask'], ['Сталь, царапины', 'Scratched steel'], ['Маска Тагиллы', 'Tagilla mask'], ['Шлем Киллы', 'Killa helmet'], ['Маска Тагиллы 2', 'Tagilla mask 2'], ['Показать маску', 'Show mask'], ['Убрать маску', 'Hide mask'], ['Рыцарь', 'Knight'],

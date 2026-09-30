@@ -11,7 +11,28 @@ export const THEMES: ThemeOption[] = [
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
+  // Suede car interior: src/styles/theme-alcantara.css, texture from scripts/textures/alcantara.mjs, nap trail in src/theme/alcantara
+  { id: 'alcantara', label: 'Алькантара', swatch: ['#17181b', '#2a2b2f', '#cdd2d8'] },
 ]
+
+/** «Алькантара»: the thread colour of the seams (Settings → «Цветовая схема» → «Строчка»). */
+export const ALCANTARA_STITCHES = [
+  { id: 'dark', label: 'Тёмная', swatch: '#5d6066' },
+  { id: 'grey', label: 'Серая', swatch: '#a7aab0' },
+  { id: 'contrast', label: 'Контрастная', swatch: '#c8773f' },
+] as const
+export type AlcantaraStitch = typeof ALCANTARA_STITCHES[number]['id']
+const STITCH_KEY = 'tarkov-app-alcantara-stitch'
+
+export function currentStitch(): AlcantaraStitch {
+  const saved = read(STITCH_KEY)
+  return ALCANTARA_STITCHES.find((stitch) => stitch.id === saved)?.id ?? 'dark'
+}
+
+export function saveStitch(stitch: AlcantaraStitch) {
+  try { localStorage.setItem(STITCH_KEY, stitch) } catch { /* storage unavailable */ }
+  document.documentElement.setAttribute('data-alc-stitch', stitch)
+}
 
 const THEME_KEY = 'tarkov-app-theme'
 
@@ -33,6 +54,7 @@ export function applyAppearance(theme = currentTheme()) {
   const root = document.documentElement
   if (theme === 'tarkov') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', theme)
+  root.setAttribute('data-alc-stitch', currentStitch())
 }
 
 export function saveAppearance(theme: string) {

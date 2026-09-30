@@ -1,0 +1,327 @@
+/*
+ * «Алькантара» / "Alcantara" theme — a premium car interior: anthracite microfibre suede, double-stitched seams,
+ * perforated inserts, leather piping and brushed-aluminium hardware. Everything is scoped to :root[data-theme="alcantara"].
+ *
+ * The suede is one neutral-grey detail map (scripts/textures/alcantara.mjs → src/assets/textures/alcantara/) laid over
+ * a flat colour with `background-blend-mode: overlay`, so the same tile makes the page, the panels, the lighter buttons
+ * and the light-grey primary buttons. Shown at 1024 CSS px: the 1024 file on 1× screens, the 2048 one on 2×.
+ * The thread colour is a sub-option (Settings → «Цветовая схема» → «Строчка»): <html data-alc-stitch="dark|grey|contrast">.
+ * The brushed-nap trail under the pointer is drawn by src/theme/alcantara/napBrush.ts.
+ */
+:root[data-theme="alcantara"] {
+  --bg: #17181b; --bg-elevated: #1c1d20; --panel: #232428; --panel-2: #2a2b30; --panel-3: #33353a;
+  --line: #3a3c41; --line-strong: #56595f; --line-soft: #44464c;
+  --text: #eceef1; --text-muted: #b6bac1; --text-dim: #90959d;
+  --brass: #cdd2d8; --brass-strong: #eef0f3; --green: #9bb38f; --green-soft: #26302a; --blue: #98b0c6;
+  --amber: #d9a45e; --danger: #d9887a; --success: #9ebb90;
+  --surf-0: #141518; --surf-1: #1f2024; --surf-2: #26272b;
+
+  --alc-tex: image-set(url("../assets/textures/alcantara/alcantara-1024.webp") 1x, url("../assets/textures/alcantara/alcantara-2048.webp") 2x);
+  --alc-tile: 1024px;
+  /* suede colours */
+  --alc-page: #1b1c1f;
+  --alc-seat: #2a2b2f;
+  --alc-raised: #34363b;
+  --alc-well: #18191c;
+  --alc-light-grey: #a3a6ad;
+  /* thread (default: dark grey) */
+  --alc-thread: #5d6066;
+  --alc-thread-hi: rgb(255 255 255 / 10%);
+  --alc-contrast: #c8773f;
+  /* one soft light from the top-left, falling off towards the bottom */
+  --alc-falloff: radial-gradient(ellipse 120% 85% at 18% -10%, rgb(255 255 255 / 6%), transparent 62%), linear-gradient(180deg, transparent 45%, rgb(0 0 0 / 20%));
+  /* perforated insert: a diagonal grid of punched holes */
+  --alc-holes:
+    radial-gradient(circle at 50% 42%, rgb(6 6 7 / 85%) 0 .95px, rgb(0 0 0 / 30%) 1.4px, transparent 1.9px) 0 0 / 10px 10px,
+    radial-gradient(circle at 50% 42%, rgb(6 6 7 / 85%) 0 .95px, rgb(0 0 0 / 30%) 1.4px, transparent 1.9px) 5px 5px / 10px 10px;
+  /* brushed aluminium */
+  --alc-alu: repeating-linear-gradient(90deg, rgb(255 255 255 / 9%) 0 1px, transparent 1px 2px, rgb(0 0 0 / 7%) 2px 3px, transparent 3px 5px),
+    linear-gradient(180deg, #eef0f3 0%, #b9bec5 46%, #9aa0a8 54%, #cdd1d6 100%);
+  --alc-alu-ring: inset 0 1px 0 rgb(255 255 255 / 75%), inset 0 -1px 0 rgb(0 0 0 / 30%), 0 1px 2px rgb(0 0 0 / 70%), 0 0 0 1px rgb(0 0 0 / 55%);
+  /* leather piping (the active menu item) */
+  --alc-piping: linear-gradient(90deg, #56585e 0%, #26272b 35%, #111214 70%, #050506 100%);
+  --heading-font: "Oswald", "Bahnschrift", sans-serif;
+}
+:root[data-theme="alcantara"][data-alc-stitch="grey"] { --alc-thread: #a7aab0; --alc-thread-hi: rgb(255 255 255 / 22%); }
+:root[data-theme="alcantara"][data-alc-stitch="contrast"] { --alc-thread: #c8773f; --alc-thread-hi: rgb(255 220 190 / 25%); }
+
+:root[data-theme="alcantara"] ::selection { background: rgb(205 210 216 / 30%); }
+
+/* ---------- page: the whole cabin in dark suede under one soft light ---------- */
+:root[data-theme="alcantara"] body {
+  background:
+    radial-gradient(ellipse 70% 55% at 30% -12%, rgb(255 255 255 / 5%), transparent 70%),
+    radial-gradient(ellipse 100% 80% at 60% 55%, transparent 40%, rgb(0 0 0 / 55%) 100%),
+    var(--alc-tex) 0 0 / var(--alc-tile);
+  background-color: var(--alc-page);
+  background-blend-mode: normal, normal, overlay;
+  background-attachment: fixed;
+}
+
+/* ---------- sidebar: a suede door card with a double-stitched seam along its edge ---------- */
+:root[data-theme="alcantara"] .sidebar {
+  background: var(--alc-falloff), var(--alc-tex) 311px 97px / var(--alc-tile);
+  background-color: #202125;
+  background-blend-mode: normal, normal, overlay;
+  backdrop-filter: none;
+  border-right: 1px solid #0b0b0d;
+  box-shadow: inset -12px 0 0 -11px rgb(0 0 0 / 55%), inset -13px 0 0 -11px rgb(255 255 255 / 4%), 12px 0 30px rgb(0 0 0 / 50%);
+}
+:root[data-theme="alcantara"] .sidebar::after {
+  content: ''; position: absolute; top: 0; bottom: 0; right: 4px; width: 7px; pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, var(--alc-thread) 0 4px, transparent 4px 7px) 0 0 / 1.6px 100% no-repeat,
+    repeating-linear-gradient(180deg, var(--alc-thread) 0 4px, transparent 4px 7px) 5px 3px / 1.6px 100% no-repeat;
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 80%));
+}
+/* debossed logo: the letters pressed into a suede badge ringed by a stitch */
+:root[data-theme="alcantara"] .brand-mark {
+  border: 0; border-radius: 11px; color: #141517; font-family: var(--heading-font); font-weight: 700; font-size: 16px; letter-spacing: .02em;
+  background: radial-gradient(ellipse 90% 70% at 35% 20%, rgb(255 255 255 / 9%), transparent 70%), var(--alc-tex) 40% 40% / 512px;
+  background-color: #38393e; background-blend-mode: normal, overlay;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), inset 0 -2px 4px rgb(0 0 0 / 45%), 0 0 0 1px #0b0b0d, 0 3px 8px rgb(0 0 0 / 60%);
+  text-shadow: 0 1px 0 rgb(255 255 255 / 16%), 0 -1px 0 rgb(0 0 0 / 70%);
+  outline: 1.4px dashed var(--alc-thread); outline-offset: -5px;
+}
+:root[data-theme="alcantara"] .brand-name { font-family: var(--heading-font); font-weight: 600; letter-spacing: .18em; color: #dfe2e6; text-shadow: 0 -1px 0 rgb(0 0 0 / 80%), 0 1px 0 rgb(255 255 255 / 8%); }
+:root[data-theme="alcantara"] .brand-sub { color: #9ea3ab; }
+:root[data-theme="alcantara"] .nav-label { color: #92979f; letter-spacing: .24em; text-shadow: 0 1px 0 #000; }
+:root[data-theme="alcantara"] .nav-link { border-radius: 8px; color: #c4c8ce; border: 1px solid transparent; }
+:root[data-theme="alcantara"] .nav-link svg { color: #aeb3ba; }
+:root[data-theme="alcantara"] .nav-link:hover {
+  color: #fff; border-color: #0d0d0f;
+  background: var(--alc-tex) 17% 63% / var(--alc-tile); background-color: #2e3034; background-blend-mode: overlay;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 2px 6px rgb(0 0 0 / 45%);
+}
+/* active: a raised suede cushion, stitched round, with leather piping down its left edge */
+:root[data-theme="alcantara"] .nav-link.active {
+  color: #f6f7f9; font-weight: 700; border-color: #0b0b0d; padding-left: 20px;
+  background: var(--alc-falloff), var(--alc-tex) 61% 23% / var(--alc-tile); background-color: #37393e; background-blend-mode: normal, normal, overlay;
+  outline: 1.4px dashed var(--alc-thread); outline-offset: -5px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%), inset 0 -2px 4px rgb(0 0 0 / 40%), 0 3px 9px rgb(0 0 0 / 55%);
+}
+:root[data-theme="alcantara"] .nav-link.active svg { color: var(--brass-strong); }
+:root[data-theme="alcantara"] .nav-link.active::before {
+  left: 5px; top: 6px; bottom: 6px; width: 6px; height: auto; border-radius: 3px;
+  background: var(--alc-piping);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%), 1px 0 0 rgb(255 255 255 / 5%), 2px 0 3px rgb(0 0 0 / 65%);
+}
+
+/* ---------- top bar: suede with a stitched seam along the bottom ---------- */
+:root[data-theme="alcantara"] .topbar {
+  background:
+    repeating-linear-gradient(90deg, var(--alc-thread) 0 4px, transparent 4px 7px) 0 calc(100% - 5px) / 100% 1.6px no-repeat,
+    linear-gradient(180deg, rgb(255 255 255 / 3%), rgb(0 0 0 / 22%)),
+    var(--alc-tex) 0 0 / var(--alc-tile);
+  background-color: #1e1f22;
+  background-blend-mode: normal, normal, overlay;
+  backdrop-filter: none;
+  border-bottom: 1px solid #0b0b0d;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 3%), 0 10px 24px rgb(0 0 0 / 50%);
+}
+
+/* ---------- suede wells: search, inputs, selects, the PvP/PvE switch ---------- */
+:root[data-theme="alcantara"] :is(.search-trigger, .input, .select, .mode-switch, .locale-switch, .segmented-filter) {
+  background: var(--alc-tex) 50% 20% / var(--alc-tile); background-color: var(--alc-well); background-blend-mode: overlay;
+  border-color: #0b0b0d; color: var(--text);
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 60%), 0 1px 0 rgb(255 255 255 / 5%);
+}
+:root[data-theme="alcantara"] .search-trigger { color: var(--text-muted); }
+:root[data-theme="alcantara"] .search-trigger:hover { background-color: #1e1f22; border-color: #0b0b0d; color: var(--text); }
+:root[data-theme="alcantara"] :is(.input, .select):focus { border-color: #8e939a; box-shadow: inset 0 2px 5px rgb(0 0 0 / 60%), 0 0 0 3px rgb(205 210 216 / 18%); }
+:root[data-theme="alcantara"] .input::placeholder { color: var(--text-dim); }
+:root[data-theme="alcantara"] .search-trigger kbd { background: var(--alc-alu); color: #1a1b1e; border-color: #111; box-shadow: var(--alc-alu-ring); }
+:root[data-theme="alcantara"] :is(.mode-switch, .locale-switch, .segmented-filter) button { color: var(--text-muted); }
+:root[data-theme="alcantara"] :is(.mode-switch, .locale-switch, .segmented-filter) button:hover:not(.active) { color: var(--text); background-color: rgb(255 255 255 / 6%); }
+/* the chosen mode is a brushed-aluminium key */
+:root[data-theme="alcantara"] :is(.mode-switch, .locale-switch, .segmented-filter) button.active {
+  background: var(--alc-alu); color: #16171a; text-shadow: 0 1px 0 rgb(255 255 255 / 45%); box-shadow: var(--alc-alu-ring);
+}
+:root[data-theme="alcantara"] :is(.icon-button, .profile-chip) {
+  background: var(--alc-tex) 70% 30% / var(--alc-tile); background-color: #2b2c30; background-blend-mode: overlay;
+  border-color: #0b0b0d; color: #d3d6db;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), 0 2px 5px rgb(0 0 0 / 50%);
+}
+:root[data-theme="alcantara"] :is(.icon-button, .profile-chip):hover { background-color: #34363a; border-color: #0b0b0d; color: #fff; }
+
+/* ---------- panels: seat panels — suede, double-stitched a few px inside the edge ---------- */
+:root[data-theme="alcantara"] :is(.panel, .stat-card) { position: relative; }
+:root[data-theme="alcantara"] .panel {
+  border: 1px solid #0c0c0e; border-radius: 12px;
+  background: var(--alc-falloff), var(--alc-tex) var(--alc-x, 0px) var(--alc-y, 0px) / var(--alc-tile);
+  background-color: var(--alc-seat); background-blend-mode: normal, normal, overlay;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%), inset 0 0 0 1px rgb(255 255 255 / 2%), inset 0 -3px 10px rgb(0 0 0 / 30%), 0 2px 3px rgb(0 0 0 / 50%), 0 14px 30px rgb(0 0 0 / 45%);
+}
+:root[data-theme="alcantara"] .panel:nth-of-type(3n + 2) { --alc-x: -412px; --alc-y: -188px; }
+:root[data-theme="alcantara"] .panel:nth-of-type(3n + 3) { --alc-x: -701px; --alc-y: -590px; }
+/* the double stitch: the pseudo's dashed border is the inner row, its dashed outline the outer row */
+:root[data-theme="alcantara"] :is(.panel, .stat-card):not(.raid-card)::after {
+  content: ''; position: absolute; inset: 8px; pointer-events: none; z-index: 2;
+  border: 1.5px dashed var(--alc-thread); border-radius: 6px;
+  outline: 1.5px dashed var(--alc-thread); outline-offset: 2.5px;
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 75%));
+  opacity: .92;
+}
+/* perforated header insert: holes on the right, fading out before the title; a seam under it */
+:root[data-theme="alcantara"] .panel-header {
+  margin: 12px 12px 0; border-radius: 5px 5px 2px 2px;
+  border-bottom: 1px solid rgb(0 0 0 / 60%);
+  background: var(--alc-tex) 20% 70% / var(--alc-tile), linear-gradient(90deg, #26272b 0 32%, transparent 72%), var(--alc-holes);
+  background-color: #26272b;
+  background-blend-mode: overlay, normal, normal, normal;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 5%), inset 0 1px 3px rgb(0 0 0 / 35%);
+}
+:root[data-theme="alcantara"] .panel-title { font-family: var(--heading-font); font-weight: 600; font-size: 13px; letter-spacing: .16em; color: #e6e8ec; text-shadow: 0 1px 0 #000, 0 0 6px rgb(0 0 0 / 60%); }
+:root[data-theme="alcantara"] .panel-header :is(a, button:not(.button), span, small) { text-shadow: 0 1px 2px #000; }
+:root[data-theme="alcantara"] :is(.panel-body, .setting-row, .item-row, .price-table, .page-subtitle, .raid-facts) { text-shadow: 0 1px 1px rgb(0 0 0 / 55%); }
+:root[data-theme="alcantara"] :is(.item-row, .price-table th, .price-table td, .setting-row) { border-color: rgb(255 255 255 / 8%); }
+:root[data-theme="alcantara"] .price-table tr:hover td { background: rgb(255 255 255 / 4%); }
+/* separators are a stitched seam */
+:root[data-theme="alcantara"] .divider { height: 2px; background: repeating-linear-gradient(90deg, var(--alc-thread) 0 4px, transparent 4px 7px) 0 0 / 100% 1.5px no-repeat, linear-gradient(transparent 1.5px, rgb(0 0 0 / 45%) 1.5px); }
+
+/* ---------- stat cards: seat inserts — lighter suede, stitched, a perforated strip on the right ---------- */
+:root[data-theme="alcantara"] .stat-card {
+  border: 1px solid #0c0c0e; border-radius: 13px;
+  background: var(--alc-falloff), var(--alc-tex) var(--alc-x, -230px) var(--alc-y, -410px) / var(--alc-tile), linear-gradient(90deg, #2e2f34 0 62%, rgb(46 47 52 / 40%) 100%), var(--alc-holes);
+  background-color: #2e2f34;
+  background-blend-mode: normal, normal, overlay, normal, normal, normal;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), inset 0 -4px 12px rgb(0 0 0 / 35%), 0 2px 3px rgb(0 0 0 / 50%), 0 12px 26px rgb(0 0 0 / 45%);
+}
+:root[data-theme="alcantara"] .stat-card:nth-child(2n) { --alc-x: -610px; --alc-y: -90px; }
+:root[data-theme="alcantara"] .stat-card::after { inset: 7px; border-radius: 7px; }
+:root[data-theme="alcantara"] .stat-label { color: #b9bdc4; letter-spacing: .12em; text-shadow: 0 1px 0 #000; }
+/* the number is embossed into the suede */
+:root[data-theme="alcantara"] .stat-value { font-family: var(--heading-font); font-weight: 700; font-size: 34px; color: #eef0f3; text-shadow: 0 -1px 0 rgb(0 0 0 / 80%), 0 1px 0 rgb(255 255 255 / 12%), 0 3px 10px rgb(0 0 0 / 55%); }
+:root[data-theme="alcantara"] .stat-meta { color: #c5c9cf; text-shadow: 0 1px 2px #000; }
+
+/* ---------- titles ---------- */
+:root[data-theme="alcantara"] .eyebrow { color: #c9ced5; letter-spacing: .2em; text-shadow: 0 1px 1px #000; }
+:root[data-theme="alcantara"] :is(.page-title, .raid-map-name) {
+  font-family: var(--heading-font); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: #eceef1;
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 80%), 0 1px 0 rgb(255 255 255 / 10%), 0 6px 20px rgb(0 0 0 / 60%);
+}
+:root[data-theme="alcantara"] :is(.price-up, .mono) { color: #dfe3e8; }
+
+/* ---------- buttons: raised suede pads with a single stitched edge; the nap trail is drawn by napBrush.ts ---------- */
+:root[data-theme="alcantara"] .button {
+  border: 1px solid #0b0b0d; border-radius: 8px; color: #eceef1; text-shadow: 0 1px 1px rgb(0 0 0 / 70%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(0 0 0 / 14%)), var(--alc-tex) 63% 81% / var(--alc-tile);
+  background-color: var(--alc-raised); background-blend-mode: normal, overlay;
+  outline: 1.3px dashed color-mix(in srgb, var(--alc-thread) 85%, transparent); outline-offset: -4px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%), inset 0 -2px 3px rgb(0 0 0 / 35%), 0 2px 0 #0b0b0d, 0 4px 10px rgb(0 0 0 / 45%);
+  transition: translate .16s cubic-bezier(.3, 1.5, .55, 1), box-shadow .16s ease-out, background-color .2s ease-out, color .2s ease-out, scale .16s ease-out;
+}
+:root[data-theme="alcantara"] .button:hover { background-color: #3a3c41; border-color: #0b0b0d; color: #fff; translate: 0 -1px; box-shadow: inset 0 1px 0 rgb(255 255 255 / 11%), inset 0 -2px 3px rgb(0 0 0 / 35%), 0 3px 0 #0b0b0d, 0 7px 14px rgb(0 0 0 / 50%); }
+:root[data-theme="alcantara"] .button:active:not(:disabled) { translate: 0 1px; box-shadow: inset 0 3px 7px rgb(0 0 0 / 60%), 0 0 0 #0b0b0d; }
+/* primary: light-grey Alcantara with dark thread */
+:root[data-theme="alcantara"] .button.primary {
+  --alc-thread: #4a4d53;
+  color: #141518; text-shadow: 0 1px 0 rgb(255 255 255 / 35%);
+  /* the light suede keeps a softer grain: a veil of its own colour over the detail map */
+  background: linear-gradient(180deg, rgb(255 255 255 / 8%), rgb(0 0 0 / 10%)), linear-gradient(rgb(163 166 173 / 38%), rgb(163 166 173 / 38%)), var(--alc-tex) 63% 81% / var(--alc-tile);
+  background-color: var(--alc-light-grey); background-blend-mode: normal, normal, overlay; border-color: #1a1b1e;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 35%), inset 0 -2px 3px rgb(0 0 0 / 20%), 0 2px 0 #0b0b0d, 0 5px 12px rgb(0 0 0 / 45%);
+}
+:root[data-theme="alcantara"] .button.primary:hover { background-color: #b1b4ba; color: #0e0f11; filter: none; }
+:root[data-theme="alcantara"] .button.primary svg { color: #1d1e22; }
+:root[data-theme="alcantara"] .button.ghost { background: transparent; background-color: rgb(0 0 0 / 18%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%); }
+:root[data-theme="alcantara"] .button.danger { color: #f3c9c0; background-color: #4a2427; border-color: #150809; }
+:root[data-theme="alcantara"] .button:disabled { opacity: .5; cursor: not-allowed; translate: none; filter: saturate(.3); }
+:root[data-theme="alcantara"] :is(button, a, input, select, textarea, summary, [role="button"], [role="radio"], [tabindex]):focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 2px; }
+
+/* ---------- small parts ---------- */
+:root[data-theme="alcantara"] .tag {
+  border-radius: 5px; border-color: #0b0b0d; color: #d3d6db;
+  background: var(--alc-tex) 10% 10% / 512px; background-color: #303236; background-blend-mode: overlay;
+}
+/* the accent tag: a small aluminium badge */
+:root[data-theme="alcantara"] .tag.brass { background: var(--alc-alu); color: #17181b; border-color: #0b0b0d; box-shadow: var(--alc-alu-ring); text-shadow: 0 1px 0 rgb(255 255 255 / 40%); }
+:root[data-theme="alcantara"] .tag.green { color: #dcebd4; background: #2f3d2c; border-color: #0b0b0d; }
+:root[data-theme="alcantara"] .tag.danger { color: #f5cfc6; background: #4a2427; border-color: #150809; }
+:root[data-theme="alcantara"] :is(.item-thumb, .mmt-item-icon, .mmt-gear-item) { background-color: var(--alc-well); border-color: #0b0b0d; box-shadow: inset 0 2px 5px rgb(0 0 0 / 60%), 0 1px 0 rgb(255 255 255 / 5%); }
+:root[data-theme="alcantara"] :is(.catalog-card, .kappa-cell, .map-priority-tile, .quest-map-pin) {
+  background: var(--alc-tex) 33% 66% / var(--alc-tile); background-color: #242529; background-blend-mode: overlay;
+  border-color: #0b0b0d; box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 2px 5px rgb(0 0 0 / 40%);
+}
+:root[data-theme="alcantara"] :is(.catalog-card, .kappa-cell, .map-priority-tile):hover { background-color: #2e3034; }
+:root[data-theme="alcantara"] :is(.catalog-card.selected, .kappa-cell.is-done) { background-color: #3a3c41; border-color: #8e939a; color: var(--text); outline: 1.2px dashed var(--alc-thread); outline-offset: -4px; }
+
+/* switches: a suede track with a brushed-aluminium knob; when on, the track is stitched in the contrast thread */
+:root[data-theme="alcantara"] .toggle {
+  background: var(--alc-tex) 0 0 / 512px; background-color: #141517; background-blend-mode: overlay;
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 75%), 0 1px 0 rgb(255 255 255 / 6%);
+}
+:root[data-theme="alcantara"] .toggle span { background: var(--alc-alu); box-shadow: var(--alc-alu-ring); }
+:root[data-theme="alcantara"] .toggle.on {
+  background-color: #4f535a;
+  outline: 1.2px dashed var(--alc-contrast); outline-offset: -3px;
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 50%), 0 1px 0 rgb(255 255 255 / 6%);
+}
+:root[data-theme="alcantara"] .toggle.on span { background: var(--alc-alu); }
+/* sliders: a stitched suede groove, an aluminium knob */
+:root[data-theme="alcantara"] input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; accent-color: var(--brass); }
+:root[data-theme="alcantara"] input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px; background-color: #121315;
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 80%), 0 1px 0 rgb(255 255 255 / 6%);
+}
+:root[data-theme="alcantara"] input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 15px; height: 15px; margin-top: -4.5px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, transparent 0 2px, rgb(0 0 0 / 18%) 2.5px, transparent 3px), conic-gradient(from 20deg, #f3f4f6, #a2a8b0, #e6e8eb, #8d939b, #f3f4f6, #a9aeb6, #eceef1);
+  box-shadow: var(--alc-alu-ring); cursor: pointer;
+}
+/* scrollbars: a strip of suede */
+:root[data-theme="alcantara"] ::-webkit-scrollbar-thumb {
+  background: var(--alc-tex) 0 0 / 256px; background-color: #3c3e43; background-blend-mode: overlay;
+  border: 2px solid transparent; background-clip: padding-box; border-radius: 99px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+:root[data-theme="alcantara"] ::-webkit-scrollbar-thumb:hover { background-color: #53565c; }
+
+/* ---------- map page chrome (the map itself stays untouched) ---------- */
+:root[data-theme="alcantara"] :is(.map-shell, .map-sidebar, .map-detail) {
+  background: var(--alc-tex) 0 0 / var(--alc-tile); background-color: #202125; background-blend-mode: overlay; border-color: #0b0b0d;
+}
+:root[data-theme="alcantara"] .map-side-title { color: var(--brass); letter-spacing: .2em; }
+:root[data-theme="alcantara"] :is(.map-option, .layer-button) { color: var(--text-muted); }
+:root[data-theme="alcantara"] :is(.map-option, .layer-button):hover { background-color: rgb(255 255 255 / 6%); color: var(--text); }
+:root[data-theme="alcantara"] .map-option.active { background-color: #34363b; border-color: #0b0b0d; color: var(--text); box-shadow: inset 4px 0 0 #2a2b2f, inset 6px 0 0 #0b0b0d; }
+:root[data-theme="alcantara"] .leaflet-control-zoom a { background: #2a2b2f !important; border-color: #0b0b0d !important; color: var(--text) !important; }
+:root[data-theme="alcantara"] :is(.leaflet-tooltip.map-marker-tooltip, .map-quest-sheet-body) { background: linear-gradient(180deg, rgb(42 43 47 / 97%), rgb(28 29 32 / 97%)); border-color: #0b0b0d; box-shadow: 0 1px 0 rgb(255 255 255 / 6%) inset, 0 12px 28px rgb(0 0 0 / 70%); }
+
+/* ---------- dialogs, popovers, the quest detail header ---------- */
+:root[data-theme="alcantara"] :is(.search-overlay, .registration-overlay) { background: rgb(0 0 0 / 66%); backdrop-filter: none; }
+:root[data-theme="alcantara"] :is(.search-dialog, .goon-stats-popover, .goon-report-menu) {
+  background: var(--alc-falloff), var(--alc-tex) -300px -500px / var(--alc-tile); background-color: var(--alc-seat); background-blend-mode: normal, normal, overlay;
+  border-color: #0b0b0d; outline: 1.4px dashed var(--alc-thread); outline-offset: -7px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 5%), 0 30px 80px rgb(0 0 0 / 80%);
+}
+:root[data-theme="alcantara"] .search-box { border-color: rgb(255 255 255 / 8%); background: rgb(0 0 0 / 22%); }
+:root[data-theme="alcantara"] .search-result:hover { background: rgb(255 255 255 / 6%); }
+:root[data-theme="alcantara"] .quest-detail { position: sticky; }
+@media (max-width: 980px) { :root[data-theme="alcantara"] .quest-detail { position: static; } }
+:root[data-theme="alcantara"] .quest-detail .detail-hero {
+  margin: 12px 12px 0; border-radius: 5px 5px 2px 2px; border-bottom: 1px solid rgb(0 0 0 / 60%);
+  background: var(--alc-tex) 20% 70% / var(--alc-tile), linear-gradient(90deg, #26272b 0 45%, transparent 85%), var(--alc-holes);
+  background-color: #26272b; background-blend-mode: overlay, normal, normal, normal;
+  box-shadow: 0 1px 0 rgb(255 255 255 / 5%);
+}
+:root[data-theme="alcantara"] .quest-detail .detail-hero h2 { font-family: var(--heading-font); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; text-shadow: 0 -1px 0 rgb(0 0 0 / 80%), 0 1px 0 rgb(255 255 255 / 10%); }
+:root[data-theme="alcantara"] .quest-detail :is(.detail-section, .quest-objective, .quest-stage) { border-color: rgb(255 255 255 / 8%); }
+:root[data-theme="alcantara"] .raid-card { outline: 1.5px dashed var(--alc-thread); outline-offset: -7px; }
+:root[data-theme="alcantara"] .raid-card::after { background: linear-gradient(90deg, rgb(24 25 28 / 92%) 10%, rgb(24 25 28 / 60%) 55%, rgb(24 25 28 / 15%)), linear-gradient(0deg, rgb(24 25 28 / 95%), transparent 60%); }
+
+/* ---------- Settings → «Строчка»: thread colour chips (src/theme/alcantara/StitchChooser.tsx) ---------- */
+.alc-stitch-row { padding-top: 4px; }
+.alc-stitch-options { display: flex; gap: 6px; flex-wrap: wrap; }
+.alc-stitch-option {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 11px;
+  border: 1px solid var(--line); border-radius: 7px; background: rgb(0 0 0 / 20%); color: var(--text-muted);
+  font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+}
+.alc-stitch-option:hover { color: var(--text); border-color: var(--line-strong); }
+.alc-stitch-option[aria-checked="true"] { color: var(--text); border-color: var(--brass); background: rgb(255 255 255 / 7%); }
+/* the swatch: a short run of stitches in that thread */
+.alc-stitch-swatch { width: 26px; height: 2px; border-radius: 1px; background: repeating-linear-gradient(90deg, var(--swatch) 0 4px, transparent 4px 7px); box-shadow: 0 1px 0 rgb(0 0 0 / 70%); }
+
+/* ---------- the nap trail canvas (napBrush.ts): under the element's content, over its background ---------- */
+.alc-nap { position: absolute; left: 0; top: 0; pointer-events: none; z-index: -1; display: block; mix-blend-mode: soft-light; }

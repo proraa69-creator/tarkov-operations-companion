@@ -19,6 +19,7 @@ import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
+import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 import { useMobileLayout } from '../platform'
@@ -159,6 +160,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
       {!mobile && <><GearDecor /><MaskBadge /><TelnyashkaTable /></>}
+      <AlcantaraNap />
 
       {mobile ? (
         <header className="topbar mobile-topbar">

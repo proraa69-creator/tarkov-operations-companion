@@ -3,6 +3,7 @@ import { Check, Palette } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { THEMES, THEME_CHANGED_EVENT, applyAppearance, currentTheme, saveAppearance } from '../theme/theme'
 import '../styles/themePicker.css'
+import { StitchChooser } from '../theme/alcantara/StitchChooser'
 
 /** Thumbnails of the real interface in every theme (scripts/theme-previews.mjs). */
 const previews = import.meta.glob<string>('../assets/theme-previews/*.webp', { eager: true, import: 'default' })
@@ -66,6 +67,7 @@ export function ThemePicker() {
           {confirming ? uiText('ОК') : uiText('Выбрать')}
         </button>
       </div>
+      {shown === 'alcantara' && <StitchChooser />}
       <div className={`theme-chooser-drawer${open ? ' is-open' : ''}`} inert={!open}>
         <div className="theme-chooser-inner">
           <div id="theme-chooser-grid" className="theme-chooser-grid" role="radiogroup" aria-label={uiText('Цветовая схема')}>
