@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Info, MapPin, Search, Trophy } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -55,9 +55,16 @@ export function QuestsPage() {
   const selectedStageIndex = selected ? currentStoryStageIndex(selected, progress) : 0
   const selectedStage = selected?.stages?.[selectedStageIndex]
   const mapTarget = selectedStage?.mapIds[0] ?? selected?.mapId ?? selected?.mapIds?.[0] ?? 'customs'
+  const detailRef = useRef<HTMLElement>(null)
+  // Opening a chapter (also the first one shown) scrolls the detail panel to the current stage,
+  // with the stage before it and the one after it in view.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => scrollToCurrentStage(detailRef.current))
+    return () => cancelAnimationFrame(frame)
+  }, [selected?.id, selectedStageIndex, selectedAvailability?.status])
 
   return <div className="page">
-    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1><p className="page-subtitle">{uiText(statusFilter === 'story' ? 'Глава и этап подхватываются сами, когда в игре открыта вкладка сюжета. Поправить можно в карточке главы.' : (!isMobileLayout() ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.'))}</p></div><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${stats.kappaCompleted} из ${stats.kappaTotal}`)}</span></header>
+    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1><p className="page-subtitle">{uiText(statusFilter === 'story' ? (!isMobileLayout() ? STORY_SCAN_HINT : 'Глава и этап подхватываются сами, когда в игре открыта вкладка сюжета. Поправить можно в карточке главы.') : (!isMobileLayout() ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.'))}</p></div><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${stats.kappaCompleted} из ${stats.kappaTotal}`)}</span></header>
     <div className="filter-row quest-filter-bar">
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
       <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
@@ -90,7 +97,7 @@ export function QuestsPage() {
         </div>
       </section>
 
-      <aside className="panel detail-panel quest-detail">
+      <aside ref={detailRef} className="panel detail-panel quest-detail">
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
         <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(isStoryQuest(selected) ? ` · глава ${selected.storyOrder ?? '—'}` : ` · уровень ${selected.level}`)}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : (selectedStage?.mapIds[0] || selected.mapId) && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === (selectedStage?.mapIds[0] ?? selected.mapId))?.name ?? selected.mapId)}</span>)}</div></div>
@@ -121,6 +128,33 @@ export function QuestsPage() {
       </aside>
     </div>
   </div>
+}
+
+/** Under «Сюжетные квесты»: how the desktop app picks the chapters and their stages up from the game screen. */
+const STORY_SCAN_HINT = 'Чтобы сюжетные квесты определялись автоматически, откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест. Приложение само просканирует с экрана квесты и их этапы.'
+
+/** Scrolls the quest detail panel so the current stage sits in the middle, the previous and next stages visible. */
+function scrollToCurrentStage(panel: HTMLElement | null) {
+  if (!panel) return
+  const current = panel.querySelector<HTMLElement>('.quest-stage.is-current')
+  // A stacked (phone) layout has no inner scroll: the page itself is not moved.
+  const scrollable = panel.scrollHeight > panel.clientHeight + 1
+  if (!scrollable) return
+  if (!current) {
+    panel.scrollTop = 0
+    return
+  }
+  const box = panel.getBoundingClientRect()
+  const offset = (element: Element) => element.getBoundingClientRect().top - box.top + panel.scrollTop
+  const prev = current.previousElementSibling?.classList.contains('quest-stage') ? current.previousElementSibling : null
+  const next = current.nextElementSibling?.classList.contains('quest-stage') ? current.nextElementSibling : null
+  const currentTop = offset(current)
+  let top = currentTop - (panel.clientHeight - current.offsetHeight) / 2
+  if (next) top = Math.max(top, offset(next) + (next as HTMLElement).offsetHeight - panel.clientHeight + 12)
+  top = Math.min(top, prev ? offset(prev) - 12 : currentTop - 12)
+  const target = Math.max(0, Math.min(top, panel.scrollHeight - panel.clientHeight))
+  if (typeof panel.scrollTo === 'function') panel.scrollTo({ top: target, behavior: 'smooth' })
+  else panel.scrollTop = target
 }
 
 function mapLink(quest: Quest, stageIndex: number) {

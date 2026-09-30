@@ -1,11 +1,11 @@
 import { uiText } from '../i18n/renderText'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, Clock3, KeyRound, LockKeyhole, Map, PackageCheck, Route, Target, Users } from 'lucide-react'
+import { ChevronRight, Clock3, KeyRound, LockKeyhole, Map, PackageCheck, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
-import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
+import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
@@ -43,6 +43,11 @@ export function DashboardPage() {
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
+  // A current task opens on the map of this raid plan, focused on its point (a story chapter on its current stage).
+  const questOnMap = (quest: typeof currentQuests[number]) => {
+    const stage = isStoryQuest(quest) ? `&stage=${currentStoryStageIndex(quest, progress)}` : ''
+    return `/maps/${selectedMap.id}?quest=${encodeURIComponent(quest.id)}${stage}`
+  }
 
   return <div className="page">
     <header className="page-header">
@@ -79,7 +84,7 @@ export function DashboardPage() {
                 }))}
               </div>
             </div>
-              <div className="raid-actions"><button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button><Link className="button" to="/quests"><Target size={16} />{uiText(" Задания")}</Link><button className="button" onClick={() => setMapPickerOpen((value) => !value)}><Map size={16} />{uiText(" Выбрать карту")}</button></div>
+              <div className="raid-actions"><button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button><button className="button" onClick={() => setMapPickerOpen((value) => !value)}><Map size={16} />{uiText(" Выбрать карту")}</button></div>
           </div>
         </section>
 
@@ -90,9 +95,9 @@ export function DashboardPage() {
         <section className="panel">
           <div className="panel-header"><div className="panel-title">{uiText("Текущие задания")}</div><Link to={`/maps/${selectedMap.id}`} className="tag brass">{uiText(mapQuests.length)}{uiText(" на ")}{uiText(selectedMap.name)}</Link></div>
           <div className="panel-body">
-            {uiText(mapQuests.slice(0, 10).map((quest, index) => <div className="quest-row" key={quest.id}><div className="quest-index">{uiText(String(index + 1).padStart(2, '0'))}</div><Link to={`/quests?selected=${quest.id}`}><strong>{uiText(quest.name)}</strong><small>{uiText(quest.trader)}{uiText(" · ур. ")}{uiText(quest.level)}{uiText(quest.kappa ? ' · капа' : '')}</small></Link></div>))}
+            {uiText(mapQuests.slice(0, 10).map((quest, index) => <div className="quest-row" key={quest.id}><div className="quest-index">{uiText(String(index + 1).padStart(2, '0'))}</div><Link to={questOnMap(quest)} title={uiText("Показать на карте")}><strong>{uiText(quest.name)}</strong><small>{uiText(quest.trader)}{uiText(" · ур. ")}{uiText(quest.level)}{uiText(quest.kappa ? ' · капа' : '')}</small></Link></div>))}
             {uiText(!mapQuests.length && <p className="muted">{uiText("На карте «")}{uiText(selectedMap.name)}{uiText("» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.")}</p>)}
-            {uiText(anyMapCurrent.length > 0 && <div style={{ marginTop: 14 }}><div className="stat-label" style={{ marginBottom: 8 }}>{uiText("Любая карта · ")}{uiText(anyMapCurrent.length)}</div>{uiText(anyMapCurrent.slice(0, 4).map((quest) => <div className="quest-row" key={quest.id}><div className="quest-index">∞</div><Link to={`/quests?selected=${quest.id}`}><strong>{uiText(quest.name)}</strong><small>{uiText(quest.trader)}{uiText(quest.kappa ? ' · капа' : '')}</small></Link></div>))}</div>)}
+            {uiText(anyMapCurrent.length > 0 && <div style={{ marginTop: 14 }}><div className="stat-label" style={{ marginBottom: 8 }}>{uiText("Любая карта · ")}{uiText(anyMapCurrent.length)}</div>{uiText(anyMapCurrent.slice(0, 4).map((quest) => <div className="quest-row" key={quest.id}><div className="quest-index">∞</div><Link to={questOnMap(quest)} title={uiText("Показать на карте")}><strong>{uiText(quest.name)}</strong><small>{uiText(quest.trader)}{uiText(quest.kappa ? ' · капа' : '')}</small></Link></div>))}</div>)}
           </div>
         </section>
 

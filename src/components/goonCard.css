@@ -1,0 +1,18 @@
+/*
+ * Goons (Кочевники) card: the 5-hour statistics slide up slowly and settle with a strong ease-out —
+ * most of the way is covered at once, the last part creeps in (twice the earlier .78s / .9s).
+ * Selectors are one class stronger than pages.css, so these durations win regardless of stylesheet order.
+ */
+.stat-card.goon-card .goon-stats-popover {
+  transition: clip-path 1.56s cubic-bezier(.16, 1, .3, 1), opacity 1.08s cubic-bezier(.22, 1, .36, 1), visibility 0s linear 1.56s;
+}
+.stat-card.goon-card .goon-stats-popover > * { transition: transform 1.8s cubic-bezier(.16, 1, .3, 1); }
+.stat-card.goon-card:hover:not(.is-open) .goon-stats-popover { transition-delay: .1s, .1s, 0s; }
+.stat-card.goon-card:hover:not(.is-open) .goon-stats-popover > * { transition-delay: .16s; }
+/* the map name / «крайний раз» line rising into place */
+.stat-card.goon-card .goon-rise { animation-duration: 1.1s; animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
+.stat-card.goon-card .goon-rise.is-late { animation-delay: .16s; }
+@media (prefers-reduced-motion: reduce) {
+  .stat-card.goon-card .goon-stats-popover, .stat-card.goon-card .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
+  .stat-card.goon-card .goon-rise { animation: none; }
+}

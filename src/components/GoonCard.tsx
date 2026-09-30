@@ -3,6 +3,7 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { GOON_MAPS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
 import type { RaidMode } from '../domain/types'
+import './goonCard.css'
 
 interface GoonCardProps {
   mode: RaidMode
