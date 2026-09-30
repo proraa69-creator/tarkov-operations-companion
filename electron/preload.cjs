@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     setLocalServerEnabled: (enabled) => ipcRenderer.invoke('local-server:set-enabled', Boolean(enabled)),
     tunnelStatus: () => ipcRenderer.invoke('tunnel:status'),
     setTunnel: (enabled) => ipcRenderer.invoke('tunnel:set', Boolean(enabled)),
+    setNamedTunnel: (hostname, token) => ipcRenderer.invoke('tunnel:set-named', String(hostname ?? ''), String(token ?? '')),
     setServerUrl: (url) => ipcRenderer.invoke('account:set-server-url', String(url ?? '')),
   },
   autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan'),

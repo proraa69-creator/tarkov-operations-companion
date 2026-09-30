@@ -13,7 +13,7 @@ import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './expe
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
-import { enableTunnelFromCommandLine, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
+import { enableTunnelFromCommandLine, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -243,6 +243,7 @@ function registerIpc() {
   })
   ipcMain.handle('tunnel:status', () => tunnelStatus())
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
+  ipcMain.handle('tunnel:set-named', (_event, hostname: unknown, token: unknown) => setNamedTunnel(hostname, token))
   ipcMain.handle('account:set-server-url', (_event, url: unknown) => setServerUrl(url))
 
   ipcMain.handle('profile:resolve', async (_event, rawMode: unknown, rawNickname: unknown) => {

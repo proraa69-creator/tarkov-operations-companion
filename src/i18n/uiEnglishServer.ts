@@ -46,4 +46,12 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Сервер вернул неожиданный ответ', 'The server returned an unexpected response'],
   ['Вход доступен только в приложении для Windows', 'Sign-in is available only in the Windows app'],
   ['Для сервера требуется HTTPS', 'The server requires HTTPS'],
+  // Permanent address (named Cloudflare tunnel, ServerAccountPanel → NamedTunnelRow)
+  ['Постоянный адрес', 'Permanent address'], ['Не задан: ссылка меняется при каждом запуске.', 'Not set: the link changes on every start.'],
+  ['Убрать', 'Remove'], ['Изменить', 'Change'], ['Настроить', 'Set up'],
+  ['В панели Cloudflare создайте туннель, добавьте публичный адрес на ваш домен с сервисом http://127.0.0.1:5202 и вставьте сюда адрес и токен туннеля. Токен хранится на этом компьютере в зашифрованном виде.', 'In the Cloudflare dashboard create a tunnel, add a public hostname on your domain with the service http://127.0.0.1:5202, then paste the address and the tunnel token here. The token is stored encrypted on this computer.'],
+  ['Токен (оставьте пустым, чтобы не менять)', 'Token (leave empty to keep it)'], ['Токен туннеля (eyJ…)', 'Tunnel token (eyJ…)'],
+  ['Постоянный адрес через ваш аккаунт Cloudflare: друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён. Включённый режим запоминается.', 'Permanent address through your Cloudflare account: friends open the website and connect their app to the server. Works while this computer is on. The setting is remembered.'],
+  ['Введите адрес вида tarkov.example.com', 'Enter an address like tarkov.example.com'], ['Это не похоже на токен туннеля Cloudflare', 'This does not look like a Cloudflare tunnel token'],
+  ['Windows не даёт зашифровать токен на этом компьютере', 'Windows cannot encrypt the token on this computer'], ['Вставьте токен туннеля', 'Paste the tunnel token'],
 ]

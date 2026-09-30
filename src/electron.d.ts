@@ -11,7 +11,7 @@ type DesktopLogScanResult = ModeLogScanResult
 export type LocalServiceState = 'running' | 'external' | 'stopped' | 'error'
 export interface LocalServerStatus { enabled: boolean; api: LocalServiceState; site: LocalServiceState; siteUrl: string; database: string; error?: string }
 
-export interface TunnelStatus { state: 'off' | 'downloading' | 'starting' | 'on' | 'error'; url?: string; error?: string; autoStart: boolean }
+export interface TunnelStatus { state: 'off' | 'downloading' | 'starting' | 'on' | 'error'; url?: string; error?: string; autoStart: boolean; hostname?: string }
 
 export interface ServerAccountStatus {
   signedIn: boolean
@@ -41,6 +41,8 @@ interface TarkovDesktopApi {
     /** «Открыть сайт друзьям»: a public https link to this PC's site (Cloudflare quick tunnel). */
     tunnelStatus?: () => Promise<TunnelStatus>
     setTunnel?: (enabled: boolean) => Promise<TunnelStatus>
+    /** Permanent address from the owner's Cloudflare account (hostname + tunnel token); empty values remove it. */
+    setNamedTunnel?: (hostname: string, token: string) => Promise<TunnelStatus>
     /** Another server address (e.g. the owner's public link); '' = this PC. */
     setServerUrl?: (url: string) => Promise<ServerAccountStatus>
   }

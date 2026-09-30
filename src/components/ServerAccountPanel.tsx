@@ -174,7 +174,9 @@ function TunnelRow() {
       <div className="setting-row">
         <span>
           <strong><Globe size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Открыть сайт друзьям')}</strong>
-          <small>{uiText('Бесплатная ссылка через интернет (Cloudflare): друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён; при каждом запуске ссылка новая. Включённый режим запоминается.')}</small>
+          <small>{uiText(tunnel.hostname
+            ? 'Постоянный адрес через ваш аккаунт Cloudflare: друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён. Включённый режим запоминается.'
+            : 'Бесплатная ссылка через интернет (Cloudflare): друзья откроют сайт и подключат к серверу своё приложение. Работает, пока этот компьютер включён; при каждом запуске ссылка новая. Включённый режим запоминается.')}</small>
         </span>
         <button className={`toggle ${on ? 'on' : ''}`} aria-pressed={on} aria-label={uiText('Открыть сайт друзьям')} onClick={() => void api.setTunnel!(!on).then(setTunnel)}><span /></button>
       </div>
@@ -188,7 +190,49 @@ function TunnelRow() {
           {tunnel.url && <button className="button ghost" onClick={copy}><Copy size={14} />{uiText(copied ? 'Скопировано' : 'Скопировать')}</button>}
         </div>
       )}
+      <NamedTunnelRow hostname={tunnel.hostname} onChange={setTunnel} />
     </>
+  )
+}
+
+/** Permanent address: a named tunnel from the owner's Cloudflare account (docs/laptop-server.md). */
+function NamedTunnelRow({ hostname, onChange }: { hostname?: string; onChange: (status: TunnelStatus) => void }) {
+  const api = window.tarkovDesktop?.account
+  const [open, setOpen] = useState(false)
+  const [host, setHost] = useState(hostname ?? '')
+  const [token, setToken] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  if (!api?.setNamedTunnel) return null
+  const apply = (nextHost: string, nextToken: string) => {
+    setBusy(true); setError('')
+    void api.setNamedTunnel!(nextHost, nextToken)
+      .then((status) => { onChange(status); setToken(''); setOpen(false); if (!nextHost) setHost('') })
+      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(reason)))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <span>
+          <strong>{uiText('Постоянный адрес')}</strong>
+          <small>{hostname ? `https://${hostname}` : uiText('Не задан: ссылка меняется при каждом запуске.')}</small>
+        </span>
+        <span style={{ display: 'flex', gap: 8 }}>
+          {hostname && !open && <button className="button ghost" disabled={busy} onClick={() => apply('', '')}>{uiText('Убрать')}</button>}
+          <button className="button ghost" onClick={() => setOpen(!open)}>{uiText(open ? 'Отмена' : hostname ? 'Изменить' : 'Настроить')}</button>
+        </span>
+      </div>
+      {open && (
+        <form style={{ display: 'grid', gap: 8 }} onSubmit={(event) => { event.preventDefault(); apply(host, token) }}>
+          <small>{uiText('В панели Cloudflare создайте туннель, добавьте публичный адрес на ваш домен с сервисом http://127.0.0.1:5202 и вставьте сюда адрес и токен туннеля. Токен хранится на этом компьютере в зашифрованном виде.')}</small>
+          <input className="input" placeholder="tarkov.example.com" value={host} onChange={(event) => setHost(event.target.value)} autoComplete="off" spellCheck={false} />
+          <input className="input" type="password" placeholder={uiText(hostname ? 'Токен (оставьте пустым, чтобы не менять)' : 'Токен туннеля (eyJ…)')} value={token} onChange={(event) => setToken(event.target.value)} autoComplete="off" spellCheck={false} />
+          {error && <small style={{ color: 'var(--danger)' }}>{uiText(error)}</small>}
+          <button className="button" type="submit" disabled={busy || !host.trim()}>{uiText('Сохранить')}</button>
+        </form>
+      )}
+    </div>
   )
 }
 
