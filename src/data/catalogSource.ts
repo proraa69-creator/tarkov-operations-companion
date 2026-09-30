@@ -7,7 +7,7 @@ import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails } from './wikiQuestCatalog'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
-import { applyCuratedStoryStages } from './storyChapters'
+import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
 
 /** Live map ids that should not appear in the companion map picker. */
@@ -54,10 +54,12 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
   const itemById = new Map(itemRows.map((item) => [item.id, item]))
   const mapRows = adaptMaps(maps, mapConfigs, locale)
   const mapNameById = buildMapNameIndex(maps)
-  const questRows = applyCuratedStoryStages(mergeStoryChapters(
+  // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
+  // and in the English catalog, which does not load it) is added from the curated chapter data.
+  const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(adaptTasks(tasks, traderById, itemById, mapNameById), wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ))
+  ), locale))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]

@@ -1,4 +1,5 @@
 import type { Quest, QuestStage } from '../domain/types'
+import { STORY_BRANCHES, STORY_CHAPTER_SEEDS, STORY_NEEDS, TOUR_STAGE_POINTS, type StoryChapterSeed, type StoryStagePointSeed, type StoryStageSeed } from './storyChapterSeeds'
 
 const talk = (id: string, title: string, description: string, aliases: string[]): QuestStage => ({
   id, title, description, mapIds: [], ocrAliases: aliases,
@@ -17,7 +18,7 @@ const survive = (id: string, mapId: string, locative: string, accusative: string
  * Curated in-game story stages (Tasks → Story), aligned with the ru Wiki objectives list.
  * Talk / hand-over stages have no map: the app must not invent a point for them.
  */
-const CURATED: Record<string, { name: string; stages: QuestStage[] }> = {
+const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestStage[] }> = {
   'story-tour': {
     name: 'Тур',
     stages: [
@@ -71,7 +72,7 @@ const CURATED: Record<string, { name: string; stages: QuestStage[] }> = {
       {
         id: 'story-tour-15',
         title: 'Найти вход в портовый Терминал',
-        description: 'Берег, юго-восток: подход к порту у сторожевой вышки.',
+        description: 'Берег, западный край карты (дальше радиовышки): подход к порту у сторожевой вышки.',
         mapIds: ['shoreline'],
         ocrAliases: ['найти вход в портовый терминал', 'портовый терминал'],
         landmarkHints: ['терминал', 'вышка'],
@@ -87,7 +88,7 @@ const CURATED: Record<string, { name: string; stages: QuestStage[] }> = {
       {
         id: 'story-tour-17',
         title: 'Связаться с гарнизоном порта через интерком',
-        description: 'Интерком у сторожевой вышки перед Терминалом (юго-восток Берега).',
+        description: 'Интерком у сторожевой вышки перед Терминалом (западный край Берега).',
         mapIds: ['shoreline'],
         ocrAliases: ['гарнизоном порта через интерком', 'связаться с гарнизоном порта'],
         landmarkHints: ['интерком', 'вышка'],
@@ -120,11 +121,73 @@ const CURATED: Record<string, { name: string; stages: QuestStage[] }> = {
   },
 }
 
+/** Stage texts are built from these fragments; uiEnglishGameData.ts translates each of them. */
+export const STORY_TEXT = {
+  steps: { ru: 'Подзадачи:', en: 'Sub-steps:' },
+  optional: { ru: '(опционально)', en: '(optional)' },
+  branch: { ru: 'Ветка:', en: 'Branch:' },
+  needs: { ru: 'Нужно:', en: 'Needs:' },
+  noPoint: { ru: 'Точки на карте нет.', en: 'No map point.' },
+  addedFromWiki: { ru: 'Этап добавлен по Wiki.', en: 'Stage added from the wiki.' },
+  approximatePoint: { ru: 'Точка на карте поставлена игроками вручную — примерная.', en: 'The map point was placed by players by hand and is approximate.' },
+}
+
+/** Stage description in one language, from the seed's structured parts. */
+function seedDescription(seed: StoryStageSeed, lang: 'ru' | 'en') {
+  const parts: string[] = []
+  if (seed.branch) parts.push(`${STORY_TEXT.branch[lang]} ${lang === 'ru' ? STORY_BRANCHES[seed.branch] ?? seed.branch : seed.branch}.`)
+  if (seed.steps?.length) {
+    parts.push(`${STORY_TEXT.steps[lang]} ${seed.steps.map((step) => `${step[lang]}${step.optional ? ` ${STORY_TEXT.optional[lang]}` : ''}`).join('; ')}.`)
+  }
+  if (seed.needs) parts.push(`${STORY_TEXT.needs[lang]} ${lang === 'ru' ? STORY_NEEDS[seed.needs] ?? seed.needs : seed.needs}.`)
+  if (seed.points?.length) parts.push(STORY_TEXT.approximatePoint[lang])
+  else if (!seed.mapIds.length) parts.push(STORY_TEXT.noPoint[lang])
+  if (seed.synthetic) parts.push(STORY_TEXT.addedFromWiki[lang])
+  return parts.join(' ')
+}
+
+/** A sub-step pinned at the parent's spot (a few cm apart in the source) is one point on the map. */
+function distinctPoints(points: StoryStagePointSeed[]) {
+  const kept: StoryStagePointSeed[] = []
+  for (const point of points) {
+    if (!kept.some((other) => other.mapId === point.mapId && Math.hypot(other.x - point.x, other.z - point.z) < 3)) kept.push({ ...point })
+  }
+  return kept
+}
+
+function seedStage(chapter: StoryChapterSeed, seed: StoryStageSeed, index: number): QuestStage {
+  return {
+    id: `story-${chapter.id}-${index}`,
+    title: seed.ru,
+    description: seedDescription(seed, 'ru'),
+    mapIds: [...new Set([...seed.mapIds, ...(seed.points ?? []).map((point) => point.mapId)])],
+    optional: seed.optional,
+    points: seed.points ? distinctPoints(seed.points) : undefined,
+    // The Tasks → Story pane lists sub-objectives under the stage; any of them identifies it.
+    ocrAliases: [seed.ru.toLowerCase(), ...(seed.steps ?? []).map((step) => step.ru.toLowerCase())],
+  }
+}
+
+for (const chapter of STORY_CHAPTER_SEEDS) {
+  CURATED[`story-${chapter.id}`] = { name: chapter.ru, aliases: chapter.aliases, stages: chapter.stages.map((seed, index) => seedStage(chapter, seed, index)) }
+}
+for (const [index, points] of Object.entries(TOUR_STAGE_POINTS)) {
+  const stage = CURATED['story-tour'].stages[Number(index)]
+  if (!stage) continue
+  stage.points = distinctPoints(points)
+  stage.mapIds = [...new Set([...stage.mapIds, ...points.map((point) => point.mapId)])]
+}
+
+function curatedFor(quest: Pick<Quest, 'id' | 'name' | 'normalizedName'>) {
+  const name = quest.name.trim().toLowerCase().replace(/ё/g, 'е')
+  return CURATED[quest.id] ?? CURATED[`story-${quest.normalizedName ?? ''}`]
+    ?? Object.values(CURATED).find((entry) => [entry.name, ...(entry.aliases ?? [])].some((alias) => alias.toLowerCase().replace(/ё/g, 'е') === name))
+}
+
 export function applyCuratedStoryStages(quests: Quest[]): Quest[] {
   return quests.map((quest) => {
     if (quest.kind !== 'story') return quest
-    const curated = CURATED[quest.id] ?? CURATED[`story-${quest.normalizedName ?? ''}`]
-      ?? Object.values(CURATED).find((entry) => entry.name.toLowerCase() === quest.name.toLowerCase())
+    const curated = curatedFor(quest)
     if (!curated) return quest
     return {
       ...quest,
@@ -135,4 +198,52 @@ export function applyCuratedStoryStages(quests: Quest[]): Quest[] {
       mapId: curated.stages.find((stage) => stage.mapIds[0])?.mapIds[0] ?? quest.mapId,
     }
   })
+}
+
+/**
+ * Adds the story chapters the catalog does not have (the Russian wiki was unreachable, or the English catalog, which
+ * does not load it). Chapters already present (matched by id, name or alias) are left to applyCuratedStoryStages.
+ */
+export function addMissingStoryChapters(quests: Quest[], locale: 'ru' | 'en' = 'ru'): Quest[] {
+  const missing = [{ id: 'tour', order: 1, en: 'Tour', ru: 'Тур', aliases: ['Tour'] }, ...STORY_CHAPTER_SEEDS]
+    .filter((chapter) => !quests.some((quest) => quest.kind === 'story' && curatedFor(quest) === CURATED[`story-${chapter.id}`]))
+  return [...quests, ...missing.map((chapter): Quest => {
+    const curated = CURATED[`story-${chapter.id}`]
+    const mapIds = [...new Set(curated.stages.flatMap((stage) => stage.mapIds))]
+    return {
+      id: `story-${chapter.id}`,
+      normalizedName: chapter.id,
+      name: locale === 'en' ? chapter.en : curated.name,
+      trader: 'Глава истории',
+      kind: 'story',
+      storyOrder: chapter.order,
+      mapId: mapIds[0],
+      mapIds,
+      level: 1,
+      kappa: false,
+      description: 'Сюжетная глава Escape from Tarkov.',
+      objectives: curated.stages.filter((stage) => !stage.optional).map((stage) => stage.title),
+      stages: curated.stages,
+      rewards: [],
+      wikiLink: `https://escapefromtarkov.fandom.com/wiki/${encodeURIComponent(chapter.en.replace(/ /g, '_'))}`,
+    }
+  })]
+}
+
+/** RU → EN pairs of every curated story text (chapter names, stage titles, sub-steps, branches, needs). */
+export function storyPhrases(): Array<[string, string]> {
+  const pairs: Array<[string, string]> = Object.values(STORY_TEXT).map((text): [string, string] => [text.ru, text.en])
+  for (const chapter of STORY_CHAPTER_SEEDS) {
+    pairs.push([chapter.ru, chapter.en])
+    for (const stage of chapter.stages) {
+      pairs.push([stage.ru, stage.en])
+      // Whole descriptions too, so the English overlay finds them by exact match (fast) instead of phrase by phrase.
+      const description = seedDescription(stage, 'ru')
+      if (description) pairs.push([description, seedDescription(stage, 'en')])
+      for (const step of stage.steps ?? []) pairs.push([step.ru, step.en])
+      if (stage.branch) pairs.push([STORY_BRANCHES[stage.branch] ?? stage.branch, stage.branch])
+      if (stage.needs) pairs.push([STORY_NEEDS[stage.needs] ?? stage.needs, stage.needs])
+    }
+  }
+  return [...new Map(pairs.filter(([ru]) => /[А-Яа-яЁё]/.test(ru))).entries()]
 }

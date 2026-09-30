@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { adaptLiveMapMarkers } from './mapMarkerAdapter'
+import { adaptLiveMapMarkers, BOSS_MERGE_METRES, mergeBossSpawnPoints } from './mapMarkerAdapter'
+import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
+import { translateUiText } from '../i18n/uiEnglish'
 import { maps } from './demo'
 import type { Quest } from '../domain/types'
 
 describe('live map catalog resilience', () => {
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
-    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
+    const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
+    // Battle pass document pins are static data and always present; this test is about the live feed.
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -280,5 +284,118 @@ describe('Labs keycard doors', () => {
     expect(marking?.title).toBe('Дверь · открывает: Ключ-карта с синей полосой')
     expect(marking?.description).toContain('Также необходимо питание.')
     expect(result.find((marker) => marker.id === 'the-lab-lock-safe')?.title).toBe('Запертый контейнер · открывает: Ключ от кабинета управляющего TerraGroup Labs')
+  })
+})
+
+describe('boss markers are merged within ~100 m (BOSS_MERGE_METRES)', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const mobs = {
+    bossBully: { name: 'Решала', normalizedName: 'reshala' },
+    pmcBot: { name: 'Рейдеры', normalizedName: 'raider' },
+    bossTagilla: { name: 'Тагилла', normalizedName: 'tagilla' },
+  }
+  const bosses = (result: ReturnType<typeof adaptLiveMapMarkers>) => result.filter((marker) => marker.layerId === 'boss')
+
+  it('draws three spawn points of one boss inside 100 m (different zones) as one marker', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { customs: { normalizedName: 'customs', bosses: [
+      { mob: 'bossBully', spawnChance: 0.45, spawnLocations: [
+        { name: 'ZoneDormitory', chance: 0.33, positions: [{ x: 180, y: 1, z: 170 }] },
+        { name: 'ZoneDormitory2', chance: 0.33, positions: [{ x: 230, y: 1, z: 150 }] },
+        { name: 'ZoneGasStation', chance: 0.34, positions: [{ x: 200, y: 1, z: 200 }] },
+      ] },
+    ] } } }, {}, context)
+    const markers = bosses(result)
+    expect(markers).toHaveLength(1)
+    expect(markers[0].boss?.locationName).toBe('Dormitory, Dormitory 2, Gas Station')
+    expect(markers[0].boss?.locationChance).toBe(1)
+    // Drawn at a real spawn point (the most central one), not at an average.
+    expect([[170, 180], [150, 230], [200, 200]]).toContainEqual(markers[0].position)
+  })
+
+  it('keeps places of one boss that are further apart than the merge distance', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { customs: { normalizedName: 'customs', bosses: [
+      { mob: 'bossBully', spawnLocations: [
+        { name: 'ZoneDormitory', positions: [{ x: 0, y: 0, z: 0 }] },
+        { name: 'ZoneGasStation', positions: [{ x: 200, y: 0, z: 0 }] },
+      ] },
+    ] } } }, {}, context)
+    expect(bosses(result)).toHaveLength(2)
+  })
+
+  it('merges two raider groups at one place and keeps different bosses apart', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { reserve: { normalizedName: 'reserve', bosses: [
+      { mob: 'pmcBot', spawnChance: 0.4, spawnLocations: [{ name: 'ZoneBarrack', positions: [{ x: 10, y: 0, z: 10 }] }] },
+      { mob: 'pmcBot', spawnChance: 0.3, spawnLocations: [{ name: 'ZoneSubStorage', positions: [{ x: 70, y: 0, z: 40 }] }] },
+      { mob: 'bossTagilla', spawnChance: 0.2, spawnLocations: [{ name: 'ZoneBarrack', positions: [{ x: 12, y: 0, z: 12 }] }] },
+    ] } } }, {}, context)
+    const markers = bosses(result)
+    expect(markers.map((marker) => marker.title).sort()).toEqual(['Рейдеры', 'Тагилла'])
+    expect(markers.find((marker) => marker.title === 'Рейдеры')?.boss?.spawnChance).toBe(0.4)
+  })
+
+  it('drops a boss or a zone the feed lists with 0 % in this mode, but keeps triggered bosses', () => {
+    const result = adaptLiveMapMarkers({ mobs, maps: { reserve: { normalizedName: 'reserve', bosses: [
+      { mob: 'bossTagilla', spawnChance: 0, spawnLocations: [{ name: 'ZoneX', positions: [{ x: 0, y: 0, z: 0 }] }] },
+      { mob: 'pmcBot', spawnChance: 0, spawnTrigger: 'Lever', spawnLocations: [
+        { name: 'ZoneBunker', chance: 0, positions: [{ x: 300, y: 0, z: 300 }] },
+        { name: 'ZoneBarrack', chance: 1, positions: [{ x: 10, y: 0, z: 10 }] },
+      ] },
+    ] } } }, {}, context)
+    const markers = bosses(result)
+    expect(markers.map((marker) => marker.title)).toEqual(['Рейдеры'])
+    expect(markers[0].boss?.locationName).toBe('Barrack')
+  })
+})
+
+describe('mergeBossSpawnPoints', () => {
+  it('leaves no two places closer than the merge distance, even for a chain of points', () => {
+    const chain = Array.from({ length: 12 }, (_, index) => ({ x: index * 45, z: (index % 3) * 20 }))
+    const places = mergeBossSpawnPoints(chain)
+    for (const a of places) {
+      for (const b of places) {
+        if (a !== b) expect(Math.hypot(a.center.x - b.center.x, a.center.z - b.center.z)).toBeGreaterThanOrEqual(BOSS_MERGE_METRES)
+      }
+    }
+    expect(places.reduce((sum, place) => sum + place.points.length, 0)).toBe(chain.length)
+    // Every place is drawn at one of its own points.
+    for (const place of places) expect(place.points).toContain(place.center)
+  })
+})
+
+describe('battle pass documents', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+
+  it('puts the community pins on the documents layer as approximate points with the document names', () => {
+    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs' } } }, {}, context)
+    const documents = result.filter((marker) => marker.layerId === 'loot.documents')
+    expect(documents).toHaveLength(BATTLE_PASS_DOCUMENTS.customs.length)
+    expect(documents.every((marker) => marker.approximate && marker.mapId === 'customs')).toBe(true)
+    // No guessed height: the points stay on the general map, not on the underground layer.
+    expect(documents.every((marker) => marker.height === undefined)).toBe(true)
+    const oldGas = documents.find((marker) => marker.description.includes('Старая заправка — на столе'))
+    expect(oldGas?.description).toContain('Финансовая документация')
+    expect(oldGas?.position).toEqual([-186.86, 318.24])
+  })
+
+  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of a pin at the same spot', () => {
+    const pin = BATTLE_PASS_DOCUMENTS.customs[0]
+    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
+      { items: [BATTLE_PASS_DOCUMENT_KINDS.financial.itemId], position: { x: pin.x + 1, y: 5, z: pin.z } },
+    ] } } }, {}, context)
+    const documents = result.filter((marker) => marker.layerId === 'loot.documents')
+    expect(documents).toHaveLength(BATTLE_PASS_DOCUMENTS.customs.length)
+    expect(documents.filter((marker) => !marker.approximate)).toHaveLength(1)
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents')).toBe(false)
+  })
+
+  it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
+    for (const [mapId, points] of Object.entries(BATTLE_PASS_DOCUMENTS)) {
+      expect(maps.some((map) => map.id === mapId)).toBe(true)
+      for (const point of points) {
+        expect(point.documents.length).toBeGreaterThan(0)
+        expect(battlePassDocumentDescription(point)).toMatch(/приблизительное/)
+        expect(translateUiText(battlePassDocumentDescription(point))).not.toMatch(/[А-Яа-яЁё]/)
+      }
+    }
   })
 })

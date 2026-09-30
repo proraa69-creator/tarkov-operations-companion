@@ -216,6 +216,8 @@ export interface QuestStage {
   ocrAliases?: string[]
   /** Expected progress denominator when the stage shows counters like 0/3. */
   progressTotal?: number
+  /** Known map points of the stage (game x/z, tarkov.dev space); `outline` ([x, z][]) marks an area. */
+  points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]> }>
 }
 
 export interface Quest {

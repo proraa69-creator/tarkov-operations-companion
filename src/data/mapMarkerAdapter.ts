@@ -1,6 +1,6 @@
 import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerType, PossibleSpot, Quest } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
-import { BATTLE_PASS_DOCUMENTS } from './battlePassDocuments'
+import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 
 type JsonRecord = Record<string, unknown>
@@ -30,27 +30,52 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptLoot(map, rawMap, context.items))
     markers.push(...adaptLocks(map, rawMap, context.items))
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
-    markers.push(...adaptBattlePassDocuments(map))
+    markers.push(...adaptBattlePassDocuments(map, rawMap))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
   return [...new Map(markers.map((marker) => [marker.id, marker])).values()]
 }
 
-function adaptBattlePassDocuments(map: GameMap): MapMarker[] {
-  return (BATTLE_PASS_DOCUMENTS[map.id] ?? []).flatMap((point, index) => {
-    const base = baseMarker(map, `battle-pass-documents-${index}`, { x: point.x, y: point.y ?? 0, z: point.z }, undefined, undefined, undefined)
+/** A live (tarkov.dev loose loot) document and a community pin closer than this are one place. */
+const SAME_DOCUMENT_SPOT_METRES = 3
+
+function adaptBattlePassDocuments(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  // Exact spawns, if the tarkov.dev loose-loot feed lists the document items.
+  const live: MapMarker[] = asArray(rawMap.lootLoose).flatMap((loot, index) => {
+    const kinds = [...new Set(strings(loot.items).flatMap((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.get(id) ?? []))]
+    if (!kinds.length) return []
+    const base = baseMarker(map, `battle-pass-documents-live-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
     return [{
       ...base,
       type: 'cache' as const,
       layerId: 'loot.documents' as const,
       title: 'Документы боевого пропуска',
-      description: point.note ?? 'Место появления документов боевого пропуска.',
+      description: `${kinds.map((kind) => BATTLE_PASS_DOCUMENT_KINDS[kind].ru).join(', ')}.`,
       meta: 'Боевой пропуск',
+      itemId: BATTLE_PASS_DOCUMENT_KINDS[kinds[0]].itemId,
+      source: 'json.tarkov.dev/maps',
+    }]
+  })
+  const community: MapMarker[] = (BATTLE_PASS_DOCUMENTS[map.id] ?? []).flatMap((point, index) => {
+    // No height: the point stays on the general map (a guessed y put it on the wrong floor / underground).
+    const base = baseMarker(map, `battle-pass-documents-${index}`, { x: point.x, y: point.y, z: point.z }, undefined, undefined, undefined)
+    if (!base) return []
+    if (live.some((marker) => Math.hypot(marker.position[0] - base.position[0], marker.position[1] - base.position[1]) < SAME_DOCUMENT_SPOT_METRES)) return []
+    return [{
+      ...base,
+      type: 'cache' as const,
+      layerId: 'loot.documents' as const,
+      title: 'Документы боевого пропуска',
+      description: battlePassDocumentDescription(point),
+      meta: 'Боевой пропуск',
+      itemId: point.documents[0] ? BATTLE_PASS_DOCUMENT_KINDS[point.documents[0]].itemId : undefined,
+      approximate: true,
       source: 'battle-pass-documents',
     }]
   })
+  return [...live, ...community]
 }
 
 const SHARED_EXTRACT_DISTANCE = 15
@@ -126,8 +151,13 @@ const KNOWN_BOSSES = new Set([
   'knight', 'big-pipe', 'birdeye', 'cultist-priest', 'rogue', 'raider', 'kollontay', 'relic', 'svetloozerskiy',
 ])
 
-/** Spawn points of one boss closer than this are one place on the map. */
-const SAME_SPOT_METRES = 45
+/**
+ * Spawn points of one boss closer than this (in-game metres, x/z) are drawn as one marker: the owner saw several
+ * markers of one boss inside a ~100 m sector. Every zone, every listing (two raider groups, a zone listed twice) and
+ * every point of that boss on the map are merged, so no two markers of one boss end up closer than this.
+ * 120 rather than 100: Reshala's and the Goons' two Customs Stronghold spots are 101 m apart in the feed.
+ */
+export const BOSS_MERGE_METRES = 120
 
 /** Zones where a boss must not be drawn although the feed lists them (product owner corrections). */
 function allowedZone(mapId: string, mobId: string, zone: string) {
@@ -136,92 +166,147 @@ function allowedZone(mapId: string, mobId: string, zone: string) {
   return true
 }
 
+/** One raw boss spawn point of one listing and zone (before merging). */
+interface BossSpawnPoint {
+  position: JsonRecord
+  x: number
+  z: number
+  zone: string
+  /** `bossIndex-locationIndex`: the zone of one listing, so its chance is counted once per merged marker. */
+  zoneKey: string
+  zoneChance: number
+}
+
+interface BossGroup {
+  key: string
+  name: string
+  spawnChance: number
+  escorts: string[]
+  info: ReturnType<typeof bossInfoFromMob>
+  points: BossSpawnPoint[]
+}
+
 function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRecord>, items: Map<string, Item>): MapMarker[] {
-  const placed: Array<{ key: string; origin: string; x: number; z: number }> = []
-  return asArray(rawMap.bosses).flatMap((boss, bossIndex) => {
+  // All listings of one boss on this map (two raider groups, a duplicated zone, tarkov.dev + our extra zone)
+  // are collected first and merged together, so the map never shows the same boss twice within ~100 m.
+  const groups = new Map<string, BossGroup>()
+  asArray(rawMap.bosses).forEach((boss, bossIndex) => {
     const mobKey = text(boss.mob)
     const mob = mobs.get(mobKey)
     // Knight always roams with Big Pipe and Birdeye, so the marker stands for the whole trio.
     const mobId = text(mob?.normalizedName)
     const isGoons = mobId === 'knight' || mobKey === 'bossKnight'
-    if (map.id === 'lighthouse' && mobId === 'glukhar') return []
-    if (!mob || (!KNOWN_BOSSES.has(mobId) && !text(mob.imagePortraitLink))) return []
+    if (map.id === 'lighthouse' && mobId === 'glukhar') return
+    if (!mob || (!KNOWN_BOSSES.has(mobId) && !text(mob.imagePortraitLink))) return
     // Big Pipe and Birdeye are drawn as part of the Goons marker.
-    if (mobId === 'big-pipe' || mobId === 'birdeye') return []
+    if (mobId === 'big-pipe' || mobId === 'birdeye') return
+    // The maps feed is loaded per game mode (regular / pve / pvp-season). A boss the feed lists with an explicit
+    // 0 % chance does not spawn in this mode; one started by a trigger (a lever, an extract switch) still does.
+    if (explicitZero(boss.spawnChance) && !text(boss.spawnTrigger)) return
     const name = isGoons ? 'Кочевники' : text(mob?.name, mobKey || 'Босс')
-    const spawnChance = number(boss.spawnChance)
-    const escorts = asArray(boss.escorts).map((escort) => {
-      const escortName = text(mobs.get(text(escort.mob))?.name, text(escort.mob))
-      const count = Math.max(0, ...asArray(escort.amount).map((amount) => number(amount.count)))
-      return count > 1 ? `${escortName} ×${count}` : escortName
-    }).filter(Boolean)
-    if (isGoons) {
-      for (const member of ['Birdeye', 'Big Pipe', 'Knight']) {
-        if (!escorts.some((escort) => escort.toLowerCase().replace(/\s/g, '').includes(member.toLowerCase().replace(/\s/g, '')))) escorts.unshift(member)
-      }
-    }
-    const info = bossInfoFromMob(mob, name, items)
-    const locations = [...asArray(boss.spawnLocations), ...(EXTRA_BOSS_LOCATIONS[text(rawMap.normalizedName)]?.[mobId] ?? [])]
-    return locations.flatMap((location, locationIndex) => {
+    const key = isGoons ? 'goons' : mobId || name
+    const group = groups.get(key) ?? { key, name, spawnChance: 0, escorts: [], info: bossInfoFromMob(mob, name, items), points: [] }
+    groups.set(key, group)
+    group.spawnChance = Math.max(group.spawnChance, number(boss.spawnChance))
+    if (!group.escorts.length) group.escorts = bossEscorts(boss, mobs, isGoons)
+    const locations = [...asArray(boss.spawnLocations), ...(bossIndex === firstListingIndex(rawMap, mobs, mobId) ? EXTRA_BOSS_LOCATIONS[text(rawMap.normalizedName)]?.[mobId] ?? [] : [])]
+    locations.forEach((location, locationIndex) => {
+      if (!allowedZone(map.id, mobId, text(location.name))) return
+      // A zone with an explicit 0 % chance is not used by this boss in this mode.
+      if (explicitZero(location.chance)) return
       const zone = prettifyZone(text(location.name))
-      if (!allowedZone(map.id, mobId, text(location.name))) return []
-      const locationChance = number(location.chance)
-      // One marker per distinct spot. Averaging a zone's points put bosses on roads and open ground
-      // between buildings (e.g. Killa outside the mall), so every separate point is drawn instead.
-      return spawnSpots(asArray(location.positions)).flatMap((position, spotIndex) => {
-        const x = number(position.x)
-        const z = number(position.z)
-        const key = isGoons ? 'goons' : mobId || name
-        // The same boss listed twice (two raider groups, a duplicated zone) at one place is one marker.
-        const origin = `${bossIndex}-${locationIndex}`
-        // Spots of one zone are already separated by spawnSpots, so only other listings are compared.
-        if (placed.some((entry) => entry.key === key && entry.origin !== origin && Math.hypot(entry.x - x, entry.z - z) < SAME_SPOT_METRES)) return []
-        const base = baseMarker(map, `boss-${bossIndex}-${locationIndex}-${spotIndex}`, position, undefined, position.y, position.y)
-        if (!base) return []
-        placed.push({ key, origin, x, z })
-        return [{
-          ...base,
-          type: 'boss',
-          layerId: 'boss',
-          title: name,
-          description: `Возможная зона появления: ${zone || 'неизвестная зона'}.`,
-          meta: spawnChance ? `${Math.round(spawnChance * 100)}%` : undefined,
-          boss: {
-            ...info,
-            spawnChance: spawnChance || undefined,
-            locationChance: locationChance || undefined,
-            locationName: zone || undefined,
-            escorts: escorts.length ? escorts : undefined,
-          },
-          source: 'json.tarkov.dev/maps',
-        } satisfies MapMarker]
-      })
+      const zoneKey = `${bossIndex}-${locationIndex}`
+      const positions = asArray(location.positions)
+      const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
+      // A zone without usable coordinates keeps its (unplaceable) first point, like before: baseMarker drops it.
+      for (const position of valid.length ? valid : positions.slice(0, 1)) {
+        group.points.push({ position, x: number(position.x), z: number(position.z), zone, zoneKey, zoneChance: number(location.chance) })
+      }
     })
   })
+
+  return [...groups.values()].flatMap((group) => mergeBossSpawnPoints(group.points).flatMap((cluster, clusterIndex) => {
+    const center = cluster.center
+    const base = baseMarker(map, `boss-${group.key}-${clusterIndex}`, center.position, undefined, center.position.y, center.position.y)
+    if (!base) return []
+    const zones = [...new Set(cluster.points.map((point) => point.zone).filter(Boolean))]
+    // Chance of the merged zones of this place (each zone counted once), e.g. two dorm zones of 33 % → 66 %.
+    const zoneChances = new Map(cluster.points.map((point) => [point.zoneKey, point.zoneChance]))
+    const locationChance = Math.min(1, [...zoneChances.values()].reduce((sum, chance) => sum + chance, 0))
+    return [{
+      ...base,
+      type: 'boss',
+      layerId: 'boss',
+      title: group.name,
+      description: `Возможная зона появления: ${zones.join(', ') || 'неизвестная зона'}.`,
+      meta: group.spawnChance ? `${Math.round(group.spawnChance * 100)}%` : undefined,
+      boss: {
+        ...group.info,
+        spawnChance: group.spawnChance || undefined,
+        locationChance: locationChance || undefined,
+        locationName: zones.join(', ') || undefined,
+        escorts: group.escorts.length ? group.escorts : undefined,
+      },
+      source: 'json.tarkov.dev/maps',
+    } satisfies MapMarker]
+  }))
+}
+
+/** Our extra zones are added once per boss (to its first listing), not to every raider group. */
+function firstListingIndex(rawMap: JsonRecord, mobs: Map<string, JsonRecord>, mobId: string) {
+  return asArray(rawMap.bosses).findIndex((boss) => text(mobs.get(text(boss.mob))?.normalizedName) === mobId)
+}
+
+function explicitZero(value: unknown) {
+  return value != null && value !== '' && Number.isFinite(Number(value)) && Number(value) === 0
+}
+
+function bossEscorts(boss: JsonRecord, mobs: Map<string, JsonRecord>, isGoons: boolean) {
+  const escorts = asArray(boss.escorts).map((escort) => {
+    const escortName = text(mobs.get(text(escort.mob))?.name, text(escort.mob))
+    const count = Math.max(0, ...asArray(escort.amount).map((amount) => number(amount.count)))
+    return count > 1 ? `${escortName} ×${count}` : escortName
+  }).filter(Boolean)
+  if (isGoons) {
+    for (const member of ['Birdeye', 'Big Pipe', 'Knight']) {
+      if (!escorts.some((escort) => escort.toLowerCase().replace(/\s/g, '').includes(member.toLowerCase().replace(/\s/g, '')))) escorts.unshift(member)
+    }
+  }
+  return escorts
 }
 
 /**
- * Groups a zone's spawn points into separate spots. Each spot is drawn at its most central real spawn point
- * (the medoid): an average of the points landed 10–20 m away from any spawn (Shturman at the sawmill,
- * Tagilla at ULTRA, the Cultist Priest in the broken village), sometimes outside the building.
+ * Merges the spawn points of one boss on one map into places at least BOSS_MERGE_METRES apart.
+ * Agglomerative: the two closest places merge until every pair is ≥ BOSS_MERGE_METRES apart. Each place is drawn at
+ * its most central real spawn point (the medoid) — an average landed on roads and open ground between buildings
+ * (Killa outside the mall, Shturman beside the sawmill), sometimes outside the building.
  */
-function spawnSpots(positions: JsonRecord[]) {
-  const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
-  if (!valid.length) return positions.slice(0, 1)
-  const near = (a: JsonRecord, b: JsonRecord) => Math.hypot(number(a.x) - number(b.x), number(a.z) - number(b.z)) < SAME_SPOT_METRES
-  // Single linkage: a point joins every group it is near, and those groups become one (the order of points
-  // must not split one place into two markers 12 m apart, as happened with Kaban in the car showroom).
-  let groups: JsonRecord[][] = []
-  for (const position of valid) {
-    const touching = groups.filter((group) => group.some((other) => near(other, position)))
-    groups = [...groups.filter((group) => !touching.includes(group)), [...touching.flat(), position]]
+export function mergeBossSpawnPoints<T extends { x: number; z: number }>(points: T[], metres = BOSS_MERGE_METRES): Array<{ center: T; points: T[] }> {
+  if (!points.length) return []
+  const distance = (a: T, b: T) => Math.hypot(a.x - b.x, a.z - b.z)
+  const order = new Map(points.map((point, index) => [point, index]))
+  let clusters = points.map((point) => ({ center: point, points: [point] }))
+  for (;;) {
+    let best: [number, number, number] | undefined
+    for (let i = 0; i < clusters.length; i += 1) {
+      for (let j = i + 1; j < clusters.length; j += 1) {
+        const gap = distance(clusters[i].center, clusters[j].center)
+        if (gap < metres && (!best || gap < best[2])) best = [i, j, gap]
+      }
+    }
+    if (!best) break
+    // Points keep the feed order (zone names are listed in that order).
+    const merged = [...clusters[best[0]].points, ...clusters[best[1]].points].sort((a, b) => order.get(a)! - order.get(b)!)
+    const center = medoid(merged, distance)
+    clusters = [...clusters.filter((_, index) => index !== best![0] && index !== best![1]), { center, points: merged }]
   }
-  return groups.map(centralPosition)
+  // Stable order: the place with more spawn points (the boss's main spot) first, then west → east.
+  return clusters.sort((a, b) => b.points.length - a.points.length || a.center.x - b.center.x || a.center.z - b.center.z)
 }
 
-function centralPosition(positions: JsonRecord[]) {
-  const spread = (candidate: JsonRecord) => positions.reduce((sum, other) => sum + Math.hypot(number(other.x) - number(candidate.x), number(other.z) - number(candidate.z)), 0)
-  return positions.reduce((best, candidate) => (spread(candidate) < spread(best) ? candidate : best), positions[0])
+function medoid<T>(points: T[], distance: (a: T, b: T) => number) {
+  const spread = (candidate: T) => points.reduce((sum, other) => sum + distance(other, candidate), 0)
+  return points.reduce((best, candidate) => (spread(candidate) < spread(best) ? candidate : best), points[0])
 }
 
 function mobIndex(rawMobs: JsonRecord) {
@@ -309,6 +394,8 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     }]
   })
   const looseMarkers: MapMarker[] = asArray(rawMap.lootLoose).flatMap((loot, index) => {
+    // Battle pass documents get their own layer (adaptBattlePassDocuments).
+    if (strings(loot.items).some((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.has(id))) return []
     const base = baseMarker(map, `loot-loose-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
     const layerId = lootLayer(strings(loot.items), items)
