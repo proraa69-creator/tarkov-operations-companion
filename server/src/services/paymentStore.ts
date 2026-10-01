@@ -16,7 +16,8 @@
  * of retries. «Отменить автопродление» deletes the saved method id at once; nothing is charged after that.
  *
  * «Другие страны» — Lava.top (services/lavaTop.ts): the subscription and its renewals are run by Lava; its webhooks
- * (authenticated by the webhook key, idempotent) extend the paid period here.
+ * (authenticated by the webhook key, idempotent) extend the paid period here — always by the plan stored with our
+ * invoice / subscription, and only when the reported amount and currency match it (else lava_mismatches + the log).
  *
  * Configuration comes from the environment of the server process (the desktop app passes it from its encrypted
  * settings, electron/ownerAdmin.ts): YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY, TARKOV_PRICE_MONTH_RUB, optional
@@ -178,6 +179,17 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS recurring_account ON recurring_subscriptions(account_id, created_at);
   CREATE TABLE IF NOT EXISTS lava_events (
     key TEXT PRIMARY KEY,
+    received_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS lava_mismatches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    payment_id TEXT,
+    recurring_id TEXT,
+    contract_id TEXT,
+    expected_amount INTEGER,
+    expected_currency TEXT,
+    got_amount INTEGER,
+    got_currency TEXT,
     received_at INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS streamer_percent_overrides (
     code TEXT PRIMARY KEY,
@@ -395,8 +407,11 @@ export class PaymentStore {
       .run(id, account.id, plan, account.referredBy ?? null, now, consent.version, now, lava.config.currency, autopay.version, now)
     try {
       const invoice = await lava.createInvoice({ email: account.email, plan, language })
+      // The amount this invoice must be paid with (its webhook is checked against it): Lava's own answer, else the offer
+      // price of the plan in the configured currency. Unknown stays NULL, and such a payment is never granted by webhook.
+      const amount = invoice.amount ?? (!invoice.currency || invoice.currency === lava.config.currency ? (await lava.offerPrices())?.[plan] : undefined)
       this.db.prepare('UPDATE payments SET provider_id = ?, amount_original = ?, currency = COALESCE(?, currency) WHERE id = ?')
-        .run(invoice.contractId, invoice.amount === undefined ? null : Math.round(invoice.amount * 100), invoice.currency ?? null, id)
+        .run(invoice.contractId, amount === undefined ? null : Math.round(amount * 100), invoice.currency ?? null, id)
       return { paymentId: id, confirmationUrl: invoice.paymentUrl }
     } catch (error) {
       this.db.prepare("UPDATE payments SET status = 'canceled' WHERE id = ?").run(id)
@@ -650,9 +665,23 @@ export class PaymentStore {
     })
   }
 
+  /**
+   * Whether a Lava payment event agrees with what we stored when the invoice / subscription was made. The webhook body
+   * never decides the plan or the amount: it may only confirm them. A reported amount or currency that differs, or an
+   * invoice whose amount was never known, is not granted; the mismatch is stored in lava_mismatches and logged.
+   */
+  private lavaAgrees(event: LavaEvent, expected: { amount?: number; currency: string }, ref: { paymentId?: string; recurringId?: string }) {
+    const got = event.amount === undefined ? undefined : Math.round(event.amount * 100)
+    if (expected.amount !== undefined && (got === undefined || got === expected.amount) && (event.currency === undefined || event.currency === expected.currency)) return true
+    this.db.prepare('INSERT INTO lava_mismatches (event_type, payment_id, recurring_id, contract_id, expected_amount, expected_currency, got_amount, got_currency, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(event.type, ref.paymentId ?? null, ref.recurringId ?? null, event.contractId ?? event.parentContractId ?? null, expected.amount ?? null, expected.currency, got ?? null, event.currency ?? null, this.now())
+    const money = (minor: number | undefined, currency: string | undefined) => (minor === undefined ? 'unknown' : `${(minor / 100).toFixed(2)} ${currency ?? '?'}`)
+    console.warn(`Lava.top ${event.type.replace(/[^\w.:-]/g, '?')} (${ref.paymentId ? `payment ${ref.paymentId}` : `subscription ${ref.recurringId}`}) NOT applied: webhook ${money(got, event.currency)}, expected ${money(expected.amount, expected.currency)}. Check it in Lava.top; add the days by hand if the payment is genuine.`)
+    return false
+  }
+
   private applyLava(event: LavaEvent): string {
     const lava = this.lava!
-    const toMinor = (amount: number | undefined) => (amount === undefined ? undefined : Math.round(amount * 100))
     const rubOf = (minor: number, currency: string) => (currency === 'RUB' ? minor : Math.round(minor * lava.config.rubRate))
     const findRecurring = () => {
       for (const id of [event.parentContractId, event.contractId]) {
@@ -667,11 +696,14 @@ export class PaymentStore {
         const row = this.findLavaPayment(event)
         if (!row) return 'not-ours'
         if (row.status !== 'pending') return 'already-applied'
-        const currency = event.currency ?? String(row.currency ?? lava.config.currency)
-        const minor = toMinor(event.amount) ?? (row.amount_original == null ? 0 : Number(row.amount_original))
+        // The plan, amount and currency of our own invoice; the webhook only confirms them (lavaAgrees).
+        const currency = String(row.currency ?? lava.config.currency)
+        const expected = row.amount_original == null ? undefined : Number(row.amount_original)
+        if (!this.lavaAgrees(event, { amount: expected, currency }, { paymentId: String(row.id) }) || expected === undefined) return 'amount-mismatch'
+        const minor = expected
         this.markSucceeded(row, rubOf(minor, currency), { amount: minor, currency })
         const accountId = String(row.account_id)
-        const plan = (event.plan ?? row.plan) as PlanId
+        const plan = row.plan as PlanId
         this.extend(accountId, plan, true)
         if (row.autopay_consent_version != null && !findRecurring()) {
           this.db.prepare("UPDATE recurring_subscriptions SET status = 'canceled', canceled_at = ?, method_id = NULL WHERE account_id = ? AND status = 'active'").run(this.now(), accountId)
@@ -685,9 +717,11 @@ export class PaymentStore {
         if (!rec) return 'not-ours'
         const providerId = event.contractId && event.contractId !== rec.contract_id ? event.contractId : `${String(rec.contract_id)}:${event.timestamp ?? this.now()}`
         if (this.db.prepare('SELECT 1 FROM payments WHERE provider_id = ?').get(providerId)) return 'already-applied'
-        const currency = event.currency ?? String(rec.currency)
-        const minor = toMinor(event.amount) ?? Number(rec.amount)
-        const plan = (event.plan ?? rec.plan) as PlanId
+        // A renewal of the subscription the payer agreed to: its plan, amount and currency (never the webhook's).
+        const currency = String(rec.currency)
+        const minor = Number(rec.amount)
+        if (!this.lavaAgrees(event, { amount: minor, currency }, { recurringId: String(rec.id) })) return 'amount-mismatch'
+        const plan = rec.plan as PlanId
         const id = randomBytes(12).toString('hex')
         this.db.prepare("INSERT INTO payments (id, account_id, provider_id, plan, amount, status, referral_code, created_at, provider, currency, amount_original, recurring_id, autopay_consent_version, autopay_consent_at) VALUES (?, ?, ?, ?, 0, 'pending', ?, ?, 'lava', ?, ?, ?, ?, ?)")
           .run(id, String(rec.account_id), providerId, plan, nullableText(rec.referral_code), this.now(), currency, minor, String(rec.id), String(rec.consent_version), Number(rec.consent_at))
