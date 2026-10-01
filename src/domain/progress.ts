@@ -1,6 +1,8 @@
-import type { LocalProfile, ModeProgress, ModeRegistration, PlayerProfileSnapshot, RaidMode, TaskProgressRecord } from './types'
+import type { LocalProfile, ModeProgress, ModeRegistration, ObjectiveConflict, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from './types'
+import { MAX_LOCAL_EVENTS, normalizeObjective } from '../progression/objectiveProgress'
 
-export const PROFILE_SCHEMA_VERSION = 5 as const
+/** v6 adds objective progress, progress events and objective conflicts per mode (v5 data is kept as is). */
+export const PROFILE_SCHEMA_VERSION = 6 as const
 
 export function createModeProgress(): ModeProgress {
   return {
@@ -13,6 +15,9 @@ export function createModeProgress(): ModeProgress {
     favoriteItemIds: [],
     raidItemIds: [],
     hideoutLevels: {},
+    objectiveProgress: {},
+    progressEvents: [],
+    objectiveConflicts: [],
   }
 }
 
@@ -134,6 +139,9 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       favoriteItemIds: favoriteUnion.length ? [...favoriteUnion] : [...(saved?.favoriteItemIds ?? [])],
       raidItemIds: [...(saved?.raidItemIds ?? [])],
       hideoutLevels: { ...(saved?.hideoutLevels ?? {}) },
+      objectiveProgress: sanitizeObjectives(saved?.objectiveProgress),
+      progressEvents: sanitizeEvents(saved?.progressEvents, mode),
+      objectiveConflicts: sanitizeConflicts(saved?.objectiveConflicts),
     }
   }
   return {
@@ -153,4 +161,65 @@ function updateMode(profile: LocalProfile, mode: RaidMode, patch: Partial<ModePr
     updatedAt,
     modes: { ...profile.modes, [mode]: { ...profile.modes[mode], ...patch } },
   }
+}
+
+const OBJECTIVE_SOURCES = new Set(['log', 'ocr', 'manual', 'sync'])
+const EVENT_TYPES = new Set(['objective', 'task-status', 'undo', 'conflict-resolved'])
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+const isTime = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value))
+
+function validObjective(value: unknown): value is ObjectiveProgress {
+  return isRecord(value) && typeof value.objectiveId === 'string' && Boolean(value.objectiveId) && typeof value.taskId === 'string'
+    && typeof value.current === 'number' && typeof value.target === 'number' && OBJECTIVE_SOURCES.has(String(value.source)) && isTime(value.observedAt)
+}
+
+function sanitizeObjectives(value: unknown): Record<string, ObjectiveProgress> {
+  if (!isRecord(value)) return {}
+  const result: Record<string, ObjectiveProgress> = {}
+  for (const record of Object.values(value)) if (validObjective(record)) result[record.objectiveId] = normalizeObjective(record)
+  return result
+}
+
+function sanitizeEvents(value: unknown, mode: RaidMode): ProgressEvent[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((event): event is ProgressEvent => isRecord(event) && typeof event.id === 'string' && typeof event.taskId === 'string'
+    && EVENT_TYPES.has(String(event.eventType)) && OBJECTIVE_SOURCES.has(String(event.source)) && isTime(event.observedAt))
+    .map((event) => ({ ...event, mode }))
+    .slice(-MAX_LOCAL_EVENTS)
+}
+
+function sanitizeConflicts(value: unknown): ObjectiveConflict[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((conflict): conflict is ObjectiveConflict => isRecord(conflict) && typeof conflict.objectiveId === 'string' && validObjective(conflict.incoming))
+}
+
+/**
+ * Stable identity: progress keys must be task ids. Old builds stored slugs (normalizedName, e.g. the demo seeds
+ * `operation-aquarius`); once the catalog is loaded those keys are rewritten to the task id. Keys that match no
+ * quest are kept untouched (never dropped). Returns the same object when nothing changes.
+ */
+export function normalizeTaskKeys(progress: ModeProgress, quests: Quest[]): ModeProgress {
+  const ids = new Set(quests.map((quest) => quest.id))
+  const bySlug = new Map<string, string>()
+  for (const quest of quests) if (quest.normalizedName && !ids.has(quest.normalizedName)) bySlug.set(quest.normalizedName, quest.id)
+  const resolve = (key: string) => ids.has(key) ? key : bySlug.get(key) ?? key
+  let changed = false
+  const taskProgress: Record<string, TaskProgressRecord> = {}
+  for (const [key, record] of Object.entries(progress.taskProgress)) {
+    const id = resolve(key)
+    if (id !== key || record.taskId !== id) changed = true
+    const next = { ...record, taskId: id }
+    const known = taskProgress[id]
+    // Two keys for one task: the newer record wins.
+    if (!known || known.updatedAt < next.updatedAt) taskProgress[id] = next
+  }
+  const trackedTaskIds = [...new Set(progress.trackedTaskIds.map(resolve))]
+  if (trackedTaskIds.length !== progress.trackedTaskIds.length || trackedTaskIds.some((id, index) => id !== progress.trackedTaskIds[index])) changed = true
+  const objectiveProgress: Record<string, ObjectiveProgress> = {}
+  for (const [key, record] of Object.entries(progress.objectiveProgress)) {
+    const taskId = resolve(record.taskId)
+    if (taskId !== record.taskId) changed = true
+    objectiveProgress[key] = taskId === record.taskId ? record : { ...record, taskId }
+  }
+  return changed ? { ...progress, taskProgress, trackedTaskIds, objectiveProgress } : progress
 }
