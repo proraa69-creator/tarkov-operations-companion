@@ -56,8 +56,13 @@ test('a listed owner e-mail cannot be registered by somebody else', async () => 
   const store = new AccountStore({ db, ownerEmails: ['boss@example.com'] })
   const api = createAccountsHandlers(store)
   const attempt = await api.register({ ip: 'x', body: { email: 'BOSS@example.com', password } })
-  assert.equal(attempt.status, 403)
   assert.equal(store.hasAccount('boss@example.com'), false)
+  // Same answer as for an address that is already taken: the reply does not reveal the owner's e-mail.
+  await api.register({ ip: 'y', body: { email: 'player@example.com', password } })
+  const taken = await api.register({ ip: 'z', body: { email: 'player@example.com', password } })
+  assert.equal(attempt.status, 409)
+  assert.deepEqual(attempt.body, taken.body)
+  assert.equal(taken.status, 409)
 })
 
 test('owner generates a streamer link, sees the streamer and the same per-period table the streamer sees', async () => {

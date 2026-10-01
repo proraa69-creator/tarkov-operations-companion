@@ -261,6 +261,8 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
+/** Immediate registration (e-mail codes off) of a taken or owner address: one answer for both. */
+export const REGISTRATION_REFUSED_MESSAGE = 'Не удалось зарегистрировать этот e-mail. Если это ваш адрес — войдите или восстановите пароль.'
 export const BLOCKED_MESSAGE = 'Вход в этот аккаунт заблокирован. Напишите в поддержку.'
 
 /** Streamer invitation links live a week and work once. */
@@ -328,10 +330,10 @@ export class AccountStore {
    */
   async register(email: string, password: string, referralCode?: string) {
     const key = email.trim().toLowerCase()
-    if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
     // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
-    // here at all (and even if it were, isOwner() would refuse an unconfirmed account).
-    if (this.ownerEmails.has(key)) throw new AccountError(403, 'Этот e-mail нельзя зарегистрировать')
+    // here at all (and even if it were, isOwner() would refuse an unconfirmed account). A taken address and an owner
+    // address get the same answer, so the reply does not show which e-mail is the owner's.
+    if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
     return this.insertAccount(key, salt, hash, referralCode, null)
   }
