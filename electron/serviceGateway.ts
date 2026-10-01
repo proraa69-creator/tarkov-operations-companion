@@ -15,6 +15,11 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
 import { localServerEnabled } from './localServer.js'
+import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EntitlementStatus } from './entitlement.js'
+import { clearGameCache, type CacheAccess } from './gameDataCache.js'
+
+/** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
+const GATED = /^\/v1\/(?:data|catalog|players)\//
 
 export const DEFAULT_API_URL = 'http://127.0.0.1:8787'
 const MODE = '(?:pvp|pve|seasonal)'
@@ -22,7 +27,13 @@ const MODE = '(?:pvp|pve|seasonal)'
 type Method = 'GET' | 'POST' | 'PUT'
 const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/health$/ },
-  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}$`) },
+  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?lang=(?:ru|en))?$`) },
+  // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
+  { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
+  { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
+  // Plans and prices for the paywall (public, server/src/routes/payments.ts).
+  { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },
   { methods: ['POST'], path: /^\/v1\/players\/resolve$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/players/${MODE}/\\d{1,12}$`) },
   { methods: ['POST'], path: /^\/v1\/sync\/events$/ },
@@ -190,6 +201,8 @@ function serverName(url: string) {
 }
 
 async function saveSession(token: string, next: StoredAccount) {
+  // A new session (not just an updated e-mail / kind): ask for the entitlement right away.
+  if (token !== sessionToken || !account) entitlementDue = true
   sessionToken = token
   let server = next.server
   try { server = apiBaseUrl() } catch { /* keep */ }
@@ -207,20 +220,23 @@ async function clearSession() {
   loaded = true
   await rm(tokenFile(), { force: true }).catch(() => {})
   await rm(accountFile(), { force: true }).catch(() => {})
+  // No account, no paid data on this PC (docs/subscription-protection.md).
+  await clearEntitlement()
+  await clearGameCache()
 }
 
 // --------------------------------------------------------------------------------------------------------------
 // HTTP
 // --------------------------------------------------------------------------------------------------------------
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number } = {}) {
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
   await loadServerUrl()
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl()}${path}`, {
       method,
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}) },
+      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}) },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
   } catch {
@@ -239,13 +255,80 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
-  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: path.startsWith('/v1/catalog/') || path.startsWith('/v1/players/') ? 45_000 : 15_000 })
-  if (response.status === 401 && personal) {
+  const gated = GATED.test(path)
+  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
+  if (gated && (response.status === 402 || response.status === 403)) await refusedByServer(response.status, result)
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
   return result
+}
+
+/** 402 / 403 from a paid route: the entitlement and the encrypted cache go at once (the app shows the paywall). */
+async function refusedByServer(status: number, result: { error?: string; code?: unknown } | null) {
+  const code = result?.code
+  if (status === 402) await refuseEntitlement('subscription', result?.error)
+  else if (code === 'device_revoked' || code === 'device_inactive') await refuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
+  else return
+  await clearGameCache()
+}
+
+// --------------------------------------------------------------------------------------------------------------
+// Entitlement (client edition paywall, electron/entitlement.ts)
+// --------------------------------------------------------------------------------------------------------------
+
+let refreshing: Promise<EntitlementStatus> | null = null
+
+/**
+ * The signed entitlement of the signed-in account for this device: renewed from the server when missing or older than
+ * three hours (or `force`, right after sign-in); offline the stored token keeps working until it expires (≤ 72 h).
+ */
+export function refreshEntitlement(force = false): Promise<EntitlementStatus> {
+  refreshing ??= doRefreshEntitlement(force).finally(() => { refreshing = null })
+  return refreshing
+}
+
+async function doRefreshEntitlement(force: boolean): Promise<EntitlementStatus> {
+  await loadSessionForServer()
+  if (!sessionToken) return { valid: false, reason: 'signed-out' }
+  let server: string
+  try { server = apiBaseUrl() } catch { return { valid: false, reason: 'unavailable' } }
+  if (!force && !(await needsRefresh(server))) return entitlementFor(server)
+  try {
+    // A server without a built-in or pinned key: pin the one it serves (trust on first use).
+    if (!(await trustedKey(server))) {
+      const served = await send('GET', '/v1/entitlement/public-key', { timeoutMs: 8000 })
+      const pinned = await pinServerKey(server, (served.result as { publicKey?: unknown } | null)?.publicKey)
+      if (!pinned.ok) return { valid: false, reason: pinned.reason }
+    }
+    const { response, result } = await send('POST', '/v1/entitlement', { token: sessionToken, timeoutMs: 10_000, body: { deviceId: await deviceId(), deviceName: deviceName() } })
+    if (response.status === 401) { await clearSession(); return { valid: false, reason: 'signed-out' } }
+    if (response.status === 402) {
+      await refuseEntitlement('subscription', (result as { error?: string } | null)?.error)
+      await clearGameCache()
+      return { ...(await entitlementFor(server)), revokedDevices: takeDeviceNotice() }
+    }
+    if (response.ok) {
+      const status = await acceptIssued(server, result)
+      // A key that no longer matches (the server's key changed): say so instead of «no subscription».
+      if (!status.valid && status.reason === 'key-mismatch') { await refuseEntitlement('key-mismatch'); await clearGameCache() }
+      return status
+    }
+  } catch { /* offline: the stored token below */ }
+  return entitlementFor(server)
+}
+
+/** The encrypted cache's scope and lifetime (electron/gameDataCache.ts): only with a valid entitlement. */
+export async function gameCacheAccess(): Promise<CacheAccess | null> {
+  await loadSessionForServer()
+  if (!sessionToken || !account) return null
+  let server: string
+  try { server = apiBaseUrl() } catch { return null }
+  const status = await entitlementFor(server)
+  if (!status.valid || !status.expiresAt) return null
+  return { scope: `${server}|${account.email}`, expiresAt: Date.parse(status.expiresAt) }
 }
 
 /** For main-process callers that have a local fallback: null when the server is not reachable. */
@@ -276,6 +359,8 @@ export interface AccountStatus {
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
   persistent: boolean
+  /** Signed entitlement of this device (electron/entitlement.ts): the players' app shows the paywall without it. */
+  entitlement?: EntitlementStatus
 }
 
 export async function accountStatus(): Promise<AccountStatus> {
@@ -298,8 +383,19 @@ export async function accountStatus(): Promise<AccountStatus> {
       }
     }
   } catch { online = false }
-  return { signedIn: Boolean(sessionToken), ...(account && sessionToken ? { email: account.email, kind: account.kind, ...details } : {}), online, serverUrl, persistent: canPersistToken() }
+  // After a sign-in the entitlement is asked for at once; otherwise it is renewed every few hours (offline: the stored one).
+  const force = entitlementDue
+  entitlementDue = false
+  let entitlement: EntitlementStatus = { valid: false, reason: 'signed-out' }
+  if (sessionToken) {
+    try { entitlement = online ? await refreshEntitlement(force) : await entitlementFor(serverUrl) } catch { entitlement = { valid: false, reason: 'unavailable' } }
+  }
+  const notice = takeDeviceNotice() ?? entitlement.revokedDevices
+  return { signedIn: Boolean(sessionToken), ...(account && sessionToken ? { email: account.email, kind: account.kind, ...details } : {}), online, serverUrl, persistent: canPersistToken(), entitlement: { ...entitlement, ...(notice?.length ? { revokedDevices: notice } : {}) } }
 }
+
+/** Set by a fresh sign-in: the next status asks the server for the entitlement right away. */
+let entitlementDue = false
 
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
@@ -403,7 +499,10 @@ async function accountCodeSignIn(channel: 'phone' | 'email', kind: unknown, rawC
 export async function accountLogout(): Promise<AccountStatus> {
   await loadSession()
   const token = sessionToken
+  const server = account?.server
   await clearSession()
+  // Signing out also forgets the server key pinned on first use (a rotated key is then accepted on the next sign-in).
+  if (server) await forgetServerKey(server)
   if (token) await send('POST', '/v1/accounts/logout', { token, timeoutMs: 5000 }).catch(() => undefined)
   return accountStatus()
 }
