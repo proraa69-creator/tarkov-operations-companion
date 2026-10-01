@@ -35,7 +35,7 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress): 
 }
 
 /** Only an explicit USEC/BEAR restriction counts; «Any» (or its translation) means everyone. */
-function questFaction(value: string | undefined): 'usec' | 'bear' | undefined {
+export function questFaction(value: string | undefined): 'usec' | 'bear' | undefined {
   const key = value?.trim().toLowerCase() ?? ''
   if (/^(usec|юсек)$/.test(key)) return 'usec'
   if (/^(bear|беар|бир)$/.test(key)) return 'bear'

@@ -195,7 +195,20 @@ function adaptTasks(
       const type = text(objective.type).toLowerCase()
       const purpose: NonNullable<Quest['raidRequirements']>[number]['purpose'] = type.includes('mark') ? 'mark' : type.includes('plant') || type.includes('place') ? 'place' : type.includes('give') ? 'handover' : type.includes('find') ? 'find' : 'bring'
       const itemIds = [...new Set([...strings(objective.items), text(objective.item), text(objective.markerItem)].filter(Boolean))]
-      return itemIds.map((itemId) => ({ itemId, count: number(objective.count) || 1, purpose, mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)) }))
+      const objectiveId = text(objective.id) || undefined
+      return itemIds.map((itemId) => ({
+        itemId,
+        count: number(objective.count) || 1,
+        purpose,
+        mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)),
+        foundInRaid: objective.foundInRaid === true || undefined,
+        objectiveId,
+        alternatives: itemIds.length,
+        optional: objective.optional === true || undefined,
+        minDurability: number(objective.minDurability) || undefined,
+        maxDurability: number(objective.maxDurability) > 0 && number(objective.maxDurability) < 100 ? number(objective.maxDurability) : undefined,
+        dogTagLevel: number(objective.dogTagLevel) || undefined,
+      }))
     })
     for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
     const rewardItems = asArray(asRecord(entry.finishRewards).items)
@@ -233,6 +246,17 @@ function adaptTasks(
       description: `Задание от торговца ${traders.get(text(entry.trader))?.name ?? 'неизвестно'}.`,
       objectives: objectives.map((objective) => text(objective.description)).filter(Boolean),
       objectiveIds: objectives.map((objective) => text(objective.id)).filter(Boolean),
+      objectiveDetails: objectives.map((objective) => ({
+        id: text(objective.id),
+        type: text(objective.type),
+        description: text(objective.description),
+        mapIds: [...new Set((strings(objective.maps).length ? strings(objective.maps) : asArray(objective.zones).map((zone) => text(zone.map)))
+          .map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))],
+        optional: objective.optional === true || undefined,
+        count: number(objective.count) || undefined,
+        // Only objectives with zones / possible spots become map points; kill, hand over, skill… stay a checklist.
+        zoneBound: asArray(objective.zones).length > 0 || asArray(objective.possibleLocations).length > 0 || undefined,
+      })).filter((objective) => objective.id && objective.description),
       rewards,
       requiredItems: [...new Set([...objectiveItems, ...requiredKeys])],
       raidRequirements,
@@ -293,10 +317,15 @@ function adaptHideout(root: JsonRecord, items: Map<string, Item>, traders: Map<s
     const levels = asArray(entry.levels)
     const normalizedName = text(entry.normalizedName)
     const normalizedLevels = levels.map((level, levelIndex) => {
-      const requirements = asArray(level.itemRequirements).map((requirement) => {
-        const item = items.get(text(requirement.item))
-        const fir = asRecord(requirement.attributes).foundInRaid === true ? ' (найти в рейде)' : ''
-        return `${item?.name ?? text(requirement.item)} × ${number(requirement.count) || 1}${fir}`
+      const itemRequirements = asArray(level.itemRequirements).map((requirement) => ({
+        itemId: text(requirement.item) || text(asRecord(requirement.item).id),
+        count: number(requirement.count) || number(requirement.quantity) || 1,
+        foundInRaid: requirementFoundInRaid(requirement.attributes) || undefined,
+      })).filter((requirement) => requirement.itemId)
+      const requirements = itemRequirements.map((requirement) => {
+        const item = items.get(requirement.itemId)
+        const fir = requirement.foundInRaid ? ' (найти в рейде)' : ''
+        return `${item?.name ?? requirement.itemId} × ${requirement.count}${fir}`
       })
       const stationRequirements = asArray(level.stationLevelRequirements).map((requirement) => {
         const stationName = nameById.get(text(requirement.station)) ?? text(requirement.station)
@@ -314,6 +343,7 @@ function adaptHideout(root: JsonRecord, items: Map<string, Item>, traders: Map<s
         level: number(level.level) || levelIndex + 1,
         requirements: [...requirements, ...traderRequirements, ...skillRequirements],
         stationRequirements,
+        itemRequirements,
         bonus: [text(level.description), ...bonuses].filter(Boolean).join(' · ') || 'Новые возможности модуля',
         constructionTimeHours,
       }
@@ -333,6 +363,17 @@ function adaptHideout(root: JsonRecord, items: Map<string, Item>, traders: Map<s
       levels: normalizedLevels,
     } satisfies HideoutStation
   }).filter((station) => station.id)
+}
+
+/**
+ * tarkov.dev `RequirementItem.attributes` is `[{ type, name, value }]` (e.g. `{ type: 'foundInRaid', value: 'true' }`);
+ * an object form `{ foundInRaid: true }` is accepted too.
+ */
+export function requirementFoundInRaid(attributes: unknown) {
+  if (Array.isArray(attributes)) {
+    return attributes.map(asRecord).some((entry) => (text(entry.type) === 'foundInRaid' || text(entry.name) === 'foundInRaid') && String(entry.value).toLowerCase() === 'true')
+  }
+  return asRecord(attributes).foundInRaid === true
 }
 
 function buildMapNameIndex(root: JsonRecord) {

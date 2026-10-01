@@ -8,7 +8,7 @@ import { mainFloor } from '../data/mapProjection'
 import type { GameMap } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
 import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
-import type { ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
+import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
 
 export type OverlayKind = 'item' | 'minimap'
@@ -57,6 +57,7 @@ function ItemOverlay() {
         <span>{uiText(payload.name)}</span>
         {payload.collector && <em className="eft-kappa" title={uiText('Нужен для задания «Коллекционер»')}>{uiText('Каппа')}</em>}
       </div>
+      {payload.keep && <KeepBadgeLine keep={payload.keep} />}
       <div className="eft-card-body">
         {payload.iconUrl && <div className="eft-card-icon"><img src={payload.iconUrl} alt="" /></div>}
         <dl className="eft-prices">
@@ -64,6 +65,18 @@ function ItemOverlay() {
           <div><dt>{uiText(trader ? trader.name : 'Торговец')}</dt><dd>{uiText(trader ? rub(trader.price) : '—')}</dd></div>
         </dl>
       </div>
+    </div>
+  )
+}
+
+/** «НЕ ПРОДАВАТЬ · нужно N · квест X (FIR)»: the item is on the keep list of the current mode. */
+function KeepBadgeLine({ keep }: { keep: NonNullable<ItemOverlayInfo['keep']> }) {
+  const source = keep.kind === 'hideout' ? 'убежище' : keep.kind === 'kappa' ? 'капа' : 'квест'
+  return (
+    <div className="eft-keep" role="note">
+      <strong>{uiText('НЕ ПРОДАВАТЬ')}</strong>
+      <span>· {uiText(`нужно ${keep.remaining}`)}{keep.remaining < keep.need ? ` / ${keep.need}` : ''}</span>
+      <span>· {uiText(source)} {uiText(keep.reason)}{keep.foundInRaid ? ' (FIR)' : ''}{keep.more > 0 ? uiText(` +${keep.more}`) : ''}</span>
     </div>
   )
 }

@@ -8,7 +8,7 @@ import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, Crosshair, FlaskConical, Home, Images, MapPinned, Palette,
+  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageX, Palette,
   Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -39,6 +39,12 @@ const navigation = [
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
+]
+
+/** «Рейд» group: preparation for the next raid. */
+const raidNavigation = [
+  { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList },
+  { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX },
 ]
 
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
@@ -169,6 +175,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="nav-label">{uiText(locale === 'en' ? 'OPERATIONS' : 'ОПЕРАЦИИ')}</div>
         <nav className="nav-list" aria-label={uiText("Основная навигация")}>
           {uiText(navigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>))}
+        </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'RAID' : 'РЕЙД')}</div>
+        <nav className="nav-list" aria-label={uiText(locale === 'en' ? 'Raid' : 'Рейд')}>
+          {raidNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{locale === 'en' ? en : ru}</span></NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
         <nav className="nav-list" aria-label={uiText('Экономика')}>
