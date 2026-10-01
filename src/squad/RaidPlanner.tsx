@@ -143,7 +143,7 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
                   <li key={`${step.questId}:${step.objectiveId}`} className={step.memberIds.length >= 2 ? 'is-shared' : ''}>
                     <span className="squad-row-main">
                       <strong>{uiText(step.label)}</strong>
-                      <small className="muted">{uiText(questName(step.questId))}</small>
+                      {questName(step.questId) !== step.label && <small className="muted">{uiText(questName(step.questId))}</small>}
                     </span>
                     <MemberChips ids={step.memberIds} names={group.names} />
                   </li>
