@@ -53,6 +53,9 @@ export interface ApiOptions {
  */
 export const DEFAULT_WEB_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5202,http://127.0.0.1:5202,https://localhost,capacitor://localhost'
 
+/** What a client sees for any 5xx: the details go to the server log only. */
+export const INTERNAL_ERROR = 'Внутренняя ошибка сервера'
+
 /**
  * Which app build started this server (the owner app passes TARKOV_APP_* to the API process, electron/localServer.ts):
  * lets the owner app see an old server still holding the port. Absent when the server runs on its own.
@@ -71,6 +74,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // which puts the visitor's address into X-Forwarded-For. Trusting only loopback proxies keeps per-IP rate limits per
   // visitor instead of one shared bucket for everybody, while a remote client still cannot fake its address.
   app.set('trust proxy', 'loopback')
+  // Answers are data, never pages: no MIME sniffing and no framing, on every response (errors and 404s included).
+  app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); next() })
+  // Everything under /v1/accounts is personal: set before any parsing, so unknown paths and errors are never cached.
+  app.use('/v1/accounts', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
   // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
   app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
   app.use(express.json({ limit: '1mb' }))
@@ -109,10 +116,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     res.json(await resolvePlayer(body.mode, body.nickname))
   })
   app.get('/v1/players/:mode/:accountId', async (req, res) => res.json(await fetchPlayerProfile(modeSchema.parse(req.params.mode), z.coerce.number().int().positive().parse(req.params.accountId))))
-  app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     void _next
-    const status = error instanceof z.ZodError ? 400 : typeof error === 'object' && error && 'status' in error ? Number(error.status) : 502
-    res.status(status >= 400 && status < 600 ? status : 502).json({ error: error instanceof z.ZodError ? 'Некорректные данные запроса' : error instanceof Error ? error.message : 'Сервис временно недоступен' })
+    const raw = error instanceof z.ZodError ? 400 : typeof error === 'object' && error && 'status' in error ? Number(error.status) : 502
+    const status = raw >= 400 && raw < 600 ? raw : 502
+    if (status >= 500) {
+      // Internal details (messages, paths, upstream answers) stay in the server log (api.log); request bodies are never logged.
+      console.error(`API ${req.method} ${req.path} -> ${status}:`, error instanceof Error ? error.stack ?? error.message : error)
+      res.status(status).json({ error: INTERNAL_ERROR })
+      return
+    }
+    res.status(status).json({ error: error instanceof z.ZodError ? 'Некорректные данные запроса' : error instanceof Error ? error.message : 'Сервис временно недоступен' })
   })
   return app
 }

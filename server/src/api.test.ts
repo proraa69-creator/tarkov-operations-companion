@@ -75,3 +75,45 @@ test('/health reports the database check (additive, backwards compatible)', asyn
     store.close()
   }
 })
+
+test('security headers on every answer, accounts never cached, 5xx without internal details', async () => {
+  const store = new ProgressStore(':memory:')
+  const server = createApi(store, 'local-test-token').listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const base = `http://127.0.0.1:${address.port}`
+  const logged: unknown[][] = []
+  const originalError = console.error
+  try {
+    for (const path of ['/health', '/v1/accounts/no-such-route', '/no-such-route']) {
+      const answer = await fetch(`${base}${path}`)
+      assert.equal(answer.headers.get('x-content-type-options'), 'nosniff', path)
+      assert.equal(answer.headers.get('x-frame-options'), 'DENY', path)
+    }
+    // Personal: unknown account paths and broken requests are not cacheable either.
+    assert.equal((await fetch(`${base}/v1/accounts/no-such-route`)).headers.get('cache-control'), 'no-store')
+    const broken = await fetch(`${base}/v1/accounts/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":' })
+    assert.equal(broken.status, 400)
+    assert.equal(broken.headers.get('cache-control'), 'no-store')
+
+    // 4xx keep their message.
+    const invalid = await fetch(`${base}/v1/catalog/invalid`)
+    assert.equal(invalid.status, 400)
+    assert.deepEqual(await invalid.json(), { error: 'Некорректные данные запроса' })
+
+    // A failure inside the server (here: its database is gone) answers a generic message; the details go to the log.
+    console.error = (...args: unknown[]) => { logged.push(args) }
+    store.close()
+    const body = { mode: 'pvp', accountId: 100, characterId: '0123456789abcdef01234567', events: [] }
+    const failed = await fetch(`${base}/v1/sync/events`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer local-test-token' }, body: JSON.stringify(body) })
+    assert.equal(failed.status, 502)
+    assert.deepEqual(await failed.json(), { error: 'Внутренняя ошибка сервера' })
+    assert.equal(logged.length, 1)
+    assert.match(String(logged[0]![0]), /POST \/v1\/sync\/events -> 502/)
+    assert.ok(String(logged[0]![1]).length > 0, 'the real reason is in the server log')
+  } finally {
+    console.error = originalError
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
