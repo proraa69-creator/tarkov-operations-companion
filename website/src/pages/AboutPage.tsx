@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { Reveal } from '../components/Reveal'
 import { stagger } from '../hooks/motion'
 
-/** TODO(contact): replace with the real public contact address before launch. */
-const CONTACT_EMAIL = 'contact@example.com'
+/** Public contact address (owner, 01.10.2026). */
+const CONTACT_EMAIL = 'raidosapp@gmail.com'
 
 export function AboutPage() {
   return (
@@ -48,8 +48,7 @@ export function AboutPage() {
           <div className="contact-text">
             <h2>Связаться с нами</h2>
             <p>Идеи, ошибки, сотрудничество со стримерами — пишите.</p>
-            {/* TODO(contact): placeholder address — replace CONTACT_EMAIL with the real one. */}
-            <p className="mono contact-mail">{CONTACT_EMAIL} <span className="tag danger">заглушка — заменить</span></p>
+            <p className="mono contact-mail"><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
           <Link to="/download" className="button primary">Скачать приложение</Link>
         </Reveal>
