@@ -62,11 +62,17 @@ export interface PaymentConfig {
   receipts: boolean
   /** Share of a referred user's payments credited to the streamer, 0–100. */
   streamerPercent: number
-  /** Public site address for ЮKassa's return link, e.g. https://tarkov.example.com. */
+  /**
+   * Public site address for ЮKassa's return link, e.g. https://tarkov.example.com (TARKOV_PUBLIC_URL; the owner's app
+   * passes its permanent address, else the free link, else http://127.0.0.1:5202).
+   */
   publicUrl?: string
   /** ЮKassa autopayments switched on by the owner (the shop must have recurring payments enabled by ЮKassa). */
   autopay?: boolean
 }
+
+/** A site origin for return links: https://host[:port], or this PC's own site (http://localhost / 127.0.0.1). */
+const PUBLIC_URL = /^(?:https:\/\/[a-z0-9.-]+|http:\/\/(?:localhost|127\.0\.0\.1))(?::\d{1,5})?$/i
 
 export function paymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): PaymentConfig | undefined {
   const shopId = env.YOOKASSA_SHOP_ID?.trim() ?? ''
@@ -81,7 +87,7 @@ export function paymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Paym
     monthPrice: Math.round(monthPrice * 100) / 100,
     receipts: env.YOOKASSA_RECEIPTS === '1',
     streamerPercent: Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0,
-    ...(publicUrl && /^https:\/\/[^/]+$/.test(publicUrl) ? { publicUrl } : {}),
+    ...(publicUrl && PUBLIC_URL.test(publicUrl) ? { publicUrl } : {}),
     ...(env.YOOKASSA_AUTOPAY === '1' ? { autopay: true } : {}),
   }
 }

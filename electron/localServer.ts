@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { apiEnvironment } from './ownerAdmin.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
-import { publicSiteUrl } from './publicTunnel.js'
+import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
 import { proxyToApi, siteRoute } from './siteProxy.js'
 import { describeBuild, isStaleOwnServer, OUR_SERVICE, stopOwnServerOnPort, type ApiHealth } from './staleServer.js'
 
@@ -124,10 +124,21 @@ export async function startLocalServer() {
   return localServerStatus()
 }
 
+/**
+ * TARKOV_PUBLIC_URL for the API (e.g. ЮKassa's return page): the permanent address, else the free link while it is on,
+ * else this PC's site. The API never takes the address from a request's Origin (server/src/routes/payments.ts).
+ */
+export async function apiPublicUrl() {
+  const permanent = await publicSiteUrl().catch(() => '')
+  if (permanent) return permanent
+  const tunnel = await tunnelStatus().catch(() => null)
+  return tunnel?.state === 'on' && tunnel.url ? tunnel.url : `http://127.0.0.1:${SITE_PORT}`
+}
+
 async function startApi() {
   const log = join(dataDir(), 'logs', 'api.log')
   // Owner token, ЮKassa settings and the public address travel only in the process environment (electron/ownerAdmin.ts).
-  const extra = await apiEnvironment(await publicSiteUrl())
+  const extra = await apiEnvironment(await apiPublicUrl())
   // Which app build runs this server: /health reports it, so a later build can recognise an old server on the port.
   const build = await runningBuild()
   const buildEnv = { TARKOV_APP_VERSION: build.version, TARKOV_APP_BUILD: String(build.build), TARKOV_APP_COMMIT: build.commit, TARKOV_APP_EDITION: build.edition }
