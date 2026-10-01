@@ -1,0 +1,569 @@
+{
+ "data": {
+  "items": [
+   {
+    "id": "a545bs",
+    "name": "5.45x39mm BS gs",
+    "shortName": "BS",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 1250,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 1625,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber545x39",
+     "ammoType": "bullet",
+     "damage": 45,
+     "penetrationPower": 54,
+     "armorDamage": 58,
+     "fragmentationChance": 0.17,
+     "initialSpeed": 830,
+     "ballisticCoeficient": 0.379,
+     "recoilModifier": 0.05,
+     "accuracyModifier": -0.04,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a545bt",
+    "name": "5.45x39mm BT gs",
+    "shortName": "BT",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 620,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 806,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber545x39",
+     "ammoType": "bullet",
+     "damage": 44,
+     "penetrationPower": 37,
+     "armorDamage": 49,
+     "fragmentationChance": 0.16,
+     "initialSpeed": 880,
+     "ballisticCoeficient": 0.333,
+     "recoilModifier": 0.03,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a545ps",
+    "name": "5.45x39mm PS gs",
+    "shortName": "PS",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 250,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 325,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber545x39",
+     "ammoType": "bullet",
+     "damage": 50,
+     "penetrationPower": 28,
+     "armorDamage": 45,
+     "fragmentationChance": 0.4,
+     "initialSpeed": 890,
+     "ballisticCoeficient": 0.329,
+     "recoilModifier": 0,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a545ppbs",
+    "name": "5.45x39mm PPBS gs Igolnik",
+    "shortName": "PPBS",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 4200,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 5460,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber545x39",
+     "ammoType": "bullet",
+     "damage": 37,
+     "penetrationPower": 62,
+     "armorDamage": 60,
+     "fragmentationChance": 0.02,
+     "initialSpeed": 905,
+     "ballisticCoeficient": 0.333,
+     "recoilModifier": 0.1,
+     "accuracyModifier": -0.03,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a556m855a1",
+    "name": "5.56x45mm M855A1",
+    "shortName": "M855A1",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 1150,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 1495,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber556x45NATO",
+     "ammoType": "bullet",
+     "damage": 49,
+     "penetrationPower": 44,
+     "armorDamage": 52,
+     "fragmentationChance": 0.34,
+     "initialSpeed": 945,
+     "ballisticCoeficient": 0.307,
+     "recoilModifier": 0.05,
+     "accuracyModifier": -0.05,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a556m995",
+    "name": "5.56x45mm M995",
+    "shortName": "M995",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 2600,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 3380,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber556x45NATO",
+     "ammoType": "bullet",
+     "damage": 42,
+     "penetrationPower": 53,
+     "armorDamage": 58,
+     "fragmentationChance": 0.32,
+     "initialSpeed": 1013,
+     "ballisticCoeficient": 0.309,
+     "recoilModifier": 0.07,
+     "accuracyModifier": -0.02,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a556fmj",
+    "name": "5.56x45mm FMJ",
+    "shortName": "FMJ",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 140,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 182,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber556x45NATO",
+     "ammoType": "bullet",
+     "damage": 54,
+     "penetrationPower": 23,
+     "armorDamage": 33,
+     "fragmentationChance": 0.5,
+     "initialSpeed": 957,
+     "ballisticCoeficient": 0.215,
+     "recoilModifier": 0,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a762bp",
+    "name": "7.62x39mm BP gzh",
+    "shortName": "BP",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 1900,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 2470,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber762x39",
+     "ammoType": "bullet",
+     "damage": 58,
+     "penetrationPower": 47,
+     "armorDamage": 63,
+     "fragmentationChance": 0.12,
+     "initialSpeed": 730,
+     "ballisticCoeficient": 0.264,
+     "recoilModifier": 0.05,
+     "accuracyModifier": -0.05,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a762ps",
+    "name": "7.62x39mm PS gzh",
+    "shortName": "PS",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 700,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 910,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber762x39",
+     "ammoType": "bullet",
+     "damage": 61,
+     "penetrationPower": 35,
+     "armorDamage": 52,
+     "fragmentationChance": 0.25,
+     "initialSpeed": 700,
+     "ballisticCoeficient": 0.26,
+     "recoilModifier": 0,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a762m61",
+    "name": "7.62x51mm M61",
+    "shortName": "M61",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 3800,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 4940,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber762x51",
+     "ammoType": "bullet",
+     "damage": 70,
+     "penetrationPower": 64,
+     "armorDamage": 83,
+     "fragmentationChance": 0.13,
+     "initialSpeed": 849,
+     "ballisticCoeficient": 0.4,
+     "recoilModifier": 0.08,
+     "accuracyModifier": -0.04,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a762m80",
+    "name": "7.62x51mm M80",
+    "shortName": "M80",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 900,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 1170,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber762x51",
+     "ammoType": "bullet",
+     "damage": 80,
+     "penetrationPower": 41,
+     "armorDamage": 66,
+     "fragmentationChance": 0.12,
+     "initialSpeed": 833,
+     "ballisticCoeficient": 0.4,
+     "recoilModifier": 0,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a9x19pst",
+    "name": "9x19mm PST gzh",
+    "shortName": "PST",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 180,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 234,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber9x19PARA",
+     "ammoType": "bullet",
+     "damage": 50,
+     "penetrationPower": 20,
+     "armorDamage": 33,
+     "fragmentationChance": 0.15,
+     "initialSpeed": 457,
+     "ballisticCoeficient": 0.13,
+     "recoilModifier": 0,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a9x19ap",
+    "name": "9x19mm AP 6.3",
+    "shortName": "AP 6.3",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 310,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 403,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber9x19PARA",
+     "ammoType": "bullet",
+     "damage": 52,
+     "penetrationPower": 30,
+     "armorDamage": 48,
+     "fragmentationChance": 0.05,
+     "initialSpeed": 392,
+     "ballisticCoeficient": 0.15,
+     "recoilModifier": 0.05,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a12ap20",
+    "name": "12/70 AP-20 armor-piercing slug",
+    "shortName": "AP-20",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 800,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 1040,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber12g",
+     "ammoType": "bullet",
+     "damage": 164,
+     "penetrationPower": 37,
+     "armorDamage": 65,
+     "fragmentationChance": 0.03,
+     "initialSpeed": 510,
+     "ballisticCoeficient": 0.2,
+     "recoilModifier": 0.15,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a12buck",
+    "name": "12/70 7mm buckshot",
+    "shortName": "7mm",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 60,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 78,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber12g",
+     "ammoType": "buckshot",
+     "damage": 39,
+     "penetrationPower": 3,
+     "armorDamage": 26,
+     "fragmentationChance": 0,
+     "initialSpeed": 415,
+     "ballisticCoeficient": 0.05,
+     "recoilModifier": 0,
+     "accuracyModifier": 0,
+     "projectileCount": 8,
+     "tracer": false
+    }
+   },
+   {
+    "id": "a9x39bp",
+    "name": "9x39mm BP gs",
+    "shortName": "BP",
+    "iconLink": null,
+    "buyFor": [
+     {
+      "priceRUB": 1500,
+      "vendor": {
+       "name": "Flea Market"
+      }
+     },
+     {
+      "priceRUB": 1950,
+      "vendor": {
+       "name": "Prapor"
+      }
+     }
+    ],
+    "properties": {
+     "caliber": "Caliber9x39",
+     "ammoType": "bullet",
+     "damage": 58,
+     "penetrationPower": 54,
+     "armorDamage": 55,
+     "fragmentationChance": 0.1,
+     "initialSpeed": 295,
+     "ballisticCoeficient": 0.25,
+     "recoilModifier": 0.05,
+     "accuracyModifier": 0,
+     "projectileCount": 1,
+     "tracer": false
+    }
+   },
+   {
+    "id": "flare",
+    "name": "26x75mm flare",
+    "shortName": "Flare",
+    "iconLink": null,
+    "buyFor": [],
+    "properties": {
+     "caliber": "Caliber26x75",
+     "ammoType": "flare",
+     "damage": 0,
+     "penetrationPower": 0
+    }
+   },
+   {
+    "id": "notammo",
+    "name": "Bolts",
+    "shortName": "Bolts",
+    "properties": {}
+   }
+  ]
+ }
+}

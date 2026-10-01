@@ -4,10 +4,11 @@ import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { BrandMonogram, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
+import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, FlaskConical, Home, Images, MapPinned, Palette,
+  ChevronRight, CircleDollarSign, Crosshair, FlaskConical, Home, Images, MapPinned, Palette,
   Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -47,6 +48,11 @@ const economyNavigation = [
   { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true },
   { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat },
   { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical },
+]
+
+/** Sidebar group «Арсенал» (ballistics and other weapon references). */
+const arsenalNavigation = [
+  { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -167,6 +173,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="nav-list" aria-label={uiText('Экономика')}>
           {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
         </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ARSENAL' : 'АРСЕНАЛ')}</div>
+        <nav className="nav-list" aria-label={uiText('Арсенал')}>
+          {arsenalNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
+        </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
         <SidebarOperator />
@@ -189,6 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+        <TopbarRestock />
         <UpdateButton />
         <ThemeButton />
         <ServerQuickButton />
