@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { AlertTriangle, Check, Globe, LoaderCircle, QrCode as QrIcon, RefreshCw, ShieldCheck, Smartphone, X } from 'lucide-react'
 import type { MobileLoginLink } from '../electron'
+import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { QrCode } from '../components/QrCode'
 import { cleanIpcError } from '../sync/serverSync'
@@ -73,7 +74,8 @@ export function MobileLoginDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-interface Inspected { createdAt: string; agent: string }
+/** POST /v1/accounts/me/qr-login/inspect: the browser, when, and roughly where from (masked network, country). */
+interface Inspected { createdAt: string; agent: string; ip?: string; country?: string }
 
 /** Short description of the browser that asks to sign in («Chrome · Windows»). */
 function describeAgent(agent: string) {
@@ -82,11 +84,19 @@ function describeAgent(agent: string) {
   return system ? `${browser} · ${system}` : browser
 }
 
+/** «Netherlands · IP 203.0.113.x» in the interface language; '' when the server did not know. */
+function describePlace(info: Inspected, locale: string) {
+  let country = info.country ?? ''
+  if (country) { try { country = new Intl.DisplayNames([locale], { type: 'region' }).of(country) ?? country } catch { /* keep the code */ } }
+  return [country, info.ip ? `IP ${info.ip}` : ''].filter(Boolean).join(' · ')
+}
+
 /**
  * «Подтвердить вход на сайте»: the website's «Войти по QR-коду» shows a code; typing it here (signed in) signs that
  * browser in. The app first shows which browser asks and when, so a code from somebody else is not approved blindly.
  */
 export function ApproveWebLoginDialog({ onClose, initialCode = '' }: { onClose: () => void; initialCode?: string }) {
+  const { locale } = useLocale()
   const [code, setCode] = useState(initialCode)
   const [inspected, setInspected] = useState<Inspected | null>(null)
   const [done, setDone] = useState(false)
@@ -126,6 +136,7 @@ export function ApproveWebLoginDialog({ onClose, initialCode = '' }: { onClose: 
         <>
           <div className="account-approve-info">
             <strong>{uiText('Вход запрашивает:')} {uiText(describeAgent(inspected.agent))}</strong>
+            <small>{uiText('Откуда:')} {describePlace(inspected, locale) || uiText('неизвестно')}</small>
             <small>{uiText('Код создан в')} {new Date(inspected.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</small>
           </div>
           <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Разрешайте, только если сайт открыли вы сами. Если код прислал кто-то другой, нажмите «Отмена».')}</span></div>

@@ -51,12 +51,16 @@ describe('site proxy → API: QR sign-in through the website address', () => {
     expect(registered.status).toBe(201)
     const phone = (await registered.json() as { token: string }).token
 
-    const opened = await post('/v1/accounts/qr-login', {})
+    // As cloudflared delivers it: Cloudflare's own CF-Connecting-IP / CF-IPCountry (a client-sent X-Forwarded-For is dropped).
+    const opened = await fetch(`${base}/v1/accounts/qr-login`, { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.7', 'cf-ipcountry': 'NL', 'x-forwarded-for': '1.2.3.4' }, body: '{}' })
     expect(opened.status).toBe(201)
     const request = await opened.json() as { requestId: string; pollSecret: string; code: string }
     expect((await post('/v1/accounts/qr-login/poll', { requestId: request.requestId, pollSecret: request.pollSecret })).status).toBe(202)
 
-    expect((await post('/v1/accounts/me/qr-login/inspect', { code: request.code }, phone)).status).toBe(200)
+    const inspected = await post('/v1/accounts/me/qr-login/inspect', { code: request.code }, phone)
+    expect(inspected.status).toBe(200)
+    // The approving person sees where the request came from, approximately.
+    expect(await inspected.json()).toMatchObject({ ip: '203.0.113.x', country: 'NL' })
     expect((await post('/v1/accounts/me/qr-login/approve', { code: request.code }, phone)).status).toBe(200)
     const done = await post('/v1/accounts/qr-login/poll', { requestId: request.requestId, pollSecret: request.pollSecret })
     expect(done.status).toBe(200)

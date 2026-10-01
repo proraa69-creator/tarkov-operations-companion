@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { AccountStore, createAccountsHandlers, type AccountView } from '../services/accountStore.js'
-import { createLoginCodeHandlers, LOGIN_CODE_TTL_MS, LoginCodeStore, normalizeUserCode } from '../services/loginCodes.js'
+import { countryCode, createLoginCodeHandlers, LOGIN_CODE_TTL_MS, LoginCodeStore, maskAddress, normalizeUserCode } from '../services/loginCodes.js'
 import { createApi } from '../app.js'
 import { ProgressStore } from '../services/progressStore.js'
 
@@ -120,6 +120,47 @@ test('QR sign-in endpoints are rate limited', async () => {
 
   for (let attempt = 0; attempt < 2; attempt += 1) assert.equal((await api.approve({ ip: '4', authorization: auth(desktop), body: { code: 'AAAA-AAAA' } })).status, 404)
   assert.equal((await api.approve({ ip: '4', authorization: auth(desktop), body: { code: 'AAAA-AAAA' } })).status, 429)
+})
+
+test('the approving device sees where the request came from, only approximately', async () => {
+  assert.equal(maskAddress('203.0.113.77'), '203.0.113.x')
+  assert.equal(maskAddress('::ffff:198.51.100.9'), '198.51.100.x')
+  assert.equal(maskAddress('2001:db8:1234:5678:9abc::1'), '2001:db8:1234::/48')
+  assert.equal(maskAddress('2001:0DB8::1'), '2001:db8:0::/48')
+  assert.equal(maskAddress('fe80::1%eth0'), 'fe80:0:0::/48')
+  for (const bad of [undefined, '', 'unknown', '999.1.1.1', '1.2.3', '1::2::3', '1:2:3:4:5:6:7:8:9', '<script>']) assert.equal(maskAddress(bad), undefined, String(bad))
+  assert.equal(countryCode(' nl '), 'NL')
+  for (const bad of [undefined, 'XX', 'T1', 'NLD', '<b>']) assert.equal(countryCode(bad), undefined, String(bad))
+
+  const { api, register } = setup()
+  const phone = await register('player@example.com')
+  const request = (await api.createBrowserRequest({ ip: '203.0.113.77', country: 'de', agent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/141.0' })).body as { code: string }
+  const inspected = (await api.inspect({ ip: '5', authorization: auth(phone), body: { code: request.code } })).body as Record<string, unknown>
+  assert.deepEqual([inspected.ip, inspected.country, inspected.agent], ['203.0.113.x', 'DE', 'Mozilla/5.0 (X11; Linux x86_64) Firefox/141.0'])
+  // Unknown origin: the fields are simply absent.
+  const bare = (await api.createBrowserRequest({ agent: '' })).body as { code: string }
+  const plain = (await api.inspect({ ip: '5', authorization: auth(phone), body: { code: bare.code } })).body as Record<string, unknown>
+  assert.equal('ip' in plain || 'country' in plain, false)
+})
+
+test('over HTTP the origin comes from the proxy chain: X-Forwarded-For and Cloudflare\'s CF-IPCountry', async () => {
+  const accounts = new AccountStore()
+  const store = new ProgressStore(':memory:')
+  const server = createApi(store, undefined, accounts).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const base = `http://127.0.0.1:${address.port}/v1/accounts`
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
+  try {
+    const { token } = await (await post('/register', { email: 'player@example.com', password })).json() as { token: string }
+    const request = await (await post('/qr-login', {}, { 'x-forwarded-for': '198.51.100.23', 'cf-ipcountry': 'NL', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/140' })).json() as { code: string }
+    const inspected = await (await post('/me/qr-login/inspect', { code: request.code }, { authorization: `Bearer ${token}` })).json() as Record<string, unknown>
+    assert.deepEqual([inspected.ip, inspected.country], ['198.51.100.x', 'NL'])
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    store.close()
+  }
 })
 
 test('user codes are normalized strictly', () => {
