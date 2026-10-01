@@ -1,0 +1,106 @@
+/* «Отряд»: squad, friends and the pre-raid planner. Shared quests use a muted violet accent (same family as the
+   in-raid «MATE» badge) so they read as «together» without competing with the brass primary actions. */
+.squad-page { --squad: #a78bfa; --squad-bg: rgb(139 92 246 / 12%); --squad-line: rgb(167 139 250 / 38%); }
+.squad-tabs { margin-bottom: 16px; width: fit-content; max-width: 100%; }
+.squad-tabs button { display: inline-flex; align-items: center; gap: 6px; }
+.squad-count { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--squad-bg, rgb(139 92 246 / 14%)); color: var(--squad, #a78bfa); font-size: 10.5px; font-weight: 800; }
+.squad-loading { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--text-muted); }
+.squad-signin h2 { margin: 6px 0; }
+.squad-paywall { display: flex; align-items: center; gap: 14px; padding: 14px 17px; border-color: #625537; }
+.squad-paywall > svg { flex: none; color: var(--brass); }
+.squad-paywall p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; }
+.squad-paywall .button { margin-left: auto; flex: none; }
+.squad-card .panel-body p, .squad-start .panel-body p { margin: 0; font-size: 12.5px; line-height: 1.5; }
+.squad-start .input { min-width: 0; width: 100%; }
+.squad-error { margin: 0; padding: 0 17px 12px; color: #e2a398; font-size: 12.5px; }
+.stack > .squad-error { padding: 0; }
+.squad-notice { margin: 0; padding: 0 17px 12px; color: #9fc2a4; font-size: 12.5px; }
+.stack > .squad-notice { padding: 0; }
+
+.squad-head { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+.squad-title { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-width: 0; }
+.squad-page .tag { white-space: nowrap; }
+.squad-title strong { font-size: 15px; overflow-wrap: anywhere; }
+.squad-head-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.squad-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 17px; border-bottom: 1px solid var(--line); background: rgb(97 61 55 / 14%); font-size: 12.5px; }
+.squad-confirm > span { flex: 1 1 220px; }
+.squad-invite { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; padding: 14px 17px; border-bottom: 1px solid var(--line); background: var(--squad-bg); }
+.squad-invite-text { display: grid; gap: 8px; flex: 1 1 280px; min-width: 0; }
+.squad-copy { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.squad-copy-label { flex: none; color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; min-width: 52px; }
+.squad-copy-value { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-1); font-size: 13px; overflow-wrap: anywhere; user-select: all; }
+
+.squad-members { display: grid; gap: 6px; }
+.squad-member, .squad-row { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; }
+.squad-member { border-color: var(--line); background: var(--surf-1); }
+.squad-member.is-you { border-color: #39503e; }
+.squad-row + .squad-row { border-top-color: var(--line); border-radius: 0; }
+.squad-row.is-shared { border: 1px solid var(--squad-line); border-radius: 10px; background: var(--squad-bg); }
+.squad-row.is-shared + .squad-row { border-top-color: transparent; }
+.squad-row-main { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.squad-row-main strong { font-size: 13.5px; overflow-wrap: anywhere; }
+.squad-row-main small { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11.5px; }
+.squad-row-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.squad-list { display: grid; gap: 4px; }
+.squad-list .item-thumb { width: 34px; height: 34px; object-fit: contain; flex: none; }
+.squad-avatar { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font-weight: 850; font-size: 14px; color: #101210; }
+.hue-0 { --hue: #c4a665; } .hue-1 { --hue: #7fb08a; } .hue-2 { --hue: #a78bfa; } .hue-3 { --hue: #6fa8c9; } .hue-4 { --hue: #d48b80; }
+.squad-avatar { background: var(--hue); }
+.squad-chips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+.squad-chip { display: inline-flex; align-items: center; min-height: 21px; padding: 0 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--hue) 45%, transparent); color: var(--hue); background: color-mix(in srgb, var(--hue) 10%, transparent); font-size: 10.5px; font-weight: 750; white-space: nowrap; }
+.squad-shared-label { color: var(--squad); font-weight: 750; }
+.squad-friend-invites { display: grid; gap: 8px; padding: 0 17px 14px; }
+.squad-friend-invites .squad-chips { justify-content: flex-start; }
+
+.squad-map-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.squad-map-picker button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text-muted); font-size: 12px; font-weight: 650; cursor: pointer; }
+.squad-map-picker button.active { color: var(--text); border-color: var(--squad-line); background: var(--squad-bg); }
+.squad-open-map { justify-self: start; margin-top: 8px; }
+.squad-anymap { display: grid; gap: 4px; margin-top: 14px; }
+
+.squad-friend { display: grid; gap: 6px; }
+.squad-friend + .squad-friend { border-top: 1px solid var(--line); padding-top: 4px; }
+.squad-friend .squad-row + .squad-row, .squad-friend .squad-row { border-top-color: transparent; }
+.squad-toggle { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 11.5px; color: var(--text-muted); cursor: pointer; }
+.squad-toggle input { accent-color: var(--squad, #a78bfa); }
+.squad-friend-detail { display: grid; gap: 8px; padding: 4px 10px 10px; }
+.squad-friend-detail .squad-chips { justify-content: flex-start; }
+
+.squad-pick { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; cursor: pointer; }
+.squad-pick.active { border-color: var(--squad-line); background: var(--squad-bg); color: var(--text); }
+.squad-pick input { accent-color: var(--squad, #a78bfa); }
+.squad-planner .squad-chips[aria-label] { justify-content: flex-start; }
+.squad-rank { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.squad-rank:hover { background: var(--surf-1); }
+.squad-rank.active { border-color: var(--squad-line, rgb(167 139 250 / 38%)); background: var(--squad-bg, rgb(139 92 246 / 12%)); }
+.squad-rank-index { flex: none; color: var(--text-dim); font-size: 12px; }
+.squad-rank-bar { display: block; height: 4px; border-radius: 3px; background: var(--surf-1); overflow: hidden; }
+.squad-rank-bar span { display: block; height: 100%; background: linear-gradient(90deg, #7c5cc4, var(--squad, #a78bfa)); }
+.squad-route { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.squad-route li { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; counter-increment: step; }
+.squad-route li::before { content: counter(step, decimal-leading-zero); flex: none; color: var(--text-dim); font: 700 12px "Roboto Mono", ui-monospace, monospace; }
+.squad-route li.is-shared { border-color: var(--squad-line); background: var(--squad-bg); }
+.squad-route-note { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+
+/* Dashboard card under the raid map choice. */
+.squad-dash { --squad: #a78bfa; --squad-bg: rgb(139 92 246 / 12%); --squad-line: rgb(167 139 250 / 38%); }
+.squad-dash .panel-title { display: inline-flex; align-items: center; gap: 6px; }
+.squad-dash-ranks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.squad-rank.compact { border-color: var(--line); padding: 7px 9px; }
+
+/* Maps → «Квесты на карте»: a light mark on quests shared with the squad. */
+.squad-quest-tag { display: inline-flex; align-items: center; margin-left: 6px; padding: 0 6px; border-radius: 999px; border: 1px solid rgb(167 139 250 / 40%); color: #b9a2fb; background: rgb(139 92 246 / 12%); font-size: 10px; font-weight: 800; vertical-align: 1px; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .squad-start, .squad-planner-grid { grid-template-columns: 1fr; }
+  .squad-dash-ranks { grid-template-columns: 1fr; }
+  .squad-paywall { flex-wrap: wrap; }
+  .squad-paywall .button { margin-left: 0; }
+  .squad-member, .squad-row, .squad-route li { flex-wrap: wrap; }
+  .squad-row .squad-chips, .squad-route .squad-chips { justify-content: flex-start; width: 100%; }
+  .squad-row-main { flex-basis: 60%; }
+  .squad-copy { flex-wrap: wrap; }
+  .squad-copy-value { flex-basis: 100%; order: 3; }
+  .squad-tabs { width: 100%; }
+  .squad-tabs button { flex: 1; justify-content: center; padding: 0 6px; white-space: nowrap; font-size: 11.5px; }
+}

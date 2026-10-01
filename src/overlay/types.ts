@@ -26,6 +26,8 @@ export interface ItemOverlayInfo {
   collector: boolean
   /** On the «Что не продавать» list of this mode: still needed for quests / hideout / Collector. */
   keep?: import('../raidprep/keepList').KeepBadge
+  /** A friend or squad mate needs this item for a current quest (squad/mateNeeds.ts): only a bare «MATE» badge. */
+  mate?: boolean
 }
 
 export type ItemOverlayPayload =

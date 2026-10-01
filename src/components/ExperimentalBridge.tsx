@@ -12,6 +12,7 @@ import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } 
 import type { MarkerLayerId } from '../domain/types'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
+import { mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 
 const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
 const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
@@ -43,6 +44,8 @@ export function ExperimentalBridge() {
     return new Map(rows.map((row) => [row.item.id, row]))
   }, [data.quests, data.hideout, data.items, progressNow, state.raidMode])
   const latest = useRef({ data, state, matcher, tooltipMatcher, keepRows })
+  // Friends' / squad mates' needed items for the «MATE» badge (refreshed periodically and on raid start).
+  useMateNeedsRefresh(state.raidMode, data.quests)
 
   useEffect(() => {
     latest.current = { data, state, matcher, tooltipMatcher, keepRows }
@@ -61,7 +64,8 @@ export function ExperimentalBridge() {
             // One name in the box: no loose fallback — a wrong item is worse than «not found».
             ? tooltipMatcher(query.input.text)
             : (query.input.lines?.length ? matchNearest(matcher, query.input.lines) : null) ?? matcher(query.input.text)
-        const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id))) : { state: 'not-found', text: query.input.text }
+        // Two independent overlay slots: the keep badge («Что не продавать») and the bare «MATE» badge.
+        const payload: ItemOverlayPayload = item ? { ...describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id))), ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true } : {}) } : { state: 'not-found', text: query.input.text }
         void api.answer(query.id, payload)
         return
       }

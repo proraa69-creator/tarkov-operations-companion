@@ -15,6 +15,7 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
 import { AccountStore, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
+import { mountSocial, type SocialLimits } from './routes/social.js'
 import { createPaymentsRouter } from './routes/payments.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
@@ -54,6 +55,9 @@ export interface ApiOptions {
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
   /** «Страж сервера» (routes/serverGuard.ts): bans, health detail, backups. */
   guard?: ServerGuardOptions
+  /** «Отряд» and friends (routes/social.ts): rate limits for tests. */
+  squadLimits?: SocialLimits['squadLimits']
+  friendLimits?: SocialLimits['friendLimits']
 }
 
 /**
@@ -126,6 +130,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
+  mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site

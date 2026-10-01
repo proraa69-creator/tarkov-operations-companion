@@ -343,6 +343,28 @@ export const api = {
   payments: (token: string) => request<{ payments: Payment[]; autopay?: Autopay | null }>('', { token, root: '/v1/payments' }),
 }
 
+/** «Отряд» (server/src/routes/squads.ts): members are shown only by the nickname of the chosen mode. */
+export interface SquadMember { memberId: string; nickname: string | null; isYou: boolean; isOwner: boolean; joinedAt: string; hidden?: boolean; activeQuestIds?: string[]; lastSyncAt?: string | null }
+export interface Squad { id: string; name: string; maxMembers: number; isOwner: boolean; createdAt: string; members: SquadMember[] }
+export interface SquadInvitation { invitationId: string; squadName: string; from: string | null; members: number; expiresAt: string }
+export interface SquadMine { squad: Squad | null; access: boolean; invitations: SquadInvitation[] }
+export interface SquadOverview { squad: Squad; mode: AccountMode; sharedQuests: Array<{ questId: string; memberIds: string[] }>; items: Array<{ itemId: string }> | null }
+export const SQUAD_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{5}-?[0-9A-HJKMNP-TV-Z]{5}$/i
+export const FRIEND_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{4}-?[0-9A-HJKMNP-TV-Z]{4}$/i
+
+export const squadApi = {
+  mine: (token: string, mode: AccountMode) => request<SquadMine>(`/mine/${mode}`, { token, root: '/v1/squads' }),
+  overview: (token: string, id: string, mode: AccountMode) => request<SquadOverview>(`/${encodeURIComponent(id)}/overview/${mode}`, { token, root: '/v1/squads' }),
+  create: (token: string, name: string) => request<{ squad: Squad }>('', { method: 'POST', token, root: '/v1/squads', body: name.trim() ? { name: name.trim() } : {} }),
+  join: (token: string, code: string) => request<{ squad: Squad }>('/join', { method: 'POST', token, root: '/v1/squads', body: { code } }),
+  invite: (token: string, id: string) => request<{ code: string; expiresAt: string }>(`/${encodeURIComponent(id)}/invites`, { method: 'POST', token, root: '/v1/squads', body: {} }),
+  leave: (token: string, id: string) => request<void>(`/${encodeURIComponent(id)}/leave`, { method: 'POST', token, root: '/v1/squads', body: {} }),
+  disband: (token: string, id: string) => request<void>(`/${encodeURIComponent(id)}/disband`, { method: 'POST', token, root: '/v1/squads', body: {} }),
+  answerInvitation: (token: string, id: string, accept: boolean) => request<{ squad: Squad } | undefined>(`/invitations/${encodeURIComponent(id)}/${accept ? 'accept' : 'decline'}`, { method: 'POST', token, root: '/v1/squads', body: {} }),
+  /** Friends (server/src/routes/friends.ts): a request by code; the answer never says whether the code exists. */
+  friendRequest: (token: string, code: string) => request<{ status: 'sent' | 'friends' }>('/requests', { method: 'POST', token, root: '/v1/friends', body: { code } }),
+}
+
 export function errorMessage(error: unknown) {
   return error instanceof ApiError ? error.message : 'Что-то пошло не так. Обновите страницу и попробуйте снова.'
 }

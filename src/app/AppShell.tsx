@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Wrench, X,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -41,10 +41,11 @@ const navigation = [
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
 ]
 
-/** «Рейд» group: preparation for the next raid. */
+/** «Рейд» group: preparation for the next raid (briefing, items to keep, squad and raid planner). */
 const raidNavigation = [
   { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList },
   { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX },
+  { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
 ]
 
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */

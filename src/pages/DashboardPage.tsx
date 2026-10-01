@@ -12,6 +12,7 @@ import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
 import { MapSlideshow } from '../components/MapSlideshow'
 import { GoonCard } from '../components/GoonCard'
 import { MapPriority } from '../components/MapPriority'
+import { SquadRaidCard } from '../squad/RaidPlanner'
 import { BossFigures } from '../components/BossFigures'
 import { RaidSmoke } from '../components/RaidSmoke'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -88,6 +89,7 @@ export function DashboardPage() {
           </div>
         </section>
 
+        <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} />
         <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
       </div>
 

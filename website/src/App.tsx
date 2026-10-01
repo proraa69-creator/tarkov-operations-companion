@@ -14,6 +14,7 @@ import { ReferralLandingPage } from './pages/ReferralLandingPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { StreamerInvitePage } from './pages/StreamerInvitePage'
+import { SquadLinkPage } from './pages/SquadLinkPage'
 
 const TITLES: Record<string, string> = {
   '/': 'Raid OS',
@@ -34,7 +35,7 @@ const TITLES: Record<string, string> = {
 export function App() {
   const { pathname } = useLocation()
   useEffect(() => {
-    document.title = TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Raid OS' : 'Raid OS')
+    document.title = TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Raid OS' : pathname.startsWith('/squad/') ? 'Приглашение в отряд — Raid OS' : pathname.startsWith('/friend/') ? 'Приглашение в друзья — Raid OS' : 'Raid OS')
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [pathname])
 
@@ -56,6 +57,9 @@ export function App() {
         <Route path="r/:code" element={<ReferralLandingPage />} />
         {/* Secret one-time streamer invitation; intentionally not linked from any menu. */}
         <Route path="streamer/:token" element={<StreamerInvitePage />} />
+        {/* «Отряд» and friend invite links from the app (personal; not linked from any menu). */}
+        <Route path="squad/:code" element={<SquadLinkPage kind="squad" />} />
+        <Route path="friend/:code" element={<SquadLinkPage kind="friend" />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

@@ -289,6 +289,23 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
 /* Cabinet */
 .cabinet-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
 .cabinet-col { display: grid; gap: 16px; min-width: 0; }
+/* Cabinet «Отряд» */
+.squad-modes { display: flex; gap: 4px; flex-wrap: wrap; }
+.squad-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.squad-summary strong { font-size: 17px; overflow-wrap: anywhere; }
+.squad-members { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.squad-member { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-0); }
+.squad-member-main { display: grid; gap: 2px; min-width: 0; flex: 1 1 160px; }
+.squad-member-main strong { overflow-wrap: anywhere; }
+.squad-member-main small { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; }
+.squad-avatar { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #101210; font-weight: 850; }
+.squad-avatar.hue-0 { background: #c4a665; } .squad-avatar.hue-1 { background: #7fb08a; } .squad-avatar.hue-2 { background: #a78bfa; } .squad-avatar.hue-3 { background: #6fa8c9; } .squad-avatar.hue-4 { background: #d48b80; }
+.squad-invite { display: grid; gap: 8px; }
+.squad-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.squad-join .button { justify-self: start; }
+.button.danger { color: #e2a398; border-color: #613d37; background: #261b18; }
+.link-button { padding: 0; border: 0; background: none; color: var(--brass-strong); font: inherit; text-decoration: underline; cursor: pointer; }
+.link-button:disabled { color: var(--text-dim); cursor: default; }
 .sub-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sub-status .big { font-size: 22px; font-weight: 850; letter-spacing: -.02em; }
 .nick-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

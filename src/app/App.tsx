@@ -18,6 +18,7 @@ import { KappaItemsPage } from '../pages/KappaItemsPage'
 import { KeepItemsPage } from '../pages/KeepItemsPage'
 import { RaidBriefingPage } from '../pages/RaidBriefingPage'
 import { GalleryPage } from '../pages/GalleryPage'
+import { SquadPage } from '../pages/SquadPage'
 import { useLocale } from '../i18n/LocaleProvider'
 import { LiveMapPage } from '../mobile/LiveMapPage'
 import { isDesktopShell, useMobileLayout } from '../platform'
@@ -44,6 +45,9 @@ export function App() {
     <Route path="/maps" element={<MapsPage />} />
     <Route path="/maps/:mapId" element={<MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
+    <Route path="/squad" element={<SquadPage />} />
+    <Route path="/squad/:code" element={<SquadPage />} />
+    <Route path="/friend/:code" element={<SquadPage friendLink />} />
     <Route path="/import" element={<Navigate to="/profile" replace />} />
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
