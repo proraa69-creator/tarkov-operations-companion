@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, Crown, DownloadCloud, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
@@ -7,6 +7,7 @@ import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
 import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
+import { AdminUpdate } from '../components/admin/AdminUpdate'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'sales', label: 'Настройки продаж', icon: Settings2 },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
+  { id: 'update', label: 'Обновление', icon: DownloadCloud },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -82,6 +84,7 @@ export function AdminPage() {
           {tab === 'sales' && <AdminSales />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
+          {tab === 'update' && <AdminUpdate />}
         </div>
       </div>
     </div>

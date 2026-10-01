@@ -16,6 +16,8 @@ import { PHONE_AUTH_UI } from '../account/authFeatures'
 import { openAccountSignIn } from '../account/accountEvents'
 import { accountGateEnabled } from '../account/accountGate'
 import { OwnerEmailPanel } from './OwnerEmailPanel'
+import { OwnerServerUpdatePanel } from './OwnerServerUpdatePanel'
+import { OwnerErrorReportsPanel } from './OwnerErrorReportsPanel'
 
 /** Opens a website page in the system browser (desktop) or a new tab (browser build). */
 function openWebsite(page: 'register' | 'cabinet' | 'admin') {
@@ -200,6 +202,8 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
       {local.enabled && <LavaPaymentsPanel />}
       {local.enabled && <OwnerSmsPanel />}
       {local.enabled && <OwnerEmailPanel />}
+      {local.enabled && <OwnerServerUpdatePanel />}
+      {local.enabled && <OwnerErrorReportsPanel />}
       {local.enabled && <StreamersPanel />}
     </div>
   )

@@ -81,6 +81,23 @@ export interface SmsServerStatus { smsEnabled: boolean; provider: string | null;
 export type EmailProvider = '' | 'resend'
 export interface EmailSettings { provider: EmailProvider; from: string; dailyLimit: number; hasKey: boolean; configured: boolean }
 export interface EmailServerStatus { emailEnabled: boolean; provider: string | null; from: string | null; sentToday: number; dailyLimit: number }
+/** «Отчёты об ошибках (GitHub)» (electron/errorReporter.ts). The token is write-only. */
+export interface ErrorReportSettings { enabled: boolean; repo: string; hasToken: boolean; pending: number; lastResult?: { at: string; ok: boolean; text: string } }
+/** «Автообновление сервера» (electron/selfUpdate.ts, electron/serverSelfUpdate.ts). The token is write-only. */
+export interface ServerBuildRef { version: string; build: number; commit: string }
+export interface ServerUpdateFile { name: string; size: number; done: number; state: 'pending' | 'downloading' | 'ok' | 'error' }
+export interface ServerUpdateHistoryEntry { at: string; kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string }
+export interface ServerUpdateView {
+  enabled: boolean; repo: string; window: 'any' | 'night'; hasToken: boolean
+  unsupported: string
+  current: ServerBuildRef
+  previous: (ServerBuildRef & { savedAt: string }) | null
+  updater: { phase: 'off' | 'idle' | 'checking' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error'; message: string; checkedAt?: string; latest?: ServerBuildRef; files: ServerUpdateFile[]; checks: Array<{ label: string; ok: boolean; detail?: string }>; error?: string; waitingForWindow?: boolean }
+  restart: { kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; startedAt: string; deadlineAt: string; phase: string } | null
+  history: ServerUpdateHistoryEntry[]
+  skipped: number[]
+  nextCheckAt?: string
+}
 export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
 
 interface TarkovDesktopApi {
@@ -115,6 +132,14 @@ interface TarkovDesktopApi {
     /** «E-mail владельца»: accounts that see the owner section of the website (TARKOV_OWNER_EMAILS). */
     ownerEmails: () => Promise<string[]>
     setOwnerEmails: (emails: string) => Promise<string[]>
+    /** Missing when the main process is older than the renderer. */
+    errorReports?: () => Promise<ErrorReportSettings>
+    setErrorReports?: (settings: { enabled?: boolean; repo?: string; token?: string; clearToken?: boolean }) => Promise<ErrorReportSettings>
+    testErrorReports?: () => Promise<ErrorReportSettings>
+    serverUpdate?: () => Promise<ServerUpdateView>
+    setServerUpdate?: (settings: { enabled?: boolean; repo?: string; window?: 'any' | 'night'; token?: string; clearToken?: boolean }) => Promise<ServerUpdateView>
+    checkServerUpdate?: () => Promise<ServerUpdateView>
+    rollbackServerUpdate?: () => Promise<ServerUpdateView>
   }
   update?: {
     status: () => Promise<UpdateStatus>

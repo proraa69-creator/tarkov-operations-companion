@@ -1,0 +1,35 @@
+/* «Обновление» tab of the admin panel (components/admin/AdminUpdate.tsx). Reuses the guard strip of admin-security.css. */
+.guard-lamp.is-grey { background: var(--text-dim); box-shadow: 0 0 0 4px rgb(105 118 109 / 18%); }
+.update-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 18px; margin: 0; }
+.update-facts div { display: grid; gap: 2px; min-width: 0; }
+.update-facts dt { color: var(--text-dim); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.update-facts dd { margin: 0; color: var(--text); font-size: 13px; overflow-wrap: anywhere; }
+.update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.update-files, .update-checks, .update-steps, .update-history { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.update-files li { display: grid; grid-template-columns: minmax(130px, 170px) 1fr 64px; align-items: center; gap: 10px; font-size: 12px; }
+.update-bar { position: relative; height: 6px; border-radius: 999px; background: var(--surf-1); border: 1px solid var(--line); overflow: hidden; }
+.update-bar > span { position: absolute; inset: 0 auto 0 0; background: var(--amber); border-radius: inherit; transition: width .3s ease; }
+.update-files li.is-ok .update-bar > span { background: var(--green); }
+.update-files li.is-error .update-bar > span { background: var(--danger); width: 100% !important; }
+.update-percent { text-align: right; color: var(--text-muted); }
+.update-files li.is-error .update-percent { color: var(--danger); }
+.update-checks li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; }
+.update-checks li svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.update-checks li.is-ok svg { color: var(--green); }
+.update-checks li.is-bad { color: var(--danger); }
+.update-checks li .muted { font-size: 12px; }
+.update-steps li { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 13px; }
+.update-steps li svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.update-steps li.is-done { color: var(--text-muted); }
+.update-steps li.is-done svg { color: var(--green); }
+.update-steps li.is-current { color: var(--text); font-weight: 650; }
+.update-dot { width: 10px; height: 10px; margin: 0 3px; border-radius: 50%; border: 1px solid var(--line-strong); }
+.update-history li { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
+.update-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.update-history-builds { font-size: 12px; overflow-wrap: anywhere; }
+.update-history-reason { font-size: 12px; }
+@media (max-width: 560px) {
+  .update-files li { grid-template-columns: 1fr auto; }
+  .update-files li .update-bar { grid-column: 1 / -1; grid-row: 2; }
+  .update-actions .button { flex: 1 1 100%; justify-content: center; }
+}

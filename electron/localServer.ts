@@ -7,6 +7,7 @@ import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { apiEnvironment, entitlementKeyEnvironment } from './ownerAdmin.js'
+import { dispatchApiMessage } from './apiChannel.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
 import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
 import { siteSecurityHeaders } from './siteHeaders.js'
@@ -151,6 +152,8 @@ async function startApi() {
   const write = (chunk: Buffer) => void appendFile(log, chunk).catch(() => {})
   child.stdout?.on('data', write)
   child.stderr?.on('data', write)
+  // The API's questions and events for this app (electron/apiChannel.ts): self-update status / actions, error reports.
+  child.on('message', (message: unknown) => { void dispatchApiMessage(message, (answer) => { try { child.postMessage(answer) } catch { /* the process is gone */ } }) })
   child.once('spawn', () => { apiState = 'running' })
   child.once('exit', (code) => {
     // A process replaced by a restart must not mark the new one as stopped.
@@ -217,7 +220,7 @@ interface Published { exe: string; info: { version: string; build: number; commi
  */
 async function publishedClient(): Promise<Published | null> {
   const running = process.env.PORTABLE_EXECUTABLE_FILE
-  const dir = process.env.TARKOV_CLIENT_DIR?.trim() || (running ? join(dirname(running), 'client') : '')
+  const dir = clientPublishDir()
   if (dir) {
     const names = (await readdir(dir).catch(() => [] as string[])).filter((name) => name.toLowerCase().endsWith('.exe'))
     // Normally one exe; with several the newest one.
@@ -349,6 +352,13 @@ export async function replaceOwnOldServer() {
 /** Ports and log folder for the watchdog (electron/serverMonitor.ts). */
 export const LOCAL_PORTS = { api: API_PORT, site: SITE_PORT } as const
 export const serverLogsDir = () => join(dataDir(), 'logs')
+/** The server's data folder (database, logs, backups, self-update state). */
+export const serverDataDir = dataDir
+/** Where the players' version is published: TARKOV_CLIENT_DIR or `client` next to the running exe ('' when not portable). */
+export function clientPublishDir() {
+  const running = process.env.PORTABLE_EXECUTABLE_FILE
+  return process.env.TARKOV_CLIENT_DIR?.trim() || (running ? join(dirname(running), 'client') : '')
+}
 export { portTaken }
 
 /** What the watchdog needs to tell «the process exited» from «does not answer» and «someone else's program». */

@@ -1,0 +1,48 @@
+/**
+ * English for the owner's «Автообновление сервера» (src/components/OwnerServerUpdatePanel.tsx, electron/selfUpdate.ts)
+ * and «Отчёты об ошибках (GitHub)» (src/components/OwnerErrorReportsPanel.tsx, electron/errorReporter.ts) panels.
+ */
+export const SERVER_UPDATE_PHRASES: Array<[string, string]> = [
+  // «Автообновление сервера»
+  ['Автообновление сервера', 'Server auto-update'],
+  ['Не работает на этом компьютере', 'Not available on this PC'], ['установлена версия', 'installed version'], ['Новая версия на GitHub', 'New version on GitHub'],
+  ['Только в версии владельца.', 'Owner edition only.'],
+  ['Только на ноутбуке-сервере (запуск с --server-mode).', 'Only on the server laptop (started with --server-mode).'],
+  ['Только в Windows.', 'Windows only.'],
+  ['Только для portable-exe (Raid OS Server.exe).', 'Only for the portable exe (Raid OS Server.exe).'],
+  ['ждёт новую версию', 'waiting for a new version'], ['проверяю…', 'checking…'], ['скачиваю…', 'downloading…'],
+  ['проверяю подпись и контрольные суммы…', 'checking the signature and checksums…'],
+  ['скачано и проверено, ждёт окна установки', 'downloaded and verified, waiting for the install window'],
+  ['устанавливаю…', 'installing…'],
+  ['установка ночью (03:00–06:00)', 'installs at night (03:00–06:00)'],
+  ['Перезапуск после обновления', 'Restarting after the update'], ['Перезапуск после отката', 'Restarting after the rollback'],
+  ['Ноутбук сам проверяет закрытый репозиторий релизов каждые 15 минут, скачивает новую сборку, проверяет подпись (ключ встроен в приложение), размеры и SHA-256 каждого файла, публикует версию для игроков и перезапускается. Если новая версия не ответит за 2 минуты, вернётся предыдущая. Более старые сборки не ставятся.',
+    'Every 15 minutes the laptop checks the private releases repository, downloads a new build, verifies the signature (the key is built into the app), the size and SHA-256 of every file, publishes the players\' version and restarts. If the new version does not answer within 2 minutes, the previous one comes back. Older builds are never installed.'],
+  ['Токен: GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: Only select repositories (только репозиторий релизов) → Permissions: Contents — Read-only, больше ничего. Токен хранится на этом компьютере в зашифрованном виде и больше не показывается.',
+    'Token: GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: Only select repositories (the releases repository only) → Permissions: Contents — Read-only, nothing else. The token is stored encrypted on this PC and never shown again.'],
+  ['Репозиторий релизов', 'Releases repository'], ['Токен GitHub', 'GitHub token'],
+  ['github_pat_… (Contents: Read-only)', 'github_pat_… (Contents: Read-only)'],
+  ['Сохранён. Оставьте пустым, чтобы не менять', 'Saved. Leave empty to keep it'],
+  ['Когда устанавливать', 'When to install'], ['Сразу, в любое время', 'Right away, any time'], ['Только ночью, 03:00–06:00', 'Only at night, 03:00–06:00'],
+  ['Последняя проверка', 'Last check'], ['следующая проверка', 'next check'], ['предыдущая версия', 'previous version'],
+  ['Обновление сервера', 'Server update'], ['Откат сервера', 'Server rollback'], ['прошло успешно', 'succeeded'], ['откачено на предыдущую', 'rolled back to the previous one'], ['не выполнено', 'not done'],
+  ['Удалить токен', 'Delete the token'], ['Токен удалён', 'Token deleted'],
+  ['Откатить на предыдущую', 'Roll back to the previous one'],
+  ['Откатить сервер на предыдущую версию', 'Roll the server back to the previous version'], ['Сервер перезапустится (около минуты).', 'The server will restart (about a minute).'],
+  ['сервер (API) новой версии не ответил за 2 минуты', 'the new version\'s server (API) did not answer within 2 minutes'],
+  ['сайт новой версии не открылся за 2 минуты', 'the new version\'s website did not open within 2 minutes'],
+  ['на порту сервера отвечает другая сборка', 'another build answers on the server port'],
+  ['не удалось заменить exe (файл занят)', 'could not replace the exe (file in use)'],
+  ['новая версия не запустилась', 'the new version did not start'],
+  ['Сначала вставьте токен GitHub', 'Paste the GitHub token first'],
+  ['Нужен fine-grained токен GitHub: он начинается с github_pat_ (Settings → Developer settings → Fine-grained tokens)', 'A fine-grained GitHub token is needed: it starts with github_pat_ (Settings → Developer settings → Fine-grained tokens)'],
+  ['Нет сохранённой предыдущей версии: она появляется после первого автообновления', 'No previous version saved: it appears after the first auto-update'],
+  ['Сейчас уже идёт обновление или откат', 'An update or rollback is already in progress'],
+  // «Отчёты об ошибках (GitHub)»
+  ['Отчёты об ошибках (GitHub)', 'Error reports (GitHub)'], ['ждут отправки', 'waiting to be sent'],
+  ['Ошибки сервера (исключения, ответы 5xx, сбои «Стража», неудачные перезапуски, откаты обновлений) создают задачи на GitHub с меткой auto-report — их можно передать Claude для исправления. IP-адреса, e-mail, токены, ключи, параметры запросов и пути пользователя удаляются. Одна ошибка — одна задача: повторы добавляют комментарий не чаще раза в час, новых задач не больше 5 в сутки. Без интернета отчёты ждут в очереди.',
+    'Server errors (exceptions, 5xx answers, guardian incidents, failed restarts, update rollbacks) open GitHub issues labelled auto-report that Claude can fix. IP addresses, e-mails, tokens, keys, query strings and user paths are removed. One error is one issue: repeats add a comment at most once an hour, at most 5 new issues a day. Without internet the reports wait in a queue.'],
+  ['Токен: GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: Only select repositories (только этот репозиторий) → Permissions: Issues — Read and write, больше ничего. Токен хранится на этом компьютере в зашифрованном виде и больше не показывается.',
+    'Token: GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token → Repository access: Only select repositories (this repository only) → Permissions: Issues — Read and write, nothing else. The token is stored encrypted on this PC and never shown again.'],
+  ['Репозиторий', 'Repository'], ['github_pat_… (Issues: Read and write)', 'github_pat_… (Issues: Read and write)'], ['Проверить доступ', 'Test access'],
+]
