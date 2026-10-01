@@ -1,0 +1,90 @@
+{
+  "data": {
+    "tasks": [
+      {
+        "id": "5ac23c6186f7741247042bad",
+        "name": "Gunsmith - Part 1",
+        "normalizedName": "gunsmith-part-1",
+        "map": null,
+        "objectives": [
+          { "id": "5accd5e386f77463027e9397", "type": "buildWeapon", "description": "Modify an MP-133 to comply with the given specifications", "optional": false, "maps": [] }
+        ]
+      },
+      {
+        "id": "5967530a86f77462ba22226b",
+        "name": "Bad Rep Evidence",
+        "normalizedName": "bad-rep-evidence",
+        "map": { "id": "56f40101d2720b2a4d8b45d6" },
+        "objectives": [
+          {
+            "id": "5968929e86f7740d121082d3",
+            "type": "findQuestItem",
+            "description": "Obtain the Secure Folder 0013 on Customs",
+            "optional": false,
+            "maps": [{ "id": "56f40101d2720b2a4d8b45d6" }],
+            "count": 1,
+            "questItem": { "id": "590c62a386f77412b0130255" },
+            "possibleLocations": [
+              { "map": { "id": "56f40101d2720b2a4d8b45d6" }, "positions": [ { "x": 189.2, "y": 2.1, "z": -165.4 }, { "x": 195.7, "y": 2.1, "z": -158.9 } ] }
+            ]
+          },
+          {
+            "id": "596a0e1686f7741ddf17dbee",
+            "type": "giveQuestItem",
+            "description": "Hand over the folder",
+            "optional": false,
+            "maps": [],
+            "count": 1
+          }
+        ]
+      },
+      {
+        "id": "5c0d4c12d09282029f539173",
+        "name": "Peacekeeping Mission",
+        "normalizedName": "peacekeeping-mission",
+        "map": null,
+        "objectives": [
+          {
+            "id": "5c0d4c12d09282029f539175",
+            "type": "visit",
+            "description": "Locate the UN checkpoint on Customs",
+            "optional": false,
+            "maps": [{ "id": "56f40101d2720b2a4d8b45d6" }],
+            "zones": [
+              {
+                "id": "place_peacemaker_007_N1",
+                "map": { "id": "56f40101d2720b2a4d8b45d6" },
+                "position": { "x": -142.6, "y": 0.6, "z": 92.1 },
+                "outline": [ { "x": -150, "y": 0, "z": 85 }, { "x": -135, "y": 0, "z": 85 }, { "x": -135, "y": 0, "z": 99 }, { "x": -150, "y": 0, "z": 99 } ],
+                "top": 6.5,
+                "bottom": -2
+              }
+            ]
+          },
+          {
+            "id": "5c0d4c12d09282029f539177",
+            "type": "shoot",
+            "description": "Eliminate Scavs while wearing a UN uniform",
+            "optional": false,
+            "maps": [],
+            "count": 30,
+            "zones": []
+          },
+          {
+            "id": "5c0d4c12d09282029f539179",
+            "type": "mark",
+            "description": "Mark the UN vehicle with an MS2000 Marker",
+            "optional": true,
+            "maps": [{ "id": "5b0fc42d86f7744a585f9105" }],
+            "markerItem": { "id": "5991b51486f77447b112d44f" },
+            "zones": [
+              { "id": "un_vehicle", "map": { "id": "5b0fc42d86f7744a585f9105" }, "position": { "x": 10, "y": -4.5, "z": 20 }, "outline": [], "top": null, "bottom": null },
+              { "id": "broken", "map": { "id": "unknown-map" }, "position": { "x": 1, "y": 1, "z": 1 } },
+              { "id": "no-position", "map": { "id": "56f40101d2720b2a4d8b45d6" }, "position": null }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
