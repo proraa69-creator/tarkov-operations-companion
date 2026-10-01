@@ -6,7 +6,7 @@ import { connect } from 'node:net'
 import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, utilityProcess, type UtilityProcess } from 'electron'
-import { apiEnvironment } from './ownerAdmin.js'
+import { apiEnvironment, entitlementKeyEnvironment } from './ownerAdmin.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
 import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
 import { siteSecurityHeaders } from './siteHeaders.js'
@@ -139,7 +139,7 @@ export async function apiPublicUrl() {
 async function startApi() {
   const log = join(dataDir(), 'logs', 'api.log')
   // Owner token, ЮKassa settings and the public address travel only in the process environment (electron/ownerAdmin.ts).
-  const extra = await apiEnvironment(await apiPublicUrl())
+  const extra = { ...await apiEnvironment(await apiPublicUrl()), ...await entitlementKeyEnvironment(dataDir()).catch(() => ({})) }
   // Which app build runs this server: /health reports it, so a later build can recognise an old server on the port.
   const build = await runningBuild()
   const buildEnv = { TARKOV_APP_VERSION: build.version, TARKOV_APP_BUILD: String(build.build), TARKOV_APP_COMMIT: build.commit, TARKOV_APP_EDITION: build.edition }

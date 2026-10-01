@@ -1,6 +1,6 @@
-import { Ban, CalendarPlus, ChevronDown, LoaderCircle, LogOut, Search, ShieldCheck, XCircle } from 'lucide-react'
+import { Ban, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { api, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
+import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
@@ -188,7 +188,41 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
             </ul>
           )}
         </div>
+        <UserDevices id={id} />
       </div>
+    </div>
+  )
+}
+
+const DEVICE_OFF: Record<string, string> = { limit: 'вход на новом устройстве', owner: 'отключено владельцем', user: 'отключено пользователем' }
+
+/** «Устройства»: at most three active per account; a switched-off device is signed out (its app shows why). */
+function UserDevices({ id }: { id: string }) {
+  const { token } = useAuth()
+  const devices = useAdminData(useCallback((t: string) => api.adminDevices(t, id), [id]))
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState<Failure | null>(null)
+  const revoke = async (deviceId: string, name: string) => {
+    if (!token || !window.confirm(`Отключить устройство «${name}»? Приложение на нём выйдет из аккаунта.`)) return
+    setBusy(deviceId); setError(null)
+    try { devices.setData(await api.adminRevokeDevice(token, id, deviceId)) } catch (reason) { setError(failure(reason)) } finally { setBusy('') }
+  }
+  const data: AdminDevices | null | undefined = devices.data
+  return (
+    <div>
+      <div className="field-label"><MonitorSmartphone size={13} aria-hidden="true" />Устройства{data ? ` (активных не больше ${data.limit})` : ''}</div>
+      {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
+      {!data ? (devices.error ? <span className="field-hint">{devices.error.message}</span> : <Loading />) : data.devices.length === 0 ? <span className="field-hint">Приложение ещё не входило в аккаунт.</span> : (
+        <ul className="admin-list">
+          {data.devices.map((device) => (
+            <li key={device.id}>
+              {device.name} · <span className="mono">{dateTime.format(new Date(device.lastSeenAt))}</span> · {device.active
+                ? <button type="button" className="button small ghost admin-danger" disabled={busy !== ''} onClick={() => void revoke(device.id, device.name)}>{busy === device.id ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogOut aria-hidden="true" />}Отключить</button>
+                : <span className="tag admin-mini">{DEVICE_OFF[device.revokedReason ?? ''] ?? 'отключено'}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

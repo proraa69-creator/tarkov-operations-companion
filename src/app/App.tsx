@@ -23,6 +23,8 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { LiveMapPage } from '../mobile/LiveMapPage'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { startAppActivity } from './appActivity'
+import { useDataAccess } from '../account/dataAccess'
+import { DeviceLimitNotice, Paywall } from '../account/Paywall'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
@@ -31,10 +33,13 @@ export function App() {
   const { locale, revision } = useLocale()
   const mobile = useMobileLayout()
   const desktop = isDesktopShell()
+  const access = useDataAccess()
   // Decorative motion sleeps while the window is not in use (the player is in the game), see appActivity.ts.
   useEffect(() => startAppActivity(), [])
+  // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><Paywall key={locale} access={access} /></>
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
-  return <>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><RestockNotifier /><AppShell key={`${locale}:${revision}`}><Routes>
+  return <>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />

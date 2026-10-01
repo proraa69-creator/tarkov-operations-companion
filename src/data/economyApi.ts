@@ -1,4 +1,5 @@
-import { get, set } from 'idb-keyval'
+import { tarkovGraphql } from './tarkovApi'
+import { readGameCache, writeGameCache } from './gameDataCache'
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { DEFAULT_OFFER_FEE_RATE, DEFAULT_REQUIREMENT_FEE_RATE } from '../domain/fleaFee'
@@ -10,7 +11,8 @@ import { DEFAULT_OFFER_FEE_RATE, DEFAULT_REQUIREMENT_FEE_RATE } from '../domain/
  */
 export const ECONOMY_GRAPHQL_URL = 'https://api.tarkov.dev/graphql'
 const CACHE_PREFIX = 'tarkov-operations-economy-v1'
-const REQUEST_TIMEOUT = 60_000
+/** An offline copy of barters and crafts is shown for at most this long (never past the entitlement in the players' app). */
+const ECONOMY_CACHE_MS = 3 * 24 * 60 * 60 * 1000
 
 /**
  * GraphQL `GameMode` per app mode. tarkov.dev's GraphQL enum has `regular` and `pve`; it has no separate Season
@@ -231,23 +233,11 @@ export function parsePriceHistory(data: unknown): PricePoint[] {
     .sort((a, b) => a.timestamp - b.timestamp)
 }
 
+/** Through the server's data gateway in the players' app (src/data/tarkovApi.ts, docs/subscription-protection.md). */
 async function graphql(query: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
-  try {
-    const response = await fetch(ECONOMY_GRAPHQL_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ query }),
-      signal: controller.signal,
-    })
-    if (!response.ok) throw new Error(`tarkov.dev: HTTP ${response.status}`)
-    const body = await response.json() as { data?: unknown; errors?: Array<{ message?: string }> }
-    if (!body.data) throw new Error(body.errors?.[0]?.message ?? 'tarkov.dev: пустой ответ')
-    return body.data
-  } finally {
-    globalThis.clearTimeout(timeout)
-  }
+  const body = await tarkovGraphql(query)
+  if (!body.data) throw new Error(body.errors?.[0]?.message ?? 'tarkov.dev: пустой ответ')
+  return body.data
 }
 
 export class SeasonPricesUnavailable extends Error {
@@ -261,10 +251,10 @@ export async function fetchEconomySnapshot(mode: RaidMode, locale: AppLocale): P
   try {
     const snapshot = parseEconomyResponse(await graphql(economyQuery(gameMode, locale)), mode)
     if (!snapshot.barters.length && !snapshot.crafts.length) throw new Error('tarkov.dev: нет бартеров и крафтов')
-    await set(cacheKey, snapshot).catch(() => {})
+    await writeGameCache(cacheKey, snapshot, ECONOMY_CACHE_MS)
     return { ...snapshot, source: 'live' }
   } catch (error) {
-    const cached = await get<EconomySnapshot>(cacheKey).catch(() => undefined)
+    const cached = await readGameCache<EconomySnapshot>(cacheKey)
     if (cached?.mode === mode) return { ...cached, source: 'cache' }
     throw error
   }

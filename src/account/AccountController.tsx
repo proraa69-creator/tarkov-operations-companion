@@ -10,7 +10,7 @@ import { openModeRegistrationDialog } from '../components/ModeRegistrationDialog
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { isNative } from '../platform'
 import { DeepLinkLogin } from '../mobile/DeepLinkLogin'
-import { OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
+import { clearNicknameStepRequest, nicknameStepRequested, OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
 import { findNickname, modeTitle, RAID_MODE_ORDER, saveNicknamesOnServer } from './nicknameBinding'
 import { useNicknameBinder } from './useNicknameBinder'
 import { SignInStep, type AccountGateTab } from './AccountSignIn'
@@ -33,7 +33,9 @@ export function AccountController() {
   const state = useAppState()
   const navigate = useNavigate()
   const { status } = useServerAccount()
-  const [nickStep, setNickStep] = useState(false)
+  // After a sign-in on the paywall (players' app) the nickname step follows once the app opens.
+  const [nickStep, setNickStep] = useState(nicknameStepRequested)
+  useEffect(() => { clearNicknameStepRequest() }, [])
   const [skipped, setSkipped] = useState(() => readSkip())
   const [tab, setTab] = useState<AccountGateTab>('login')
   const gated = accountGateEnabled()

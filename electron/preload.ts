@@ -7,6 +7,13 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   edition: ipcRenderer.sendSync('app:edition') === 'owner' ? 'owner' : 'client',
   /** The server laptop (--server-mode in the owner build). */
   serverMode: ipcRenderer.sendSync('app:server-mode') === true,
+  /** true: game data only through the server with a subscription (players' exe, docs/subscription-protection.md). */
+  dataGateway: ipcRenderer.sendSync('app:data-gateway') === true,
+  /** Paid game data cache, encrypted in the main process (electron/gameDataCache.ts); strings only. */
+  dataCache: {
+    get: (key: string) => ipcRenderer.invoke('data-cache:get', String(key)) as Promise<string | null>,
+    set: (key: string, value: string, maxAgeMs: number) => ipcRenderer.invoke('data-cache:set', String(key), String(value), Number(maxAgeMs)) as Promise<boolean>,
+  },
   openWikiMap: (id: string) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('service:request', method, path, body),
   account: {

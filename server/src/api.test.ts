@@ -105,10 +105,10 @@ test('security headers on every answer, accounts never cached, 5xx without inter
     assert.equal(broken.status, 400)
     assert.equal(broken.headers.get('cache-control'), 'no-store')
 
-    // 4xx keep their message.
+    // 4xx keep their message (the paid catalog first asks for a session: docs/subscription-protection.md).
     const invalid = await fetch(`${base}/v1/catalog/invalid`)
-    assert.equal(invalid.status, 400)
-    assert.deepEqual(await invalid.json(), { error: 'Некорректные данные запроса' })
+    assert.equal(invalid.status, 401)
+    assert.deepEqual(await invalid.json(), { error: 'Требуется вход в аккаунт', code: 'auth_required' })
 
     // A failure inside the server (here: its database is gone) answers a generic message; the details go to the log.
     console.error = (...args: unknown[]) => { logged.push(args) }
@@ -126,30 +126,30 @@ test('security headers on every answer, accounts never cached, 5xx without inter
   }
 })
 
-test('public catalog and player lookups are rate limited per IP with Retry-After', async () => {
+test('catalog and player lookups are rate limited per IP with Retry-After (before the sign-in check)', async () => {
   const store = new ProgressStore(':memory:')
   const server = createApi(store, undefined, undefined, { rateLimits: { catalog: 2, players: 2 } }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const address = server.address()
   assert.ok(address && typeof address !== 'string')
   const base = `http://127.0.0.1:${address.port}`
-  // Invalid requests (400, no upstream call) still count: the limit applies before validation.
+  // Refused requests (401 without a session, no upstream call) still count: the limit applies before anything else.
   const catalog = (ip?: string) => fetch(`${base}/v1/catalog/invalid`, { headers: ip ? { 'x-forwarded-for': ip } : {} })
   const resolve = () => fetch(`${base}/v1/players/resolve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'pvp', nickname: 'x' }) })
   try {
-    assert.equal((await catalog()).status, 400)
-    assert.equal((await catalog()).status, 400)
+    assert.equal((await catalog()).status, 401)
+    assert.equal((await catalog()).status, 401)
     const limited = await catalog()
     assert.equal(limited.status, 429)
     const retry = Number(limited.headers.get('retry-after'))
     assert.ok(retry > 0 && retry <= 60, `Retry-After ${retry}`)
     assert.match((await limited.json() as { error: string }).error, /Слишком много запросов/)
     // Another visitor behind the site proxy (X-Forwarded-For from loopback) has its own bucket.
-    assert.equal((await catalog('203.0.113.7')).status, 400)
+    assert.equal((await catalog('203.0.113.7')).status, 401)
 
     // resolve and profile share one bucket, separate from the catalog.
-    assert.equal((await resolve()).status, 400)
-    assert.equal((await fetch(`${base}/v1/players/invalid/1`)).status, 400)
+    assert.equal((await resolve()).status, 401)
+    assert.equal((await fetch(`${base}/v1/players/invalid/1`)).status, 401)
     const players = await resolve()
     assert.equal(players.status, 429)
     assert.ok(Number(players.headers.get('retry-after')) > 0)

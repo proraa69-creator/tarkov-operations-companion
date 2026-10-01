@@ -41,6 +41,21 @@ export interface ServerAccountStatus {
   phone?: string
   /** false while the e-mail is not confirmed («Подтвердите e-mail»); absent with an older server or app. */
   emailVerified?: boolean
+  /** Signed entitlement of this device (electron/entitlement.ts): the players' app shows the paywall without it. */
+  entitlement?: EntitlementView
+}
+
+/** Why the players' app has no access right now (docs/subscription-protection.md). */
+export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+export interface EntitlementView {
+  valid: boolean
+  plan?: 'owner' | 'streamer' | 'paid' | 'trial'
+  expiresAt?: string
+  until?: string
+  reason?: EntitlementReason
+  /** Devices this sign-in switched off (three-device limit): shown once. */
+  revokedDevices?: Array<{ name: string; lastSeenAt: string }>
+  message?: string
 }
 
 /** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */
@@ -74,6 +89,13 @@ interface TarkovDesktopApi {
   edition?: 'owner' | 'client'
   /** The server laptop (owner build started with --server-mode): no catalog polling. */
   serverMode?: boolean
+  /** true: game data only through the server with a subscription (src/data/tarkovApi.ts). Missing in older builds. */
+  dataGateway?: boolean
+  /** Encrypted cache of the paid game data (electron/gameDataCache.ts). Missing in older builds. */
+  dataCache?: {
+    get: (key: string) => Promise<string | null>
+    set: (key: string, value: string, maxAgeMs: number) => Promise<boolean>
+  }
   owner?: {
     payments: () => Promise<PaymentSettings>
     setPayments: (settings:

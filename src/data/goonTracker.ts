@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { tarkovJson } from './tarkovApi'
 import type { RaidMode } from '../domain/types'
 
 export const GOON_MAPS = ['customs', 'woods', 'shoreline', 'lighthouse'] as const
@@ -183,9 +184,8 @@ export function useGoonTracker(mode: RaidMode) {
       lastCommunity = Date.now()
       try {
         const upstream = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
-        const response = await fetch(`https://json.tarkov.dev/${upstream}/maps`, { signal: AbortSignal.timeout(15_000) })
-        if (!response.ok) return
-        const root = await response.json() as { data?: { goonReports?: unknown } }
+        // Through the server's data gateway in the players' app (src/data/tarkovApi.ts).
+        const root = await tarkovJson<{ data?: { goonReports?: unknown } }>(`${upstream}/maps`, undefined, 15_000)
         const community = parseGoonReport(root.data?.goonReports)
         if (alive) setState((previous) => previous.mode === mode ? { ...previous, community } : previous)
       } catch { /* The public feed is optional; keep the last verified report. */ }

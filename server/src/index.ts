@@ -11,6 +11,8 @@ import { PhoneAuthService } from './services/phoneAuth.js'
 import { createSmsSender, smsConfigFromEnv, smsLimitsFromEnv } from './services/sms/index.js'
 import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
+import { dirname } from 'node:path'
+import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
@@ -40,7 +42,10 @@ const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSen
 // E-mail one-time codes (registration confirmation, sign-in and reset by e-mail): only with a provider set in the owner's app.
 const emailConfig = emailConfigFromEnv()
 const emails = new EmailAuthService(accounts, { sender: emailConfig ? createEmailSender(emailConfig) : undefined, limits: emailLimitsFromEnv() })
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, phones, emails })
+// Signed entitlements: the private key comes from TARKOV_ENTITLEMENT_PRIVATE_KEY (the owner's app keeps it encrypted) or
+// lives next to the database (entitlement-ed25519.pem, created on the first start). Never in the repository.
+const entitlements = new EntitlementService(accounts, { keyDir: dbPath === ':memory:' ? undefined : dirname(dbPath) })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, phones, emails, entitlements })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

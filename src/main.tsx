@@ -14,7 +14,13 @@ import { OverlayApp, overlayKind } from './overlay/OverlayApp'
 import { LocaleProvider } from './i18n/LocaleProvider'
 import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
 import { installLayoutAttributes } from './platform'
+import { installTarkovFetchGuard } from './data/tarkovApi'
+import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 
+// Players' app: tarkov.dev only through our server with a subscription; no plaintext game data left from older versions
+// (docs/subscription-protection.md). Both are no-ops in the owner's app and in development.
+installTarkovFetchGuard()
+void purgeLegacyPlaintextCaches()
 installLayoutAttributes()
 applyAppearance()
 clearRemovedAppearanceSettings()

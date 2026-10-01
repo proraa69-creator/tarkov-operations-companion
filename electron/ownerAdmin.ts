@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { generateKeyPairSync, randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -321,6 +321,33 @@ export async function apiEnvironment(publicUrl: string): Promise<Record<string, 
       ...(lava.paymentMethod ? { LAVA_PAYMENT_METHOD: lava.paymentMethod } : {}),
     } : {}),
   }
+}
+
+/** The API's Ed25519 key for signed entitlements (docs/subscription-protection.md), encrypted with safeStorage here. */
+const entitlementKeyFile = () => join(app.getPath('userData'), 'entitlement-key.bin')
+/** Where the API keeps its key when it runs without this app (server/src/services/entitlement.ts). */
+const SERVER_KEY_FILE = 'entitlement-ed25519.pem'
+
+/**
+ * TARKOV_ENTITLEMENT_PRIVATE_KEY for the API on this PC. Made once and kept encrypted (DPAPI) in userData; a key the
+ * API made earlier next to the database is taken over (so the players' apps that pinned it keep working) and its plain
+ * file removed. An encrypted key that cannot be decrypted any more is never replaced silently: the API then keeps
+ * using its own file (or makes one), and the players sign out and in once (docs/subscription-protection.md).
+ */
+export async function entitlementKeyEnvironment(serverDataDir: string): Promise<Record<string, string>> {
+  if (!safeStorage.isEncryptionAvailable()) return {}
+  const file = entitlementKeyFile()
+  let pem = await secretKey(file)
+  if (!pem && existsSync(file)) return {}
+  if (!pem) {
+    const plain = join(serverDataDir, SERVER_KEY_FILE)
+    const existing = existsSync(plain) ? await readFile(plain, 'utf8').catch(() => '') : ''
+    pem = existing.includes('PRIVATE KEY') ? existing : generateKeyPairSync('ed25519').privateKey.export({ format: 'pem', type: 'pkcs8' }).toString()
+    await storeSecret(file, pem)
+    if ((await secretKey(file)) !== pem) return {}
+    if (existing) await rm(plain, { force: true }).catch(() => {})
+  }
+  return { TARKOV_ENTITLEMENT_PRIVATE_KEY: Buffer.from(pem, 'utf8').toString('base64') }
 }
 
 async function admin(method: 'GET' | 'POST', path: string, body?: unknown) {

@@ -8,7 +8,8 @@
  * - The session token is kept in the app's private WebView storage (never logged, never put in a URL).
  * - Only the whitelisted paths below can be requested.
  */
-import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
+import type { EntitlementView, ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
+import { webAcceptIssued, webClearEntitlement, webDeviceId, webDeviceName, webEntitlementDue, webEntitlementFor, webForgetKey, webPinKey, webRefuseEntitlement } from './webEntitlement'
 
 /** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
 export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
@@ -20,7 +21,13 @@ const MODE = '(?:pvp|pve|seasonal)'
 type Method = 'GET' | 'POST' | 'PUT'
 const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/health$/ },
-  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}$`) },
+  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?lang=(?:ru|en))?$`) },
+  // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
+  { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
+  { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
+  // Plans and prices for the paywall (public, server/src/routes/payments.ts).
+  { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },
   { methods: ['POST'], path: /^\/v1\/players\/resolve$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/players/${MODE}/\\d{1,12}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
@@ -68,6 +75,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
+
+/** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
+const GATED = /^\/v1\/(?:data|catalog|players)\//
 
 function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
@@ -118,19 +128,25 @@ function loadSession(): StoredSession | null {
     return null
   }
 }
-const saveSession = (session: StoredSession | null) => write(SESSION_STORAGE_KEY, session ? JSON.stringify(session) : null)
+const saveSession = (session: StoredSession | null) => {
+  // A new session asks for the entitlement at once; signing out drops it (and the server key pinned on first use).
+  if (session?.token !== loadSession()?.token) entitlementDue = true
+  if (!session) { webClearEntitlement(); webForgetKey(apiBaseUrl()) }
+  write(SESSION_STORAGE_KEY, session ? JSON.stringify(session) : null)
+}
+let entitlementDue = false
 
 class UnavailableError extends Error {
   constructor() { super('Сервер недоступен') }
 }
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number } = {}) {
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl()}${path}`, {
       method,
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', ...(options.body === undefined ? {} : { 'content-type': 'application/json' }), ...(options.token ? { authorization: `Bearer ${options.token}` } : {}) },
+      headers: { accept: 'application/json', ...(options.body === undefined ? {} : { 'content-type': 'application/json' }), ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}) },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: 'no-store',
     })
@@ -147,14 +163,36 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const gated = GATED.test(path)
   if (personal && !session) return null
-  const { response, result } = await send(method, path, { body, token: personal ? session?.token : null, timeoutMs: /^\/v1\/(?:players|catalog)\//.test(path) ? 45_000 : 15_000 })
-  if (response.status === 401 && personal) {
+  if (gated && !session) throw new Error('Требуется вход в аккаунт')
+  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
+  const code = (result as { code?: unknown } | null)?.code
+  if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
+  if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
   return result
+}
+
+/** Signed entitlement of this device (sync/webEntitlement.ts): renewed every few hours, offline the stored one. */
+async function webEntitlement(session: StoredSession | null, online: boolean): Promise<EntitlementView> {
+  if (!session) return { valid: false, reason: 'signed-out' }
+  const server = apiBaseUrl()
+  const force = entitlementDue
+  entitlementDue = false
+  if (!online || (!force && !webEntitlementDue(server))) return webEntitlementFor(server)
+  try {
+    const key = await send('GET', '/v1/entitlement/public-key', { timeoutMs: 8000 })
+    if (!webPinKey(server, (key.result as { publicKey?: unknown } | null)?.publicKey)) return { valid: false, reason: 'key-mismatch' }
+    const { response, result } = await send('POST', '/v1/entitlement', { token: session.token, timeoutMs: 10_000, body: { deviceId: webDeviceId(), deviceName: webDeviceName() } })
+    if (response.status === 402) { webRefuseEntitlement('subscription', (result as { error?: string } | null)?.error); return webEntitlementFor(server) }
+    if (response.ok) return webAcceptIssued(server, result)
+  } catch { /* offline: the stored token */ }
+  return webEntitlementFor(server)
 }
 
 export async function webAccountStatus(): Promise<ServerAccountStatus> {
@@ -176,7 +214,8 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       }
     }
   } catch { online = false }
-  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true }
+  const entitlement = await webEntitlement(session, online)
+  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true, entitlement }
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */

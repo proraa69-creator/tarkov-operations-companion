@@ -21,7 +21,8 @@ interface StepProps {
   /** Called right before a request that may sign in: the gate goes on to «Привязать ник» without showing the app. */
   onSigningIn: () => void
   onSignedIn: (nicknames?: Nicknames) => void
-  onSkip: () => void
+  /** «Продолжить без входа» while the server is offline; absent on the paywall (no way past it). */
+  onSkip?: () => void
   initialTab?: AccountGateTab
 }
 
@@ -80,7 +81,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       {status && !online && (
         <div className="account-gate-offline">
           <button type="button" className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить снова')}</button>
-          <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>
+          {onSkip && <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>}
         </div>
       )}
     </div>

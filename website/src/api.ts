@@ -224,6 +224,9 @@ export interface AdminUser {
   autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
 }
+/** Devices of an account (three active at most, docs/subscription-protection.md). */
+export interface AdminDevice { id: string; name: string; createdAt: string; lastSeenAt: string; active: boolean; revokedAt?: string; revokedReason?: 'limit' | 'owner' | 'user' }
+export interface AdminDevices { devices: AdminDevice[]; limit: number }
 export interface AdminUserDetail { user: AdminUser; payments: AdminPayment[]; grants: Array<{ days: number; reason: string; actor: string; at: string; paidUntil: string }>; revoked?: number }
 export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
 export interface AdminSalesSettings {
@@ -308,6 +311,8 @@ export const api = {
   adminCancelAutopay: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/cancel-autopay`, { method: 'POST', token, body: {} }),
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
+  adminDevices: (token: string, id: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices`, { token }),
+  adminRevokeDevice: (token: string, id: string, deviceId: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST', token, body: {} }),
   adminStreamerSettings: (token: string) => request<AdminStreamerSettings>('/me/admin/streamer-settings', { token }),
   adminSetStreamerPercent: (token: string, code: string, percent: number | null) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/percent`, { method: 'PUT', token, body: { percent } }),
   adminSetStreamerLink: (token: string, code: string, enabled: boolean) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/link`, { method: 'PUT', token, body: { enabled } }),

@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
   app: { getPath: () => state.dir },
   safeStorage: { isEncryptionAvailable: () => false, getSelectedStorageBackend: () => 'basic_text', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() },
 }))
-vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => true, buildDefaultServerUrl: () => state.remote }))
+vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => true, buildDefaultServerUrl: () => state.remote, buildEntitlementKeys: () => ({}) }))
 vi.mock('./localServer.js', () => ({ localServerEnabled: async () => state.local }))
 
 const { accountLogin, accountStatus, defaultApiUrl, forgetLocalPreference, setServerUrl } = await import('./serviceGateway')

@@ -1,14 +1,26 @@
-import { get, set } from 'idb-keyval'
 import type { AppDataset, RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
+import { DataAccessError, dataRoute, gatewayRequest } from './tarkovApi'
+import { readGameCache, writeGameCache } from './gameDataCache'
 
 const CACHE_PREFIX = 'tarkov-operations-catalog-v11'
+/** How long a cached catalog may be shown offline (and never longer than the signed entitlement in the players' app). */
+export const CATALOG_CACHE_MS = 3 * 24 * 60 * 60 * 1000
+
 export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru'): Promise<AppDataset> {
   const cacheKey = `${CACHE_PREFIX}-${mode}-${locale}`
+  const route = dataRoute()
   try {
+    // Players' app: the catalog comes only from our server, for an account with a subscription (402 otherwise).
+    if (route === 'gateway') {
+      const answer = await gatewayRequest('GET', `/v1/catalog/${mode}${locale === 'en' ? '?lang=en' : ''}`)
+      if (!isDataset(answer, mode)) throw new Error('Сервис каталога временно недоступен')
+      await writeGameCache(cacheKey, answer, CATALOG_CACHE_MS, route)
+      return answer
+    }
     // Server first (its shared cache avoids every client hitting tarkov.dev); a server that is not running
     // or answers garbage falls back to the direct fetch below.
     const service = locale !== 'ru' ? undefined
@@ -22,10 +34,12 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
       if (!response.ok) throw new Error('Сервис каталога временно недоступен')
       dataset = await response.json() as AppDataset
     } else dataset = await fetchLiveCatalog(mode, locale)
-    await set(cacheKey, dataset)
+    await writeGameCache(cacheKey, dataset, CATALOG_CACHE_MS, route)
     return dataset
   } catch (error) {
-    const cached = await get<AppDataset>(cacheKey)
+    // No subscription / device switched off: no cached copy either (the paywall takes over).
+    if (error instanceof DataAccessError) throw error
+    const cached = await readGameCache<AppDataset>(cacheKey, route)
     if (cached) return { ...cached, metadata: { ...cached.metadata!, source: 'cache' } }
     throw error
   }

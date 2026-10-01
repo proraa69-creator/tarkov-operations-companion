@@ -1,6 +1,6 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell, type WebContents } from 'electron'
 import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -15,8 +15,10 @@ import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './expe
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
-import { buildEdition, isOwnerBuild } from './buildEdition.js'
+import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
+import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
+import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { checkServicesNow, restartServiceNow, serverMonitorStatus, startServerMonitor, stopServerMonitor } from './serverMonitor.js'
@@ -47,6 +49,25 @@ let raidState: RaidState = { inRaid: false }
 // UI hover ticks must play before the first click in the window.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
+/**
+ * The players' exe (client edition, packaged): game data only through the server with a subscription
+ * (docs/subscription-protection.md) — no DevTools, no reload shortcuts, no direct tarkov.dev requests from the pages.
+ * RAIDOS_DATA_GATEWAY=1 turns the same data routing on in a development run of the client edition.
+ */
+const releaseClient = isReleaseClient(app.isPackaged)
+const dataGatewayOnly = !isOwnerBuild() && (app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1')
+
+/** Release client: DevTools closed at once and the reload / DevTools keys ignored, in every window and webview. */
+function lockDevTools(contents: WebContents) {
+  contents.on('devtools-opened', () => contents.closeDevTools())
+  contents.on('before-input-event', (event, input) => {
+    const key = input.key.toLowerCase()
+    const ctrl = input.control || input.meta
+    if (key === 'f12' || key === 'f5' || (ctrl && key === 'r') || (ctrl && input.shift && ['i', 'j', 'c'].includes(key))) event.preventDefault()
+  })
+}
+if (releaseClient) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1500,
@@ -69,6 +90,8 @@ function createWindow() {
       // overlays' questions (experimental:query) and log sync keep working. With `false` a minimized window kept
       // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
       backgroundThrottling: true,
+      // The players' exe: no DevTools at all (lockDevTools also covers the overlay windows and webviews).
+      devTools: !releaseClient,
     },
   })
 
@@ -115,6 +138,12 @@ app.whenReady().then(async () => {
     await enableTunnelFromCommandLine(process.argv)
   }
   const serverMode = ownerBuild && isServerMode()
+  if (releaseClient) Menu.setApplicationMenu(null)
+  // Paid data never goes to tarkov.dev straight from the pages: the renderer routes it through the server
+  // (src/data/tarkovApi.ts); anything that slips past is cancelled here. Images (assets.tarkov.dev) stay allowed.
+  if (dataGatewayOnly) session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*'] }, (_details, callback) => callback({ cancel: true }))
+  // The signed entitlement is renewed every few hours while the app runs (electron/entitlement.ts).
+  if (!ownerBuild) setInterval(() => { void refreshEntitlement().catch(() => undefined) }, ENTITLEMENT_REFRESH_MS).unref()
   // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
   // from apps that are not. When the prompt is refused the app simply goes on without the rights.
   if (!serverMode && process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
@@ -179,6 +208,7 @@ function registerIpc() {
     stopWatchingLogs()
     if (!mainWindow) return false
     await clearScanFrames().catch(() => 0)
+    await clearGameCache()
     await mainWindow.webContents.session.clearStorageData({ storages: ['localstorage', 'indexdb', 'cachestorage', 'serviceworkers'] })
     return true
   })
@@ -202,6 +232,11 @@ function registerIpc() {
     return true
   })
   ipcMain.handle('service:request', async (_event, method: string, path: string, body: unknown) => serviceRequest(method, path, body))
+  // Paid game data cache: encrypted with safeStorage, only while the entitlement is valid (electron/gameDataCache.ts).
+  ipcMain.handle('data-cache:get', async (_event, key: unknown) => readGameCache(await gameCacheAccess(), key))
+  ipcMain.handle('data-cache:set', async (_event, key: unknown, value: unknown, maxAgeMs: unknown) => writeGameCache(await gameCacheAccess(), key, value, maxAgeMs))
+  // true: this copy gets game data only through the server (src/data/tarkovApi.ts). Read once by the preload.
+  ipcMain.on('app:data-gateway', (event) => { event.returnValue = dataGatewayOnly })
   // Server account: the session token never leaves the main process; the renderer only sees e-mail and status.
   ipcMain.handle('account:status', () => accountStatus())
   // Which app this is: 'owner' (server controls) or 'client' (players). Read once by the preload, synchronously.
@@ -366,6 +401,8 @@ function registerIpc() {
     const modeLabel = mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : 'сезонного режима'
     try {
       // The server resolves through its shared cache; if it is not running or fails, resolve locally.
+      // The players' exe asks only the server (subscription required, docs/subscription-protection.md).
+      if (dataGatewayOnly) return await serviceRequest('POST', '/v1/players/resolve', { mode, nickname })
       const remote = await serviceRequest('POST', '/v1/players/resolve', { mode, nickname }).catch(() => null)
       if (remote) return remote
 
@@ -427,6 +464,7 @@ function registerIpc() {
     const mode = validateMode(rawMode)
     const accountId = Number(rawAccountId)
     if (!Number.isSafeInteger(accountId) || accountId <= 0) throw new Error('Некорректный идентификатор профиля')
+    if (dataGatewayOnly) return serviceRequest('GET', `/v1/players/${mode}/${accountId}`)
     return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`).catch(() => null) ?? fetchPlayerProfile(mode, accountId)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)

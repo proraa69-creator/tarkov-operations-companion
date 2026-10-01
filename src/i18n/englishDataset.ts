@@ -82,11 +82,11 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
 }
 
 /** Loads the English catalog only while the interface is in English. */
-export function useEnglishOverlay(data: AppDataset, mode: RaidMode, locale: string) {
+export function useEnglishOverlay(data: AppDataset, mode: RaidMode, locale: string, allowed = true) {
   const query = useQuery({
     queryKey: ['tarkov-companion-data-en', mode],
     queryFn: async () => cleanDatasetText(await fetchTarkovCatalog(mode, 'en')),
-    enabled: locale === 'en',
+    enabled: allowed && locale === 'en',
     staleTime: 10 * 60_000,
     gcTime: 1000 * 60 * 60 * 24,
     retry: 1,

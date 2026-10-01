@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { BossGear, BossInfo, MapMarker } from '../domain/types'
+import { dataRoute, tarkovGraphql } from './tarkovApi'
 
-const GRAPHQL_URL = 'https://api.tarkov.dev/graphql'
 const CACHE_KEY = 'toc.bosses.graphql.v2'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const GEAR_SLOTS = ['FirstPrimaryWeapon', 'SecondPrimaryWeapon', 'Holster', 'Headwear', 'ArmorVest', 'TacticalVest']
 
-const BOSSES_QUERY = `{
+const BOSSES_QUERY = `query RaidOsBosses {
   bosses(lang: ru) {
     name
     normalizedName
@@ -129,14 +129,8 @@ export function adaptGraphqlBosses(payload: unknown): BossProfile[] {
 }
 
 async function fetchBossProfiles() {
-  const response = await fetch(GRAPHQL_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ query: BOSSES_QUERY }),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!response.ok) throw new Error(`bosses: HTTP ${response.status}`)
-  const profiles = adaptGraphqlBosses(await response.json())
+  // Through the server's data gateway in the players' app (src/data/tarkovApi.ts).
+  const profiles = adaptGraphqlBosses(await tarkovGraphql(BOSSES_QUERY))
   if (!profiles.length) throw new Error('bosses: empty response')
   return profiles
 }
@@ -150,6 +144,8 @@ function findProfile(list: BossProfile[] | null, info: BossInfo) {
 }
 
 function readCache(): BossProfile[] | null {
+  // The players' app keeps game data only in the encrypted cache (docs/subscription-protection.md): memory here.
+  if (dataRoute() === 'gateway') return null
   try {
     const raw = globalThis.localStorage?.getItem(CACHE_KEY)
     if (!raw) return null
@@ -162,6 +158,7 @@ function readCache(): BossProfile[] | null {
 }
 
 function writeCache(profiles: BossProfile[]) {
+  if (dataRoute() === 'gateway') return
   try {
     globalThis.localStorage?.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), profiles }))
   } catch {

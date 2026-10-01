@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
  */
 export type BuildEdition = 'owner' | 'client'
 
-interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown }
+interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown; entitlementKeys?: unknown }
 let cached: BuildInfo | null | undefined
 
 function buildInfo(): BuildInfo | null {
@@ -62,4 +62,28 @@ export function buildOwnerEmails(): string[] {
   const raw = buildInfo()?.ownerEmails
   if (!Array.isArray(raw)) return []
   return [...new Set(raw.filter((email): email is string => typeof email === 'string').map((email) => email.trim().toLowerCase()).filter((email) => email.length <= 254 && OWNER_EMAIL.test(email)))].slice(0, 5)
+}
+
+const ENTITLEMENT_KEY = /^[A-Za-z0-9_-]{43}$/
+
+/**
+ * Entitlement public keys built into this exe, per server origin (build-info.json `entitlementKeys`, written from
+ * RAIDOS_ENTITLEMENT_PUBLIC_KEY / RAIDOS_ENTITLEMENT_PUBLIC_KEY_FILE at build time for the default server). A server with
+ * a built-in key is never pinned on first use (electron/entitlement.ts).
+ */
+export function buildEntitlementKeys(): Record<string, string> {
+  const raw = buildInfo()?.entitlementKeys
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const keys: Record<string, string> = {}
+  for (const [server, key] of Object.entries(raw as Record<string, unknown>)) {
+    try {
+      if (typeof key === 'string' && ENTITLEMENT_KEY.test(key)) keys[new URL(server).origin] = key
+    } catch { /* not an address */ }
+  }
+  return keys
+}
+
+/** A packaged players' exe: DevTools, reload shortcuts and direct tarkov.dev access are off (electron/main.ts). */
+export function isReleaseClient(packaged: boolean) {
+  return packaged && !isOwnerBuild()
 }
