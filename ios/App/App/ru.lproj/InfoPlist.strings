@@ -1,3 +1,3 @@
 /* Local network permission prompt (iOS 14+) */
-"NSLocalNetworkUsageDescription" = "Tarkov Operator подключается к серверу Tarkov Operator на вашем компьютере в той же сети Wi-Fi, чтобы показывать задания и вашу позицию в рейде.";
-"CFBundleDisplayName" = "Tarkov Operator";
+"NSLocalNetworkUsageDescription" = "Raid OS подключается к серверу Raid OS на вашем компьютере в той же сети Wi-Fi, чтобы показывать задания и вашу позицию в рейде.";
+"CFBundleDisplayName" = "Raid OS";

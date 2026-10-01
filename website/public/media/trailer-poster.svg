@@ -46,7 +46,7 @@
   <!-- title -->
   <g font-family="Inter,Arial,sans-serif">
     <text x="96" y="730" font-size="22" font-weight="800" letter-spacing="7" fill="#c4a665">ТРЕЙЛЕР · СКОРО</text>
-    <text x="96" y="800" font-size="64" font-weight="900" letter-spacing="-2" fill="#edf2ed">Tarkov Operator</text>
+    <text x="96" y="800" font-size="64" font-weight="900" letter-spacing="-2" fill="#edf2ed">Raid OS</text>
   </g>
   <!-- frame corners -->
   <g fill="none" stroke="#c4a665" stroke-width="4" opacity=".7">

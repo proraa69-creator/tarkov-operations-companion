@@ -64,7 +64,7 @@ export function SidebarOperator() {
         </span>
         <i className="op-patch-led" aria-hidden="true" />
       </div>
-      <div className="sidebar-version" title={`Tarkov Operator ${version}`}>v{version}</div>
+      <div className="sidebar-version" title={`Raid OS ${version}`}>v{version}</div>
     </footer>
   )
 }

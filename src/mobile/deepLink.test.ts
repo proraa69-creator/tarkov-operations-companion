@@ -10,6 +10,9 @@ describe('QR sign-in deep links', () => {
   it('reads a website approval code', () => {
     expect(parseAccountDeepLink('tarkovoperator://approve?code=k7qx-m2pd&server=https://tarkov.example.ru')).toEqual({ kind: 'approve', code: 'K7QX-M2PD', server: 'https://tarkov.example.ru' })
   })
+  it('accepts the raidos:// alias of the renamed app', () => {
+    expect(parseAccountDeepLink(`raidos://login?code=${CODE}&server=https://tarkov.example.ru`)).toEqual({ kind: 'login', code: CODE, server: 'https://tarkov.example.ru' })
+  })
   it('ignores other schemes, actions and malformed codes', () => {
     expect(parseAccountDeepLink(`https://tarkov.example.ru/app-login?code=${CODE}`)).toBeNull()
     expect(parseAccountDeepLink(`tarkovoperator://logout?code=${CODE}`)).toBeNull()

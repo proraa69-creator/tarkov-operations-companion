@@ -16,17 +16,20 @@
   игнорирует. Адрес сервера вшит при сборке: `https://raidos.app` (или `TARKOV_DEFAULT_SERVER_URL`).
 
 Кнопка «Скачать для Windows» на сайте отдаёт **только версию для игроков**. Её кладёт рядом с сервером
-`Server-Laptop-Setup.cmd`: `%LOCALAPPDATA%\TarkovOperatorServer\client\Tarkov Operator <версия>.exe` и
+`Server-Laptop-Setup.cmd`: `%LOCALAPPDATA%\TarkovOperatorServer\client\Raid OS <версия>.exe` и
 `client\version.json`. Если этой папки нет, сайт отвечает «Версия приложения для игроков ещё не опубликована»:
 exe владельца чужим людям не раздаётся. Версия владельца не обновляет себя версией для игроков
 (`/download/version.json` сообщает `edition: "client"`).
 
 ## Установка
 
-1. Скачайте на ноутбук все части `TarkovOperator.part*` (версия владельца), `TarkovOperatorClient.part*` (версия для
+1. Скачайте на ноутбук все части `RaidOS.part*` (версия владельца), `RaidOSClient.part*` (версия для
    игроков) и `Server-Laptop-Setup.cmd` в одну папку.
 2. Запустите `Server-Laptop-Setup.cmd`. Скрипт:
-   - собирает exe владельца в `%LOCALAPPDATA%\TarkovOperatorServer\Tarkov Operator Server.exe`;
+   - останавливает запущенный сервер (и новый `Raid OS.exe`, и старый `Tarkov Operator.exe`);
+   - собирает exe владельца в `%LOCALAPPDATA%\TarkovOperatorServer\Raid OS Server.exe`. На ноутбуке, настроенном
+     до переименования в Raid OS, файл сохраняет старое имя `Tarkov Operator Server.exe`, чтобы ярлык
+     автозапуска продолжал работать;
    - собирает версию для игроков в `%LOCALAPPDATA%\TarkovOperatorServer\client\` и пишет рядом `version.json`
      (это и есть «загрузить файл для клиента на сайт»);
    - проверяет контрольные суммы;
@@ -40,13 +43,15 @@ exe владельца чужим людям не раздаётся. Верси
   Иначе сервер засыпает вместе с ноутбуком.
 - Действие при закрытии крышки — «Ничего не делать», если ноутбук будет стоять закрытым.
 - Автозапуск при включении Windows (по желанию). Нажмите Win+R, введите `shell:startup` и создайте в
-  открывшейся папке ярлык на `%LOCALAPPDATA%\TarkovOperatorServer\Tarkov Operator Server.exe`.
+  открывшейся папке ярлык на `%LOCALAPPDATA%\TarkovOperatorServer\Raid OS Server.exe` (или `Tarkov Operator Server.exe`,
+  если ноутбук настроен до переименования).
   В свойствах ярлыка допишите к объекту ` --server-mode --enable-tunnel`. Чтобы отключить автозапуск,
   удалите ярлык.
 
 ## Перенос базы с основного ПК
 
-База одна, это файл SQLite в папке данных приложения:
+База одна, это файл SQLite в папке данных приложения. Папка сохранила имя со времён Tarkov Operator — после
+переименования в Raid OS приложение продолжает работать с ней, данные никуда не переезжают:
 
 ```
 %APPDATA%\Tarkov Operator\server\companion.sqlite
@@ -59,7 +64,7 @@ exe владельца чужим людям не раздаётся. Верси
 1. На основном ПК закройте приложение. Сервер остановится, и база закроется.
 2. Скопируйте `companion.sqlite` на флешку. Если рядом лежат `companion.sqlite-wal` и `companion.sqlite-shm`,
    скопируйте и их.
-3. На ноутбуке закройте Tarkov Operator Server.
+3. На ноутбуке закройте Raid OS Server.
 4. Положите файлы в `%APPDATA%\Tarkov Operator\server\` с заменой и запустите сервер снова.
 5. На основном ПК выключите «Сервер и сайт на этом компьютере» (кнопка «Сервер»). Иначе будут два сервера
    с разными базами.
@@ -123,7 +128,7 @@ exe владельца чужим людям не раздаётся. Верси
 5. Добавьте публичный адрес: Public Hostname → Add:
    - Subdomain `tarkov`, Domain — ваш домен;
    - Service: тип `HTTP`, URL `127.0.0.1:5202`.
-6. На ноутбуке разверните окно Tarkov Operator Server → кнопка «Сервер» → «Постоянный адрес» → «Настроить».
+6. На ноутбуке разверните окно Raid OS Server → кнопка «Сервер» → «Постоянный адрес» → «Настроить».
    Введите адрес (`tarkov.ваш-домен.ru`), вставьте токен и нажмите «Сохранить». Токен хранится на ноутбуке
    в зашифрованном виде (DPAPI Windows).
 7. Когда в строке «Ссылка» появится «работает», адрес готов. Друзья открывают его в браузере. В приложении

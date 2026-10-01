@@ -1,5 +1,5 @@
 /**
- * The only way the app talks to the Tarkov Operator API server (main process only).
+ * The only way the app talks to the Raid OS API server (main process only).
  *
  * - Base URL: env TARKOV_API_URL, otherwise the owner's local server http://127.0.0.1:8787. Only HTTPS or
  *   plain HTTP to localhost / 127.0.0.1 is accepted.

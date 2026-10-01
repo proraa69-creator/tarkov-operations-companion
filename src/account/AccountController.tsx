@@ -174,7 +174,7 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
 
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
-      <div className="eyebrow">{uiText('Tarkov Operator · шаг 1 из 2')}</div>
+      <div className="eyebrow">{uiText('Raid OS · шаг 1 из 2')}</div>
       <h2>{uiText('Вход в аккаунт')}</h2>
       <p className="muted">{uiText('Войдите тем же e-mail и паролем, что на сайте. Приложение свяжется с сервером: ваши ники, прогресс заданий и подписка хранятся в аккаунте.')}</p>
       <label className="field-label">{uiText('E-mail')}
@@ -266,7 +266,7 @@ function NicknameStep({ onDone }: { onDone: () => void }) {
 
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
-      <div className="eyebrow">{uiText('Tarkov Operator · шаг 2 из 2')}</div>
+      <div className="eyebrow">{uiText('Raid OS · шаг 2 из 2')}</div>
       <h2>{uiText('Привязать ник')}</h2>
       <p className="muted">{uiText('Выберите режим и введите ник, который у вас в этом режиме игры. Ники остальных режимов можно привязать позже: приложение предложит это при переключении режима.')}</p>
       <div className="field-label">{uiText('Режим')}

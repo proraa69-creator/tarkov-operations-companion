@@ -2,9 +2,10 @@ import { Download, Menu, UserRound, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
-import { APP_VERSION } from '../config'
+import { APP_VERSION, PRODUCT_NAME } from '../config'
 import { useRipple } from '../hooks/motion'
 import { CookieNotice } from './CookieNotice'
+import '../brand.css'
 
 const NAV = [
   { to: '/', label: 'Главная', end: true },
@@ -13,11 +14,11 @@ const NAV = [
 
 export function Brand() {
   return (
-    <Link to="/" className="brand" aria-label="Tarkov Operator — на главную">
-      <span className="brand-mark" aria-hidden="true">TO</span>
+    <Link to="/" className="brand" aria-label="Raid OS — на главную">
+      <img className="brand-mark brand-logo-tile" src="/brand/icon.svg" alt="" aria-hidden="true" />
       <span className="brand-text">
-        <span className="brand-name">TARKOV OPERATOR</span>
-        <span className="brand-sub">COMPANION</span>
+        <img className="brand-name brand-logo-name" src="/brand/name.svg" alt="Raid OS" />
+        <span className="brand-sub">ПОЛЕВОЙ КОМПАНЬОН</span>
       </span>
     </Link>
   )
@@ -76,7 +77,7 @@ export function SiteLayout() {
       <footer className="site-footer">
         <div className="container">
           <div>
-            <div>© {new Date().getFullYear()} Tarkov Operator · версия {APP_VERSION}</div>
+            <div>© {new Date().getFullYear()} {PRODUCT_NAME} · версия {APP_VERSION}</div>
             <div>Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.</div>
           </div>
           <nav aria-label="Ссылки в подвале">

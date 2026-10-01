@@ -126,7 +126,7 @@ async function startApi() {
   // Owner token, ЮKassa settings and the public address travel only in the process environment (electron/ownerAdmin.ts).
   const extra = await apiEnvironment(await publicSiteUrl())
   const child = utilityProcess.fork(serverScript(), [], {
-    serviceName: 'Tarkov Operator API',
+    serviceName: 'Raid OS API',
     stdio: 'pipe',
     env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...extra },
   })

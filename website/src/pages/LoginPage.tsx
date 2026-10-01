@@ -115,7 +115,7 @@ function QrSignIn({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="qr-login">
-      <p className="lead" style={{ margin: 0 }}>Отсканируйте QR-код телефоном, на котором открыто приложение Tarkov Operator с вашим аккаунтом, или введите код в приложении для Windows.</p>
+      <p className="lead" style={{ margin: 0 }}>Отсканируйте QR-код телефоном, на котором открыто приложение Raid OS с вашим аккаунтом, или введите код в приложении для Windows.</p>
       {error !== null && <Notice tone={error instanceof ApiError && error.network ? 'offline' : 'error'}>{errorMessage(error)}</Notice>}
       {request ? (
         <>
@@ -127,7 +127,7 @@ function QrSignIn({ onBack }: { onBack: () => void }) {
       {(expired || error !== null) && <button type="button" className="button primary block" onClick={renew}><RefreshCw aria-hidden="true" />Новый QR-код</button>}
       <ol className="qr-login-steps">
         <li>Телефон: наведите камеру на QR-код и нажмите «Открыть в приложении», затем «Разрешить вход».</li>
-        <li>Компьютер: приложение Tarkov Operator → Профиль оператора → «Подтвердить вход на сайте» → введите код.</li>
+        <li>Компьютер: приложение Raid OS → Профиль оператора → «Подтвердить вход на сайте» → введите код.</li>
       </ol>
       <button type="button" className="button ghost block" onClick={onBack}><LogIn aria-hidden="true" />Войти по e-mail и паролю</button>
     </div>

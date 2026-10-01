@@ -328,7 +328,7 @@ export class PaymentStore {
     if (autopay) this.assertNoActiveAutopay(account.id)
     const id = randomBytes(12).toString('hex')
     const amount = planPrice(config.monthPrice, plan)
-    const description = `Tarkov Operator: подписка на ${monthsText(PLAN_MONTHS[plan])}`
+    const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}`
     const body: Record<string, unknown> = {
       amount: { value: rub(amount), currency: 'RUB' },
       capture: true,
@@ -553,7 +553,7 @@ export class PaymentStore {
     const plan = String(rec.plan) as PlanId
     const amount = Number(rec.amount)
     const id = randomBytes(12).toString('hex')
-    const description = `Tarkov Operator: автопродление подписки на ${monthsText(PLAN_MONTHS[plan])}`
+    const description = `Raid OS: автопродление подписки на ${monthsText(PLAN_MONTHS[plan])}`
     const body: Record<string, unknown> = {
       amount: { value: rub(amount), currency: 'RUB' },
       capture: true,

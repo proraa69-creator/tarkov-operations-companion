@@ -69,7 +69,7 @@ export function Trailer() {
         muted
         playsInline
         preload={reducedMotion ? 'metadata' : 'auto'}
-        aria-label="Трейлер Tarkov Operator"
+        aria-label="Трейлер Raid OS"
         onLoadedData={() => setStatus('ready')}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}

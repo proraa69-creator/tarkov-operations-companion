@@ -1,0 +1,9 @@
+/* «Raid OS» logo (src/components/BrandMark.tsx). The tile itself (.brand-mark) stays styled by each theme. */
+:root { --brand-leg: #a9b973; --brand-os: #a9b973; }
+.brand-mark .brand-monogram { width: 58%; height: 62%; display: block; overflow: visible; }
+.brand-monogram-leg { fill: var(--brand-leg); }
+.brand-name .brand-os { color: var(--brand-os); }
+/* The sheet: bone R on graphite. Light or coloured tiles keep a one-colour R (the leg would not read on them). */
+:root[data-theme="blackmc"] .brand-mark { color: #ecede8; }
+:root:is([data-theme="perforated"], [data-theme="gear"], [data-theme="telnyashka"]) { --brand-leg: currentColor; }
+.brand-name .brand-sub { white-space: nowrap; }

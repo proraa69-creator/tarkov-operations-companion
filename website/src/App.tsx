@@ -14,23 +14,23 @@ import { RegisterPage } from './pages/RegisterPage'
 import { StreamerInvitePage } from './pages/StreamerInvitePage'
 
 const TITLES: Record<string, string> = {
-  '/': 'Tarkov Operator',
-  '/about': 'О нас — Tarkov Operator',
-  '/download': 'Скачать — Tarkov Operator',
-  '/login': 'Вход — Tarkov Operator',
-  '/register': 'Регистрация — Tarkov Operator',
-  '/cabinet': 'Личный кабинет — Tarkov Operator',
-  '/legal': 'Реквизиты и документы — Tarkov Operator',
-  '/legal/offer': 'Публичная оферта — Tarkov Operator',
-  '/legal/privacy': 'Политика обработки персональных данных — Tarkov Operator',
-  '/legal/consent': 'Согласие на обработку персональных данных — Tarkov Operator',
-  '/legal/cookies': 'Cookie и хранилище браузера — Tarkov Operator',
+  '/': 'Raid OS',
+  '/about': 'О нас — Raid OS',
+  '/download': 'Скачать — Raid OS',
+  '/login': 'Вход — Raid OS',
+  '/register': 'Регистрация — Raid OS',
+  '/cabinet': 'Личный кабинет — Raid OS',
+  '/legal': 'Реквизиты и документы — Raid OS',
+  '/legal/offer': 'Публичная оферта — Raid OS',
+  '/legal/privacy': 'Политика обработки персональных данных — Raid OS',
+  '/legal/consent': 'Согласие на обработку персональных данных — Raid OS',
+  '/legal/cookies': 'Cookie и хранилище браузера — Raid OS',
 }
 
 export function App() {
   const { pathname } = useLocation()
   useEffect(() => {
-    document.title = TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Tarkov Operator' : 'Tarkov Operator')
+    document.title = TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Raid OS' : 'Raid OS')
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [pathname])
 

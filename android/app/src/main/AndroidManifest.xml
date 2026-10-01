@@ -23,12 +23,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- QR sign-in (docs/mobile.md): tarkovoperator://login?code=…&server=… and tarkovoperator://approve?… -->
+            <!-- QR sign-in (docs/mobile.md): tarkovoperator://login?code=…&server=… and tarkovoperator://approve?… (raidos:// works the same) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="tarkovoperator" />
+                <data android:scheme="raidos" />
             </intent-filter>
 
         </activity>

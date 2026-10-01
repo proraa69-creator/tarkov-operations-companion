@@ -70,7 +70,7 @@ function SignInHere({ code }: { code: string }) {
 
   return <>
     <h1>Вход в приложение</h1>
-    <p className="lead">Приложение Tarkov Operator на компьютере прислало одноразовый код входа. Он действует 2 минуты и срабатывает один раз.</p>
+    <p className="lead">Приложение Raid OS на компьютере прислало одноразовый код входа. Он действует 2 минуты и срабатывает один раз.</p>
     {error !== null && <Notice tone="error">{errorMessage(error)}</Notice>}
     <div className="app-login-actions">
       <a className="button primary large block" href={appDeepLink('login', code, fallback)}><Smartphone aria-hidden="true" />Открыть в приложении</a>

@@ -7,7 +7,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
  */
 const config: CapacitorConfig = {
   appId: 'com.tarkovoperator.app',
-  appName: 'Tarkov Operator',
+  appName: 'Raid OS',
   webDir: 'dist',
   android: {
     // The page itself is served from https://localhost; calls to a LAN server over HTTP are "mixed content".

@@ -149,7 +149,7 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
       <div className="panel auth-card invite-card">
         <div className="eyebrow">Приглашение стримера</div>
         <h1>Кабинет стримера</h1>
-        <p className="lead">Вас пригласили в партнёрскую программу Tarkov Operator.</p>
+        <p className="lead">Вас пригласили в партнёрскую программу Raid OS.</p>
 
         <div className="invite-code">
           <span className="field-label"><Radio size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Ваш код стримера</span>

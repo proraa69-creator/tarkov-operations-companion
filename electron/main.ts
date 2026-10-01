@@ -17,18 +17,20 @@ import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUr
 import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
-import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, trialLaunchesAtStart } from './trial.js'
+import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 
-// The app was renamed to «Tarkov Operator». Keep using the old data folder (settings, profiles, local
-// storage, session) when it exists, so nobody loses their progress after the update.
+// The app is «Raid OS» now (earlier «Tarkov Operator», before that «Tarkov Operations Companion Beta»). Electron would
+// name the data folder after the product, so it is pinned: settings, profiles, local storage, session and the server
+// database stay in %APPDATA%\Tarkov Operator (or the even older folder when it exists), nobody loses progress.
 const LEGACY_USER_DATA = join(app.getPath('appData'), 'Tarkov Operations Companion Beta')
+const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 // The test build for friends is a separate app with its own data folder (electron/trial.ts).
-if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_APP_NAME)) }
-else if (existsSync(LEGACY_USER_DATA)) app.setPath('userData', LEGACY_USER_DATA)
+if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
+else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
 let mainWindow: BrowserWindow | null = null
 const LOG_POLL_MS = 5000
 let watchedFolder = ''
@@ -58,7 +60,7 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 700,
     backgroundColor: '#0d1110',
-    title: trialLaunchesAtStart() ? 'Tarkov Operator — тестовая версия' : 'Tarkov Operator',
+    title: trialLaunchesAtStart() ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
     icon: join(appDir, '../../dist/app-icon.ico'),
     autoHideMenuBar: true,

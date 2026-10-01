@@ -1,8 +1,8 @@
 {
   "name": "tarkov-operations-companion",
-  "productName": "Tarkov Operator",
+  "productName": "Raid OS",
   "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
-  "author": "Tarkov Operator contributors",
+  "author": "Raid OS contributors",
   "private": true,
   "version": "0.5.4",
   "type": "module",
@@ -29,7 +29,7 @@
   },
   "build": {
     "appId": "local.tarkov.operations.companion",
-    "productName": "Tarkov Operator",
+    "productName": "Raid OS",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -61,7 +61,7 @@
       "target": [
         "portable"
       ],
-      "artifactName": "Tarkov Operator ${version}.exe",
+      "artifactName": "Raid OS ${version}.exe",
       "icon": "build/icon.ico"
     },
     "portable": {

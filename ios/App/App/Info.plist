@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Tarkov Operator</string>
+        <string>Raid OS</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -36,7 +36,7 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Tarkov Operator connects to the Tarkov Operator server on your computer in the same Wi-Fi network to show your tasks and live position.</string>
+	<string>Raid OS connects to the Raid OS server on your computer in the same Wi-Fi network to show your tasks and live position.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -45,6 +45,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>tarkovoperator</string>
+				<string>raidos</string>
 			</array>
 		</dict>
 	</array>

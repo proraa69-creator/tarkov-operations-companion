@@ -1,7 +1,7 @@
 /** English for the account screens: first-run sign-in, «Привязать ник», «Личный кабинет», «Кабинет стримера», QR sign-in. */
 export const ACCOUNT_PHRASES: Array<[string, string]> = [
   // First run: sign-in and nickname
-  ['Tarkov Operator · шаг 1 из 2', 'Tarkov Operator · step 1 of 2'], ['Tarkov Operator · шаг 2 из 2', 'Tarkov Operator · step 2 of 2'],
+  ['Raid OS · шаг 1 из 2', 'Raid OS · step 1 of 2'], ['Raid OS · шаг 2 из 2', 'Raid OS · step 2 of 2'],
   ['Вход в аккаунт', 'Sign in to your account'], ['Войти в аккаунт', 'Sign in'],
   ['Войдите тем же e-mail и паролем, что на сайте. Приложение свяжется с сервером: ваши ники, прогресс заданий и подписка хранятся в аккаунте.', 'Use the same e-mail and password as on the website. The app connects to the server: your nicknames, task progress and subscription are kept in your account.'],
   ['Сервер недоступен. Проверьте интернет и адрес сервера или попробуйте позже.', 'The server is unavailable. Check your internet connection and the server address, or try again later.'],
@@ -25,7 +25,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Сервер недоступен: приложение работает на этом компьютере без аккаунта. Войдите, когда сервер снова будет доступен.', 'The server is unavailable: the app works on this PC without an account. Sign in when the server is back.'],
   // QR dialogs
   ['Мобильная версия', 'Phone app'], ['QR-код для входа в мобильную версию', 'QR code to sign in on the phone'],
-  ['Наведите камеру телефона на QR-код. Откроется приложение Tarkov Operator и само войдёт в этот аккаунт. Если приложения нет, откроется сайт.', 'Point your phone camera at the QR code. The Tarkov Operator app opens and signs in to this account by itself. Without the app, the website opens.'],
+  ['Наведите камеру телефона на QR-код. Откроется приложение Raid OS и само войдёт в этот аккаунт. Если приложения нет, откроется сайт.', 'Point your phone camera at the QR code. The Raid OS app opens and signs in to this account by itself. Without the app, the website opens.'],
   ['Код действует ещё', 'The code works for'], ['и работает один раз', 'more and only once'], ['Код истёк', 'The code has expired'], ['Обновить QR-код', 'New QR code'],
   ['Сервер работает только на этом компьютере (127.0.0.1): телефон до него не достанет. Включите «Открыть сайт друзьям» или укажите постоянный адрес сервера.', 'The server runs on this PC only (127.0.0.1): a phone cannot reach it. Turn on «Open the website to friends» or set a permanent server address.'],
   ['В QR-коде нет пароля и постоянного ключа: только одноразовый код на 2 минуты. Не показывайте его другим людям.', 'The QR code holds no password and no permanent key: only a one-time code valid for 2 minutes. Do not show it to other people.'],

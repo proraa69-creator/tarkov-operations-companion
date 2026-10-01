@@ -1,10 +1,10 @@
-# Tarkov Operator — product roadmap, monetization, and server model
+# Raid OS — product roadmap, monetization, and server model
 
 This document captures the current product direction discussed with the owner so another AI agent or developer can continue the project without losing context.
 
 ## Current project
 
-- Product: Tarkov Operator / Tarkov APP.
+- Product: Raid OS (renamed from Tarkov Operator / Tarkov APP on 2026-09-30; brand variant E «Чистый», artwork in `build/brand/`).
 - Current repository: `https://github.com/proraa69-creator/tarkov-operations-companion`.
 - Current app version in `package.json`: `0.5.4`.
 - Current technical direction: hybrid desktop client plus server API.

@@ -20,7 +20,7 @@ const LEVELS_TIMEOUT_MS = 90_000
 const CACHE_TTL = 60_000
 const LEVEL_CACHE_TTL = 6 * 60 * 60_000
 const INDEX_CACHE_TTL = 30 * 60_000
-const USER_AGENT = 'Tarkov Operator/0.1 (+local desktop companion)'
+const USER_AGENT = 'Raid OS/0.1 (+local desktop companion)'
 
 type Cached<T> = { value: T; expiresAt: number }
 const profileCache = new Map<string, Cached<PlayerProfileSnapshot>>()

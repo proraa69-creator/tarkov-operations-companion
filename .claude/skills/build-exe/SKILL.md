@@ -5,6 +5,9 @@ description: Собрать Windows exe приложения (portable) и до�
 
 # Сборка exe на рабочий стол
 
+Приложение называется **Raid OS** (раньше Tarkov Operator). Данные пользователей по-прежнему лежат в
+`%APPDATA%\Tarkov Operator` (`electron/main.ts`), поэтому после обновления прогресс и настройки сохраняются.
+
 ## Две версии (обязательно прочитать)
 
 С появлением входа в аккаунт есть два exe (`electron/buildEdition.ts`, флаг ставит `scripts/write-build-info.mjs`):
@@ -34,7 +37,7 @@ description: Собрать Windows exe приложения (portable) и до�
 
    - Другая папка: добавь `-Desktop "D:\путь"`.
    - Если `node_modules` уже есть, скрипт не запускает `npm install`. Если сборка падает из-за отсутствующих зависимостей — запусти `npm install` и повтори.
-4. Скрипт заменяет на рабочем столе только exe с тем же именем (`Tarkov Operator <версия>.exe`). Больше ничего на рабочем столе не трогай и не удаляй.
+4. Скрипт заменяет на рабочем столе только exe с тем же именем (`Raid OS <версия>.exe`; сборки до переименования назывались `Tarkov Operator <версия>.exe` — их скрипт не трогает). Больше ничего на рабочем столе не трогай и не удаляй.
 5. Сообщи пользователю итог: полный путь к exe на рабочем столе, размер и ветку/коммит (`git log --oneline -1`). Если сборка упала — покажи последние строки ошибки и не выдавай сборку за успешную.
 
 ## Сборка в облаке и отправка в чат
@@ -55,24 +58,24 @@ description: Собрать Windows exe приложения (portable) и до�
    npm run build
    cp dist-electron/build-info.json "$SP/client-build-info.json"
    npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false
-   # → release/Tarkov Operator <версия>.exe  (игроки)
+   # → release/Raid OS <версия>.exe  (игроки)
    OWNER_BUILD=1 npm run build
-   npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false -c.win.artifactName='Tarkov Operator Owner ${version}.exe'
-   # → release/Tarkov Operator Owner <версия>.exe  (владелец)
+   npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false -c.win.artifactName='Raid OS Owner ${version}.exe'
+   # → release/Raid OS Owner <версия>.exe  (владелец)
    ```
    Сборка печатает `Build <версия> <коммит> · client · server https://raidos.app` / `· owner` — проверь строку.
    Проверь, что в `release/win-unpacked/resources/app.asar.unpacked` есть `.node` koffi для `win32_x64`, prebuild `uiohook-napi` для `win32-x64` и `tessdata`.
 4. Разрежь exe в **новую** папку scratchpad (скрипт сам откажется писать в непустую; `rm` для очистки не используй — бери новое имя папки):
    ```bash
-   scripts/split-exe-for-chat.sh "release/Tarkov Operator Owner <версия>.exe" "$SP/exe-parts-<метка>" \
-     "release/Tarkov Operator <версия>.exe" "$SP/client-build-info.json"
+   scripts/split-exe-for-chat.sh "release/Raid OS Owner <версия>.exe" "$SP/exe-parts-<метка>" \
+     "release/Raid OS <версия>.exe" "$SP/client-build-info.json"
    ```
-   Получатся `TarkovOperator.part0..N` (владелец), `TarkovOperatorClient.part0..N` (игроки), `Join-Tarkov-Operator.cmd`
-   (владелец на рабочий стол + запуск), `Join-Tarkov-Operator-Client.cmd` (игроки на рабочий стол, без запуска) и
+   Получатся `RaidOS.part0..N` (владелец), `RaidOSClient.part0..N` (игроки), `Join-Raid-OS.cmd`
+   (владелец на рабочий стол + запуск), `Join-Raid-OS-Client.cmd` (игроки на рабочий стол, без запуска) и
    `Server-Laptop-Setup.cmd` (ноутбук: сервер + публикация версии для игроков на сайт). Все ASCII, CRLF, со вшитыми SHA256.
    Скрипт откажется, если `client-build-info.json` не от версии для игроков. Только одна версия — только первые два аргумента.
-5. Отправь через `SendUserFile` (`display: "attach"`) сначала `Join-Tarkov-Operator.cmd`, затем все части — по 1 файлу за вызов (каждый ≤ 30 МБ).
-6. Инструкция пользователю: скачать все файлы в одну папку (например «Загрузки») и дважды кликнуть `Join-Tarkov-Operator.cmd`. Он проверит, что все части на месте, соберёт `Tarkov Operator <версия>.exe` на рабочем столе (сначала `C:\Users\BANGKOK PC\Desktop`, иначе рабочий стол из Windows, работает и с OneDrive), сверит SHA256, напишет `OK` и сам запустит приложение (окно cmd закроется через 5 секунд — это нормально). После этого части и cmd можно удалить.
+5. Отправь через `SendUserFile` (`display: "attach"`) сначала `Join-Raid-OS.cmd`, затем все части — по 1 файлу за вызов (каждый ≤ 30 МБ).
+6. Инструкция пользователю: скачать все файлы в одну папку (например «Загрузки») и дважды кликнуть `Join-Raid-OS.cmd`. Он проверит, что все части на месте, соберёт `Raid OS Owner <версия>.exe` на рабочем столе (сначала `C:\Users\BANGKOK PC\Desktop`, иначе рабочий стол из Windows, работает и с OneDrive), сверит SHA256, напишет `OK` и сам запустит приложение (окно cmd закроется через 5 секунд — это нормально). После этого части и cmd можно удалить.
 7. Если SmartScreen ругается на неподписанный exe — «Подробнее» → «Выполнить в любом случае».
 
 ## Частые ошибки
@@ -80,4 +83,4 @@ description: Собрать Windows exe приложения (portable) и до�
 - **Файл занят** при копировании — запущена старая версия приложения. Попроси закрыть её и повтори шаг 3 с `-SkipInstall`.
 - **Скрипты PowerShell запрещены** — флаг `-ExecutionPolicy Bypass` действует только на этот запуск; системную политику не меняй.
 - Готовый exe и его части никогда не коммить в git (`release/` в `.gitignore`, части лежат только в scratchpad).
-- **HASH MISMATCH** при склейке — какая-то часть скачалась не полностью или браузер переименовал её (например `TarkovOperator (1).part2`). Скачать части заново в пустую папку.
+- **HASH MISMATCH** при склейке — какая-то часть скачалась не полностью или браузер переименовал её (например `RaidOS (1).part2`). Скачать части заново в пустую папку.

@@ -9,16 +9,18 @@ import { runningBuild } from './localServer.js'
 
 /**
  * Test build for friends (TRIAL_LAUNCHES=2 at build time, see scripts/write-build-info.mjs). It is a separate app:
- * «Tarkov Operator Test» with its own data folder, so it never touches the main version's settings, progress or
+ * «Raid OS Test» with its own data folder, so it never touches the main version's settings, progress or
  * session. The tester is told on every start that the copy is temporary; after the last allowed launch is closed the
  * exe and the test data folder delete themselves. A tiny counter file stays next to the data folder, so the same exe
  * started again later closes at once. Not a lock against a determined tester: a convenience for short-lived builds.
  */
-export const TRIAL_APP_NAME = 'Tarkov Operator Test'
+export const TRIAL_APP_NAME = 'Raid OS Test'
+/** The test build's data folder and launch counters keep the name from before the rename to «Raid OS». */
+export const TRIAL_DATA_FOLDER = 'Tarkov Operator Test'
 let limit = 0
 let launch = 0
 
-const counterFile = (build: number) => join(app.getPath('appData'), `${TRIAL_APP_NAME} ${build}.json`)
+const counterFile = (build: number) => join(app.getPath('appData'), `${TRIAL_DATA_FOLDER} ${build}.json`)
 
 /** Read before the app picks its data folder (main.ts): the test build must use its own. */
 export function trialLaunchesAtStart() {
@@ -44,7 +46,7 @@ export async function startTrial(window: () => BrowserWindow | null) {
   launch = used + 1
   await writeFile(counterFile(info.build), JSON.stringify({ used: launch }), 'utf8').catch(() => {})
   if (launch > limit) {
-    await dialog.showMessageBox({ type: 'info', title: 'Tarkov Operator', message: 'Тестовая версия закончилась', detail: 'Эта тестовая копия уже была запущена максимальное число раз и сейчас удалит себя. Попросите новую версию у автора.' })
+    await dialog.showMessageBox({ type: 'info', title: 'Raid OS', message: 'Тестовая версия закончилась', detail: 'Эта тестовая копия уже была запущена максимальное число раз и сейчас удалит себя. Попросите новую версию у автора.' })
     deleteExeAfterQuit()
     app.quit()
     return false
@@ -52,7 +54,7 @@ export async function startTrial(window: () => BrowserWindow | null) {
   const last = launch === limit
   void dialog.showMessageBox(window() ?? undefined as unknown as BrowserWindow, {
     type: 'info',
-    title: 'Tarkov Operator — тестовая версия',
+    title: 'Raid OS — тестовая версия',
     message: `Тестовая версия: запуск ${launch} из ${limit}`,
     detail: last
       ? 'Это последний запуск. После закрытия тестовая версия удалится сама вместе со своими данными. Основная версия приложения, если она у вас есть, не затрагивается.'
@@ -77,7 +79,7 @@ function deleteExeAfterQuit() {
   const script = join(tmpdir(), `tarkov-operator-trial-${process.pid}.cmd`)
   // Only the test app's own data folder, never the main version's (checked by name).
   const data = app.getPath('userData')
-  const ownData = basename(data) === TRIAL_APP_NAME ? data : ''
+  const ownData = basename(data) === TRIAL_DATA_FOLDER ? data : ''
   const body = [
     '@echo off',
     'set n=0',

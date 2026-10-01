@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Tarkov Operator</string>
-    <string name="title_activity_main">Tarkov Operator</string>
+    <string name="app_name">Raid OS</string>
+    <string name="title_activity_main">Raid OS</string>
     <string name="package_name">com.tarkovoperator.app</string>
     <string name="custom_url_scheme">com.tarkovoperator.app</string>
 </resources>

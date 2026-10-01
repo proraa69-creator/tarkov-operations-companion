@@ -4,12 +4,12 @@
 # Usage: scripts/split-exe-for-chat.sh "<owner exe>" <new empty output dir> ["<client exe>" "<client build-info.json>"]
 #
 # Two editions (electron/buildEdition.ts, scripts/write-build-info.mjs):
-#   - the owner exe (OWNER_BUILD=1): the owner's gaming PC (Join-Tarkov-Operator.cmd) and the server laptop
-#     (Server-Laptop-Setup.cmd). Parts: TarkovOperator.part*
-#   - the client exe (default build): what players download from the site. Parts: TarkovOperatorClient.part*
+#   - the owner exe (OWNER_BUILD=1): the owner's gaming PC (Join-Raid-OS.cmd) and the server laptop
+#     (Server-Laptop-Setup.cmd). Parts: RaidOS.part*
+#   - the client exe (default build): what players download from the site. Parts: RaidOSClient.part*
 #     Server-Laptop-Setup.cmd puts it into %LOCALAPPDATA%\TarkovOperatorServer\client\ with version.json (from the
 #     client's dist-electron/build-info.json, saved right after the client build), and the laptop's site then serves
-#     it for «Скачать для Windows» and auto-update (electron/localServer.ts). Join-Tarkov-Operator-Client.cmd only
+#     it for «Скачать для Windows» and auto-update (electron/localServer.ts). Join-Raid-OS-Client.cmd only
 #     puts the client exe on the desktop (to test it or send it to someone).
 set -euo pipefail
 
@@ -36,10 +36,10 @@ if [ -n "$(ls -A "$OUT")" ]; then echo "output dir is not empty: $OUT" >&2; exit
 
 NAME="$(basename "$EXE")"
 HASH="$(sha256sum "$EXE" | cut -d' ' -f1)"
-split -b "$PART_SIZE" -d -a 1 "$EXE" "$OUT/TarkovOperator.part"
+split -b "$PART_SIZE" -d -a 1 "$EXE" "$OUT/RaidOS.part"
 
 PARTS=()
-for f in "$OUT"/TarkovOperator.part*; do PARTS+=("$(basename "$f")"); done
+for f in "$OUT"/RaidOS.part*; do PARTS+=("$(basename "$f")"); done
 JOIN="$(IFS=+; echo "${PARTS[*]}")"
 
 # ASCII-only, CRLF: cmd.exe misreads UTF-8 and LF-only batch files.
@@ -47,7 +47,7 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo '@echo off'
   echo 'setlocal'
   echo 'cd /d "%~dp0"'
-  echo "title Tarkov Operator - join exe"
+  echo "title Raid OS - join exe"
   for p in "${PARTS[@]}"; do
     echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
   done
@@ -76,14 +76,14 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
     echo 'start "" "%TARGET%" --enable-local-server'
     echo 'timeout /t 5 >nul'
   fi
-} | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator.cmd"
+} | sed 's/$/\r/' > "$OUT/Join-Raid-OS.cmd"
 
 if [ -n "$CLIENT_EXE" ]; then
   CLIENT_NAME="$(basename "$CLIENT_EXE")"
   CLIENT_HASH="$(sha256sum "$CLIENT_EXE" | cut -d' ' -f1)"
-  split -b "$PART_SIZE" -d -a 1 "$CLIENT_EXE" "$OUT/TarkovOperatorClient.part"
+  split -b "$PART_SIZE" -d -a 1 "$CLIENT_EXE" "$OUT/RaidOSClient.part"
   CLIENT_PARTS=()
-  for f in "$OUT"/TarkovOperatorClient.part*; do CLIENT_PARTS+=("$(basename "$f")"); done
+  for f in "$OUT"/RaidOSClient.part*; do CLIENT_PARTS+=("$(basename "$f")"); done
   CLIENT_JOIN="$(IFS=+; echo "${CLIENT_PARTS[*]}")"
 
   # The players' exe on the desktop, not started (to test it or to send it to someone).
@@ -91,7 +91,7 @@ if [ -n "$CLIENT_EXE" ]; then
     echo '@echo off'
     echo 'setlocal'
     echo 'cd /d "%~dp0"'
-    echo "title Tarkov Operator (players) - join exe"
+    echo "title Raid OS (players) - join exe"
     for p in "${CLIENT_PARTS[@]}"; do
       echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
     done
@@ -105,7 +105,7 @@ if [ -n "$CLIENT_EXE" ]; then
     echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
     echo 'echo OK: "%TARGET%" (players version, not started)'
     echo 'pause'
-  } | sed 's/$/\r/' > "$OUT/Join-Tarkov-Operator-Client.cmd"
+  } | sed 's/$/\r/' > "$OUT/Join-Raid-OS-Client.cmd"
 fi
 
 # The laptop that keeps the server on (docs/laptop-server.md): the owner exe, installed to a fixed folder and started
@@ -115,7 +115,7 @@ fi
   echo '@echo off'
   echo 'setlocal'
   echo 'cd /d "%~dp0"'
-  echo "title Tarkov Operator - server laptop setup / update"
+  echo "title Raid OS - server laptop setup / update"
   for p in "${PARTS[@]}"; do
     echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
   done
@@ -124,14 +124,20 @@ fi
       echo "if not exist \"$p\" ( echo Missing file: $p - download all parts into this folder. & pause & exit /b 1 )"
     done
   fi
+  # The folder keeps its name from before the rename to «Raid OS» (the server data itself is in %APPDATA%\Tarkov Operator).
   echo 'set "DIR=%LOCALAPPDATA%\TarkovOperatorServer"'
-  echo 'set "TARGET=%DIR%\Tarkov Operator Server.exe"'
+  # A laptop set up before the rename keeps its «Tarkov Operator Server.exe» (an autostart shortcut may point to it).
+  echo 'set "TARGET=%DIR%\Raid OS Server.exe"'
+  echo 'if exist "%DIR%\Tarkov Operator Server.exe" set "TARGET=%DIR%\Tarkov Operator Server.exe"'
   echo 'if not exist "%DIR%" mkdir "%DIR%"'
   echo 'echo Stopping the running server copy (if any) ...'
-  # The portable stub (Tarkov Operator Server.exe) runs the app unpacked as «Tarkov Operator.exe»: close its window
-  # normally (the database is closed cleanly), then make sure the stub is gone so its file can be replaced.
+  # The portable stub (<name> Server.exe) runs the app unpacked under the product name: «Raid OS.exe», or
+  # «Tarkov Operator.exe» for a copy from before the rename. Close its window normally (the database is closed
+  # cleanly), then make sure the stub is gone so its file can be replaced.
+  echo 'taskkill /im "Raid OS.exe" >nul 2>&1'
   echo 'taskkill /im "Tarkov Operator.exe" >nul 2>&1'
   echo 'timeout /t 6 >nul'
+  echo 'taskkill /im "Raid OS Server.exe" /f >nul 2>&1'
   echo 'taskkill /im "Tarkov Operator Server.exe" /f >nul 2>&1'
   echo 'timeout /t 2 >nul'
   echo 'echo Joining parts into "%TARGET%" ...'

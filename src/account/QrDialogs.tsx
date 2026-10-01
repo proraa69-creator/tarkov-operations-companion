@@ -60,7 +60,7 @@ export function MobileLoginDialog({ onClose }: { onClose: () => void }) {
       <div className="registration-icon"><Smartphone size={28} /></div>
       <div className="eyebrow">{uiText('Мобильная версия')}</div>
       <h2>{uiText('Войти в мобильную версию')}</h2>
-      <p className="muted">{uiText('Наведите камеру телефона на QR-код. Откроется приложение Tarkov Operator и само войдёт в этот аккаунт. Если приложения нет, откроется сайт.')}</p>
+      <p className="muted">{uiText('Наведите камеру телефона на QR-код. Откроется приложение Raid OS и само войдёт в этот аккаунт. Если приложения нет, откроется сайт.')}</p>
       {link && <div className={`account-qr-frame${expired ? ' is-expired' : ''}`}><QrCode value={link.url} label={uiText('QR-код для входа в мобильную версию')} /></div>}
       {!link && busy && <div className="account-qr-frame"><LoaderCircle className="spin" size={40} color="#333" /></div>}
       {link && !expired && <div className="account-qr-timer">{uiText('Код действует ещё')} {text} {uiText('и работает один раз')}</div>}

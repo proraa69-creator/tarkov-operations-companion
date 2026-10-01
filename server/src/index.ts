@@ -30,5 +30,5 @@ const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: ne
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
-const listener = app.listen(port, host, () => console.log(`Tarkov Operator API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''})`))
+const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => listener.close(() => { db.close(); process.exit(0) }))

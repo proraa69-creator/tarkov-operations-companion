@@ -46,7 +46,7 @@ If Claude is not authenticated yet, it will ask you to sign in. Log in manually 
 
 ## What Claude can safely do
 
-- Work with the Tarkov Operator source code.
+- Work with the Raid OS (formerly Tarkov Operator) source code.
 - Read and edit the listed project folders.
 - Run project commands such as tests, builds, and local dev servers.
 - Use GitHub repositories after your GitHub/Claude app connection is active.
