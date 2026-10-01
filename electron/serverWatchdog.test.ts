@@ -41,6 +41,16 @@ describe('ServerWatchdog', () => {
     expect(h.watchdog.snapshot().worst).toBe('green')
   })
 
+  it('an advisory warning (tunnel connected, self-check through the internet fails) never alarms or restarts', async () => {
+    const h = harness()
+    h.set({ kind: 'warn', error: 'radios.app не открывается из интернета', advisory: true })
+    for (let i = 0; i < 10; i += 1) await h.watchdog.check()
+    await advance(10 * 60_000)
+    expect(h.api()).toMatchObject({ lamp: 'amber', failures: 0 })
+    expect(h.alerts).toHaveLength(0)
+    expect(h.restart).not.toHaveBeenCalled()
+  })
+
   it('needs 3 failed health checks in a row before restarting; one success resets the count', async () => {
     const h = harness()
     h.set({ kind: 'down', error: 'нет ответа' })

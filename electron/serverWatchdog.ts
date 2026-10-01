@@ -23,7 +23,9 @@ export type ProbeResult =
   /** Starting up / getting the link. */
   | { kind: 'starting'; text?: string }
   /** Something looks wrong but may be the internet (amber; becomes `down` when it repeats). */
-  | { kind: 'warn'; error: string }
+  /** `advisory`: only a warning (amber), never an incident or a restart — e.g. the self-check through the internet
+   *  fails while cloudflared itself is connected to Cloudflare (restarting it would only drop the working link). */
+  | { kind: 'warn'; error: string; advisory?: boolean }
   /** Does not work. `dead`: the process exited — no need to wait for more failed checks. */
   | { kind: 'down'; error: string; dead?: boolean }
   /** Cannot be repaired by the app (port taken by another program, server missing from the build). */
@@ -204,6 +206,12 @@ export class ServerWatchdog {
         }
         return
       case 'warn':
+        if (result.advisory) {
+          state.lastError = result.error
+          Object.assign(state, { lamp: 'amber', text: 'работает, но проверка через интернет не проходит', failures: 0 })
+          return
+        }
+      // falls through
       case 'down': {
         state.lastError = result.error
         state.failures += 1

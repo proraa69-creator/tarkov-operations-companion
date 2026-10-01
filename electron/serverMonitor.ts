@@ -93,8 +93,9 @@ async function probePublic(): Promise<ProbeResult> {
       : status >= 500 ? { kind: 'down', error: `${tunnel.hostname} отвечает HTTP ${status}.` }
         : { kind: 'warn', error: `${tunnel.hostname} отвечает HTTP ${status}.` }
   } catch (error) {
-    // Usually the internet on this PC: amber until it repeats.
-    result = { kind: 'warn', error: `${tunnel.hostname} не открывается из интернета: ${reason(error)}` }
+    // Usually the internet on this PC, or a mistyped address (the tunnel itself routes by its token, not by this name).
+    // While cloudflared reports a registered connection, restarting it would only drop the working link: warn only.
+    result = { kind: 'warn', error: `${tunnel.hostname} не открывается из интернета: ${reason(error)}. Проверьте, что адрес в «Постоянный адрес» написан верно.`, advisory: tunnel.state === 'on' }
   }
   publicCache = { at: Date.now(), result, key }
   return result
