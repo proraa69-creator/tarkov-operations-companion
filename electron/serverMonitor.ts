@@ -6,6 +6,7 @@ import { describeBuild, isStaleOwnServer, OUR_SERVICE } from './staleServer.js'
 import { restartTunnel, tunnelProcess, tunnelStatus } from './publicTunnel.js'
 import { ServerWatchdog, type ProbeResult, type ServiceId, type WatchdogAlert } from './serverWatchdog.js'
 import { ServerGuardian, type GuardDetail } from './serverGuardian.js'
+import { reportError } from './errorReporter.js'
 
 /**
  * Real probes, repairs and notifications for the watchdog (electron/serverWatchdog.ts) on the owner's PC:
@@ -20,6 +21,7 @@ import { ServerGuardian, type GuardDetail } from './serverGuardian.js'
  */
 
 let watchdog: ServerWatchdog | null = null
+let ownerAlert: ((alert: WatchdogAlert) => void) | null = null
 let guardian: ServerGuardian | null = null
 let publicCache: { at: number; result: ProbeResult; key: string } | null = null
 
@@ -75,7 +77,10 @@ async function probeApi(): Promise<ProbeResult> {
     // «Страж сервера»: our own process with a high error rate, repeated exceptions, a stall or memory growth is
     // restarted like a dead one (backup first, rate-limited in serverGuardian.ts).
     const verdict = ours && guardian ? await guardian.inspect() : null
-    if (verdict?.restart) return { kind: 'down', error: verdict.restart, dead: true }
+    if (verdict?.restart) {
+      reportError({ source: 'guardian', kind: 'restart', name: 'Guardian:restart', message: verdict.restart })
+      return { kind: 'down', error: verdict.restart, dead: true }
+    }
     return { kind: 'ok', text: ours ? 'работает' : 'работает (запущен отдельно)' }
   }
   if (answer) return { kind: 'down', error: health?.database === false ? 'База данных не отвечает.' : `Сервер ответил с ошибкой (HTTP ${answer.status}).` }
@@ -163,11 +168,17 @@ export function startServerMonitor(window: () => BrowserWindow | null) {
     } catch { /* notifications are best effort */ }
     send('server-watchdog:alert', alert)
     try { emailHook?.(alert) } catch { /* the e-mail hook is optional */ }
+    // «Отчёты об ошибках (GitHub)»: a service the watchdog could not repair.
+    if (alert.kind === 'gave-up') reportError({ source: 'watchdog', kind: 'gave-up', name: `Watchdog:${alert.service}`, message: `${alert.title}. ${alert.body}`, context: alert.service })
   }
+  ownerAlert = notifyOwner
   guardian = new ServerGuardian({
     fetchDetail: healthDetail,
     backup: requestBackup,
-    alert: (alert) => notifyOwner({ service: alert.service, kind: 'guard', title: alert.title, body: alert.body, at: alert.at }),
+    alert: (alert) => {
+      notifyOwner({ service: alert.service, kind: 'guard', title: alert.title, body: alert.body, at: alert.at })
+      if (alert.kind !== 'attack' && alert.kind !== 'errors') reportError({ source: 'guardian', kind: alert.kind, name: `Guardian:${alert.kind}`, message: `${alert.title}. ${alert.body}` })
+    },
     note: (service, level, text) => watchdog?.note(service, level, text),
   })
   watchdog = new ServerWatchdog({
@@ -185,6 +196,17 @@ export function startServerMonitor(window: () => BrowserWindow | null) {
   })
   watchdog.start()
   return watchdog
+}
+
+/** A line in the watchdog journal (self-update, electron/selfUpdate.ts). */
+export function serverJournal(level: 'info' | 'warn' | 'error', text: string) {
+  watchdog?.note('api', level, text)
+}
+
+/** Windows notification + in-app toast, as the watchdog's own alerts. */
+export function notifyServerOwner(title: string, body: string, silent = false) {
+  if (ownerAlert) { ownerAlert({ service: 'api', kind: silent ? 'recovered' : 'guard', title, body, at: Date.now() }); return }
+  try { if (Notification.isSupported()) new Notification({ title, body, silent }).show() } catch { /* best effort */ }
 }
 
 export function stopServerMonitor() {

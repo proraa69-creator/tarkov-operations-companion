@@ -14,12 +14,15 @@ import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
-import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
+import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
-import { checkServicesNow, restartServiceNow, serverMonitorStatus, startServerMonitor, stopServerMonitor } from './serverMonitor.js'
+import { checkServicesNow, notifyServerOwner, restartServiceNow, serverJournal, serverMonitorStatus, startServerMonitor, stopServerMonitor } from './serverMonitor.js'
+import { errorReportSettings, reportApiError, reportError, setErrorReportSettings, startErrorReporter, testErrorReports } from './errorReporter.js'
+import { checkSelfUpdateNow, rollbackToPrevious, selfUpdateStatus, setSelfUpdateSettings, startServerSelfUpdate, stopServerSelfUpdate } from './selfUpdate.js'
+import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
@@ -135,6 +138,13 @@ app.whenReady().then(async () => {
     logsRoot: async () => watchedFolder || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
   })
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+  // What the API process may ask this app (electron/apiChannel.ts): the «Обновление» tab and error reports.
+  if (ownerBuild) {
+    handleApiRequest('self-update:status', () => selfUpdateStatus())
+    handleApiRequest('self-update:check', () => checkSelfUpdateNow())
+    handleApiRequest('self-update:rollback', (payload) => rollbackToPrevious(payload))
+    onApiEvent('error-report', reportApiError)
+  }
   // «Сервер и сайт на этом компьютере» (Profile → server account): the owner's API and website from this app.
   if (ownerBuild) void startIfEnabled().then(async (openSite) => {
     if (openSite) void shell.openExternal(`${LOCAL_SITE_URL}/`)
@@ -143,10 +153,13 @@ app.whenReady().then(async () => {
   }).catch(() => {}).finally(() => {
     // Status lamps and self-repair of the server, site and public link (idle while the mode is off).
     startServerMonitor(() => mainWindow)
+    // «Отчёты об ошибках (GitHub)» (off until the owner sets a token) and, on the server laptop, «Автообновление сервера».
+    void runningBuild().then((build) => startErrorReporter({ version: build.version, build: build.build, commit: build.commit }))
+    if (serverMode) startServerSelfUpdate({ journal: serverJournal, notify: notifyServerOwner, report: reportError })
   })
 })
 
-app.on('will-quit', () => { stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
+app.on('will-quit', () => { stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
@@ -172,6 +185,8 @@ const OWNER_CHANNELS = [
   'owner:payments', 'owner:set-payments', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
   'owner:sms', 'owner:set-sms', 'owner:sms-status', 'owner:sms-test',
   'owner:email', 'owner:set-email', 'owner:email-status', 'owner:email-test',
+  'owner:error-reports', 'owner:set-error-reports', 'owner:error-reports-test',
+  'owner:server-update', 'owner:set-server-update', 'owner:server-update-check', 'owner:server-update-rollback',
 ]
 
 function registerIpc() {
@@ -338,6 +353,15 @@ function registerIpc() {
   })
   ipcMain.handle('owner:email-status', () => emailServerStatus())
   ipcMain.handle('owner:email-test', (_event, to: unknown) => sendTestEmail(to))
+  // «Отчёты об ошибках (GitHub)»: repository, write-only token (safeStorage), on/off, test (electron/errorReporter.ts).
+  ipcMain.handle('owner:error-reports', () => errorReportSettings())
+  ipcMain.handle('owner:set-error-reports', (_event, settings: unknown) => setErrorReportSettings(settings))
+  ipcMain.handle('owner:error-reports-test', () => testErrorReports())
+  // «Автообновление сервера» on the server laptop (electron/selfUpdate.ts).
+  ipcMain.handle('owner:server-update', () => selfUpdateStatus())
+  ipcMain.handle('owner:set-server-update', async (_event, settings: unknown) => { await setSelfUpdateSettings(settings); return selfUpdateStatus() })
+  ipcMain.handle('owner:server-update-check', () => checkSelfUpdateNow())
+  ipcMain.handle('owner:server-update-rollback', () => rollbackToPrevious({ confirm: true }))
   ipcMain.handle('owner:streamers', () => listStreamers())
   ipcMain.handle('owner:emails', () => ownerEmails())
   ipcMain.handle('owner:set-emails', async (_event, emails: unknown) => {

@@ -388,7 +388,7 @@ export class ServerSelfUpdater {
       } catch (error) {
         files[index] = { ...files[index]!, state: 'error' }
         this.set({ files })
-        throw new Error(`${part.name}: ${error instanceof Error ? error.message : String(error)}`)
+        throw new Error(`${part.name}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
       }
       files[index] = { ...files[index]!, done: part.size, state: 'ok' }
       this.set({ files })

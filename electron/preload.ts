@@ -50,6 +50,13 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     inviteStreamer: (code: string) => ipcRenderer.invoke('owner:invite-streamer', String(code ?? '')),
     ownerEmails: () => ipcRenderer.invoke('owner:emails'),
     setOwnerEmails: (emails: string) => ipcRenderer.invoke('owner:set-emails', String(emails ?? '')),
+    errorReports: () => ipcRenderer.invoke('owner:error-reports'),
+    setErrorReports: (settings: unknown) => ipcRenderer.invoke('owner:set-error-reports', settings),
+    testErrorReports: () => ipcRenderer.invoke('owner:error-reports-test'),
+    serverUpdate: () => ipcRenderer.invoke('owner:server-update'),
+    setServerUpdate: (settings: unknown) => ipcRenderer.invoke('owner:set-server-update', settings),
+    checkServerUpdate: () => ipcRenderer.invoke('owner:server-update-check'),
+    rollbackServerUpdate: () => ipcRenderer.invoke('owner:server-update-rollback'),
   },
   update: {
     status: () => ipcRenderer.invoke('update:status'),
