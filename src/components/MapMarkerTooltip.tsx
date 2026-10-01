@@ -3,6 +3,7 @@ import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
 import { possibleSpotText } from '../data/mapMarkerAdapter'
+import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
 
 interface MapMarkerTooltipProps {
   marker: MapMarker
@@ -39,7 +40,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
 
       {shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />}
 
-      {uiText(boss ? <BossBlock boss={boss} /> : (
+      {uiText(boss ? <BossBlock boss={boss} title={marker.title} /> : (
         <div className="mmt-title-row">
           {uiText(item?.iconUrl && <img className="mmt-item-icon" src={item.iconUrl} alt={uiText("")} loading="lazy" />)}
           <div className="mmt-title-copy">
@@ -88,7 +89,17 @@ function KeycardLine({ keycard }: { keycard: KeycardColor }) {
   )
 }
 
-function BossBlock({ boss }: { boss: BossInfo }) {
+/** tarkov.dev portrait; our own bust when there is none, it is the generic silhouette, or it fails to load. */
+function BossPortrait({ boss, title }: { boss: BossInfo; title: string }) {
+  const [failedUrl, setFailedUrl] = useState<string>()
+  const bust = bossBustFor(boss, title)
+  const remote = boss.portraitUrl && boss.portraitUrl !== failedUrl && !(bust && isGenericPortrait(boss.portraitUrl)) ? boss.portraitUrl : undefined
+  const src = remote ?? bust
+  if (!src) return <span className="mmt-portrait is-empty" aria-hidden="true" />
+  return <img className="mmt-portrait" src={src} alt={uiText(boss.name)} loading="lazy" onError={remote ? () => setFailedUrl(remote) : undefined} />
+}
+
+function BossBlock({ boss, title }: { boss: BossInfo; title: string }) {
   const chances = [
     boss.spawnChance != null ? `шанс ${percent(boss.spawnChance)}` : '',
     boss.locationChance != null && boss.locationChance < 1 ? `зона ${percent(boss.locationChance)}` : '',
@@ -96,9 +107,7 @@ function BossBlock({ boss }: { boss: BossInfo }) {
   return (
     <div className="mmt-boss">
       <div className="mmt-boss-top">
-        {uiText(boss.portraitUrl
-          ? <img className="mmt-portrait" src={boss.portraitUrl} alt={uiText(boss.name)} loading="lazy" />
-          : <span className="mmt-portrait is-empty" aria-hidden="true" />)}
+        <BossPortrait boss={boss} title={title} />
         <div className="mmt-title-copy">
           <strong className="mmt-title">{uiText(boss.name)}</strong>
           {uiText(chances.length > 0 && <span className="mmt-chance">{uiText(chances.join(' · '))}</span>)}
