@@ -1,4 +1,4 @@
-import { LoaderCircle, LogIn, MessageSquareText, QrCode, RefreshCw } from 'lucide-react'
+import { LoaderCircle, LogIn, Mail, MessageSquareText, QrCode, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ApiError, errorMessage } from '../api'
@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
 import { LoginQr } from '../components/LoginQr'
 import { PhoneSignIn, useAuthConfig } from '../components/PhoneAuth'
+import { EmailSignIn } from '../components/EmailAuth'
 import { qrLogin, type QrLoginRequest } from '../qrLogin'
 import '../qrLogin.css'
 
@@ -16,7 +17,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
-  const [method, setMethod] = useState<'password' | 'qr' | 'phone'>('password')
+  const [method, setMethod] = useState<'password' | 'qr' | 'phone' | 'email'>('password')
   const config = useAuthConfig()
 
   if (auth.status === 'ready') return <Navigate to="/cabinet" replace />
@@ -42,6 +43,7 @@ export function LoginPage() {
         <h1>Вход</h1>
         {method === 'qr' && <QrSignIn onBack={() => setMethod('password')} />}
         {method === 'phone' && <PhoneSignIn purpose="login" onDone={() => navigate('/cabinet', { replace: true })} onBack={() => setMethod('password')} />}
+        {method === 'email' && <EmailSignIn purpose="login" onDone={() => navigate('/cabinet', { replace: true })} onBack={() => setMethod('password')} />}
         {method === 'password' && <>
           <p className="lead">Войдите, чтобы открыть личный кабинет.</p>
           <form className="form" onSubmit={submit} noValidate={false}>
@@ -64,6 +66,7 @@ export function LoginPage() {
           </form>
           <div className="auth-divider">или</div>
           <button type="button" className="button large block" onClick={() => setMethod('qr')}><QrCode aria-hidden="true" />Войти по QR-коду</button>
+          {config?.emailEnabled && <button type="button" className="button large block" style={{ marginTop: 10 }} onClick={() => setMethod('email')}><Mail aria-hidden="true" />Войти по коду из письма</button>}
           {config?.smsEnabled && <button type="button" className="button large block" style={{ marginTop: 10 }} onClick={() => setMethod('phone')}><MessageSquareText aria-hidden="true" />Войти по коду из SMS</button>}
         </>}
         <p className="auth-switch">Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>
