@@ -1,8 +1,10 @@
 /**
  * The only way the app talks to the Raid OS API server (main process only).
  *
- * - Base URL: env TARKOV_API_URL, otherwise the owner's local server http://127.0.0.1:8787. Only HTTPS or
- *   plain HTTP to localhost / 127.0.0.1 is accepted.
+ * - Base URL: env TARKOV_API_URL, else the address saved in the app, else the build's default server
+ *   (https://raidos.app, scripts/write-build-info.mjs), else this PC (http://127.0.0.1:8787). The owner's app uses this
+ *   PC's server by default only while «Сервер и сайт на этом компьютере» is on (the server laptop): a gaming PC signs
+ *   in to raidos.app, where the owner's account lives. Only HTTPS or plain HTTP to localhost / 127.0.0.1 is accepted.
  * - The renderer can only reach the whitelisted paths below through `serviceRequest`.
  * - The account session token lives only here: it is encrypted with Electron `safeStorage` in userData and is
  *   never sent to the renderer, never logged. Login / logout / status have their own IPC (see main.ts).
@@ -11,7 +13,8 @@
 import { app, safeStorage } from 'electron'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { buildDefaultServerUrl } from './buildEdition.js'
+import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
+import { localServerEnabled } from './localServer.js'
 
 export const DEFAULT_API_URL = 'http://127.0.0.1:8787'
 const MODE = '(?:pvp|pve|seasonal)'
@@ -61,7 +64,23 @@ function checkServerUrl(raw: string) {
   return raw
 }
 
+/** Owner build with the local server mode on: this PC's server is the default instead of the build's address. */
+let localPreferred = false
+let localCheckedAt = 0
+async function refreshLocalPreference() {
+  if (!isOwnerBuild() || !buildDefaultServerUrl()) { localPreferred = false; return }
+  if (Date.now() - localCheckedAt < 3000) return
+  localCheckedAt = Date.now()
+  localPreferred = await localServerEnabled().catch(() => false)
+}
+
+/** The local server mode was switched: decide the default server again on the next request. */
+export function forgetLocalPreference() {
+  localCheckedAt = 0
+}
+
 export async function loadServerUrl() {
+  await refreshLocalPreference()
   if (serverUrlLoaded) return savedServerUrl
   serverUrlLoaded = true
   try {
@@ -84,8 +103,12 @@ export async function setServerUrl(raw: unknown) {
   return accountStatus()
 }
 
-/** The address this build connects to by default: TARKOV_DEFAULT_SERVER_URL at build time, else this PC. */
+/**
+ * The address this build connects to by default: TARKOV_DEFAULT_SERVER_URL at build time (https://raidos.app), else
+ * this PC. The owner's app with the local server mode on (the server laptop) uses this PC's server.
+ */
 export function defaultApiUrl() {
+  if (localPreferred) return DEFAULT_API_URL
   return buildDefaultServerUrl() || DEFAULT_API_URL
 }
 
@@ -101,7 +124,8 @@ export const isLocalAddress = (url: string) => {
 // Session (main process only)
 // --------------------------------------------------------------------------------------------------------------
 
-interface StoredAccount { email: string; kind: 'user' | 'streamer' }
+/** `server`: the API the session belongs to (accounts live per server); older saved sessions have none. */
+interface StoredAccount { email: string; kind: 'user' | 'streamer'; server?: string }
 let sessionToken: string | null = null
 let account: StoredAccount | null = null
 let loaded = false
@@ -124,7 +148,7 @@ async function loadSession() {
   loaded = true
   try {
     const parsed = JSON.parse(await readFile(accountFile(), 'utf8')) as Partial<StoredAccount>
-    if (typeof parsed.email === 'string') account = { email: parsed.email, kind: parsed.kind === 'streamer' ? 'streamer' : 'user' }
+    if (typeof parsed.email === 'string') account = { email: parsed.email, kind: parsed.kind === 'streamer' ? 'streamer' : 'user', ...(typeof parsed.server === 'string' ? { server: parsed.server } : {}) }
   } catch { /* not signed in */ }
   if (!canPersistToken()) return
   try {
@@ -134,9 +158,35 @@ async function loadSession() {
   if (!sessionToken) account = null
 }
 
+/**
+ * The session is only sent to the server it was made on: after the server address changes (another saved address,
+ * or the local server mode switched off on a gaming PC) the old session is dropped instead of being sent elsewhere.
+ */
+async function loadSessionForServer() {
+  await loadServerUrl()
+  await loadSession()
+  if (!sessionToken || !account?.server) return
+  let base: string
+  try { base = apiBaseUrl() } catch { return }
+  if (account.server !== base) await clearSession()
+}
+
+/** «raidos.app» or «этот компьютер (127.0.0.1:8787)»: which server a message is about. */
+function serverName(url: string) {
+  try {
+    const parsed = new URL(url)
+    return isLocalAddress(url) ? `этот компьютер (${parsed.host})` : parsed.host
+  } catch {
+    return url
+  }
+}
+
 async function saveSession(token: string, next: StoredAccount) {
   sessionToken = token
-  account = next
+  let server = next.server
+  try { server = apiBaseUrl() } catch { /* keep */ }
+  account = { ...next, ...(server ? { server } : {}) }
+  next = account
   loaded = true
   await writeFile(accountFile(), JSON.stringify(next), 'utf8').catch(() => {})
   // Without OS encryption the token stays in memory only: the user signs in again after a restart.
@@ -177,7 +227,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
   if (!route || !route.methods.includes(method as Method)) throw new Error('Неизвестный запрос сервиса')
   const personal = path.startsWith('/v1/me/') || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
-  await loadSession()
+  await loadSessionForServer()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
@@ -217,8 +267,7 @@ export interface AccountStatus {
 }
 
 export async function accountStatus(): Promise<AccountStatus> {
-  await loadSession()
-  await loadServerUrl()
+  await loadSessionForServer()
   let serverUrl = defaultApiUrl()
   let online: boolean
   let details: Pick<AccountStatus, 'nicknames' | 'subscription'> = {}
@@ -264,7 +313,7 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): 
  * once). The session token itself never leaves this process; only the short-lived code goes into the QR code.
  */
 export async function createMobileLoginCode(): Promise<{ code: string; expiresAt: string }> {
-  await loadSession()
+  await loadSessionForServer()
   if (!sessionToken) throw new Error('Сначала войдите в аккаунт')
   const { response, result } = await send('POST', '/v1/accounts/me/login-codes', { token: sessionToken, timeoutMs: 8000 })
   if (response.status === 401) { await clearSession(); throw new Error('Сессия истекла. Войдите в аккаунт снова.') }
@@ -279,7 +328,19 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
   const password = typeof rawPassword === 'string' ? rawPassword : ''
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
-  const { response, result } = await send('POST', '/v1/accounts/login', { body: { email, password } })
+  await loadServerUrl()
+  const server = serverName(apiBaseUrl())
+  let sent: Awaited<ReturnType<typeof send>>
+  try {
+    sent = await send('POST', '/v1/accounts/login', { body: { email, password } })
+  } catch (error) {
+    if (isServiceUnavailable(error)) throw new Error(`Сервер ${server} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
+    throw error
+  }
+  const { response, result } = sent
+  // Accounts live per server: a wrong address is the usual reason for «wrong password» (the server never says
+  // whether an e-mail exists, so the app names the server instead).
+  if (response.status === 401) throw new Error(`Неверный e-mail или пароль для сервера ${server}. Аккаунты на разных серверах не общие: если вы регистрировались на другом сайте (например, raidos.app), укажите его адрес сервера выше.`)
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')

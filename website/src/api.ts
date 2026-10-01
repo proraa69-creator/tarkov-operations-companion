@@ -178,6 +178,73 @@ export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; m
 
 export interface AuthResult { token: string; account: Account; referralApplied?: boolean }
 
+/** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
+export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number }
+export interface AdminOverview {
+  generatedAt: string
+  users: { total: number; today: number; days7: number; days30: number; blocked: number }
+  subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
+  payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
+}
+export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<PlanId, { count: number; revenue: number }> }
+export interface AdminPayment {
+  id: string; email: string; plan: PlanId; provider: PaymentProvider; status: PaymentStatus; amount: number
+  original?: { amount: number; currency: string }; createdAt: string; paidAt?: string; renewal?: true; referralCode?: string; streamerEarning?: number
+}
+export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; provider?: PaymentProvider; plan?: PlanId; q?: string }
+export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number } }
+export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
+export interface AdminUser {
+  id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  autopay: { provider: string; status: string; plan: string } | null
+  lastSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
+}
+export interface AdminUserDetail { user: AdminUser; payments: AdminPayment[]; grants: Array<{ days: number; reason: string; actor: string; at: string; paidUntil: string }>; revoked?: number }
+export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
+export interface AdminSalesSettings {
+  enabled: boolean
+  providers: PaymentProviders
+  plans: Plan[]
+  yookassa: { monthPrice: number; receipts: boolean; autopay: boolean; publicUrl: string | null } | null
+  lava: { currency: string; rubRate: number; paymentMethod: string | null; offerId: string } | null
+  streamerPercent: number
+  trialDays: number
+}
+export interface AdminAuditEntry { id: number; at: string; actor: string; action: string; target?: string; details?: Record<string, unknown> }
+
+function adminQuery(params: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== '') query.set(key, String(value))
+  const text = query.toString()
+  return text ? `?${text}` : ''
+}
+
+/** «Скачать CSV»: the file needs the session header, so it is fetched here and saved through a blob link. */
+export async function downloadAdminPaymentsCsv(token: string, filter: AdminPaymentFilter) {
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}/v1/accounts/me/admin/payments.csv${adminQuery({ ...filter })}`, { headers: { authorization: `Bearer ${token}` } })
+  } catch {
+    throw new ApiError(0, NETWORK_ERROR_MESSAGE, true)
+  }
+  if (!response.ok) {
+    const data = await response.json().catch(() => undefined) as { error?: unknown } | undefined
+    throw new ApiError(response.status, typeof data?.error === 'string' ? data.error : fallbackMessage(response.status))
+  }
+  const blob = await response.blob()
+  const name = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') ?? '')?.[1] ?? 'raidos-payments.csv'
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
 export const api = {
   register: (email: string, password: string, referralCode?: string) =>
     request<AuthResult>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}) } }),
@@ -196,6 +263,20 @@ export const api = {
   ownerPayouts: (token: string) => request<OwnerPayouts>('/me/admin/payouts', { token }),
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
+  adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
+  adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
+  adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
+  adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number) => request<{ users: AdminUser[]; total: number }>(`/me/admin/users${adminQuery({ q, filter, limit, offset })}`, { token }),
+  adminUser: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}`, { token }),
+  adminGrant: (token: string, id: string, days: number, reason: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/grant`, { method: 'POST', token, body: { days, reason } }),
+  adminCancelAutopay: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/cancel-autopay`, { method: 'POST', token, body: {} }),
+  adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
+  adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
+  adminStreamerSettings: (token: string) => request<AdminStreamerSettings>('/me/admin/streamer-settings', { token }),
+  adminSetStreamerPercent: (token: string, code: string, percent: number | null) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/percent`, { method: 'PUT', token, body: { percent } }),
+  adminSetStreamerLink: (token: string, code: string, enabled: boolean) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/link`, { method: 'PUT', token, body: { enabled } }),
+  adminSalesSettings: (token: string) => request<AdminSalesSettings>('/me/admin/sales-settings', { token }),
+  adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
   requestPayout: (token: string, amount: number) => request<PayoutItem>('/me/payouts', { method: 'POST', token, body: { amount } }),

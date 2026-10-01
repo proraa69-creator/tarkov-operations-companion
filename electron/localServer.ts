@@ -27,7 +27,7 @@ const serverScript = () => join(appDir, '..', 'local-server', 'server.cjs').repl
 const siteRoot = () => join(appDir, '..', 'website')
 
 export type ServiceState = 'running' | 'external' | 'stopped' | 'error'
-export interface LocalServerStatus { enabled: boolean; api: ServiceState; site: ServiceState; siteUrl: string; database: string; error?: string }
+export interface LocalServerStatus { enabled: boolean; api: ServiceState; site: ServiceState; siteUrl: string; database: string; error?: string; /** Started with --server-mode (the server laptop). */ serverMode?: boolean }
 
 let apiProcess: UtilityProcess | null = null
 let siteServer: Server | null = null
@@ -92,7 +92,7 @@ export async function startIfEnabled() {
 }
 
 export async function localServerStatus(): Promise<LocalServerStatus> {
-  return { enabled: await localServerEnabled(), api: apiState, site: siteState, siteUrl: LOCAL_SITE_URL, database: databasePath(), ...(lastError ? { error: lastError } : {}) }
+  return { enabled: await localServerEnabled(), api: apiState, site: siteState, siteUrl: LOCAL_SITE_URL, database: databasePath(), ...(lastError ? { error: lastError } : {}), ...(isServerMode() ? { serverMode: true } : {}) }
 }
 
 /** Something already answers on the port (e.g. scripts/start-local.ps1 from the repository). */

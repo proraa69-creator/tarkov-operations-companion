@@ -12,8 +12,17 @@ description: Собрать Windows exe приложения (portable) и до�
 
 С появлением входа в аккаунт есть два exe (`electron/buildEdition.ts`, флаг ставит `scripts/write-build-info.mjs`):
 
-- **Версия владельца** — `OWNER_BUILD=1`. «Аккаунт сервера», кнопка «Сервер», сервер/туннель/оплата/стримеры.
+- **Версия владельца** — всегда собирается командой `OWNER_BUILD=1 OWNER_EMAILS=proraa69@gmail.com npm run build`
+  (указание владельца). «Аккаунт сервера», кнопка «Сервер», сервер/туннель/оплата/стримеры, «Открыть админ-панель».
   Для игрового ПК владельца и для ноутбука-сервера (`Server-Laptop-Setup.cmd`).
+  - `OWNER_EMAILS` вшивается в `build-info.json` (`ownerEmails`, только при `OWNER_BUILD=1`): этот аккаунт сайта —
+    владелец по умолчанию, видит «Админ-панель» на сайте (`/admin`) без ручной настройки. Если в панели владельца
+    сохранены другие «E-mail владельца», действуют они. Адрес в исходниках не прописан — только в команде сборки.
+  - Указанный e-mail нельзя зарегистрировать заново (защита сервера), поэтому он должен быть уже зарегистрирован на
+    сервере (на raidos.app он зарегистрирован).
+  - Сервер по умолчанию у версии владельца тоже `https://raidos.app`: игровой ПК входит в аккаунт на ноутбуке-сервере.
+    Свой локальный сервер приложение использует, только пока включено «Сервер и сайт на этом компьютере» (ноутбук,
+    `--server-mode`). `Join-Raid-OS.cmd` больше не включает локальный сервер на игровом ПК.
 - **Версия для игроков** — без `OWNER_BUILD` (по умолчанию). Окно входа в аккаунт при первом запуске, «Личный кабинет»,
   сервер `https://raidos.app` вшит (`TARKOV_DEFAULT_SERVER_URL` меняет адрес, пустое значение убирает). Именно её
   сайт отдаёт по кнопке «Скачать для Windows».
@@ -31,6 +40,7 @@ description: Собрать Windows exe приложения (portable) и до�
 3. Запусти из корня репозитория (сборка идёт несколько минут, таймаут ставь с запасом, до 10 минут):
 
    ```powershell
+   $env:OWNER_EMAILS = 'proraa69@gmail.com'   # для версии владельца (см. выше)
    powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1           # версия владельца
    powershell -ExecutionPolicy Bypass -File scripts/build-exe-to-desktop.ps1 -Client   # версия для игроков
    ```
@@ -59,11 +69,12 @@ description: Собрать Windows exe приложения (portable) и до�
    cp dist-electron/build-info.json "$SP/client-build-info.json"
    npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false
    # → release/Raid OS <версия>.exe  (игроки)
-   OWNER_BUILD=1 npm run build
+   OWNER_BUILD=1 OWNER_EMAILS=proraa69@gmail.com npm run build
    npx electron-builder --win portable --x64 -c.win.signAndEditExecutable=false -c.npmRebuild=false -c.win.artifactName='Raid OS Owner ${version}.exe'
    # → release/Raid OS Owner <версия>.exe  (владелец)
    ```
-   Сборка печатает `Build <версия> <коммит> · client · server https://raidos.app` / `· owner` — проверь строку.
+   Сборка печатает `Build <версия> <коммит> · client · server https://raidos.app` /
+   `· owner · server https://raidos.app · owner e-mails: 1` — проверь строку (у версии владельца должно быть `owner e-mails: 1`).
    Проверь, что в `release/win-unpacked/resources/app.asar.unpacked` есть `.node` koffi для `win32_x64`, prebuild `uiohook-napi` для `win32-x64` и `tessdata`.
 4. Разрежь exe в **новую** папку scratchpad (скрипт сам откажется писать в непустую; `rm` для очистки не используй — бери новое имя папки):
    ```bash

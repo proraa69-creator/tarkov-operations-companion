@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
+import { buildOwnerEmails } from './buildEdition.js'
 
 /**
  * The owner's controls for the server on this PC (Server panel → «Оплата» and «Стримеры»):
@@ -105,12 +106,18 @@ export async function setPaymentSettings(raw: unknown) {
   return paymentSettings()
 }
 
+/**
+ * The owner e-mails in force: those saved in the panel, otherwise the build's default (OWNER_EMAILS at build time,
+ * scripts/write-build-info.mjs), so the owner's own build needs no manual setup. The server refuses new
+ * registrations of every listed address either way.
+ */
 export async function ownerEmails(): Promise<string[]> {
   try {
     const saved = JSON.parse(await readFile(ownerFile(), 'utf8')) as { emails?: unknown }
-    return Array.isArray(saved.emails) ? saved.emails.filter((email): email is string => typeof email === 'string' && EMAIL.test(email)) : []
+    const emails = Array.isArray(saved.emails) ? saved.emails.filter((email): email is string => typeof email === 'string' && EMAIL.test(email)) : []
+    return emails.length ? emails : buildOwnerEmails()
   } catch {
-    return []
+    return buildOwnerEmails()
   }
 }
 

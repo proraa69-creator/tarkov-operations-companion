@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     status: () => ipcRenderer.invoke('account:status'),
     login: (email: string, password: string) => ipcRenderer.invoke('account:login', String(email), String(password)),
     logout: () => ipcRenderer.invoke('account:logout'),
-    openWebsite: (page: 'register' | 'cabinet') => ipcRenderer.invoke('account:open-website', page === 'register' ? 'register' : 'cabinet'),
+    openWebsite: (page: 'register' | 'cabinet' | 'admin') => ipcRenderer.invoke('account:open-website', page === 'register' || page === 'admin' ? page : 'cabinet'),
     localServerStatus: () => ipcRenderer.invoke('local-server:status'),
     setLocalServerEnabled: (enabled: boolean) => ipcRenderer.invoke('local-server:set-enabled', Boolean(enabled)),
     tunnelStatus: () => ipcRenderer.invoke('tunnel:status'),

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Copy, ExternalLink, Globe, HardDrive, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
+import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
 import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
 import { LavaPaymentsPanel } from './OwnerLavaPanel'
@@ -10,10 +10,20 @@ import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
 
 /** Opens a website page in the system browser (desktop) or a new tab (browser build). */
-function openWebsite(page: 'register' | 'cabinet') {
+function openWebsite(page: 'register' | 'cabinet' | 'admin') {
   const desktop = window.tarkovDesktop?.account
   if (desktop) { void desktop.openWebsite(page).catch(() => false); return }
-  window.open(page === 'register' ? REGISTER_URL : ACCOUNT_URL, '_blank', 'noopener,noreferrer')
+  window.open(page === 'register' ? REGISTER_URL : page === 'admin' ? ACCOUNT_URL.replace(/\/cabinet$/, '/admin') : ACCOUNT_URL, '_blank', 'noopener,noreferrer')
+}
+
+/** «raidos.app» / «этот компьютер (127.0.0.1:8787)» for the sign-in panel. */
+function serverLabel(url: string) {
+  try {
+    const parsed = new URL(url)
+    return ['127.0.0.1', 'localhost'].includes(parsed.hostname) ? `${uiText('этот компьютер')} (${parsed.host})` : parsed.host
+  } catch {
+    return url
+  }
 }
 
 /**
@@ -73,6 +83,7 @@ export function ServerAccountPanel() {
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button>
+              {isOwnerApp() && <button className="button ghost" onClick={() => openWebsite('admin')}><LayoutDashboard size={14} />{uiText('Открыть админ-панель')}</button>}
               {window.tarkovDesktop?.account?.mobileLogin && <button className="button ghost" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
               <button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
               <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
@@ -86,6 +97,7 @@ export function ServerAccountPanel() {
         {available && status && !status.signedIn && (
           <form className="stack" onSubmit={(event) => void submit(event)}>
             <p className="dim" style={{ margin: 0 }}>{uiText('Войдите тем же e-mail и паролем, что на сайте. Без входа приложение работает только на этом компьютере.')}</p>
+            <p className="dim" style={{ margin: 0 }}>{uiText('Вход на сервер:')} <strong style={{ userSelect: 'text' }}>{serverLabel(status.serverUrl)}</strong></p>
             <label className="field-label">{uiText('E-mail')}
               <input className="input" type="email" autoComplete="username" value={email} maxLength={254} onChange={(event) => setEmail(event.target.value)} required />
             </label>
@@ -150,8 +162,14 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
             <small>{uiText('Сервер:')} {uiText(SERVICE_LABEL[local.api])} · {uiText('сайт:')} {uiText(SERVICE_LABEL[local.site])}</small>
             {local.error && <small style={{ color: 'var(--danger)' }}>{uiText(local.error)}</small>}
           </span>
-          <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть сайт')}</button>
+          <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть сайт')}</button>
+            <button className="button ghost" onClick={() => openWebsite('admin')}><LayoutDashboard size={14} />{uiText('Открыть админ-панель')}</button>
+          </span>
         </div>
+      )}
+      {local.enabled && !local.serverMode && (
+        <small className="dim">{uiText('Это игровой компьютер, а сервер работает на ноутбуке (raidos.app)? Выключите этот переключатель — приложение подключится к raidos.app, и вход с вашим e-mail заработает.')}</small>
       )}
       {local.enabled && <TunnelRow />}
       {local.enabled && <PaymentsPanel />}

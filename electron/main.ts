@@ -13,7 +13,7 @@ import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './expe
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { inviteStreamer, listStreamers, ownerEmails, paymentSettings, setOwnerEmails, setPaymentSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountLogin, accountLogout, accountStatus, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { accountLogin, accountLogout, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
@@ -203,7 +203,8 @@ function registerIpc() {
   ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
   ipcMain.handle('account:logout', () => accountLogout())
   ipcMain.handle('account:open-website', async (_event, page: unknown) => {
-    const path = page === 'register' ? '/register' : '/cabinet'
+    // 'admin': the owner's «Админ-панель» on the site (the server itself refuses it to anybody but the owner).
+    const path = page === 'register' ? '/register' : page === 'admin' && isOwnerBuild() ? '/admin' : '/cabinet'
     const target = `${await websiteBase()}${path}`
     if (!isExternalAllowed(target)) return false
     await shell.openExternal(target)
@@ -266,7 +267,10 @@ function registerIpc() {
   ipcMain.handle('local-server:status', () => localServerStatus())
   ipcMain.handle('local-server:set-enabled', async (_event, enabled: unknown) => {
     if (enabled !== true) stopTunnel()
-    return setLocalServerEnabled(enabled === true)
+    const status = await setLocalServerEnabled(enabled === true)
+    // The owner's default server follows the mode (this PC while it is on, raidos.app otherwise).
+    forgetLocalPreference()
+    return status
   })
   ipcMain.handle('tunnel:status', () => tunnelStatus())
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))

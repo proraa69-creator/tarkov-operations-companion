@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarClock, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, ShieldCheck, UserPlus, WifiOff } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, ShieldCheck, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type Payment, type PaymentRegion, type PaymentStatus, type Plan, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
@@ -6,7 +6,6 @@ import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { CopyButton } from '../components/CopyButton'
-import { OwnerAdmin } from '../components/OwnerAdmin'
 import { AutopayCard, PaymentRegionDialog } from '../components/PaymentRegionDialog'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
@@ -85,7 +84,18 @@ export function CabinetPage() {
           </div>
         )}
 
-        {account.owner && <div style={{ marginBottom: 16 }}><OwnerAdmin /></div>}
+        {account.owner && (
+          <section className="panel owner-panel" style={{ marginBottom: 16 }} aria-labelledby="owner-title">
+            <div className="panel-header">
+              <div className="panel-title" id="owner-title"><Crown aria-hidden="true" />Раздел владельца</div>
+              <span className="tag brass">Владелец</span>
+            </div>
+            <div className="panel-body" style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <span className="muted" style={{ fontSize: 14, maxWidth: 640 }}>Статистика, платежи, пользователи, стримеры, выплаты, настройки продаж и журнал действий — в админ-панели.</span>
+              <Link to="/admin" className="button primary"><LayoutDashboard aria-hidden="true" />Открыть админ-панель</Link>
+            </div>
+          </section>
+        )}
 
         <div className="cabinet-grid">
           <div className="cabinet-col">

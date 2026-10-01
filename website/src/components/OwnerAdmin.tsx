@@ -1,5 +1,5 @@
 import { BadgeCheck, Banknote, ChevronDown, Coins, Crown, LoaderCircle, MousePointerClick, RefreshCw, Save, UserPlus, Users, Wallet, X } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react'
+import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError, api, errorMessage, type CampaignStats, type CreatedStreamerInvite, type OwnerPayouts, type OwnerStreamers, type StatsPeriod } from '../api'
 import { useAuth } from '../auth'
 import { CopyButton } from './CopyButton'
@@ -16,10 +16,11 @@ type Failure = { message: string; offline: boolean }
 const failure = (reason: unknown): Failure => ({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
 
 /**
- * Owner section of the cabinet (only for accounts the server marks `owner`; every request is checked on the server):
- * all streamers with the same statistics they see (plus revenue), «Сгенерировать ссылку для стримера» and payouts.
+ * «Админ-панель» → «Стримеры» (only for accounts the server marks `owner`; every request is checked on the server):
+ * all streamers with the same statistics they see (plus revenue) and «Сгенерировать ссылку для стримера».
+ * `extra` goes below the table (the panel adds the individual percent and link switches there).
  */
-export function OwnerAdmin() {
+export function OwnerAdmin({ extra, refreshKey = 0 }: { extra?: ReactNode; refreshKey?: number } = {}) {
   const auth = useAuth()
   const token = auth.token
   const [data, setData] = useState<OwnerStreamers | null>(null)
@@ -30,7 +31,7 @@ export function OwnerAdmin() {
     if (!token) return Promise.resolve()
     return api.ownerStreamers(token).then((next) => { setData(next); setError(null) }, (reason: unknown) => setError(failure(reason)))
   }, [token])
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, [load, refreshKey])
 
   const totals = (data?.streamers ?? []).reduce((sum, row) => ({
     visits: sum.visits + row.stats.visits,
@@ -50,7 +51,7 @@ export function OwnerAdmin() {
   return (
     <section className="panel owner-panel" aria-labelledby="owner-title">
       <div className="panel-header">
-        <div className="panel-title" id="owner-title"><Crown aria-hidden="true" />Раздел владельца</div>
+        <div className="panel-title" id="owner-title"><Crown aria-hidden="true" />Стримеры</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="tag brass">Владелец</span>
           <button type="button" className="button ghost small" disabled={busy} onClick={() => { setBusy(true); void load().finally(() => setBusy(false)) }}>
@@ -71,7 +72,7 @@ export function OwnerAdmin() {
         </div>
         <StreamerInviteForm onCreated={() => void load()} invites={data?.invites ?? []} />
         <StreamersTable data={data} />
-        <OwnerPayoutsList />
+        {extra}
       </div>
     </section>
   )
@@ -185,7 +186,8 @@ function StreamerDetail({ code }: { code: string }) {
   )
 }
 
-function OwnerPayoutsList() {
+/** «Админ-панель» → «Выплаты»: streamers' payout requests and the auto-payout interval limits. */
+export function OwnerPayoutsList() {
   const auth = useAuth()
   const token = auth.token
   const [data, setData] = useState<OwnerPayouts | null>(null)

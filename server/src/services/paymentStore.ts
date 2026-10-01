@@ -179,6 +179,10 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS lava_events (
     key TEXT PRIMARY KEY,
     received_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS streamer_percent_overrides (
+    code TEXT PRIMARY KEY,
+    percent REAL NOT NULL,
+    updated_at INTEGER NOT NULL);
 `
 /** Columns added after the first release; older databases get them on start. */
 const ADDED_COLUMNS: Array<[string, string]> = [
@@ -234,6 +238,29 @@ export class PaymentStore {
   /** Share of referred users' payments credited to the streamer now, 0–100. */
   get streamerPercent() {
     return this.config?.streamerPercent ?? DEFAULT_STREAMER_PERCENT
+  }
+
+  /**
+   * The streamer's share for new payments, 0–100: the owner's individual percent for this code (admin panel), else the
+   * global one. Applied when a payment succeeds and stored with it, so a change never rewrites earlier earnings.
+   */
+  percentFor(code: string) {
+    const row = this.db.prepare('SELECT percent FROM streamer_percent_overrides WHERE code = ?').get(code) as Row | undefined
+    const value = row == null ? NaN : Number(row.percent)
+    return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : this.streamerPercent
+  }
+
+  /** Individual percents set by the owner, by code. */
+  percentOverrides() {
+    return new Map((this.db.prepare('SELECT code, percent FROM streamer_percent_overrides').all() as Row[]).map((row) => [String(row.code), Number(row.percent)]))
+  }
+
+  /** Sets (or with `null` removes) the individual percent of one streamer code. */
+  setPercentOverride(code: string, percent: number | null) {
+    if (percent === null) { this.db.prepare('DELETE FROM streamer_percent_overrides WHERE code = ?').run(code); return }
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) throw new PaymentError(400, 'Доля стримера: от 0 до 100 %')
+    this.db.prepare('INSERT INTO streamer_percent_overrides (code, percent, updated_at) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET percent = excluded.percent, updated_at = excluded.updated_at')
+      .run(code, Math.round(percent * 10) / 10, this.now())
   }
 
   /** The shared database handle (payouts live next to the payments). */
@@ -431,7 +458,7 @@ export class PaymentStore {
 
   /** pending → succeeded with the streamer's share fixed now; false if the row was already applied. */
   private markSucceeded(row: Row, rubKopecks: number, original?: { amount: number; currency: string }) {
-    const percent = row.referral_code == null ? null : this.streamerPercent
+    const percent = row.referral_code == null ? null : this.percentFor(String(row.referral_code))
     const earning = percent === null ? null : Math.floor(rubKopecks * percent / 100)
     const changed = this.db.prepare("UPDATE payments SET status = 'succeeded', paid_at = ?, amount = ?, streamer_percent = ?, streamer_earning = ?, amount_original = COALESCE(?, amount_original, ?), currency = COALESCE(?, currency, 'RUB') WHERE id = ? AND status = 'pending'")
       .run(this.now(), rubKopecks, percent, earning, original?.amount ?? null, rubKopecks, original?.currency ?? null, String(row.id))

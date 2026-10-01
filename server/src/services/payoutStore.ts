@@ -27,6 +27,8 @@ type Row = Record<string, unknown>
 export interface EarningsSource {
   streamerEarned(code: string): number
   readonly streamerPercent: number
+  /** The streamer's own percent when the owner set one (admin panel), else `streamerPercent`. */
+  percentFor?(code: string): number
 }
 
 /** A future automatic transfer (e.g. ЮKassa Payouts API). Not used yet: payouts are made by hand by the owner. */
@@ -176,7 +178,7 @@ export class PayoutStore {
     const auto = settings ? Number(settings.auto) === 1 : true
     const hasDetails = Boolean(settings?.phone)
     return {
-      percent: this.source.streamerPercent,
+      percent: this.source.percentFor?.(code) ?? this.source.streamerPercent,
       earned: rub(balance.earned),
       paidOut: rub(balance.paid),
       pending: rub(balance.pending),

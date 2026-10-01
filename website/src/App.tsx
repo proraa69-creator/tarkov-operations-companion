@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { SiteLayout } from './components/SiteLayout'
 import { AboutPage } from './pages/AboutPage'
+import { AdminPage } from './pages/AdminPage'
 import { AppLoginPage } from './pages/AppLoginPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
@@ -20,6 +21,7 @@ const TITLES: Record<string, string> = {
   '/login': 'Вход — Raid OS',
   '/register': 'Регистрация — Raid OS',
   '/cabinet': 'Личный кабинет — Raid OS',
+  '/admin': 'Админ-панель — Raid OS',
   '/legal': 'Реквизиты и документы — Raid OS',
   '/legal/offer': 'Публичная оферта — Raid OS',
   '/legal/privacy': 'Политика обработки персональных данных — Raid OS',
@@ -44,6 +46,8 @@ export function App() {
         <Route path="app-login" element={<AppLoginPage />} />
         <Route path="register" element={<RegisterPage />} />
         <Route path="cabinet" element={<CabinetPage />} />
+        {/* Owner only (the server checks every request); not linked from the menu. */}
+        <Route path="admin" element={<AdminPage />} />
         <Route path="legal" element={<LegalPage />} />
         <Route path="legal/:slug" element={<LegalPage />} />
         <Route path="r/:code" element={<ReferralLandingPage />} />

@@ -223,6 +223,20 @@ const SCHEMA = `
     PRIMARY KEY (account_id, kind, version));
 `
 
+/**
+ * Columns added after the first release (owner admin panel); older databases get them on start, NULL for every
+ * existing account: `blocked_at` — sign-in blocked by the owner, `last_seen_at` — last authenticated request (updated
+ * at most every few minutes), `referral_disabled_at` — the owner switched the streamer's link off.
+ */
+const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
+  ['blocked_at', 'INTEGER'],
+  ['last_seen_at', 'INTEGER'],
+  ['referral_disabled_at', 'INTEGER'],
+]
+/** `last_seen_at` is written at most this often per account. */
+const LAST_SEEN_STEP_MS = 5 * 60 * 1000
+export const BLOCKED_MESSAGE = 'Вход в этот аккаунт заблокирован. Напишите в поддержку.'
+
 /** Streamer invitation links live a week and work once. */
 export const STREAMER_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -243,6 +257,23 @@ export class AccountStore {
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
     this.db.exec(SCHEMA)
+    const columns = new Set((this.db.prepare('PRAGMA table_info(accounts)').all() as Row[]).map((row) => String(row.name)))
+    for (const [name, type] of ADDED_ACCOUNT_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE accounts ADD COLUMN ${name} ${type}`)
+  }
+
+  /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
+  get database() {
+    return this.db
+  }
+
+  /** The store's clock (tests set it), shared with the admin panel's statistics. */
+  get clock() {
+    return this.now
+  }
+
+  /** Configured owner e-mails (lowercase). */
+  get owners(): ReadonlySet<string> {
+    return this.ownerEmails
   }
 
   /** Payments (index.ts): paid subscriptions and streamer revenue. */
@@ -270,7 +301,7 @@ export class AccountStore {
     if (referralCode) {
       const code = normalizeReferralCode(referralCode)
       // An unknown or invalid code must not block registration; it is simply not applied.
-      if (this.ownerOfCode(code)) referredBy = code
+      if (this.activeOwnerOfCode(code)) referredBy = code
     }
     try {
       this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames) VALUES (?,?,?,?,?,?,?,?,?)')
@@ -287,6 +318,8 @@ export class AccountStore {
     const account = this.findByEmail(email)
     const hash = await hashPassword(password, account?.salt ?? this.dummySalt)
     if (!account || !timingSafeEqual(hash, account.passwordHash)) throw new AccountError(401, 'Неверный e-mail или пароль')
+    // Checked only after the password, so the block is not revealed to somebody who does not know it.
+    if (this.isBlocked(account.id)) throw new AccountError(403, BLOCKED_MESSAGE)
     return { token: this.createSession(account.id) }
   }
 
@@ -298,9 +331,11 @@ export class AccountStore {
   authenticate(token: string | undefined) {
     if (!token) return undefined
     const digest = tokenDigest(token)
-    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
+    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at, a.blocked_at AS blocked_at, a.last_seen_at AS last_seen_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
     if (!session) return undefined
-    if (Number(session.expires_at) <= this.now()) { this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(digest); return undefined }
+    const now = this.now()
+    if (Number(session.expires_at) <= now || session.blocked_at != null) { this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(digest); return undefined }
+    if (session.last_seen_at == null || now - Number(session.last_seen_at) >= LAST_SEEN_STEP_MS) this.db.prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?').run(now, String(session.account_id))
     return String(session.account_id)
   }
 
@@ -335,6 +370,12 @@ export class AccountStore {
     return this.ownerEmails.has(this.mustGet(accountId).email)
   }
 
+  /** Sign-in blocked by the owner (admin panel): no login, no new sessions, existing ones are refused. */
+  isBlocked(accountId: string) {
+    const row = this.db.prepare('SELECT blocked_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.blocked_at != null
+  }
+
   /** Whether an account exists for this e-mail (the owner's app checks it before listing an owner e-mail). */
   hasAccount(email: string) {
     return this.findByEmail(email) !== undefined
@@ -358,7 +399,7 @@ export class AccountStore {
     if (account.kind !== 'user') throw new AccountError(403, 'Код приглашения можно указать только в аккаунте пользователя')
     if (account.referredBy) throw new AccountError(409, 'Код приглашения уже указан')
     const code = normalizeReferralCode(rawCode)
-    if (!this.ownerOfCode(code)) throw new AccountError(404, 'Код приглашения не найден')
+    if (!this.activeOwnerOfCode(code)) throw new AccountError(404, 'Код приглашения не найден')
     this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL').run(code, this.now(), account.id)
   }
 
@@ -377,7 +418,7 @@ export class AccountStore {
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
   recordReferralVisit(rawCode: string, visitorKey: string, campaign?: string) {
     const code = normalizeReferralCode(rawCode)
-    if (!this.ownerOfCode(code)) return false
+    if (!this.activeOwnerOfCode(code)) return false
     const now = this.now()
     this.sweep(now)
     const visitor = visitorDigest(code, visitorKey)
@@ -540,6 +581,7 @@ export class AccountStore {
   /** A new session for an existing account, after an approved one-time QR / device code (services/loginCodes.ts). */
   startSession(accountId: string) {
     this.mustGet(accountId)
+    if (this.isBlocked(accountId)) throw new AccountError(403, BLOCKED_MESSAGE)
     return this.createSession(accountId)
   }
 
@@ -560,6 +602,12 @@ export class AccountStore {
 
   private ownerOfCode(code: string) {
     const row = this.db.prepare("SELECT id FROM accounts WHERE referral_code = ? AND kind = 'streamer'").get(code) as Row | undefined
+    return row ? String(row.id) : undefined
+  }
+
+  /** The streamer behind a code whose link the owner has not switched off (registrations, visits, «Код приглашения»). */
+  private activeOwnerOfCode(code: string) {
+    const row = this.db.prepare("SELECT id FROM accounts WHERE referral_code = ? AND kind = 'streamer' AND referral_disabled_at IS NULL").get(code) as Row | undefined
     return row ? String(row.id) : undefined
   }
 

@@ -4,7 +4,7 @@
 # Usage: scripts/split-exe-for-chat.sh "<owner exe>" <new empty output dir> ["<client exe>" "<client build-info.json>"]
 #
 # Two editions (electron/buildEdition.ts, scripts/write-build-info.mjs):
-#   - the owner exe (OWNER_BUILD=1): the owner's gaming PC (Join-Raid-OS.cmd) and the server laptop
+#   - the owner exe (OWNER_BUILD=1 OWNER_EMAILS=…): the owner's gaming PC (Join-Raid-OS.cmd, signs in to raidos.app) and the server laptop
 #     (Server-Laptop-Setup.cmd). Parts: RaidOS.part*
 #   - the client exe (default build): what players download from the site. Parts: RaidOSClient.part*
 #     Server-Laptop-Setup.cmd puts it into %LOCALAPPDATA%\TarkovOperatorServer\client\ with version.json (from the
@@ -65,15 +65,16 @@ JOIN="$(IFS=+; echo "${PARTS[*]}")"
   echo 'if errorlevel 1 ( echo HASH MISMATCH - a part is damaged, download the parts again. & pause & exit /b 1 )'
   echo 'echo OK: "%TARGET%"'
   echo 'echo You can now delete the .part files and this script.'
-  # The owner's copy also runs the account server and the website (--enable-local-server) and opens the site;
-  # the exe itself stays a plain app when it is sent to someone else.
+  # The owner's gaming PC: just the app. It signs in to the owner's server at https://raidos.app (the server laptop,
+  # Server-Laptop-Setup.cmd with --server-mode); it no longer turns on a second, empty local server here
+  # (--enable-local-server), where the owner's account would not exist.
   if [ "${JOIN_LAUNCH:-1}" = "0" ]; then
     # Test builds for friends: only put the exe on the desktop (starting it here would use up one of its launches).
     echo 'echo The exe is on your desktop. Send this file to the tester, do not start it here.'
     echo 'pause'
   else
-    echo 'echo Starting the app, the server and the website...'
-    echo 'start "" "%TARGET%" --enable-local-server'
+    echo 'echo Starting the app...'
+    echo 'start "" "%TARGET%"'
     echo 'timeout /t 5 >nul'
   fi
 } | sed 's/$/\r/' > "$OUT/Join-Raid-OS.cmd"

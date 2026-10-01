@@ -9,7 +9,7 @@ type DesktopLogScanResult = ModeLogScanResult
 
 /** running: started by this app; external: something else already answers on the port (e.g. start-local.ps1). */
 export type LocalServiceState = 'running' | 'external' | 'stopped' | 'error'
-export interface LocalServerStatus { enabled: boolean; api: LocalServiceState; site: LocalServiceState; siteUrl: string; database: string; error?: string }
+export interface LocalServerStatus { enabled: boolean; api: LocalServiceState; site: LocalServiceState; siteUrl: string; database: string; error?: string; /** Started with --server-mode (the server laptop). */ serverMode?: boolean }
 
 export interface TunnelStatus { state: 'off' | 'downloading' | 'starting' | 'on' | 'error'; url?: string; error?: string; autoStart: boolean; hostname?: string }
 
@@ -74,7 +74,7 @@ interface TarkovDesktopApi {
     status: () => Promise<ServerAccountStatus>
     login: (email: string, password: string) => Promise<ServerAccountStatus>
     logout: () => Promise<ServerAccountStatus>
-    openWebsite: (page: 'register' | 'cabinet') => Promise<boolean>
+    openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
     /** «Сервер и сайт на этом компьютере»: the API and the website run from the app on this PC. */
     localServerStatus?: () => Promise<LocalServerStatus>
     setLocalServerEnabled?: (enabled: boolean) => Promise<LocalServerStatus>

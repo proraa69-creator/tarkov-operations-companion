@@ -15,6 +15,8 @@ import { createPaymentsRouter } from './routes/payments.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { createPayoutsRouter } from './routes/payouts.js'
+import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
+import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
 import { UserDataStore } from './services/userDataStore.js'
@@ -55,10 +57,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
   app.use(express.json({ limit: '1mb' }))
   app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore()))
-  const payments = options.payments ?? new PaymentStore(openDatabase(':memory:'), undefined)
+  // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.
+  const payments = options.payments ?? new PaymentStore(accounts.database, undefined)
+  const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments))
+  // «Админ-панель» (owner only); first, so it can also write the owner's older actions to the audit log.
+  if (payments.database === accounts.database) app.use('/v1/accounts', createOwnerAdminRouter(accounts, new AdminStore(accounts, payments)))
   app.use('/v1/accounts', createAccountsRouter(accounts))
-  app.use('/v1/accounts', createPayoutsRouter(accounts, options.payouts ?? new PayoutStore(payments.database, payments)))
+  app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
   app.use('/v1/admin', createAdminRouter(accounts))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))

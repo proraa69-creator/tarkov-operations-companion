@@ -12,11 +12,12 @@ import { fileURLToPath } from 'node:url'
  * The edition is fixed when the exe is built; it is never taken from the command line or the environment of an
  * installed exe. Only a development run without build-info.json falls back to `OWNER_BUILD` in the environment.
  * `TARKOV_DEFAULT_SERVER_URL` at build time is the server address a fresh install uses (the owner's permanent
- * address), so a player does not have to type it.
+ * address), so a player does not have to type it. `OWNER_EMAILS` (owner builds only) are the site accounts that are the
+ * owner by default, until the owner saves others in the desktop panel (electron/ownerAdmin.ts).
  */
 export type BuildEdition = 'owner' | 'client'
 
-interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown }
+interface BuildInfo { edition?: unknown; defaultServerUrl?: unknown; ownerEmails?: unknown }
 let cached: BuildInfo | null | undefined
 
 function buildInfo(): BuildInfo | null {
@@ -51,4 +52,14 @@ export function buildDefaultServerUrl() {
   } catch {
     return ''
   }
+}
+
+const OWNER_EMAIL = /^[^\s@,;]{1,64}@[^\s@,;]{1,190}\.[^\s@,;]{2,}$/
+
+/** Default owner e-mails baked into an owner build (OWNER_EMAILS at build time); [] for client builds. */
+export function buildOwnerEmails(): string[] {
+  if (!isOwnerBuild()) return []
+  const raw = buildInfo()?.ownerEmails
+  if (!Array.isArray(raw)) return []
+  return [...new Set(raw.filter((email): email is string => typeof email === 'string').map((email) => email.trim().toLowerCase()).filter((email) => email.length <= 254 && OWNER_EMAIL.test(email)))].slice(0, 5)
 }
