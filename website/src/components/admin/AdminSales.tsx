@@ -67,6 +67,7 @@ const ACTION_LABEL: Record<string, string> = {
   'payout.decide': 'Решение по выплате',
   'payout.limits': 'Интервал автовыплат',
   'payments.export': 'Выгрузка платежей CSV',
+  'device.revoke': 'Отключено устройство',
 }
 const DETAIL_LABEL: Record<string, string> = { days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
 
