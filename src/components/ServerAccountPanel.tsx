@@ -3,6 +3,7 @@ import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, R
 import type { LocalServerStatus, TunnelStatus } from '../electron'
 import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
 import { LavaPaymentsPanel } from './OwnerLavaPanel'
+import { OwnerSmsPanel } from './OwnerSmsPanel'
 import { uiText } from '../i18n/renderText'
 import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
@@ -174,6 +175,7 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
       {local.enabled && <TunnelRow />}
       {local.enabled && <PaymentsPanel />}
       {local.enabled && <LavaPaymentsPanel />}
+      {local.enabled && <OwnerSmsPanel />}
       {local.enabled && <StreamersPanel />}
     </div>
   )

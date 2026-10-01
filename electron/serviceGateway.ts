@@ -38,6 +38,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
+  // Phone number and SMS codes (server/src/routes/phone.ts). Only the code *requests* go through here: the calls that
+  // return a session (/phone/login, /phone/reset) have their own IPC, so the token never reaches the renderer.
+  { methods: ['GET'], path: /^\/v1\/accounts\/auth-config$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/phone\/(?:login|reset)\/start$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/phone\/(?:start|confirm|remove)$/ },
   // «Кабинет стримера» (server/src/routes/accounts.ts, payouts.ts): statistics, audience links, payouts.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
@@ -345,6 +350,34 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   await saveSession(answer.token, { email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
+  return accountStatus()
+}
+
+/**
+ * Sign-in by phone, or a password reset by phone, after the SMS code (POST /v1/accounts/phone/login | /phone/reset).
+ * The code request itself goes through `serviceRequest`; this call returns a session, so it stays in this process.
+ */
+export async function accountPhoneSignIn(kind: unknown, rawChallenge: unknown, rawCode: unknown, rawPassword?: unknown): Promise<AccountStatus> {
+  const challengeId = typeof rawChallenge === 'string' ? rawChallenge : ''
+  const code = typeof rawCode === 'string' ? rawCode.replace(/[\s-]/g, '') : ''
+  if (!/^[A-Za-z0-9_-]{32}$/.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из SMS — 6 цифр')
+  const reset = kind === 'reset'
+  const password = typeof rawPassword === 'string' ? rawPassword : ''
+  if (reset && (password.length < 8 || password.length > 128)) throw new Error('Новый пароль: от 8 до 128 символов')
+  await loadServerUrl()
+  let sent: Awaited<ReturnType<typeof send>>
+  try {
+    sent = await send('POST', reset ? '/v1/accounts/phone/reset' : '/v1/accounts/phone/login', { body: reset ? { challengeId, code, password } : { challengeId, code } })
+  } catch (error) {
+    if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
+    throw error
+  }
+  const { response, result } = sent
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  await saveSession(answer.token, { email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
   return accountStatus()
 }
 
