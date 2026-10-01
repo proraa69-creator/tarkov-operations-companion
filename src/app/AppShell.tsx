@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, CircleDollarSign, Crosshair, FlaskConical, Home, Images, MapPinned, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, X,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -53,6 +53,7 @@ const economyNavigation = [
 /** Sidebar group «Арсенал» (ballistics and other weapon references). */
 const arsenalNavigation = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
+  { to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

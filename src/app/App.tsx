@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
@@ -20,6 +20,9 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { LiveMapPage } from '../mobile/LiveMapPage'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { startAppActivity } from './appActivity'
+
+// The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
+const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
 
 export function App() {
   const { locale, revision } = useLocale()
@@ -49,6 +52,7 @@ export function App() {
     <Route path="/ballistics" element={<AmmoPage />} />
     <Route path="/hideout" element={<Navigate to="/" replace />} />
     <Route path="/traders" element={<TradersPage />} />
+    <Route path="/arsenal/builder" element={<Suspense fallback={null}><GunBuilderPage /></Suspense>} />
     <Route path="/settings" element={<SettingsPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></>
