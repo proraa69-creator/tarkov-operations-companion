@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaidOS — Tarkov Operations Companion</title>
+<meta name="description" content="RaidOS — десктоп-компаньон для Escape from Tarkov: карты, квесты, требования к рейду, барахолка, убежище. Профили PvP, PvE и Сезон раздельно.">
+<meta property="og:title" content="RaidOS — Tarkov Operations Companion">
+<meta property="og:description" content="Карты, квесты, барахолка и планировщик убежища для Escape from Tarkov.">
+<meta property="og:url" content="https://raidos.app/">
+<link rel="canonical" href="https://raidos.app/">
+<style>
+  :root {
+    --bg: #0e0f0c; --panel: #17180f; --line: #2c2d22; --text: #d9d4c3;
+    --muted: #8f8a78; --accent: #c9a227; --accent-ink: #14130c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.55; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+  .logo { font-weight: 800; letter-spacing: .08em; font-size: 20px; }
+  .logo span { color: var(--accent); }
+  .lang button { background: none; border: 1px solid var(--line); color: var(--muted); padding: 6px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+  .lang button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  .hero { padding: 64px 0 48px; border-bottom: 1px solid var(--line); }
+  .badge { display: inline-block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); padding: 3px 8px; margin-bottom: 18px; }
+  h1 { font-size: clamp(32px, 6vw, 54px); line-height: 1.08; margin: 0 0 18px; }
+  .lead { font-size: 18px; color: var(--muted); max-width: 640px; margin: 0 0 28px; }
+  .cta { display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 700; padding: 12px 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; padding: 48px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); padding: 20px; }
+  .card h3 { margin: 0 0 8px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .note { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; color: var(--muted); margin: 0 0 48px; }
+  footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 13px; }
+  [data-lang="en"] .ru, [data-lang="ru"] .en { display: none; }
+</style>
+</head>
+<body data-lang="ru">
+  <div class="wrap">
+    <header>
+      <div class="logo">RAID<span>OS</span></div>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-set-lang="ru" aria-pressed="true">RU</button>
+        <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="badge"><span class="ru">Бета</span><span class="en">Beta</span></div>
+      <h1>
+        <span class="ru">Операционный центр для рейдов в Escape from Tarkov</span>
+        <span class="en">Your operations hub for Escape from Tarkov raids</span>
+      </h1>
+      <p class="lead">
+        <span class="ru">Десктоп-приложение: интерактивные карты, текущие задания, что взять в рейд, цены барахолки и планировщик убежища — в одном окне.</span>
+        <span class="en">A desktop app with interactive maps, active tasks, raid requirements, flea market prices and a hideout planner — in one window.</span>
+      </p>
+      <a class="cta" href="https://github.com/proraa69-creator/tarkov-operations-companion">
+        <span class="ru">Скоро: скачать для Windows</span><span class="en">Coming soon: Windows download</span>
+      </a>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h3><span class="ru">Интерактивные карты</span><span class="en">Interactive maps</span></h3>
+        <p><span class="ru">Метки квестов, выходы, ключи и боссы на картах с уровнями.</span><span class="en">Quest markers, extracts, keys and bosses on layered maps.</span></p>
+      </div>
+      <div class="card">
+        <h3><span class="ru">Квесты и рейд-план</span><span class="en">Quests and raid planning</span></h3>
+        <p><span class="ru">Доступные задания, что нужно на рейд и какая карта сейчас приоритетна.</span><span class="en">Available tasks, what to bring, and which map to run next.</span></p>
+      </div>
+      <div class="card">
+        <h3><span class="ru">Барахолка</span><span class="en">Flea market</span></h3>
+        <p><span class="ru">Предметы, ключи, патроны и цены из публичных источников данных.</span><span class="en">Items, keys, ammo and prices from public data sources.</span></p>
+      </div>
+      <div class="card">
+        <h3><span class="ru">PvP, PvE и Сезон</span><span class="en">PvP, PvE and Season</span></h3>
+        <p><span class="ru">Отдельный профиль и прогресс для каждого режима.</span><span class="en">A separate profile and progress for each mode.</span></p>
+      </div>
+    </section>
+
+    <p class="note">
+      <span class="ru">RaidOS не внедряется в игру, не автоматизирует геймплей и не обходит защиту. Приложение работает только с разрешёнными локальными файлами и публичными данными.</span>
+      <span class="en">RaidOS does not inject into the game, automate gameplay or bypass protections. It only uses permitted local files and public data.</span>
+    </p>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span class="ru">© RaidOS. Не связано с Battlestate Games. Escape from Tarkov — товарный знак Battlestate Games Limited.</span>
+      <span class="en">© RaidOS. Not affiliated with Battlestate Games. Escape from Tarkov is a trademark of Battlestate Games Limited.</span>
+    </div>
+  </footer>
+
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('[data-set-lang]');
+    function setLang(lang) {
+      document.body.setAttribute('data-lang', lang);
+      document.documentElement.lang = lang;
+      buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.setLang === lang)); });
+      try { localStorage.setItem('raidos-lang', lang); } catch (e) {}
+    }
+    var saved = null;
+    try { saved = localStorage.getItem('raidos-lang'); } catch (e) {}
+    setLang(saved || ((navigator.language || '').toLowerCase().startsWith('ru') ? 'ru' : 'en'));
+    buttons.forEach(function (b) { b.addEventListener('click', function () { setLang(b.dataset.setLang); }); });
+  })();
+</script>
+</body>
+</html>

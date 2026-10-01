@@ -1,0 +1,15 @@
+{
+  // Static landing site for raidos.app, served by Cloudflare Workers static assets.
+  // Deploy: `npx wrangler deploy` from this folder (or via Workers Builds connected to GitHub).
+  "name": "raidos-site",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "raidos.app", "custom_domain": true },
+    { "pattern": "www.raidos.app", "custom_domain": true }
+  ],
+  "workers_dev": true
+}
