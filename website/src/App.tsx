@@ -12,6 +12,7 @@ import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ReferralLandingPage } from './pages/ReferralLandingPage'
 import { RegisterPage } from './pages/RegisterPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { StreamerInvitePage } from './pages/StreamerInvitePage'
 
 const TITLES: Record<string, string> = {
@@ -20,6 +21,7 @@ const TITLES: Record<string, string> = {
   '/download': 'Скачать — Raid OS',
   '/login': 'Вход — Raid OS',
   '/register': 'Регистрация — Raid OS',
+  '/reset': 'Восстановление пароля — Raid OS',
   '/cabinet': 'Личный кабинет — Raid OS',
   '/admin': 'Админ-панель — Raid OS',
   '/legal': 'Реквизиты и документы — Raid OS',
@@ -45,6 +47,7 @@ export function App() {
         <Route path="login" element={<LoginPage />} />
         <Route path="app-login" element={<AppLoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="reset" element={<ResetPasswordPage />} />
         <Route path="cabinet" element={<CabinetPage />} />
         {/* Owner only (the server checks every request); not linked from the menu. */}
         <Route path="admin" element={<AdminPage />} />
