@@ -76,3 +76,54 @@ github.com/TarkovTracker/tarkovdata.
 Roadmap note: `docs/product-roadmap-and-business-model.md` says users must not mark whole quests completed or
 not completed by hand. This change keeps that: quest status stays automatic (logs/OCR/server). Manual editing is
 offered per **objective** (counters and checkboxes), which the sync spec asks for as «manual recovery».
+
+## What was built
+
+- **Identity.** `normalizeTaskKeys()` (src/domain/progress.ts) rewrites legacy slug keys (task progress, tracked
+  list, objective rows) to task ids once the live catalog is loaded; unknown keys are kept, never dropped.
+  `Quest.objectiveDetails` (src/data/objectiveDetails.ts) keeps id, type, target, optional flag, item ids, zones and
+  quest-item spots per objective in one record (no parallel arrays). Catalogs without objective ids fall back to
+  position ids that are marked unstable.
+- **Objective state per mode** (`ModeProgress.objectiveProgress`, keyed by `objectiveId`; profile schema v6 — v5
+  profiles migrate with every value kept and empty objective state):
+  `{ objectiveId, taskId, type, target, current, completedAt, source: log|ocr|manual|sync, confidence, observedAt }`.
+  A quest completed by the log shows its objectives as done (derived, source `log`) unless the user said otherwise.
+- **progress_events** (`ModeProgress.progressEvents`, capped locally) with mode, taskId, objectiveId, event type,
+  old→new, source, confidence, time, reversible, undone. Task status changes from logs/OCR/sync are recorded too.
+- **Conflict rules** (`src/progression/objectiveProgress.ts`, shared with the server):
+  1. manual beats automatic (log/ocr/sync);
+  2. within the same authority, newer `observedAt` wins (ties: higher confidence);
+  3. a log-confirmed completion does not overwrite a manual «not done»: it is queued as a conflict and the quest
+     view asks «Журнал подтверждает выполнение — отметить?» (accept / keep mine).
+- **Undo.** «Отменить» on any automatic change in «История изменений» restores the old value as a manual record (so
+  the next scan does not re-apply it) and marks the event undone.
+- **Server.** `objective_progress` and `progress_events` tables per `user:<account>` + mode;
+  `GET /v1/me/objectives/:mode`, `POST /v1/me/objectives/:mode/sync`,
+  `POST /v1/me/objectives/:mode/events/:eventId/undo` (404 for an event of another account or mode; 409 for manual
+  and task-status events, which are undone on the device). Limits: 2000 objectives / 1000 events per request, 5000
+  objectives and the newest 3000 events per account and mode, client times clamped to server time + 60 s. The
+  desktop/phone app syncs on sign-in, for all modes on reconnect, every 30 s for the current mode and ~3 s after a
+  local change.
+- **Override layer.** `src/progression/questOverrides.ts` (localStorage `tarkov-quest-overrides-v1`): user
+  corrections (objective note, map point, hidden point) stored apart from the catalog with source, catalog
+  source/version and timestamps; applied over every catalog refresh, flagged (not deleted) when the catalog version
+  changed. The quest view edits objective notes. The catalog records `metadata.sourceUrl` / `sourceVersion`
+  (Last-Modified / ETag of the tasks file) / `sourceUpdatedAt`.
+- **quest_map_points.** `questMapPoints()` in `src/progression/questMapPoints.ts` is the one exported function for
+  route/briefing/squad: normalized game-space rows from objective zones (and quest-item spawn points), merged with
+  user map-point overrides. A GraphQL adapter for the tarkov.dev `tasks { objectives { ... on TaskObjectiveBasic
+  { zones { ... } } } }` shape is included and tested on fixtures (the app itself loads the same zones from
+  json.tarkov.dev).
+
+## Not built / limits
+
+- No objective counters are read from the game: EFT logs do not contain them, and OCR of the objective counters in
+  the Tasks screen is not implemented. Objective progress is manual, derived from a logged completion, or synced.
+- No inventory recognition (giveItem/collect readiness) and no live position claims.
+- No map editor UI for map-point corrections yet (the data layer and `questMapPoints()` support them).
+- Overrides stay on this computer (not synced to the server).
+- Website cabinet does not show objective history yet; the server undo endpoint is ready for it.
+- The app does not call the tarkov.dev GraphQL API; `TASK_OBJECTIVES_QUERY` + `adaptGraphqlTaskObjectives()` are
+  tested on fixtures only (the sandbox cannot reach tarkov.dev).
+- A catalog cached by an older build has no `objectiveDetails` until the next successful refresh; the quest view
+  then falls back to the objective lines (checkboxes only, position ids).
