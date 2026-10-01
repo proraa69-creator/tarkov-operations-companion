@@ -62,6 +62,12 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Сервер не отдал файл: HTTP', 'The server did not send the file: HTTP'], ['Файл обновления повреждён, попробуйте ещё раз', 'The update file is damaged, try again'],
   ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],
   ['Не удалось подготовить обновление', 'Could not prepare the update'],
+  // Full-screen update window (UpdateButton → UpdateOverlay)
+  ['Обновление до актуальной версии', 'Updating to the latest version'], ['Обновление…', 'Updating…'], ['Сейчас', 'Now'], ['Новая', 'New'],
+  ['Скачивание', 'Download'], ['Проверка', 'Check'], ['Установка и перезапуск', 'Install and restart'],
+  ['Скачивание новой версии', 'Downloading the new version'], ['Проверка файла (размер и подпись SHA-256)', 'Checking the file (size and SHA-256)'],
+  ['Установка: приложение закроется и запустится на новой версии', 'Installing: the app closes and starts on the new version'],
+  ['Готово к обновлению', 'Ready to update'],
   // Owner panels (OwnerPanels.tsx): ЮKassa and streamer invitations
   ['Оплата подписки (ЮKassa)', 'Subscription payments (YooKassa)'], ['Выключена: укажите магазин, ключ и цену', 'Off: enter the shop, key and price'],
   ['Свернуть', 'Collapse'], ['Открыть', 'Open'], ['Секретный ключ', 'Secret key'], ['Цена месяца, ₽', 'Monthly price, ₽'], ['Доля стримера, %', 'Streamer share, %'],

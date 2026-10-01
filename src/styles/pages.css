@@ -964,6 +964,10 @@ a.quest-stage:hover { color: var(--text); }
 
 /* Top bar «Обновить» (src/components/UpdateButton.tsx) */
 .update-button { min-height: 34px; white-space: nowrap; }
+/* one fixed size in every state (available / downloading / error), so the top bar never shifts while it updates */
+.update-button { flex: none; width: 206px; justify-content: center; overflow: hidden; }
+.update-button .update-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.update-button svg { flex: none; }
 .update-button.is-error { background: transparent; color: #e2a398; border-color: #613d37; }
 
 /* Server owner panels (src/components/OwnerPanels.tsx) */
