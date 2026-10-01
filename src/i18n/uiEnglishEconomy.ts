@@ -1,6 +1,6 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
-  ['Экономика · ', 'Economy · '], ['ЭКОНОМИКА', 'ECONOMY'], ['Рейтинг ценности', 'Value ranking'],
+['ЭКОНОМИКА', 'ECONOMY'], ['Рейтинг ценности', 'Value ranking'],
   ['Бартеры', 'Barters'], ['Крафты', 'Crafts'],
   ['Калькулятор бартеров', 'Barter calculator'],
   ['Сколько стоит отдать предметы торговцу и сколько стоит то, что вы получите. Вход — дешевле из барахолки и торговцев, выход — цена барахолки за вычетом комиссии или лучший выкуп торговца.',
@@ -28,7 +28,7 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Загружаем цены, бартеры и крафты с tarkov.dev…', 'Loading prices, barters and crafts from tarkov.dev…'],
   ['tarkov.dev сейчас недоступен, а сохранённых данных для этого режима нет. Попробуйте обновить позже.',
     'tarkov.dev is unavailable and there is no saved data for this mode. Try again later.'],
-  ['История цены · ', 'Price history · '], ['История цены за', 'Price history for'], ['дн.', 'd'], ['Период', 'Period'],
+  ['История цены', 'Price history'],['История цены за', 'Price history for'], ['дн.', 'd'], ['Период', 'Period'],
   ['Для Сезона tarkov.dev не публикует отдельную историю цен.', 'tarkov.dev does not publish a separate Season price history.'],
   ['История цены сейчас недоступна.', 'Price history is unavailable right now.'],
   ['Недостаточно данных за период.', 'Not enough data for this period.'],
