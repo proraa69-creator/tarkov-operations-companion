@@ -69,6 +69,9 @@
 .account-approve-info small { color: var(--text-muted); overflow-wrap: anywhere; }
 .account-approve-actions { display: flex; gap: 8px; justify-content: center; }
 .account-approve-actions .button { flex: 1; }
+/* Phone: a sign-in link to a server the app does not know (mobile/DeepLinkLogin.tsx) */
+.account-server-host { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--danger); border-radius: 10px; background: var(--surf-1); font-size: 24px; font-weight: 850; line-height: 1.2; overflow-wrap: anywhere; }
+.account-server-url { display: block; margin-top: 6px; color: var(--text-muted); overflow-wrap: anywhere; }
 
 /* «Кабинет стримера» */
 .streamer-links { display: grid; gap: 8px; }

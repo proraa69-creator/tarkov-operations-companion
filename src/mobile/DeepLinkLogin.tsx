@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { App as CapacitorApp } from '@capacitor/app'
-import { AlertTriangle, Check, Globe, LoaderCircle, LogIn, Smartphone, X } from 'lucide-react'
+import { AlertTriangle, Check, Globe, LoaderCircle, LogIn, ShieldAlert, Smartphone, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isNative } from '../platform'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
-import { apiBaseUrl, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
+import { apiBaseUrl, DEFAULT_API_URL, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
 import { parseAccountDeepLink, type AccountDeepLink } from './deepLink'
 import '../account/account.css'
 
 const host = (url: string) => { try { return new URL(url).host } catch { return url } }
+
+/** A sign-in link may switch the phone without asking only to the server it already uses or the app's built-in one. */
+function isKnownServer(server: string) {
+  return [apiBaseUrl(), DEFAULT_API_URL].some((known) => { try { return normalizeApiUrl(known) === server } catch { return false } })
+}
 
 /**
  * Phone app: QR sign-in links (mobile/deepLink.ts). A desktop QR signs the phone in to the same account; a website QR
@@ -48,10 +53,13 @@ function PhoneSignIn({ link, onClose }: { link: Extract<AccountDeepLink, { kind:
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [email, setEmail] = useState('')
+  /** The other server the user agreed to in the confirmation below (tied to that exact address). */
+  const [confirmedServer, setConfirmedServer] = useState('')
   let server = ''
   let serverError = ''
   try { server = normalizeApiUrl(link.server || apiBaseUrl()) } catch (reason) { serverError = reason instanceof Error ? reason.message : 'Некорректный адрес сервера' }
   const switching = Boolean(status?.signedIn && server && host(server) !== host(apiBaseUrl()))
+  const unknownServer = Boolean(server) && confirmedServer !== server && !isKnownServer(server)
 
   const signIn = useCallback(() => {
     if (!server) return
@@ -64,6 +72,25 @@ function PhoneSignIn({ link, onClose }: { link: Extract<AccountDeepLink, { kind:
       setError(cleanIpcError(reason))
     }).finally(() => setBusy(false))
   }, [link.code, server])
+
+  // Not the server the phone uses, nor the built-in one: a link from someone else could move the account elsewhere.
+  if (unknownServer) {
+    return (
+      <Frame label={uiText('Незнакомый сервер')} icon={<ShieldAlert size={28} />} onClose={onClose}>
+        <div className="eyebrow">{uiText('Вход по QR-коду')}</div>
+        <h2>{uiText('Незнакомый сервер')}</h2>
+        <p className="muted">{uiText('Ссылка для входа ведёт на сервер, которого нет в приложении:')}</p>
+        <div className="account-server-host">{host(server)}</div>
+        <small className="account-server-url">{server}</small>
+        <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText('Подключайтесь, только если это ваш сервер. Чужой сервер получит доступ к тому, что вы делаете в приложении, и может притвориться Raid OS. Если ссылку прислал кто-то другой, нажмите «Отмена».')}</span></div>
+        <div className="account-approve-actions">
+          {/* «Отмена» is the default: focused, the primary button. */}
+          <button className="button primary" autoFocus onClick={onClose}>{uiText('Отмена')}</button>
+          <button className="button ghost" onClick={() => setConfirmedServer(server)}>{uiText('Подключиться к этому серверу')}</button>
+        </div>
+      </Frame>
+    )
+  }
 
   return (
     <Frame label={uiText('Вход по QR-коду')} icon={<Smartphone size={28} />} onClose={onClose}>
