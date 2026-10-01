@@ -32,9 +32,18 @@ export function proxyToApi(request: IncomingMessage, response: ServerResponse, a
   request.pipe(upstream)
 }
 
+/**
+ * What only vulnerability scanners ask the website for (/.env, /.git/…, *.php, /wp-admin, /cgi-bin…). Such requests go
+ * to the API, whose «Страж сервера» (server/src/services/securityGuard.ts) scores them and bans the address, and answers
+ * 404 — instead of the site quietly serving index.html. The site has no such files and no page with such a path.
+ */
+const SCANNER_HINT = /(?:^|\/)\.(?!well-known(?:\/|$))|\.(?:php\d?|phtml|asp|aspx|jsp|cgi|env|ini|bak|sql|sqlite|yml|yaml|conf)(?:\/|$)|(?:^|\/)(?:wp-admin|wp-login|wp-content|wp-includes|xmlrpc|phpmyadmin|pma|myadmin|adminer|cgi-bin|boaform|hnap1|actuator|server-status|vendor\/phpunit)(?:\/|$|\.)/i
+export const looksLikeScanner = (path: string) => SCANNER_HINT.test(path)
+
 /** Whether a site path belongs to the API (the owner's admin API never goes through the site). */
 export function siteRoute(path: string): 'blocked' | 'api' | 'site' {
   if (/^\/+v1\/+admin(\/|$)/i.test(path.replace(/\\/g, '/'))) return 'blocked'
   if (path === '/health' || path.startsWith('/v1/')) return 'api'
+  if (looksLikeScanner(path)) return 'api'
   return 'site'
 }

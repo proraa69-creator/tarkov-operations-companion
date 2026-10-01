@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { RefreshCw, RotateCcw, ScrollText, X } from 'lucide-react'
+import { ExternalLink, RefreshCw, RotateCcw, ScrollText, X } from 'lucide-react'
 import type { WatchdogAlert, WatchdogLamp, WatchdogServiceId, WatchdogSnapshot } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { agoText, watchdogText } from './serverStatusText'
 import '../styles/serverStatus.css'
 
-const LABELS: Record<WatchdogServiceId, string> = { api: 'Сервер (API)', site: 'Сайт', public: 'Публичный адрес', database: 'База данных' }
+const LABELS: Record<WatchdogServiceId, string> = { api: 'Сервер (API)', site: 'Сайт', public: 'Публичный адрес', database: 'База данных', security: 'Безопасность' }
 const LAMP_TITLE: Record<WatchdogLamp, string> = { green: 'работает', amber: 'запускается / перезапуск / предупреждение', red: 'ошибка', grey: 'выключено' }
 const RESTARTABLE: WatchdogServiceId[] = ['api', 'site', 'public']
 
@@ -45,6 +45,9 @@ export function ServerStatusLamps({ snapshot, onSnapshot, hostname }: { snapshot
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
+  // «Безопасность» → the website's admin tab (bans, events, error graph; docs/server-guard.md).
+  const [site, setSite] = useState('')
+  useEffect(() => { void api?.websiteUrl?.().then((url) => setSite(url)).catch(() => {}) }, [api])
   if (!snapshot) return null
   const run = (key: WatchdogServiceId | 'check', action: () => Promise<WatchdogSnapshot> | undefined) => {
     setBusy(key)
@@ -75,8 +78,13 @@ export function ServerStatusLamps({ snapshot, onSnapshot, hostname }: { snapshot
                     <RotateCcw size={13} className={busy === service.id ? 'spin' : ''} />{uiText('Перезапустить сейчас')}
                   </button>
                 )}
+                {service.id === 'security' && site && (
+                  <a className="button ghost server-lamps-mini" href={`${site}/admin?tab=security`} target="_blank" rel="noreferrer" title={uiText('Открыть вкладку «Безопасность» в админ-панели сайта')}>
+                    <ExternalLink size={13} />{uiText('Админ-панель')}
+                  </a>
+                )}
               </span>
-              <small>{uiText(service.text)}{service.attempts > 0 ? ` · ${uiText('попыток:')} ${service.attempts}` : ''}{service.nextRetryAt && service.nextRetryAt > now ? ` · ${uiText('следующая через')} ${Math.ceil((service.nextRetryAt - now) / 1000)} ${locale === 'en' ? 's' : 'с'}` : ''}</small>
+              <small>{watchdogText(service.text, locale)}{service.attempts > 0 ? ` · ${uiText('попыток:')} ${service.attempts}` : ''}{service.nextRetryAt && service.nextRetryAt > now ? ` · ${uiText('следующая через')} ${Math.ceil((service.nextRetryAt - now) / 1000)} ${locale === 'en' ? 's' : 'с'}` : ''}</small>
               {service.lastError && <small className="server-lamps-error">{watchdogText(service.lastError, locale)}</small>}
               {snapshot.enabled && <small className="dim">{agoText(service.checkedAt, now, locale)}</small>}
             </span>

@@ -25,6 +25,7 @@ import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
 import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
+import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const syncSchema = z.object({
@@ -51,6 +52,8 @@ export interface ApiOptions {
   emails?: EmailAuthService
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
+  /** «Страж сервера» (routes/serverGuard.ts): bans, health detail, backups. */
+  guard?: ServerGuardOptions
 }
 
 /**
@@ -97,6 +100,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // which puts the visitor's address into X-Forwarded-For. Trusting only loopback proxies keeps per-IP rate limits per
   // visitor instead of one shared bucket for everybody, while a remote client still cannot fake its address.
   app.set('trust proxy', 'loopback')
+  const guard = createServerGuard(accounts, options.guard)
+  app.use(guard.middleware)
   // Answers are data, never pages: no MIME sniffing and no framing, on every response (errors and 404s included).
   app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); next() })
   // Everything under /v1/accounts is personal: set before any parsing, so unknown paths and errors are never cached.
@@ -104,6 +109,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
   app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
   app.use(express.json({ limit: '1mb' }))
+  app.use(guard.router)
   app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore()))
   // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.
   const payments = options.payments ?? new PaymentStore(accounts.database, undefined)

@@ -1,4 +1,5 @@
 import { uiText } from '../i18n/renderText'
+import { SERVER_GUARD_PATTERNS } from '../i18n/uiEnglishServerGuard'
 
 /** «N с назад» / «N s ago», minutes and hours for older checks. */
 export function agoText(at: number | undefined, now: number, locale: 'ru' | 'en') {
@@ -8,8 +9,10 @@ export function agoText(at: number | undefined, now: number, locale: 'ru' | 'en'
   return locale === 'en' ? `last check ${value} ago` : `последняя проверка ${value} назад`
 }
 
-const LABELS_EN: Array<[RegExp, string]> = [[/^Сервер \(API\)/, 'Server (API)'], [/^Сайт/, 'Website'], [/^Публичный адрес/, 'Public address'], [/^База данных/, 'Database']]
+const LABELS_EN: Array<[RegExp, string]> = [[/^Сервер \(API\)/, 'Server (API)'], [/^Сайт/, 'Website'], [/^Публичный адрес/, 'Public address'], [/^База данных/, 'Database'], [/^Безопасность/, 'Security']]
 const DYNAMIC_EN: Array<[RegExp, string]> = [
+  // «Страж сервера» first: its long sentences contain shorter phrases matched below.
+  ...SERVER_GUARD_PATTERNS,
   [/автоматический перезапуск \(попытка (\d+)\)/g, 'automatic restart (attempt $1)'],
   [/не удалось починить после (\d+) попыток/g, 'could not repair after $1 attempts'],
   [/Автоматический перезапуск не помог \((\d+) попытки\)\./g, 'Automatic restart did not help ($1 attempts).'],

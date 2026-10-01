@@ -1,5 +1,8 @@
+import { SERVER_GUARD_PHRASES } from './uiEnglishServerGuard'
+
 /** English strings for the server status lamps, watchdog journal and alerts (ServerStatusLamps, electron/serverWatchdog.ts). */
 export const SERVER_STATUS_PHRASES: Array<[string, string]> = [
+  ...SERVER_GUARD_PHRASES,
   ['Состояние сервера', 'Server status'], ['Состояние', 'Status'], ['Проверить сейчас', 'Check now'],
   ['сервер на этом компьютере выключен', 'the server on this PC is off'],
   ['Сервер (API)', 'Server (API)'], ['Сайт', 'Website'], ['Публичный адрес', 'Public address'], ['База данных', 'Database'],
