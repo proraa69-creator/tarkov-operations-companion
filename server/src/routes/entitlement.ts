@@ -21,7 +21,7 @@ const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
 export function createEntitlementRouter(accounts: AccountStore, entitlements: EntitlementService, admin?: AdminStore) {
   const router = express.Router()
-  const issueLimiter = new FixedWindowRateLimiter(60, 60 * 60 * 1000)
+  const issueLimiter = new FixedWindowRateLimiter(240, 60 * 60 * 1000)
   const ownerLimiter = new FixedWindowRateLimiter(60, 60 * 1000)
 
   router.get('/entitlement/public-key', (_req, res) => {

@@ -168,7 +168,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
   app.use('/v1/data', createDataRouter(options.data ?? new DataGateway(), paid))
-  app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode))))
+  app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {
+    const lang = z.enum(['ru', 'en']).default('ru').parse(req.query.lang ?? undefined)
+    res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode), lang))
+  })
   app.post('/v1/players/resolve', players, paid, async (req, res) => {
     const body = z.object({ mode: modeSchema, nickname: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,15}$/) }).parse(req.body)
     res.json(await resolvePlayer(body.mode, body.nickname))
