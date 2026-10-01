@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, ApiError, type Account } from './api'
+import { api, ApiError, type Account, type PendingRegistration } from './api'
 import { loadSessionToken, saveSessionToken } from './storage'
 
 type Status = 'signed-out' | 'loading' | 'ready' | 'error'
@@ -10,7 +10,13 @@ interface AuthState {
   status: Status
   error: ApiError | null
   login(email: string, password: string): Promise<{ token: string }>
-  register(email: string, password: string, referralCode?: string): Promise<{ token: string; referralApplied: boolean }>
+  /**
+   * `pending`: the server sends e-mail codes — no session yet; finish with confirmRegistration(). Otherwise the account
+   * exists and this browser is signed in.
+   */
+  register(email: string, password: string, referralCode?: string): Promise<{ pending: PendingRegistration } | { pending?: undefined; token: string; referralApplied: boolean }>
+  /** The code from the registration e-mail: the account is created and this browser signed in. */
+  confirmRegistration(challengeId: string, code: string): Promise<{ token: string; referralApplied: boolean }>
   logout(): Promise<void>
   reload(): void
   setAccount(account: Account): void
@@ -60,6 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async register(email, password, referralCode) {
       const result = await api.register(email, password, referralCode)
+      if ('pending' in result && result.pending) return { pending: result }
+      if (!('token' in result)) throw new ApiError(0, 'Сервер вернул неожиданный ответ')
+      adoptSession(result.token, result.account)
+      return { token: result.token, referralApplied: Boolean(result.referralApplied) }
+    },
+    async confirmRegistration(challengeId, code) {
+      const result = await api.registerConfirm(challengeId, code)
       adoptSession(result.token, result.account)
       return { token: result.token, referralApplied: Boolean(result.referralApplied) }
     },

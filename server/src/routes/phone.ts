@@ -1,7 +1,8 @@
 /**
  * Phone numbers and SMS one-time codes (services/phoneAuth.ts), mounted at `/v1/accounts`.
  *
- *   GET  /auth-config                     -> { smsEnabled, codeLength, codeTtlSeconds, resendSeconds, countries }
+ *   GET  /auth-config                     -> { smsEnabled, codeLength, codeTtlSeconds, resendSeconds, countries,
+ *                                            emailEnabled, email: { codeLength, codeTtlSeconds, resendSeconds } }
  *   POST /phone/login/start   { phone }   -> 200 { challengeId, expiresAt, resendSeconds }   (same answer for any number)
  *   POST /phone/login         { challengeId, code }            -> 200 { token, account } | 400
  *   POST /phone/reset/start   { phone }   -> 200 { challengeId, expiresAt, resendSeconds }   (same answer for any number)

@@ -16,6 +16,8 @@ async function setup() {
   const db = openDatabase(':memory:')
   const first = new AccountStore({ db, now, ownerEmails: [] })
   await first.register('owner@example.com', password)
+  // Owner rights need a confirmed e-mail (or an account older than e-mail codes, see AccountStore.isOwner).
+  first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   const store = new AccountStore({ db, now, ownerEmails: ['Owner@Example.com'] })
   const api = createAccountsHandlers(store, { now })
   const login = async (email: string) => ((await api.login({ ip: 'x', body: { email, password } })).body as { token: string }).token

@@ -5,8 +5,9 @@
  * (the same database file as the rest of the server, see services/database.ts), so they survive restarts.
  * Without a database handle the store uses a private in-memory SQLite database (tests).
  *
- * Still missing before any public deployment: e-mail verification. Password reset works through a verified phone
- * number (services/phoneAuth.ts) when an SMS provider is configured. Subscription state is
+ * E-mail verification, sign-in and password reset by e-mail code live in services/emailAuth.ts (on once the owner
+ * configures an e-mail provider); password reset also works through a verified phone number (services/phoneAuth.ts)
+ * when an SMS provider is configured. Subscription state is
  * NEVER taken from the client: paid periods and streamer revenue come from verified ЮKassa payments
  * (services/paymentStore.ts, attached through `SubscriptionSource`).
  * Streamer status is granted only by an operator through `promoteToStreamer()` (CLI `npm run promote`, never HTTP).
@@ -98,6 +99,8 @@ export interface AccountView {
   owner?: true
   /** Verified phone number, masked (+7 ••• •••-45-67); the full number is never sent back. */
   phone?: { masked: string; verifiedAt: string }
+  /** When the e-mail was confirmed with a one-time code (services/emailAuth.ts); absent = not confirmed yet. */
+  emailVerifiedAt?: string
 }
 
 /** «+7 ••• •••-45-67»: enough for the owner of the number to recognise it. */
@@ -135,6 +138,12 @@ function hashPassword(password: string, salt: Buffer) {
   return new Promise<Buffer>((resolve, reject) => {
     scrypt(password.normalize('NFKC'), salt, SCRYPT_KEYLEN, SCRYPT_OPTIONS, (error, key) => (error ? reject(error) : resolve(key)))
   })
+}
+
+/** A fresh salt and its scrypt hash (a pending registration keeps only these, never the password). */
+export async function newPasswordHash(password: string) {
+  const salt = randomBytes(16)
+  return { salt, hash: await hashPassword(password, salt) }
 }
 
 /** Only the SHA-256 of a session token is stored, so a database copy does not reveal usable tokens. */
@@ -245,6 +254,10 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // Verified phone number in E.164 (services/phoneAuth.ts): set only after an SMS code was confirmed.
   ['phone', 'TEXT'],
   ['phone_verified_at', 'INTEGER'],
+  // E-mail confirmed with a one-time code (services/emailAuth.ts).
+  ['email_verified_at', 'INTEGER'],
+  // 1 for every account that already existed when e-mail confirmation was introduced (see the constructor).
+  ['email_grandfathered', 'INTEGER NOT NULL DEFAULT 0'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -272,6 +285,12 @@ export class AccountStore {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(accounts)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_ACCOUNT_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE accounts ADD COLUMN ${name} ${type}`)
+    // Owner grandfathering. Owner rights now need a confirmed e-mail (see isOwner()), but accounts registered before
+    // e-mail codes existed could never confirm theirs. So, exactly once — on the start that adds the column — every
+    // account that exists at that moment is marked `email_grandfathered = 1` and keeps the owner rights it had.
+    // Accounts created afterwards are never grandfathered: they must confirm their e-mail first. Because this runs only
+    // when the column is missing, a later restart cannot grandfather anybody new.
+    if (!columns.has('email_grandfathered')) this.db.exec('UPDATE accounts SET email_grandfathered = 1')
     // A verified number belongs to one account only.
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
   }
@@ -302,14 +321,38 @@ export class AccountStore {
     return { id: account.id, email: account.email, ...(account.referredBy ? { referredBy: account.referredBy } : {}) }
   }
 
+  /**
+   * Immediate registration, used while e-mail codes are switched off (no provider): the account starts with an
+   * unconfirmed e-mail. With e-mail codes on, registration goes through services/emailAuth.ts instead and the account
+   * is created by createVerifiedAccount() only after the code is confirmed.
+   */
   async register(email: string, password: string, referralCode?: string) {
     const key = email.trim().toLowerCase()
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
-    // An owner e-mail must be registered BEFORE it is listed in TARKOV_OWNER_EMAILS (e-mails are not verified), so a
-    // stranger cannot register the listed address and receive owner rights.
+    // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
+    // here at all (and even if it were, isOwner() would refuse an unconfirmed account).
     if (this.ownerEmails.has(key)) throw new AccountError(403, 'Этот e-mail нельзя зарегистрировать')
-    const salt = randomBytes(16)
-    const passwordHash = await hashPassword(password, salt)
+    const { salt, hash } = await newPasswordHash(password)
+    return this.insertAccount(key, salt, hash, referralCode, null)
+  }
+
+  /**
+   * Registration completed with an e-mail code (services/emailAuth.ts): the address is proven, so the account starts
+   * confirmed — this is also how a listed owner e-mail can be registered once e-mail codes are on. Throws 409 when the
+   * address got an account meanwhile.
+   */
+  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string) {
+    const key = email.trim().toLowerCase()
+    if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
+    return this.insertAccount(key, salt, passwordHash, referralCode, this.now())
+  }
+
+  /** Same scrypt cost as hashing a real password (registration of an address that already has an account). */
+  async dummyPasswordHash(password: string) {
+    await hashPassword(password, this.dummySalt)
+  }
+
+  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null) {
     const id = randomBytes(12).toString('hex')
     const createdAt = this.now()
     let referredBy: string | null = null
@@ -319,8 +362,8 @@ export class AccountStore {
       if (this.activeOwnerOfCode(code)) referredBy = code
     }
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames) VALUES (?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}')
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
@@ -376,15 +419,43 @@ export class AccountStore {
     }
     // Streamers use the service free of charge, for good (the desktop app reads the same view).
     if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
-    if (this.ownerEmails.has(account.email)) view.owner = true
-    const phone = this.db.prepare('SELECT phone, phone_verified_at FROM accounts WHERE id = ?').get(account.id) as Row | undefined
-    if (phone?.phone != null) view.phone = { masked: maskPhone(String(phone.phone)), verifiedAt: new Date(Number(phone.phone_verified_at)).toISOString() }
+    const extra = this.db.prepare('SELECT phone, phone_verified_at, email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(account.id) as Row | undefined
+    if (this.ownerRights(account.email, extra)) view.owner = true
+    if (extra?.phone != null) view.phone = { masked: maskPhone(String(extra.phone)), verifiedAt: new Date(Number(extra.phone_verified_at)).toISOString() }
+    if (extra?.email_verified_at != null) view.emailVerifiedAt = new Date(Number(extra.email_verified_at)).toISOString()
     return view
   }
 
-  /** Owner rights are decided only here, on the server, from the configured owner e-mails. */
+  /**
+   * Owner rights are decided only here, on the server: the e-mail is listed in TARKOV_OWNER_EMAILS AND the account has
+   * proven it owns that e-mail — either it confirmed the address with a one-time code (`email_verified_at`), or it
+   * existed before e-mail codes were introduced (`email_grandfathered`, set once by the migration in the constructor,
+   * so the owner's existing account keeps working). A listed address registered later without confirmation gets no
+   * owner rights until it is confirmed.
+   */
   isOwner(accountId: string) {
-    return this.ownerEmails.has(this.mustGet(accountId).email)
+    const account = this.mustGet(accountId)
+    return this.ownerRights(account.email, this.db.prepare('SELECT email_verified_at, email_grandfathered FROM accounts WHERE id = ?').get(accountId) as Row | undefined)
+  }
+
+  private ownerRights(email: string, row: Row | undefined) {
+    return this.ownerEmails.has(email) && row !== undefined && (row.email_verified_at != null || Number(row.email_grandfathered) === 1)
+  }
+
+  /** The e-mail was proven with a one-time code (confirmation, sign-in or reset by e-mail code). */
+  markEmailVerified(accountId: string) {
+    this.db.prepare('UPDATE accounts SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL').run(this.now(), accountId)
+  }
+
+  isEmailVerified(accountId: string) {
+    const row = this.db.prepare('SELECT email_verified_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.email_verified_at != null
+  }
+
+  /** The account with this e-mail, with what the e-mail code flows need to decide (services/emailAuth.ts). */
+  accountByEmail(email: string) {
+    const row = this.db.prepare('SELECT id, blocked_at FROM accounts WHERE email = ?').get(email.trim().toLowerCase()) as Row | undefined
+    return row ? { id: String(row.id), blocked: row.blocked_at != null } : undefined
   }
 
   /** Sign-in blocked by the owner (admin panel): no login, no new sessions, existing ones are refused. */
@@ -725,7 +796,21 @@ export interface AccountsHandlerOptions {
   /** Max login/register attempts per IP per window. Default 10 per 15 minutes. */
   authRateLimit?: { max: number; windowMs: number }
   now?: () => number
+  /**
+   * E-mail codes (services/emailAuth.ts). While `enabled`, POST /register creates no account: it answers 202 with a
+   * challenge and the account appears after POST /register/confirm with the code from the e-mail.
+   */
+  registrations?: PendingRegistrations
 }
+
+/** What registration needs from services/emailAuth.ts (kept as an interface to avoid an import cycle). */
+export interface PendingRegistrations {
+  readonly enabled: boolean
+  startRegistration(email: string, password: string, referralCode?: string, ip?: string): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
+}
+
+/** The single answer to every registration while e-mail codes are on, whatever the address (anti-enumeration). */
+export const REGISTRATION_PENDING_MESSAGE = 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.'
 
 const emailSchema = z.string().trim().toLowerCase().max(254).email()
 const passwordSchema = z.string().min(8).max(128)
@@ -764,6 +849,8 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     try {
       return await run()
     } catch (error) {
+      const retryAfter = error instanceof AccountError && 'retryAfter' in error && typeof error.retryAfter === 'number' ? error.retryAfter : 0
+      if (error instanceof AccountError && retryAfter) return { status: error.status, body: { error: error.message, retryAfter }, headers: { 'Retry-After': String(retryAfter) } }
       if (error instanceof AccountError) return { status: error.status, body: { error: error.message } }
       throw error
     }
@@ -793,6 +880,13 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = registerSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Укажите корректный e-mail и пароль от 8 до 128 символов')
       const { email, password, referralCode } = parsed.data
+      const registrations = options.registrations
+      if (registrations?.enabled) {
+        // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or
+        // nothing at all) is never visible here. The account is created by POST /register/confirm.
+        const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown')
+        return { status: 202, body: { pending: true, message: REGISTRATION_PENDING_MESSAGE, ...challenge } }
+      }
       const result = await store.register(email, password, referralCode || undefined)
       return { status: 201, body: { token: result.token, referralApplied: result.referralApplied, account: store.view(store.authenticate(result.token)!) } }
     }),

@@ -30,10 +30,18 @@ export interface Account {
   owner?: true
   /** Verified phone number, masked (+7 ••• •••-45-67). */
   phone?: { masked: string; verifiedAt: string }
+  /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
+  emailVerifiedAt?: string
 }
 
-/** GET /v1/accounts/auth-config (server/src/routes/phone.ts): whether SMS codes work on this server. */
-export interface AuthConfig { smsEnabled: boolean; codeLength: number; codeTtlSeconds: number; resendSeconds: number; countries: string[] }
+/**
+ * GET /v1/accounts/auth-config (server/src/routes/phone.ts): whether SMS codes and e-mail codes work on this server.
+ * `emailEnabled` is missing on older servers (= off).
+ */
+export interface AuthConfig {
+  smsEnabled: boolean; codeLength: number; codeTtlSeconds: number; resendSeconds: number; countries: string[]
+  emailEnabled?: boolean; email?: { codeLength: number; codeTtlSeconds: number; resendSeconds: number }
+}
 /** A code was requested: what the next step sends back. The SMS itself holds the code. */
 export interface SmsChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
 
@@ -190,6 +198,11 @@ export interface OwnerPayout extends PayoutItem { code: string; email: string; p
 export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; max: number } }
 
 export interface AuthResult { token: string; account: Account; referralApplied?: boolean }
+/**
+ * POST /register while the server sends e-mail codes: no account yet. The same answer for every address (the server
+ * never says whether it is already registered); POST /register/confirm with the code creates the account.
+ */
+export interface PendingRegistration { pending: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
 
 /** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
 export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number }
@@ -259,8 +272,18 @@ export async function downloadAdminPaymentsCsv(token: string, filter: AdminPayme
 }
 
 export const api = {
+  /** 201 AuthResult (e-mail codes off) or 202 PendingRegistration (e-mail codes on). */
   register: (email: string, password: string, referralCode?: string) =>
-    request<AuthResult>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}) } }),
+    request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}) } }),
+  registerConfirm: (challengeId: string, code: string) => request<AuthResult>('/register/confirm', { method: 'POST', body: { challengeId, code } }),
+  registerResend: (challengeId: string) => request<SmsChallenge>('/register/resend', { method: 'POST', body: { challengeId } }),
+  /** The same answer whether or not the address has an account; the code goes only to an existing one. */
+  emailLoginStart: (email: string) => request<SmsChallenge>('/email/login/start', { method: 'POST', body: { email } }),
+  emailLogin: (challengeId: string, code: string) => request<AuthResult>('/email/login', { method: 'POST', body: { challengeId, code } }),
+  emailResetStart: (email: string) => request<SmsChallenge>('/email/reset/start', { method: 'POST', body: { email } }),
+  emailReset: (challengeId: string, code: string, password: string) => request<AuthResult>('/email/reset', { method: 'POST', body: { challengeId, code, password } }),
+  emailVerifyStart: (token: string) => request<SmsChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
+  emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
   login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),
   me: (token: string) => request<Account>('/me', { token }),

@@ -6,7 +6,7 @@
  * GET /v1/accounts/auth-config reports `smsEnabled: false`, so the website and the apps hide the phone options.
  *
  * Security model
- * - Codes: 6 digits from crypto.randomInt, stored only as SHA-256(per-code salt, purpose, phone, code); live 5 minutes;
+ * - Codes (shared core: services/oneTimeCode.ts): 6 digits from crypto.randomInt, stored only as SHA-256(per-code salt, purpose, phone, code); live 5 minutes;
  *   5 wrong attempts invalidate the code; compared with timingSafeEqual; bound to the purpose (bind / login / reset),
  *   the number and, for binding, the account. A new code for the same number and purpose replaces the old one.
  * - Anti-enumeration: sign-in and reset requests answer exactly the same whether the number belongs to an account or
@@ -18,18 +18,16 @@
  *   set by the owner (TARKOV_SMS_DAILY_LIMIT), and an allowlist of country calling codes (TARKOV_SMS_COUNTRIES).
  * - Nothing here logs a number, a code or a provider key; provider failures are logged as provider + status code only.
  */
-import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { AccountError, bearer, BLOCKED_MESSAGE, FixedWindowRateLimiter, type AccountsRequest, type AccountsResponse, type AccountStore } from './accountStore.js'
 import { DEFAULT_SMS_LIMITS, SmsSendError, type SmsLimits, type SmsSender } from './sms/index.js'
+import { CODE_LENGTH, codeHash, codeMatches, DAY_MS, newChallengeId, newCode, newSalt, sha256 } from './oneTimeCode.js'
 
 export type SmsPurpose = 'bind' | 'login' | 'reset'
 export const CODE_TTL_MS = 5 * 60 * 1000
 export const RESEND_COOLDOWN_MS = 60 * 1000
 export const MAX_CODE_ATTEMPTS = 5
-const DAY_MS = 24 * 60 * 60 * 1000
-const CODE_LENGTH = 6
 
 type Row = Record<string, unknown>
 
@@ -54,9 +52,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS sms_requests_at ON sms_requests(at);
 `
 
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
 const phoneDigest = (phone: string) => sha256(`phone\u0000${phone}`)
-const codeHash = (salt: Buffer, purpose: SmsPurpose, phone: string, code: string) => createHash('sha256').update(salt).update(`\u0000${purpose}\u0000${phone}\u0000${code}`).digest()
 
 /**
  * «+7 (999) 123-45-67», «8 999 123 45 67», «79991234567» → «+79991234567» (E.164), or undefined. A leading 8 with 11
@@ -188,9 +184,9 @@ export class PhoneAuthService {
     this.sweep(now)
     if (purpose === 'bind') this.db.prepare('DELETE FROM sms_challenges WHERE purpose = ? AND account_id = ?').run(purpose, accountId ?? '')
     else this.db.prepare('DELETE FROM sms_challenges WHERE purpose = ? AND phone = ?').run(purpose, phone)
-    const code = String(randomInt(0, 10 ** CODE_LENGTH)).padStart(CODE_LENGTH, '0')
-    const challengeId = randomBytes(24).toString('base64url')
-    const salt = randomBytes(16)
+    const code = newCode()
+    const challengeId = newChallengeId()
+    const salt = newSalt()
     const expiresAt = now + CODE_TTL_MS
     this.db.prepare('INSERT INTO sms_challenges (digest, purpose, phone, account_id, salt, code_hash, attempts, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)')
       .run(sha256(challengeId), purpose, phone, accountId ?? null, salt, codeHash(salt, purpose, phone, code), now, expiresAt)
@@ -250,7 +246,6 @@ export class PhoneAuthService {
    */
   private consume(purpose: SmsPurpose, challengeId: string, rawCode: string) {
     this.requireEnabled()
-    const code = rawCode.replace(/[\s-]/g, '')
     const digest = sha256(challengeId)
     const row = this.db.prepare('SELECT * FROM sms_challenges WHERE digest = ? AND purpose = ?').get(digest, purpose) as Row | undefined
     if (!row || Number(row.expires_at) <= this.now()) {
@@ -259,9 +254,7 @@ export class PhoneAuthService {
     }
     const attempts = Number(row.attempts) + 1
     const phone = String(row.phone)
-    const expected = Buffer.from(row.code_hash as Uint8Array)
-    const supplied = codeHash(Buffer.from(row.salt as Uint8Array), purpose, phone, /^\d{6}$/.test(code) ? code : '')
-    const match = timingSafeEqual(expected, supplied) && row.account_id != null
+    const match = codeMatches(row.code_hash as Uint8Array, row.salt as Uint8Array, purpose, phone, rawCode) && row.account_id != null
     if (match || attempts >= MAX_CODE_ATTEMPTS) this.db.prepare('DELETE FROM sms_challenges WHERE digest = ?').run(digest)
     else this.db.prepare('UPDATE sms_challenges SET attempts = ? WHERE digest = ?').run(attempts, digest)
     if (!match) {
@@ -323,6 +316,8 @@ export interface PhoneHandlerOptions {
   now?: () => number
   /** Per IP in 15 minutes: code requests (start) and code checks (verify). Per account per hour: binding. */
   limits?: Partial<Record<'start' | 'startDaily' | 'verify' | 'bind', number>>
+  /** More public settings for GET /auth-config (the e-mail codes' `emailEnabled`, services/emailAuth.ts). */
+  extraConfig?: () => Record<string, unknown>
 }
 
 const challengeId = z.string().regex(/^[A-Za-z0-9_-]{32}$/)
@@ -369,7 +364,7 @@ export function createPhoneHandlers(accounts: AccountStore, phones: PhoneAuthSer
   })
 
   return {
-    config: () => guard(() => ({ status: 200, body: phones.publicConfig() })),
+    config: () => guard(() => ({ status: 200, body: { ...phones.publicConfig(), ...options.extraConfig?.() } })),
 
     loginStart: start('login'),
     resetStart: start('reset'),

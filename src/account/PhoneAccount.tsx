@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { AlertTriangle, Check, KeyRound, LoaderCircle, LogIn, MessageSquareText, Phone, RefreshCw, Trash2 } from 'lucide-react'
 import type { ServerAccountStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
-import { cleanIpcError, phoneSignInToServer, refreshServerStatus } from '../sync/serverSync'
-import { serviceClient } from './nicknameBinding'
+import { phoneSignInToServer, refreshServerStatus } from '../sync/serverSync'
+import { postService as post, useAuthFlag, useCooldown, waitFrom, type CodeChallenge as Challenge } from './codeRequest'
 import './account.css'
 
 /**
@@ -13,54 +13,19 @@ import './account.css'
  * while the server has no SMS provider (GET /v1/accounts/auth-config → smsEnabled: false).
  */
 
-interface Challenge { challengeId: string; expiresAt: string; resendSeconds: number }
-
 /** null while unknown; false without a server, on an older server or with SMS switched off. */
 // eslint-disable-next-line react-refresh/only-export-components
 export function useSmsEnabled(online: boolean | undefined) {
-  const [enabled, setEnabled] = useState<boolean | null>(null)
-  useEffect(() => {
-    const request = serviceClient()
-    if (!request || !online) return
-    let active = true
-    request('GET', '/v1/accounts/auth-config')
-      .then((answer) => { if (active) setEnabled((answer as { smsEnabled?: unknown } | null)?.smsEnabled === true) })
-      .catch(() => { if (active) setEnabled(false) })
-    return () => { active = false }
-  }, [online])
-  return online ? enabled : online === false ? false : null
+  return useAuthFlag('smsEnabled', online)
 }
 
-async function post(path: string, body: unknown) {
-  const request = serviceClient()
-  if (!request) throw new Error('Сервер недоступен')
-  try {
-    return await request('POST', path, body)
-  } catch (error) {
-    throw new Error(cleanIpcError(error), { cause: error })
-  }
-}
-
-function useCooldown() {
-  const [until, setUntil] = useState(0)
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (until <= Date.now()) return
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [until])
-  return { left: Math.max(0, Math.ceil((until - now) / 1000)), start: (seconds: number) => { setNow(Date.now()); setUntil(Date.now() + seconds * 1000) } }
-}
-
-const waitFrom = (message: string) => Number(/через (\d+) с/.exec(message)?.[1] ?? 0)
-
-function Warning({ text }: { text: string }) {
+export function Warning({ text }: { text: string }) {
   return text ? <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(text)}</span></div> : null
 }
 
-function CodeInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function CodeInput({ value, onChange, label = 'Код из SMS' }: { value: string; onChange: (value: string) => void; label?: string }) {
   return (
-    <label className="field-label">{uiText('Код из SMS')}
+    <label className="field-label">{uiText(label)}
       <input className="input account-code-input" inputMode="numeric" autoComplete="one-time-code" value={value} maxLength={6} placeholder="000000" autoFocus
         onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 6))} />
     </label>
@@ -161,14 +126,17 @@ export function PhoneSignInForm({ purpose, onSignedIn, onBack }: { purpose: 'log
   )
 }
 
-/** «Войти по коду из SMS» / «Забыли пароль?» under a password sign-in form (only with SMS switched on). */
-export function PhoneSignInLinks({ online, onPick }: { online: boolean | undefined; onPick: (purpose: 'login' | 'reset') => void }) {
+/**
+ * «Войти по коду из SMS» / «Забыли пароль?» under a password sign-in form (only with SMS switched on). `resetLabel`:
+ * another label for the SMS reset when the e-mail reset is shown too (EmailAccount.tsx).
+ */
+export function PhoneSignInLinks({ online, onPick, resetLabel = 'Забыли пароль?' }: { online: boolean | undefined; onPick: (purpose: 'login' | 'reset') => void; resetLabel?: string }) {
   const enabled = useSmsEnabled(online)
   if (!enabled) return null
   return (
     <div className="account-gate-links">
       <button type="button" className="link-button" onClick={() => onPick('login')}><MessageSquareText size={14} />{uiText('Войти по коду из SMS')}</button>
-      <button type="button" className="link-button" onClick={() => onPick('reset')}><KeyRound size={14} />{uiText('Забыли пароль?')}</button>
+      <button type="button" className="link-button" onClick={() => onPick('reset')}><KeyRound size={14} />{uiText(resetLabel)}</button>
     </div>
   )
 }

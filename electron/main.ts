@@ -11,9 +11,9 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestSms, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
+import { emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountLogin, accountLogout, accountPhoneSignIn, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
@@ -167,6 +167,8 @@ const OWNER_CHANNELS = [
   'local-server:status', 'local-server:set-enabled', 'tunnel:status', 'tunnel:set', 'tunnel:set-named',
   'server-watchdog:status', 'server-watchdog:restart', 'server-watchdog:check',
   'owner:payments', 'owner:set-payments', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
+  'owner:sms', 'owner:set-sms', 'owner:sms-status', 'owner:sms-test',
+  'owner:email', 'owner:set-email', 'owner:email-status', 'owner:email-test',
 ]
 
 function registerIpc() {
@@ -211,6 +213,8 @@ function registerIpc() {
   ipcMain.handle('account:logout', () => accountLogout())
   // Sign-in / password reset by phone after the SMS code: the new session stays in the main process.
   ipcMain.handle('account:phone-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountPhoneSignIn(kind, challengeId, code, password))
+  // The same after an e-mail code (sign-in or «Забыли пароль?» by e-mail).
+  ipcMain.handle('account:email-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountEmailSignIn(kind, challengeId, code, password))
   ipcMain.handle('account:open-website', async (_event, page: unknown) => {
     // 'admin': the owner's «Админ-панель» on the site (the server itself refuses it to anybody but the owner).
     const path = page === 'register' ? '/register' : page === 'admin' && isOwnerBuild() ? '/admin' : '/cabinet'
@@ -313,6 +317,15 @@ function registerIpc() {
   })
   ipcMain.handle('owner:sms-status', () => smsServerStatus())
   ipcMain.handle('owner:sms-test', (_event, phone: unknown) => sendTestSms(phone))
+  // «Почта: коды подтверждения»: the same rule — provider and key only from this app, never from the website.
+  ipcMain.handle('owner:email', () => emailSettings())
+  ipcMain.handle('owner:set-email', async (_event, settings: unknown) => {
+    const result = await setEmailSettings(settings)
+    await restartApi()
+    return result
+  })
+  ipcMain.handle('owner:email-status', () => emailServerStatus())
+  ipcMain.handle('owner:email-test', (_event, to: unknown) => sendTestEmail(to))
   ipcMain.handle('owner:streamers', () => listStreamers())
   ipcMain.handle('owner:emails', () => ownerEmails())
   ipcMain.handle('owner:set-emails', async (_event, emails: unknown) => {

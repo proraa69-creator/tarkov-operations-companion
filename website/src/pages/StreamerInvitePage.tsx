@@ -1,9 +1,10 @@
 import { CalendarClock, Home, Link2Off, LoaderCircle, LogIn, Radio, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ApiError, api, errorMessage, STREAMER_INVITE_PATTERN, type StreamerInvite } from '../api'
+import { ApiError, api, errorMessage, STREAMER_INVITE_PATTERN, type PendingRegistration, type StreamerInvite } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
+import { RegistrationCodeStep } from '../components/EmailAuth'
 
 const dateTimeFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 
@@ -95,6 +96,8 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
   const [localError, setLocalError] = useState<string | null>(null)
   // True while the form's login/registration is followed by the redeem call: keep the form (with its spinner) on screen.
   const [viaForm, setViaForm] = useState(false)
+  // A new account while the server sends e-mail codes: the code step comes before the invitation is redeemed.
+  const [pending, setPending] = useState<PendingRegistration | null>(null)
 
   async function redeem(token: string) {
     const account = await api.redeemStreamerInvite(token, inviteToken)
@@ -115,9 +118,11 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
     let signedInNow = false
     try {
       // No referral code on purpose, even if one is remembered from an earlier /r/<code> visit.
-      const { token } = haveAccount ? await auth.login(email, password) : await auth.register(email, password)
+      const result = haveAccount ? await auth.login(email, password) : await auth.register(email, password)
+      if ('pending' in result && result.pending) { setPending(result.pending); setBusy(false); return }
+      if (!('token' in result)) return
       signedInNow = true
-      await redeem(token)
+      await redeem(result.token)
     } catch (reason) {
       setError(reason)
       setBusy(false)
@@ -163,7 +168,18 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
           <li>Выплаты начислений согласуются с владельцем сервиса.</li>
         </ul>
 
-        {auth.status === 'loading' ? (
+        {pending ? (
+          <>
+            {errorNotice}
+            <RegistrationCodeStep email={email.trim()} pending={pending}
+              onDone={({ token }) => {
+                setPending(null)
+                setBusy(true)
+                redeem(token).catch((reason: unknown) => { setError(reason); setBusy(false); setViaForm(false) })
+              }}
+              onBack={() => { setPending(null); setViaForm(false) }} />
+          </>
+        ) : auth.status === 'loading' ? (
           <div className="muted" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}><LoaderCircle className="spinner" size={16} aria-hidden="true" />Проверяем вход…</div>
         ) : signedIn && !showForm ? (
           <div style={{ display: 'grid', gap: 12 }}>

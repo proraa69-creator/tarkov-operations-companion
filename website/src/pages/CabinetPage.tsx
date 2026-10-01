@@ -12,6 +12,7 @@ import { StreamerPayouts } from '../components/StreamerPayouts'
 import { LEGAL_VERSION } from '../legal/documents'
 import { Notice } from '../components/Notice'
 import { PasswordPanel, PhonePanel } from '../components/PhoneAuth'
+import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
@@ -85,6 +86,8 @@ export function CabinetPage() {
             {state.referralRejected && <Notice tone="warn" title="Код приглашения не применён">Такой код не найден. Проверьте его и укажите ниже, в блоке «Код приглашения».</Notice>}
           </div>
         )}
+
+        <EmailVerifyBanner />
 
         {account.owner && (
           <section className="panel owner-panel" style={{ marginBottom: 16 }} aria-labelledby="owner-title">
