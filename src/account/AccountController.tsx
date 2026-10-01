@@ -16,6 +16,7 @@ import { OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
 import { findNickname, modeTitle, RAID_MODE_ORDER, saveNicknamesOnServer } from './nicknameBinding'
 import { useNicknameBinder } from './useNicknameBinder'
 import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
+import { EmailSignInForm, EmailSignInLinks, useEmailEnabled } from './EmailAccount'
 import './account.css'
 
 /** Offline sign-in was skipped in this window (the server was not reachable). */
@@ -155,7 +156,9 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
+  const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
   const online = status?.online ?? false
+  const emailCodes = useEmailEnabled(status?.online)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -172,6 +175,16 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
     } finally {
       setBusy(false)
     }
+  }
+
+  if (emailMode) {
+    return (
+      <div className="stack account-gate-form">
+        <div className="eyebrow">{uiText('Raid OS · шаг 1 из 2')}</div>
+        <h2>{uiText(emailMode === 'login' ? 'Вход по коду из письма' : 'Восстановление пароля')}</h2>
+        <EmailSignInForm purpose={emailMode} onSignedIn={(next) => { onSigningIn(); onSignedIn(next.nicknames) }} onBack={() => setEmailMode(null)} />
+      </div>
+    )
   }
 
   if (phoneMode) {
@@ -204,7 +217,8 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
         <span>{uiText('Нет аккаунта?')}</span>
         <button type="button" className="link-button" onClick={() => openWebsite('register')}><UserPlus size={14} />{uiText('Зарегистрироваться на сайте')}</button>
       </div>
-      <PhoneSignInLinks online={status?.online} onPick={setPhoneMode} />
+      <EmailSignInLinks online={status?.online} onPick={setEmailMode} />
+      <PhoneSignInLinks online={status?.online} onPick={setPhoneMode} resetLabel={emailCodes ? 'Сбросить пароль по SMS' : undefined} />
       <ServerAddressLine />
       {status && !online && (
         <div className="account-gate-offline">

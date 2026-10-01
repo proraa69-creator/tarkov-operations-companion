@@ -43,6 +43,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/auth-config$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/phone\/(?:login|reset)\/start$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/phone\/(?:start|confirm|remove)$/ },
+  // E-mail codes (server/src/routes/email.ts): the same split — sign-in / reset by code has its own IPC.
+  { methods: ['POST'], path: /^\/v1\/accounts\/email\/(?:login|reset)\/start$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/email\/(?:start|confirm)$/ },
   // «Кабинет стримера» (server/src/routes/accounts.ts, payouts.ts): statistics, audience links, payouts.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
@@ -267,6 +270,8 @@ export interface AccountStatus {
   subscription?: AccountSubscription
   /** Verified phone number, masked by the server. */
   phone?: string
+  /** false: the e-mail is not confirmed yet («Подтвердите e-mail»); absent with an older server. */
+  emailVerified?: boolean
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -277,7 +282,7 @@ export async function accountStatus(): Promise<AccountStatus> {
   await loadSessionForServer()
   let serverUrl = defaultApiUrl()
   let online: boolean
-  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone'> = {}
+  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> = {}
   try {
     serverUrl = apiBaseUrl()
     const health = await send('GET', '/health', { timeoutMs: 3000 })
@@ -286,7 +291,7 @@ export async function accountStatus(): Promise<AccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
         details = accountDetails(view)
@@ -299,7 +304,7 @@ export async function accountStatus(): Promise<AccountStatus> {
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 /** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> {
   const nicknames: Partial<Record<AccountMode, string>> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -315,7 +320,7 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}) }
+  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
 }
 
 /**
@@ -362,18 +367,27 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
  * Sign-in by phone, or a password reset by phone, after the SMS code (POST /v1/accounts/phone/login | /phone/reset).
  * The code request itself goes through `serviceRequest`; this call returns a session, so it stays in this process.
  */
-export async function accountPhoneSignIn(kind: unknown, rawChallenge: unknown, rawCode: unknown, rawPassword?: unknown): Promise<AccountStatus> {
+export function accountPhoneSignIn(kind: unknown, rawChallenge: unknown, rawCode: unknown, rawPassword?: unknown): Promise<AccountStatus> {
+  return accountCodeSignIn('phone', kind, rawChallenge, rawCode, rawPassword)
+}
+
+/** The same after an e-mail code (POST /v1/accounts/email/login | /email/reset, server/src/routes/email.ts). */
+export function accountEmailSignIn(kind: unknown, rawChallenge: unknown, rawCode: unknown, rawPassword?: unknown): Promise<AccountStatus> {
+  return accountCodeSignIn('email', kind, rawChallenge, rawCode, rawPassword)
+}
+
+async function accountCodeSignIn(channel: 'phone' | 'email', kind: unknown, rawChallenge: unknown, rawCode: unknown, rawPassword?: unknown): Promise<AccountStatus> {
   const challengeId = typeof rawChallenge === 'string' ? rawChallenge : ''
   const code = typeof rawCode === 'string' ? rawCode.replace(/[\s-]/g, '') : ''
   if (!/^[A-Za-z0-9_-]{32}$/.test(challengeId)) throw new Error('Запросите код ещё раз')
-  if (!/^\d{6}$/.test(code)) throw new Error('Код из SMS — 6 цифр')
+  if (!/^\d{6}$/.test(code)) throw new Error(channel === 'phone' ? 'Код из SMS — 6 цифр' : 'Код из письма — 6 цифр')
   const reset = kind === 'reset'
   const password = typeof rawPassword === 'string' ? rawPassword : ''
   if (reset && (password.length < 8 || password.length > 128)) throw new Error('Новый пароль: от 8 до 128 символов')
   await loadServerUrl()
   let sent: Awaited<ReturnType<typeof send>>
   try {
-    sent = await send('POST', reset ? '/v1/accounts/phone/reset' : '/v1/accounts/phone/login', { body: reset ? { challengeId, code, password } : { challengeId, code } })
+    sent = await send('POST', `/v1/accounts/${channel}/${reset ? 'reset' : 'login'}`, { body: reset ? { challengeId, code, password } : { challengeId, code } })
   } catch (error) {
     if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
     throw error
