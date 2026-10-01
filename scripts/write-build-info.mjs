@@ -42,5 +42,16 @@ const ownerEmails = edition === 'owner'
 const badEmail = ownerEmails.find((email) => !EMAIL.test(email) || email.length > 254)
 if (badEmail) throw new Error(`OWNER_EMAILS: invalid e-mail ${badEmail}`)
 if (ownerEmails.length > 5) throw new Error('OWNER_EMAILS: at most five e-mails')
-writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}) }))
-console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''} → dist-electron/build-info.json`)
+// The server's entitlement public key (docs/subscription-protection.md), built in for the default server so the app
+// does not have to trust it on first use: RAIDOS_ENTITLEMENT_PUBLIC_KEY=<43 characters> or RAIDOS_ENTITLEMENT_PUBLIC_KEY_FILE
+// pointing to a file with that key or with the JSON of https://raidos.app/v1/entitlement/public-key. Public, not secret.
+let entitlementKey = (process.env.RAIDOS_ENTITLEMENT_PUBLIC_KEY ?? '').trim()
+if (!entitlementKey && process.env.RAIDOS_ENTITLEMENT_PUBLIC_KEY_FILE) {
+  const text = readFileSync(process.env.RAIDOS_ENTITLEMENT_PUBLIC_KEY_FILE, 'utf8').trim()
+  entitlementKey = text.startsWith('{') ? String(JSON.parse(text).publicKey ?? '') : text
+}
+if (entitlementKey && !/^[A-Za-z0-9_-]{43}$/.test(entitlementKey)) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY: expected the 43-character Ed25519 key from /v1/entitlement/public-key')
+if (entitlementKey && !defaultServerUrl) throw new Error('RAIDOS_ENTITLEMENT_PUBLIC_KEY needs TARKOV_DEFAULT_SERVER_URL (the server the key belongs to)')
+const entitlementKeys = entitlementKey ? { [defaultServerUrl]: entitlementKey } : undefined
+writeFileSync(join(root, 'dist-electron', 'build-info.json'), JSON.stringify({ version, build: Date.now(), commit, edition, ...(defaultServerUrl ? { defaultServerUrl } : {}), ...(ownerEmails.length ? { ownerEmails } : {}), ...(trialLaunches ? { trialLaunches } : {}), ...(entitlementKeys ? { entitlementKeys } : {}) }))
+console.log(`Build ${version} ${commit} · ${edition}${defaultServerUrl ? ` · server ${defaultServerUrl}` : ''}${entitlementKeys ? ' · entitlement key built in' : ''}${ownerEmails.length ? ` · owner e-mails: ${ownerEmails.length}` : ''}${trialLaunches ? ` (test build: ${trialLaunches} launches)` : ''} → dist-electron/build-info.json`)
