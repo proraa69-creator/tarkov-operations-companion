@@ -1,0 +1,42 @@
+/* Quest objectives with counters, the log-conflict question and «История изменений» (QuestObjectivesPanel). */
+.quest-objectives h4, .quest-history h4 { display: flex; align-items: center; gap: 8px; }
+.quest-objectives-count { color: var(--brass); font-variant-numeric: tabular-nums; }
+.quest-objective-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.quest-objective-row { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); }
+.quest-objective-row.is-done { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); }
+.quest-objective-main { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.quest-objective-check { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 9px; align-items: start; cursor: pointer; color: var(--text); font-size: 13px; line-height: 1.45; }
+.quest-objective-check input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.quest-objective-box { width: 18px; height: 18px; margin-top: 1px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--surf-1); background: transparent; }
+.quest-objective-row.is-done .quest-objective-box { background: var(--green); border-color: var(--green); }
+.quest-objective-check input:focus-visible + .quest-objective-box { outline: 2px solid var(--brass); outline-offset: 2px; }
+.quest-objective-row.is-done .quest-objective-text { color: var(--text-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text-dim) 70%, transparent); }
+.quest-objective-text { overflow-wrap: anywhere; }
+.quest-objective-counter { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.quest-objective-counter strong { min-width: 44px; text-align: center; font-size: 13px; color: var(--brass); }
+.quest-objective-counter .icon-button, .quest-objective-note-button { width: 28px; height: 28px; border-radius: 7px; }
+.quest-objective-counter .icon-button:disabled { opacity: .35; cursor: default; }
+.quest-objective-source { padding-left: 27px; color: var(--text-dim); font-size: 11px; }
+.quest-objective-note { margin: 2px 0 0 27px; padding: 6px 9px; border-left: 2px solid var(--brass); color: var(--text-muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.quest-objective-note-form { display: grid; gap: 6px; margin-left: 27px; }
+.quest-objective-note-form textarea { min-height: 54px; resize: vertical; font: inherit; font-size: 12.5px; }
+.quest-objective-note-actions { display: flex; gap: 6px; }
+.quest-objective-note-actions .button, .quest-objective-conflict .button, .quest-history-undo { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.quest-objective-conflict { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px 8px; align-items: start; margin-left: 27px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--line)); border-radius: 8px; color: var(--text); font-size: 12px; }
+.quest-objective-conflict svg { margin-top: 1px; color: var(--brass); }
+.quest-objective-conflict .button { grid-column: 2; justify-self: start; }
+.quest-objective-conflict .button + .button { margin-top: -2px; }
+.quest-objectives-hint { margin: 8px 0 0; font-size: 11.5px; }
+.quest-history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.quest-history-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-muted); }
+.quest-history-row:last-child { border-bottom: 0; }
+.quest-history-row time { color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.quest-history-row strong { color: var(--text); font-weight: 650; }
+.quest-history-what { overflow-wrap: anywhere; }
+.quest-history-row.is-undone .quest-history-what { opacity: .55; text-decoration: line-through; }
+@media (max-width: 640px) {
+  .quest-objective-main { grid-template-columns: minmax(0, 1fr) auto; }
+  .quest-objective-counter { grid-column: 1 / -1; padding-left: 27px; }
+  .quest-history-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .quest-history-row time { grid-column: 1 / -1; }
+}

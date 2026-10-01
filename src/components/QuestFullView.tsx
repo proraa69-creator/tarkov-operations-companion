@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, CheckCircle2, ExternalLink, Lock, MapPin, Package, Target, Trophy, Unlock } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, ExternalLink, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { readMapView } from '../data/mapView'
 import { MarkerMiniMap } from './MarkerMiniMap'
+import { QuestObjectivesPanel } from './QuestObjectivesPanel'
 import { mapsForQuest } from '../progression/questLocation'
 import { followUpQuests, prerequisiteIds } from '../progression/questChronology'
 import type { TaskAvailability } from '../progression/requirementEngine'
@@ -96,12 +97,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
 
     {quest.description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(quest.description)}</p></div>}
 
-    <div className="detail-section">
-      <h4>{uiText('Цели')}</h4>
-      {quest.objectives.length
-        ? <ol className="quest-full-objectives">{quest.objectives.map((objective, index) => <li key={`${objective}-${index}`}><Target size={14} /><span>{uiText(objective)}</span></li>)}</ol>
-        : <p className="dim">{uiText('Подробные цели временно недоступны.')}</p>}
-    </div>
+    <QuestObjectivesPanel quest={quest} />
 
     <div className="detail-section">
       <h4>{uiText('Условия')}</h4>

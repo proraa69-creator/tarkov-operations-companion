@@ -38,6 +38,57 @@ export interface TaskProgressRecord {
   currentStageIndex?: number
 }
 
+/** Where an objective value came from. `sync` = another device / the server copy whose origin is unknown. */
+export type ObjectiveSource = 'log' | 'ocr' | 'manual' | 'sync'
+
+/** Per-mode state of one quest objective, keyed by the tarkov.dev objective id (names are display only). */
+export interface ObjectiveProgress {
+  objectiveId: string
+  taskId: string
+  /** tarkov.dev objective type (giveItem, visit, shoot…) or 'unknown'. */
+  type: string
+  target: number
+  current: number
+  /** Set when `current >= target`. */
+  completedAt?: string
+  source: ObjectiveSource
+  /** 0…1: manual 1, log 0.95, OCR ≤ 0.8. */
+  confidence: number
+  observedAt: string
+}
+
+export type ProgressEventType = 'objective' | 'task-status' | 'undo' | 'conflict-resolved'
+
+/** One recorded change of quest/objective state with its provenance (spec table `progress_events`). */
+export interface ProgressEvent {
+  id: string
+  mode: RaidMode
+  taskId: string
+  objectiveId?: string
+  eventType: ProgressEventType
+  /** Objective: current count (null = no record). Task: status (null = no record). */
+  oldValue: number | string | null
+  newValue: number | string | null
+  source: ObjectiveSource
+  confidence: number
+  observedAt: string
+  /** Automatic changes can be undone from «История изменений». */
+  reversible: boolean
+  undoneAt?: string
+  /** Event id this undo / resolution refers to. */
+  refersTo?: string
+  /** Already stored on the server. */
+  synced?: boolean
+}
+
+/** A log-confirmed completion that would override the user's manual «not done»: applied only after asking. */
+export interface ObjectiveConflict {
+  objectiveId: string
+  taskId: string
+  incoming: ObjectiveProgress
+  detectedAt: string
+}
+
 export interface ModeRegistration {
   status: 'unregistered' | 'registered'
   enteredNickname?: string
@@ -76,10 +127,15 @@ export interface ModeProgress {
   seasonId?: string
   lastLogSyncAt?: string
   logCharacterId?: string
+  /** Objective state keyed by objectiveId (schema v6). */
+  objectiveProgress: Record<string, ObjectiveProgress>
+  /** Newest last; capped (see MAX_LOCAL_EVENTS). */
+  progressEvents: ProgressEvent[]
+  objectiveConflicts: ObjectiveConflict[]
 }
 
 export interface LocalProfile {
-  schemaVersion: 5
+  schemaVersion: 6
   id: string
   displayName: string
   createdAt: string
@@ -224,6 +280,35 @@ export interface QuestStage {
   points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]> }>
 }
 
+/** A map zone of an objective in game coordinates (tarkov.dev `zones`). */
+export interface ObjectiveZone {
+  id?: string
+  /** App map id (canonical). */
+  mapId: string
+  position: { x: number; y?: number; z: number }
+  outline?: Array<{ x: number; y?: number; z: number }>
+  top?: number
+  bottom?: number
+}
+
+/** One objective of a trader task as the catalog describes it (spec table `task_objectives`). */
+export interface QuestObjective {
+  id: string
+  type: string
+  description: string
+  optional?: boolean
+  /** Required count (1 for yes/no objectives). */
+  count: number
+  itemIds?: string[]
+  foundInRaid?: boolean
+  mapIds?: string[]
+  zones?: ObjectiveZone[]
+  /** Spawn points of a quest item (findQuestItem), game coordinates. */
+  itemSpots?: Array<{ mapId: string; x: number; y?: number; z: number }>
+  /** Has zones or possible spots on a map (a map point); otherwise a checklist step (raid briefing). */
+  zoneBound?: boolean
+}
+
 export interface Quest {
   id: string
   normalizedName?: string
@@ -246,6 +331,8 @@ export interface Quest {
   wikiLink?: string
   imageUrl?: string
   objectiveIds?: string[]
+  /** Structured objectives (id, type, count, zones); `objectives` keeps the display lines. */
+  objectiveDetails?: QuestObjective[]
   mapIds?: string[]
   anyMap?: boolean
   raidRequirements?: Array<{
@@ -265,21 +352,10 @@ export interface Quest {
     maxDurability?: number
     dogTagLevel?: number
   }>
-  /** Each objective with its own maps (empty = any map), for the raid briefing. */
-  objectiveDetails?: QuestObjectiveDetail[]
 }
 
-export interface QuestObjectiveDetail {
-  id: string
-  type: string
-  description: string
-  mapIds: string[]
-  optional?: boolean
-  /** Target count (kills, items, …). */
-  count?: number
-  /** The objective has zones or possible spots on a map (a map point); otherwise it is a checklist step. */
-  zoneBound?: boolean
-}
+/** Raid briefing / route name for the unified objective shape. */
+export type QuestObjectiveDetail = QuestObjective
 
 export interface PriceQuote {
   source: string
@@ -360,5 +436,11 @@ export interface AppDataset {
     mode: RaidMode
     loadedAt: string
     counts: Record<string, number>
+    /** Upstream URL of the task data. */
+    sourceUrl?: string
+    /** Upstream data version (Last-Modified / ETag of the tasks file) when the server sent one. */
+    sourceVersion?: string
+    /** Upstream timestamp of the task data, ISO. */
+    sourceUpdatedAt?: string
   }
 }

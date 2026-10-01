@@ -31,7 +31,7 @@ describe('local profile model', () => {
     const migrated = migrateProfile({
       id: 'legacy', displayName: 'Legacy', selectedMode: 'pve', modes: { pvp: {}, pve: { playerLevel: 22 } },
     })
-    expect(migrated?.schemaVersion).toBe(5)
+    expect(migrated?.schemaVersion).toBe(6)
     expect(migrated?.modes.pve.playerLevel).toBe(22)
     expect(migrated?.modes.pvp.playerLevel).toBe(1)
     expect(migrated?.modes.seasonal.playerLevel).toBe(1)

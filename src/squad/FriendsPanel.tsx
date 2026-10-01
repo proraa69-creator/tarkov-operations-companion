@@ -111,7 +111,7 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
             {friends.outgoing.map((request) => (
               <div key={request.requestId} className="squad-row">
                 <span className="squad-row-main"><strong className="mono">{request.label}</strong><small className="muted">{uiText('ждёт ответа')}</small></span>
-                <button className="button small ghost" disabled={Boolean(busy)} onClick={() => void run(`cancel:${request.requestId}`, () => answerFriendRequest(request.requestId, 'cancel'))}>{uiText('Отменить')}</button>
+                <button className="button small ghost" disabled={Boolean(busy)} onClick={() => void run(`cancel:${request.requestId}`, () => answerFriendRequest(request.requestId, 'cancel'))}>{uiText('Отозвать заявку')}</button>
               </div>
             ))}
           </div>

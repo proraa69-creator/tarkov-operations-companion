@@ -1,8 +1,19 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, clearModeRegistration, createLocalProfile, migrateProfile, registerModeProfile } from '../domain/progress'
+import { applyPlayerSnapshot, clearModeRegistration, createLocalProfile, migrateProfile, normalizeTaskKeys, registerModeProfile } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
-import type { LocalProfile, MarkerLayerId, PlayerProfileSnapshot, RaidMode, TaskProgressRecord } from '../domain/types'
+import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
+import {
+  appendEvents,
+  applyObjectiveChange,
+  logCompletionConflicts,
+  manualObjectiveValue,
+  mergeRemoteObjectives,
+  resolveObjectiveConflict,
+  taskStatusEvents,
+  undoProgressEvent,
+  type ObjectiveDef,
+} from '../progression/objectiveProgress'
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { applyLogQuestState, logStateFingerprint } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
@@ -44,6 +55,16 @@ interface AppStateValue extends UiState {
   /** Current trader quests read from the in-game Tasks table. */
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
+  /** Manual objective value from the quest view (checkbox / counter) for the current mode. */
+  setObjectiveValue: (def: Pick<ObjectiveDef, 'id' | 'taskId' | 'type' | 'target'>, current: number) => void
+  /** «Отменить» in «История изменений» (current mode). */
+  undoProgressEvent: (eventId: string) => void
+  /** Answer to «Журнал подтверждает выполнение»: accept the log value or keep the manual one. */
+  resolveObjectiveConflict: (objectiveId: string, accept: boolean) => void
+  /** Objective state and history merged from the server copy of this mode. */
+  applyRemoteObjectives: (mode: RaidMode, remote: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }) => void
+  /** Rewrites legacy slug keys to task ids once the catalog is known (all modes of the active profile). */
+  normalizeTaskKeys: (quests: Quest[]) => void
   setHideoutLevel: (stationId: string, level: number) => void
   /** «Что не продавать»: how many of an item the player has, in the selected mode. */
   setItemCount: (itemId: string, count: number) => void
@@ -172,7 +193,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       modes: {
         ...profile.modes,
         [selectedMode]: {
-          ...mergeTaskRecords(profile.modes[selectedMode], records),
+          ...withTaskEvents(profile.modes[selectedMode], mergeTaskRecords(profile.modes[selectedMode], records), selectedMode),
           logCharacterId: characterId ?? profile.modes[selectedMode].logCharacterId,
           lastLogSyncAt: new Date().toISOString(),
         },
@@ -182,13 +203,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const current = profile.modes[selectedMode]
       const next = applyStoryScan(current, matches)
       if (next === current) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
     }),
     applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
       const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true })
       if (next === current || logStateFingerprint(next) === logStateFingerprint(current)) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
     }),
     applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
@@ -199,8 +220,40 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return {
         ...profile,
         updatedAt: now,
-        modes: { ...profile.modes, [selectedMode]: { ...next, logCharacterId: characterId ?? current.logCharacterId, lastLogSyncAt: now } },
+        modes: { ...profile.modes, [selectedMode]: { ...withTaskEvents(current, next, selectedMode), logCharacterId: characterId ?? current.logCharacterId, lastLogSyncAt: now } },
       }
+    }),
+    setObjectiveValue: (def, current) => updateActive((profile) => {
+      const selectedMode = profile.selectedMode
+      const result = applyObjectiveChange(profile.modes[selectedMode], selectedMode, manualObjectiveValue(def, current))
+      if (result.progress === profile.modes[selectedMode]) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: result.progress } }
+    }),
+    undoProgressEvent: (eventId) => updateActive((profile) => {
+      const selectedMode = profile.selectedMode
+      const next = undoProgressEvent(profile.modes[selectedMode], eventId)
+      if (next === profile.modes[selectedMode]) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
+    }),
+    resolveObjectiveConflict: (objectiveId, accept) => updateActive((profile) => {
+      const selectedMode = profile.selectedMode
+      const next = resolveObjectiveConflict(profile.modes[selectedMode], selectedMode, objectiveId, accept)
+      if (next === profile.modes[selectedMode]) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
+    }),
+    applyRemoteObjectives: (selectedMode, remote) => updateActive((profile) => {
+      const next = mergeRemoteObjectives(profile.modes[selectedMode], remote)
+      if (next === profile.modes[selectedMode]) return profile
+      return { ...profile, modes: { ...profile.modes, [selectedMode]: next } }
+    }),
+    normalizeTaskKeys: (quests) => updateActive((profile) => {
+      let changed = false
+      const modes = { ...profile.modes }
+      for (const key of Object.keys(modes) as RaidMode[]) {
+        const next = normalizeTaskKeys(modes[key], quests)
+        if (next !== modes[key]) { modes[key] = next; changed = true }
+      }
+      return changed ? { ...profile, modes } : profile
     }),
     setHideoutLevel: (stationId, level) => updateMode((progress) => ({
       ...progress,
@@ -274,6 +327,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
 function toggle(values: string[], value: string) {
   return values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value]
+}
+
+/**
+ * Records quest status changes of one mode as progress events and, for quests the log now reports completed,
+ * turns the user's manual «not done» objectives into conflicts to ask about (never overwritten silently).
+ */
+function withTaskEvents(before: ModeProgress, after: ModeProgress, mode: RaidMode): ModeProgress {
+  if (before.taskProgress === after.taskProgress) return after
+  const now = new Date().toISOString()
+  const events = taskStatusEvents(before.taskProgress, after.taskProgress, mode, now)
+  if (!events.length) return after
+  const loggedCompletions = events.filter((event) => event.newValue === 'completed' && event.source === 'log').map((event) => event.taskId)
+  return logCompletionConflicts(appendEvents(after, events), mode, loggedCompletions, now)
 }
 
 function mergeTaskRecords(progress: LocalProfile['modes'][RaidMode], records: TaskProgressRecord[]) {

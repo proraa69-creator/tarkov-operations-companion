@@ -81,7 +81,7 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['Друзей пока нет. Отправьте свой код или добавьте друга по его коду или нику в игре.', 'No friends yet. Share your code or add a friend by their code or in-game nickname.'],
   ['Отправленные запросы', 'Sent requests'],
   ['ждёт ответа', 'waiting for an answer'],
-  ['Отменить', 'Cancel'],
+  ['Отозвать заявку', 'Cancel request'],
   ['Заблокированные', 'Blocked'],
   ['Разблокировать', 'Unblock'],
   ['Добавить в друзья', 'Add friend'],

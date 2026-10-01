@@ -7,7 +7,8 @@
  * locally; nothing here ever throws into the UI. PvP, PvE and Seasonal are always sent and applied separately.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import type { ModeRegistration, RaidMode } from '../domain/types'
+import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode } from '../domain/types'
+import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../progression/objectiveProgress'
 import type { ServerAccountStatus } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { logEventsForMode } from '../import/logApply'
@@ -218,6 +219,112 @@ export async function pushLogProgress(result: ModeLogScanResult, registrationOf:
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// Objective progress and its history (progress events)
+// ------------------------------------------------------------------------------------------------------------
+
+export const OBJECTIVES_PER_SYNC = 2000
+export const EVENTS_PER_SYNC = 1000
+const OBJECTIVE_SOURCES = new Set(['log', 'ocr', 'manual', 'sync'])
+const EVENT_TYPES = new Set(['objective', 'task-status', 'undo', 'conflict-resolved'])
+const TASK_STATUSES = new Set(['active', 'completed', 'failed'])
+
+export interface ObjectiveSyncBinding {
+  read: (mode: RaidMode) => Pick<ModeProgress, 'objectiveProgress' | 'progressEvents'>
+  apply: (mode: RaidMode, remote: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }) => void
+}
+
+let objectiveBinding: ObjectiveSyncBinding | null = null
+const objectiveBusy = new Set<RaidMode>()
+
+/** Mounted once (AppShell): how the background sync reads and updates the active profile. */
+export function bindObjectiveSync(binding: ObjectiveSyncBinding | null) {
+  objectiveBinding = binding
+}
+
+const utc = (value: string | undefined) => {
+  if (!value) return null
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? new Date(time).toISOString() : null
+}
+const count = (value: unknown, min: number) => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= 100_000
+const eventValue = (value: unknown) => value === null || count(value, 0) || (typeof value === 'string' && TASK_STATUSES.has(value))
+
+/**
+ * What the server accepts (same limits as server/src/routes/me.ts): the newest objectives and the events the server
+ * has not confirmed yet. Rows it would reject (e.g. a wiki id with brackets) stay local instead of failing the batch.
+ */
+export function objectiveSyncPayload(progress: Pick<ModeProgress, 'objectiveProgress' | 'progressEvents'>) {
+  const objectives = Object.values(progress.objectiveProgress).flatMap((record): ObjectiveProgress[] => {
+    const observedAt = utc(record.observedAt)
+    if (!observedAt || !ENTITY_ID_PATTERN.test(record.objectiveId) || !ENTITY_ID_PATTERN.test(record.taskId) || !OBJECTIVE_TYPE_PATTERN.test(record.type)) return []
+    if (!count(record.target, 1) || !count(record.current, 0) || !OBJECTIVE_SOURCES.has(record.source)) return []
+    const completedAt = utc(record.completedAt)
+    return [{
+      objectiveId: record.objectiveId, taskId: record.taskId, type: record.type, target: record.target, current: record.current,
+      ...(completedAt ? { completedAt } : {}), source: record.source, confidence: Math.min(1, Math.max(0, record.confidence)), observedAt,
+    }]
+  }).sort((a, b) => b.observedAt.localeCompare(a.observedAt)).slice(0, OBJECTIVES_PER_SYNC)
+  const events = progress.progressEvents.filter((event) => !event.synced).flatMap((event): Array<Omit<ProgressEvent, 'synced' | 'mode'>> => {
+    const observedAt = utc(event.observedAt)
+    if (!observedAt || !EVENT_ID_PATTERN.test(event.id) || !ENTITY_ID_PATTERN.test(event.taskId) || (event.objectiveId && !ENTITY_ID_PATTERN.test(event.objectiveId))) return []
+    if (!EVENT_TYPES.has(event.eventType) || !OBJECTIVE_SOURCES.has(event.source) || !eventValue(event.oldValue) || !eventValue(event.newValue)) return []
+    if (event.refersTo && !EVENT_ID_PATTERN.test(event.refersTo)) return []
+    const undoneAt = utc(event.undoneAt)
+    return [{
+      id: event.id, taskId: event.taskId, ...(event.objectiveId ? { objectiveId: event.objectiveId } : {}), eventType: event.eventType,
+      oldValue: event.oldValue, newValue: event.newValue, source: event.source, confidence: Math.min(1, Math.max(0, event.confidence)), observedAt,
+      reversible: Boolean(event.reversible), ...(undoneAt ? { undoneAt } : {}), ...(event.refersTo ? { refersTo: event.refersTo } : {}),
+    }]
+  }).slice(-EVENTS_PER_SYNC)
+  return { objectives, events }
+}
+
+/** The server's merged copy, checked field by field (nothing from the network is trusted as is). */
+export function parseObjectiveSnapshot(value: unknown, mode: RaidMode): { objectives: ObjectiveProgress[]; events: ProgressEvent[] } | null {
+  const root = value as { objectives?: unknown; events?: unknown } | null
+  if (!root || !Array.isArray(root.objectives) || !Array.isArray(root.events)) return null
+  const objectives = root.objectives.flatMap((entry): ObjectiveProgress[] => {
+    const record = entry as Partial<ObjectiveProgress> | null
+    if (!record || typeof record.objectiveId !== 'string' || typeof record.taskId !== 'string' || typeof record.type !== 'string') return []
+    const observedAt = utc(record.observedAt)
+    if (!observedAt || !count(record.target, 1) || !count(record.current, 0) || !OBJECTIVE_SOURCES.has(String(record.source))) return []
+    const completedAt = utc(record.completedAt)
+    return [{
+      objectiveId: record.objectiveId, taskId: record.taskId, type: record.type, target: record.target!, current: record.current!,
+      ...(completedAt ? { completedAt } : {}), source: record.source!, confidence: typeof record.confidence === 'number' ? record.confidence : 0.5, observedAt,
+    }]
+  })
+  const events = root.events.flatMap((entry): ProgressEvent[] => {
+    const event = entry as Partial<ProgressEvent> | null
+    if (!event || typeof event.id !== 'string' || typeof event.taskId !== 'string' || !EVENT_TYPES.has(String(event.eventType)) || !OBJECTIVE_SOURCES.has(String(event.source))) return []
+    const observedAt = utc(event.observedAt)
+    if (!observedAt || !eventValue(event.oldValue) || !eventValue(event.newValue)) return []
+    const undoneAt = utc(event.undoneAt)
+    return [{
+      id: event.id, mode, taskId: event.taskId, ...(typeof event.objectiveId === 'string' ? { objectiveId: event.objectiveId } : {}),
+      eventType: event.eventType!, oldValue: event.oldValue ?? null, newValue: event.newValue ?? null, source: event.source!,
+      confidence: typeof event.confidence === 'number' ? event.confidence : 0.5, observedAt, reversible: event.reversible === true,
+      ...(undoneAt ? { undoneAt } : {}), ...(typeof event.refersTo === 'string' ? { refersTo: event.refersTo } : {}), synced: true,
+    }]
+  })
+  return { objectives, events }
+}
+
+/** Pushes this mode's objective state and new events and merges the server copy back (other PC, phone, website). */
+export async function syncObjectives(mode: RaidMode) {
+  const binding = objectiveBinding
+  if (!binding || !connected() || objectiveBusy.has(mode)) return
+  objectiveBusy.add(mode)
+  try {
+    const answer = await meRequest('POST', `/v1/me/objectives/${mode}/sync`, objectiveSyncPayload(binding.read(mode)))
+    const snapshot = parseObjectiveSnapshot(answer, mode)
+    if (snapshot) binding.apply(mode, snapshot)
+  } finally {
+    objectiveBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Collector checklist
 // ------------------------------------------------------------------------------------------------------------
 
@@ -404,6 +511,7 @@ export async function runFullSync() {
   fullSyncRunning = true
   try {
     for (const mode of RAID_MODES) await syncCollector(mode)
+    for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
   } finally {
@@ -431,7 +539,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await syncCollector(modeRef.current); await syncSettings() }
+      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings() }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -469,6 +577,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
   }, [])
 
-  // Switching mode pulls that mode's Collector checklist (and, on the phone, its task progress).
-  useEffect(() => { void syncCollector(raidMode); pullProgress(raidMode) }, [raidMode, pullProgress])
+  // Switching mode pulls that mode's Collector checklist, objective progress (and, on the phone, its task progress).
+  useEffect(() => { void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode) }, [raidMode, pullProgress])
 }

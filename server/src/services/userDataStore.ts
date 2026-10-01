@@ -35,6 +35,9 @@ export class UserDataStore {
         account_id TEXT PRIMARY KEY, settings TEXT NOT NULL, updated_at TEXT NOT NULL);`)
   }
 
+  /** The database these documents live in (objective progress is stored next to them). */
+  get database() { return this.db }
+
   getCollector(accountId: string, mode: RaidMode): CollectorState {
     const row = this.db.prepare('SELECT item_ids, updated_at FROM user_collector WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
     if (!row) return { itemIds: [], updatedAt: null }

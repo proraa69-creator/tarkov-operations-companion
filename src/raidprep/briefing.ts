@@ -111,7 +111,7 @@ function objectivesOnMap(quest: Quest, mapId: string, progress: ModeProgress): A
     return stage ? [{ id: stage.id, type: '', description: stage.title, zoneBound: Boolean(stage.points?.some((point) => point.mapId === mapId)) }] : []
   }
   if (quest.objectiveDetails?.length) {
-    const onMap = quest.objectiveDetails.filter((objective) => (!objective.mapIds.length || objective.mapIds.includes(mapId)) && !objectiveDone(progress, quest.id, objective.id))
+    const onMap = quest.objectiveDetails.filter((objective) => (!objective.mapIds?.length || objective.mapIds.includes(mapId)) && !objectiveDone(progress, quest.id, objective.id))
     if (onMap.length) {
       return onMap.map((objective) => ({
         id: objective.id,
@@ -120,7 +120,7 @@ function objectivesOnMap(quest: Quest, mapId: string, progress: ModeProgress): A
         count: objective.count && objective.count > 1 ? objective.count : undefined,
         optional: objective.optional,
         // A zone of an objective on another map is not a point here.
-        zoneBound: Boolean(objective.zoneBound && objective.mapIds.includes(mapId)),
+        zoneBound: Boolean(objective.zoneBound && (!objective.mapIds?.length || objective.mapIds.includes(mapId))),
       }))
     }
   }

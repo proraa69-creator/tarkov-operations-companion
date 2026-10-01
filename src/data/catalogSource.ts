@@ -9,6 +9,7 @@ import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWik
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { adaptObjectiveDetails } from './objectiveDetails'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -33,12 +34,15 @@ type JsonRecord = Record<string, unknown>
 
 interface Envelope {
   data: unknown
+  /** Upstream version of the file: Last-Modified / ETag header, or a timestamp field of the envelope. */
+  version?: string
 }
 
 export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru'): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
+  const taskVersion: { version?: string } = {}
   const [tasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
-    fetchTranslated(upstreamMode, 'tasks', locale),
+    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion),
     fetchTranslated(upstreamMode, 'items', locale),
     fetchTranslated(upstreamMode, 'maps', locale),
     fetchTranslated(upstreamMode, 'traders', locale),
@@ -75,6 +79,9 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
       source: 'json.tarkov.dev',
       mode,
       loadedAt: new Date().toISOString(),
+      sourceUrl: `${BASE_URL}/${upstreamMode}/tasks`,
+      ...(taskVersion.version ? { sourceVersion: taskVersion.version } : {}),
+      ...(taskVersion.version && Number.isFinite(Date.parse(taskVersion.version)) ? { sourceUpdatedAt: new Date(taskVersion.version).toISOString() } : {}),
       counts: {
         quests: questRows.length,
         items: itemRows.length,
@@ -86,12 +93,13 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
   }
 }
 
-async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale): Promise<JsonRecord> {
+async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version?: { version?: string }): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`
   const [base, translations] = await Promise.all([
     fetchEnvelope(`${BASE_URL}/${path}`),
     fetchEnvelope(`${BASE_URL}/${path}_${locale}`),
   ])
+  if (version && base.version) version.version = base.version
   const dictionary = asRecord(translations.data)
   return asRecord(translateDeep(base.data, dictionary))
 }
@@ -104,7 +112,9 @@ async function fetchEnvelope(url: string): Promise<Envelope> {
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`)
     const value = await response.json() as Envelope
     if (!value || typeof value !== 'object' || !('data' in value)) throw new Error(`${url}: invalid envelope`)
-    return value
+    const stamp = (value as { updated?: unknown }).updated
+    const version = response.headers?.get?.('last-modified') ?? response.headers?.get?.('etag') ?? (typeof stamp === 'string' ? stamp : undefined)
+    return version ? { data: value.data, version } : { data: value.data }
   } finally {
     globalThis.clearTimeout(timeout)
   }
@@ -261,17 +271,7 @@ function adaptTasks(
       description: `Задание от торговца ${traders.get(text(entry.trader))?.name ?? 'неизвестно'}.`,
       objectives: objectives.map((objective) => text(objective.description)).filter(Boolean),
       objectiveIds: objectives.map((objective) => text(objective.id)).filter(Boolean),
-      objectiveDetails: objectives.map((objective) => ({
-        id: text(objective.id),
-        type: text(objective.type),
-        description: text(objective.description),
-        mapIds: [...new Set((strings(objective.maps).length ? strings(objective.maps) : asArray(objective.zones).map((zone) => text(zone.map)))
-          .map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))],
-        optional: objective.optional === true || undefined,
-        count: number(objective.count) || undefined,
-        // Only objectives with zones / possible spots become map points; kill, hand over, skill… stay a checklist.
-        zoneBound: asArray(objective.zones).length > 0 || asArray(objective.possibleLocations).length > 0 || undefined,
-      })).filter((objective) => objective.id && objective.description),
+      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id))),
       rewards,
       requiredItems: [...new Set([...objectiveItems, ...requiredKeys])],
       raidRequirements,

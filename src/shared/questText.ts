@@ -96,6 +96,7 @@ export function cleanQuest(quest: Quest): Quest {
     name: cleanQuestText(quest.name) || quest.name,
     description: isCleanText(description) ? description : quest.kind === 'story' ? '' : `Задание от торговца ${quest.trader}.`,
     objectives: cleanList(quest.objectives),
+    objectiveDetails: quest.objectiveDetails?.map((objective) => ({ ...objective, description: cleanQuestText(objective.description) || objective.description })),
     rewards: cleanList(quest.rewards),
     stages: quest.stages?.map((stage) => ({
       ...stage,

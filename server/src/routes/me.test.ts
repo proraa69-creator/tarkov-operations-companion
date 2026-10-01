@@ -119,3 +119,103 @@ test('/v1/me stores progress, collector, position and settings per user and per 
     assert.ok(!JSON.stringify(summary).includes(password))
   })
 })
+
+const OBJ_A = '5936d90786f7742b1420ba60'
+const OBJ_B = '5936d90786f7742b1420ba61'
+type ObjectiveRow = { objectiveId: string; current: number; target: number; source: string; completedAt?: string }
+type EventRow = { id: string; eventType: string; undoneAt?: string; refersTo?: string; oldValue: unknown; newValue: unknown; source: string }
+type Snapshot = { objectives: ObjectiveRow[]; events: EventRow[]; updatedAt: string | null }
+
+const objective = (objectiveId: string, current: number, source: string, observedAt: string, target = 5) =>
+  ({ objectiveId, taskId: TASK_A, type: 'shoot', target, current, source, confidence: source === 'manual' ? 1 : 0.7, observedAt })
+const event = (id: string, objectiveId: string, oldValue: number | null, newValue: number, source: string, observedAt: string) =>
+  ({ id, taskId: TASK_A, objectiveId, eventType: 'objective', oldValue, newValue, source, confidence: 0.7, observedAt, reversible: source !== 'manual' })
+
+test('/v1/me/objectives validates input and limits sizes', async () => {
+  await withServer(async (call) => {
+    assert.equal((await call('GET', '/v1/me/objectives/pvp')).status, 401)
+    const token = await register(call, 'a@example.com')
+    assert.equal((await call('GET', '/v1/me/objectives/arena', undefined, token)).status, 400)
+    const sync = (body: unknown) => call('POST', '/v1/me/objectives/pvp/sync', body, token)
+    assert.equal((await sync({ objectives: [], events: [], extra: 1 })).status, 400)
+    assert.equal((await sync({ objectives: [{ ...objective(OBJ_A, 1, 'manual', '2026-09-25T10:00:00.000Z'), source: 'admin' }], events: [] })).status, 400)
+    assert.equal((await sync({ objectives: [{ ...objective(OBJ_A, 1, 'manual', '2026-09-25T10:00:00.000Z'), objectiveId: '<script>' }], events: [] })).status, 400)
+    assert.equal((await sync({ objectives: [objective(OBJ_A, -1, 'manual', '2026-09-25T10:00:00.000Z')], events: [] })).status, 400)
+    assert.equal((await sync({ objectives: [], events: [{ ...event('ev-1abcdef', OBJ_A, 0, 1, 'ocr', '2026-09-25T10:00:00.000Z'), id: '../../x' }] })).status, 400)
+    const tooMany = Array.from({ length: 2001 }, (_, index) => objective(`obj-${index}`, 0, 'manual', '2026-09-25T10:00:00.000Z'))
+    assert.equal((await sync({ objectives: tooMany, events: [] })).status, 400)
+    // The per-account cap (5000 objectives per mode) answers 413.
+    for (let batch = 0; batch < 2; batch += 1) {
+      const rows = Array.from({ length: 2000 }, (_, index) => objective(`obj-${batch}-${index}`, 0, 'manual', '2026-09-25T10:00:00.000Z'))
+      assert.equal((await sync({ objectives: rows, events: [] })).status, 200)
+    }
+    const overflow = Array.from({ length: 1001 }, (_, index) => objective(`obj-2-${index}`, 0, 'manual', '2026-09-25T10:00:00.000Z'))
+    assert.equal((await sync({ objectives: overflow, events: [] })).status, 413)
+    const stored = await (await call('GET', '/v1/me/objectives/pvp', undefined, token)).json() as Snapshot
+    assert.equal(stored.objectives.length, 4000, 'a rejected batch is not stored partly')
+  })
+})
+
+test('/v1/me/objectives merges per user and mode with the conflict rules', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'a@example.com')
+    const other = await register(call, 'b@example.com')
+    const sync = (body: unknown, who = token) => call('POST', '/v1/me/objectives/pvp/sync', body, who).then((response) => response.json() as Promise<Snapshot>)
+    const row = (snapshot: Snapshot, id: string) => snapshot.objectives.find((entry) => entry.objectiveId === id)
+
+    const first = await sync({
+      objectives: [objective(OBJ_A, 3, 'ocr', '2026-09-25T10:00:00.000Z'), objective(OBJ_B, 1, 'manual', '2026-09-25T10:00:00.000Z', 1)],
+      events: [event('ev-ocr-0001', OBJ_A, null, 3, 'ocr', '2026-09-25T10:00:00.000Z')],
+    })
+    assert.deepEqual(first.objectives.map((entry) => [entry.objectiveId, entry.current, entry.source]), [[OBJ_A, 3, 'ocr'], [OBJ_B, 1, 'manual']])
+    assert.ok(row(first, OBJ_B)?.completedAt, 'done objectives carry completedAt')
+    assert.equal(first.events.length, 1)
+
+    // Newer automatic beats older automatic; older automatic is ignored.
+    await sync({ objectives: [objective(OBJ_A, 4, 'ocr', '2026-09-25T11:00:00.000Z')], events: [] })
+    const stale = await sync({ objectives: [objective(OBJ_A, 1, 'log', '2026-09-25T09:00:00.000Z')], events: [] })
+    assert.equal(row(stale, OBJ_A)?.current, 4)
+    // Manual beats automatic even when older; automatic (even a log completion) never overwrites manual on the server.
+    await sync({ objectives: [objective(OBJ_A, 2, 'manual', '2026-09-25T08:00:00.000Z')], events: [] })
+    const kept = await sync({ objectives: [objective(OBJ_A, 5, 'log', '2026-09-25T12:00:00.000Z')], events: [] })
+    assert.equal(row(kept, OBJ_A)?.current, 2)
+    assert.equal(row(kept, OBJ_A)?.source, 'manual')
+
+    // A client clock far in the future is clamped.
+    const future = await sync({ objectives: [objective(OBJ_B, 0, 'manual', '2099-01-01T00:00:00.000Z', 1)], events: [] })
+    assert.ok(!JSON.stringify(future).includes('2099'))
+
+    // Per mode and per account.
+    assert.equal((await (await call('GET', '/v1/me/objectives/pve', undefined, token)).json() as Snapshot).objectives.length, 0)
+    assert.equal((await (await call('GET', '/v1/me/objectives/pvp', undefined, other)).json() as Snapshot).objectives.length, 0)
+    // Another account using the same event id stores its own copy.
+    const theirs = await sync({ objectives: [], events: [event('ev-ocr-0001', OBJ_A, null, 9, 'ocr', '2026-09-25T10:00:00.000Z')] }, other)
+    assert.equal(theirs.events[0].newValue, 9)
+    const mine = await (await call('GET', '/v1/me/objectives/pvp', undefined, token)).json() as Snapshot
+    assert.equal(mine.events.find((entry) => entry.id === 'ev-ocr-0001')?.newValue, 3)
+  })
+})
+
+test('/v1/me/objectives undo restores the old value and answers 404 for another account (IDOR)', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'a@example.com')
+    const other = await register(call, 'b@example.com')
+    await call('POST', '/v1/me/objectives/pvp/sync', {
+      objectives: [objective(OBJ_A, 4, 'ocr', '2026-09-25T10:00:00.000Z')],
+      events: [event('ev-ocr-0002', OBJ_A, 1, 4, 'ocr', '2026-09-25T10:00:00.000Z'), { ...event('ev-man-0001', OBJ_B, 0, 1, 'manual', '2026-09-25T09:00:00.000Z'), reversible: false }],
+    }, token)
+    assert.equal((await call('POST', '/v1/me/objectives/pvp/events/ev-ocr-0002/undo', undefined, other)).status, 404)
+    assert.equal((await call('POST', '/v1/me/objectives/pve/events/ev-ocr-0002/undo', undefined, token)).status, 404, 'events are per mode')
+    assert.equal((await call('POST', '/v1/me/objectives/pvp/events/nope!/undo', undefined, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/objectives/pvp/events/ev-man-0001/undo', undefined, token)).status, 409, 'manual changes are not undone')
+    const undone = await call('POST', '/v1/me/objectives/pvp/events/ev-ocr-0002/undo', undefined, token)
+    assert.equal(undone.status, 200)
+    const snapshot = await undone.json() as Snapshot
+    assert.deepEqual(snapshot.objectives.map((entry) => [entry.current, entry.source]), [[1, 'manual']])
+    assert.ok(snapshot.events.find((entry) => entry.id === 'ev-ocr-0002')?.undoneAt)
+    assert.equal(snapshot.events.find((entry) => entry.eventType === 'undo')?.refersTo, 'ev-ocr-0002')
+    assert.equal((await call('POST', '/v1/me/objectives/pvp/events/ev-ocr-0002/undo', undefined, token)).status, 409, 'undone once')
+    const untouched = await (await call('GET', '/v1/me/objectives/pvp', undefined, other)).json() as Snapshot
+    assert.equal(untouched.events.length, 0)
+  })
+})

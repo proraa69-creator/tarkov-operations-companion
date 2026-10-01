@@ -51,6 +51,11 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
         name,
         description: englishOr(english?.description || quest.description, summary || 'See the objectives below.'),
         objectives,
+        // Objectives are matched by id: the display lines may be deduplicated and shift.
+        objectiveDetails: quest.objectiveDetails?.map((objective) => {
+          const line = english?.objectiveDetails?.find((entry) => entry.id === objective.id)?.description
+          return line ? { ...objective, description: line } : objective
+        }),
         rewards: english?.rewards.length ? english.rewards : quest.rewards,
         // Story stages parsed from the Russian wiki have no English source; curated ones are translated.
         stages: quest.stages?.map((stage, index) => ({ ...stage, title: englishOr(stage.title, `Stage ${index + 1} (see the wiki)`), description: stage.description ? englishOr(stage.description, '') : stage.description })),

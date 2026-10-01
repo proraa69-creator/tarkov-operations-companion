@@ -17,7 +17,7 @@ import { ModeRegistrationDialog } from '../components/ModeRegistrationDialog'
 import { AccountController } from '../account/AccountController'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
-import { pushLogProgress, useServerSync } from '../sync/serverSync'
+import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
@@ -67,7 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const state = useAppState()
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
-  const { isFetching, initialLoading, refresh, data } = useTarkovData()
+  const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
@@ -80,6 +80,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
+
+  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts).
+  useEffect(() => {
+    bindObjectiveSync({
+      read: (mode) => stateRef.current.activeProfile.modes[mode],
+      apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
+    })
+    return () => bindObjectiveSync(null)
+  }, [])
+  // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
+  const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced).length
+  useEffect(() => {
+    if (!unsyncedEvents) return
+    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 3000)
+    return () => window.clearTimeout(timer)
+  }, [raidMode, unsyncedEvents])
+  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
+  useEffect(() => {
+    if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)
+  }, [data.quests, dataSource])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {

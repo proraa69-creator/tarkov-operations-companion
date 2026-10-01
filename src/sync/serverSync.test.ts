@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ModeRegistration } from '../domain/types'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
-import { createPositionThrottle, parseServerRecords, pushLogProgress, refreshServerStatus, serverEventsForMode, syncCollector } from './serverSync'
+import { createModeProgress } from '../domain/progress'
+import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
+import { bindObjectiveSync, createPositionThrottle, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, pushLogProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -96,6 +98,33 @@ describe('server sync with the desktop gateway', () => {
     expect(serviceRequest).toHaveBeenCalledTimes(1)
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, events: [{ taskId: TASK, status: 'completed', timestamp: '2026-09-25T12:00:00.000Z' }] })
     expect(apply).toHaveBeenCalledWith('pve', expect.arrayContaining([expect.objectContaining({ taskId: '5936d90786f7742b1420ba5c', status: 'active' })]), CHARACTER)
+  })
+
+  it('pushes objective progress and unconfirmed events, then merges the server copy (marking echoes synced)', async () => {
+    let progress = applyObjectiveChange(createModeProgress(), 'pve', { objectiveId: 'obj-1', taskId: TASK, type: 'shoot', target: 5, current: 3, source: 'manual', confidence: 1, observedAt: '2026-09-25T10:00:00.000Z' }, { eventId: 'ev-local-1' }).progress
+    // A wiki id the server would reject stays local instead of failing the batch.
+    progress = applyObjectiveChange(progress, 'pve', { objectiveId: 'obj-2', taskId: 'wiki:Задание (старое)', type: 'unknown', target: 1, current: 1, source: 'manual', confidence: 1, observedAt: '2026-09-25T10:00:00.000Z' }, { eventId: 'ev-local-2' }).progress
+    const payload = objectiveSyncPayload(progress)
+    expect(payload.objectives.map((entry) => entry.objectiveId)).toEqual(['obj-1'])
+    expect(payload.events.map((entry) => entry.id)).toEqual(['ev-local-1'])
+    expect(payload.events[0]).not.toHaveProperty('mode')
+
+    const serverObjective = { objectiveId: 'obj-3', taskId: TASK, type: 'visit', target: 1, current: 1, source: 'manual', confidence: 1, observedAt: '2026-09-25T11:00:00.000Z', completedAt: '2026-09-25T11:00:00.000Z' }
+    serviceRequest.mockResolvedValue({
+      objectives: [payload.objectives[0], serverObjective, { objectiveId: 'bad', current: 'x' }],
+      events: [{ ...payload.events[0] }, { id: 'ev-phone-1', taskId: TASK, objectiveId: 'obj-3', eventType: 'objective', oldValue: null, newValue: 1, source: 'manual', confidence: 1, observedAt: '2026-09-25T11:00:00.000Z', reversible: false }],
+      updatedAt: '2026-09-25T11:00:00.000Z',
+    })
+    bindObjectiveSync({ read: () => progress, apply: (_mode, remote) => { progress = mergeRemoteObjectives(progress, remote) } })
+    try {
+      await syncObjectives('pve')
+    } finally { bindObjectiveSync(null) }
+    expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/objectives/pve/sync', payload)
+    expect(Object.keys(progress.objectiveProgress).sort()).toEqual(['obj-1', 'obj-2', 'obj-3'])
+    expect(progress.progressEvents.map((event) => [event.id, Boolean(event.synced)])).toEqual([['ev-local-1', true], ['ev-local-2', false], ['ev-phone-1', true]])
+    // Nothing left to send: ev-local-1 is confirmed, ev-local-2 cannot go to the server.
+    expect(objectiveSyncPayload(progress).events).toEqual([])
+    expect(parseObjectiveSnapshot({ objectives: 'x', events: [] }, 'pve')).toBeNull()
   })
 
   it('does nothing while signed out', async () => {

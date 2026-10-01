@@ -22,4 +22,18 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['Задание выполняется на любой карте.', 'The task can be done on any map.'],
   ['Точных точек для этого задания в данных нет — место указано в целях.', 'The data has no exact points for this task; the place is given in the objectives.'],
   ['Открывает задания', 'Unlocks tasks'],
+  // Objective progress, the log question and the change history (QuestObjectivesPanel)
+  ['Счётчики целей игра в журналы не пишет: поправьте их здесь. Задание, выполненное по журналу, отмечает все цели.',
+    'The game does not log objective counters: correct them here. A task completed according to the log marks all its objectives.'],
+  ['Журнал игры подтверждает выполнение задания, а цель отмечена вручную как невыполненная. Отметить её выполненной?',
+    'The game log confirms the task is completed, but you marked this objective as not done. Mark it done?'],
+  ['записано для прошлой версии данных — проверьте', 'saved for an older data version — please check'],
+  ['Своя заметка: ключ, путь, где лежит предмет…', 'Your note: key, route, where the item is…'],
+  ['История изменений', 'Change history'], ['Изменений пока нет.', 'No changes yet.'],
+  ['Снять отметку', 'Unmark'], ['Отметить выполненной', 'Mark as done'], ['необязательно', 'optional'],
+  ['Меньше', 'Less'], ['Больше', 'More'], ['Заметка к цели', 'Objective note'], ['по статусу задания', 'from the task status'],
+  ['Отметить', 'Mark done'], ['Оставить как есть', 'Keep mine'],
+  ['журнал игры', 'game log'], ['с экрана', 'screen'], ['вручную', 'manual'], ['с сервера', 'server sync'],
+  ['Статус задания', 'Task status'], ['Отмена изменения', 'Undo'], ['Ответ на вопрос журнала', 'Answer to the log question'],
+  ['Цель', 'Objective'], ['отменено', 'undone'], ['Отменить', 'Undo'],
 ]

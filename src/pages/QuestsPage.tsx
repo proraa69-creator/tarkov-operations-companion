@@ -7,6 +7,7 @@ import { useAppState } from '../state/AppState'
 import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isLiveGameQuest, isCurrentTrackedQuest, isTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import type { Quest, TaskProgressStatus } from '../domain/types'
 import { isMobileLayout } from '../platform'
+import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -120,7 +121,7 @@ export function QuestsPage() {
           return mapId
             ? <Link className={`quest-stage ${current ? 'is-current' : ''} ${done ? 'is-done' : ''}`} key={stage.id} to={`/maps/${mapId}?quest=${selected.id}&stage=${index}`}>{uiText(body)}</Link>
             : <div className={`quest-stage ${current ? 'is-current' : ''} ${done ? 'is-done' : ''}`} key={stage.id}>{uiText(body)}</div>
-        }))}</div> : <div className="detail-section"><h4>{uiText("Цели")}</h4>{uiText(selected.objectives.length ? selected.objectives.map((objective, index) => <div className="quest-objective" key={`${objective}-${index}`}><span className="objective-dot" /><span>{uiText(objective)}</span></div>) : <p>{uiText("Подробные цели временно недоступны.")}</p>)}</div>)}
+        }))}</div> : <QuestObjectivesPanel quest={selected} />)}
         {uiText(selected.requiredItems?.length ? <div className="detail-section"><h4>{uiText("Требуемые предметы")}</h4>{uiText(selected.requiredItems.slice(0, 12).map((id) => { const item = data.items.find((entry) => entry.id === id); return item ? <Link className="item-row" key={id} to={`/flea?selected=${id}`}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.name)}</strong><small className="dim">{uiText(item.category)}</small></span></Link> : null }))}</div> : null)}
         <div className="detail-section"><h4>{uiText("Награды")}</h4>{uiText(selected.rewards.length ? selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>) : <p className="dim">{uiText("Награды на Wiki не указаны.")}</p>)}</div>
         <div className="detail-section stack">{uiText((selected.anyMap || selected.mapId || selected.mapIds?.length || selectedStage?.mapIds.length) && <Link className="button ghost" to={`/maps/${mapTarget}?quest=${selected.id}${isStoryQuest(selected) ? `&stage=${selectedStageIndex}` : ''}`}><MapPin size={15} />{uiText(" Показать на карте")}</Link>)}{uiText(selected.wikiLink && <a className="button ghost" href={selected.wikiLink} target="_blank" rel="noreferrer">{uiText("Страница на Wiki")}</a>)}</div>

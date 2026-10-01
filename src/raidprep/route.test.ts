@@ -63,8 +63,8 @@ describe('bestStartExtract and routeTargets', () => {
 
   it('labels a step by its objective and skips objectives already done', () => {
     const quests = [quest('q1', 'Текущее', { objectiveDetails: [
-      { id: 'o1', type: 'mark', description: 'Отметить бензовоз', mapIds: ['customs'], zoneBound: true },
-      { id: 'o2', type: 'visit', description: 'Посетить общагу', mapIds: ['customs'], zoneBound: true },
+      { id: 'o1', type: 'mark', description: 'Отметить бензовоз', count: 1, mapIds: ['customs'], zoneBound: true },
+      { id: 'o2', type: 'visit', description: 'Посетить общагу', count: 1, mapIds: ['customs'], zoneBound: true },
     ] })]
     const markers = [
       marker('m1', [1, 1], { questId: 'q1', objectiveId: 'o1', title: 'Текущее', floor: 'Подвал' }),

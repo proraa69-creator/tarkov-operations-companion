@@ -7,9 +7,9 @@ const quests = [
   quest('q1', 'Проверка', {
     trader: 'Прапор', mapIds: ['customs'], level: 5,
     objectiveDetails: [
-      { id: 'o1', type: 'visit', description: 'Найти склад на Таможне', mapIds: ['customs'] },
-      { id: 'o2', type: 'visit', description: 'Осмотреть Лес', mapIds: ['woods'] },
-      { id: 'o3', type: 'giveItem', description: 'Сдать флешку', mapIds: [] },
+      { id: 'o1', type: 'visit', description: 'Найти склад на Таможне', count: 1, mapIds: ['customs'] },
+      { id: 'o2', type: 'visit', description: 'Осмотреть Лес', count: 1, mapIds: ['woods'] },
+      { id: 'o3', type: 'giveItem', description: 'Сдать флешку', count: 1, mapIds: [] },
     ],
     raidRequirements: [
       { itemId: 'key-206', count: 1, purpose: 'key', mapIds: ['customs'] },
@@ -51,10 +51,10 @@ describe('buildRaidBriefing', () => {
     const typed = quest('q6', 'Разведка', {
       trader: 'Механик', mapIds: ['customs'],
       objectiveDetails: [
-        { id: 'p1', type: 'mark', description: 'Отметить бензовоз', mapIds: ['customs'], zoneBound: true },
+        { id: 'p1', type: 'mark', description: 'Отметить бензовоз', count: 1, mapIds: ['customs'], zoneBound: true },
         { id: 'p2', type: 'shoot', description: 'Убить 5 диких', mapIds: ['customs'], count: 5 },
-        { id: 'p3', type: 'giveItem', description: 'Сдать маркер', mapIds: [] },
-        { id: 'p4', type: 'visit', description: 'Посетить Лес', mapIds: ['woods'], zoneBound: true },
+        { id: 'p3', type: 'giveItem', description: 'Сдать маркер', count: 1, mapIds: [] },
+        { id: 'p4', type: 'visit', description: 'Посетить Лес', count: 1, mapIds: ['woods'], zoneBound: true },
       ],
     })
     const result = buildRaidBriefing({ mapId: 'customs', quests: [typed], items, markers: [], progress: progressWith({ q6: 'active' }) })
@@ -67,8 +67,8 @@ describe('buildRaidBriefing', () => {
     const typed = quest('q7', 'Две цели', {
       mapIds: ['customs'],
       objectiveDetails: [
-        { id: 'a', type: 'visit', description: 'Первая', mapIds: ['customs'], zoneBound: true },
-        { id: 'b', type: 'visit', description: 'Вторая', mapIds: ['customs'], zoneBound: true },
+        { id: 'a', type: 'visit', description: 'Первая', count: 1, mapIds: ['customs'], zoneBound: true },
+        { id: 'b', type: 'visit', description: 'Вторая', count: 1, mapIds: ['customs'], zoneBound: true },
       ],
     })
     const progress = progressWith({ q7: 'active' })

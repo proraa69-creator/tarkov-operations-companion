@@ -1,0 +1,54 @@
+{
+  "tasks": {
+    "5c0d4c12d09282029f539173": {
+      "id": "5c0d4c12d09282029f539173",
+      "name": "Peacekeeping Mission",
+      "normalizedName": "peacekeeping-mission",
+      "objectives": [
+        {
+          "id": "5c0d4c12d09282029f539175",
+          "type": "visit",
+          "description": "Locate the UN checkpoint on Customs",
+          "maps": ["56f40101d2720b2a4d8b45d6"],
+          "zones": [
+            {
+              "id": "place_peacemaker_007_N1",
+              "map": "56f40101d2720b2a4d8b45d6",
+              "position": { "x": -142.6, "y": 0.6, "z": 92.1 },
+              "outline": [ { "x": -150, "y": 0, "z": 85 }, { "x": -135, "y": 0, "z": 85 }, { "x": -135, "y": 0, "z": 99 }, { "x": -150, "y": 0, "z": 99 } ],
+              "top": 6.5,
+              "bottom": -2
+            }
+          ]
+        },
+        { "id": "5c0d4c12d09282029f539177", "type": "shoot", "description": "Eliminate Scavs while wearing a UN uniform", "count": 30, "maps": [] },
+        {
+          "id": "5c0d4c12d09282029f539178",
+          "type": "giveItem",
+          "description": "Hand over found in raid Military flash drives",
+          "count": 2,
+          "foundInRaid": true,
+          "items": ["62a0a16d0b9d3c46de5b6e97"],
+          "maps": []
+        }
+      ]
+    },
+    "5967530a86f77462ba22226b": {
+      "id": "5967530a86f77462ba22226b",
+      "name": "Bad Rep Evidence",
+      "normalizedName": "bad-rep-evidence",
+      "objectives": [
+        {
+          "id": "5968929e86f7740d121082d3",
+          "type": "findQuestItem",
+          "description": "Obtain the Secure Folder 0013 on Customs",
+          "maps": ["56f40101d2720b2a4d8b45d6"],
+          "questItem": "590c62a386f77412b0130255",
+          "possibleLocations": [
+            { "map": "56f40101d2720b2a4d8b45d6", "positions": [ { "x": 189.2, "y": 2.1, "z": -165.4 }, { "x": 195.7, "y": 2.1, "z": -158.9 } ] }
+          ]
+        }
+      ]
+    }
+  }
+}
