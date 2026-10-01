@@ -11,7 +11,7 @@ export const OBJECTIVE_TYPE_LABELS: Record<string, string> = {
   giveItem: 'Сдать',
   giveQuestItem: 'Сдать',
   shoot: 'Убить',
-  extract: 'Выйти',
+  extract: 'Выжить и выйти',
   buildWeapon: 'Собрать',
   useItem: 'Использовать',
   skill: 'Навык',
