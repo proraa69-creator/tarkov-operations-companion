@@ -5,7 +5,8 @@
  * (the same database file as the rest of the server, see services/database.ts), so they survive restarts.
  * Without a database handle the store uses a private in-memory SQLite database (tests).
  *
- * Still missing before any public deployment: e-mail verification, password reset and payouts. Subscription state is
+ * Still missing before any public deployment: e-mail verification. Password reset works through a verified phone
+ * number (services/phoneAuth.ts) when an SMS provider is configured. Subscription state is
  * NEVER taken from the client: paid periods and streamer revenue come from verified ЮKassa payments
  * (services/paymentStore.ts, attached through `SubscriptionSource`).
  * Streamer status is granted only by an operator through `promoteToStreamer()` (CLI `npm run promote`, never HTTP).
@@ -95,6 +96,15 @@ export interface AccountView {
   stats?: ReferralStats
   /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
   owner?: true
+  /** Verified phone number, masked (+7 ••• •••-45-67); the full number is never sent back. */
+  phone?: { masked: string; verifiedAt: string }
+}
+
+/** «+7 ••• •••-45-67»: enough for the owner of the number to recognise it. */
+export function maskPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '')
+  const country = digits.startsWith('7') ? '7' : digits.slice(0, Math.max(1, digits.length - 10))
+  return `+${country} ••• •••-${digits.slice(-4, -2)}-${digits.slice(-2)}`
 }
 
 /** Owner e-mails from `TARKOV_OWNER_EMAILS` (comma, semicolon or space separated), set by the owner's desktop app. */
@@ -232,6 +242,9 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['blocked_at', 'INTEGER'],
   ['last_seen_at', 'INTEGER'],
   ['referral_disabled_at', 'INTEGER'],
+  // Verified phone number in E.164 (services/phoneAuth.ts): set only after an SMS code was confirmed.
+  ['phone', 'TEXT'],
+  ['phone_verified_at', 'INTEGER'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -259,6 +272,8 @@ export class AccountStore {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(accounts)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_ACCOUNT_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE accounts ADD COLUMN ${name} ${type}`)
+    // A verified number belongs to one account only.
+    this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -362,6 +377,8 @@ export class AccountStore {
     // Streamers use the service free of charge, for good (the desktop app reads the same view).
     if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }
     if (this.ownerEmails.has(account.email)) view.owner = true
+    const phone = this.db.prepare('SELECT phone, phone_verified_at FROM accounts WHERE id = ?').get(account.id) as Row | undefined
+    if (phone?.phone != null) view.phone = { masked: maskPhone(String(phone.phone)), verifiedAt: new Date(Number(phone.phone_verified_at)).toISOString() }
     return view
   }
 
@@ -578,6 +595,55 @@ export class AccountStore {
     return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
+  /** Checks the account's current password (phone binding, password change); same scrypt cost either way. */
+  async verifyPassword(accountId: string, password: string) {
+    const account = this.mustGet(accountId)
+    const hash = await hashPassword(String(password).slice(0, 128), account.salt)
+    return timingSafeEqual(hash, account.passwordHash)
+  }
+
+  /**
+   * A new password: every session of the account is revoked (a stolen session dies with the old password), and a
+   * fresh session is returned for the device that made the change.
+   */
+  async setPassword(accountId: string, password: string) {
+    this.mustGet(accountId)
+    const salt = randomBytes(16)
+    const passwordHash = await hashPassword(password, salt)
+    this.db.prepare('UPDATE accounts SET salt = ?, password_hash = ? WHERE id = ?').run(salt, passwordHash, accountId)
+    this.revokeSessions(accountId)
+    return this.createSession(accountId)
+  }
+
+  revokeSessions(accountId: string) {
+    this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId)
+  }
+
+  /** The account with this verified number (E.164), with what the phone sign-in needs to decide. */
+  accountByPhone(phone: string) {
+    const row = this.db.prepare('SELECT id, email, blocked_at FROM accounts WHERE phone = ?').get(phone) as Row | undefined
+    if (!row) return undefined
+    return { id: String(row.id), blocked: row.blocked_at != null, owner: this.ownerEmails.has(String(row.email)) }
+  }
+
+  phoneOf(accountId: string) {
+    const row = this.db.prepare('SELECT phone FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.phone == null ? undefined : String(row.phone)
+  }
+
+  /** Stores a verified number (null removes it). A number verified by another account is refused. */
+  setPhone(accountId: string, phone: string | null) {
+    this.mustGet(accountId)
+    const taken = phone ? this.accountByPhone(phone) : undefined
+    if (taken && taken.id !== accountId) throw new AccountError(409, 'Этот номер уже привязан к другому аккаунту')
+    try {
+      this.db.prepare('UPDATE accounts SET phone = ?, phone_verified_at = ? WHERE id = ?').run(phone, phone ? this.now() : null, accountId)
+    } catch (error) {
+      if (phone && this.accountByPhone(phone)?.id !== accountId) throw new AccountError(409, 'Этот номер уже привязан к другому аккаунту')
+      throw error
+    }
+  }
+
   /** A new session for an existing account, after an approved one-time QR / device code (services/loginCodes.ts). */
   startSession(accountId: string) {
     this.mustGet(accountId)
@@ -672,6 +738,7 @@ const visitSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,2
 const consentSchema = z.object({ kind: z.enum(['registration', 'payment']), version: z.string().regex(CONSENT_VERSION) })
 const ownerSeriesSchema = periodSchema.extend({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const ownerInviteSchema = z.object({ code: z.string().trim().max(24) })
+const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
 const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
@@ -703,6 +770,12 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
   }
 
   const authed = (req: AccountsRequest, run: (accountId: string) => AccountsResponse) => guard(() => {
+    const accountId = store.authenticate(bearer(req.authorization))
+    if (!accountId) return { status: 401, body: { error: 'Требуется вход в аккаунт' } }
+    return run(accountId)
+  })
+
+  const authedAsync = (req: AccountsRequest, run: (accountId: string) => Promise<AccountsResponse>) => guard(async () => {
     const accountId = store.authenticate(bearer(req.authorization))
     if (!accountId) return { status: 401, body: { error: 'Требуется вход в аккаунт' } }
     return run(accountId)
@@ -740,6 +813,17 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     }),
 
     me: (req: AccountsRequest) => authed(req, (accountId) => ({ status: 200, body: store.view(accountId) })),
+
+    /** «Сменить пароль»: needs the current one; every other session is signed out, this device gets a new one. */
+    changePassword: (req: AccountsRequest) => authedAsync(req, async (accountId) => {
+      const blocked = limited(authLimiter, `password:${accountId}`)
+      if (blocked) return blocked
+      const parsed = changePasswordSchema.safeParse(req.body)
+      if (!parsed.success) return invalid('Новый пароль: от 8 до 128 символов')
+      if (!(await store.verifyPassword(accountId, parsed.data.currentPassword))) return { status: 403, body: { error: 'Текущий пароль указан неверно' } }
+      const token = await store.setPassword(accountId, parsed.data.newPassword)
+      return { status: 200, body: { token, account: store.view(accountId) } }
+    }),
 
     applyReferral: (req: AccountsRequest) => authed(req, (accountId) => {
       const parsed = referralSchema.safeParse(req.body)

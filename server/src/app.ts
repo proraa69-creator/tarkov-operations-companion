@@ -8,6 +8,8 @@ import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
 import { createLoginCodesRouter } from './routes/loginCodes.js'
+import { createPhoneRouter } from './routes/phone.js'
+import { PhoneAuthService } from './services/phoneAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
 import { AccountStore } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
@@ -41,6 +43,8 @@ export interface ApiOptions {
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
   loginCodes?: LoginCodeStore
+  /** Phone numbers and SMS codes; defaults to switched off (no SMS provider). */
+  phones?: PhoneAuthService
 }
 
 /**
@@ -70,7 +74,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createAccountsRouter(accounts))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
-  app.use('/v1/admin', createAdminRouter(accounts))
+  const phones = options.phones ?? new PhoneAuthService(accounts)
+  app.use('/v1/accounts', createPhoneRouter(accounts, phones))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   app.get('/health', (_req, res) => res.json({ ok: true, service: 'tarkov-operations-api', version: '0.3.0', syncRequiresToken: true, accounts: true }))
   app.post('/v1/sync/events', (req, res) => {

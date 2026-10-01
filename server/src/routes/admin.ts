@@ -6,13 +6,19 @@
  *   GET  /streamers          -> { streamers: [{ email, code, stats }], invites: [{ code, expiresAt }] }
  *   POST /streamer-invites   { code } -> 201 { token, code, expiresAt }  (the site link is /streamer/<token>)
  *   GET  /accounts?email=    -> { exists }  (the app checks an owner e-mail is registered before listing it)
+ *   GET  /sms                -> { smsEnabled, provider, sentToday, dailyLimit, countries }
+ *   POST /sms/test           { phone } -> { ok, provider, sentToday, dailyLimit }  («Отправить тестовое SMS»)
+ *
+ * SMS settings themselves are never changed over HTTP: the owner's app passes them to this process as environment
+ * variables (electron/ownerAdmin.ts), so not even this router can redirect one-time codes.
  */
 import express from 'express'
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { AccountError, type AccountStore } from '../services/accountStore.js'
+import type { PhoneAuthService } from '../services/phoneAuth.js'
 
-export function createAdminRouter(accounts: AccountStore, adminToken = process.env.TARKOV_ADMIN_TOKEN) {
+export function createAdminRouter(accounts: AccountStore, adminToken = process.env.TARKOV_ADMIN_TOKEN, phones?: PhoneAuthService) {
   const router = express.Router()
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -40,5 +46,19 @@ export function createAdminRouter(accounts: AccountStore, adminToken = process.e
     const { email } = z.object({ email: z.string().trim().max(254).email() }).parse(req.query)
     res.json({ exists: accounts.hasAccount(email) })
   }))
+  router.get('/sms', guard((_req, res) => {
+    res.json({ smsEnabled: Boolean(phones?.enabled), provider: phones?.provider ?? null, sentToday: phones?.sentToday() ?? 0, dailyLimit: phones?.limits.dailyLimit ?? 0, countries: phones?.limits.countries ?? [] })
+  }))
+  router.post('/sms/test', async (req, res) => {
+    const parsed = z.object({ phone: z.string().max(32) }).safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: 'Укажите номер телефона' }); return }
+    if (!phones) { res.status(503).json({ error: 'SMS не настроены' }); return }
+    try {
+      res.json(await phones.sendTest(parsed.data.phone))
+    } catch (error) {
+      if (error instanceof AccountError) { res.status(error.status).json({ error: error.message }); return }
+      throw error
+    }
+  })
   return router
 }
