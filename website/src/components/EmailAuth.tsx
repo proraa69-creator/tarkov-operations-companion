@@ -1,9 +1,9 @@
 import { KeyRound, LoaderCircle, LogIn, Mail, MailCheck, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { ApiError, api, errorMessage, type PendingRegistration, type SmsChallenge } from '../api'
+import { ApiError, api, errorMessage, type PendingRegistration, type CodeChallenge } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from './Notice'
-import { useAuthConfig } from './PhoneAuth'
+import { useAuthConfig } from './authConfig'
 
 /**
  * E-mail one-time codes on the website (server/src/routes/email.ts): the code step after registration, sign-in by a
@@ -111,7 +111,7 @@ export function RegistrationCodeStep({ email, pending, onDone, onBack }: { email
 export function EmailSignIn({ purpose, onDone, onBack, backLabel = 'Войти по e-mail и паролю' }: { purpose: 'login' | 'reset'; onDone: () => void; onBack?: () => void; backLabel?: string }) {
   const auth = useAuth()
   const [email, setEmail] = useState('')
-  const [challenge, setChallenge] = useState<SmsChallenge | null>(null)
+  const [challenge, setChallenge] = useState<CodeChallenge | null>(null)
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
@@ -215,7 +215,7 @@ export function EmailSignIn({ purpose, onDone, onBack, backLabel = 'Войти �
 export function EmailVerifyBanner() {
   const auth = useAuth()
   const config = useAuthConfig()
-  const [challenge, setChallenge] = useState<SmsChallenge | null>(null)
+  const [challenge, setChallenge] = useState<CodeChallenge | null>(null)
   const [code, setCode] = useState('')
   const [resendAt, setResendAt] = useState(0)
   const [busy, setBusy] = useState(false)

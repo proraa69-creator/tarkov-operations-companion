@@ -6,7 +6,6 @@ import { useAuth } from '../auth'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { Notice } from '../components/Notice'
 import { RegistrationCodeStep } from '../components/EmailAuth'
-import { PhoneBind, useAuthConfig } from '../components/PhoneAuth'
 import { LEGAL_VERSION } from '../legal/documents'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 
@@ -24,34 +23,16 @@ export function RegisterPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [localError, setLocalError] = useState<string | null>(null)
-  const config = useAuthConfig()
-  // After registration, with SMS on: an optional step to confirm a phone number (skippable).
-  const [phoneStep, setPhoneStep] = useState<{ referralRejected: boolean } | null>(null)
   // With e-mail codes on: the account appears only after the code from the e-mail (server/src/routes/email.ts).
   const [pending, setPending] = useState<{ registration: PendingRegistration; email: string; code: string } | null>(null)
 
-  /** The account exists and this browser is signed in: consent, then the optional phone step or the cabinet. */
+  /** The account exists and this browser is signed in: consent, then the cabinet. */
   function finished(token: string, referralApplied: boolean, code: string) {
     // The server keeps the version of the accepted documents and the time (152-ФЗ: consent must be provable).
     void api.recordConsent(token, 'registration', LEGAL_VERSION).catch(() => undefined)
     saveReferralCode(null)
     const referralRejected = Boolean(code) && !referralApplied
-    if (config?.smsEnabled) setPhoneStep({ referralRejected })
-    else navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected } })
-  }
-
-  if (phoneStep) {
-    const finish = () => navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected: phoneStep.referralRejected } })
-    return (
-      <div className="container auth-wrap page-in">
-        <div className="panel auth-card">
-          <div className="eyebrow">Аккаунт создан · необязательный шаг</div>
-          <h1>Номер телефона</h1>
-          <p className="lead">Привяжите номер: по коду из SMS можно будет войти и восстановить пароль. Номер не виден другим людям и используется только для кодов.</p>
-          <PhoneBind password={password} onDone={finish} onCancel={finish} cancelLabel="Пропустить" />
-        </div>
-      </div>
-    )
+    navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected } })
   }
 
   if (pending) {
