@@ -1,5 +1,6 @@
-import { get, set } from 'idb-keyval'
 import type { ItemNameVariant } from './tooltipMatch'
+import { tarkovJson } from '../data/tarkovApi'
+import { readGameCache, writeGameCache } from '../data/gameDataCache'
 
 const CACHE_KEY = 'item-lookup-names-v1'
 const CACHE_MS = 3 * 24 * 60 * 60 * 1000
@@ -15,20 +16,17 @@ let loading: Promise<Map<string, ItemNameVariant[]>> | null = null
  */
 export function loadItemNameVariants(): Promise<Map<string, ItemNameVariant[]>> {
   loading ??= (async () => {
-    const cached = await get<{ at: number; names: Names }>(CACHE_KEY).catch(() => undefined)
+    const cached = await readGameCache<{ at: number; names: Names }>(CACHE_KEY)
     if (cached && Date.now() - cached.at < CACHE_MS) return new Map(cached.names)
-    const dictionaries = await Promise.all(LANGUAGES.map(async (lang) => {
-      const response = await fetch(`https://json.tarkov.dev/regular/items_${lang}`, { signal: AbortSignal.timeout(45_000) })
-      if (!response.ok) throw new Error(`Item names HTTP ${response.status}`)
-      return ((await response.json()) as { data?: Record<string, unknown> }).data ?? {}
-    }))
+    // Through the server's data gateway in the players' app (src/data/tarkovApi.ts).
+    const dictionaries = await Promise.all(LANGUAGES.map(async (lang) => (await tarkovJson<{ data?: Record<string, unknown> }>(`regular/items_${lang}`)).data ?? {}))
     const names = namesFromDictionaries(dictionaries)
-    await set(CACHE_KEY, { at: Date.now(), names: [...names.entries()] }).catch(() => {})
+    await writeGameCache(CACHE_KEY, { at: Date.now(), names: [...names.entries()] }, CACHE_MS)
     return names
   })().catch((error) => {
     loading = null
     // A cache older than a few days is still better than English-only or Russian-only matching.
-    return get<{ at: number; names: Names }>(CACHE_KEY).then((cached) => {
+    return readGameCache<{ at: number; names: Names }>(CACHE_KEY).then((cached) => {
       if (cached) return new Map(cached.names)
       throw error
     })
