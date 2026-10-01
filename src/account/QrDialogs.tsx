@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { AlertTriangle, Check, Globe, LoaderCircle, QrCode as QrIcon, RefreshCw, ShieldCheck, Smartphone, X } from 'lucide-react'
 import type { MobileLoginLink } from '../electron'
 import { useLocale } from '../i18n/LocaleProvider'
+import { describeAgent, describePlace, type Inspected } from './qrInspect'
 import { uiText } from '../i18n/renderText'
 import { QrCode } from '../components/QrCode'
 import { cleanIpcError } from '../sync/serverSync'
@@ -72,23 +73,6 @@ export function MobileLoginDialog({ onClose }: { onClose: () => void }) {
       <div className="import-note"><ShieldCheck size={14} />{uiText('В QR-коде нет пароля и постоянного ключа: только одноразовый код на 2 минуты. Не показывайте его другим людям.')}</div>
     </Overlay>
   )
-}
-
-/** POST /v1/accounts/me/qr-login/inspect: the browser, when, and roughly where from (masked network, country). */
-interface Inspected { createdAt: string; agent: string; ip?: string; country?: string }
-
-/** Short description of the browser that asks to sign in («Chrome · Windows»). */
-function describeAgent(agent: string) {
-  const browser = /Edg\//.test(agent) ? 'Edge' : /OPR\//.test(agent) ? 'Opera' : /YaBrowser\//.test(agent) ? 'Яндекс Браузер' : /Firefox\//.test(agent) ? 'Firefox' : /Chrome\//.test(agent) ? 'Chrome' : /Safari\//.test(agent) ? 'Safari' : 'Браузер'
-  const system = /Windows/.test(agent) ? 'Windows' : /Android/.test(agent) ? 'Android' : /iPhone|iPad/.test(agent) ? 'iOS' : /Mac OS X/.test(agent) ? 'macOS' : /Linux/.test(agent) ? 'Linux' : ''
-  return system ? `${browser} · ${system}` : browser
-}
-
-/** «Netherlands · IP 203.0.113.x» in the interface language; '' when the server did not know. */
-function describePlace(info: Inspected, locale: string) {
-  let country = info.country ?? ''
-  if (country) { try { country = new Intl.DisplayNames([locale], { type: 'region' }).of(country) ?? country } catch { /* keep the code */ } }
-  return [country, info.ip ? `IP ${info.ip}` : ''].filter(Boolean).join(' · ')
 }
 
 /**

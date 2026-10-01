@@ -6,6 +6,8 @@ import { isNative } from '../platform'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 import { apiBaseUrl, DEFAULT_API_URL, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
 import { parseAccountDeepLink, type AccountDeepLink } from './deepLink'
+import { describeAgent, describePlace, normalizeLoginCode, type Inspected } from '../account/qrInspect'
+import { useLocale } from '../i18n/LocaleProvider'
 import '../account/account.css'
 
 const host = (url: string) => { try { return new URL(url).host } catch { return url } }
@@ -106,41 +108,65 @@ function PhoneSignIn({ link, onClose }: { link: Extract<AccountDeepLink, { kind:
   )
 }
 
+/**
+ * Website «Войти по QR-коду» scanned with the phone: the link carries the code, so a link somebody sent would sign their
+ * browser in with one tap. The phone therefore shows who asks and from where, and approves only after the person types
+ * the code shown on the screen they are signing in on (it must equal the link's code).
+ */
 function PhoneApprove({ link, onClose }: { link: Extract<AccountDeepLink, { kind: 'approve' }>; onClose: () => void }) {
   const { status } = useServerAccount()
-  const [info, setInfo] = useState<{ agent: string; createdAt: string } | null>(null)
+  const { locale } = useLocale()
+  const [info, setInfo] = useState<Inspected | null>(null)
+  const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const signedIn = Boolean(status?.signedIn)
+  const complete = normalizeLoginCode(typed).length === 8
+  const matches = complete && normalizeLoginCode(typed) === normalizeLoginCode(link.code)
 
   useEffect(() => {
     if (!signedIn) return
     void webServiceRequest('POST', '/v1/accounts/me/qr-login/inspect', { code: link.code })
-      .then((answer) => setInfo(answer as { agent: string; createdAt: string }), (reason: unknown) => setError(cleanIpcError(reason)))
+      .then((answer) => setInfo(answer as Inspected), (reason: unknown) => setError(cleanIpcError(reason)))
   }, [signedIn, link.code])
 
   const approve = () => {
+    if (!matches) return
     setBusy(true)
     setError('')
     void webServiceRequest('POST', '/v1/accounts/me/qr-login/approve', { code: link.code })
       .then(() => setDone(true), (reason: unknown) => setError(cleanIpcError(reason))).finally(() => setBusy(false))
   }
 
+  const place = info ? describePlace(info, locale) : ''
   return (
     <Frame label={uiText('Подтвердить вход на сайте')} icon={<Globe size={28} />} onClose={onClose}>
       <div className="eyebrow">{uiText('Сайт · вход по QR-коду')}</div>
       <h2>{uiText(done ? 'Готово' : 'Подтвердить вход на сайте')}</h2>
       {!signedIn && <p className="muted">{uiText('Сначала войдите в аккаунт в этом приложении (Ещё → Настройки), затем отсканируйте QR-код ещё раз.')}</p>}
-      {signedIn && !done && <p className="muted">{uiText('Браузер просит войти в ваш аккаунт')} {status?.email} · {uiText('код')} {link.code}</p>}
-      {info && !done && <div className="account-approve-info"><strong>{info.agent.slice(0, 80) || uiText('Браузер')}</strong><small>{uiText('Код создан в')} {new Date(info.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</small></div>}
-      {signedIn && !done && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Разрешайте, только если сайт открыли вы сами. Если код прислал кто-то другой, нажмите «Отмена».')}</span></div>}
+      {signedIn && !done && <p className="muted">{uiText('Браузер просит войти в ваш аккаунт')} {status?.email}</p>}
+      {info && !done && (
+        <div className="account-approve-info">
+          <strong>{describeAgent(info.agent)}</strong>
+          <small>{uiText('Откуда:')} {place || uiText('неизвестно')}</small>
+          <small>{uiText('Код создан в')} {new Date(info.createdAt).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' })}</small>
+        </div>
+      )}
+      {signedIn && !done && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Подтверждайте, только если вы сами сейчас входите на другом устройстве. Никогда не подтверждайте вход по ссылке, которую вам прислали.')}</span></div>}
+      {signedIn && !done && info && (
+        <label className="field">
+          <span>{uiText('Код с экрана, на котором вы входите')}</span>
+          <input className="input code" value={typed} onChange={(event) => setTyped(event.target.value)} placeholder="XXXX-XXXX" maxLength={9} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
+        </label>
+      )}
+      {signedIn && !done && complete && !matches && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText('Код не совпадает. Введите код, который показан под QR-кодом на экране, где вы входите.')}</span></div>}
       {done && <div className="import-note" role="status"><Check size={14} />{uiText('Готово: браузер вошёл в ваш аккаунт.')}</div>}
       {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
       {signedIn && !done && info && (
         <div className="account-approve-actions">
           <button className="button ghost" onClick={onClose}>{uiText('Отмена')}</button>
-          <button className="button primary" disabled={busy} onClick={approve}>{busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}{uiText('Разрешить вход')}</button>
+          <button className="button primary" disabled={busy || !matches} onClick={approve}>{busy ? <LoaderCircle className="spin" size={16} /> : <Check size={16} />}{uiText('Разрешить вход')}</button>
         </div>
       )}
       {(done || !signedIn) && <button className="button primary" onClick={onClose}>{uiText('Закрыть')}</button>}
