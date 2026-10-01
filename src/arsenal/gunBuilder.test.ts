@@ -4,6 +4,7 @@ import { canInstall, emptyBuild, installedParts, installPart, missingRequired, p
 import { approximateMoa, cheapestOffer, computeCost, computeStats, deltaTone } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
+import { prettyCaliber } from './gunFormat'
 import type { Build, GunCatalog, Weapon } from './gunTypes'
 
 const catalog: GunCatalog = { weapons: adaptWeapons(gunsPayload('en')), mods: adaptMods(modsPayload('en')), ammo: adaptAmmo(ammoPayload('en')), loadedAt: '', source: 'live' }
@@ -132,6 +133,17 @@ describe('cost', () => {
     const cost = computeCost(build, m4, catalog)
     expect(cost.total).toBe(29_500 + 3_100)
     expect(cost.unavailable.map((part) => part.id)).toEqual([FX.chargeRaptor])
+  })
+})
+
+describe('caliber labels', () => {
+  it('formats tarkov.dev caliber ids', () => {
+    expect(prettyCaliber('Caliber556x45NATO')).toBe('5.56x45 NATO')
+    expect(prettyCaliber('Caliber545x39')).toBe('5.45x39')
+    expect(prettyCaliber('Caliber9x19PARA')).toBe('9x19 PARA')
+    expect(prettyCaliber('Caliber127x55')).toBe('12.7x55')
+    expect(prettyCaliber('Caliber1143x23ACP')).toBe('11.43x23 ACP')
+    expect(prettyCaliber('Caliber12g')).toBe('12g')
   })
 })
 

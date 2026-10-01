@@ -19,11 +19,15 @@ export const FX = {
 
 const flea = (price: number) => ({ priceRUB: price, vendor: { name: 'Барахолка', normalizedName: 'flea-market' } })
 const trader = (price: number, key: string, label: string, level: number) => ({ priceRUB: price, vendor: { name: label, normalizedName: key, minTraderLevel: level } })
+const VENDOR_EN: Record<string, string> = { 'Барахолка': 'Flea Market', 'Миротворец': 'Peacekeeper', 'Прапор': 'Prapor', 'Механик': 'Mechanic', 'Егерь': 'Jaeger' }
+/** Trader names come back in the requested language. */
+const localized = <T,>(payload: T, lang: Lang): T => lang === 'ru' ? payload
+  : JSON.parse(JSON.stringify(payload), (key, value) => key === 'name' && typeof value === 'string' && VENDOR_EN[value] ? VENDOR_EN[value] : value) as T
 const slot = (nameId: string, label: string, allowed: string[], required = false) => ({ id: `${nameId}-slot`, name: label, nameId, required, filters: { allowedItems: allowed.map((item) => ({ id: item })) } })
 
 export function gunsPayload(lang: Lang = 'ru') {
   const slotName = (ru: string, en: string) => name(lang, ru, en)
-  return { data: { items: [
+  return localized({ data: { items: [
     {
       id: FX.m4, name: name(lang, 'Штурмовая винтовка Colt M4A1 5.56x45', 'Colt M4A1 5.56x45 assault rifle'), shortName: 'M4A1', iconLink: asset('m4-icon.webp'), image512pxLink: asset('m4-512.webp'), weight: 0.8, types: ['gun', 'wearable'],
       category: { name: name(lang, 'Штурмовая винтовка', 'Assault rifle'), normalizedName: 'assault-rifle' }, conflictingItems: [],
@@ -65,7 +69,7 @@ export function gunsPayload(lang: Lang = 'ru') {
     },
     // A preset is also type gun — must be filtered out.
     { id: FX.preset, name: 'Colt M4A1 5.56x45 Default', shortName: 'M4A1 Default', types: ['gun', 'preset'], properties: { __typename: 'ItemPropertiesPreset' } },
-  ] } }
+  ] } }, lang)
 }
 
 interface ModSpec { id: string; ru: string; en: string; short: string; ergo: number; recoil: number; acc?: number; weight: number; offers: unknown[]; slots?: unknown[]; conflicts?: string[]; noFlea?: boolean; coi?: number; capacity?: number; kind?: string }
@@ -116,7 +120,7 @@ function modSpecs(lang: Lang): ModSpec[] {
 }
 
 export function modsPayload(lang: Lang = 'ru') {
-  return { data: { items: modSpecs(lang).map((mod) => ({
+  return localized({ data: { items: modSpecs(lang).map((mod) => ({
     id: mod.id, name: name(lang, mod.ru, mod.en), shortName: mod.short, iconLink: asset(`${mod.short}-icon.webp`), weight: mod.weight,
     types: ['mods', ...(mod.noFlea ? ['noFlea'] : [])],
     accuracyModifier: mod.acc ?? 0, recoilModifier: mod.recoil, ergonomicsModifier: mod.ergo,
@@ -128,7 +132,7 @@ export function modsPayload(lang: Lang = 'ru') {
       ergonomics: mod.ergo, recoilModifier: mod.recoil, accuracyModifier: mod.acc ?? 0, slots: mod.slots ?? [],
       ...(mod.coi !== undefined ? { centerOfImpact: mod.coi } : {}), ...(mod.capacity ? { capacity: mod.capacity } : {}),
     },
-  })) } }
+  })) } }, lang)
 }
 
 export function ammoPayload(lang: Lang = 'ru') {
@@ -136,12 +140,12 @@ export function ammoPayload(lang: Lang = 'ru') {
     item: { id: ammoId, name: name(lang, ru, en), shortName: short, iconLink: asset(`${short}-icon.webp`), types: ['ammo', ...(noFlea ? ['noFlea'] : [])], buyFor: offers },
     caliber, damage, armorDamage: armor, penetrationPower: pen, fragmentationChance: frag, initialSpeed: speed, projectileCount: 1, recoilModifier: recoil, accuracyModifier: 0, tracer: false,
   })
-  return { data: { ammo: [
+  return localized({ data: { ammo: [
     round(FX.m855, 'Патрон 5.56x45 M855', '5.56x45mm M855', 'M855', 'Caliber556x45NATO', 54, 31, 46, 0.4, 922, 0, [flea(420), trader(360, 'peacekeeper', 'Миротворец', 1)]),
     round(FX.m855a1, 'Патрон 5.56x45 M855A1', '5.56x45mm M855A1', 'M855A1', 'Caliber556x45NATO', 49, 44, 52, 0.34, 945, 0.02, [flea(1_150), trader(980, 'peacekeeper', 'Миротворец', 3)]),
     round(FX.m995, 'Патрон 5.56x45 M995', '5.56x45mm M995', 'M995', 'Caliber556x45NATO', 42, 53, 58, 0.32, 1013, 0.04, [trader(1_640, 'peacekeeper', 'Миротворец', 4)], true),
     round(FX.warmageddon, 'Патрон 5.56x45 Warmageddon', '5.56x45mm Warmageddon', 'Warm.', 'Caliber556x45NATO', 88, 3, 1, 0.9, 936, 0, [flea(380)]),
     round(FX.ps545, 'Патрон 5.45x39 ПС гс', '5.45x39mm PS gs', 'PS', 'Caliber545x39', 50, 28, 40, 0.4, 890, 0, [flea(210), trader(160, 'prapor', 'Прапор', 1)]),
     round(FX.bs545, 'Патрон 5.45x39 БС гс', '5.45x39mm BS gs', 'BS', 'Caliber545x39', 40, 57, 63, 0.16, 830, 0.05, [trader(1_280, 'prapor', 'Прапор', 4)], true),
-  ] } }
+  ] } }, lang)
 }
