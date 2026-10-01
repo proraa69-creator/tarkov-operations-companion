@@ -11,7 +11,7 @@ import { createLoginCodesRouter } from './routes/loginCodes.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
-import { AccountStore } from './services/accountStore.js'
+import { AccountStore, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createPaymentsRouter } from './routes/payments.js'
 import { createAdminRouter } from './routes/admin.js'
@@ -45,7 +45,15 @@ export interface ApiOptions {
   loginCodes?: LoginCodeStore
   /** Phone numbers and SMS codes; defaults to switched off (no SMS provider). */
   phones?: PhoneAuthService
+  /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
+  rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
 }
+
+/**
+ * Per-IP limits (per minute) of the public endpoints that need no sign-in and each cost an upstream lookup or a large
+ * answer: the catalog, and the player lookups (resolve + profile share one bucket). Generous for real clients.
+ */
+export const PUBLIC_RATE_LIMITS = { catalog: 120, players: 30 }
 
 /**
  * Origins allowed by default: the app renderer dev server, the website, and the phone app's WebView
@@ -110,12 +118,23 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     // Development owner only. Public accounts require per-user sessions before deployment.
     res.json(store.sync('local-development', syncSchema.parse(req.body)))
   })
-  app.get('/v1/catalog/:mode', async (req, res) => res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode))))
-  app.post('/v1/players/resolve', async (req, res) => {
+  // Per IP (req.ip is the visitor behind the site proxy, see `trust proxy` above); counted before validation.
+  const limits = { ...PUBLIC_RATE_LIMITS, ...options.rateLimits }
+  const perIp = (name: keyof typeof PUBLIC_RATE_LIMITS): express.RequestHandler => {
+    const limiter = new FixedWindowRateLimiter(limits[name], 60 * 1000)
+    return (req, res, next) => {
+      const retry = limiter.hit(`${name}:${req.ip ?? 'unknown'}`)
+      if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много запросов. Попробуйте позже.' }); return }
+      next()
+    }
+  }
+  const players = perIp('players')
+  app.get('/v1/catalog/:mode', perIp('catalog'), async (req, res) => res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode))))
+  app.post('/v1/players/resolve', players, async (req, res) => {
     const body = z.object({ mode: modeSchema, nickname: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,15}$/) }).parse(req.body)
     res.json(await resolvePlayer(body.mode, body.nickname))
   })
-  app.get('/v1/players/:mode/:accountId', async (req, res) => res.json(await fetchPlayerProfile(modeSchema.parse(req.params.mode), z.coerce.number().int().positive().parse(req.params.accountId))))
+  app.get('/v1/players/:mode/:accountId', players, async (req, res) => res.json(await fetchPlayerProfile(modeSchema.parse(req.params.mode), z.coerce.number().int().positive().parse(req.params.accountId))))
   app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     void _next
     const raw = error instanceof z.ZodError ? 400 : typeof error === 'object' && error && 'status' in error ? Number(error.status) : 502
