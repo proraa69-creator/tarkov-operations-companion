@@ -23,6 +23,10 @@ import type {
 /** Local history per mode; the server keeps more (see server/src/services/objectiveStore.ts). */
 export const MAX_LOCAL_EVENTS = 600
 export const MAX_TARGET = 100_000
+/** Ids the server accepts for tasks and objectives (hex ids, story/wiki ids in any script). */
+export const ENTITY_ID_PATTERN = /^[\p{L}\p{N}:#._\- ]{1,128}$/u
+export const EVENT_ID_PATTERN = /^[A-Za-z0-9_-]{6,80}$/
+export const OBJECTIVE_TYPE_PATTERN = /^[A-Za-z]{1,40}$/
 export const SOURCE_CONFIDENCE: Record<ObjectiveSource, number> = { manual: 1, log: 0.95, sync: 0.9, ocr: 0.7 }
 
 /** The parts of a mode's progress this module reads and writes (the server stores only these). */

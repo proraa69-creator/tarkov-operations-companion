@@ -26,6 +26,7 @@ import type { ProgressStore } from '../services/progressStore.js'
 import type { UserDataStore } from '../services/userDataStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import { collectorEntries } from '../../../src/kappa/collector'
+import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
 export const RAID_MODES = ['pvp', 'pve', 'seasonal'] as const
 export const SETTINGS_MAX_BYTES = 16 * 1024
@@ -50,14 +51,14 @@ const positionSchema = z.object({
 const settingsSchema = z.object({ settings: z.record(z.string().max(64), z.unknown()) }).strict()
 
 /** Task / objective ids: tarkov.dev hex ids, story and wiki ids (letters of any script, digits, a few separators). */
-const entityId = z.string().min(1).max(128).regex(/^[\p{L}\p{N}:#._\- ]+$/u)
-const eventId = z.string().regex(/^[A-Za-z0-9_-]{6,80}$/)
+const entityId = z.string().regex(ENTITY_ID_PATTERN)
+const eventId = z.string().regex(EVENT_ID_PATTERN)
 const objectiveSource = z.enum(['log', 'ocr', 'manual', 'sync'])
 const count = z.number().int().min(0).max(100_000)
 const confidence = z.number().finite().min(0).max(1)
 const eventValue = z.union([count, z.enum(['active', 'completed', 'failed']), z.null()])
 const objectiveSchema = z.object({
-  objectiveId: entityId, taskId: entityId, type: z.string().regex(/^[A-Za-z]{1,40}$/),
+  objectiveId: entityId, taskId: entityId, type: z.string().regex(OBJECTIVE_TYPE_PATTERN),
   target: count.min(1), current: count, completedAt: isoTime.optional(),
   source: objectiveSource, confidence, observedAt: isoTime,
 }).strict()
@@ -185,7 +186,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {
         objectives: body.data.objectives.map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
-        events: body.data.events.map(({ synced: _synced, ...entry }) => ({ ...entry, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
+        events: body.data.events.map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
       }))
     } catch (error) {
       if (error instanceof ObjectiveLimitError) { res.status(413).json({ error: error.message }); return }

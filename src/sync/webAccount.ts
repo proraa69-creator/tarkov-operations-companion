@@ -26,6 +26,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
+  // Objective progress and its history (server/src/routes/me.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
+  { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/settings$/ },
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
