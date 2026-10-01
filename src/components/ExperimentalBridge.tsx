@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { canonicalMapId } from '../data/mapIds'
 import { mapForView, readMapView } from '../data/mapView'
 import { useAppState } from '../state/AppState'
 import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
-import { createItemMatcher, createTooltipMatcher, matchNearest } from '../overlay/itemMatch'
+import { createItemMatcher, matchNearest } from '../overlay/itemMatch'
+import { createTooltipMatcher, type ItemNameVariant } from '../overlay/tooltipMatch'
+import { loadItemNameVariants } from '../overlay/itemNames'
 import { describeItem } from '../overlay/itemInfo'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
 import type { MarkerLayerId } from '../domain/types'
@@ -21,7 +23,17 @@ export function ExperimentalBridge() {
   const { data } = useTarkovData()
   const state = useAppState()
   const matcher = useMemo(() => createItemMatcher(data.items), [data.items])
-  const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items), [data.items])
+  // The game's tooltip shows the name in the game's language: match against Russian and English names.
+  const [nameVariants, setNameVariants] = useState<Map<string, ItemNameVariant[]> | null>(null)
+  useEffect(() => {
+    if (!window.tarkovDesktop?.experimental) return
+    let active = true
+    const timer = setTimeout(() => {
+      void loadItemNameVariants().then((names) => { if (active) setNameVariants(names) }).catch(() => {})
+    }, 3000)
+    return () => { active = false; clearTimeout(timer) }
+  }, [])
+  const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, nameVariants ?? undefined), [data.items, nameVariants])
   const latest = useRef({ data, state, matcher, tooltipMatcher })
 
   useEffect(() => {
@@ -38,7 +50,8 @@ export function ExperimentalBridge() {
         const item = query.input.test
           ? data.items.find((entry) => (entry.fleaPrice ?? 0) > 0 && data.quests.some((quest) => quest.requiredItems?.includes(entry.id)))
           : query.input.tooltip
-            ? tooltipMatcher(query.input.text) ?? matcher(query.input.text)
+            // One name in the box: no loose fallback — a wrong item is worse than «not found».
+            ? tooltipMatcher(query.input.text)
             : (query.input.lines?.length ? matchNearest(matcher, query.input.lines) : null) ?? matcher(query.input.text)
         const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode) : { state: 'not-found', text: query.input.text }
         void api.answer(query.id, payload)

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { app, desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
 import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
+import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 
 const require = createRequire(import.meta.url)
 interface OcrLine { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
@@ -145,7 +146,7 @@ function tooltipOcr() {
     await ensureLanguageData(langPath)
     const next = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
     // One line: the item name inside the game's tooltip.
-    await next.setParameters({ tessedit_pageseg_mode: '7', user_defined_dpi: '300' })
+    await next.setParameters(TOOLTIP_OCR_PARAMETERS)
     return next
   })().catch((error) => { tooltipWorker = null; throw error })
   return tooltipWorker

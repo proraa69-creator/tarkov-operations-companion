@@ -7,7 +7,8 @@ import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '..
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { readScreenshotBinding } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
-import { findTooltip, tooltipForOcr } from '../../src/overlay/tooltipDetect.js'
+import { TOOLTIP_CAPTURE } from '../../src/overlay/tooltipDetect.js'
+import { readGameTooltip } from '../../src/overlay/tooltipLookup.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
@@ -38,8 +39,6 @@ interface Options {
 const ITEM_OVERLAY = { width: 300, height: 118 }
 /** The card closes when the cursor leaves the item (moves this far from where the key was pressed). */
 const ITEM_LEAVE_PX = 42
-/** Screen area searched around the cursor for the game's name tooltip, in 1080p units. */
-const CAPTURE = { left: 520, right: 720, up: 240, down: 160 }
 const MINIMAP_OVERLAY = { width: 436, height: 360 }
 const QUERY_TIMEOUT_MS = 5000
 const KEY_REPEAT_MS = 350
@@ -588,34 +587,38 @@ async function lookupItem(test: boolean) {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
     itemWindow?.hide()
-    const window = ensureItemWindow()
-    await whenLoaded(window)
     if (test) {
+      const window = ensureItemWindow()
+      await whenLoaded(window)
       const answer = await askRenderer('item', { text: '', test: true })
       showItemCard(window, point, display, null, answer && typeof answer === 'object' ? answer : { state: 'not-found' })
       return answer
     }
-    // Only the game's own name tooltip is read: it holds the full name of exactly the hovered item.
-    const found = await waitForGameTooltip(point, display)
-    if (!found) {
+    // The card window may need a moment to open; the screen is watched for the tooltip meanwhile.
+    const windowReady = (async () => {
+      const window = ensureItemWindow()
+      await whenLoaded(window)
+      return window
+    })()
+    // Only the game's own name tooltip is read: it holds the name of exactly the hovered item. It appears a moment
+    // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
+    const reading = await readGameTooltip({
+      grab: () => grabAroundCursor(point, display),
+      recognize: (bitmap) => recognizeTooltip(bitmap),
+      match: async (text) => {
+        const reply = await askRenderer('item', { text, tooltip: true })
+        return reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found' ? reply : null
+      },
+      onTooltip: (shot, rect) => { void windowReady.then((window) => showItemCard(window, point, display, shot.toScreen(rect), { state: 'loading' })) },
+    })
+    const window = await windowReady
+    if (!reading.shot || !reading.rect) {
       showItemCard(window, point, display, null, { state: 'not-found' })
       return null
     }
-    showItemCard(window, point, display, found.screen, { state: 'loading' })
-    // The first reading nearly always matches; when it does not, read the tooltip again prepared differently
-    // (larger, darker/lighter cut-off) before giving up.
-    const tries: string[] = []
-    let answer: unknown = null
-    for (const [scale, black, span] of [[3, 45, 150], [4, 30, 170], [3, 70, 120]] as const) {
-      const text = await recognizeTooltip(tooltipForOcr(found.image, found.rect, scale, black, span)).catch(() => '')
-      tries.push(text)
-      if (!text) continue
-      const reply = await askRenderer('item', { text, tooltip: true })
-      if (reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found') { answer = reply; break }
-    }
-    if (!answer) void logFailedLookup(found.image, found.rect, tries)
-    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer && typeof answer === 'object' ? answer : { state: 'not-found', text: tries[0] ?? '' })
-    return answer
+    if (!reading.answer) void logFailedLookup(reading.shot.image, reading.rect, reading.tries)
+    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', reading.answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
+    return reading.answer
   } finally {
     lookupBusy = false
   }
@@ -640,20 +643,6 @@ async function logFailedLookup(image: { width: number; height: number; data: Uin
     const files = (await readdir(dir)).sort()
     for (const old of files.slice(0, Math.max(0, files.length - 60))) await rm(join(dir, old), { force: true })
   } catch { /* diagnostics only */ }
-}
-
-/** The tooltip appears a moment after the cursor stops on an item: look again for a short while. */
-const TOOLTIP_WAIT_MS = 900
-
-async function waitForGameTooltip(point: Point, display: Display) {
-  const until = Date.now() + TOOLTIP_WAIT_MS
-  for (;;) {
-    const shot = await grabAroundCursor(point, display).catch(() => null)
-    const rect = shot ? findTooltip(shot.image, shot.cursor, shot.unit) : null
-    if (shot && rect) return { image: shot.image, rect, screen: shot.toScreen(rect) }
-    if (Date.now() >= until) return null
-    await pause(110)
-  }
 }
 
 function showItemCard(window: BrowserWindow, point: Point, display: Display, tooltip: Rectangle | null, payload: unknown) {
@@ -700,10 +689,11 @@ async function grabAroundCursor(point: Point, display: Display) {
   const physicalDisplay = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
   const unit = physicalDisplay.height / 1080
   const cursor = process.platform === 'win32' ? screen.dipToScreenPoint(point) : point
-  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - CAPTURE.left * unit))
-  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - CAPTURE.up * unit))
-  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + CAPTURE.right * unit))
-  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + CAPTURE.down * unit))
+  // Generous around the cursor: over a big item the tooltip may sit at the item's corner (TOOLTIP_CAPTURE).
+  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
+  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
+  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
+  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
   if (right - left < 40 || bottom - top < 20) return null
   const toScreen = (rect: Rectangle) => {
     const physical = { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height }
