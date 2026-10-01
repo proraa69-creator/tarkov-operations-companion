@@ -13,3 +13,6 @@
 .app-login-info small { color: var(--text-muted); overflow-wrap: anywhere; }
 .auth-card .app-login-actions .button, .auth-card .button.app-login-approve { white-space: normal; text-align: center; height: auto; min-height: 50px; padding-block: 10px; overflow-wrap: anywhere; }
 .qr-login, .app-login-actions, .app-login-info { min-width: 0; }
+/* /app-login#approve=…: the code from the sign-in screen must be typed before «Подтвердить». */
+.app-login-confirm { display: grid; gap: 10px; margin-top: 12px; min-width: 0; }
+.app-login-mismatch { color: var(--danger); }

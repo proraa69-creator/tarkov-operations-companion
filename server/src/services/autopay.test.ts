@@ -52,11 +52,15 @@ function fakeYooKassa() {
   }
 }
 
+/** What the fake Lava.top charges per periodicity (USD), in its invoice answers. */
+const LAVA_INVOICE_PRICES: Record<string, number> = { MONTHLY: 4.99, PERIOD_90_DAYS: 12.99, PERIOD_180_DAYS: 24.99, PERIOD_YEAR: 39.99 }
+
 /** A fake Lava.top API: invoices, subscription cancel and products. */
 function fakeLava() {
   const requests: Req[] = []
   let next = 1
   let cancelStatus = 200
+  let invoiceAmount = true
   const fetch = (async (url: string, init: RequestInit) => {
     const headers = init.headers as Record<string, string>
     const body = init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined
@@ -64,7 +68,8 @@ function fakeLava() {
     const path = new URL(url).pathname
     if (init.method === 'POST' && path === '/api/v2/invoice') {
       const id = `00000000-0000-4000-8000-${String(next++).padStart(12, '0')}`
-      return new Response(JSON.stringify({ id, status: 'in-progress', amountTotal: { currency: body!.currency, amount: 12.99 }, paymentUrl: `https://app.lava.top/pay/${id}` }), { status: 200 })
+      const total = invoiceAmount ? { amountTotal: { currency: body!.currency, amount: LAVA_INVOICE_PRICES[String(body!.periodicity)] } } : {}
+      return new Response(JSON.stringify({ id, status: 'in-progress', ...total, paymentUrl: `https://app.lava.top/pay/${id}` }), { status: 200 })
     }
     if (init.method === 'DELETE' && path === '/api/v1/subscriptions') return new Response(cancelStatus === 200 ? '' : '{"error":"subscription not active"}', { status: cancelStatus })
     if (path === '/api/v2/products') {
@@ -72,7 +77,7 @@ function fakeLava() {
     }
     return new Response('{"error":"not found"}', { status: 404 })
   }) as unknown as typeof globalThis.fetch
-  return { fetch, requests, failCancel: (status: number) => { cancelStatus = status } }
+  return { fetch, requests, failCancel: (status: number) => { cancelStatus = status }, omitInvoiceAmount: () => { invoiceAmount = false } }
 }
 
 async function setup(options: { config?: PaymentConfig | undefined; lava?: boolean } = {}) {
@@ -229,6 +234,69 @@ test('lava webhook over HTTP: 401 without the key, 200 and applied with it', asy
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
+})
+
+/** Runs `body` with console.warn captured (the store logs Lava mismatches there). */
+async function withWarnings(body: (warnings: string[]) => Promise<void> | void) {
+  const warnings: string[] = []
+  const original = console.warn
+  console.warn = (message: unknown) => { warnings.push(String(message)) }
+  try { await body(warnings) } finally { console.warn = original }
+}
+
+test('lava webhooks never decide the plan or the amount: a mismatch is recorded and grants nothing', async () => {
+  const { db, accounts, payments, accountId, now } = await setup({ lava: true })
+  const { confirmationUrl, paymentId } = await payments.createLava(accounts.billingInfo(accountId), '12m', consent, consent, 'EN')
+  const contractId = confirmationUrl.split('/').pop()!
+  await withWarnings((warnings) => {
+    // Paid less than the invoice (the monthly price for the yearly invoice): nothing is granted.
+    assert.deepEqual(payments.lavaWebhook(hook, { eventType: 'payment.success', eventId: 'e1', contractId, amount: 4.99, currency: 'USD', periodicity: 'MONTHLY' }), { status: 200, result: 'amount-mismatch' })
+    // The same number in another currency is not the invoice either.
+    assert.equal(payments.lavaWebhook(hook, { eventType: 'payment.success', eventId: 'e2', contractId, amount: 39.99, currency: 'EUR' }).result, 'amount-mismatch')
+    assert.equal(accounts.view(accountId).subscription.status, 'trial')
+    assert.equal(payments.list(accountId)[0]!.status, 'pending')
+    assert.equal(payments.autopay(accountId), null)
+    const recorded = db.prepare('SELECT payment_id, contract_id, expected_amount, expected_currency, got_amount, got_currency FROM lava_mismatches ORDER BY id').all().map((row) => ({ ...row }))
+    assert.deepEqual(recorded, [
+      { payment_id: paymentId, contract_id: contractId, expected_amount: 3999, expected_currency: 'USD', got_amount: 499, got_currency: 'USD' },
+      { payment_id: paymentId, contract_id: contractId, expected_amount: 3999, expected_currency: 'USD', got_amount: 3999, got_currency: 'EUR' },
+    ])
+    assert.equal(warnings.length, 2)
+    assert.match(warnings[0]!, /NOT applied: webhook 4\.99 USD, expected 39\.99 USD/)
+
+    // The invoice's own amount is granted — for the invoice's plan (12 months), whatever periodicity the body names.
+    assert.equal(payments.lavaWebhook(hook, { eventType: 'payment.success', eventId: 'e3', contractId, amount: 39.99, currency: 'USD', periodicity: 'MONTHLY' }).result, 'paid')
+    const firstUntil = Date.parse(accounts.view(accountId).subscription.paidUntil!)
+    assert.equal(firstUntil, now() + 365 * DAY + 3 * DAY)
+    assert.equal(payments.autopay(accountId)!.plan, '12m')
+    assert.equal(payments.list(accountId)[0]!.amount, 39.99)
+
+    // Renewals: the subscription's own plan, amount and currency; a different amount renews nothing.
+    const renewal = { eventType: 'subscription.recurring.payment.success', parentContractId: contractId, currency: 'USD', periodicity: 'MONTHLY' }
+    assert.equal(payments.lavaWebhook(hook, { ...renewal, contractId: 'renewal-1', amount: 4.99 }).result, 'amount-mismatch')
+    assert.equal(Date.parse(accounts.view(accountId).subscription.paidUntil!), firstUntil)
+    assert.equal(payments.lavaWebhook(hook, { ...renewal, contractId: 'renewal-2', amount: 39.99 }).result, 'renewed')
+    assert.equal(Date.parse(accounts.view(accountId).subscription.paidUntil!), firstUntil + 12 * MONTH)
+    assert.equal(Number(db.prepare('SELECT COUNT(*) AS n FROM lava_mismatches WHERE recurring_id IS NOT NULL').get()!.n), 1)
+    assert.equal(warnings.length, 3)
+  })
+})
+
+test('lava: an invoice answer without an amount takes the offer price; an unknown amount is never granted', async () => {
+  const { db, accounts, payments, lavaApi, accountId } = await setup({ lava: true })
+  lavaApi.omitInvoiceAmount()
+  const quarter = await payments.createLava(accounts.billingInfo(accountId), '3m', consent, consent, 'EN')
+  assert.equal(payments.list(accountId)[0]!.amount, 12.99, 'the 3-month price from Lava\'s product list')
+  // The fake product list has no yearly price: the invoice amount stays unknown.
+  const year = await payments.createLava(accounts.billingInfo(accountId), '12m', consent, consent, 'EN')
+  await withWarnings((warnings) => {
+    assert.equal(payments.lavaWebhook(hook, { eventType: 'payment.success', contractId: year.confirmationUrl.split('/').pop()!, amount: 39.99, currency: 'USD' }).result, 'amount-mismatch')
+    assert.equal(accounts.view(accountId).subscription.status, 'trial')
+    assert.deepEqual({ ...db.prepare('SELECT payment_id, expected_amount, got_amount FROM lava_mismatches').get() }, { payment_id: year.paymentId, expected_amount: null, got_amount: 3999 })
+    assert.match(warnings[0]!, /expected unknown/)
+    assert.equal(payments.lavaWebhook(hook, { eventType: 'payment.success', contractId: quarter.confirmationUrl.split('/').pop()!, amount: 12.99, currency: 'USD' }).result, 'paid')
+    assert.equal(accounts.view(accountId).subscription.status, 'active')
+  })
 })
 
 // ───────────────────────────── ЮKassa autopayments ─────────────────────────────

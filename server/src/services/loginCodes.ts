@@ -8,7 +8,8 @@
  *
  * 2. Browser sign-in (website «Войти по QR-коду»):
  *    POST /v1/accounts/qr-login                  {}                -> 201 { requestId, pollSecret, code, expiresAt }
- *    POST /v1/accounts/me/qr-login/inspect       Bearer { code }   -> 200 { createdAt, expiresAt, agent } | 404
+ *    POST /v1/accounts/me/qr-login/inspect       Bearer { code }   -> 200 { createdAt, expiresAt, agent, ip?, country? } | 404
+ *                                                (ip: the requester's masked network «203.0.113.x»; country: Cloudflare's)
  *    POST /v1/accounts/me/qr-login/approve       Bearer { code }   -> 200 { ok } | 404
  *    POST /v1/accounts/qr-login/poll             { requestId, pollSecret } -> 202 pending | 200 { token, account } (once) | 410
  *    The browser shows `code` (as a QR code and as text). A signed-in phone app (scanning it) or desktop app (typing it)
@@ -39,6 +40,32 @@ export function normalizeUserCode(raw: string) {
 /** How the code is shown: XXXX-XXXX. */
 export const formatUserCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`
 
+/**
+ * The requester's network, never the exact address: IPv4 «203.0.113.x», IPv6 its /48 «2001:db8:1234::/48».
+ * Shown to the approving person (where the sign-in comes from); undefined for anything that is not an IP address.
+ */
+export function maskAddress(raw?: string) {
+  const value = (raw ?? '').trim().replace(/%.*$/, '').replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(value)
+  if (v4) return v4.slice(1).every((part) => Number(part) <= 255) ? `${Number(v4[1])}.${Number(v4[2])}.${Number(v4[3])}.x` : undefined
+  if (!/^[0-9a-f:]{2,39}$/i.test(value)) return undefined
+  const halves = value.split('::')
+  if (halves.length > 2) return undefined
+  const left = halves[0] ? halves[0].split(':') : []
+  const right = halves.length === 2 && halves[1] ? halves[1].split(':') : []
+  const missing = 8 - left.length - right.length
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return undefined
+  const groups = [...left, ...Array<string>(missing).fill('0'), ...right]
+  if (!groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return undefined
+  return `${groups.slice(0, 3).map((group) => parseInt(group, 16).toString(16)).join(':')}::/48`
+}
+
+/** Cloudflare's CF-IPCountry («NL»): two letters only; XX (unknown) and T1 (Tor) are left out. */
+export function countryCode(raw?: string) {
+  const value = (raw ?? '').trim().toUpperCase()
+  return /^[A-Z]{2}$/.test(value) && value !== 'XX' ? value : undefined
+}
+
 interface HandOff { accountId: string; expiresAt: number }
 interface BrowserRequest {
   requestDigest: string
@@ -47,6 +74,9 @@ interface BrowserRequest {
   createdAt: number
   expiresAt: number
   agent: string
+  /** Where the request came from, approximately (maskAddress / countryCode), for the approving person. */
+  ip?: string
+  country?: string
   approvedBy?: string
 }
 
@@ -89,8 +119,11 @@ export class LoginCodeStore {
     return entry && entry.expiresAt > this.now() ? entry.accountId : undefined
   }
 
-  /** Flow 2: the signed-out browser opens a request; only it gets `pollSecret`. */
-  createBrowserRequest(agent: string) {
+  /**
+   * Flow 2: the signed-out browser opens a request; only it gets `pollSecret`. `origin`: the requester's address and
+   * Cloudflare country, kept only approximately (masked network, two-letter country) to show who asks.
+   */
+  createBrowserRequest(agent: string, origin: { ip?: string; country?: string } = {}) {
     this.sweep()
     if (this.requests.size >= MAX_OPEN) throw new AccountError(503, 'Слишком много открытых кодов. Попробуйте через минуту.')
     let code: string
@@ -100,9 +133,12 @@ export class LoginCodeStore {
     const requestId = randomBytes(16).toString('base64url')
     const pollSecret = randomBytes(32).toString('base64url')
     const createdAt = this.now()
+    const ip = maskAddress(origin.ip)
+    const country = countryCode(origin.country)
     const entry: BrowserRequest = {
       requestDigest: digest(requestId), pollDigest: digest(pollSecret), codeDigest: digest(code),
       createdAt, expiresAt: createdAt + LOGIN_CODE_TTL_MS, agent: agent.slice(0, 160),
+      ...(ip ? { ip } : {}), ...(country ? { country } : {}),
     }
     this.requests.set(entry.requestDigest, entry)
     this.byCode.set(entry.codeDigest, entry.requestDigest)
@@ -118,10 +154,17 @@ export class LoginCodeStore {
     return entry
   }
 
-  /** What the approving device shows before «Разрешить»: when the request was made and from which browser. */
+  /**
+   * What the approving device shows before «Подтвердить»: when the request was made, from which browser and from where
+   * (masked network `ip` and `country`, when known).
+   */
   inspect(rawCode: string) {
     const entry = this.pendingByCode(rawCode)
-    return entry ? { createdAt: new Date(entry.createdAt).toISOString(), expiresAt: new Date(entry.expiresAt).toISOString(), agent: entry.agent } : undefined
+    if (!entry) return undefined
+    return {
+      createdAt: new Date(entry.createdAt).toISOString(), expiresAt: new Date(entry.expiresAt).toISOString(), agent: entry.agent,
+      ...(entry.ip ? { ip: entry.ip } : {}), ...(entry.country ? { country: entry.country } : {}),
+    }
   }
 
   /** A signed-in device approves the request; the session is created later, when the browser polls. */
@@ -198,8 +241,8 @@ export function createLoginCodeHandlers(accounts: AccountStore, codes: LoginCode
       return accountId ? signIn(accountId) : { status: 404, body: { error: NOT_FOUND } }
     }),
 
-    createBrowserRequest: (req: AccountsRequest & { agent?: string }) => guard(() =>
-      blocked('request', ip(req)) ?? { status: 201, body: codes.createBrowserRequest(req.agent ?? '') }),
+    createBrowserRequest: (req: AccountsRequest & { agent?: string; country?: string }) => guard(() =>
+      blocked('request', ip(req)) ?? { status: 201, body: codes.createBrowserRequest(req.agent ?? '', { ip: req.ip, country: req.country }) }),
 
     inspect: (req: AccountsRequest) => authed(req, (accountId) => {
       const stop = blocked('approve', ip(req), `account:${accountId}`)

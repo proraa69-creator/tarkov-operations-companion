@@ -5,13 +5,15 @@
  *   POST /v1/accounts/qr-login                 -> { requestId, pollSecret, code, expiresAt }
  *   POST /v1/accounts/qr-login/poll            { requestId, pollSecret } -> 202 | 200 { token, account } | 410
  *   POST /v1/accounts/login-codes/redeem       { code } -> { token, account }    (code from the desktop app's QR)
- *   POST /v1/accounts/me/qr-login/inspect      Bearer { code } -> { createdAt, agent }
+ *   POST /v1/accounts/me/qr-login/inspect      Bearer { code } -> { createdAt, agent, ip?, country? }
  *   POST /v1/accounts/me/qr-login/approve      Bearer { code } -> { ok }
  */
 import { ApiError, fallbackMessage, NETWORK_ERROR_MESSAGE, type Account } from './api'
 import { API_URL } from './config'
 
 export interface QrLoginRequest { requestId: string; pollSecret: string; code: string; expiresAt: string }
+/** Who asks to sign in: the browser, when, and roughly where from (masked network «203.0.113.x», Cloudflare's country). */
+export interface QrRequester { createdAt: string; expiresAt?: string; agent: string; ip?: string; country?: string }
 export type QrPoll = { status: 'pending' } | { status: 'expired' } | { status: 'done'; token: string; account: Account }
 
 async function post(path: string, body: unknown, token?: string | null): Promise<{ status: number; data: unknown }> {
@@ -52,7 +54,7 @@ export const qrLogin = {
     return data as { token: string; account: Account }
   },
   async inspect(token: string, code: string) {
-    return (await post('/me/qr-login/inspect', { code }, token)).data as { createdAt: string; agent: string }
+    return (await post('/me/qr-login/inspect', { code }, token)).data as QrRequester
   },
   async approve(token: string, code: string) {
     await post('/me/qr-login/approve', { code }, token)
@@ -79,3 +81,13 @@ export function describeAgent(agent: string) {
   const system = /Windows/.test(agent) ? 'Windows' : /Android/.test(agent) ? 'Android' : /iPhone|iPad/.test(agent) ? 'iOS' : /Mac OS X/.test(agent) ? 'macOS' : /Linux/.test(agent) ? 'Linux' : ''
   return system ? `${browser} · ${system}` : browser
 }
+
+/** «Нидерланды · IP 203.0.113.x» — where the sign-in request came from, approximately; '' when unknown. */
+export function describePlace(info: { ip?: string; country?: string }) {
+  let country = info.country ?? ''
+  if (country) { try { country = new Intl.DisplayNames(['ru'], { type: 'region' }).of(country) ?? country } catch { /* keep the code */ } }
+  return [country, info.ip ? `IP ${info.ip}` : ''].filter(Boolean).join(' · ')
+}
+
+/** «k7qx m2pd» → «K7QXM2PD»: compares a typed code with the one in the link. */
+export const normalizeLoginCode = (code: string) => code.toUpperCase().replace(/[\s-]/g, '')

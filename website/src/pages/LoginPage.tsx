@@ -135,7 +135,7 @@ function QrSignIn({ onBack }: { onBack: () => void }) {
       ) : error === null && <LoaderCircle className="spinner" aria-hidden="true" />}
       {(expired || error !== null) && <button type="button" className="button primary block" onClick={renew}><RefreshCw aria-hidden="true" />Новый QR-код</button>}
       <ol className="qr-login-steps">
-        <li>Телефон: наведите камеру на QR-код и нажмите «Открыть в приложении», затем «Разрешить вход».</li>
+        <li>Телефон: наведите камеру на QR-код. В приложении нажмите «Разрешить вход»; на сайте введите код с этого экрана и нажмите «Подтвердить».</li>
         <li>Компьютер: приложение Raid OS → Профиль оператора → «Подтвердить вход на сайте» → введите код.</li>
       </ol>
       <button type="button" className="button ghost block" onClick={onBack}><LogIn aria-hidden="true" />Войти по e-mail и паролю</button>

@@ -181,6 +181,42 @@ test('POST /v1/payments requires the offer consent and stores it with the paymen
   }
 })
 
+test('POST /v1/payments returns the payer to the configured site, never to the request Origin', async () => {
+  const run = async (publicUrl: string | undefined, check: (pay: (origin: string) => Promise<Response>, returnUrl: () => string) => Promise<void>) => {
+    const db = openDatabase(':memory:')
+    const accounts = new AccountStore({ db, ownerEmails: [] })
+    const requests: Array<{ confirmation: { return_url: string } }> = []
+    const fakeFetch = (async (_url: string, init: RequestInit) => {
+      requests.push(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify({ id: `2d000000000${requests.length}-000f-5000-9000-1b68e7b15f3f`, status: 'pending', confirmation: { confirmation_url: 'https://yoomoney.ru/checkout/x' } }), { status: 200 })
+    }) as unknown as typeof globalThis.fetch
+    const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_x', monthPrice: 300, receipts: false, streamerPercent: 0, ...(publicUrl ? { publicUrl } : {}) }, { fetch: fakeFetch })
+    accounts.attachSubscriptions(payments)
+    const { token } = await accounts.register('payer@example.com', password)
+    const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments }).listen(0, '127.0.0.1')
+    await new Promise<void>((resolve) => server.on('listening', resolve))
+    const address = server.address()
+    assert.ok(address && typeof address !== 'string')
+    const pay = (origin: string) => fetch(`http://127.0.0.1:${address.port}/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: auth(token), origin }, body: JSON.stringify({ plan: '1m', consent: { version: '2026-09-30' } }) })
+    try { await check(pay, () => requests.at(-1)!.confirmation.return_url) } finally { await new Promise<void>((resolve) => server.close(() => resolve())) }
+  }
+
+  // Configured (TARKOV_PUBLIC_URL): always that site, whatever Origin the request claims.
+  await run('https://raidos.example.com', async (pay, returnUrl) => {
+    assert.equal((await pay('https://evil.example')).status, 201)
+    assert.match(returnUrl(), /^https:\/\/raidos\.example\.com\/cabinet\?payment=[a-f0-9]{24}$/)
+  })
+  // Not configured: only this PC's own site; any other Origin is refused before a payment is created.
+  await run(undefined, async (pay, returnUrl) => {
+    const refused = await pay('https://evil.example')
+    assert.equal(refused.status, 400)
+    assert.match((await refused.json() as { error: string }).error, /адрес сайта/)
+    assert.equal((await pay('https://raidos.example.com.evil.example')).status, 400)
+    assert.equal((await pay('http://127.0.0.1:5202')).status, 201)
+    assert.match(returnUrl(), /^http:\/\/127\.0\.0\.1:5202\/cabinet\?payment=/)
+  })
+})
+
 test('older payment tables get the consent columns on start', () => {
   const db = openDatabase(':memory:')
   new AccountStore({ db, ownerEmails: [] })

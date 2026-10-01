@@ -32,7 +32,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['QR-код для телефона создаёт приложение для Windows.', 'The QR code for the phone is made by the Windows app.'],
   ['Сайт · вход по QR-коду', 'Website · QR sign-in'], ['Вход по QR-коду', 'QR sign-in'],
   ['На сайте нажмите «Войти по QR-коду» и введите сюда код под QR-кодом. Браузер войдёт в этот аккаунт.', 'On the website press «Sign in with a QR code» and enter the code shown under the QR code here. The browser signs in to this account.'],
-  ['Код с сайта', 'Code from the website'], ['Продолжить', 'Continue'], ['Вход запрашивает:', 'Sign-in requested by:'], ['Код создан в', 'Code created at'],
+  ['Код с сайта', 'Code from the website'], ['Продолжить', 'Continue'], ['Вход запрашивает:', 'Sign-in requested by:'], ['Код создан в', 'Code created at'], ['Откуда:', 'From:'],
   ['Разрешайте, только если сайт открыли вы сами. Если код прислал кто-то другой, нажмите «Отмена».', 'Approve only if you opened the website yourself. If somebody else sent you the code, press «Cancel».'],
   ['Разрешить вход', 'Allow sign-in'], ['Готово: браузер вошёл в ваш аккаунт.', 'Done: the browser is signed in to your account.'], ['Готово', 'Done'],
   ['Яндекс Браузер', 'Yandex Browser'], ['Браузер', 'Browser'],

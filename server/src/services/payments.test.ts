@@ -63,6 +63,13 @@ test('config comes only from a complete environment', () => {
   assert.equal(parsed?.monthPrice, 249)
   assert.equal(parsed?.publicUrl, 'https://tarkov.example.com')
   assert.equal(parsed?.receipts, false)
+  // The return address: an https origin or this PC's own site (the owner app's fallback); nothing else.
+  const publicUrl = (value: string) => paymentConfigFromEnv({ YOOKASSA_SHOP_ID: '1', YOOKASSA_SECRET_KEY: 'k', TARKOV_PRICE_MONTH_RUB: '249', TARKOV_PUBLIC_URL: value })?.publicUrl
+  assert.equal(publicUrl('http://127.0.0.1:5202'), 'http://127.0.0.1:5202')
+  assert.equal(publicUrl('https://abc-def.trycloudflare.com'), 'https://abc-def.trycloudflare.com')
+  assert.equal(publicUrl('http://evil.example'), undefined)
+  assert.equal(publicUrl('https://raidos.app/cabinet'), undefined)
+  assert.equal(publicUrl('https://raidos.app@evil.example'), undefined)
 })
 
 test('a paid payment activates the subscription once and credits the streamer', async () => {

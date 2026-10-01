@@ -29,14 +29,17 @@ const optionsSchema = z.object({
 })
 const webhookSchema = z.object({ event: z.string().max(64), object: z.object({ id: z.string().max(64) }).passthrough() }).passthrough()
 
-/** Where ЮKassa sends the user back: the configured public address, else the site the request came from. */
+/** This PC's own website (and the app's dev server): the only Origins used when no public address is configured. */
+const LOCAL_SITES = ['http://localhost:5202', 'http://127.0.0.1:5202', 'http://localhost:5173', 'http://127.0.0.1:5173']
+
+/**
+ * Where ЮKassa sends the payer back: the configured public address (TARKOV_PUBLIC_URL). Never an arbitrary request
+ * Origin — otherwise anybody could create a genuine payment page that returns the payer to a site of their choice.
+ */
 function siteUrl(req: Request, payments: PaymentStore) {
   if (payments.config?.publicUrl) return payments.config.publicUrl
   const origin = req.get('origin') ?? ''
-  try {
-    const url = new URL(origin)
-    if (url.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(url.hostname)) return url.origin
-  } catch { /* no usable origin */ }
+  if (LOCAL_SITES.includes(origin)) return origin
   throw new PaymentError(400, 'Не задан адрес сайта для возврата после оплаты')
 }
 
