@@ -10,7 +10,8 @@ import { loadItemNameVariants } from '../overlay/itemNames'
 import { describeItem } from '../overlay/itemInfo'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
 import type { MarkerLayerId } from '../domain/types'
-import { collectorEntries, scanForCollectorItems } from '../kappa/collector'
+import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
+import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
 
 const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
 const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
@@ -34,17 +35,24 @@ export function ExperimentalBridge() {
     return () => { active = false; clearTimeout(timer) }
   }, [])
   const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, nameVariants ?? undefined), [data.items, nameVariants])
-  const latest = useRef({ data, state, matcher, tooltipMatcher })
+  // «Что не продавать» of the selected mode, for the badge on the item card (computed once per progress change).
+  const progressNow = state.activeProfile.modes[state.raidMode]
+  const keepRows = useMemo(() => {
+    if (!window.tarkovDesktop?.experimental) return new Map<string, KeepRow>()
+    const rows = computeKeepList({ quests: data.quests, hideout: data.hideout, items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
+    return new Map(rows.map((row) => [row.item.id, row]))
+  }, [data.quests, data.hideout, data.items, progressNow, state.raidMode])
+  const latest = useRef({ data, state, matcher, tooltipMatcher, keepRows })
 
   useEffect(() => {
-    latest.current = { data, state, matcher, tooltipMatcher }
+    latest.current = { data, state, matcher, tooltipMatcher, keepRows }
   })
 
   useEffect(() => {
     const api = window.tarkovDesktop?.experimental
     if (!api) return
     return api.onQuery((query) => {
-      const { data, state, matcher, tooltipMatcher } = latest.current
+      const { data, state, matcher, tooltipMatcher, keepRows } = latest.current
       const progress = state.activeProfile.modes[state.raidMode]
       if (query.kind === 'item') {
         const item = query.input.test
@@ -53,7 +61,7 @@ export function ExperimentalBridge() {
             // One name in the box: no loose fallback — a wrong item is worse than «not found».
             ? tooltipMatcher(query.input.text)
             : (query.input.lines?.length ? matchNearest(matcher, query.input.lines) : null) ?? matcher(query.input.text)
-        const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode) : { state: 'not-found', text: query.input.text }
+        const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id))) : { state: 'not-found', text: query.input.text }
         void api.answer(query.id, payload)
         return
       }

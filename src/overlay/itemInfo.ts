@@ -1,5 +1,6 @@
 import type { Item, ModeProgress, Quest, RaidMode } from '../domain/types'
 import type { ItemOverlayInfo, QuestNeed } from './types'
+import type { KeepBadge } from '../raidprep/keepList'
 
 const PURPOSE: Record<string, string> = {
   handover: 'сдать',
@@ -13,7 +14,7 @@ const PURPOSE: Record<string, string> = {
 const COLLECTOR = /коллекционер|collector/i
 
 /** What the player still needs this item for: open quests, Kappa, and what it sells for. */
-export function describeItem(item: Item, quests: Quest[], progress: Pick<ModeProgress, 'taskProgress'>, mode?: RaidMode): ItemOverlayInfo {
+export function describeItem(item: Item, quests: Quest[], progress: Pick<ModeProgress, 'taskProgress'>, mode?: RaidMode, keep?: KeepBadge): ItemOverlayInfo {
   const needs: QuestNeed[] = []
   for (const quest of quests) {
     const status = progress.taskProgress[quest.id]?.status
@@ -46,5 +47,6 @@ export function describeItem(item: Item, quests: Quest[], progress: Pick<ModePro
     quests: needs,
     kappa: needs.some((need) => need.kappa),
     collector: needs.some((need) => COLLECTOR.test(need.name)),
+    ...(keep ? { keep } : {}),
   }
 }

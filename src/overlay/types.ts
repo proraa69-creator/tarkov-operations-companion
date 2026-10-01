@@ -24,6 +24,8 @@ export interface ItemOverlayInfo {
   quests: QuestNeed[]
   kappa: boolean
   collector: boolean
+  /** On the «Что не продавать» list of this mode: still needed for quests / hideout / Collector. */
+  keep?: import('../raidprep/keepList').KeepBadge
 }
 
 export type ItemOverlayPayload =
