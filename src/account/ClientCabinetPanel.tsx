@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CreditCard, ExternalLink, Globe, LogIn, LogOut, RefreshCw, Smartphone, UserRound } from 'lucide-react'
+import { CreditCard, ExternalLink, Globe, LogIn, LogOut, RefreshCw, Smartphone, UserPlus, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useServerAccount } from '../sync/serverSync'
@@ -9,6 +9,7 @@ import { modeTitle, RAID_MODE_ORDER } from './nicknameBinding'
 import { ApproveWebLoginDialog, MobileLoginDialog } from './QrDialogs'
 import { openAccountSignIn } from './accountEvents'
 import { PhoneCabinetRow } from './PhoneAccount'
+import { PHONE_AUTH_UI } from './authFeatures'
 import { EmailVerifyRow } from './EmailAccount'
 import './account.css'
 
@@ -31,7 +32,8 @@ export function ClientCabinetPanel() {
         <div className="panel-body stack">
           <p className="account-cabinet-note">{uiText(status && !online ? 'Сервер недоступен: приложение работает на этом компьютере без аккаунта. Войдите, когда сервер снова будет доступен.' : 'Вы не вошли в аккаунт.')}</p>
           <div className="account-cabinet-actions">
-            <button className="button primary" onClick={openAccountSignIn}><LogIn size={14} />{uiText('Войти в аккаунт')}</button>
+            <button className="button primary" onClick={() => openAccountSignIn('login')}><LogIn size={14} />{uiText('Войти в аккаунт')}</button>
+            <button className="button" onClick={() => openAccountSignIn('register')}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>
             <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
           </div>
         </div>
@@ -69,7 +71,7 @@ export function ClientCabinetPanel() {
             <strong>{nicknames}</strong>
             <small>{uiText('Хранятся в аккаунте отдельно для каждого режима')}</small>
           </div>
-          <PhoneCabinetRow phone={status.phone} online={online} />
+          {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
           <EmailVerifyRow status={status} online={online} />
         </div>
         <div className="account-cabinet-actions">

@@ -4,13 +4,13 @@ import type { ServerAccountStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { emailSignInToServer, refreshServerStatus } from '../sync/serverSync'
 import { postService as post, useAuthFlag, useCooldown, waitFrom, type CodeChallenge } from './codeRequest'
-import { CodeInput, Warning } from './PhoneAccount'
+import { CodeInput, Warning } from './codeFields'
 import './account.css'
 
 /**
  * E-mail one-time codes in the apps (server/src/routes/email.ts): sign-in by a code from the e-mail, «Забыли пароль?»
- * by e-mail, and «Подтвердите e-mail» in «Личный кабинет». Registration itself happens on the website (the apps open
- * /register), where the code step lives. Everything is hidden while the server has no e-mail provider
+ * by e-mail, and «Подтвердите e-mail» in «Личный кабинет». Registration with its code step is in the account window
+ * (AccountSignIn.tsx). Everything is hidden while the server has no e-mail provider
  * (GET /v1/accounts/auth-config → emailEnabled: false).
  */
 
