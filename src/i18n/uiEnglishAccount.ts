@@ -46,6 +46,9 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Сейчас телефон подключён к другому серверу. После входа он переключится на этот.', 'The phone is connected to another server now. After signing in it switches to this one.'],
   ['Сначала войдите в аккаунт в этом приложении (Ещё → Настройки), затем отсканируйте QR-код ещё раз.', 'Sign in in this app first (More → Settings), then scan the QR code again.'],
   ['Браузер просит войти в ваш аккаунт', 'A browser asks to sign in to your account'], ['код', 'code'],
+  ['Незнакомый сервер', 'Unknown server'], ['Подключиться к этому серверу', 'Connect to this server'],
+  ['Ссылка для входа ведёт на сервер, которого нет в приложении:', 'The sign-in link leads to a server this app does not know:'],
+  ['Подключайтесь, только если это ваш сервер. Чужой сервер получит доступ к тому, что вы делаете в приложении, и может притвориться Raid OS. Если ссылку прислал кто-то другой, нажмите «Отмена».', 'Connect only if this is your own server. Another server gets access to what you do in the app and can pretend to be Raid OS. If somebody else sent you the link, press «Cancel».'],
   // «Кабинет стримера»
   ['Кабинет стримера', 'Streamer account'], ['Для стримеров сервис бесплатный', 'The service is free for streamers'], ['Ваша доля', 'Your share'],
   ['От оплат зрителей по вашим ссылкам', 'Of payments by viewers who came through your links'], ['Заработано всего', 'Earned in total'],

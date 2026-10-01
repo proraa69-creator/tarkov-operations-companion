@@ -6,16 +6,20 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { app } from 'electron'
+import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
 import { runningBuild } from './localServer.js'
 import { apiBaseUrl, loadServerUrl } from './serviceGateway.js'
+import { verifiedUpdateManifest } from './updateManifest.js'
 
 /**
  * Auto-update from the owner's server: the server laptop's site hands out the players' (client) exe the owner
  * published next to it (/download/windows) and says which build that is (/download/version.json with `edition`,
- * electron/localServer.ts). Only an app of the same edition updates from it.
- * A newer build is offered in the top bar; «Обновить» downloads it next to this exe, checks size and SHA-256,
- * then a small helper replaces the exe once this copy has quit and starts the new one. Only for the portable exe
- * pointed at another computer's server (Profile → «Адрес сервера»); the server laptop itself is updated by
+ * electron/localServer.ts). Only an app of the same edition updates from it, and only when the manifest's Ed25519
+ * signature (scripts/sign-client-release.mjs) verifies with the key built into the app (electron/updateManifest.ts).
+ * A newer build is offered in the top bar; «Обновить» downloads it next to this exe, checks size and SHA-256 against the
+ * signed values, then a small helper replaces the exe once this copy has quit and starts the new one. Only for the
+ * portable exe: a player's copy updates from the server built into it (https://raidos.app), the owner's copy from the
+ * other computer's server it uses (Profile → «Адрес сервера»); the server laptop itself is updated by
  * Server-Laptop-Setup.cmd.
  *
  * Settings → «Проверить обновление приложения» checks by hand (checkForUpdateNow). Two switches, kept in userData
@@ -27,8 +31,8 @@ export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 
 /** ready: the new exe is already downloaded and checked (installed on close when «Автоустановка» is on). */
 export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean }
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
-/** Result of a check by hand: what the settings line says. */
-export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'no-server' | 'not-portable' | 'disabled' | 'busy'
+/** Result of a check by hand: what the settings line says. unsigned: the server's build has no valid signature (not offered). */
+export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'
 export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: UpdateStatus; current: string; checkedAt: string }
 
 interface Remote { version: string; build: number; commit: string; size: number; sha256: string }
@@ -60,8 +64,17 @@ export function updateStatus() {
   return status
 }
 
-/** The other computer's site (the public server address), or '' when there is nothing to update from. */
+/**
+ * Where updates come from, or '' when there is nothing to update from. A player's copy (client build): only the server
+ * built into it (build-info defaultServerUrl, HTTPS), never the address typed in the app, so another server cannot
+ * offer it an exe. The owner's copy: the other computer's site (the public server address) as before; it never takes
+ * the players' build anyway (see probe).
+ */
 async function updateSource() {
+  if (!isOwnerBuild()) {
+    const builtIn = buildDefaultServerUrl()
+    return builtIn.startsWith('https://') ? builtIn : ''
+  }
   await loadServerUrl()
   let base: URL
   try { base = new URL(apiBaseUrl()) } catch { return '' }
@@ -80,13 +93,14 @@ async function probe(): Promise<UpdateCheckOutcome> {
   try {
     const response = await fetch(`${base}/download/version.json`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' } })
     if (!response.ok) return 'offline'
-    const data = await response.json() as Partial<Remote> & { edition?: unknown }
-    if (typeof data.build !== 'number' || typeof data.size !== 'number' || typeof data.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(data.sha256)) return 'offline'
+    // Only the copy whose signature verified is used from here on (its size and SHA-256 check the download).
+    const signed = verifiedUpdateManifest(await response.json())
+    if (!signed) return 'unsigned'
     // The site hands out the players' (client) exe: the owner's own app never replaces itself with it.
-    if ((data.edition === 'owner' || data.edition === 'client') && data.edition !== local.edition) return 'latest'
-    if (data.build <= local.build) { remote = null; if (status.state === 'available') set({ state: 'idle' }); return 'latest' }
-    const known = remote?.build === data.build && status.state === 'available'
-    remote = { version: String(data.version ?? ''), build: data.build, commit: String(data.commit ?? ''), size: data.size, sha256: data.sha256 }
+    if (signed.edition !== local.edition) return 'latest'
+    if (signed.build <= local.build) { remote = null; if (status.state === 'available') set({ state: 'idle' }); return 'latest' }
+    const known = remote?.build === signed.build && status.state === 'available'
+    remote = { version: signed.version, build: signed.build, commit: signed.commit, size: signed.size, sha256: signed.sha256 }
     source = base
     if (!known) set({ state: 'available', version: remote.version, commit: remote.commit, ready: downloaded?.build === remote.build })
     return 'available'
@@ -200,7 +214,7 @@ export async function installUpdate() {
   return status
 }
 
-/** Downloads the new exe next to this one and checks its size and SHA-256; returns the file. */
+/** Downloads the new exe next to this one and checks its size and SHA-256 (the signed values, see probe); returns the file. */
 async function download(target: Remote) {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe) throw new Error('Обновление доступно только для portable-версии')

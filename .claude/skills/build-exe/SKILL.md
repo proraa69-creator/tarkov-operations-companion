@@ -78,9 +78,15 @@ description: Собрать Windows exe приложения (portable) и до�
    Проверь, что в `release/win-unpacked/resources/app.asar.unpacked` есть `.node` koffi для `win32_x64`, prebuild `uiohook-napi` для `win32-x64` и `tessdata`.
 4. Разрежь exe в **новую** папку scratchpad (скрипт сам откажется писать в непустую; `rm` для очистки не используй — бери новое имя папки):
    ```bash
+   RAIDOS_UPDATE_SIGNING_KEY_FILE=<путь к закрытому ключу обновлений, PEM> \
    scripts/split-exe-for-chat.sh "release/Raid OS Owner <версия>.exe" "$SP/exe-parts-<метка>" \
      "release/Raid OS <версия>.exe" "$SP/client-build-info.json"
    ```
+   `version.json` версии для игроков подписывается (`scripts/sign-client-release.mjs`): игроки ставят автообновление
+   только с подписью, которая сходится с `electron/updateSigningKey.ts`. Ключ даёт владелец (`RAIDOS_UPDATE_SIGNING_KEY_FILE`
+   или `RAIDOS_UPDATE_SIGNING_KEY` — PEM или его base64); в репозиторий и чат его не клади и не печатай. Без ключа скрипт
+   откажется собирать части для игроков; `ALLOW_UNSIGNED=1` соберёт их без подписи — скажи владельцу, что тогда
+   автообновления у игроков не будет.
    Получатся `RaidOS.part0..N` (владелец), `RaidOSClient.part0..N` (игроки), `Join-Raid-OS.cmd`
    (владелец на рабочий стол + запуск), `Join-Raid-OS-Client.cmd` (игроки на рабочий стол, без запуска) и
    `Server-Laptop-Setup.cmd` (ноутбук: сервер + публикация версии для игроков на сайт). Все ASCII, CRLF, со вшитыми SHA256.

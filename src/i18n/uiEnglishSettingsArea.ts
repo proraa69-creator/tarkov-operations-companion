@@ -9,6 +9,7 @@ export const SETTINGS_AREA_PHRASES: Array<[string, string]> = [
   ['Повторить', 'Retry'], ['уже загружена', 'already downloaded'],
   ['Найдена новая версия', 'A new version is available'], ['Установлена последняя версия', 'You have the latest version'],
   ['Сервер обновлений недоступен, попробуйте позже', 'The update server is unreachable, try again later'],
+  ['Версия на сервере без действительной подписи, обновление не предлагается', 'The version on the server has no valid signature, so it is not offered'],
   ['Не задан сервер обновлений (адрес сервера другого компьютера)', 'No update server is set (the server address of another computer)'],
   ['Обновление работает только в собранной portable-версии', 'Updating works only in the built portable version'],
   ['В этой сборке обновление выключено', 'Updating is turned off in this build'], ['Обновление уже загружается', 'The update is already downloading'],
