@@ -22,6 +22,10 @@ import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSettin
 import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
+import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats } from "../arsenal/ammoSource";
+import { caliberColors } from "../arsenal/caliberColors";
+import { effectiveArmorClass } from "../arsenal/ballistics";
+import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend, DropOffCharts } from "../arsenal/BallisticsCharts";
 
 export function EconomyPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -255,106 +259,138 @@ export function KeysPage() {
   );
 }
 
+/** «Баллистика 2.0» (sidebar group «Арсенал»): live tarkov.dev ammo stats, chart, armor table and drop-off. */
 export function AmmoPage() {
   const { data } = useTarkovData();
   const state = useAppState();
-  const [caliber, setCaliber] = useState("Все калибры");
-  const ammo = data.items.filter((item) => item.category === "Боеприпас");
-  const calibers = [
-    "Все калибры",
-    ...new Set(ammo.map((item) => item.caliber).filter(Boolean)),
-  ];
-  const filtered = ammo
-    .filter((item) => caliber === "Все калибры" || item.caliber === caliber)
-    .sort((a, b) => (b.penetration ?? 0) - (a.penetration ?? 0));
+  const { locale } = useLocale();
+  const live = useAmmoStats(state.raidMode, locale);
+  const ammo = useMemo(
+    () => (live.data?.length ? live.data : ammoFromCatalog(data.items, state.raidMode)),
+    [live.data, data.items, state.raidMode],
+  );
+  const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);
+  const [caliber, setCaliber] = useState("");
+  const [selectedId, setSelectedId] = useState<string>();
+  const filtered = useMemo(
+    () => ammo.filter((round) => !caliber || round.caliber === caliber).sort((a, b) => b.penetration - a.penetration),
+    [ammo, caliber],
+  );
+  const selected = filtered.find((round) => round.id === selectedId) ?? filtered[0];
+  const isLive = Boolean(live.data?.length);
   return (
     <div className="page">
       <header className="page-header">
         <div>
-          <div className="eyebrow">{uiText("Баллистика")}</div>
-          <h1 className="page-title">{uiText("Боеприпасы")}</h1>
-          <p className="page-subtitle">{uiText(" Сравнение урона, пробития и цены для быстрой подготовки боекомплекта. ")}</p>
+          <div className="eyebrow">{uiText("Арсенал")}{" · "}{state.raidMode === "seasonal" ? uiText("Сезон") : state.raidMode.toUpperCase()}</div>
+          <h1 className="page-title">{uiText("Баллистика")}</h1>
+          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов, шанс пробить броню 1–6 класса и примерное падение урона с дистанцией.")}</p>
         </div>
-        <span className="tag green">
-          <Crosshair size={12} />{uiText(" сортировка по пробитию ")}</span>
+        <span className={`tag ${isLive ? "green" : "danger"}`}>
+          <Crosshair size={12} />{" "}
+          {uiText(isLive ? "tarkov.dev · живые данные" : live.isLoading ? "Загрузка tarkov.dev…" : "Каталог: только урон и пробитие")}
+        </span>
       </header>
       <div className="filter-row">
         <select
           className="select"
+          aria-label={uiText("Калибр")}
           value={caliber}
           onChange={(event) => setCaliber(event.target.value)}
         >
-          {uiText(calibers.map((entry) => (
-            <option key={entry}>{uiText(entry)}</option>
-          )))}
+          <option value="">{uiText("Все калибры")}</option>
+          {ordered.map((entry) => (
+            <option key={entry} value={entry}>{caliberLabel(entry)}</option>
+          ))}
         </select>
       </div>
-      <section className="panel">
-        <div className="panel-body" style={{ overflowX: "auto" }}>
-          <table className="price-table">
-            <thead>
-              <tr>
-                <th>{uiText("Патрон")}</th>
-                <th>{uiText("Калибр")}</th>
-                <th>{uiText("Урон")}</th>
-                <th>{uiText("Пробитие")}</th>
-                <th>{uiText("Против брони")}</th>
-                <th>{uiText("Цена")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {uiText(filtered.map((item) => {
-                const price = item.prices.find(
-                  (quote) => quote.mode === state.raidMode,
-                );
-                const effectiveClass = Math.min(
-                  6,
-                  Math.max(1, Math.floor((item.penetration ?? 0) / 8)),
-                );
-                return (
-                  <tr key={item.id}>
-                    <td>
-                      <Link
-                        to={`/flea?selected=${item.id}`}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <img className="item-thumb" src={item.iconUrl} alt={uiText("")} />
-                        <strong>{uiText(item.shortName)}</strong>
-                      </Link>
-                    </td>
-                    <td>{uiText(item.caliber)}</td>
-                    <td className="mono">{uiText(item.damage)}</td>
-                    <td>
-                      <strong className="mono">{uiText(item.penetration)}</strong>
-                      <div
-                        className="priority-bar"
-                        style={{ width: 110, marginTop: 6 }}
-                      >
-                        <span
-                          style={{
-                            width: `${Math.min(100, (item.penetration ?? 0) * 1.6)}%`,
-                          }}
-                        />
-                      </div>
-                    </td>
-                    <td>
-                      <span className="tag brass">{uiText(" до класса ")}{uiText(effectiveClass)}
-                      </span>
-                    </td>
-                    <td className="mono">
-                      {uiText(price ? formatPrice(price.price) : "—")}
-                    </td>
-                  </tr>
-                );
-              }))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div className="ballistics-layout">
+        <section className="panel">
+          <div className="panel-header">
+            <div className="panel-title">{uiText("Пробитие и урон")}</div>
+            <small className="dim">{filtered.length}{uiText(" патронов")}</small>
+          </div>
+          <div className="panel-body">
+            <AmmoScatter ammo={filtered} colorOf={colorOf} selectedId={selected?.id} onSelect={setSelectedId} />
+            <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
+          </div>
+        </section>
+        {selected && (
+          <div className="ballistics-split">
+            <section className="panel">
+              <div className="panel-header">
+                <div className="panel-title selected-ammo-head">
+                  <span className="swatch" style={{ background: colorOf(selected.caliber) }} />
+                  {uiText("Против брони")}{" · "}{selected.shortName}
+                </div>
+                <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+              </div>
+              <div className="panel-body"><ArmorEffectivenessTable ammo={selected} /></div>
+            </section>
+            <section className="panel">
+              <div className="panel-header">
+                <div className="panel-title">{uiText("Падение с дистанцией")}{" · "}{selected.shortName}</div>
+                <span className="tag brass">{uiText("приблизительно")}</span>
+              </div>
+              <div className="panel-body"><DropOffCharts ammo={selected} color={colorOf(selected.caliber)} /></div>
+            </section>
+          </div>
+        )}
+        <section className="panel">
+          <div className="panel-body" style={{ overflowX: "auto" }}>
+            <table className="price-table ammo-table">
+              <thead>
+                <tr>
+                  <th>{uiText("Патрон")}</th>
+                  <th>{uiText("Калибр")}</th>
+                  <th>{uiText("Урон")}</th>
+                  <th>{uiText("Пробитие")}</th>
+                  <th>{uiText("Урон броне")}</th>
+                  <th>{uiText("Фрагм.")}</th>
+                  <th>{uiText("Скорость")}</th>
+                  <th>{uiText("Против брони")}</th>
+                  <th>{uiText("Цена")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((round) => {
+                  const ruleClass = effectiveArmorClass(round.penetration);
+                  return (
+                    <tr key={round.id} className={round.id === selected?.id ? "ammo-row-selected" : ""} onClick={() => setSelectedId(round.id)}>
+                      <td>
+                        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {round.iconUrl ? <img className="item-thumb" src={round.iconUrl} alt="" /> : <span className="swatch" style={{ background: colorOf(round.caliber) }} />}
+                          <span>
+                            <strong>{round.shortName}</strong>
+                            <small className="dim" style={{ display: "block" }}>{round.name}</small>
+                          </span>
+                        </span>
+                      </td>
+                      <td>{caliberLabel(round.caliber)}</td>
+                      <td className="mono">{damageText(round)}</td>
+                      <td>
+                        <strong className="mono">{round.penetration}</strong>
+                        <div className="priority-bar" style={{ width: 110, marginTop: 6 }}>
+                          <span style={{ width: `${Math.min(100, round.penetration * 1.4)}%` }} />
+                        </div>
+                      </td>
+                      <td className="mono">{round.armorDamage === undefined ? "—" : `${round.armorDamage}%`}</td>
+                      <td className="mono">{round.fragmentationChance === undefined ? "—" : `${Math.round(round.fragmentationChance * 100)}%`}</td>
+                      <td className="mono">{round.initialSpeed ? `${Math.round(round.initialSpeed)} ${uiText("м/с")}` : "—"}</td>
+                      <td>
+                        <span className={`tag ${ruleClass >= 4 ? "green" : "brass"}`}>
+                          {ruleClass ? `${uiText("до класса")} ${ruleClass}` : uiText("ниже 1 класса")}
+                        </span>
+                      </td>
+                      <td className="mono">{round.price ? formatPrice(round.price) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
