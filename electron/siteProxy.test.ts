@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApi } from '../server/src/app'
 import { ProgressStore } from '../server/src/services/progressStore'
-import { proxyToApi, siteRoute } from './siteProxy'
+import { proxyToApi, siteRoute, visitorAddress } from './siteProxy'
 
 /**
  * The real API (server/src/app.ts) behind the website server's proxy (electron/localServer.ts), as on the server
@@ -79,5 +79,13 @@ describe('site proxy → API: QR sign-in through the website address', () => {
     expect(answer.status).toBe(502)
     expect((await answer.json() as { error: string }).error).toContain('502')
     await new Promise((resolve) => dead.close(resolve))
+  })
+})
+
+describe('visitorAddress', () => {
+  it('takes CF-Connecting-IP only from the local tunnel and ignores a client-sent X-Forwarded-For', () => {
+    expect(visitorAddress('127.0.0.1', { 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '1.2.3.4' })).toBe('203.0.113.7')
+    expect(visitorAddress('192.168.1.5', { 'cf-connecting-ip': '203.0.113.7' })).toBe('192.168.1.5')
+    expect(visitorAddress('127.0.0.1', { 'cf-connecting-ip': 'evil, 1.2.3.4' })).toBe('127.0.0.1')
   })
 })

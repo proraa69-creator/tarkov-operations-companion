@@ -33,6 +33,8 @@ export interface ServerAccountStatus {
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
   subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+  /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
+  phone?: string
 }
 
 /** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */
@@ -49,6 +51,10 @@ export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline'
 export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
 /** `autopay`/`lava` are missing when the main process is older than the renderer. */
 export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean; lava?: LavaSettings }
+/** «SMS: одноразовые коды» (electron/ownerAdmin.ts). The key is write-only. */
+export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
+export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
+export interface SmsServerStatus { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
 export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
 
 interface TarkovDesktopApi {
@@ -63,6 +69,11 @@ interface TarkovDesktopApi {
       | { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }
       | { section: 'lava'; offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: LavaSettings['paymentMethod']; apiKey?: string; webhookKey?: string; clearKeys?: boolean }) => Promise<PaymentSettings>
     streamers: () => Promise<{ streamers: StreamerRow[]; invites: Array<{ code: string; expiresAt: string }> }>
+    /** Missing when the main process is older than the renderer. */
+    sms?: () => Promise<SmsSettings>
+    setSms?: (settings: { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; apiKey?: string; clearKey?: boolean }) => Promise<SmsSettings>
+    smsStatus?: () => Promise<SmsServerStatus>
+    sendTestSms?: (phone: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
     inviteStreamer: (code: string) => Promise<{ link: string; code: string; expiresAt: string }>
     /** «E-mail владельца»: accounts that see the owner section of the website (TARKOV_OWNER_EMAILS). */
     ownerEmails: () => Promise<string[]>
@@ -84,6 +95,8 @@ interface TarkovDesktopApi {
     status: () => Promise<ServerAccountStatus>
     login: (email: string, password: string) => Promise<ServerAccountStatus>
     logout: () => Promise<ServerAccountStatus>
+    /** Sign-in or password reset by phone after the SMS code; the session stays in the main process. */
+    phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
     /** «Сервер и сайт на этом компьютере»: the API and the website run from the app on this PC. */
     localServerStatus?: () => Promise<LocalServerStatus>

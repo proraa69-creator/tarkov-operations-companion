@@ -8,6 +8,8 @@ import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
 import { createLoginCodesRouter } from './routes/loginCodes.js'
+import { createPhoneRouter } from './routes/phone.js'
+import { PhoneAuthService } from './services/phoneAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
 import { AccountStore } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
@@ -41,6 +43,8 @@ export interface ApiOptions {
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
   loginCodes?: LoginCodeStore
+  /** Phone numbers and SMS codes; defaults to switched off (no SMS provider). */
+  phones?: PhoneAuthService
 }
 
 /**
@@ -63,6 +67,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const userData = options.userData ?? new UserDataStore(openDatabase(':memory:'))
   const app = express()
   app.disable('x-powered-by')
+  // The API listens on 127.0.0.1 and the public link reaches it through the app's site server (electron/localServer.ts),
+  // which puts the visitor's address into X-Forwarded-For. Trusting only loopback proxies keeps per-IP rate limits per
+  // visitor instead of one shared bucket for everybody, while a remote client still cannot fake its address.
+  app.set('trust proxy', 'loopback')
   // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
   app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
   app.use(express.json({ limit: '1mb' }))
@@ -76,7 +84,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createAccountsRouter(accounts))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
-  app.use('/v1/admin', createAdminRouter(accounts))
+  const phones = options.phones ?? new PhoneAuthService(accounts)
+  app.use('/v1/accounts', createPhoneRouter(accounts, phones))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.

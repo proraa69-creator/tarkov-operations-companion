@@ -38,6 +38,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
+  // Phone number and SMS codes (server/src/routes/phone.ts). Only the code *requests* go through here: the calls that
+  // return a session (/phone/login, /phone/reset) have their own IPC, so the token never reaches the renderer.
+  { methods: ['GET'], path: /^\/v1\/accounts\/auth-config$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/phone\/(?:login|reset)\/start$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/phone\/(?:start|confirm|remove)$/ },
   // «Кабинет стримера» (server/src/routes/accounts.ts, payouts.ts): statistics, audience links, payouts.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
@@ -260,6 +265,8 @@ export interface AccountStatus {
   /** From the server account (GET /v1/accounts/me) while online. */
   nicknames?: Partial<Record<AccountMode, string>>
   subscription?: AccountSubscription
+  /** Verified phone number, masked by the server. */
+  phone?: string
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -270,7 +277,7 @@ export async function accountStatus(): Promise<AccountStatus> {
   await loadSessionForServer()
   let serverUrl = defaultApiUrl()
   let online: boolean
-  let details: Pick<AccountStatus, 'nicknames' | 'subscription'> = {}
+  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone'> = {}
   try {
     serverUrl = apiBaseUrl()
     const health = await send('GET', '/health', { timeoutMs: 3000 })
@@ -279,7 +286,7 @@ export async function accountStatus(): Promise<AccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
         details = accountDetails(view)
@@ -292,7 +299,7 @@ export async function accountStatus(): Promise<AccountStatus> {
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 /** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone'> {
   const nicknames: Partial<Record<AccountMode, string>> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -305,7 +312,10 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): 
   const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
   const paidUntil = date(sub.paidUntil)
   const trialEndsAt = date(sub.trialEndsAt)
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) } }
+  // The verified phone number comes masked from the server (+7 ••• •••-45-67).
+  const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
+  const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
+  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}) }
 }
 
 /**
@@ -345,6 +355,34 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   await saveSession(answer.token, { email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
+  return accountStatus()
+}
+
+/**
+ * Sign-in by phone, or a password reset by phone, after the SMS code (POST /v1/accounts/phone/login | /phone/reset).
+ * The code request itself goes through `serviceRequest`; this call returns a session, so it stays in this process.
+ */
+export async function accountPhoneSignIn(kind: unknown, rawChallenge: unknown, rawCode: unknown, rawPassword?: unknown): Promise<AccountStatus> {
+  const challengeId = typeof rawChallenge === 'string' ? rawChallenge : ''
+  const code = typeof rawCode === 'string' ? rawCode.replace(/[\s-]/g, '') : ''
+  if (!/^[A-Za-z0-9_-]{32}$/.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из SMS — 6 цифр')
+  const reset = kind === 'reset'
+  const password = typeof rawPassword === 'string' ? rawPassword : ''
+  if (reset && (password.length < 8 || password.length > 128)) throw new Error('Новый пароль: от 8 до 128 символов')
+  await loadServerUrl()
+  let sent: Awaited<ReturnType<typeof send>>
+  try {
+    sent = await send('POST', reset ? '/v1/accounts/phone/reset' : '/v1/accounts/phone/login', { body: reset ? { challengeId, code, password } : { challengeId, code } })
+  } catch (error) {
+    if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
+    throw error
+  }
+  const { response, result } = sent
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  await saveSession(answer.token, { email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
   return accountStatus()
 }
 

@@ -31,6 +31,9 @@ const EMAIL = /^[^\s@,;]{1,64}@[^\s@,;]{1,190}\.[^\s@,;]{2,}$/
 const keyFile = () => join(app.getPath('userData'), 'payments-key.bin')
 const lavaApiKeyFile = () => join(app.getPath('userData'), 'lava-api-key.bin')
 const lavaWebhookKeyFile = () => join(app.getPath('userData'), 'lava-webhook-key.bin')
+/** «SMS: одноразовые коды»: provider settings in sms.json, the key encrypted in sms-key.bin. */
+const smsFile = () => join(app.getPath('userData'), 'sms.json')
+const smsKeyFile = () => join(app.getPath('userData'), 'sms-key.bin')
 
 async function readSaved(): Promise<SavedPayments> {
   try {
@@ -138,7 +141,84 @@ export async function setOwnerEmails(raw: unknown) {
   return emails
 }
 
-/** Environment for the API process: owner token, owner e-mails, ЮKassa, Lava.top and the public site address. */
+// ---------------------------------------------------------------------------------------------------------------
+// «SMS: одноразовые коды» (server/src/services/sms, docs/sms-login.md). Set ONLY here, on the owner's PC: the website
+// and its admin panel cannot change the provider, so a stolen owner web session cannot redirect one-time codes.
+// ---------------------------------------------------------------------------------------------------------------
+
+export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
+/** The key is write-only: only whether it is stored is shown. */
+export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
+interface SavedSms { provider?: SmsProvider; login?: string; sender?: string; dailyLimit?: number; countries?: string }
+const SMS_PROVIDERS: SmsProvider[] = ['smsru', 'smsc', 'smsaero']
+export const DEFAULT_SMS_DAILY_LIMIT = 100
+
+async function readSms(): Promise<SavedSms> {
+  try { return JSON.parse(await readFile(smsFile(), 'utf8')) as SavedSms } catch { return {} }
+}
+
+/** Provider, login and key are all there (SMSC.ru and SMS Aero also need the login). */
+function smsComplete(saved: SavedSms, hasKey: boolean) {
+  return Boolean(saved.provider && SMS_PROVIDERS.includes(saved.provider) && hasKey && (saved.provider === 'smsru' || saved.login))
+}
+
+export async function smsSettings(): Promise<SmsSettings> {
+  const saved = await readSms()
+  const hasKey = existsSync(smsKeyFile())
+  return {
+    provider: saved.provider && SMS_PROVIDERS.includes(saved.provider) ? saved.provider : '', login: saved.login ?? '', sender: saved.sender ?? '',
+    dailyLimit: saved.dailyLimit ?? DEFAULT_SMS_DAILY_LIMIT, countries: saved.countries ?? '7', hasKey, configured: smsComplete(saved, hasKey),
+  }
+}
+
+/** Saves the SMS settings; an empty key keeps the stored one, `clearKey` removes it (phone features switch off). */
+export async function setSmsSettings(raw: unknown) {
+  const input = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const provider = String(input.provider ?? '').trim() as SmsProvider
+  const login = String(input.login ?? '').trim()
+  const sender = String(input.sender ?? '').trim()
+  const key = String(input.apiKey ?? '').trim()
+  const dailyLimit = Number(input.dailyLimit ?? DEFAULT_SMS_DAILY_LIMIT)
+  const countries = [...new Set(String(input.countries ?? '7').split(/[\s,;]+/).map((code) => code.replace(/^\+/, '')).filter(Boolean))]
+  if (provider && !SMS_PROVIDERS.includes(provider)) throw new Error('Неизвестный провайдер SMS')
+  if (login.length > 254 || /\s/.test(login)) throw new Error('Логин: без пробелов, до 254 символов')
+  if ((provider === 'smsc' || provider === 'smsaero') && !login) throw new Error(provider === 'smsc' ? 'Для SMSC.ru укажите логин' : 'Для SMS Aero укажите e-mail аккаунта')
+  if (sender.length > 11 || /[^A-Za-z0-9 ._-]/.test(sender)) throw new Error('Имя отправителя: до 11 латинских букв и цифр, как его согласовал провайдер')
+  if (key && (key.length < 6 || key.length > 300 || /\s/.test(key))) throw new Error('Проверьте ключ: он копируется целиком, без пробелов')
+  if (!Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 100_000) throw new Error('Лимит SMS в сутки: целое число от 1 до 100 000')
+  if (!countries.length || countries.some((code) => !/^[1-9]\d{0,2}$/.test(code))) throw new Error('Страны: коды через запятую, например 7 или 7, 375')
+  if (key) await storeSecret(smsKeyFile(), key)
+  if (input.clearKey === true) await rm(smsKeyFile(), { force: true })
+  const next: SavedSms = { provider, login, sender, dailyLimit, countries: countries.join(',') }
+  await writeFile(smsFile(), JSON.stringify(next), 'utf8')
+  return smsSettings()
+}
+
+/** What the running API reports: whether SMS are on and how many went out in the last 24 hours. */
+export async function smsServerStatus() {
+  return await admin('GET', '/sms') as { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
+}
+
+/** «Отправить тестовое SMS» through the running API (counts towards the daily limit). */
+export async function sendTestSms(phone: unknown) {
+  return await admin('POST', '/sms/test', { phone: String(phone ?? '').slice(0, 32) }) as { ok: boolean; provider: string; sentToday: number; dailyLimit: number }
+}
+
+async function smsEnvironment(): Promise<Record<string, string>> {
+  const saved = await readSms()
+  const key = await secretKey(smsKeyFile())
+  if (!smsComplete(saved, Boolean(key))) return {}
+  return {
+    TARKOV_SMS_PROVIDER: saved.provider!,
+    TARKOV_SMS_API_KEY: key,
+    ...(saved.login ? { TARKOV_SMS_LOGIN: saved.login } : {}),
+    ...(saved.sender ? { TARKOV_SMS_SENDER: saved.sender } : {}),
+    TARKOV_SMS_DAILY_LIMIT: String(saved.dailyLimit ?? DEFAULT_SMS_DAILY_LIMIT),
+    TARKOV_SMS_COUNTRIES: saved.countries ?? '7',
+  }
+}
+
+/** Environment for the API process: owner token, owner e-mails, ЮKassa, Lava.top, SMS and the public site address. */
 export async function apiEnvironment(publicUrl: string): Promise<Record<string, string>> {
   const saved = await readSaved()
   const key = await secretKey()
@@ -146,8 +226,10 @@ export async function apiEnvironment(publicUrl: string): Promise<Record<string, 
   const lavaApiKey = await secretKey(lavaApiKeyFile())
   const lavaWebhookKey = await secretKey(lavaWebhookKeyFile())
   const owners = await ownerEmails()
+  const sms = await smsEnvironment()
   return {
     TARKOV_ADMIN_TOKEN: ADMIN_TOKEN,
+    ...sms,
     ...(owners.length ? { TARKOV_OWNER_EMAILS: owners.join(',') } : {}),
     ...(publicUrl ? { TARKOV_PUBLIC_URL: publicUrl } : {}),
     ...(saved.shopId && key && saved.monthPrice ? {

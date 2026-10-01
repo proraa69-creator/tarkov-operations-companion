@@ -28,7 +28,14 @@ export interface Account {
   stats?: ReferralStats
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
+  /** Verified phone number, masked (+7 ••• •••-45-67). */
+  phone?: { masked: string; verifiedAt: string }
 }
+
+/** GET /v1/accounts/auth-config (server/src/routes/phone.ts): whether SMS codes work on this server. */
+export interface AuthConfig { smsEnabled: boolean; codeLength: number; codeTtlSeconds: number; resendSeconds: number; countries: string[] }
+/** A code was requested: what the next step sends back. The SMS itself holds the code. */
+export interface SmsChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
 
 export const NETWORK_ERROR_MESSAGE = 'Сервер аккаунтов сейчас недоступен. Проверьте подключение к интернету и попробуйте ещё раз через минуту.'
 
@@ -257,6 +264,17 @@ export const api = {
   login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),
   me: (token: string) => request<Account>('/me', { token }),
+  /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */
+  changePassword: (token: string, currentPassword: string, newPassword: string) => request<AuthResult>('/me/password', { method: 'POST', token, body: { currentPassword, newPassword } }),
+  authConfig: () => request<AuthConfig>('/auth-config'),
+  /** The same answer whether or not the number belongs to an account; the SMS goes only to a verified number. */
+  phoneLoginStart: (phone: string) => request<SmsChallenge>('/phone/login/start', { method: 'POST', body: { phone } }),
+  phoneLogin: (challengeId: string, code: string) => request<AuthResult>('/phone/login', { method: 'POST', body: { challengeId, code } }),
+  phoneResetStart: (phone: string) => request<SmsChallenge>('/phone/reset/start', { method: 'POST', body: { phone } }),
+  phoneReset: (challengeId: string, code: string, password: string) => request<AuthResult>('/phone/reset', { method: 'POST', body: { challengeId, code, password } }),
+  phoneBindStart: (token: string, phone: string, password: string) => request<SmsChallenge>('/me/phone/start', { method: 'POST', token, body: { phone, password } }),
+  phoneBindConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/phone/confirm', { method: 'POST', token, body: { challengeId, code } }),
+  phoneRemove: (token: string, password: string) => request<Account>('/me/phone/remove', { method: 'POST', token, body: { password } }),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   setNicknames: (token: string, nicknames: Partial<Record<AccountMode, string>>) => request<Account>('/me/nicknames', { method: 'PUT', token, body: nicknames }),
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),

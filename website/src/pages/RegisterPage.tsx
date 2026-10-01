@@ -5,6 +5,7 @@ import { ApiError, api, errorMessage } from '../api'
 import { useAuth } from '../auth'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { Notice } from '../components/Notice'
+import { PhoneBind, useAuthConfig } from '../components/PhoneAuth'
 import { LEGAL_VERSION } from '../legal/documents'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 
@@ -22,6 +23,23 @@ export function RegisterPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [localError, setLocalError] = useState<string | null>(null)
+  const config = useAuthConfig()
+  // After registration, with SMS on: an optional step to confirm a phone number (skippable).
+  const [phoneStep, setPhoneStep] = useState<{ referralRejected: boolean } | null>(null)
+
+  if (phoneStep) {
+    const finish = () => navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected: phoneStep.referralRejected } })
+    return (
+      <div className="container auth-wrap page-in">
+        <div className="panel auth-card">
+          <div className="eyebrow">Аккаунт создан · необязательный шаг</div>
+          <h1>Номер телефона</h1>
+          <p className="lead">Привяжите номер: по коду из SMS можно будет войти и восстановить пароль. Номер не виден другим людям и используется только для кодов.</p>
+          <PhoneBind password={password} onDone={finish} onCancel={finish} cancelLabel="Пропустить" />
+        </div>
+      </div>
+    )
+  }
 
   if (auth.status === 'ready') return <Navigate to="/cabinet" replace />
 
@@ -40,7 +58,9 @@ export function RegisterPage() {
       // The server keeps the version of the accepted documents and the time (152-ФЗ: consent must be provable).
       void api.recordConsent(token, 'registration', LEGAL_VERSION).catch(() => undefined)
       saveReferralCode(null)
-      navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected: Boolean(code) && !referralApplied } })
+      const referralRejected = Boolean(code) && !referralApplied
+      if (config?.smsEnabled) setPhoneStep({ referralRejected })
+      else navigate('/cabinet', { replace: true, state: { welcome: true, referralRejected } })
     } catch (reason) {
       setError(reason)
     } finally {

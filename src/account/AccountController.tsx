@@ -15,6 +15,7 @@ import { openWebsite } from './accountActions'
 import { OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
 import { findNickname, modeTitle, RAID_MODE_ORDER, saveNicknamesOnServer } from './nicknameBinding'
 import { useNicknameBinder } from './useNicknameBinder'
+import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
 import './account.css'
 
 /** Offline sign-in was skipped in this window (the server was not reachable). */
@@ -153,6 +154,7 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
   const online = status?.online ?? false
 
   const submit = async (event: FormEvent) => {
@@ -170,6 +172,16 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
     } finally {
       setBusy(false)
     }
+  }
+
+  if (phoneMode) {
+    return (
+      <div className="stack account-gate-form">
+        <div className="eyebrow">{uiText('Raid OS · шаг 1 из 2')}</div>
+        <h2>{uiText(phoneMode === 'login' ? 'Вход по коду из SMS' : 'Восстановление пароля')}</h2>
+        <PhoneSignInForm purpose={phoneMode} onSignedIn={(next) => { onSigningIn(); onSignedIn(next.nicknames) }} onBack={() => setPhoneMode(null)} />
+      </div>
+    )
   }
 
   return (
@@ -192,6 +204,7 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
         <span>{uiText('Нет аккаунта?')}</span>
         <button type="button" className="link-button" onClick={() => openWebsite('register')}><UserPlus size={14} />{uiText('Зарегистрироваться на сайте')}</button>
       </div>
+      <PhoneSignInLinks online={status?.online} onPick={setPhoneMode} />
       <ServerAddressLine />
       {status && !online && (
         <div className="account-gate-offline">

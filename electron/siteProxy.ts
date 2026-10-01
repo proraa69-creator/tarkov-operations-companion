@@ -1,12 +1,27 @@
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http'
 
 /**
+ * The visitor's address for the API's per-IP rate limits (it trusts X-Forwarded-For from loopback only). The public
+ * link arrives through cloudflared on 127.0.0.1, so the socket address is the same for everybody; Cloudflare's edge
+ * sets CF-Connecting-IP itself (a visitor cannot choose it), and a header a visitor sent is never passed on as is.
+ */
+export function visitorAddress(socketAddress: string | undefined, headers: IncomingMessage['headers']) {
+  const loopback = !socketAddress || socketAddress === '127.0.0.1' || socketAddress === '::1' || socketAddress === '::ffff:127.0.0.1'
+  const cf = typeof headers['cf-connecting-ip'] === 'string' ? headers['cf-connecting-ip'].trim() : ''
+  if (loopback && /^[0-9a-fA-F.:]{2,45}$/.test(cf)) return cf
+  return socketAddress ?? '127.0.0.1'
+}
+
+/**
  * The API under the website's own address (electron/localServer.ts): /health and /v1/* on 127.0.0.1:5202 go to the
  * API on 127.0.0.1:<apiPort>, so the site keeps working when opened through the public link. Kept free of Electron
  * imports so the whole path (site → proxy → real API, e.g. QR sign-in) is tested in siteProxy.test.ts.
  */
 export function proxyToApi(request: IncomingMessage, response: ServerResponse, apiPort: number) {
-  const upstream = httpRequest({ host: '127.0.0.1', port: apiPort, method: request.method, path: request.url, headers: { ...request.headers, host: `127.0.0.1:${apiPort}` } }, (answer) => {
+  const { 'x-forwarded-for': _forwarded, ...headers } = request.headers
+  void _forwarded
+  const forwardedFor = visitorAddress(request.socket.remoteAddress, request.headers)
+  const upstream = httpRequest({ host: '127.0.0.1', port: apiPort, method: request.method, path: request.url, headers: { ...headers, host: `127.0.0.1:${apiPort}`, 'x-forwarded-for': forwardedFor } }, (answer) => {
     response.writeHead(answer.statusCode ?? 502, answer.headers)
     answer.pipe(response)
   })

@@ -99,3 +99,9 @@
 @media (max-width: 980px) { .page .profile-operator-layout { grid-template-columns: 1fr; } }
 .account-subtitle { display: flex; align-items: center; gap: 7px; margin: 6px 0 0; font-size: 13px; letter-spacing: .04em; }
 .account-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* «Телефон» in «Личный кабинет» (PhoneAccount.tsx) */
+.account-phone { grid-column: 1 / -1; }
+.account-phone .stack { gap: 8px; margin-top: 4px; }
+.account-phone-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.account-phone-done { display: inline-flex; align-items: center; gap: 5px; color: var(--green) !important; }

@@ -1,10 +1,11 @@
-import { LoaderCircle, LogIn, QrCode, RefreshCw } from 'lucide-react'
+import { LoaderCircle, LogIn, MessageSquareText, QrCode, RefreshCw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ApiError, errorMessage } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
 import { LoginQr } from '../components/LoginQr'
+import { PhoneSignIn, useAuthConfig } from '../components/PhoneAuth'
 import { qrLogin, type QrLoginRequest } from '../qrLogin'
 import '../qrLogin.css'
 
@@ -15,7 +16,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
-  const [withQr, setWithQr] = useState(false)
+  const [method, setMethod] = useState<'password' | 'qr' | 'phone'>('password')
+  const config = useAuthConfig()
 
   if (auth.status === 'ready') return <Navigate to="/cabinet" replace />
 
@@ -38,7 +40,9 @@ export function LoginPage() {
       <div className="panel auth-card">
         <div className="eyebrow">Аккаунт</div>
         <h1>Вход</h1>
-        {withQr ? <QrSignIn onBack={() => setWithQr(false)} /> : <>
+        {method === 'qr' && <QrSignIn onBack={() => setMethod('password')} />}
+        {method === 'phone' && <PhoneSignIn purpose="login" onDone={() => navigate('/cabinet', { replace: true })} onBack={() => setMethod('password')} />}
+        {method === 'password' && <>
           <p className="lead">Войдите, чтобы открыть личный кабинет.</p>
           <form className="form" onSubmit={submit} noValidate={false}>
             {error !== null && (
@@ -51,6 +55,7 @@ export function LoginPage() {
             <label className="field">
               <span className="field-label">Пароль</span>
               <input className="input" type="password" autoComplete="current-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+              <span className="field-hint"><Link to="/reset">Забыли пароль?</Link></span>
             </label>
             <button type="submit" className="button primary large block" disabled={busy}>
               {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}
@@ -58,7 +63,8 @@ export function LoginPage() {
             </button>
           </form>
           <div className="auth-divider">или</div>
-          <button type="button" className="button large block" onClick={() => setWithQr(true)}><QrCode aria-hidden="true" />Войти по QR-коду</button>
+          <button type="button" className="button large block" onClick={() => setMethod('qr')}><QrCode aria-hidden="true" />Войти по QR-коду</button>
+          {config?.smsEnabled && <button type="button" className="button large block" style={{ marginTop: 10 }} onClick={() => setMethod('phone')}><MessageSquareText aria-hidden="true" />Войти по коду из SMS</button>}
         </>}
         <p className="auth-switch">Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>
       </div>

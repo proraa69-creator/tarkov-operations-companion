@@ -11,6 +11,7 @@ import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
 import { LEGAL_VERSION } from '../legal/documents'
 import { Notice } from '../components/Notice'
+import { PasswordPanel, PhonePanel } from '../components/PhoneAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
@@ -32,7 +33,7 @@ function formatMoney(amount: number, currency: string) {
 export function CabinetPage() {
   const auth = useAuth()
   const location = useLocation()
-  const state = (location.state ?? {}) as { welcome?: boolean; referralRejected?: boolean; streamerWelcome?: string }
+  const state = (location.state ?? {}) as { welcome?: boolean; referralRejected?: boolean; streamerWelcome?: string; passwordReset?: boolean }
 
   if (auth.status === 'signed-out') return <Navigate to="/login" replace />
 
@@ -76,10 +77,11 @@ export function CabinetPage() {
           <button type="button" className="button ghost" onClick={() => void auth.logout()}><LogOut aria-hidden="true" />Выйти</button>
         </div>
 
-        {(state.welcome || state.referralRejected || state.streamerWelcome) && (
+        {(state.welcome || state.referralRejected || state.streamerWelcome || state.passwordReset) && (
           <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
             {state.streamerWelcome && <Notice tone="success" title="Вы стример">Код {state.streamerWelcome} привязан к аккаунту. Ниже — ваша ссылка для зрителей и статистика.</Notice>}
             {state.welcome && !state.streamerWelcome && <Notice tone="success" title="Аккаунт создан">Добро пожаловать! Привяжите никнеймы Tarkov и скачайте приложение.</Notice>}
+            {state.passwordReset && <Notice tone="success" title="Пароль изменён">Новый пароль сохранён. Входы на других устройствах завершены — там войдите заново.</Notice>}
             {state.referralRejected && <Notice tone="warn" title="Код приглашения не применён">Такой код не найден. Проверьте его и укажите ниже, в блоке «Код приглашения».</Notice>}
           </div>
         )}
@@ -106,6 +108,8 @@ export function CabinetPage() {
           <div className="cabinet-col">
             <AppPanel />
             {account.kind === 'user' && <InviteCodePanel account={account} />}
+            <PhonePanel account={account} />
+            <PasswordPanel />
           </div>
         </div>
       </div>

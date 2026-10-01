@@ -7,6 +7,8 @@ import { openDatabase, resolveDbPath } from './services/database.js'
 import { PaymentStore, paymentConfigFromEnv } from './services/paymentStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { LavaClient, lavaConfigFromEnv } from './services/lavaTop.js'
+import { PhoneAuthService } from './services/phoneAuth.js'
+import { createSmsSender, smsConfigFromEnv, smsLimitsFromEnv } from './services/sms/index.js'
 
 // One SQLite file holds everything: accounts, sessions, referral stats, goon sightings, quest events, user data.
 const dbPath = resolveDbPath()
@@ -26,9 +28,12 @@ setInterval(runAutoPayouts, 60 * 60 * 1000).unref()
 const runRecurring = () => { payments.runRecurring().catch((error: unknown) => console.error('Autopayment run failed', error instanceof Error ? error.message : 'unknown error')) }
 runRecurring()
 setInterval(runRecurring, 60 * 60 * 1000).unref()
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts })
+// SMS one-time codes (phone binding, sign-in and password reset by phone): only with a provider set in the owner's app.
+const smsConfig = smsConfigFromEnv()
+const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSender(smsConfig) : undefined, limits: smsLimitsFromEnv() })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, phones })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
-const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''})`))
+const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => listener.close(() => { db.close(); process.exit(0) }))
