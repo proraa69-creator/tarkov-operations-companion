@@ -34,6 +34,9 @@ const lavaWebhookKeyFile = () => join(app.getPath('userData'), 'lava-webhook-key
 /** «SMS: одноразовые коды»: provider settings in sms.json, the key encrypted in sms-key.bin. */
 const smsFile = () => join(app.getPath('userData'), 'sms.json')
 const smsKeyFile = () => join(app.getPath('userData'), 'sms-key.bin')
+/** «Почта: коды подтверждения»: provider settings in email.json, the key encrypted in email-key.bin. */
+const emailFile = () => join(app.getPath('userData'), 'email.json')
+const emailKeyFile = () => join(app.getPath('userData'), 'email-key.bin')
 
 async function readSaved(): Promise<SavedPayments> {
   try {
@@ -218,7 +221,73 @@ async function smsEnvironment(): Promise<Record<string, string>> {
   }
 }
 
-/** Environment for the API process: owner token, owner e-mails, ЮKassa, Lava.top, SMS and the public site address. */
+// ---------------------------------------------------------------------------------------------------------------
+// «Почта: коды подтверждения» (server/src/services/email, docs/email-codes.md). Set ONLY here, on the owner's PC, for
+// the same reason as SMS: whoever controls the e-mail provider could redirect registration and sign-in codes.
+// ---------------------------------------------------------------------------------------------------------------
+
+export type EmailProvider = '' | 'resend'
+/** The key is write-only: only whether it is stored is shown. */
+export interface EmailSettings { provider: EmailProvider; from: string; dailyLimit: number; hasKey: boolean; configured: boolean }
+interface SavedEmail { provider?: EmailProvider; from?: string; dailyLimit?: number }
+const EMAIL_PROVIDERS: EmailProvider[] = ['resend']
+export const DEFAULT_EMAIL_FROM = 'Raid OS <noreply@raidos.app>'
+export const DEFAULT_EMAIL_DAILY_LIMIT = 500
+/** `Name <box@domain>` or `box@domain` (the same rule as the server, server/src/services/email/index.ts). */
+const FROM = /^(?:[^<>@"\r\n]{1,80} <[^\s<>@]{1,64}@[^\s<>@]{1,190}\.[A-Za-z]{2,}>|[^\s<>@]{1,64}@[^\s<>@]{1,190}\.[A-Za-z]{2,})$/
+
+async function readEmail(): Promise<SavedEmail> {
+  try { return JSON.parse(await readFile(emailFile(), 'utf8')) as SavedEmail } catch { return {} }
+}
+
+export async function emailSettings(): Promise<EmailSettings> {
+  const saved = await readEmail()
+  const hasKey = existsSync(emailKeyFile())
+  const provider = saved.provider && EMAIL_PROVIDERS.includes(saved.provider) ? saved.provider : ''
+  return { provider, from: saved.from || DEFAULT_EMAIL_FROM, dailyLimit: saved.dailyLimit ?? DEFAULT_EMAIL_DAILY_LIMIT, hasKey, configured: Boolean(provider && hasKey) }
+}
+
+/** Saves the e-mail settings; an empty key keeps the stored one, `clearKey` removes it (e-mail codes switch off). */
+export async function setEmailSettings(raw: unknown) {
+  const input = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const provider = String(input.provider ?? '').trim() as EmailProvider
+  const from = String(input.from ?? '').trim() || DEFAULT_EMAIL_FROM
+  const key = String(input.apiKey ?? '').trim()
+  const dailyLimit = Number(input.dailyLimit ?? DEFAULT_EMAIL_DAILY_LIMIT)
+  if (provider && !EMAIL_PROVIDERS.includes(provider)) throw new Error('Неизвестный почтовый сервис')
+  if (from.length > 200 || !FROM.test(from)) throw new Error('Адрес отправителя: «Raid OS <noreply@raidos.app>» или просто noreply@raidos.app')
+  if (key && !/^re_[A-Za-z0-9_-]{8,200}$/.test(key)) throw new Error('Ключ Resend начинается с re_ и копируется целиком, без пробелов')
+  if (!Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 1_000_000) throw new Error('Лимит писем в сутки: целое число от 1 до 1 000 000')
+  if (key) await storeSecret(emailKeyFile(), key)
+  if (input.clearKey === true) await rm(emailKeyFile(), { force: true })
+  const next: SavedEmail = { provider, from, dailyLimit }
+  await writeFile(emailFile(), JSON.stringify(next), 'utf8')
+  return emailSettings()
+}
+
+/** What the running API reports: whether e-mail codes are on and how many e-mails went out in the last 24 hours. */
+export async function emailServerStatus() {
+  return await admin('GET', '/email') as { emailEnabled: boolean; provider: string | null; from: string | null; sentToday: number; dailyLimit: number }
+}
+
+/** «Отправить тестовое письмо» through the running API (counts towards the daily limit). */
+export async function sendTestEmail(to: unknown) {
+  return await admin('POST', '/email/test', { to: String(to ?? '').trim().slice(0, 254) }) as { ok: boolean; provider: string; sentToday: number; dailyLimit: number }
+}
+
+async function emailEnvironment(): Promise<Record<string, string>> {
+  const saved = await readEmail()
+  const key = await secretKey(emailKeyFile())
+  if (!saved.provider || !EMAIL_PROVIDERS.includes(saved.provider) || !key) return {}
+  return {
+    TARKOV_EMAIL_PROVIDER: saved.provider,
+    TARKOV_EMAIL_API_KEY: key,
+    TARKOV_EMAIL_FROM: saved.from || DEFAULT_EMAIL_FROM,
+    TARKOV_EMAIL_DAILY_LIMIT: String(saved.dailyLimit ?? DEFAULT_EMAIL_DAILY_LIMIT),
+  }
+}
+
+/** Environment for the API process: owner token, owner e-mails, ЮKassa, Lava.top, SMS, e-mail and the public site address. */
 export async function apiEnvironment(publicUrl: string): Promise<Record<string, string>> {
   const saved = await readSaved()
   const key = await secretKey()
@@ -227,9 +296,11 @@ export async function apiEnvironment(publicUrl: string): Promise<Record<string, 
   const lavaWebhookKey = await secretKey(lavaWebhookKeyFile())
   const owners = await ownerEmails()
   const sms = await smsEnvironment()
+  const email = await emailEnvironment()
   return {
     TARKOV_ADMIN_TOKEN: ADMIN_TOKEN,
     ...sms,
+    ...email,
     ...(owners.length ? { TARKOV_OWNER_EMAILS: owners.join(',') } : {}),
     ...(publicUrl ? { TARKOV_PUBLIC_URL: publicUrl } : {}),
     ...(saved.shopId && key && saved.monthPrice ? {

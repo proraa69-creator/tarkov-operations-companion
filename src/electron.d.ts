@@ -35,6 +35,8 @@ export interface ServerAccountStatus {
   subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
   /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
   phone?: string
+  /** false while the e-mail is not confirmed («Подтвердите e-mail»); absent with an older server or app. */
+  emailVerified?: boolean
 }
 
 /** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */
@@ -55,6 +57,10 @@ export interface PaymentSettings { shopId: string; monthPrice: number; receipts:
 export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
 export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
 export interface SmsServerStatus { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
+/** «Почта: коды подтверждения» (electron/ownerAdmin.ts). The key is write-only. */
+export type EmailProvider = '' | 'resend'
+export interface EmailSettings { provider: EmailProvider; from: string; dailyLimit: number; hasKey: boolean; configured: boolean }
+export interface EmailServerStatus { emailEnabled: boolean; provider: string | null; from: string | null; sentToday: number; dailyLimit: number }
 export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
 
 interface TarkovDesktopApi {
@@ -74,6 +80,10 @@ interface TarkovDesktopApi {
     setSms?: (settings: { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; apiKey?: string; clearKey?: boolean }) => Promise<SmsSettings>
     smsStatus?: () => Promise<SmsServerStatus>
     sendTestSms?: (phone: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
+    email?: () => Promise<EmailSettings>
+    setEmail?: (settings: { provider: EmailProvider; from: string; dailyLimit: number; apiKey?: string; clearKey?: boolean }) => Promise<EmailSettings>
+    emailStatus?: () => Promise<EmailServerStatus>
+    sendTestEmail?: (to: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
     inviteStreamer: (code: string) => Promise<{ link: string; code: string; expiresAt: string }>
     /** «E-mail владельца»: accounts that see the owner section of the website (TARKOV_OWNER_EMAILS). */
     ownerEmails: () => Promise<string[]>
@@ -97,6 +107,8 @@ interface TarkovDesktopApi {
     logout: () => Promise<ServerAccountStatus>
     /** Sign-in or password reset by phone after the SMS code; the session stays in the main process. */
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
+    /** Sign-in or password reset by e-mail code; the session stays in the main process. */
+    emailSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
     /** «Сервер и сайт на этом компьютере»: the API and the website run from the app on this PC. */
     localServerStatus?: () => Promise<LocalServerStatus>
