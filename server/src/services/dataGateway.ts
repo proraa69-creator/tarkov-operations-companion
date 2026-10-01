@@ -8,8 +8,8 @@
  *   to ALLOWED_OPERATIONS (or keep to the safe fields).
  * - JSON: GET /v1/data/json/<regular|pve|pvp-season>/<endpoint> is forwarded to https://json.tarkov.dev for the
  *   endpoints in JSON_ENDPOINTS (and their `_<lang>` translation dictionaries).
- * - One shared cache for all players, keyed by the query text + variables (gameMode included): prices 10 minutes, static
- *   data 6 hours. Identical requests in flight share one upstream call. Answers above `maxResponseBytes` are refused, the
+ * - One shared cache for all players, keyed by the query text + variables (gameMode included): trader restock times
+ *   1 minute, prices 10 minutes, static data 6 hours. Identical requests in flight share one upstream call. Answers above `maxResponseBytes` are refused, the
  *   cache as a whole keeps at most `maxCacheBytes` (oldest entries go first).
  */
 import { createHash } from 'node:crypto'
@@ -38,6 +38,9 @@ export const SAFE_TOP_LEVEL_FIELDS: ReadonlySet<string> = new Set([
 const PRICE_FIELDS = new Set(['items', 'item', 'itemPrices', 'historicalItemPrices', 'barters', 'crafts', 'fleaMarket', 'ammo'])
 export const PRICE_TTL_MS = 10 * 60 * 1000
 export const STATIC_TTL_MS = 6 * 60 * 60 * 1000
+/** Trader restock times (`traders { resetTime }`) move every few hours per trader: a minute. */
+const SHORT_FIELDS = new Set(['traders'])
+export const SHORT_TTL_MS = 60 * 1000
 
 /** json.tarkov.dev endpoints the app reads (catalog, translations, goon reports, item names). */
 export const JSON_ENDPOINTS: ReadonlySet<string> = new Set(['tasks', 'items', 'maps', 'traders', 'hideout', 'barters', 'crafts', 'mobs', 'handbook'])
@@ -227,7 +230,7 @@ export class DataGateway {
     const normalized = query.replace(/\s+/g, ' ').trim()
     // gameMode is part of the variables or of the query text itself: both are in the key.
     const key = `gql:${createHash('sha256').update(normalized).update('\u0000').update(varsText).digest('hex')}`
-    const ttl = shape.fields.some((field) => PRICE_FIELDS.has(field)) ? PRICE_TTL_MS : STATIC_TTL_MS
+    const ttl = shape.fields.some((field) => SHORT_FIELDS.has(field)) ? SHORT_TTL_MS : shape.fields.some((field) => PRICE_FIELDS.has(field)) ? PRICE_TTL_MS : STATIC_TTL_MS
     return this.cached(key, ttl, async () => {
       const body = await this.upstream(GRAPHQL_UPSTREAM, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query, ...(Object.keys(vars).length ? { variables: vars } : {}) }) })
       let parsed: { data?: unknown; errors?: unknown }

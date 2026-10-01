@@ -59,13 +59,19 @@ test('gateway cache: shared per query + variables (gameMode), price data 10 min,
   await gateway.graphql(query, { gameMode: 'regular' })
   assert.equal(upstream.calls.length, 3, 'prices refresh after 10 minutes')
 
+  // Trader restock times: a minute.
+  await gateway.graphql('{ traders { resetTime } }', undefined)
+  now += 61_000
+  await gateway.graphql('{ traders { resetTime } }', undefined)
+  assert.equal(upstream.calls.length, 5)
+
   await gateway.graphql('{ tasks { id } }', undefined)
   now += PRICE_TTL_MS + 1
   await gateway.graphql('{ tasks { id } }', undefined)
-  assert.equal(upstream.calls.length, 4, 'static data stays cached for hours')
+  assert.equal(upstream.calls.length, 6, 'static data stays cached for hours')
   now += STATIC_TTL_MS
   await gateway.graphql('{ tasks { id } }', undefined)
-  assert.equal(upstream.calls.length, 5)
+  assert.equal(upstream.calls.length, 7)
 
   // Parallel identical requests share one upstream call.
   await Promise.all([gateway.json('pve/tasks'), gateway.json('pve/tasks'), gateway.json('pve/tasks')])

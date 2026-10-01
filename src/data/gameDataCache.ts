@@ -56,7 +56,7 @@ export async function writeGameCache(key: string, value: unknown, maxAgeMs: numb
 
 /** IndexedDB / localStorage keys of the plaintext caches older versions (and the owner's app) write. */
 export const LEGACY_PLAINTEXT_CACHE = /^(?:tarkov-operations-catalog-|display-translations-|item-lookup-names-|tarkov-operations-economy-|raid-os-gun-catalog-)/
-const LEGACY_LOCAL_STORAGE = ['toc.bosses.graphql.v1']
+const LEGACY_LOCAL_STORAGE = ['toc.bosses.graphql.v1', 'toc.bosses.graphql.v2']
 
 /** Players' edition: no readable quest / catalog JSON left on disk from earlier versions. */
 export async function purgeLegacyPlaintextCaches(route: DataRoute = dataRoute()) {
