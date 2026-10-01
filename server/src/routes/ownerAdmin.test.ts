@@ -35,7 +35,9 @@ async function setup() {
   let clock = Date.parse('2026-10-01T10:00:00.000Z')
   const now = () => clock
   const db = openDatabase(':memory:')
-  await new AccountStore({ db, now, ownerEmails: [] }).register('owner@example.com', password)
+  const first = new AccountStore({ db, now, ownerEmails: [] })
+  await first.register('owner@example.com', password)
+  first.markEmailVerified(first.accountByEmail('owner@example.com')!.id) // owner rights need a confirmed e-mail
   const accounts = new AccountStore({ db, now, ownerEmails: ['owner@example.com'] })
   const yoo = fakeYooKassa()
   const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_secret', monthPrice: 300, receipts: false, streamerPercent: 10, publicUrl: 'https://raidos.example.com' }, { now, fetch: yoo.fetch })

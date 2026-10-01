@@ -10,6 +10,8 @@ import { createAccountsRouter } from './routes/accounts.js'
 import { createLoginCodesRouter } from './routes/loginCodes.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
+import { createEmailRouter } from './routes/email.js'
+import { EmailAuthService } from './services/emailAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
 import { AccountStore } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
@@ -45,6 +47,8 @@ export interface ApiOptions {
   loginCodes?: LoginCodeStore
   /** Phone numbers and SMS codes; defaults to switched off (no SMS provider). */
   phones?: PhoneAuthService
+  /** E-mail one-time codes; defaults to switched off (no e-mail provider: registration works without codes). */
+  emails?: EmailAuthService
 }
 
 /**
@@ -81,12 +85,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/payments', createPaymentsRouter(accounts, payments))
   // «Админ-панель» (owner only); first, so it can also write the owner's older actions to the audit log.
   if (payments.database === accounts.database) app.use('/v1/accounts', createOwnerAdminRouter(accounts, new AdminStore(accounts, payments)))
-  app.use('/v1/accounts', createAccountsRouter(accounts))
+  const emails = options.emails ?? new EmailAuthService(accounts)
+  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
   const phones = options.phones ?? new PhoneAuthService(accounts)
-  app.use('/v1/accounts', createPhoneRouter(accounts, phones))
-  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones))
+  app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
+  app.use('/v1/accounts', createEmailRouter(accounts, emails))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.

@@ -8,8 +8,10 @@
  *   GET  /accounts?email=    -> { exists }  (the app checks an owner e-mail is registered before listing it)
  *   GET  /sms                -> { smsEnabled, provider, sentToday, dailyLimit, countries }
  *   POST /sms/test           { phone } -> { ok, provider, sentToday, dailyLimit }  («Отправить тестовое SMS»)
+ *   GET  /email              -> { emailEnabled, provider, from, sentToday, dailyLimit }
+ *   POST /email/test         { to } -> { ok, provider, sentToday, dailyLimit }  («Отправить тестовое письмо»)
  *
- * SMS settings themselves are never changed over HTTP: the owner's app passes them to this process as environment
+ * SMS and e-mail settings themselves are never changed over HTTP: the owner's app passes them to this process as environment
  * variables (electron/ownerAdmin.ts), so not even this router can redirect one-time codes.
  */
 import express from 'express'
@@ -17,8 +19,9 @@ import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { AccountError, type AccountStore } from '../services/accountStore.js'
 import type { PhoneAuthService } from '../services/phoneAuth.js'
+import type { EmailAuthService } from '../services/emailAuth.js'
 
-export function createAdminRouter(accounts: AccountStore, adminToken = process.env.TARKOV_ADMIN_TOKEN, phones?: PhoneAuthService) {
+export function createAdminRouter(accounts: AccountStore, adminToken = process.env.TARKOV_ADMIN_TOKEN, phones?: PhoneAuthService, emails?: EmailAuthService) {
   const router = express.Router()
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -55,6 +58,20 @@ export function createAdminRouter(accounts: AccountStore, adminToken = process.e
     if (!phones) { res.status(503).json({ error: 'SMS не настроены' }); return }
     try {
       res.json(await phones.sendTest(parsed.data.phone))
+    } catch (error) {
+      if (error instanceof AccountError) { res.status(error.status).json({ error: error.message }); return }
+      throw error
+    }
+  })
+  router.get('/email', guard((_req, res) => {
+    res.json(emails?.status() ?? { emailEnabled: false, provider: null, from: null, sentToday: 0, dailyLimit: 0 })
+  }))
+  router.post('/email/test', async (req, res) => {
+    const parsed = z.object({ to: z.string().trim().max(254) }).safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: 'Укажите e-mail' }); return }
+    if (!emails) { res.status(503).json({ error: 'Почта не настроена' }); return }
+    try {
+      res.json(await emails.sendTest(parsed.data.to))
     } catch (error) {
       if (error instanceof AccountError) { res.status(error.status).json({ error: error.message }); return }
       throw error

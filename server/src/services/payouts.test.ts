@@ -157,6 +157,7 @@ test('payout routes: streamer only for his own, owner only for the list; streame
   const db = payments.database
   // Owner e-mail listed after it was registered.
   await accounts.register('owner@example.com', password)
+  accounts.markEmailVerified(accounts.accountByEmail('owner@example.com')!.id) // owner rights need a confirmed e-mail
   const ownerAccounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
   ownerAccounts.attachSubscriptions(payments)
   const server = createApi(new ProgressStore(':memory:'), undefined, ownerAccounts, { payments, payouts }).listen(0, '127.0.0.1')
