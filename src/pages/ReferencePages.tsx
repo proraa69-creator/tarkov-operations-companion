@@ -26,6 +26,7 @@ import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats } from "../arse
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend, DropOffCharts } from "../arsenal/BallisticsCharts";
+import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 
 export function EconomyPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -311,7 +312,9 @@ export function AmmoPage() {
             <small className="dim">{filtered.length}{uiText(" патронов")}</small>
           </div>
           <div className="panel-body">
-            <AmmoScatter ammo={filtered} colorOf={colorOf} selectedId={selected?.id} onSelect={setSelectedId} />
+            <div className="ballistics-scroll">
+              <AmmoScatter ammo={filtered} colorOf={colorOf} selectedId={selected?.id} onSelect={setSelectedId} />
+            </div>
             <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
           </div>
         </section>
@@ -573,6 +576,7 @@ export function TradersPage() {
           <div className="eyebrow">{uiText("Контакты")}</div>
           <h1 className="page-title">{uiText("Торговцы")}</h1>
           <p className="page-subtitle">{uiText("Выберите торговца: его задания идут по порядку выдачи в игре. Выполненные зачёркнуты, доступное задание открывается с полным описанием.")}</p>
+          <p className="page-subtitle">{uiText("Время рестока — tarkov.dev для выбранного режима. Сезон использует время PvP.")}</p>
         </div>
       </header>
       <div className="trader-grid">
@@ -595,6 +599,7 @@ export function TradersPage() {
               ))}
             </div>
             <strong>{uiText(trader.name)}</strong>
+            <TraderRestockTimer trader={trader} />
           </button>
         )))}
       </div>
@@ -690,6 +695,14 @@ export function SettingsPage() {
               </div>
             ))}
             <AppUpdateSettings />
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-header">
+            <div className="panel-title">{uiText("Ресток торговцев")}</div>
+          </div>
+          <div className="panel-body">
+            <RestockSettingsPanel />
           </div>
         </section>
       </div>

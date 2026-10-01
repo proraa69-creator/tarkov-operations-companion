@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   saveProfileBackup: (json) => ipcRenderer.invoke('profile:save-backup', json),
   openProfileBackup: () => ipcRenderer.invoke('profile:open-backup'),
   getVersion: () => ipcRenderer.invoke('app:version'),
+  notify: (title, body) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')),
   resolvePlayerProfile: (mode, nickname) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),

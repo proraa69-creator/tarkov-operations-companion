@@ -9,6 +9,7 @@ import { FleaMarketPage } from '../pages/FleaMarketPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { StoryScreenScanner } from '../components/StoryScreenScanner'
 import { UiSounds } from '../components/UiSounds'
+import { RestockNotifier } from '../restock/RestockWidgets'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { ExperimentalPage } from '../pages/ExperimentalPage'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
@@ -25,7 +26,7 @@ export function App() {
   // Decorative motion sleeps while the window is not in use (the player is in the game), see appActivity.ts.
   useEffect(() => startAppActivity(), [])
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
-  return <>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><AppShell key={`${locale}:${revision}`}><Routes>
+  return <>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><RestockNotifier /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />

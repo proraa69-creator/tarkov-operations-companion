@@ -140,6 +140,8 @@ interface TarkovDesktopApi {
   saveProfileBackup: (json: string) => Promise<boolean>
   openProfileBackup: () => Promise<string | null>
   getVersion: () => Promise<string>
+  /** A system notification (trader restock reminders); false when the OS does not support them. */
+  notify?: (title: string, body: string) => Promise<boolean>
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number }>

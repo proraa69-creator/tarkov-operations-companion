@@ -1,6 +1,6 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -280,6 +280,15 @@ function registerIpc() {
   })
 
   ipcMain.handle('app:version', () => app.getVersion())
+  // Trader restock reminders (src/restock/RestockNotifier.tsx): a plain system notification, text only.
+  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown) => {
+    if (!Notification.isSupported()) return false
+    const text = (value: unknown, max: number) => String(value ?? '').slice(0, max)
+    const notification = new Notification({ title: text(title, 120), body: text(body, 300) })
+    notification.on('click', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus() } })
+    notification.show()
+    return true
+  })
   ipcMain.handle('local-server:status', () => localServerStatus())
   ipcMain.handle('local-server:set-enabled', async (_event, enabled: unknown) => {
     if (enabled !== true) stopTunnel()

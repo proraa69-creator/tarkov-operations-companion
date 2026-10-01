@@ -4,6 +4,7 @@ import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { BrandMonogram, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
+import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
@@ -187,6 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+        <TopbarRestock />
         <UpdateButton />
         <ThemeButton />
         <ServerQuickButton />
