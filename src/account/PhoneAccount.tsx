@@ -1,35 +1,24 @@
 import { useState, type FormEvent } from 'react'
-import { AlertTriangle, Check, KeyRound, LoaderCircle, LogIn, MessageSquareText, Phone, RefreshCw, Trash2 } from 'lucide-react'
+import { Check, KeyRound, LoaderCircle, LogIn, MessageSquareText, Phone, RefreshCw, Trash2 } from 'lucide-react'
 import type { ServerAccountStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { phoneSignInToServer, refreshServerStatus } from '../sync/serverSync'
 import { postService as post, useAuthFlag, useCooldown, waitFrom, type CodeChallenge as Challenge } from './codeRequest'
+import { CodeInput, Warning } from './codeFields'
 import './account.css'
 
 /**
  * Phone number and SMS codes in the apps (server/src/routes/phone.ts): sign-in by code, password reset by phone, and
  * binding / removing the number in «Личный кабинет». Code requests go through the whitelisted service request; the
  * sign-in itself goes through the account API (the desktop main process keeps the session). Everything is hidden
- * while the server has no SMS provider (GET /v1/accounts/auth-config → smsEnabled: false).
+ * while the server has no SMS provider (GET /v1/accounts/auth-config → smsEnabled: false), and everywhere while
+ * PHONE_AUTH_UI (authFeatures.ts) is off: the apps sign in by e-mail only for now.
  */
 
 /** null while unknown; false without a server, on an older server or with SMS switched off. */
 // eslint-disable-next-line react-refresh/only-export-components
 export function useSmsEnabled(online: boolean | undefined) {
   return useAuthFlag('smsEnabled', online)
-}
-
-export function Warning({ text }: { text: string }) {
-  return text ? <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(text)}</span></div> : null
-}
-
-export function CodeInput({ value, onChange, label = 'Код из SMS' }: { value: string; onChange: (value: string) => void; label?: string }) {
-  return (
-    <label className="field-label">{uiText(label)}
-      <input className="input account-code-input" inputMode="numeric" autoComplete="one-time-code" value={value} maxLength={6} placeholder="000000" autoFocus
-        onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 6))} />
-    </label>
-  )
 }
 
 /**
@@ -102,7 +91,7 @@ export function PhoneSignInForm({ purpose, onSignedIn, onBack }: { purpose: 'log
   return (
     <form className="stack" onSubmit={(event) => void confirm(event)}>
       <p className="muted" style={{ margin: 0 }}>{uiText('Если номер привязан к аккаунту, на него придёт SMS с кодом. Никому не сообщайте код.')}</p>
-      <CodeInput value={code} onChange={setCode} />
+      <CodeInput value={code} onChange={setCode} label="Код из SMS" />
       {purpose === 'reset' && <>
         <label className="field-label">{uiText('Новый пароль')}
           <input className="input" type="password" autoComplete="new-password" value={password} minLength={8} maxLength={128} onChange={(event) => setPassword(event.target.value)} />
@@ -204,7 +193,7 @@ export function PhoneCabinetRow({ phone, online }: { phone?: string; online: boo
       )}
       {mode === 'bind' && challenge && (
         <form className="stack" onSubmit={(event) => { event.preventDefault(); confirm() }}>
-          <CodeInput value={code} onChange={setCode} />
+          <CodeInput value={code} onChange={setCode} label="Код из SMS" />
           <span className="account-phone-actions">
             <button className="button primary" type="submit" disabled={busy || code.length !== 6}>{busy ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />}{uiText('Подтвердить')}</button>
             <button className="button ghost" type="button" disabled={busy || cooldown.left > 0} onClick={start}><RefreshCw size={14} />{uiText('Отправить код ещё раз')}{cooldown.left > 0 ? ` (${cooldown.left})` : ''}</button>

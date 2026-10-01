@@ -11,7 +11,7 @@ import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
 import { LEGAL_VERSION } from '../legal/documents'
 import { Notice } from '../components/Notice'
-import { PasswordPanel, PhonePanel } from '../components/PhoneAuth'
+import { PasswordPanel } from '../components/PasswordPanel'
 import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
@@ -113,7 +113,6 @@ export function CabinetPage() {
           <div className="cabinet-col">
             <AppPanel />
             {account.kind === 'user' && <InviteCodePanel account={account} />}
-            <PhonePanel account={account} />
             <PasswordPanel />
           </div>
         </div>

@@ -11,7 +11,10 @@ import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
 import { ServerStatusBlock } from './ServerStatusLamps'
 import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
-import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow, useEmailEnabled } from '../account/EmailAccount'
+import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow } from '../account/EmailAccount'
+import { PHONE_AUTH_UI } from '../account/authFeatures'
+import { openAccountSignIn } from '../account/accountEvents'
+import { accountGateEnabled } from '../account/accountGate'
 import { OwnerEmailPanel } from './OwnerEmailPanel'
 
 /** Opens a website page in the system browser (desktop) or a new tab (browser build). */
@@ -44,7 +47,6 @@ export function ServerAccountPanel() {
   const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
   const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
-  const emailCodes = useEmailEnabled(status?.online)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -89,7 +91,7 @@ export function ServerAccountPanel() {
             <p className="dim" style={{ margin: 0 }}>{uiText(online
               ? 'Прогресс заданий, Коллекционер, позиция и настройки сохраняются на сервере отдельно для PvP, PvE и Сезона.'
               : 'Сервер недоступен: приложение работает локально и отправит изменения, когда сервер снова запустится.')}</p>
-            <div className="account-cabinet-grid"><EmailVerifyRow status={status} online={online} /><PhoneCabinetRow phone={status.phone} online={online} /></div>
+            <div className="account-cabinet-grid"><EmailVerifyRow status={status} online={online} />{PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}</div>
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button>
@@ -104,7 +106,7 @@ export function ServerAccountPanel() {
           </>
         )}
 
-        {available && status && !status.signedIn && phoneMode && (
+        {PHONE_AUTH_UI && available && status && !status.signedIn && phoneMode && (
           <PhoneSignInForm purpose={phoneMode} onSignedIn={() => setPhoneMode(null)} onBack={() => setPhoneMode(null)} />
         )}
 
@@ -126,11 +128,13 @@ export function ServerAccountPanel() {
             {!online && <p className="dim" style={{ margin: 0 }}>{uiText('Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button primary" type="submit" disabled={busy || !online}><LogIn size={14} />{uiText(busy ? 'Входим…' : 'Войти')}</button>
-              <button className="button ghost" type="button" onClick={() => openWebsite('register')}><UserPlus size={14} />{uiText('Регистрация на сайте')}</button>
+              {accountGateEnabled()
+                ? <button className="button ghost" type="button" onClick={() => openAccountSignIn('register')}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>
+                : <button className="button ghost" type="button" onClick={() => openWebsite('register')}><UserPlus size={14} />{uiText('Регистрация на сайте')}</button>}
               <button className="button ghost" type="button" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
             </div>
             <EmailSignInLinks online={online} onPick={setEmailMode} />
-            <PhoneSignInLinks online={online} onPick={setPhoneMode} resetLabel={emailCodes ? 'Сбросить пароль по SMS' : undefined} />
+            {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={setPhoneMode} resetLabel="Сбросить пароль по SMS" />}
           </form>
         )}
       </div>

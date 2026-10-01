@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode } from '../domain/types'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../progression/objectiveProgress'
-import type { ServerAccountStatus } from '../electron.d'
+import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { logEventsForMode } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
@@ -19,7 +19,7 @@ import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../th
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
-import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountStatus, webServiceRequest } from './webAccount'
+import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 export const STATUS_REFRESH_MS = 30_000
@@ -46,7 +46,7 @@ export function usesWebAccount() {
   return typeof window !== 'undefined' && !isDesktopShell() && (isNative() || isMobileLayout())
 }
 
-const webAccountApi = { status: webAccountStatus, login: webAccountLogin, logout: webAccountLogout, phoneSignIn: webAccountPhoneSignIn, emailSignIn: webAccountEmailSignIn }
+const webAccountApi = { status: webAccountStatus, login: webAccountLogin, logout: webAccountLogout, phoneSignIn: webAccountPhoneSignIn, emailSignIn: webAccountEmailSignIn, register: webAccountRegister, registerConfirm: webAccountRegisterConfirm }
 
 const accountApi = () => (typeof window === 'undefined' ? undefined : window.tarkovDesktop?.account ?? (usesWebAccount() ? webAccountApi : undefined))
 
@@ -113,6 +113,36 @@ export async function emailSignInToServer(kind: 'login' | 'reset', challengeId: 
     setState({ status })
     void runFullSync()
     return status
+  } catch (error) {
+    throw new Error(cleanIpcError(error), { cause: error })
+  }
+}
+
+/**
+ * Registration in the app's account window. `pending`: the server sends e-mail codes — finish with
+ * confirmRegistrationOnServer(). Otherwise the new account is signed in like after a password sign-in.
+ */
+export async function registerOnServer(email: string, password: string, referralCode?: string): Promise<ServerRegistrationResult> {
+  const api = accountApi()
+  if (!api?.register) throw new Error('Обновите приложение: регистрация в приложении появилась в новой версии')
+  try {
+    const result = await api.register(email, password, referralCode)
+    if (result.status) { setState({ status: result.status }); void runFullSync() }
+    return result
+  } catch (error) {
+    throw new Error(cleanIpcError(error), { cause: error })
+  }
+}
+
+/** The code from the registration e-mail: the account appears and is signed in. */
+export async function confirmRegistrationOnServer(challengeId: string, code: string) {
+  const api = accountApi()
+  if (!api?.registerConfirm) throw new Error('Обновите приложение: регистрация в приложении появилась в новой версии')
+  try {
+    const result = await api.registerConfirm(challengeId, code)
+    setState({ status: result.status })
+    void runFullSync()
+    return result
   } catch (error) {
     throw new Error(cleanIpcError(error), { cause: error })
   }

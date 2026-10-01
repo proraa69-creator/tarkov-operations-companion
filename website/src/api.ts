@@ -28,22 +28,19 @@ export interface Account {
   stats?: ReferralStats
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
-  /** Verified phone number, masked (+7 ••• •••-45-67). */
-  phone?: { masked: string; verifiedAt: string }
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
   emailVerifiedAt?: string
 }
 
 /**
- * GET /v1/accounts/auth-config (server/src/routes/phone.ts): whether SMS codes and e-mail codes work on this server.
- * `emailEnabled` is missing on older servers (= off).
+ * GET /v1/accounts/auth-config: whether e-mail codes work on this server. `emailEnabled` is missing on older servers
+ * (= off). The site signs in by e-mail only; the server's SMS fields in this answer are not used.
  */
 export interface AuthConfig {
-  smsEnabled: boolean; codeLength: number; codeTtlSeconds: number; resendSeconds: number; countries: string[]
   emailEnabled?: boolean; email?: { codeLength: number; codeTtlSeconds: number; resendSeconds: number }
 }
-/** A code was requested: what the next step sends back. The SMS itself holds the code. */
-export interface SmsChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
+/** A code was requested: what the next step sends back. The e-mail itself holds the code. */
+export interface CodeChallenge { challengeId: string; expiresAt: string; resendSeconds: number }
 
 export const NETWORK_ERROR_MESSAGE = 'Сервер аккаунтов сейчас недоступен. Проверьте подключение к интернету и попробуйте ещё раз через минуту.'
 
@@ -276,13 +273,13 @@ export const api = {
   register: (email: string, password: string, referralCode?: string) =>
     request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}) } }),
   registerConfirm: (challengeId: string, code: string) => request<AuthResult>('/register/confirm', { method: 'POST', body: { challengeId, code } }),
-  registerResend: (challengeId: string) => request<SmsChallenge>('/register/resend', { method: 'POST', body: { challengeId } }),
+  registerResend: (challengeId: string) => request<CodeChallenge>('/register/resend', { method: 'POST', body: { challengeId } }),
   /** The same answer whether or not the address has an account; the code goes only to an existing one. */
-  emailLoginStart: (email: string) => request<SmsChallenge>('/email/login/start', { method: 'POST', body: { email } }),
+  emailLoginStart: (email: string) => request<CodeChallenge>('/email/login/start', { method: 'POST', body: { email } }),
   emailLogin: (challengeId: string, code: string) => request<AuthResult>('/email/login', { method: 'POST', body: { challengeId, code } }),
-  emailResetStart: (email: string) => request<SmsChallenge>('/email/reset/start', { method: 'POST', body: { email } }),
+  emailResetStart: (email: string) => request<CodeChallenge>('/email/reset/start', { method: 'POST', body: { email } }),
   emailReset: (challengeId: string, code: string, password: string) => request<AuthResult>('/email/reset', { method: 'POST', body: { challengeId, code, password } }),
-  emailVerifyStart: (token: string) => request<SmsChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
+  emailVerifyStart: (token: string) => request<CodeChallenge>('/me/email/start', { method: 'POST', token, body: {} }),
   emailVerifyConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/email/confirm', { method: 'POST', token, body: { challengeId, code } }),
   login: (email: string, password: string) => request<AuthResult>('/login', { method: 'POST', body: { email, password } }),
   logout: (token: string) => request<void>('/logout', { method: 'POST', token }),
@@ -290,14 +287,6 @@ export const api = {
   /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */
   changePassword: (token: string, currentPassword: string, newPassword: string) => request<AuthResult>('/me/password', { method: 'POST', token, body: { currentPassword, newPassword } }),
   authConfig: () => request<AuthConfig>('/auth-config'),
-  /** The same answer whether or not the number belongs to an account; the SMS goes only to a verified number. */
-  phoneLoginStart: (phone: string) => request<SmsChallenge>('/phone/login/start', { method: 'POST', body: { phone } }),
-  phoneLogin: (challengeId: string, code: string) => request<AuthResult>('/phone/login', { method: 'POST', body: { challengeId, code } }),
-  phoneResetStart: (phone: string) => request<SmsChallenge>('/phone/reset/start', { method: 'POST', body: { phone } }),
-  phoneReset: (challengeId: string, code: string, password: string) => request<AuthResult>('/phone/reset', { method: 'POST', body: { challengeId, code, password } }),
-  phoneBindStart: (token: string, phone: string, password: string) => request<SmsChallenge>('/me/phone/start', { method: 'POST', token, body: { phone, password } }),
-  phoneBindConfirm: (token: string, challengeId: string, code: string) => request<Account>('/me/phone/confirm', { method: 'POST', token, body: { challengeId, code } }),
-  phoneRemove: (token: string, password: string) => request<Account>('/me/phone/remove', { method: 'POST', token, body: { password } }),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   setNicknames: (token: string, nicknames: Partial<Record<AccountMode, string>>) => request<Account>('/me/nicknames', { method: 'PUT', token, body: nicknames }),
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),

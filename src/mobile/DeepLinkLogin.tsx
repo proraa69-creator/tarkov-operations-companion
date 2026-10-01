@@ -40,7 +40,7 @@ export function DeepLinkLogin() {
 
 function Frame({ label, icon, onClose, children }: { label: string; icon: ReactNode; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="registration-overlay" role="dialog" aria-modal="true" aria-label={label}>
+    <div className="registration-overlay account-deeplink" role="dialog" aria-modal="true" aria-label={label}>
       <section className="panel registration-dialog account-qr-dialog">
         <button className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
         <div className="registration-icon">{icon}</div>

@@ -41,6 +41,19 @@
 .account-gate-steps span.done { border-color: var(--green); color: var(--green); }
 .account-gate-steps i { flex: 0 0 34px; height: 1px; background: var(--line-strong); }
 .account-bound { margin: 0; cursor: default; }
+/* «Вход» / «Регистрация» in the account window (AccountSignIn.tsx) */
+.account-gate-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.account-gate-hint { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 12px; line-height: 1.45; }
+.account-gate-hint svg { flex: 0 0 auto; margin-top: 1px; }
+.account-gate-invite { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.account-gate-pending { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--green) 8%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
+.account-gate-pending svg { flex: 0 0 auto; color: var(--green); margin-top: 1px; }
+.account-gate-pending small { display: block; color: var(--text-muted); word-break: break-all; }
+.account-consent { display: flex; gap: 10px; align-items: flex-start; color: var(--text-muted); font-size: 12.5px; line-height: 1.5; cursor: pointer; }
+.account-consent input { flex: 0 0 auto; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--brass); }
+.account-consent a { color: var(--brass); }
+/* A QR sign-in link on the phone opens above the account window. */
+.account-deeplink { z-index: 3200; }
 
 /* «Личный кабинет» / «Кабинет стримера» on the profile page */
 .account-cabinet { margin-top: 14px; }

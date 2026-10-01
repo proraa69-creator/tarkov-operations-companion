@@ -8,7 +8,7 @@
  * - The session token is kept in the app's private WebView storage (never logged, never put in a URL).
  * - Only the whitelisted paths below can be requested.
  */
-import type { ServerAccountStatus } from '../electron.d'
+import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 
 /** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
 export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
@@ -61,6 +61,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['PUT'], path: /^\/v1\/friends\/[a-f0-9]{24}\/privacy$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/friends/progress/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/friends/needs/${MODE}$`) },
+  // Registration in the app: «Отправить код ещё раз» and the consent record. /register and /register/confirm return a
+  // session: webAccountRegister / webAccountRegisterConfirm keep it, like the sign-in.
+  { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -244,6 +248,48 @@ async function codeSignIn(channel: 'phone' | 'email', kind: 'login' | 'reset', c
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
   return webAccountStatus()
+}
+
+const CHALLENGE_ID = /^[A-Za-z0-9_-]{32}$/
+
+/** A session answer ({ token, account }) of the server: stored, then the status. */
+async function adoptSession(result: unknown) {
+  const answer = result as { token?: unknown; referralApplied?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  saveSession({ token: answer.token, email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
+  return { status: await webAccountStatus(), referralApplied: answer.referralApplied === true }
+}
+
+/**
+ * Registration on the phone (POST /v1/accounts/register), the same contract as electron/serviceGateway.ts
+ * accountRegister: 202 → the code from the e-mail (webAccountRegisterConfirm), or 201 with a session right away.
+ */
+export async function webAccountRegister(rawEmail: string, password: string, rawReferral?: string): Promise<ServerRegistrationResult> {
+  const email = rawEmail.trim().toLowerCase()
+  const referralCode = (rawReferral ?? '').trim()
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
+  if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
+  if (referralCode && !/^[a-zA-Z0-9_-]{3,24}$/.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
+  const { response, result } = await send('POST', '/v1/accounts/register', { body: { email, password, ...(referralCode ? { referralCode } : {}) } })
+  if (response.status === 202) {
+    const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
+    if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+    const resendSeconds = typeof pending.resendSeconds === 'number' && Number.isFinite(pending.resendSeconds) ? Math.max(0, Math.min(3600, Math.round(pending.resendSeconds))) : 60
+    const message = typeof pending.message === 'string' && pending.message.length <= 300 ? pending.message : 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.'
+    return { pending: { challengeId: pending.challengeId, expiresAt: pending.expiresAt, resendSeconds, message } }
+  }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось зарегистрироваться: ${response.status}`)
+  return adoptSession(result)
+}
+
+/** The code from the registration e-mail (POST /v1/accounts/register/confirm): the account appears, signed in. */
+export async function webAccountRegisterConfirm(challengeId: string, rawCode: string): Promise<{ status: ServerAccountStatus; referralApplied: boolean }> {
+  const code = rawCode.replace(/[\s-]/g, '')
+  if (!CHALLENGE_ID.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из письма — 6 цифр')
+  const { response, result } = await send('POST', '/v1/accounts/register/confirm', { body: { challengeId, code } })
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось подтвердить e-mail: ${response.status}`)
+  return adoptSession(result)
 }
 
 export async function webAccountLogout(): Promise<ServerAccountStatus> {

@@ -15,7 +15,7 @@ import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './expe
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
@@ -218,6 +218,9 @@ function registerIpc() {
   ipcMain.handle('account:phone-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountPhoneSignIn(kind, challengeId, code, password))
   // The same after an e-mail code (sign-in or «Забыли пароль?» by e-mail).
   ipcMain.handle('account:email-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountEmailSignIn(kind, challengeId, code, password))
+  // Registration in the app (the account window): the session of a new account stays in the main process as well.
+  ipcMain.handle('account:register', (_event, email: unknown, password: unknown, referralCode: unknown) => accountRegister(email, password, referralCode))
+  ipcMain.handle('account:register-confirm', (_event, challengeId: unknown, code: unknown) => accountRegisterConfirm(challengeId, code))
   ipcMain.handle('account:open-website', async (_event, page: unknown) => {
     // 'admin': the owner's «Админ-панель» on the site (the server itself refuses it to anybody but the owner).
     const path = page === 'register' ? '/register' : page === 'admin' && isOwnerBuild() ? '/admin' : '/cabinet'

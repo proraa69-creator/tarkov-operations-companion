@@ -49,6 +49,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // E-mail codes (server/src/routes/email.ts): the same split — sign-in / reset by code has its own IPC.
   { methods: ['POST'], path: /^\/v1\/accounts\/email\/(?:login|reset)\/start$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/email\/(?:start|confirm)$/ },
+  // Registration in the app: only «Отправить код ещё раз» (answers a new challenge, never a session) goes through here.
+  // POST /register and /register/confirm return a session, so they have their own IPC (accountRegister below).
+  { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
+  // The accepted version of the legal documents after registration (152-ФЗ: the consent must be provable).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
   // «Кабинет стримера» (server/src/routes/accounts.ts, payouts.ts): statistics, audience links, payouts.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
@@ -415,6 +420,65 @@ async function accountCodeSignIn(channel: 'phone' | 'email', kind: unknown, rawC
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
   await saveSession(answer.token, { email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
   return accountStatus()
+}
+
+/** POST /v1/accounts/register while the server sends e-mail codes: no account yet, the code from the e-mail follows. */
+export interface PendingRegistration { challengeId: string; expiresAt: string; resendSeconds: number; message: string }
+export type RegistrationResult = { pending: PendingRegistration } | { status: AccountStatus; referralApplied: boolean }
+
+const CHALLENGE_ID = /^[A-Za-z0-9_-]{32}$/
+const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
+
+/** A session answer ({ token, account }) of the server: kept in this process, only the status goes back. */
+async function adoptSessionAnswer(result: unknown) {
+  const answer = result as { token?: unknown; referralApplied?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  await saveSession(answer.token, { email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
+  return { status: await accountStatus(), referralApplied: answer.referralApplied === true }
+}
+
+async function sendAccountRequest(path: string, body: unknown) {
+  await loadServerUrl()
+  try {
+    return await send('POST', path, { body })
+  } catch (error) {
+    if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
+    throw error
+  }
+}
+
+/**
+ * Registration in the app (POST /v1/accounts/register). With e-mail codes on the server answers 202 for every address
+ * and the account appears only after the code (accountRegisterConfirm); otherwise 201 with a session, kept here.
+ */
+export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown): Promise<RegistrationResult> {
+  const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
+  const password = typeof rawPassword === 'string' ? rawPassword : ''
+  const referralCode = typeof rawReferral === 'string' ? rawReferral.trim() : ''
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
+  if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
+  if (referralCode && !REFERRAL_CODE.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
+  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}) })
+  if (response.status === 202) {
+    const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
+    if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+    const resendSeconds = typeof pending.resendSeconds === 'number' && Number.isFinite(pending.resendSeconds) ? Math.max(0, Math.min(3600, Math.round(pending.resendSeconds))) : 60
+    const message = typeof pending.message === 'string' && pending.message.length <= 300 ? pending.message : 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.'
+    return { pending: { challengeId: pending.challengeId, expiresAt: pending.expiresAt, resendSeconds, message } }
+  }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось зарегистрироваться: ${response.status}`)
+  return adoptSessionAnswer(result)
+}
+
+/** The code from the registration e-mail (POST /v1/accounts/register/confirm): the account appears, signed in here. */
+export async function accountRegisterConfirm(rawChallenge: unknown, rawCode: unknown): Promise<{ status: AccountStatus; referralApplied: boolean }> {
+  const challengeId = typeof rawChallenge === 'string' ? rawChallenge : ''
+  const code = typeof rawCode === 'string' ? rawCode.replace(/[\s-]/g, '') : ''
+  if (!CHALLENGE_ID.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из письма — 6 цифр')
+  const { response, result } = await sendAccountRequest('/v1/accounts/register/confirm', { challengeId, code })
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось подтвердить e-mail: ${response.status}`)
+  return adoptSessionAnswer(result)
 }
 
 export async function accountLogout(): Promise<AccountStatus> {
