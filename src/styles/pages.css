@@ -7,23 +7,30 @@
  * so more bosses just stand smaller and closer. The text and the map picker stay above them. */
 .boss-figures {
   --overlap: 38px;
-  position: absolute; left: 46%; right: 14px; bottom: 0; top: 16px; z-index: 1; display: flex; align-items: flex-end; justify-content: flex-end;
-  pointer-events: none; animation: boss-figures-in .45s ease-out both;
+  /* the soles stand on a floor line 10px above the card edge, on their own contact shadow (not cut off by the edge) */
+  position: absolute; left: 46%; right: 14px; bottom: 10px; top: 16px; z-index: 1; display: flex; align-items: flex-end; justify-content: flex-end;
+  pointer-events: none;
+  transition: opacity .25s ease, transform .35s ease;
 }
+/* «Выбрать карту»: the open map menu would leave only the boots dangling under it — the bosses step down out of view */
+.raid-card.is-picking .boss-figures { opacity: 0; transform: translateY(40%); }
 .boss-figure {
   position: relative; margin: 0 0 0 calc(var(--overlap) * -1); height: 100%; min-width: 0;
   flex: 0 1 calc((100% + (var(--n) - 1) * var(--overlap)) / var(--n)); max-width: 250px;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+  animation: boss-figures-in .45s ease-out both; /* on the figures, so the row's own transform (is-picking) is not overridden */
 }
 .boss-figure:first-child { margin-left: 0; }
 /* sized by height in body heights (--fig-h, from the stills' sizes.json): every boss at one real-world scale */
 .boss-figure img {
   display: block; width: auto; max-width: none; height: calc(var(--fig-h, 1) * 64%); flex: none;
-  filter: drop-shadow(0 14px 16px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%));
+  /* tight shadow: an offset one (14px down) made the figures look lifted off the ground */
+  filter: drop-shadow(0 3px 4px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%));
 }
+/* contact shadow centred on the sole line (the still's bottom edge is the lowest boot) */
 .boss-figure::before {
-  content: ''; position: absolute; left: 12%; right: 12%; bottom: 12px; height: 18px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(0 0 0 / 60%), transparent);
+  content: ''; position: absolute; z-index: -1; left: 14%; right: 14%; bottom: -8px; height: 16px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 72%), rgb(0 0 0 / 30%) 60%, transparent);
 }
 .boss-figure figcaption {
   position: relative; margin: -6px 0 8px; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
@@ -31,7 +38,7 @@
 }
 .boss-figures.is-crowded figcaption { font-size: 8.5px; letter-spacing: .04em; padding: 1px 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 @keyframes boss-figures-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .boss-figures { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .boss-figure { animation: none; } .boss-figures { transition: none; } }
 @media (max-width: 1100px) { .boss-figures { display: none; } }
 .raid-content { position: relative; z-index: 2; padding: 25px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; overflow: hidden; }
 .raid-main { display: flex; flex-direction: column; align-items: flex-start; transition: transform .35s ease; }
