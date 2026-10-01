@@ -10,6 +10,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
 import { catalogRefetchDelay, createFailureCounter, isInitialCatalogLoad } from './catalogRefresh'
+import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 
 interface DataContextValue {
   data: AppDataset
@@ -27,7 +28,9 @@ const DataContext = createContext<DataContextValue | null>(null)
 export function DataProvider({ children }: { children: ReactNode }) {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
-  useEffect(() => { if (locale === 'en') void loadEnglishCatalog(raidMode) }, [locale, raidMode])
+  // Players' app: nothing is requested before the server has granted access (the paywall is shown instead).
+  const allowed = canLoadGameData(useDataAccess())
+  useEffect(() => { if (allowed && locale === 'en') void loadEnglishCatalog(raidMode) }, [allowed, locale, raidMode])
   // Failed loads in a row (reset by a successful one): the retry backs off 1 → 2 → 5 → 15 min (src/data/catalogRefresh.ts).
   const failures = useRef(createFailureCounter())
   // The server laptop (--server-mode) fetches once and never polls.
@@ -35,6 +38,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const query = useQuery({
     queryKey: ['tarkov-companion-data', raidMode],
     queryFn: () => fetchTarkovCatalog(raidMode, 'ru'),
+    enabled: allowed,
     staleTime: 55_000,
     refetchInterval: (current) => catalogRefetchDelay(failures.current(current.queryHash, current.state), serverMode),
     refetchIntervalInBackground: !serverMode,
@@ -46,7 +50,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
   const russian = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
-  const data = useEnglishOverlay(russian, raidMode, locale)
+  const data = useEnglishOverlay(russian, raidMode, locale, allowed)
   const value: DataContextValue = {
     data,
     source,

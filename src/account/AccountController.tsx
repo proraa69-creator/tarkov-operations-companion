@@ -149,7 +149,8 @@ function AccountGate({ step, onSigningIn, onSignedIn, onSkip, onDone }: {
   )
 }
 
-function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => void; onSignedIn: (nicknames?: Partial<Record<RaidMode, string>>) => void; onSkip: () => void }) {
+/** The account sign-in form (first run, and the paywall of the players' app without `onSkip`). */
+export function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => void; onSignedIn: (nicknames?: Partial<Record<RaidMode, string>>) => void; onSkip?: () => void }) {
   const { status, checking, refresh, login } = useServerAccount()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -223,7 +224,7 @@ function SignInStep({ onSigningIn, onSignedIn, onSkip }: { onSigningIn: () => vo
       {status && !online && (
         <div className="account-gate-offline">
           <button type="button" className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить снова')}</button>
-          <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>
+          {onSkip && <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>}
         </div>
       )}
     </form>
