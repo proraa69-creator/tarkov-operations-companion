@@ -43,7 +43,8 @@ export interface ServerAccountStatus {
 export interface MobileLoginLink { url: string; expiresAt: string; reachable: boolean }
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean }
+/** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */

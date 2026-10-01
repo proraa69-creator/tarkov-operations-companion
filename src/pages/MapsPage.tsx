@@ -3,7 +3,7 @@ import { DocumentGlyph } from '../components/DocumentGlyph'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
-import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Pane, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
@@ -541,6 +541,16 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           {/* Digital: the SVG scheme with the ground level (or the selected SVG floor) shown. */}
           {plan.view === 'digital' && imageUrl && (
             <FloorSvgOverlay key={`base:${imageUrl}`} base url={imageUrl} layers={activeMap.layers ?? []} selected={plan.floorSvg ? floor : baseFloor} bounds={imageBounds} opacity={baseOpacity} />
+          )}
+          {/* Satellite: the scheme under the render tiles, so a gap in a tile shows the plan instead of black. */}
+          {plan.view === 'satellite' && imageUrl && plan.underlay && (
+            <Pane name="satellite-underlay" style={{ zIndex: 150 }}>
+              <FloorSvgOverlay key={`under:${imageUrl}`} base url={imageUrl} layers={activeMap.layers ?? []} selected={baseFloor} bounds={imageBounds} opacity={baseOpacity} />
+            </Pane>
+          )}
+          {/* Satellite, main level: the buildings' ground-floor rooms from the scheme (the render leaves them black). */}
+          {plan.view === 'satellite' && imageUrl && plan.groundInteriors && (
+            <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={activeMap.layers ?? []} selected={baseFloor} bounds={imageBounds} interiors />
           )}
           {/* Satellite: a floor that only exists in the SVG is drawn as a plan over the render. */}
           {plan.view === 'satellite' && imageUrl && plan.floorSvg === 'floor-only' && (

@@ -59,6 +59,13 @@ export interface MapLayerPlan {
   floorSvg?: 'with-terrain' | 'floor-only'
   /** Fade the base while a floor is drawn on top of it (tarkov.dev does the same). */
   dimBase: boolean
+  /**
+   * Satellite view with a scheme: the scheme is laid under the render tiles (wherever a tile is empty the plan shows,
+   * not the black page), and on the main level the buildings' ground-floor rooms from the scheme are drawn over it —
+   * tarkov.dev's top-down render leaves them black.
+   */
+  underlay?: boolean
+  groundInteriors?: boolean
 }
 
 export function planMapLayers(map: GameMap, preferred: MapView, floor: string): MapLayerPlan {
@@ -70,7 +77,11 @@ export function planMapLayers(map: GameMap, preferred: MapView, floor: string): 
   const svgFloor = Boolean(imageUrl && floorLayer?.svgLayer)
   if (view === 'satellite') {
     const floorSvg = !floorTileUrl && svgFloor ? 'floor-only' as const : undefined
-    return { view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg, dimBase: Boolean(floorTileUrl || floorSvg) }
+    const scheme = Boolean(tileUrl && imageUrl)
+    return {
+      view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg, dimBase: Boolean(floorTileUrl || floorSvg),
+      underlay: scheme, groundInteriors: scheme && floor === baseFloor,
+    }
   }
   const floorSvg = svgFloor ? 'with-terrain' as const : undefined
   const floorTiles = floorSvg ? undefined : floorTileUrl

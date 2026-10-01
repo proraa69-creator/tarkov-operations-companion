@@ -49,7 +49,9 @@ describe('map view preference', () => {
 describe('map layer plan', () => {
   it('satellite: base tiles, own floor tiles or an SVG floor plan over the render', () => {
     const map = customs()
-    expect(planMapLayers(map, 'satellite', 'Основной')).toMatchObject({ view: 'satellite', tileUrl: TILE, floorTileUrl: undefined, floorSvg: undefined, dimBase: false })
+    expect(planMapLayers(map, 'satellite', 'Основной')).toMatchObject({ view: 'satellite', tileUrl: TILE, floorTileUrl: undefined, floorSvg: undefined, dimBase: false, underlay: true, groundInteriors: true })
+    expect(planMapLayers(map, 'satellite', '2 этаж')).toMatchObject({ underlay: true, groundInteriors: false })
+    expect(planMapLayers(map, 'digital', 'Основной').groundInteriors).toBeFalsy()
     expect(planMapLayers(map, 'satellite', '2 этаж')).toMatchObject({ floorTileUrl: expect.stringContaining('/2nd/'), floorSvg: undefined, dimBase: true })
     expect(planMapLayers(map, 'satellite', 'Подземный')).toMatchObject({ floorTileUrl: undefined, floorSvg: 'floor-only', dimBase: true })
   })

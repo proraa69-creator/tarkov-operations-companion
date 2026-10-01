@@ -7,23 +7,30 @@
  * so more bosses just stand smaller and closer. The text and the map picker stay above them. */
 .boss-figures {
   --overlap: 38px;
-  position: absolute; left: 46%; right: 14px; bottom: 0; top: 16px; z-index: 1; display: flex; align-items: flex-end; justify-content: flex-end;
-  pointer-events: none; animation: boss-figures-in .45s ease-out both;
+  /* the soles stand on a floor line 10px above the card edge, on their own contact shadow (not cut off by the edge) */
+  position: absolute; left: 46%; right: 14px; bottom: 10px; top: 16px; z-index: 1; display: flex; align-items: flex-end; justify-content: flex-end;
+  pointer-events: none;
+  transition: opacity .25s ease, transform .35s ease;
 }
+/* «Выбрать карту»: the open map menu would leave only the boots dangling under it — the bosses step down out of view */
+.raid-card.is-picking .boss-figures { opacity: 0; transform: translateY(40%); }
 .boss-figure {
   position: relative; margin: 0 0 0 calc(var(--overlap) * -1); height: 100%; min-width: 0;
   flex: 0 1 calc((100% + (var(--n) - 1) * var(--overlap)) / var(--n)); max-width: 250px;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+  animation: boss-figures-in .45s ease-out both; /* on the figures, so the row's own transform (is-picking) is not overridden */
 }
 .boss-figure:first-child { margin-left: 0; }
 /* sized by height in body heights (--fig-h, from the stills' sizes.json): every boss at one real-world scale */
 .boss-figure img {
   display: block; width: auto; max-width: none; height: calc(var(--fig-h, 1) * 64%); flex: none;
-  filter: drop-shadow(0 14px 16px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%));
+  /* tight shadow: an offset one (14px down) made the figures look lifted off the ground */
+  filter: drop-shadow(0 3px 4px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%));
 }
+/* contact shadow centred on the sole line (the still's bottom edge is the lowest boot) */
 .boss-figure::before {
-  content: ''; position: absolute; left: 12%; right: 12%; bottom: 12px; height: 18px; border-radius: 50%;
-  background: radial-gradient(closest-side, rgb(0 0 0 / 60%), transparent);
+  content: ''; position: absolute; z-index: -1; left: 14%; right: 14%; bottom: -8px; height: 16px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 72%), rgb(0 0 0 / 30%) 60%, transparent);
 }
 .boss-figure figcaption {
   position: relative; margin: -6px 0 8px; padding: 2px 7px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
@@ -31,7 +38,7 @@
 }
 .boss-figures.is-crowded figcaption { font-size: 8.5px; letter-spacing: .04em; padding: 1px 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 @keyframes boss-figures-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .boss-figures { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .boss-figure { animation: none; } .boss-figures { transition: none; } }
 @media (max-width: 1100px) { .boss-figures { display: none; } }
 .raid-content { position: relative; z-index: 2; padding: 25px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; overflow: hidden; }
 .raid-main { display: flex; flex-direction: column; align-items: flex-start; transition: transform .35s ease; }
@@ -152,10 +159,12 @@
 .leaflet-top.leaflet-right { top: 52px; right: 10px; }
 .leaflet-control-attribution { display: none !important; }
 .map-quest-sheet {
+  /* a compact card in the bottom-left corner (about half the old full-width sheet each way), so the map centre stays clear */
   position: absolute;
   left: 12px;
-  right: 12px;
   bottom: 12px;
+  width: min(400px, calc(50% - 18px));
+  min-width: min(300px, calc(100% - 24px));
   z-index: 500;
   pointer-events: none;
   transform: translateY(110%);
@@ -169,9 +178,11 @@
 }
 .map-quest-sheet-body {
   position: relative;
-  max-height: min(46vh, 360px);
+  max-height: min(30vh, 240px);
   overflow: auto;
-  padding: 16px 18px 14px;
+  overscroll-behavior: contain;
+  padding: 12px 14px 10px;
+  font-size: 13px;
   border: 1px solid #4a5038;
   border-radius: 14px 14px 12px 12px;
   background: rgb(14 20 16 / 94%);
@@ -182,24 +193,26 @@
 .map-marker-detail-card { padding-right: 54px; }
 .map-marker-item-price { display: flex; justify-content: space-between; gap: 20px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .map-marker-item-price span { color: var(--text-dim); }
-.map-quest-sheet-eyebrow { color: var(--brass); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.map-quest-sheet-title { margin: 6px 0 10px; font-size: 22px; line-height: 1.15; }
-.map-quest-sheet-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.map-quest-sheet-section h4 { margin: 0 0 6px; color: var(--text-dim); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.map-quest-sheet-eyebrow { color: var(--brass); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.map-quest-sheet-title { margin: 4px 0 8px; font-size: 17px; line-height: 1.15; }
+.map-quest-sheet-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.map-quest-sheet-meta .tag { font-size: 10px; }
+.map-quest-sheet-section h4 { margin: 0 0 4px; color: var(--text-dim); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .map-quest-sheet-section p { margin: 0 0 6px; }
-.map-quest-sheet-objectives { margin: 0; padding-left: 18px; color: var(--text); }
-.map-quest-sheet-objectives li { margin: 0 0 4px; }
-.map-quest-sheet-link { width: 100%; margin-top: 12px; justify-content: center; }
-.map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: start; }
+.map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); }
+.map-quest-sheet-objectives li { margin: 0 0 3px; }
+.map-quest-sheet-link { width: 100%; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
+.map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 118px; gap: 10px; align-items: start; }
 .map-quest-sheet-copy { min-width: 0; }
 .map-quest-sheet-visual { margin: 0; display: grid; gap: 6px; }
-.map-quest-sheet-visual figcaption { display: flex; justify-content: space-between; gap: 8px; color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.map-quest-sheet-visual .mini-map { height: 104px; border-radius: 6px; }
+.map-quest-sheet-visual figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 6px; color: var(--text-dim); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .map-quest-sheet-visual figcaption span:last-child { color: var(--brass); }
-.map-quest-sheet-point { margin: 0; color: #c3ccc5; font-size: 12px; line-height: 1.35; }
-.map-quest-sheet-note { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 12px; }
+.map-quest-sheet-point { margin: 0; color: #c3ccc5; font-size: 11px; line-height: 1.3; }
+.map-quest-sheet-note { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11px; }
 .map-floor-tag { display: inline-flex; align-items: center; gap: 4px; }
 .map-floor-tag.is-indoor { border-color: #7c6a3f; color: #efd9a3; }
-@media (max-width: 980px) { .map-quest-sheet-body.has-visual { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 980px) { .map-quest-sheet-body.has-visual { grid-template-columns: minmax(0, 1fr); } .map-quest-sheet-visual { max-width: 180px; } }
 .quest-scan-status .spin.is-paused { animation: none; opacity: .55; }
 .flea-item-link {
   display: grid;
@@ -964,6 +977,10 @@ a.quest-stage:hover { color: var(--text); }
 
 /* Top bar «Обновить» (src/components/UpdateButton.tsx) */
 .update-button { min-height: 34px; white-space: nowrap; }
+/* one fixed size in every state (available / downloading / error), so the top bar never shifts while it updates */
+.update-button { flex: none; width: 206px; justify-content: center; overflow: hidden; }
+.update-button .update-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.update-button svg { flex: none; }
 .update-button.is-error { background: transparent; color: #e2a398; border-color: #613d37; }
 
 /* Server owner panels (src/components/OwnerPanels.tsx) */

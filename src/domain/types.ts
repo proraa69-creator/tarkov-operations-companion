@@ -310,6 +310,11 @@ export interface Item {
   fleaPrice?: number
   wikiLink?: string
   types?: string[]
+  /**
+   * Weapons: picture of the whole gun — tarkov.dev's default preset (properties.defaultPreset), whose 512px image
+   * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.
+   */
+  presetImageUrl?: string
 }
 
 export interface HideoutStation {

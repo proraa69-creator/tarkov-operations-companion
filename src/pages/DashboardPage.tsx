@@ -64,7 +64,7 @@ export function DashboardPage() {
 
     <div className="dashboard-layout">
       <div className="dashboard-column">
-        <section className="panel raid-card">
+        <section className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
           <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
           <RaidSmoke mapId={selectedMap.id} />
           <BossFigures mapId={selectedMap.id} />
