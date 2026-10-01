@@ -51,6 +51,7 @@ export function registerModeProfile(
           favoriteItemIds: [...current.favoriteItemIds],
           raidItemIds: [...current.raidItemIds],
           hideoutLevels: { ...current.hideoutLevels },
+          itemCounts: { ...(current.itemCounts ?? {}) },
         },
       },
     }
@@ -134,6 +135,9 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       favoriteItemIds: favoriteUnion.length ? [...favoriteUnion] : [...(saved?.favoriteItemIds ?? [])],
       raidItemIds: [...(saved?.raidItemIds ?? [])],
       hideoutLevels: { ...(saved?.hideoutLevels ?? {}) },
+      itemCounts: Object.fromEntries(Object.entries(saved?.itemCounts ?? {})
+        .filter(([, count]) => typeof count === 'number' && Number.isFinite(count) && count > 0)
+        .map(([itemId, count]) => [itemId, Math.round(count)])),
     }
   }
   return {

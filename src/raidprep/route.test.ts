@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bestStartExtract, orderRoute, routeLength, routeTargets, stepNumber, type RouteTarget } from './route'
+import { bestStartExtract, orderRoute, planRoute, routeLength, routeTargets, stepNumber, type RouteTarget } from './route'
 import { marker, progressWith, quest } from './fixtures'
 
 const target = (id: string, position: [number, number], group = id): RouteTarget => ({ id, position, group, title: id })
@@ -61,8 +61,53 @@ describe('bestStartExtract and routeTargets', () => {
     expect(routeTargets(markers, quests, progressWith({ q1: 'active' }), 'customs').map((entry) => [entry.id, entry.group])).toEqual([['m1', 'o1']])
   })
 
+  it('labels a step by its objective and skips objectives already done', () => {
+    const quests = [quest('q1', 'Текущее', { objectiveDetails: [
+      { id: 'o1', type: 'mark', description: 'Отметить бензовоз', mapIds: ['customs'], zoneBound: true },
+      { id: 'o2', type: 'visit', description: 'Посетить общагу', mapIds: ['customs'], zoneBound: true },
+    ] })]
+    const markers = [
+      marker('m1', [1, 1], { questId: 'q1', objectiveId: 'o1', title: 'Текущее', floor: 'Подвал' }),
+      marker('m2', [2, 2], { questId: 'q1', objectiveId: 'o2', title: 'Текущее' }),
+    ]
+    const progress = progressWith({ q1: 'active' })
+    expect(routeTargets(markers, quests, progress, 'customs').map((entry) => [entry.title, entry.objectiveType, entry.floor])).toEqual([
+      ['Отметить бензовоз', 'mark', 'Подвал'],
+      ['Посетить общагу', 'visit', undefined],
+    ])
+    progress.taskProgress.q1 = { ...progress.taskProgress.q1, ...{ objectives: { o2: { completed: true } } } }
+    expect(routeTargets(markers, quests, progress, 'customs').map((entry) => entry.id)).toEqual(['m1'])
+  })
+
   it('numbers steps with circled digits', () => {
     expect([0, 1, 9].map(stepNumber).join('→')).toBe('①→②→⑩')
     expect(stepNumber(20)).toBe('(21)')
+  })
+})
+
+describe('planRoute', () => {
+  const quests = [quest('q1', 'Текущее')]
+  const markers = [
+    marker('a', [10, 0], { questId: 'q1', objectiveId: 'o1' }),
+    marker('b', [20, 0], { questId: 'q1', objectiveId: 'o2' }),
+    marker('ex-west', [0, 0], { layerId: 'extract.pmc', type: 'extract', title: 'Запад' }),
+    marker('ex-east', [200, 0], { layerId: 'extract.pmc', type: 'extract', title: 'Восток' }),
+  ]
+  const progress = progressWith({ q1: 'active' })
+
+  it('starts at the best extract by default', () => {
+    const plan = planRoute(markers, quests, progress, 'customs', null)
+    expect(plan).toMatchObject({ startExtract: 'Запад', startIsCustom: false, start: [0, 0], length: 20 })
+    expect(plan.steps.map((step) => step.id)).toEqual(['a', 'b'])
+  })
+
+  it('starts where the user clicked', () => {
+    const plan = planRoute(markers, quests, progress, 'customs', [25, 0])
+    expect(plan.startIsCustom).toBe(true)
+    expect(plan.steps.map((step) => step.id)).toEqual(['b', 'a'])
+  })
+
+  it('has no steps without current quests', () => {
+    expect(planRoute(markers, quests, progressWith({}), 'customs', null).steps).toEqual([])
   })
 })

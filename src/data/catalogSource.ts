@@ -205,6 +205,9 @@ function adaptTasks(
         objectiveId,
         alternatives: itemIds.length,
         optional: objective.optional === true || undefined,
+        minDurability: number(objective.minDurability) || undefined,
+        maxDurability: number(objective.maxDurability) > 0 && number(objective.maxDurability) < 100 ? number(objective.maxDurability) : undefined,
+        dogTagLevel: number(objective.dogTagLevel) || undefined,
       }))
     })
     for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
@@ -250,6 +253,9 @@ function adaptTasks(
         mapIds: [...new Set((strings(objective.maps).length ? strings(objective.maps) : asArray(objective.zones).map((zone) => text(zone.map)))
           .map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))],
         optional: objective.optional === true || undefined,
+        count: number(objective.count) || undefined,
+        // Only objectives with zones / possible spots become map points; kill, hand over, skill… stay a checklist.
+        zoneBound: asArray(objective.zones).length > 0 || asArray(objective.possibleLocations).length > 0 || undefined,
       })).filter((objective) => objective.id && objective.description),
       rewards,
       requiredItems: [...new Set([...objectiveItems, ...requiredKeys])],

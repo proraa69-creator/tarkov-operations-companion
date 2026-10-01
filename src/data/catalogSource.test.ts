@@ -51,7 +51,8 @@ describe('catalog adapter: found-in-raid and structured requirements', () => {
       ['o2', 'handover', 2, true, 1],
       ['o3', 'handover', 3, undefined, 2],
     ])
-    expect(quest.objectiveDetails!.find((objective) => objective.id === 'o4')!.mapIds).toEqual(['customs'])
+    expect(quest.objectiveDetails!.find((objective) => objective.id === 'o4')).toMatchObject({ type: 'visit', mapIds: ['customs'], zoneBound: true })
+    expect(quest.objectiveDetails!.find((objective) => objective.id === 'o3')).toMatchObject({ type: 'giveItem', count: 3, zoneBound: undefined })
     const level = catalog.hideout.find((station) => station.id === 'st1')!.levels![0]
     expect(level.itemRequirements).toEqual([{ itemId: 'gas', count: 1, foundInRaid: true }, { itemId: 'salewa', count: 2, foundInRaid: undefined }])
     expect(level.requirements[0]).toContain('(найти в рейде)')

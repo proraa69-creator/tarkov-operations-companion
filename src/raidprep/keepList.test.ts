@@ -10,6 +10,8 @@ const items = [
   item('rub', 'Рубли', { types: ['money'] }),
   item('lion', 'Лев'),
   item('ms2000', 'Маркер MS2000'),
+  item('armor-a', '6Б45'),
+  item('armor-b', '6Б45 EMR'),
 ]
 
 const quests = [
@@ -21,7 +23,10 @@ const quests = [
   }),
   quest('q-done', 'Сданное', { raidRequirements: [{ itemId: 'flash', count: 1, purpose: 'handover', mapIds: [], objectiveId: 'o3', alternatives: 1 }] }),
   quest('q-any-med', 'Любая медицина', {
-    raidRequirements: ['salewa', 'gas'].map((itemId) => ({ itemId, count: 3, purpose: 'handover' as const, mapIds: [], objectiveId: 'o4', alternatives: 2 })),
+    raidRequirements: ['salewa', 'gas', 'm1', 'm2', 'm3', 'm4'].map((itemId) => ({ itemId, count: 3, purpose: 'handover' as const, mapIds: [], objectiveId: 'o4', alternatives: 6 })),
+  }),
+  quest('q-armor', 'Броня', {
+    raidRequirements: ['armor-a', 'armor-b'].map((itemId) => ({ itemId, count: 1, purpose: 'handover' as const, mapIds: [], objectiveId: 'o9', alternatives: 2, foundInRaid: true, minDurability: 50 })),
   }),
   quest('q-money', 'Плата', { raidRequirements: [{ itemId: 'rub', count: 100000, purpose: 'handover', mapIds: [], objectiveId: 'o5', alternatives: 1 }] }),
   quest('q-plant', 'Наблюдение', { raidRequirements: [{ itemId: 'ms2000', count: 2, purpose: 'mark', mapIds: ['customs'], objectiveId: 'o6', alternatives: 1 }] }),
@@ -37,12 +42,22 @@ const hideout = [
   ]),
 ]
 
+const byQuest = (id: string) => quests.find((entry) => entry.id === id)!
+
 describe('questItemNeeds', () => {
   it('counts find + hand over of one item once and skips «any of» objectives and keys', () => {
-    expect([...questItemNeeds(quests[0])]).toEqual([['gas', { count: 2, foundInRaid: true }]])
-    expect(questItemNeeds(quests[2]).size).toBe(0)
-    expect(questItemNeeds(quests[5]).size).toBe(0)
-    expect([...questItemNeeds(quests[4])]).toEqual([['ms2000', { count: 2, foundInRaid: false }]])
+    expect([...questItemNeeds(byQuest('q-gas'))]).toEqual([['gas', { count: 2, foundInRaid: true, substitutes: [] }]])
+    expect(questItemNeeds(byQuest('q-any-med')).size).toBe(0)
+    expect(questItemNeeds(byQuest('q-key')).size).toBe(0)
+    expect([...questItemNeeds(byQuest('q-plant'))]).toEqual([['ms2000', { count: 2, foundInRaid: false, substitutes: [] }]])
+  })
+
+  it('keeps a small set of substitutes with their durability', () => {
+    const armor = quests.find((entry) => entry.id === 'q-armor')!
+    expect([...questItemNeeds(armor)]).toEqual([
+      ['armor-a', { count: 1, foundInRaid: true, substitutes: ['armor-b'], minDurability: 50 }],
+      ['armor-b', { count: 1, foundInRaid: true, substitutes: ['armor-a'], minDurability: 50 }],
+    ])
   })
 })
 
@@ -91,7 +106,7 @@ describe('filterKeepRows and keepBadge', () => {
   it('filters by source, FIR and search and recounts the need', () => {
     const hideoutOnly = filterKeepRows(rows, { kinds: ['hideout'] })
     expect(hideoutOnly.map((row) => [row.item.id, row.need]).sort()).toEqual([['bolts', 3], ['gas', 1]])
-    expect(filterKeepRows(rows, { foundInRaidOnly: true }).map((row) => row.item.id).sort()).toEqual(['gas', 'lion'])
+    expect(filterKeepRows(rows, { foundInRaidOnly: true }).map((row) => row.item.id).sort()).toEqual(['armor-a', 'armor-b', 'gas', 'lion'])
     expect(filterKeepRows(rows, { search: 'болт' }).map((row) => row.item.id)).toEqual(['bolts'])
     expect(filterKeepRows(rows, { kinds: ['kappa'] }).map((row) => row.item.id)).toEqual(['lion'])
   })

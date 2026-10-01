@@ -47,6 +47,36 @@ describe('buildRaidBriefing', () => {
     expect(briefing.keys.map((row) => [row.itemId, row.questNames])).toEqual([['key-206', ['Проверка']], ['flash', ['Дальнобойщик']]])
   })
 
+  it('splits zone-bound objectives (map points) from the checklist', () => {
+    const typed = quest('q6', 'Разведка', {
+      trader: 'Механик', mapIds: ['customs'],
+      objectiveDetails: [
+        { id: 'p1', type: 'mark', description: 'Отметить бензовоз', mapIds: ['customs'], zoneBound: true },
+        { id: 'p2', type: 'shoot', description: 'Убить 5 диких', mapIds: ['customs'], count: 5 },
+        { id: 'p3', type: 'giveItem', description: 'Сдать маркер', mapIds: [] },
+        { id: 'p4', type: 'visit', description: 'Посетить Лес', mapIds: ['woods'], zoneBound: true },
+      ],
+    })
+    const result = buildRaidBriefing({ mapId: 'customs', quests: [typed], items, markers: [], progress: progressWith({ q6: 'active' }) })
+    const entry = result.groups[0].quests[0]
+    expect(entry.points.map((objective) => [objective.type, objective.description])).toEqual([['mark', 'Отметить бензовоз']])
+    expect(entry.checklist.map((objective) => [objective.type, objective.count])).toEqual([['shoot', 5], ['giveItem', undefined]])
+  })
+
+  it('drops objectives already done when per-objective progress is present', () => {
+    const typed = quest('q7', 'Две цели', {
+      mapIds: ['customs'],
+      objectiveDetails: [
+        { id: 'a', type: 'visit', description: 'Первая', mapIds: ['customs'], zoneBound: true },
+        { id: 'b', type: 'visit', description: 'Вторая', mapIds: ['customs'], zoneBound: true },
+      ],
+    })
+    const progress = progressWith({ q7: 'active' })
+    Object.assign(progress, { objectiveProgress: { a: { current: 1, target: 1 } } })
+    const result = buildRaidBriefing({ mapId: 'customs', quests: [typed], items, markers: [], progress })
+    expect(result.groups[0].quests[0].objectives).toEqual(['Вторая'])
+  })
+
   it('is empty for a map without current quests', () => {
     const empty = buildRaidBriefing({ mapId: 'lighthouse', quests: quests.filter((entry) => !entry.anyMap), items, markers: [], progress })
     expect(empty.groups).toEqual([])

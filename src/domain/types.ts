@@ -260,6 +260,10 @@ export interface Quest {
     /** Number of items the objective accepts; above 1 any of them counts (e.g. «hand over 3 of any medical»). */
     alternatives?: number
     optional?: boolean
+    /** Item condition the objective accepts, in % (tarkov.dev min/maxDurability). */
+    minDurability?: number
+    maxDurability?: number
+    dogTagLevel?: number
   }>
   /** Each objective with its own maps (empty = any map), for the raid briefing. */
   objectiveDetails?: QuestObjectiveDetail[]
@@ -271,6 +275,10 @@ export interface QuestObjectiveDetail {
   description: string
   mapIds: string[]
   optional?: boolean
+  /** Target count (kills, items, …). */
+  count?: number
+  /** The objective has zones or possible spots on a map (a map point); otherwise it is a checklist step. */
+  zoneBound?: boolean
 }
 
 export interface PriceQuote {

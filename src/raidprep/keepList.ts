@@ -18,6 +18,10 @@ export interface KeepReason {
   status?: TaskProgressStatus
   /** The quest is required for Kappa. */
   kappaRequired?: boolean
+  /** The objective also accepts these items instead (the need may be covered by one of them). */
+  substitutes?: string[]
+  /** Lowest item condition the objective accepts, in %. */
+  minDurability?: number
 }
 
 export interface KeepRow {
@@ -75,7 +79,11 @@ export function computeKeepList(input: KeepListInput): KeepRow[] {
     if (faction && progress.faction !== 'unknown' && faction !== progress.faction) continue
     const kind: KeepSource = collector && quest.id === collector.id ? 'kappa' : 'quest'
     for (const [itemId, need] of questItemNeeds(quest)) {
-      add(itemId, { kind, id: quest.id, name: quest.name, count: need.count, foundInRaid: need.foundInRaid, trader: quest.trader, status, kappaRequired: quest.kappa })
+      add(itemId, {
+        kind, id: quest.id, name: quest.name, count: need.count, foundInRaid: need.foundInRaid, trader: quest.trader, status, kappaRequired: quest.kappa,
+        ...(need.substitutes.length ? { substitutes: need.substitutes } : {}),
+        ...(need.minDurability ? { minDurability: need.minDurability } : {}),
+      })
     }
   }
 
@@ -101,30 +109,57 @@ export function computeKeepList(input: KeepListInput): KeepRow[] {
   }).sort((a, b) => Number(b.remaining > 0) - Number(a.remaining > 0) || b.remaining - a.remaining || a.item.name.localeCompare(b.item.name, 'ru'))
 }
 
+/** An objective accepting more items than this («3 of any medical item») is no reason to keep a specific one. */
+export const MAX_SUBSTITUTES = 5
+
+export interface QuestItemNeed {
+  count: number
+  foundInRaid: boolean
+  /** Other items the same objective accepts instead (tarkov.dev objective `items`). */
+  substitutes: string[]
+  /** Lowest condition accepted, in %. */
+  minDurability?: number
+}
+
 /**
- * How many of each item one quest takes. An objective that accepts any of several items (e.g. «3 of any medical item»)
- * is not a reason to keep a specific item. «Find» and «hand over» of the same item are one need, not two.
+ * How many of each item one quest takes. «Find» and «hand over» of the same item are one need, not two.
+ * Keys are not listed (the briefing shows them); objectives that accept a large set of items are skipped.
  */
 export function questItemNeeds(quest: Quest) {
-  const perItem = new Map<string, { handover: number; find: number; carry: number; foundInRaid: boolean }>()
-  const seen = new Set<string>()
-  for (const requirement of quest.raidRequirements ?? []) {
+  const objectives = new Map<string, NonNullable<Quest['raidRequirements']>>()
+  for (const [index, requirement] of (quest.raidRequirements ?? []).entries()) {
     if (!ITEM_PURPOSES.has(requirement.purpose) || !requirement.itemId) continue
-    if ((requirement.alternatives ?? 1) > 1) continue
-    // One objective lists an item once; the same objective read twice (cached + live) must not double it.
-    const key = `${requirement.objectiveId ?? ''}:${requirement.purpose}:${requirement.itemId}`
-    if (requirement.objectiveId && seen.has(key)) continue
-    seen.add(key)
-    const entry = perItem.get(requirement.itemId) ?? { handover: 0, find: 0, carry: 0, foundInRaid: false }
-    const count = Math.max(1, Math.round(requirement.count) || 1)
-    if (requirement.purpose === 'handover') entry.handover += count
-    else if (requirement.purpose === 'find') entry.find += count
-    else entry.carry += count
-    if (requirement.foundInRaid && (requirement.purpose === 'handover' || requirement.purpose === 'find')) entry.foundInRaid = true
-    perItem.set(requirement.itemId, entry)
+    const key = requirement.objectiveId ? `${requirement.objectiveId}:${requirement.purpose}` : `#${index}`
+    const list = objectives.get(key) ?? []
+    // One objective lists an item once; the same objective read twice must not double it.
+    if (!list.some((entry) => entry.itemId === requirement.itemId)) list.push(requirement)
+    objectives.set(key, list)
   }
-  const result = new Map<string, { count: number; foundInRaid: boolean }>()
-  for (const [itemId, entry] of perItem) result.set(itemId, { count: Math.max(entry.handover, entry.find) + entry.carry, foundInRaid: entry.foundInRaid })
+  const perItem = new Map<string, { handover: number; find: number; carry: number; foundInRaid: boolean; substitutes: Set<string>; minDurability?: number }>()
+  for (const group of objectives.values()) {
+    const size = Math.max(group.length, ...group.map((requirement) => requirement.alternatives ?? 1))
+    if (size > MAX_SUBSTITUTES) continue
+    for (const requirement of group) {
+      const entry = perItem.get(requirement.itemId) ?? { handover: 0, find: 0, carry: 0, foundInRaid: false, substitutes: new Set<string>() }
+      const count = Math.max(1, Math.round(requirement.count) || 1)
+      if (requirement.purpose === 'handover') entry.handover += count
+      else if (requirement.purpose === 'find') entry.find += count
+      else entry.carry += count
+      if (requirement.foundInRaid && (requirement.purpose === 'handover' || requirement.purpose === 'find')) entry.foundInRaid = true
+      for (const other of group) if (other.itemId !== requirement.itemId) entry.substitutes.add(other.itemId)
+      if (requirement.minDurability) entry.minDurability = Math.max(entry.minDurability ?? 0, requirement.minDurability)
+      perItem.set(requirement.itemId, entry)
+    }
+  }
+  const result = new Map<string, QuestItemNeed>()
+  for (const [itemId, entry] of perItem) {
+    result.set(itemId, {
+      count: Math.max(entry.handover, entry.find) + entry.carry,
+      foundInRaid: entry.foundInRaid,
+      substitutes: [...entry.substitutes],
+      ...(entry.minDurability ? { minDurability: entry.minDurability } : {}),
+    })
+  }
   return result
 }
 

@@ -1,11 +1,25 @@
 import type { Item, MapMarker, ModeProgress, Quest } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
+import { objectiveDone } from './objectives'
+
+export interface BriefingObjective {
+  id: string
+  /** tarkov.dev objective type (visit, mark, plantItem, shoot, giveItem…); empty when unknown. */
+  type: string
+  description: string
+  count?: number
+  optional?: boolean
+}
 
 export interface BriefingQuest {
   quest: Quest
-  /** What to do on this map: the current story stage, or the objectives that name this map (or no map). */
+  /** What to do on this map (descriptions of `points` + `checklist`). */
   objectives: string[]
+  /** Objectives with zones on this map: they are map points (and route steps). */
+  points: BriefingObjective[]
+  /** Objectives without a map point: kill, hand over, skill, … — synced by quest state or ticked by the player. */
+  checklist: BriefingObjective[]
   anyMap: boolean
 }
 
@@ -48,7 +62,13 @@ export function buildRaidBriefing({ mapId, quests, items, markers, progress }: B
   const current = quests.filter((quest) => isCurrentTrackedQuest(quest, progress))
     .filter((quest) => questAppliesToMap(quest, mapId, currentStoryStageIndex(quest, progress)))
 
-  const entries: BriefingQuest[] = current.map((quest) => ({ quest, objectives: objectivesOnMap(quest, mapId, progress), anyMap: Boolean(quest.anyMap) }))
+  const entries: BriefingQuest[] = current.map((quest) => {
+    const objectives = objectivesOnMap(quest, mapId, progress)
+    const points = objectives.filter((objective) => objective.zoneBound)
+    const checklist = objectives.filter((objective) => !objective.zoneBound)
+    const strip = (objective: BriefingObjective): BriefingObjective => ({ id: objective.id, type: objective.type, description: objective.description, count: objective.count, optional: objective.optional })
+    return { quest, objectives: objectives.map((objective) => objective.description), points: points.map(strip), checklist: checklist.map(strip), anyMap: Boolean(quest.anyMap) }
+  })
   const groups = new Map<string, BriefingQuest[]>()
   for (const entry of entries) {
     const list = groups.get(entry.quest.trader) ?? []
@@ -85,16 +105,26 @@ export function buildRaidBriefing({ mapId, quests, items, markers, progress }: B
   return { mapId, groups: groupRows, questCount: current.length, find: find.rows(), bring: bring.rows(), keys: keys.rows() }
 }
 
-function objectivesOnMap(quest: Quest, mapId: string, progress: ModeProgress) {
+function objectivesOnMap(quest: Quest, mapId: string, progress: ModeProgress): Array<BriefingObjective & { zoneBound?: boolean }> {
   if (isStoryQuest(quest) && quest.stages?.length) {
     const stage = quest.stages[Math.min(currentStoryStageIndex(quest, progress), quest.stages.length - 1)]
-    return stage ? [stage.title] : []
+    return stage ? [{ id: stage.id, type: '', description: stage.title, zoneBound: Boolean(stage.points?.some((point) => point.mapId === mapId)) }] : []
   }
   if (quest.objectiveDetails?.length) {
-    const onMap = quest.objectiveDetails.filter((objective) => !objective.mapIds.length || objective.mapIds.includes(mapId))
-    if (onMap.length) return onMap.map((objective) => objective.optional ? `${objective.description} (необязательно)` : objective.description)
+    const onMap = quest.objectiveDetails.filter((objective) => (!objective.mapIds.length || objective.mapIds.includes(mapId)) && !objectiveDone(progress, quest.id, objective.id))
+    if (onMap.length) {
+      return onMap.map((objective) => ({
+        id: objective.id,
+        type: objective.type,
+        description: objective.optional ? `${objective.description} (необязательно)` : objective.description,
+        count: objective.count && objective.count > 1 ? objective.count : undefined,
+        optional: objective.optional,
+        // A zone of an objective on another map is not a point here.
+        zoneBound: Boolean(objective.zoneBound && objective.mapIds.includes(mapId)),
+      }))
+    }
   }
-  return quest.objectives.length ? quest.objectives : [quest.description]
+  return (quest.objectives.length ? quest.objectives : [quest.description]).map((description, index) => ({ id: `${quest.id}:${index}`, type: '', description }))
 }
 
 class ItemTally {

@@ -1,5 +1,6 @@
 import type { MapMarker, ModeProgress, Quest } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
+import { objectiveDone } from './objectives'
 
 export type Point = [number, number]
 
@@ -8,13 +9,20 @@ export interface RouteTarget {
   id: string
   position: Point
   group: string
+  /** The objective this step is for (its description), never a judgement of the place. */
   title: string
   questId?: string
+  objectiveType?: string
+  /** Floor of the point when it is not on the ground level. */
+  floor?: string
 }
 
 const NON_PLOTTED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
 
-/** Quest objective points of the current quests on this map (story chapters: their current stage only). */
+/**
+ * Objective zones of the current quests on this map (story chapters: their current stage only). Objectives already
+ * done (when per-objective progress is known) are left out.
+ */
 export function routeTargets(markers: MapMarker[], quests: Quest[], progress: ModeProgress, mapId: string): RouteTarget[] {
   const current = new Map(quests.filter((quest) => isCurrentTrackedQuest(quest, progress)).map((quest) => [quest.id, quest]))
   return markers.flatMap((marker) => {
@@ -23,9 +31,19 @@ export function routeTargets(markers: MapMarker[], quests: Quest[], progress: Mo
     const quest = current.get(marker.questId)
     if (!quest) return []
     if (marker.stageIndex != null && marker.stageIndex !== currentStoryStageIndex(quest, progress)) return []
+    if (objectiveDone(progress, quest.id, marker.objectiveId)) return []
     const [lat, lng] = marker.position
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return []
-    return [{ id: marker.id, position: marker.position, group: marker.objectiveId ?? marker.id, title: marker.title, questId: marker.questId }]
+    const objective = marker.objectiveId ? quest.objectiveDetails?.find((entry) => entry.id === marker.objectiveId) : undefined
+    return [{
+      id: marker.id,
+      position: marker.position,
+      group: marker.objectiveId ?? marker.id,
+      title: objective?.description || marker.title,
+      questId: marker.questId,
+      ...(objective?.type ? { objectiveType: objective.type } : {}),
+      ...(marker.floor ? { floor: marker.floor } : {}),
+    }]
   })
 }
 
@@ -112,6 +130,31 @@ export function bestStartExtract<T extends { position: Point }>(extracts: T[], t
     if (!best || length < best.length) best = { extract, length }
   }
   return best?.extract
+}
+
+export interface RoutePlan {
+  /** Where the route starts: the user's click, else the best PMC extract. */
+  start?: Point
+  /** Title of the extract used as the default start; absent for a start the user clicked. */
+  startExtract?: string
+  startIsCustom: boolean
+  steps: RouteTarget[]
+  /** Route length in map units (game metres on tarkov.dev maps). */
+  length: number
+}
+
+/** The whole route of a map: targets of the current quests, the start (user click or best extract) and the order. */
+export function planRoute(markers: MapMarker[], quests: Quest[], progress: ModeProgress, mapId: string, customStart: Point | null): RoutePlan {
+  const targets = routeTargets(markers, quests, progress, mapId)
+  if (customStart) {
+    const steps = orderRoute(customStart, targets)
+    return { start: customStart, startIsCustom: true, steps, length: routeLength(customStart, steps) }
+  }
+  const extracts = markers.filter((marker) => marker.mapId === mapId && marker.layerId === 'extract.pmc' && !NON_PLOTTED.has(marker.source ?? ''))
+  const extract = targets.length ? bestStartExtract(extracts, targets) : undefined
+  if (!extract) return { startIsCustom: false, steps: targets.length ? orderRoute(targets[0].position, targets) : [], length: 0 }
+  const steps = orderRoute(extract.position, targets)
+  return { start: extract.position, startExtract: extract.title, startIsCustom: false, steps, length: routeLength(extract.position, steps) }
 }
 
 /** «①→②→③» for up to 20 steps, plain numbers after that. */
