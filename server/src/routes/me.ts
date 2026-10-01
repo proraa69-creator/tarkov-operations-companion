@@ -11,6 +11,9 @@
  *   GET  /settings                       -> { settings, updatedAt }
  *   PUT  /settings                       { settings } -> { settings, updatedAt } (max 16 KB)
  *   GET  /summary                        -> per-mode counts for the website cabinet
+ *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
+ *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
+ *   POST /objectives/:mode/events/:eventId/undo -> merged state; 404 when this account has no such event
  *
  * Request bodies are never logged. Responses are personal: `Cache-Control: no-store`.
  */
@@ -21,6 +24,7 @@ import type { AppDataset, RaidMode } from '../models/api.js'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import type { ProgressStore } from '../services/progressStore.js'
 import type { UserDataStore } from '../services/userDataStore.js'
+import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 
 export const RAID_MODES = ['pvp', 'pve', 'seasonal'] as const
@@ -45,11 +49,38 @@ const positionSchema = z.object({
 }).strict()
 const settingsSchema = z.object({ settings: z.record(z.string().max(64), z.unknown()) }).strict()
 
+/** Task / objective ids: tarkov.dev hex ids, story and wiki ids (letters of any script, digits, a few separators). */
+const entityId = z.string().min(1).max(128).regex(/^[\p{L}\p{N}:#._\- ]+$/u)
+const eventId = z.string().regex(/^[A-Za-z0-9_-]{6,80}$/)
+const objectiveSource = z.enum(['log', 'ocr', 'manual', 'sync'])
+const count = z.number().int().min(0).max(100_000)
+const confidence = z.number().finite().min(0).max(1)
+const eventValue = z.union([count, z.enum(['active', 'completed', 'failed']), z.null()])
+const objectiveSchema = z.object({
+  objectiveId: entityId, taskId: entityId, type: z.string().regex(/^[A-Za-z]{1,40}$/),
+  target: count.min(1), current: count, completedAt: isoTime.optional(),
+  source: objectiveSource, confidence, observedAt: isoTime,
+}).strict()
+const eventSchema = z.object({
+  id: eventId, mode: modeSchema.optional(), taskId: entityId, objectiveId: entityId.optional(),
+  eventType: z.enum(['objective', 'task-status', 'undo', 'conflict-resolved']),
+  oldValue: eventValue, newValue: eventValue, source: objectiveSource, confidence, observedAt: isoTime,
+  reversible: z.boolean(), undoneAt: isoTime.optional(), refersTo: eventId.optional(), synced: z.boolean().optional(),
+}).strict()
+export const OBJECTIVES_PER_SYNC = 2000
+export const EVENTS_PER_SYNC = 1000
+const objectivesSyncSchema = z.object({
+  objectives: z.array(objectiveSchema).max(OBJECTIVES_PER_SYNC),
+  events: z.array(eventSchema).max(EVENTS_PER_SYNC),
+}).strict()
+
 export type CatalogPeek = (mode: RaidMode) => AppDataset | undefined
 
 export interface MeRouterOptions {
   /** Returns the server-side catalog if it is already loaded; used for Kappa and Collector totals. */
   catalog?: CatalogPeek
+  /** Objective progress and history; defaults to a store on the user-data database. */
+  objectives?: ObjectiveStore
   /** Requests per account per window. Default 1200 per 10 minutes (a position every 2 s fits easily). */
   rateLimit?: { max: number; windowMs: number }
   now?: () => number
@@ -69,6 +100,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const limiter = new FixedWindowRateLimiter(limit.max, limit.windowMs, options.now)
   const ipLimiter = new FixedWindowRateLimiter(limit.max * 3, limit.windowMs, options.now)
   const owner = (accountId: string) => `user:${accountId}`
+  const objectives = options.objectives ?? new ObjectiveStore(userData.database)
 
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -135,6 +167,40 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     if (!body.success) { bad(res); return }
     if (Buffer.byteLength(JSON.stringify(body.data.settings)) > SETTINGS_MAX_BYTES) { res.status(413).json({ error: 'Настройки слишком большие' }); return }
     res.json(userData.setSettings(account(res), body.data.settings))
+  })
+
+  router.get('/objectives/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json(objectives.get(owner(account(res)), parsed.data))
+  })
+
+  router.post('/objectives/:mode/sync', (req, res) => {
+    const parsed = mode(req)
+    const body = objectivesSyncSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    // A client clock far in the future must not make its values «newer» than everything else for good.
+    const latest = new Date((options.now ?? Date.now)() + 60_000).toISOString()
+    const clamp = (time: string) => time > latest ? latest : time
+    try {
+      res.json(objectives.sync(owner(account(res)), parsed.data, {
+        objectives: body.data.objectives.map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
+        events: body.data.events.map(({ synced: _synced, ...entry }) => ({ ...entry, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
+      }))
+    } catch (error) {
+      if (error instanceof ObjectiveLimitError) { res.status(413).json({ error: error.message }); return }
+      throw error
+    }
+  })
+
+  router.post('/objectives/:mode/events/:eventId/undo', (req, res) => {
+    const parsed = mode(req)
+    const id = eventId.safeParse(req.params.eventId)
+    if (!parsed.success || !id.success) { bad(res); return }
+    const result = objectives.undo(owner(account(res)), parsed.data, id.data)
+    if (result.status === 'not-found') { res.status(404).json({ error: 'Событие не найдено' }); return }
+    if (result.status === 'not-undoable') { res.status(409).json({ error: 'Это изменение нельзя отменить' }); return }
+    res.json(result.snapshot)
   })
 
   router.get('/summary', (_req, res) => {
