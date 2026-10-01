@@ -7,8 +7,8 @@ import { UpdateButton } from '../components/UpdateButton'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, Home, Images, MapPinned, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
+  ChevronRight, CircleDollarSign, FlaskConical, Home, Images, MapPinned, Palette,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -36,10 +36,17 @@ const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
   { to: '/quests', ru: 'Текущие задания', en: 'Current Tasks', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
-  { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
-  { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
+]
+
+/** Sidebar group «Экономика»: market, traders and the profit calculators. */
+const economyNavigation = [
+  { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
+  { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true },
+  { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat },
+  { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -155,6 +162,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="nav-label">{uiText(locale === 'en' ? 'OPERATIONS' : 'ОПЕРАЦИИ')}</div>
         <nav className="nav-list" aria-label={uiText("Основная навигация")}>
           {uiText(navigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>))}
+        </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
+        <nav className="nav-list" aria-label={uiText('Экономика')}>
+          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>

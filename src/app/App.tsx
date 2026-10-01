@@ -4,7 +4,9 @@ import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
 import { QuestsPage } from '../pages/QuestsPage'
-import { SettingsPage, TradersPage } from '../pages/ReferencePages'
+import { EconomyPage, SettingsPage, TradersPage } from '../pages/ReferencePages'
+import { BartersPage } from '../pages/BartersPage'
+import { CraftsPage } from '../pages/CraftsPage'
 import { FleaMarketPage } from '../pages/FleaMarketPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { StoryScreenScanner } from '../components/StoryScreenScanner'
@@ -38,7 +40,9 @@ export function App() {
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
     <Route path="/flea" element={<FleaMarketPage />} />
-    <Route path="/economy" element={<Navigate to="/flea" replace />} />
+    <Route path="/economy" element={<EconomyPage />} />
+    <Route path="/economy/barters" element={<BartersPage />} />
+    <Route path="/economy/crafts" element={<CraftsPage />} />
     <Route path="/keys" element={<Navigate to="/flea?tab=keys" replace />} />
     <Route path="/ammo" element={<Navigate to="/flea?tab=ammo" replace />} />
     <Route path="/hideout" element={<Navigate to="/" replace />} />

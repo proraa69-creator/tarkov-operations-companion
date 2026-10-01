@@ -22,6 +22,7 @@ import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSettin
 import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
+import { EconomyTabs } from "../components/EconomyParts";
 
 export function EconomyPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -70,6 +71,7 @@ export function EconomyPage() {
           {uiText(source === "demo" ? "демо-цены" : `обновлено ${timeAgo(updatedAt)}`)}
         </span>
       </header>
+      <EconomyTabs />
       {uiText(source === "demo" && (
         <div
           className="panel"
