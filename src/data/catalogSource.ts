@@ -128,6 +128,20 @@ function adaptTraders(root: JsonRecord): Trader[] {
   })).filter((trader) => trader.id)
 }
 
+/**
+ * The whole-gun picture of a weapon: its default preset (tarkov.dev `properties.defaultPreset`, an item id in
+ * json.tarkov.dev, an object in GraphQL) — that preset's 512px / grid image, or its tarkov.dev asset by id.
+ */
+export function presetImageFor(entry: JsonRecord, rawItems: JsonRecord): string | undefined {
+  const preset = asRecord(entry.properties).defaultPreset
+  const presetId = typeof preset === 'string' ? preset : text(asRecord(preset).id)
+  if (!presetId || presetId === text(entry.id)) return undefined
+  const presetEntry = asRecord(rawItems[presetId])
+  const inline = asRecord(preset)
+  return text(presetEntry.image512pxLink) || text(inline.image512pxLink) || text(presetEntry.gridImageLink) || text(inline.gridImageLink)
+    || text(presetEntry.iconLink) || text(inline.iconLink) || `https://assets.tarkov.dev/${presetId}-512.webp`
+}
+
 function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMode): Item[] {
   const rawItems = asRecord(root.items)
   return recordValues(rawItems).map((entry) => {
@@ -151,6 +165,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       category: mapCategory(types),
       description: text(entry.description, 'Описание отсутствует.'),
       iconUrl: text(entry.iconLink) || undefined,
+      presetImageUrl: types.includes('gun') ? presetImageFor(entry, rawItems) : undefined,
       weight: number(entry.weight) || undefined,
       width: number(entry.width) || undefined,
       height: number(entry.height) || undefined,
