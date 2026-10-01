@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,7 +8,8 @@ import { app, safeStorage } from 'electron'
 /**
  * «Открыть сайт друзьям»: a Cloudflare quick tunnel (cloudflared, free, no account) gives the site on this
  * PC a public https link — the site and, through it, the API (/v1, see localServer.ts). The owner turns it
- * on explicitly; cloudflared.exe is downloaded once from Cloudflare's GitHub releases into the app data folder.
+ * on explicitly; cloudflared.exe is downloaded once from Cloudflare's GitHub releases into the app data folder: a pinned
+ * release, checked against its SHA-256 before it is ever started (a copy downloaded earlier is kept as it is).
  * The link changes every time the tunnel starts.
  *
  * Permanent address: the owner creates a named tunnel in their own Cloudflare account (their domain, public hostname
@@ -15,7 +17,14 @@ import { app, safeStorage } from 'electron'
  * sent to the renderer or logged, and handed to cloudflared through the TUNNEL_TOKEN environment variable (not the
  * command line, which other programs can read).
  */
-const CLOUDFLARED_URL = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe'
+/**
+ * cloudflared-windows-amd64.exe of a pinned release and its SHA-256 (55 366 080 bytes; the file is Authenticode-signed
+ * by «Cloudflare, Inc.», DigiCert chain, signature checked when the hash was taken). To move to a newer release, change
+ * both together.
+ */
+const CLOUDFLARED_VERSION = '2026.9.3'
+const CLOUDFLARED_URL = `https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-windows-amd64.exe`
+const CLOUDFLARED_SHA256 = 'f096265ec2fcbe9bb6e2d64268db167ced3fcbb83d894bdb9e2fcdb26f2ea7e2'
 const SITE = 'http://127.0.0.1:5202'
 const LINK = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i
 
@@ -118,13 +127,19 @@ export async function startTunnelIfWanted() {
 }
 
 async function ensureCloudflared() {
+  // Already there (also a copy an earlier version of the app downloaded): used as it is.
   if (existsSync(exePath())) return exePath()
   state = 'downloading'
   await mkdir(toolsDir(), { recursive: true })
   const response = await fetch(CLOUDFLARED_URL, { redirect: 'follow', signal: AbortSignal.timeout(180_000) })
   if (!response.ok) throw new Error(`Не удалось скачать cloudflared: HTTP ${response.status}`)
   const partial = `${exePath()}.part`
-  await writeFile(partial, Buffer.from(await response.arrayBuffer()))
+  const body = Buffer.from(await response.arrayBuffer())
+  await writeFile(partial, body)
+  if (createHash('sha256').update(body).digest('hex') !== CLOUDFLARED_SHA256) {
+    await rm(partial, { force: true }).catch(() => {})
+    throw new Error('Скачанный cloudflared не прошёл проверку SHA-256 и удалён. Попробуйте позже.')
+  }
   await rename(partial, exePath())
   return exePath()
 }

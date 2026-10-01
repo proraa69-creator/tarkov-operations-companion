@@ -8,6 +8,7 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['этот компьютер (по умолчанию) или ссылка https://….trycloudflare.com', 'this PC (default) or a link https://….trycloudflare.com'],
   ['Сохранить адрес', 'Save address'], ['Этот компьютер', 'This PC'], ['Для сервера требуется HTTPS', 'The server needs HTTPS'],
   ['Туннель работает только в Windows.', 'The tunnel works only on Windows.'],
+  ['Скачанный cloudflared не прошёл проверку SHA-256 и удалён. Попробуйте позже.', 'The downloaded cloudflared failed the SHA-256 check and was deleted. Try again later.'],
   ['Сервер и сайт на этом компьютере', 'Server and website on this PC'],
   ['Приложение само запускает сервер аккаунтов и сайт с личным кабинетом, пока оно открыто. Включайте только на своём компьютере.', 'While it is open, the app runs the account server and the website with the personal account itself. Turn it on only on your own PC.'],
   ['Сервер:', 'Server:'], ['сайт:', 'website:'], ['работает', 'running'], ['уже запущен отдельно', 'already running separately'], ['выключен', 'off'], ['ошибка', 'error'],
