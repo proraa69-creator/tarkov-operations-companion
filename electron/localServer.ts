@@ -176,8 +176,22 @@ function startSite() {
   })
 }
 
+/**
+ * The visitor's address for the API's per-IP rate limits (it trusts X-Forwarded-For from loopback only). The public
+ * link arrives through cloudflared on 127.0.0.1, so the socket address is the same for everybody; Cloudflare's edge
+ * sets CF-Connecting-IP itself (a visitor cannot choose it), and a header a visitor sent is never passed on as is.
+ */
+export function visitorAddress(socketAddress: string | undefined, headers: IncomingMessage['headers']) {
+  const loopback = !socketAddress || socketAddress === '127.0.0.1' || socketAddress === '::1' || socketAddress === '::ffff:127.0.0.1'
+  const cf = typeof headers['cf-connecting-ip'] === 'string' ? headers['cf-connecting-ip'].trim() : ''
+  if (loopback && /^[0-9a-fA-F.:]{2,45}$/.test(cf)) return cf
+  return socketAddress ?? '127.0.0.1'
+}
+
 function proxyToApi(request: IncomingMessage, response: ServerResponse) {
-  const upstream = httpRequest({ host: '127.0.0.1', port: API_PORT, method: request.method, path: request.url, headers: { ...request.headers, host: `127.0.0.1:${API_PORT}` } }, (answer) => {
+  const { 'x-forwarded-for': _forwarded, ...headers } = request.headers
+  void _forwarded
+  const upstream = httpRequest({ host: '127.0.0.1', port: API_PORT, method: request.method, path: request.url, headers: { ...headers, host: `127.0.0.1:${API_PORT}`, 'x-forwarded-for': visitorAddress(request.socket.remoteAddress, request.headers) } }, (answer) => {
     response.writeHead(answer.statusCode ?? 502, answer.headers)
     answer.pipe(response)
   })
