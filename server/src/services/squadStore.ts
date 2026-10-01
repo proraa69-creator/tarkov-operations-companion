@@ -5,6 +5,8 @@ import { transaction } from './database.js'
 
 /** Invite codes: 10 symbols of Crockford base32 (50 bits), shown as XXXXX-XXXXX; 24 hours; join is rate limited. */
 export const SQUAD_INVITE_TTL_MS = 24 * 60 * 60 * 1000
+/** A commander's invitation of a friend waits a week. */
+export const FRIEND_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const SQUAD_CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 export const SQUAD_CODE_LENGTH = 10
 export const SQUAD_ID = /^[a-f0-9]{32}$/
@@ -54,7 +56,11 @@ export class SquadStore {
       CREATE TABLE IF NOT EXISTS squad_invites (
         digest TEXT PRIMARY KEY, squad_id TEXT NOT NULL REFERENCES squads(id) ON DELETE CASCADE,
         created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);
-      CREATE INDEX IF NOT EXISTS squad_invites_squad ON squad_invites(squad_id);`)
+      CREATE INDEX IF NOT EXISTS squad_invites_squad ON squad_invites(squad_id);
+      CREATE TABLE IF NOT EXISTS squad_friend_invites (
+        id TEXT PRIMARY KEY, squad_id TEXT NOT NULL REFERENCES squads(id) ON DELETE CASCADE, account_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, UNIQUE (squad_id, account_id));
+      CREATE INDEX IF NOT EXISTS squad_friend_invites_account ON squad_friend_invites(account_id);`)
   }
 
   /** The squad of this account, or undefined. */
@@ -95,6 +101,50 @@ export class SquadStore {
     return { code: formatSquadCode(code), expiresAt }
   }
 
+  /**
+   * The commander invites a friend (friendship is checked by the caller): the friend sees the invitation and accepts or
+   * declines it. Re-inviting refreshes the expiry.
+   */
+  inviteAccount(accountId: string, squadId: string, targetId: string) {
+    const squad = this.memberSquad(accountId, squadId)
+    if (squad.ownerId !== accountId) throw new SquadError(403, 'Приглашать может только командир отряда')
+    if (squad.members.some((member) => member.accountId === targetId)) throw new SquadError(409, 'Этот друг уже в отряде')
+    if (squad.members.length >= SQUAD_MAX_MEMBERS) throw new SquadError(409, `В отряде уже ${SQUAD_MAX_MEMBERS} человек`)
+    const now = this.now()
+    this.db.prepare(`INSERT INTO squad_friend_invites (id, squad_id, account_id, created_at, expires_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(squad_id, account_id) DO UPDATE SET created_at = excluded.created_at, expires_at = excluded.expires_at`)
+      .run(randomBytes(12).toString('hex'), squadId, targetId, now, now + FRIEND_INVITE_TTL_MS)
+  }
+
+  /** Invitations waiting for this account (not expired). */
+  invitationsFor(accountId: string) {
+    const rows = this.db.prepare('SELECT id, squad_id, expires_at FROM squad_friend_invites WHERE account_id = ? AND expires_at > ? ORDER BY created_at').all(accountId, this.now()) as Row[]
+    return rows.flatMap((row) => {
+      const squad = this.load(String(row.squad_id))
+      return squad ? [{ id: String(row.id), squad, expiresAt: Number(row.expires_at) }] : []
+    })
+  }
+
+  /** Accepts (joins) or declines an invitation addressed to this account; anybody else gets 404. */
+  answerInvitation(accountId: string, invitationId: string, accept: boolean): SquadRow | undefined {
+    return transaction(this.db, () => {
+      const row = /^[a-f0-9]{24}$/.test(invitationId)
+        ? this.db.prepare('SELECT squad_id, expires_at FROM squad_friend_invites WHERE id = ? AND account_id = ?').get(invitationId, accountId) as Row | undefined
+        : undefined
+      if (!row || Number(row.expires_at) <= this.now()) throw new SquadError(404, 'Приглашение не найдено или истекло')
+      this.db.prepare('DELETE FROM squad_friend_invites WHERE id = ?').run(invitationId)
+      if (!accept) return undefined
+      const squadId = String(row.squad_id)
+      if (this.squadOf(accountId)) throw new SquadError(409, 'Вы уже в отряде. Сначала покиньте его.')
+      const squad = this.load(squadId)
+      if (!squad) throw new SquadError(404, 'Приглашение не найдено или истекло')
+      if (squad.members.length >= SQUAD_MAX_MEMBERS) throw new SquadError(409, `В отряде уже ${SQUAD_MAX_MEMBERS} человек`)
+      this.addMember(squadId, accountId, this.now())
+      this.db.prepare('DELETE FROM squad_friend_invites WHERE account_id = ?').run(accountId)
+      return this.load(squadId)!
+    })
+  }
+
   /** Joins by code. Unknown, expired and malformed codes get the same answer. */
   join(accountId: string, rawCode: string): SquadRow {
     const code = normalizeSquadCode(rawCode)
@@ -110,6 +160,7 @@ export class SquadStore {
       if (!squad) throw new SquadError(404, INVITE_INVALID)
       if (squad.members.length >= SQUAD_MAX_MEMBERS) throw new SquadError(409, `В отряде уже ${SQUAD_MAX_MEMBERS} человек`)
       this.addMember(squadId, accountId, this.now())
+      this.db.prepare('DELETE FROM squad_friend_invites WHERE account_id = ?').run(accountId)
       return this.load(squadId)!
     })
   }
@@ -125,6 +176,7 @@ export class SquadStore {
         this.db.prepare('UPDATE squads SET owner_id = ? WHERE id = ?').run(rest[0].accountId, squadId)
         // The new commander starts with no open invite: the old one was handed out by somebody who left.
         this.db.prepare('DELETE FROM squad_invites WHERE squad_id = ?').run(squadId)
+        this.db.prepare('DELETE FROM squad_friend_invites WHERE squad_id = ?').run(squadId)
       }
     })
   }
@@ -145,6 +197,7 @@ export class SquadStore {
       const squad = this.memberSquad(accountId, squadId)
       if (squad.ownerId !== accountId) throw new SquadError(403, 'Распустить отряд может только командир')
       this.db.prepare('DELETE FROM squad_invites WHERE squad_id = ?').run(squadId)
+      this.db.prepare('DELETE FROM squad_friend_invites WHERE squad_id = ?').run(squadId)
       this.db.prepare('DELETE FROM squad_members WHERE squad_id = ?').run(squadId)
       this.db.prepare('DELETE FROM squads WHERE id = ?').run(squadId)
     })

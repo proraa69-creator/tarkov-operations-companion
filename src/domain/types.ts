@@ -246,7 +246,8 @@ export interface Quest {
   objectiveIds?: string[]
   mapIds?: string[]
   anyMap?: boolean
-  raidRequirements?: Array<{ itemId: string; count: number; purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'; mapIds: string[] }>
+  /** `fir`: must be found in raid (tarkov.dev objective.foundInRaid); `objectiveId`: the tarkov.dev objective. */
+  raidRequirements?: Array<{ itemId: string; count: number; purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'; mapIds: string[]; fir?: true; objectiveId?: string }>
 }
 
 export interface PriceQuote {

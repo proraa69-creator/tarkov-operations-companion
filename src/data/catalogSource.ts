@@ -195,7 +195,9 @@ function adaptTasks(
       const type = text(objective.type).toLowerCase()
       const purpose: NonNullable<Quest['raidRequirements']>[number]['purpose'] = type.includes('mark') ? 'mark' : type.includes('plant') || type.includes('place') ? 'place' : type.includes('give') ? 'handover' : type.includes('find') ? 'find' : 'bring'
       const itemIds = [...new Set([...strings(objective.items), text(objective.item), text(objective.markerItem)].filter(Boolean))]
-      return itemIds.map((itemId) => ({ itemId, count: number(objective.count) || 1, purpose, mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)) }))
+      const fir = objective.foundInRaid === true ? { fir: true as const } : {}
+      const objectiveId = text(objective.id) ? { objectiveId: text(objective.id) } : {}
+      return itemIds.map((itemId) => ({ itemId, count: number(objective.count) || 1, purpose, mapIds: strings(objective.maps).map((id) => maps.get(id)).filter((id): id is string => Boolean(id)), ...fir, ...objectiveId }))
     })
     for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
     const rewardItems = asArray(asRecord(entry.finishRewards).items)
