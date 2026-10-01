@@ -147,7 +147,7 @@ export async function newPasswordHash(password: string) {
 }
 
 /** Only the SHA-256 of a session token is stored, so a database copy does not reveal usable tokens. */
-function tokenDigest(token: string) {
+export function tokenDigest(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
 
@@ -690,6 +690,11 @@ export class AccountStore {
 
   revokeSessions(accountId: string) {
     this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId)
+  }
+
+  /** Signs out one session (by its stored digest): a device that was switched off (services/entitlement.ts). */
+  revokeSessionDigest(digest: string) {
+    this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(digest)
   }
 
   /** The account with this verified number (E.164), with what the phone sign-in needs to decide. */

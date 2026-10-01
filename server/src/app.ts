@@ -25,6 +25,10 @@ import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
 import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
+import { EntitlementService } from './services/entitlement.js'
+import { DataGateway } from './services/dataGateway.js'
+import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/data.js'
+import { createEntitlementRouter } from './routes/entitlement.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const syncSchema = z.object({
@@ -51,6 +55,12 @@ export interface ApiOptions {
   emails?: EmailAuthService
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
+  /** Signed entitlements and devices; defaults to a key for this process only (index.ts passes the persistent one). */
+  entitlements?: EntitlementService
+  /** tarkov.dev gateway with the shared cache (tests pass one with a fake upstream). */
+  data?: DataGateway
+  /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
+  dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
 }
 
 /**
@@ -110,7 +120,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments))
   // «Админ-панель» (owner only); first, so it can also write the owner's older actions to the audit log.
-  if (payments.database === accounts.database) app.use('/v1/accounts', createOwnerAdminRouter(accounts, new AdminStore(accounts, payments)))
+  const admin = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  if (admin) app.use('/v1/accounts', createOwnerAdminRouter(accounts, admin))
+  // Signed entitlements, the device limit and the owner's device list (docs/subscription-protection.md).
+  const entitlements = options.entitlements ?? new EntitlementService(accounts)
+  app.use('/v1', createEntitlementRouter(accounts, entitlements, admin))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
@@ -150,12 +164,16 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     }
   }
   const players = perIp('players')
-  app.get('/v1/catalog/:mode', perIp('catalog'), async (req, res) => res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode))))
-  app.post('/v1/players/resolve', players, async (req, res) => {
+  // Game data only for signed-in accounts with access on an active device (402 «Нужна подписка» otherwise): the
+  // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
+  const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
+  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway(), paid))
+  app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode))))
+  app.post('/v1/players/resolve', players, paid, async (req, res) => {
     const body = z.object({ mode: modeSchema, nickname: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,15}$/) }).parse(req.body)
     res.json(await resolvePlayer(body.mode, body.nickname))
   })
-  app.get('/v1/players/:mode/:accountId', players, async (req, res) => res.json(await fetchPlayerProfile(modeSchema.parse(req.params.mode), z.coerce.number().int().positive().parse(req.params.accountId))))
+  app.get('/v1/players/:mode/:accountId', players, paid, async (req, res) => res.json(await fetchPlayerProfile(modeSchema.parse(req.params.mode), z.coerce.number().int().positive().parse(req.params.accountId))))
   app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     void _next
     const raw = error instanceof z.ZodError ? 400 : typeof error === 'object' && error && 'status' in error ? Number(error.status) : 502
