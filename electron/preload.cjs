@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     logout: () => ipcRenderer.invoke('account:logout'),
     phoneSignIn: (kind, challengeId, code, password) => ipcRenderer.invoke('account:phone-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
     emailSignIn: (kind, challengeId, code, password) => ipcRenderer.invoke('account:email-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
+    register: (email, password, referralCode) => ipcRenderer.invoke('account:register', String(email ?? ''), String(password ?? ''), referralCode === undefined ? undefined : String(referralCode)),
+    registerConfirm: (challengeId, code) => ipcRenderer.invoke('account:register-confirm', String(challengeId ?? ''), String(code ?? '')),
     openWebsite: (page) => ipcRenderer.invoke('account:open-website', page === 'register' || page === 'admin' ? page : 'cabinet'),
     localServerStatus: () => ipcRenderer.invoke('local-server:status'),
     setLocalServerEnabled: (enabled) => ipcRenderer.invoke('local-server:set-enabled', Boolean(enabled)),

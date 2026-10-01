@@ -21,6 +21,10 @@ export interface WatchdogEvent { at: number; service: WatchdogServiceId; level: 
 export interface WatchdogSnapshot { enabled: boolean; services: WatchdogService[]; events: WatchdogEvent[]; worst: WatchdogLamp; checkedAt?: number }
 export interface WatchdogAlert { service: WatchdogServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked'; title: string; body: string; at: number }
 
+/** POST /v1/accounts/register while the server sends e-mail codes: no account yet, the code from the e-mail follows. */
+export interface PendingServerRegistration { challengeId: string; expiresAt: string; resendSeconds: number; message: string }
+export type ServerRegistrationResult = { pending: PendingServerRegistration; status?: undefined } | { pending?: undefined; status: ServerAccountStatus; referralApplied: boolean }
+
 export interface ServerAccountStatus {
   signedIn: boolean
   email?: string
@@ -109,6 +113,10 @@ interface TarkovDesktopApi {
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
     /** Sign-in or password reset by e-mail code; the session stays in the main process. */
     emailSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
+    /** Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process). */
+    register?: (email: string, password: string, referralCode?: string) => Promise<ServerRegistrationResult>
+    /** The code from the registration e-mail: the account appears and is signed in (the session stays in the main process). */
+    registerConfirm?: (challengeId: string, code: string) => Promise<{ status: ServerAccountStatus; referralApplied: boolean }>
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
     /** «Сервер и сайт на этом компьютере»: the API and the website run from the app on this PC. */
     localServerStatus?: () => Promise<LocalServerStatus>
