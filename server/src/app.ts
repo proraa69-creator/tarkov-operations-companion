@@ -26,6 +26,8 @@ import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
 import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase } from './services/database.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
+import { createSelfUpdateRouter } from './routes/selfUpdate.js'
+import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const syncSchema = z.object({
@@ -54,6 +56,8 @@ export interface ApiOptions {
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
   /** «Страж сервера» (routes/serverGuard.ts): bans, health detail, backups. */
   guard?: ServerGuardOptions
+  /** The owner app's main process (services/ownerApp.ts): «Обновление» tab, error reports. Default: process.parentPort. */
+  ownerApp?: OwnerAppLink
 }
 
 /**
@@ -115,8 +119,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const payments = options.payments ?? new PaymentStore(accounts.database, undefined)
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments))
+  const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
+  app.use(createSelfUpdateRouter(accounts, { link: options.ownerApp, audit: (actor, action, details) => { try { adminStore?.audit(actor, action, undefined, details) } catch { /* the action itself already ran */ } } }))
   // «Админ-панель» (owner only); first, so it can also write the owner's older actions to the audit log.
-  if (payments.database === accounts.database) app.use('/v1/accounts', createOwnerAdminRouter(accounts, new AdminStore(accounts, payments)))
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
@@ -169,6 +176,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     if (status >= 500) {
       // Internal details (messages, paths, upstream answers) stay in the server log (api.log); request bodies are never logged.
       console.error(`API ${req.method} ${req.path} -> ${status}:`, error instanceof Error ? error.stack ?? error.message : error)
+      // «Отчёты об ошибках (GitHub)»: the owner app sanitizes and deduplicates it (electron/errorReporter.ts).
+      reportErrorToOwnerApp('5xx', error, { method: req.method, path: req.path, status })
       res.status(status).json({ error: INTERNAL_ERROR })
       return
     }

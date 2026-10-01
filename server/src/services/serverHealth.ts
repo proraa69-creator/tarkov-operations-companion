@@ -10,6 +10,7 @@ import { statSync } from 'node:fs'
 import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks'
 import type { DatabaseSync } from 'node:sqlite'
 import { databaseFile } from './serverBackups.js'
+import { reportErrorToOwnerApp } from './ownerApp.js'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -70,10 +71,12 @@ export function installProcessGuards(log: (line: string) => void = (line) => con
   ;(globalThis as { __raidGuards?: boolean }).__raidGuards = true
   process.on('uncaughtException', (error) => {
     noteUnhandled('exception', error)
+    reportErrorToOwnerApp('exception', error)
     log(`${new Date().toISOString()} [guard] Unhandled exception: ${error instanceof Error ? error.stack ?? error.message : String(error)}`)
   })
   process.on('unhandledRejection', (reason) => {
     noteUnhandled('rejection', reason)
+    reportErrorToOwnerApp('rejection', reason)
     log(`${new Date().toISOString()} [guard] Unhandled promise rejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`)
   })
 }
