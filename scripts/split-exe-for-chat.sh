@@ -11,6 +11,10 @@
 #     client's dist-electron/build-info.json, saved right after the client build), and the laptop's site then serves
 #     it for «Скачать для Windows» and auto-update (electron/localServer.ts). Join-Raid-OS-Client.cmd only
 #     puts the client exe on the desktop (to test it or send it to someone).
+#     version.json is signed (scripts/sign-client-release.mjs): players' copies install only a build whose manifest
+#     verifies with the key built into the app. The private key comes from RAIDOS_UPDATE_SIGNING_KEY_FILE (path to the
+#     Ed25519 PEM) or RAIDOS_UPDATE_SIGNING_KEY (the PEM, or base64 of it). Without a key the script refuses to make
+#     the client parts, unless ALLOW_UNSIGNED=1 (then the site still offers the download, but no player auto-updates).
 set -euo pipefail
 
 EXE="${1:?path to exe}"
@@ -18,18 +22,37 @@ OUT="${2:?output dir (must not exist or be empty)}"
 CLIENT_EXE="${3:-}"
 CLIENT_INFO="${4:-}"
 PART_SIZE="${PART_SIZE:-25M}"
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ -f "$EXE" ] || { echo "exe not found: $EXE" >&2; exit 1; }
 if [ -n "$CLIENT_EXE" ]; then
   [ -f "$CLIENT_EXE" ] || { echo "client exe not found: $CLIENT_EXE" >&2; exit 1; }
   [ -f "$CLIENT_INFO" ] || { echo "client build-info.json not found: $CLIENT_INFO (copy dist-electron/build-info.json right after the client build)" >&2; exit 1; }
-  # One line of JSON with only the fields the site needs; refuse anything that is not a client build.
-  CLIENT_VERSION_JSON="$(node -e '
-    const info = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
-    if (info.edition !== "client") { console.error("not a client build-info.json (edition: " + info.edition + ")"); process.exit(1) }
-    const safe = (value) => String(value ?? "").replace(/[^0-9A-Za-z._-]/g, "")
-    process.stdout.write(JSON.stringify({ version: safe(info.version), build: Number(info.build) || 0, commit: safe(info.commit) }))
-  ' "$CLIENT_INFO")"
+  if [ -n "${RAIDOS_UPDATE_SIGNING_KEY:-}" ] || [ -n "${RAIDOS_UPDATE_SIGNING_KEY_FILE:-}" ]; then
+    # One line of signed JSON; the script refuses anything that is not a client build or a key the app does not know.
+    CLIENT_VERSION_JSON="$(node "$SCRIPTS_DIR/sign-client-release.mjs" "$CLIENT_EXE" "$CLIENT_INFO")"
+  elif [ "${ALLOW_UNSIGNED:-}" = "1" ]; then
+    {
+      echo '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+      echo '!! ALLOW_UNSIGNED=1: the players version is published WITHOUT a signature.'
+      echo '!! The site still offers it for download, but NO PLAYER WILL AUTO-UPDATE to it'
+      echo '!! (their apps install only builds signed with RAIDOS_UPDATE_SIGNING_KEY).'
+      echo '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+    } >&2
+    CLIENT_VERSION_JSON="$(node -e '
+      const info = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))
+      if (info.edition !== "client") { console.error("not a client build-info.json (edition: " + info.edition + ")"); process.exit(1) }
+      const safe = (value) => String(value ?? "").replace(/[^0-9A-Za-z._-]/g, "")
+      process.stdout.write(JSON.stringify({ version: safe(info.version), build: Number(info.build) || 0, commit: safe(info.commit) }))
+    ' "$CLIENT_INFO")"
+  else
+    echo "refusing to publish the players version unsigned: set RAIDOS_UPDATE_SIGNING_KEY_FILE=<path to the update signing key PEM>" >&2
+    echo "(or RAIDOS_UPDATE_SIGNING_KEY), or ALLOW_UNSIGNED=1 to publish it without auto-update for players" >&2
+    exit 1
+  fi
+  # cmd.exe echoes this line into version.json: only characters it leaves alone (no % ^ & | < > ! spaces or newlines).
+  node -e 'process.exit(/^[A-Za-z0-9{}":,._+\/=-]+$/.test(process.argv[1]) ? 0 : 1)' "$CLIENT_VERSION_JSON" \
+    || { echo "unexpected characters in the players version.json: $CLIENT_VERSION_JSON" >&2; exit 1; }
 fi
 mkdir -p "$OUT"
 if [ -n "$(ls -A "$OUT")" ]; then echo "output dir is not empty: $OUT" >&2; exit 1; fi
