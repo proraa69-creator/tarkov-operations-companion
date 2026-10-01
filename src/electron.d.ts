@@ -25,6 +25,8 @@ export interface ServerAccountStatus {
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
   subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+  /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
+  phone?: string
 }
 
 /** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */

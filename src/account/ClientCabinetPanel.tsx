@@ -8,6 +8,7 @@ import { openWebsite, subscriptionText } from './accountActions'
 import { modeTitle, RAID_MODE_ORDER } from './nicknameBinding'
 import { ApproveWebLoginDialog, MobileLoginDialog } from './QrDialogs'
 import { openAccountSignIn } from './accountEvents'
+import { PhoneCabinetRow } from './PhoneAccount'
 import './account.css'
 
 /**
@@ -67,6 +68,7 @@ export function ClientCabinetPanel() {
             <strong>{nicknames}</strong>
             <small>{uiText('Хранятся в аккаунте отдельно для каждого режима')}</small>
           </div>
+          <PhoneCabinetRow phone={status.phone} online={online} />
         </div>
         <div className="account-cabinet-actions">
           <button className="button primary" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть кабинет на сайте')}</button>

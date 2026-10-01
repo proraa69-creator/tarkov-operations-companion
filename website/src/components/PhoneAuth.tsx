@@ -14,6 +14,7 @@ let configPromise: Promise<AuthConfig> | null = null
 const OFF: AuthConfig = { smsEnabled: false, codeLength: 6, codeTtlSeconds: 300, resendSeconds: 60, countries: ['7'] }
 
 /** null while loading; an older server or a failed request counts as «SMS off». */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuthConfig() {
   const [config, setConfig] = useState<AuthConfig | null>(null)
   useEffect(() => {

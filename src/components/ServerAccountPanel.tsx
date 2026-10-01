@@ -9,6 +9,7 @@ import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
 import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
+import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
 
 /** Opens a website page in the system browser (desktop) or a new tab (browser build). */
 function openWebsite(page: 'register' | 'cabinet' | 'admin') {
@@ -38,6 +39,7 @@ export function ServerAccountPanel() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
+  const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -81,6 +83,7 @@ export function ServerAccountPanel() {
             <p className="dim" style={{ margin: 0 }}>{uiText(online
               ? 'Прогресс заданий, Коллекционер, позиция и настройки сохраняются на сервере отдельно для PvP, PvE и Сезона.'
               : 'Сервер недоступен: приложение работает локально и отправит изменения, когда сервер снова запустится.')}</p>
+            <div className="account-cabinet-grid"><PhoneCabinetRow phone={status.phone} online={online} /></div>
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button>
@@ -95,7 +98,11 @@ export function ServerAccountPanel() {
           </>
         )}
 
-        {available && status && !status.signedIn && (
+        {available && status && !status.signedIn && phoneMode && (
+          <PhoneSignInForm purpose={phoneMode} onSignedIn={() => setPhoneMode(null)} onBack={() => setPhoneMode(null)} />
+        )}
+
+        {available && status && !status.signedIn && !phoneMode && (
           <form className="stack" onSubmit={(event) => void submit(event)}>
             <p className="dim" style={{ margin: 0 }}>{uiText('Войдите тем же e-mail и паролем, что на сайте. Без входа приложение работает только на этом компьютере.')}</p>
             <p className="dim" style={{ margin: 0 }}>{uiText('Вход на сервер:')} <strong style={{ userSelect: 'text' }}>{serverLabel(status.serverUrl)}</strong></p>
@@ -112,6 +119,7 @@ export function ServerAccountPanel() {
               <button className="button ghost" type="button" onClick={() => openWebsite('register')}><UserPlus size={14} />{uiText('Регистрация на сайте')}</button>
               <button className="button ghost" type="button" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
             </div>
+            <PhoneSignInLinks online={online} onPick={setPhoneMode} />
           </form>
         )}
       </div>

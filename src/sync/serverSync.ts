@@ -18,7 +18,7 @@ import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../th
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
-import { webAccountLogin, webAccountLogout, webAccountStatus, webServiceRequest } from './webAccount'
+import { webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountStatus, webServiceRequest } from './webAccount'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 export const STATUS_REFRESH_MS = 30_000
@@ -45,7 +45,7 @@ export function usesWebAccount() {
   return typeof window !== 'undefined' && !isDesktopShell() && (isNative() || isMobileLayout())
 }
 
-const webAccountApi = { status: webAccountStatus, login: webAccountLogin, logout: webAccountLogout }
+const webAccountApi = { status: webAccountStatus, login: webAccountLogin, logout: webAccountLogout, phoneSignIn: webAccountPhoneSignIn }
 
 const accountApi = () => (typeof window === 'undefined' ? undefined : window.tarkovDesktop?.account ?? (usesWebAccount() ? webAccountApi : undefined))
 
@@ -81,6 +81,20 @@ export async function loginToServer(email: string, password: string) {
   if (!api) throw new Error('Вход доступен только в приложении для Windows')
   try {
     const status = await api.login(email, password)
+    setState({ status })
+    void runFullSync()
+    return status
+  } catch (error) {
+    throw new Error(cleanIpcError(error), { cause: error })
+  }
+}
+
+/** Sign-in or password reset by phone after the SMS code; the session is kept like after a password sign-in. */
+export async function phoneSignInToServer(kind: 'login' | 'reset', challengeId: string, code: string, password?: string) {
+  const api = accountApi()
+  if (!api?.phoneSignIn) throw new Error('Обновите приложение: вход по SMS появился в новой версии')
+  try {
+    const status = await api.phoneSignIn(kind, challengeId, code, password)
     setState({ status })
     void runFullSync()
     return status

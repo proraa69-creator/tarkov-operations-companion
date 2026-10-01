@@ -37,6 +37,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/payout-settings$/ },
   // Approving a website QR sign-in from the phone (docs/mobile.md).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
+  // Phone number and SMS codes (server/src/routes/phone.ts); sign-in by code is webAccountPhoneSignIn.
+  { methods: ['GET'], path: /^\/v1\/accounts\/auth-config$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/phone\/(?:login|reset)\/start$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/phone\/(?:start|confirm|remove)$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -133,7 +137,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
-  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription'> = {}
+  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone'> = {}
   try {
     const health = await send('GET', '/health', { timeoutMs: 4000 })
     online = health.response.ok
@@ -141,7 +145,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
@@ -152,7 +156,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -166,7 +170,10 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown }): 
   const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
   const paidUntil = date(sub.paidUntil)
   const trialEndsAt = date(sub.trialEndsAt)
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) } }
+  // The verified phone number comes masked from the server (+7 ••• •••-45-67).
+  const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
+  const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
+  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}) }
 }
 
 export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
@@ -189,6 +196,20 @@ export async function webAccountLogin(rawEmail: string, rawPassword: string): Pr
 export async function webAccountRedeemLoginCode(code: string): Promise<ServerAccountStatus> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(code)) throw new Error('Некорректный код входа')
   const { response, result } = await send('POST', '/v1/accounts/login-codes/redeem', { body: { code } })
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  saveSession({ token: answer.token, email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
+  return webAccountStatus()
+}
+
+/** Sign-in or password reset by phone after the SMS code (POST /v1/accounts/phone/login | /phone/reset). */
+export async function webAccountPhoneSignIn(kind: 'login' | 'reset', challengeId: string, rawCode: string, password?: string): Promise<ServerAccountStatus> {
+  const code = rawCode.replace(/[\s-]/g, '')
+  if (!/^[A-Za-z0-9_-]{32}$/.test(challengeId)) throw new Error('Запросите код ещё раз')
+  if (!/^\d{6}$/.test(code)) throw new Error('Код из SMS — 6 цифр')
+  if (kind === 'reset' && (!password || password.length < 8 || password.length > 128)) throw new Error('Новый пароль: от 8 до 128 символов')
+  const { response, result } = await send('POST', kind === 'reset' ? '/v1/accounts/phone/reset' : '/v1/accounts/phone/login', { body: kind === 'reset' ? { challengeId, code, password } : { challengeId, code } })
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
