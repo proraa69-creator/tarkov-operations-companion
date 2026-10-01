@@ -44,6 +44,20 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // E-mail codes (server/src/routes/email.ts); sign-in by code is webAccountEmailSignIn.
   { methods: ['POST'], path: /^\/v1\/accounts\/email\/(?:login|reset)\/start$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/email\/(?:start|confirm)$/ },
+  // «Отряд» (server/src/routes/squads.ts): the server checks membership on every call.
+  { methods: ['GET'], path: new RegExp(`^/v1/squads/mine/${MODE}$`) },
+  { methods: ['POST'], path: /^\/v1\/squads(?:\/join)?$/ },
+  { methods: ['GET'], path: new RegExp(`^/v1/squads/[a-f0-9]{32}/overview/${MODE}$`) },
+  { methods: ['POST'], path: /^\/v1\/squads\/[a-f0-9]{32}\/(?:invites|leave|disband|kick|invite-friend)$/ },
+  { methods: ['POST'], path: /^\/v1\/squads\/invitations\/[a-f0-9]{24}\/(?:accept|decline)$/ },
+  // Friends (server/src/routes/friends.ts): the server checks the friendship on every call.
+  { methods: ['GET'], path: /^\/v1\/friends$/ },
+  { methods: ['POST'], path: /^\/v1\/friends\/(?:requests|code)$/ },
+  { methods: ['POST'], path: /^\/v1\/friends\/requests\/[a-f0-9]{24}\/(?:accept|decline|cancel)$/ },
+  { methods: ['POST'], path: /^\/v1\/friends\/[a-f0-9]{24}\/(?:remove|block|unblock)$/ },
+  { methods: ['PUT'], path: /^\/v1\/friends\/[a-f0-9]{24}\/privacy$/ },
+  { methods: ['POST'], path: new RegExp(`^/v1/friends/progress/${MODE}$`) },
+  { methods: ['GET'], path: new RegExp(`^/v1/friends/needs/${MODE}$`) },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -125,7 +139,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   if (personal && !session) return null
   const { response, result } = await send(method, path, { body, token: personal ? session?.token : null, timeoutMs: /^\/v1\/(?:players|catalog)\//.test(path) ? 45_000 : 15_000 })
   if (response.status === 401 && personal) {
