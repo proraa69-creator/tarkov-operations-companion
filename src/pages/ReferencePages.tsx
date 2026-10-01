@@ -19,7 +19,6 @@ import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
 import { useLocale } from "../i18n/LocaleProvider";
 import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
-import { RaidSmokeSettings } from "../components/RaidSmokeSettings";
 import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
@@ -625,7 +624,6 @@ export function SettingsPage() {
                 <span />
               </button>
             </div>
-            {raidSmoke && <RaidSmokeSettings />}
             <ThemePicker />
             <div className="setting-row">
               <span>
