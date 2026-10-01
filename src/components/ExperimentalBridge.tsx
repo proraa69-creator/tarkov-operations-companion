@@ -11,6 +11,7 @@ import { describeItem } from '../overlay/itemInfo'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
 import type { MarkerLayerId } from '../domain/types'
 import { collectorEntries, scanForCollectorItems } from '../kappa/collector'
+import { mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 
 const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
 const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
@@ -35,6 +36,8 @@ export function ExperimentalBridge() {
   }, [])
   const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, nameVariants ?? undefined), [data.items, nameVariants])
   const latest = useRef({ data, state, matcher, tooltipMatcher })
+  // Friends' / squad mates' needed items for the «MATE» badge (refreshed periodically and on raid start).
+  useMateNeedsRefresh(state.raidMode, data.quests)
 
   useEffect(() => {
     latest.current = { data, state, matcher, tooltipMatcher }
@@ -53,7 +56,7 @@ export function ExperimentalBridge() {
             // One name in the box: no loose fallback — a wrong item is worse than «not found».
             ? tooltipMatcher(query.input.text)
             : (query.input.lines?.length ? matchNearest(matcher, query.input.lines) : null) ?? matcher(query.input.text)
-        const payload: ItemOverlayPayload = item ? describeItem(item, data.quests, progress, state.raidMode) : { state: 'not-found', text: query.input.text }
+        const payload: ItemOverlayPayload = item ? { ...describeItem(item, data.quests, progress, state.raidMode), ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true } : {}) } : { state: 'not-found', text: query.input.text }
         void api.answer(query.id, payload)
         return
       }

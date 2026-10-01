@@ -10,6 +10,7 @@ import type { PlayerPosition } from './screenshotPosition'
 import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
 import type { ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
+import { MateBadge } from './MateBadge'
 
 export type OverlayKind = 'item' | 'minimap'
 
@@ -56,6 +57,7 @@ function ItemOverlay() {
       <div className="eft-card-head">
         <span>{uiText(payload.name)}</span>
         {payload.collector && <em className="eft-kappa" title={uiText('Нужен для задания «Коллекционер»')}>{uiText('Каппа')}</em>}
+        <MateBadge show={payload.mate === true} />
       </div>
       <div className="eft-card-body">
         {payload.iconUrl && <div className="eft-card-icon"><img src={payload.iconUrl} alt="" /></div>}

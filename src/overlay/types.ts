@@ -24,6 +24,8 @@ export interface ItemOverlayInfo {
   quests: QuestNeed[]
   kappa: boolean
   collector: boolean
+  /** A friend or squad mate needs this item for a current quest (squad/mateNeeds.ts): only a bare «MATE» badge. */
+  mate?: boolean
 }
 
 export type ItemOverlayPayload =
