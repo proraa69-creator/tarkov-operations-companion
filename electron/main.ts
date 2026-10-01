@@ -1,3 +1,5 @@
+// First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
+import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
@@ -21,6 +23,7 @@ import { checkServicesNow, restartServiceNow, serverMonitorStatus, startServerMo
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
+import { isExternalAllowed } from './trustedPages.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 
@@ -40,16 +43,6 @@ let scanning = false
 let lastPublished = ''
 let raidState: RaidState = { inRaid: false }
 
-
-/** Links opened in the system browser: any HTTPS page, or the local website / API on this computer. */
-function isExternalAllowed(url: string) {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:' || (parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname))
-  } catch {
-    return false
-  }
-}
 
 // UI hover ticks must play before the first click in the window.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -83,8 +76,9 @@ function createWindow() {
     if (isExternalAllowed(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  // Only the app's own page (dist/index.html, or exactly the dev server's origin): not http://127.0.0.1.evil.com.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('file://') && !url.startsWith('http://127.0.0.1')) event.preventDefault()
+    if (!isTrustedAppPage(url)) event.preventDefault()
   })
 
   // Overlay windows stay alive while hidden; closing the main window ends the app.
@@ -98,9 +92,9 @@ function createWindow() {
 }
 
 function loadRenderer(window: BrowserWindow, hash: string) {
-  const devUrl = process.env.ELECTRON_RENDERER_URL
+  const devUrl = devRendererUrl()
   if (devUrl) void window.loadURL(hash ? `${devUrl}#${hash}` : devUrl)
-  else void window.loadFile(join(appDir, '../../dist/index.html'), hash ? { hash } : undefined)
+  else void window.loadFile(APP_INDEX_FILE, hash ? { hash } : undefined)
 }
 
 app.whenReady().then(async () => {
