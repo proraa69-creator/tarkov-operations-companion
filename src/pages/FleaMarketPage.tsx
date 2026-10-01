@@ -5,6 +5,7 @@ import { AlertTriangle, Crosshair, Database, Heart, KeyRound, PackageSearch, Sea
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice, timeAgo } from '../shared/format'
+import { PriceHistoryChart } from '../components/PriceHistoryChart'
 
 type FleaTab = 'all' | 'keys' | 'ammo' | 'favorites'
 
@@ -66,6 +67,7 @@ export function FleaMarketPage() {
         <div className="detail-section"><h4>{uiText("Описание")}</h4><p>{uiText(selected.description)}</p></div>
         {uiText((selected.damage || selected.penetration) && <div className="detail-section grid-2"><div><div className="stat-label">{uiText("Урон")}</div><div className="stat-value">{uiText(selected.damage)}</div></div><div><div className="stat-label">{uiText("Пробитие")}</div><div className="stat-value">{uiText(selected.penetration)}</div></div></div>)}
         <div className="detail-section"><h4>{uiText("Цены · ")}{uiText(state.raidMode.toUpperCase())}</h4><table className="price-table"><thead><tr><th>{uiText("Источник")}</th><th>{uiText("Цена")}</th></tr></thead><tbody>{uiText(selectedQuotes.map((quote) => <tr key={`${quote.source}-${quote.price}`}><td>{uiText(quote.source)}{uiText(quote === selectedBest && <span className="tag green" style={{ marginLeft: 7 }}>{uiText("лучшее")}</span>)}</td><td className="mono">{uiText(formatPrice(quote.price))}</td></tr>))}{uiText(!selectedQuotes.length && <tr><td colSpan={2} className="muted">{uiText("Нет данных для выбранного режима.")}</td></tr>)}</tbody></table></div>
+        <PriceHistoryChart itemId={selected.id} mode={state.raidMode} />
         <div className="detail-section stack"><button className={`button ${state.favoriteItemIds.includes(selected.id) ? 'primary' : ''}`} onClick={() => state.toggleFavoriteItem(selected.id)}>{uiText(state.favoriteItemIds.includes(selected.id) ? <Heart size={15} fill="currentColor" /> : <Star size={15} />)} {uiText(state.favoriteItemIds.includes(selected.id) ? 'В избранном' : 'Добавить в избранное')}</button><button className={`button ${state.raidItemIds.includes(selected.id) ? 'primary' : 'ghost'}`} onClick={() => state.toggleRaidItem(selected.id)}><ShoppingCart size={15} /> {uiText(state.raidItemIds.includes(selected.id) ? 'В списке рейда' : 'В список рейда')}</button></div>
       </aside>)}
     </div>
