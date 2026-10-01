@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, RefreshCw, Search, Settings, Target, UserRound, X,
+  CircleDollarSign, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, RefreshCw, Search, Settings, Target, UserRound, Users, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -14,6 +14,7 @@ const TABS = [
 ]
 
 const MORE = [
+  { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },

@@ -29,6 +29,8 @@ import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Qu
 import { calculateAvailability, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
 import { formatPrice } from '../shared/format'
+import { useSquadSharedQuests } from '../squad/useSquad'
+import { SquadQuestTag } from '../squad/SquadQuestTag'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -391,6 +393,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     () => mapQuestEntries.filter(({ quest }) => quest.anyMap),
     [mapQuestEntries],
   )
+  // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
+  const squadShared = useSquadSharedQuests(state.raidMode)
 
   useEffect(() => {
     if (!focusedQuestId) return
@@ -736,6 +740,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     quest={quest}
                     selected={selectedMarker?.questId === quest.id}
                     onSelect={() => showQuest(quest, marker)}
+                    squad={squadShared.get(quest.id)}
                   />
                 )))}
               </>
@@ -749,6 +754,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     quest={quest}
                     selected={selectedMarker?.questId === quest.id}
                     onSelect={() => showQuest(quest, marker)}
+                    squad={squadShared.get(quest.id)}
                   />
                 )))}
               </>
@@ -837,12 +843,12 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-function QuestMapRow({ quest, selected, onSelect }: { quest: Quest; selected: boolean; onSelect: () => void }) {
+function QuestMapRow({ quest, selected, onSelect, squad }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number }) {
   return (
     <div className={`catalog-card quest-catalog-card quest-map-row ${selected ? 'selected' : ''}`}>
       <button type="button" className="quest-map-row-main" onClick={onSelect}>
         <span className="quest-card-copy">
-          <h3>{uiText(quest.name)}</h3>
+          <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
         </span>
       </button>

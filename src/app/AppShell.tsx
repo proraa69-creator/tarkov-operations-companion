@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, CircleDollarSign, Home, Images, MapPinned, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
+  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, Users, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -156,6 +156,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="nav-list" aria-label={uiText("Основная навигация")}>
           {uiText(navigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>))}
         </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'RAID' : 'РЕЙД')}</div>
+        <nav className="nav-list"><NavLink to="/squad" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Users /><span>{uiText(locale === 'en' ? 'Squad' : 'Отряд')}</span></NavLink></nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
         <SidebarOperator />
