@@ -33,6 +33,9 @@ the phone layout. The Windows app never does.
 
 ## Connecting the phone to the server
 
+Normal builds use `https://raidos.app` (HTTPS only). A server in the home network over plain HTTP is a development
+setup: on Android it needs a build made with `RAIDOS_MOBILE_DEV_HTTP=1` (see «Platform settings» below).
+
 The phone cannot reach `127.0.0.1` of the PC. It needs the PC's address in the same Wi-Fi network:
 
 1. On the PC, find the LAN address (`ipconfig` → IPv4, e.g. `192.168.1.20`).
@@ -56,7 +59,10 @@ Platform settings for LAN HTTP:
 
 - **Android**: `android/app/src/main/res/xml/network_security_config.xml`. Android cannot limit cleartext to IP
   ranges, so cleartext is allowed and the app restricts it itself. For a fixed setup you can pin the PC's IP there.
-  `allowMixedContent` is on because the WebView page is `https://localhost`.
+  The WebView page is `https://localhost`, so calls to a plain-HTTP server are mixed content: Capacitor's
+  `allowMixedContent` is off in normal builds and they are blocked. A development build for a LAN server turns it
+  on: `RAIDOS_MOBILE_DEV_HTTP=1 npm run mobile:build` (or `RAIDOS_MOBILE_DEV_HTTP=1 npm run android:apk`); `cap sync`
+  writes the value into the native project (`capacitor.config.ts`).
 - **iOS**: `Info.plist` → `NSAppTransportSecurity/NSAllowsLocalNetworking` (only local-network HTTP is exempt
   from ATS). `NSLocalNetworkUsageDescription` is set in RU/EN (`ru.lproj`/`en.lproj/InfoPlist.strings`). iOS
   asks for local-network access on first use. **Check on a device**: if WKWebView still blocks `http://<LAN IP>`,
@@ -112,6 +118,10 @@ npm run android:apk         # cap sync android + cd android && ./gradlew assembl
 On Windows use `cd android && gradlew.bat assembleDebug`. Or run `npx cap open android` and use Run ▶ in Android
 Studio. A release build needs your own signing key (Build → Generate Signed Bundle/APK). Keep the keystore out
 of git.
+
+App data is never in an Android backup or a device-to-device transfer (`android:allowBackup="false"`,
+`res/xml/data_extraction_rules.xml`): the WebView storage holds the account session token. A new phone signs in
+again (QR sign-in).
 
 ### iOS (macOS only)
 
