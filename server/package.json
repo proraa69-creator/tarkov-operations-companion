@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Application-owned API and catalog cache for Raid OS",
   "scripts": {
-    "test": "node --import tsx --test src/api.test.ts src/routes/goons.test.ts src/routes/accounts.test.ts src/routes/me.test.ts src/services/persistence.test.ts src/services/payments.test.ts src/routes/owner.test.ts src/services/payouts.test.ts src/routes/loginCodes.test.ts src/services/autopay.test.ts src/routes/ownerAdmin.test.ts src/routes/phone.test.ts src/routes/email.test.ts",
+    "test": "node --import tsx --test src/api.test.ts src/routes/goons.test.ts src/routes/accounts.test.ts src/routes/me.test.ts src/services/persistence.test.ts src/services/payments.test.ts src/routes/owner.test.ts src/services/payouts.test.ts src/routes/loginCodes.test.ts src/services/autopay.test.ts src/routes/ownerAdmin.test.ts src/routes/phone.test.ts src/routes/email.test.ts src/routes/squads.test.ts",
     "dev": "tsx watch src/index.ts",
     "start": "node --import tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

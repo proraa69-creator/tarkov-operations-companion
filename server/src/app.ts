@@ -15,6 +15,8 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
 import { AccountStore, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
+import { createSquadsRouter, type SquadRouterOptions } from './routes/squads.js'
+import { SquadStore } from './services/squadStore.js'
 import { createPaymentsRouter } from './routes/payments.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
@@ -51,6 +53,9 @@ export interface ApiOptions {
   emails?: EmailAuthService
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
+  /** «Отряд»: squads on the accounts' database by default; tests pass their own limits / clock. */
+  squads?: SquadStore
+  squadLimits?: SquadRouterOptions['limits']
 }
 
 /**
@@ -120,6 +125,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
+  app.use('/v1/squads', createSquadsRouter(accounts, store, options.squads ?? new SquadStore(accounts.database, accounts.clock), { catalog: options.catalog ?? peekCatalogSnapshot, now: accounts.clock, limits: options.squadLimits }))
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
