@@ -15,6 +15,11 @@
 #     verifies with the key built into the app. The private key comes from RAIDOS_UPDATE_SIGNING_KEY_FILE (path to the
 #     Ed25519 PEM) or RAIDOS_UPDATE_SIGNING_KEY (the PEM, or base64 of it). Without a key the script refuses to make
 #     the client parts, unless ALLOW_UNSIGNED=1 (then the site still offers the download, but no player auto-updates).
+#   - RaidOS-update.json: with the signing key the script also signs the whole release for «Автообновление сервера»
+#     (scripts/sign-server-update.mjs, electron/serverUpdateManifest.ts): owner and players' exe, every part with its
+#     size and SHA-256, the players' signed version.json. The owner build's own build-info.json comes from
+#     OWNER_BUILD_INFO (default: dist-electron/build-info.json, i.e. right after the owner build). scripts/publish-release.sh
+#     then puts the folder into the private releases repository the laptop updates from. SKIP_SERVER_UPDATE=1 skips it.
 set -euo pipefail
 
 EXE="${1:?path to exe}"
@@ -188,6 +193,20 @@ fi
   echo 'timeout /t 8 >nul'
 } | sed 's/$/\r/' > "$OUT/Server-Laptop-Setup.cmd"
 
+SERVER_UPDATE=""
+if [ "${SKIP_SERVER_UPDATE:-}" != "1" ] && { [ -n "${RAIDOS_UPDATE_SIGNING_KEY:-}" ] || [ -n "${RAIDOS_UPDATE_SIGNING_KEY_FILE:-}" ]; }; then
+  OWNER_INFO="${OWNER_BUILD_INFO:-$SCRIPTS_DIR/../dist-electron/build-info.json}"
+  [ -f "$OWNER_INFO" ] || { echo "owner build-info.json not found: $OWNER_INFO (set OWNER_BUILD_INFO, or SKIP_SERVER_UPDATE=1)" >&2; exit 1; }
+  if [ -n "$CLIENT_EXE" ] && ! node -e 'process.exit(JSON.parse(process.argv[1]).signature ? 0 : 1)' "$CLIENT_VERSION_JSON"; then
+    echo "the players version is unsigned (ALLOW_UNSIGNED=1): no RaidOS-update.json, the server laptop will not update itself to this build" >&2
+  else
+    # Signs RaidOS.part* / RaidOSClient.part* in $OUT; refuses a non-owner build-info.json or a key the app does not know.
+    node "$SCRIPTS_DIR/sign-server-update.mjs" "$OUT" "$OWNER_INFO" ${CLIENT_EXE:+"$CLIENT_VERSION_JSON"}
+    SERVER_UPDATE="$OUT/RaidOS-update.json"
+  fi
+fi
+
 echo "sha256 $HASH"
+[ -n "$SERVER_UPDATE" ] && echo "server self-update manifest: $SERVER_UPDATE (publish with scripts/publish-release.sh)"
 [ -n "$CLIENT_EXE" ] && echo "client sha256 $CLIENT_HASH · $CLIENT_VERSION_JSON"
 ls -la "$OUT"
