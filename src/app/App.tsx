@@ -12,6 +12,8 @@ import { UiSounds } from '../components/UiSounds'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { ExperimentalPage } from '../pages/ExperimentalPage'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
+import { KeepItemsPage } from '../pages/KeepItemsPage'
+import { RaidBriefingPage } from '../pages/RaidBriefingPage'
 import { GalleryPage } from '../pages/GalleryPage'
 import { useLocale } from '../i18n/LocaleProvider'
 import { LiveMapPage } from '../mobile/LiveMapPage'
@@ -30,6 +32,8 @@ export function App() {
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />
     <Route path="/kappa-items" element={<KappaItemsPage />} />
+    <Route path="/keep-items" element={<KeepItemsPage />} />
+    <Route path="/briefing" element={<RaidBriefingPage />} />
     <Route path="/" element={<DashboardPage />} />
     <Route path="/maps" element={<MapsPage />} />
     <Route path="/maps/:mapId" element={<MapsPage />} />

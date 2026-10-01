@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, RefreshCw, Search, Settings, Target, UserRound, X,
+  CircleDollarSign, ClipboardList, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Search, Settings, Target, UserRound, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -18,6 +18,8 @@ const MORE = [
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
+  { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList },
+  { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX },
   { to: '/profile', ru: 'Профиль', en: 'Profile', icon: UserRound },
   { to: '/settings', ru: 'Настройки', en: 'Settings', icon: Settings },
 ]

@@ -45,6 +45,8 @@ interface AppStateValue extends UiState {
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   setHideoutLevel: (stationId: string, level: number) => void
+  /** «Что не продавать»: how many of an item the player has, in the selected mode. */
+  setItemCount: (itemId: string, count: number) => void
   toggleFavoriteItem: (id: string) => void
   toggleRaidItem: (id: string) => void
   toggleMarkerType: (type: string) => void
@@ -204,6 +206,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ...progress,
       hideoutLevels: { ...progress.hideoutLevels, [stationId]: Math.max(0, Math.round(level)) },
     })),
+    setItemCount: (itemId, count) => updateMode((progress) => {
+      const itemCounts = { ...(progress.itemCounts ?? {}) }
+      const value = Math.max(0, Math.min(9999, Math.round(count) || 0))
+      if (value) itemCounts[itemId] = value
+      else delete itemCounts[itemId]
+      return { ...progress, itemCounts }
+    }),
     toggleFavoriteItem: (id) => updateActive((profile) => {
       const nextFavorites = toggle(profile.modes[profile.selectedMode].favoriteItemIds, id)
       return {
