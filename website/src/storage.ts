@@ -26,3 +26,15 @@ export function loadReferralCode() {
   return code && REFERRAL_CODE_PATTERN.test(code) ? code : null
 }
 export const saveReferralCode = (code: string | null) => write(REFERRAL_KEY, code)
+
+/** A squad code from an opened /squad/<code> link, kept for this tab until the person signs in (cabinet «Отряд»). */
+const PENDING_SQUAD_KEY = 'raidos-pending-squad-code'
+export function readPendingSquadCode() {
+  try { return window.sessionStorage.getItem(PENDING_SQUAD_KEY) ?? '' } catch { return '' }
+}
+export function savePendingSquadCode(code: string | null) {
+  try {
+    if (code) window.sessionStorage.setItem(PENDING_SQUAD_KEY, code)
+    else window.sessionStorage.removeItem(PENDING_SQUAD_KEY)
+  } catch { /* storage unavailable */ }
+}
