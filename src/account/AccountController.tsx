@@ -12,7 +12,7 @@ import { isDesktopShell, isNative } from '../platform'
 import { DeepLinkLogin } from '../mobile/DeepLinkLogin'
 import { isOwnerApp } from '../app/buildEdition'
 import { openWebsite } from './accountActions'
-import { OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
+import { clearNicknameStepRequest, nicknameStepRequested, OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
 import { findNickname, modeTitle, RAID_MODE_ORDER, saveNicknamesOnServer } from './nicknameBinding'
 import { useNicknameBinder } from './useNicknameBinder'
 import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
@@ -35,7 +35,9 @@ export function AccountController() {
   const state = useAppState()
   const navigate = useNavigate()
   const { status } = useServerAccount()
-  const [nickStep, setNickStep] = useState(false)
+  // After a sign-in on the paywall (players' app) the nickname step follows once the app opens.
+  const [nickStep, setNickStep] = useState(nicknameStepRequested)
+  useEffect(() => { clearNicknameStepRequest() }, [])
   const [skipped, setSkipped] = useState(() => readSkip())
   const desktopClient = isDesktopShell() && !isOwnerApp()
   // The sign-in window: the players' desktop app without a signed-in account (unless skipped while offline).
