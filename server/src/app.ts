@@ -74,6 +74,17 @@ function buildInfo() {
   return { build: { version: env.TARKOV_APP_VERSION ?? '', build: Number(env.TARKOV_APP_BUILD) || 0, commit: env.TARKOV_APP_COMMIT ?? '', edition: env.TARKOV_APP_EDITION ?? '' } }
 }
 
+const LOOPBACK = /^(?:127(?:\.\d{1,3}){3}|::1|::ffff:127(?:\.\d{1,3}){3})$/
+
+/**
+ * A request made on this PC straight to the API port: loopback socket and no forwarding header. Everything through the
+ * website server (electron/siteProxy.ts always sets X-Forwarded-For) or the public link counts as from outside.
+ */
+export function directLocalRequest(req: express.Request) {
+  if (req.get('x-forwarded-for') !== undefined || req.get('forwarded') !== undefined || req.get('cf-connecting-ip') !== undefined) return false
+  return LOOPBACK.test(req.socket.remoteAddress ?? '')
+}
+
 export function createApi(store: ProgressStore, token?: string, accounts = new AccountStore(), options: ApiOptions = {}) {
   const userData = options.userData ?? new UserDataStore(openDatabase(':memory:'))
   const app = express()
@@ -105,10 +116,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
-  app.get('/health', (_req, res) => {
+  // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
+  // proxy / public link (X-Forwarded-For) only what the status lamps and clients read: ok, service, database.
+  app.get('/health', (req, res) => {
     let database = true
     try { accounts.database.prepare('SELECT 1 AS ok').get() } catch { database = false }
-    res.status(database ? 200 : 503).json({ ok: database, service: 'tarkov-operations-api', version: '0.3.0', syncRequiresToken: true, accounts: true, database, ...buildInfo() })
+    const status = database ? 200 : 503
+    if (!directLocalRequest(req)) { res.status(status).json({ ok: database, service: 'tarkov-operations-api', database }); return }
+    res.status(status).json({ ok: database, service: 'tarkov-operations-api', version: '0.3.0', syncRequiresToken: true, accounts: true, database, ...buildInfo() })
   })
   app.post('/v1/sync/events', (req, res) => {
     const supplied = req.get('authorization')?.replace(/^Bearer /, '') ?? ''

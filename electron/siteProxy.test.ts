@@ -44,6 +44,8 @@ describe('site proxy → API: QR sign-in through the website address', () => {
   it('health, QR request, approval by a signed-in device and the browser session all work through the proxy', async () => {
     const health = await (await fetch(`${base}/health`)).json() as { ok: boolean; database: boolean; service: string }
     expect(health).toMatchObject({ ok: true, database: true, service: 'tarkov-operations-api' })
+    // Through the site (and so the public link) the API's version, build and flags stay hidden.
+    expect(Object.keys(health).sort()).toEqual(['database', 'ok', 'service'])
 
     const registered = await post('/v1/accounts/register', { email: 'owner@example.com', password: 'correct horse battery' })
     expect(registered.status).toBe(201)

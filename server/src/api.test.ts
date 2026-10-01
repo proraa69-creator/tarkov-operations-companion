@@ -63,6 +63,11 @@ test('/health reports the database check (additive, backwards compatible)', asyn
     try {
       const built = await (await fetch(endpoint)).json() as { build?: unknown }
       assert.deepEqual(built.build, { version: '0.5.4', build: 42, commit: 'abc1234', edition: 'owner' })
+      // Through the website server / public link (X-Forwarded-For): only ok, service and database — no build or flags.
+      const proxied = await fetch(endpoint, { headers: { 'x-forwarded-for': '203.0.113.7' } })
+      assert.equal(proxied.status, 200)
+      assert.deepEqual(await proxied.json(), { ok: true, service: 'tarkov-operations-api', database: true })
+      assert.deepEqual(Object.keys(await (await fetch(endpoint, { headers: { 'cf-connecting-ip': '203.0.113.7' } })).json() as object).sort(), ['database', 'ok', 'service'])
     } finally {
       for (const key of ['TARKOV_APP_VERSION', 'TARKOV_APP_BUILD', 'TARKOV_APP_COMMIT', 'TARKOV_APP_EDITION']) Reflect.deleteProperty(process.env, key)
     }
@@ -70,6 +75,9 @@ test('/health reports the database check (additive, backwards compatible)', asyn
     const broken = await fetch(endpoint)
     assert.equal(broken.status, 503)
     assert.deepEqual(await broken.json().then((value: { ok: boolean; database: boolean }) => [value.ok, value.database]), [false, false])
+    const brokenProxied = await fetch(endpoint, { headers: { 'x-forwarded-for': '203.0.113.7' } })
+    assert.equal(brokenProxied.status, 503, 'monitors through the public link still see the failing database')
+    assert.deepEqual(await brokenProxied.json(), { ok: false, service: 'tarkov-operations-api', database: false })
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
     store.close()
