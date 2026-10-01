@@ -228,8 +228,8 @@ export function ArmorEffectivenessTable({ ammo }: { ammo: AmmoStats }) {
   )
 }
 
-const DW = 440
-const DH = 220
+const DW = 480
+const DH = 170
 const DM = { left: 40, right: 12, top: 14, bottom: 30 }
 const MAX_DISTANCE = 600
 
@@ -250,6 +250,7 @@ export function DropOffCharts({ ammo, color }: { ammo: AmmoStats; color: string 
           guides={ARMOR_CLASSES.filter((armorClass) => armorClass >= 3).map((armorClass) => [armorResistance(armorClass), `${uiText('Класс')} ${armorClass}`])}
         />
       </div>
+      <div className="dropoff-table-wrap">
       <table className="price-table dropoff-table">
         <thead><tr><th>{uiText('Дистанция')}</th><th>{uiText('Скорость')}</th><th>{uiText('Урон')}</th><th>{uiText('Пробитие')}</th></tr></thead>
         <tbody>
@@ -266,6 +267,7 @@ export function DropOffCharts({ ammo, color }: { ammo: AmmoStats; color: string 
           })}
         </tbody>
       </table>
+      </div>
       <p className="chart-note">
         {uiText(hasModel
           ? 'Приблизительно. Скорость падает по простой модели сопротивления воздуха v = v0·e^(−k·x), k = ρ·Cd / (2·BC·703), ρ = 1,225 кг/м³, Cd = 0,3; урон и пробитие пропорциональны скорости. Начальная скорость и баллистический коэффициент — tarkov.dev; длина ствола не учитывается.'

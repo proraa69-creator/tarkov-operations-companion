@@ -1,5 +1,8 @@
 /* «Арсенал»: ballistics charts and trader restock widgets. */
-.ballistics-layout { display: grid; gap: 14px; }
+.ballistics-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.ballistics-scroll { overflow-x: auto; }
+.armor-table, .dropoff-table-wrap { overflow-x: auto; }
+@media (max-width: 760px) { .ballistics-scroll .ballistics-scatter { min-width: 680px; } }
 .ballistics-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
 @media (max-width: 1100px) { .ballistics-split { grid-template-columns: minmax(0, 1fr); } }
 
@@ -35,15 +38,14 @@
 .caliber-chip.active { border-color: var(--brass); color: var(--text); }
 
 .armor-table-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.armor-table td { vertical-align: middle; }
+.armor-table td { vertical-align: middle; white-space: nowrap; }
 .armor-table tr.armor-beaten td:first-child strong { color: var(--green); }
 .chance-bar { display: inline-block; width: 90px; height: 6px; margin-right: 8px; border-radius: 3px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; vertical-align: middle; }
 .chance-bar span { display: block; height: 100%; border-radius: 3px; background: var(--brass); }
 .chart-note { margin: 10px 0 0; color: var(--text-dim); font-size: 11px; line-height: 1.5; }
 .chart-note a { color: var(--brass); }
 
-.dropoff-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 700px) { .dropoff-grid { grid-template-columns: minmax(0, 1fr); } }
+.dropoff-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .mini-line { margin: 0; }
 .mini-line figcaption { margin-bottom: 4px; color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .armor-guide line { stroke: var(--line-strong, #555); stroke-dasharray: 3 4; }
