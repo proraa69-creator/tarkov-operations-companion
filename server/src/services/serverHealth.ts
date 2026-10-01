@@ -179,7 +179,7 @@ export class ServerHealth {
     const since = (list: number[], ms: number) => list.filter((at) => at > now - ms).length
     return {
       uptimeSec: Math.round((now - this.startedAt) / 1000),
-      requests: { last5m: this.errors(5), last15m: this.errors(15), last60m: this.errors(60) },
+      requests: { last5m: this.errors(5), last15m: this.errors(15), last60m: this.errors(60), last24h: this.errors(24 * 60) },
       eventLoop: lag,
       memory: { rssMb: mb(memory.rss), heapUsedMb: mb(memory.heapUsed), heapTotalMb: mb(memory.heapTotal) },
       unhandled: {

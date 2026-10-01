@@ -10,7 +10,7 @@
  * program is only reported (foreign processes are never killed).
  */
 
-export type ServiceId = 'api' | 'site' | 'public' | 'database'
+export type ServiceId = 'api' | 'site' | 'public' | 'database' | 'security'
 export type Lamp = 'green' | 'amber' | 'red' | 'grey'
 
 export type ProbeResult =
@@ -30,6 +30,8 @@ export type ProbeResult =
   | { kind: 'down'; error: string; dead?: boolean }
   /** Cannot be repaired by the app (port taken by another program, server missing from the build). */
   | { kind: 'blocked'; error: string }
+  /** A report-only lamp («Безопасность», the database check): shown as is, never an incident, alarm or restart. */
+  | { kind: 'report'; lamp: 'green' | 'amber' | 'red'; text: string; error?: string }
 
 export interface ServiceHealth {
   id: ServiceId
@@ -50,7 +52,7 @@ export interface ServiceHealth {
 export interface WatchdogEvent { at: number; service: ServiceId; level: 'info' | 'warn' | 'error'; text: string }
 export interface WatchdogSnapshot { enabled: boolean; services: ServiceHealth[]; events: WatchdogEvent[]; worst: Lamp; checkedAt?: number }
 /** What the owner is told (Windows notification + in-app toast; an e-mail hook later). */
-export interface WatchdogAlert { service: ServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked'; title: string; body: string; at: number }
+export interface WatchdogAlert { service: ServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked' | 'guard'; title: string; body: string; at: number }
 
 export interface ServiceConfig {
   label: string
@@ -86,7 +88,7 @@ export interface WatchdogOptions {
   now?: () => number
 }
 
-export const SERVICE_ORDER: ServiceId[] = ['api', 'site', 'public', 'database']
+export const SERVICE_ORDER: ServiceId[] = ['api', 'site', 'public', 'database', 'security']
 export const DEFAULT_BACKOFF_MS = [5_000, 15_000, 60_000, 300_000]
 
 interface State extends ServiceHealth {
@@ -195,6 +197,10 @@ export class ServerWatchdog {
         return
       case 'starting':
         Object.assign(state, { lamp: 'amber', text: result.text ?? 'запускается…' })
+        return
+      case 'report':
+        if (state.incident) this.resetIncident(state)
+        Object.assign(state, { lamp: result.lamp, text: result.text, failures: 0, lastError: result.error })
         return
       case 'blocked':
         state.lastError = result.error
@@ -317,6 +323,12 @@ export class ServerWatchdog {
       state.notified = true
     }
     try { this.opts.alert?.({ service: id, kind, title, body, at: now }) } catch { /* a failing notifier never stops the watchdog */ }
+  }
+
+  /** A line in the journal from outside the state machine (the guardian's backups, daily summary). */
+  note(service: ServiceId, level: WatchdogEvent['level'], text: string) {
+    this.record(service, level, text)
+    this.emitChange()
   }
 
   private record(service: ServiceId, level: WatchdogEvent['level'], text: string) {
