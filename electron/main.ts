@@ -23,7 +23,7 @@ import { checkServicesNow, restartServiceNow, serverMonitorStatus, startServerMo
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
-import { isExternalAllowed } from './trustedPages.js'
+import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 
@@ -79,6 +79,15 @@ function createWindow() {
   // Only the app's own page (dist/index.html, or exactly the dev server's origin): not http://127.0.0.1.evil.com.
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedAppPage(url)) event.preventDefault()
+  })
+  // <webview> guests (src/components/WikiMapEmbed.tsx) never get the app's preload or Node, and only the embedded hosts.
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload
+    delete (webPreferences as { preloadURL?: string }).preloadURL
+    webPreferences.sandbox = true
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    if (!isEmbeddableWebviewUrl(params.src)) event.preventDefault()
   })
 
   // Overlay windows stay alive while hidden; closing the main window ends the app.

@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { isAppPageUrl, isExternalAllowed } from './trustedPages'
+import { wikiMapUrl } from '../src/data/wikiMaps'
+import { isAppPageUrl, isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages'
 
 // A portable exe unpacks to %TEMP%; the user name has a space (and may be Cyrillic).
 const WIN_INDEX = 'C:\\Users\\BANGKOK PC\\AppData\\Local\\Temp\\2nX1\\resources\\app.asar\\dist\\index.html'
@@ -58,5 +59,19 @@ describe('links opened in the system browser (setWindowOpenHandler)', () => {
     expect(isExternalAllowed('file:///C:/Windows/System32/calc.exe')).toBe(false)
     expect(isExternalAllowed('javascript:alert(1)')).toBe(false)
     expect(isExternalAllowed('ms-settings:privacy')).toBe(false)
+  })
+})
+
+describe('<webview> attach (will-attach-webview)', () => {
+  it('allows the embedded wiki maps over HTTPS only', () => {
+    expect(isEmbeddableWebviewUrl(wikiMapUrl('customs')!)).toBe(true)
+    expect(isEmbeddableWebviewUrl(wikiMapUrl('shoreline', 'm1')!)).toBe(true)
+    expect(isEmbeddableWebviewUrl('http://escapefromtarkov.fandom.com/ru/wiki/x')).toBe(false)
+    expect(isEmbeddableWebviewUrl('https://escapefromtarkov.fandom.com.evil.com/')).toBe(false)
+    expect(isEmbeddableWebviewUrl('https://evil.fandom.com/')).toBe(false)
+    expect(isEmbeddableWebviewUrl('https://escapefromtarkov.fandom.com:8443/')).toBe(false)
+    expect(isEmbeddableWebviewUrl('https://user:pw@escapefromtarkov.fandom.com/')).toBe(false)
+    expect(isEmbeddableWebviewUrl('file:///C:/app/dist/index.html')).toBe(false)
+    expect(isEmbeddableWebviewUrl('')).toBe(false)
   })
 })

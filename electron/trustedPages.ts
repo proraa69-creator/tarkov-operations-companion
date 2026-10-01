@@ -54,3 +54,15 @@ export function isExternalAllowed(url: string) {
   }
 }
 
+/** Hosts the app shows in a <webview>: the Fandom wiki maps (src/components/WikiMapEmbed.tsx, src/data/wikiMaps.ts). */
+export const WEBVIEW_HOSTS = ['escapefromtarkov.fandom.com']
+
+/** A <webview> may attach only to these hosts, over HTTPS on the default port, without credentials in the URL. */
+export function isEmbeddableWebviewUrl(raw: string) {
+  try {
+    const url = new URL(raw)
+    return url.protocol === 'https:' && WEBVIEW_HOSTS.includes(url.hostname) && !url.port && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
