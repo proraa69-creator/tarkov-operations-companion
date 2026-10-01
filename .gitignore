@@ -15,3 +15,12 @@ work/
 server/data/
 scratch-out.txt
 .claude/worktrees/
+# Logs, local databases, built executables and signing / secret material never go into the repository.
+*.log
+*.sqlite
+*.sqlite-*
+*.exe
+*.keystore
+*.jks
+*.key.pem
+android/local.properties
