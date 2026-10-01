@@ -192,13 +192,13 @@ function startSite() {
   })
 }
 
-interface Published { exe: string; info: { version: string; build: number; commit: string; edition: BuildEdition } | null }
+interface Published { exe: string; info: { version: string; build: number; commit: string; edition: BuildEdition; signature?: string } | null }
 
 /**
  * What «Скачать для Windows» and auto-update hand out: the players' (client) exe.
  * - The owner publishes it next to the server exe: `<server exe folder>\client\*.exe` with `version.json`
- *   ({ version, build, commit } of that build), put there by Server-Laptop-Setup.cmd (scripts/split-exe-for-chat.sh).
- *   TARKOV_CLIENT_DIR overrides the folder.
+ *   ({ version, build, commit, edition, signature } of that build, signed by scripts/sign-client-release.mjs), put there by
+ *   Server-Laptop-Setup.cmd (scripts/split-exe-for-chat.sh). TARKOV_CLIENT_DIR overrides the folder.
  * - Without it, the running exe, but only when it is itself a client build: the owner's own app is never handed out.
  */
 async function publishedClient(): Promise<Published | null> {
@@ -212,8 +212,13 @@ async function publishedClient(): Promise<Published | null> {
     if (newest) {
       let info: Published['info'] = null
       try {
-        const raw = JSON.parse(await readFile(join(dir, 'version.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown }
-        if (Number(raw.build) > 0) info = { version: String(raw.version ?? ''), build: Number(raw.build), commit: String(raw.commit ?? ''), edition: 'client' }
+        const raw = JSON.parse(await readFile(join(dir, 'version.json'), 'utf8')) as { version?: unknown; build?: unknown; commit?: unknown; edition?: unknown; signature?: unknown }
+        if (Number(raw.build) > 0) {
+          info = {
+            version: String(raw.version ?? ''), build: Number(raw.build), commit: String(raw.commit ?? ''), edition: raw.edition === 'owner' ? 'owner' : 'client',
+            ...(typeof raw.signature === 'string' ? { signature: raw.signature } : {}),
+          }
+        }
       } catch { /* no version.json: downloads work, auto-update does not */ }
       return { exe: join(dir, newest), info }
     }
@@ -264,7 +269,12 @@ async function hashFile(file: string) {
   return hash.digest('hex')
 }
 
-/** Auto-update (electron/appUpdate.ts): which build the site hands out, with the exe's size, SHA-256 and edition. */
+/**
+ * Auto-update (electron/appUpdate.ts): which build the site hands out — version, build, commit, edition and the signature
+ * from version.json, size and SHA-256 of the exe that is really there. A player's copy installs it only when the signature
+ * covers exactly these values, so a replaced exe or an edited version.json is refused. Without a signature (an exe
+ * published unsigned, or the running client exe itself) players are told about no update at all.
+ */
 function sendVersion(response: ServerResponse) {
   void (async () => {
     const published = await publishedClient()
@@ -274,8 +284,8 @@ function sendVersion(response: ServerResponse) {
     const key = `${exe}:${info.size}:${info.mtimeMs}`
     if (exeHash?.key !== key) exeHash = { key, sha256: await hashFile(exe) }
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' })
-    const { version, build, commit, edition } = published.info
-    response.end(JSON.stringify({ version, build, commit, edition, size: info.size, sha256: exeHash.sha256 }))
+    const { version, build, commit, edition, signature } = published.info
+    response.end(JSON.stringify({ version, build, commit, edition, size: info.size, sha256: exeHash.sha256, ...(signature ? { signature } : {}) }))
   })().catch(() => { if (!response.headersSent) response.writeHead(500); response.end() })
 }
 

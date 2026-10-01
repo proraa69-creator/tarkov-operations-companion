@@ -45,7 +45,7 @@ export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'i
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
-export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'no-server' | 'not-portable' | 'disabled' | 'busy'; status: UpdateStatus; current: string; checkedAt: string }
+export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'; status: UpdateStatus; current: string; checkedAt: string }
 
 /** Owner controls for the server on this PC (electron/ownerAdmin.ts). */
 export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
