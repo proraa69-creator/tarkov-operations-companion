@@ -9,6 +9,7 @@ import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { apiEnvironment } from './ownerAdmin.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
 import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
+import { siteSecurityHeaders } from './siteHeaders.js'
 import { proxyToApi, siteRoute } from './siteProxy.js'
 import { describeBuild, isStaleOwnServer, OUR_SERVICE, stopOwnServerOnPort, type ApiHealth } from './staleServer.js'
 
@@ -173,6 +174,8 @@ function startSite() {
   return new Promise<void>((resolve, reject) => {
     const root = siteRoot()
     const server = createServer((request, response) => {
+      // CSP, framing, sniffing, referrer and permissions on every answer (pages, files, downloads, errors, the API).
+      for (const [name, value] of Object.entries(siteSecurityHeaders())) response.setHeader(name, value)
       void (async () => {
         const path = decodeURIComponent(new URL(request.url ?? '/', LOCAL_SITE_URL).pathname)
         if (path === '/download/windows') return sendDownload(response)
