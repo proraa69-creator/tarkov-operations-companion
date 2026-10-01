@@ -49,6 +49,16 @@ export interface ApiOptions {
  */
 export const DEFAULT_WEB_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5202,http://127.0.0.1:5202,https://localhost,capacitor://localhost'
 
+/**
+ * Which app build started this server (the owner app passes TARKOV_APP_* to the API process, electron/localServer.ts):
+ * lets the owner app see an old server still holding the port. Absent when the server runs on its own.
+ */
+function buildInfo() {
+  const env = process.env
+  if (!env.TARKOV_APP_VERSION && !env.TARKOV_APP_COMMIT && !env.TARKOV_APP_BUILD) return {}
+  return { build: { version: env.TARKOV_APP_VERSION ?? '', build: Number(env.TARKOV_APP_BUILD) || 0, commit: env.TARKOV_APP_COMMIT ?? '', edition: env.TARKOV_APP_EDITION ?? '' } }
+}
+
 export function createApi(store: ProgressStore, token?: string, accounts = new AccountStore(), options: ApiOptions = {}) {
   const userData = options.userData ?? new UserDataStore(openDatabase(':memory:'))
   const app = express()
@@ -68,7 +78,13 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
   app.use('/v1/admin', createAdminRouter(accounts))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
-  app.get('/health', (_req, res) => res.json({ ok: true, service: 'tarkov-operations-api', version: '0.3.0', syncRequiresToken: true, accounts: true }))
+  // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
+  // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
+  app.get('/health', (_req, res) => {
+    let database = true
+    try { accounts.database.prepare('SELECT 1 AS ok').get() } catch { database = false }
+    res.status(database ? 200 : 503).json({ ok: database, service: 'tarkov-operations-api', version: '0.3.0', syncRequiresToken: true, accounts: true, database, ...buildInfo() })
+  })
   app.post('/v1/sync/events', (req, res) => {
     const supplied = req.get('authorization')?.replace(/^Bearer /, '') ?? ''
     if (!token || Buffer.byteLength(token) !== Buffer.byteLength(supplied) || !timingSafeEqual(Buffer.from(token), Buffer.from(supplied))) {

@@ -40,3 +40,38 @@ test('older events never override newer progress, and owners remain isolated', (
     assert.equal(store.sync('b', { ...scope, events: [] }).records.length, 0)
   } finally { store.close() }
 })
+
+test('/health reports the database check (additive, backwards compatible)', async () => {
+  const { AccountStore } = await import('./services/accountStore.js')
+  const store = new ProgressStore(':memory:')
+  const accounts = new AccountStore()
+  const server = createApi(store, undefined, accounts).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const endpoint = `http://127.0.0.1:${address.port}/health`
+  try {
+    const healthy = await fetch(endpoint)
+    assert.equal(healthy.status, 200)
+    const body = await healthy.json() as { ok: boolean; database: boolean; service: string; accounts: boolean }
+    assert.equal(body.ok, true)
+    assert.equal(body.database, true)
+    assert.equal(body.service, 'tarkov-operations-api')
+    assert.equal(body.accounts, true)
+    assert.equal('build' in body, false) // started on its own: no app build
+    process.env.TARKOV_APP_VERSION = '0.5.4'; process.env.TARKOV_APP_BUILD = '42'; process.env.TARKOV_APP_COMMIT = 'abc1234'; process.env.TARKOV_APP_EDITION = 'owner'
+    try {
+      const built = await (await fetch(endpoint)).json() as { build?: unknown }
+      assert.deepEqual(built.build, { version: '0.5.4', build: 42, commit: 'abc1234', edition: 'owner' })
+    } finally {
+      for (const key of ['TARKOV_APP_VERSION', 'TARKOV_APP_BUILD', 'TARKOV_APP_COMMIT', 'TARKOV_APP_EDITION']) Reflect.deleteProperty(process.env, key)
+    }
+    accounts.close() // the database goes away under the running server
+    const broken = await fetch(endpoint)
+    assert.equal(broken.status, 503)
+    assert.deepEqual(await broken.json().then((value: { ok: boolean; database: boolean }) => [value.ok, value.database]), [false, false])
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    store.close()
+  }
+})

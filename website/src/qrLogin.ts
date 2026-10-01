@@ -8,7 +8,7 @@
  *   POST /v1/accounts/me/qr-login/inspect      Bearer { code } -> { createdAt, agent }
  *   POST /v1/accounts/me/qr-login/approve      Bearer { code } -> { ok }
  */
-import { ApiError, NETWORK_ERROR_MESSAGE, type Account } from './api'
+import { ApiError, fallbackMessage, NETWORK_ERROR_MESSAGE, type Account } from './api'
 import { API_URL } from './config'
 
 export interface QrLoginRequest { requestId: string; pollSecret: string; code: string; expiresAt: string }
@@ -29,7 +29,7 @@ async function post(path: string, body: unknown, token?: string | null): Promise
   let data: unknown
   try { data = await response.json() } catch { data = undefined }
   if (!response.ok && response.status !== 410) {
-    const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : 'Не удалось выполнить запрос'
+    const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : fallbackMessage(response.status)
     throw new ApiError(response.status, message)
   }
   return { status: response.status, data }

@@ -1,0 +1,12 @@
+/* «Чтобы можно было листать вниз»: dialogs and overlays taller than the window (e.g. 700 px) scroll inside instead of
+ * running off the screen. Centred while they fit (margin: auto in a flex overlay never pushes the top out of reach,
+ * unlike grid centring), scrolled by the overlay when they do not. Loaded once from AppShell. */
+:root :is(.registration-overlay, .kappa-congrats-overlay, .gallery-overlay) {
+  display: flex; overflow-y: auto; overscroll-behavior: contain;
+}
+:root :is(.registration-overlay, .kappa-congrats-overlay, .gallery-overlay) > * { margin: auto; flex-shrink: 0; }
+/* The search dialog keeps its own result list scrolling; on a low window it starts higher. */
+@media (max-height: 760px) { :root .search-overlay { padding-top: 4vh; } .search-dialog { max-height: 90vh; } .search-results { max-height: calc(90vh - 90px); } }
+/* Small popovers that open downward from a card or the top bar: never taller than the window. */
+:root .goon-report-menu { max-height: calc(100vh - var(--topbar, 68px) - 24px); overflow-y: auto; overscroll-behavior: contain; }
+:root .gear-helmet-editor { max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; }

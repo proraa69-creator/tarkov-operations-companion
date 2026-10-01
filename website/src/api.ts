@@ -42,11 +42,17 @@ export class ApiError extends Error {
   }
 }
 
-function fallbackMessage(status: number) {
+/**
+ * The message for an error answer without the server's own text: always with the HTTP status and a hint, so the owner
+ * can tell an old server version (404) from a server that is not running (502/503/504).
+ */
+export function fallbackMessage(status: number) {
   if (status === 401) return 'Требуется вход в аккаунт'
   if (status === 429) return 'Слишком много попыток. Подождите немного и попробуйте снова.'
-  if (status >= 500) return 'На сервере произошла ошибка. Попробуйте позже.'
-  return 'Не удалось выполнить запрос'
+  if (status === 404 || status === 405) return `Сервер ответил ${status} — возможно, на сервере старая версия. Обновите и перезапустите приложение-сервер.`
+  if (status === 502 || status === 503 || status === 504 || status === 530) return `Сервер ответил ${status} — сервер аккаунтов не запущен или перезапускается. Попробуйте через минуту.`
+  if (status >= 500) return `На сервере произошла ошибка (HTTP ${status}). Попробуйте позже.`
+  return `Не удалось выполнить запрос (HTTP ${status})`
 }
 
 /** Per-mode data the app sent to the server (GET /v1/me/summary, mirrors server/src/routes/me.ts). */

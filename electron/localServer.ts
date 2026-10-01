@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, existsSync } from 'node:fs'
 import { appendFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
-import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import { connect } from 'node:net'
 import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,8 @@ import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { apiEnvironment } from './ownerAdmin.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
 import { publicSiteUrl } from './publicTunnel.js'
+import { proxyToApi, siteRoute } from './siteProxy.js'
+import { describeBuild, isStaleOwnServer, OUR_SERVICE, stopOwnServerOnPort, type ApiHealth } from './staleServer.js'
 
 /**
  * «Сервер и сайт на этом компьютере»: the owner's PC runs the account API (server/, bundled into
@@ -110,7 +112,8 @@ export async function startLocalServer() {
   lastError = ''
   await mkdir(join(dataDir(), 'logs'), { recursive: true })
   if (!apiProcess) {
-    if (await portTaken(API_PORT)) apiState = 'external'
+    if (await portTaken(API_PORT) && !(await replaceOwnOldServer())) apiState = 'external'
+    else if (apiProcess) { /* started by replaceOwnOldServer */ }
     else if (!existsSync(serverScript())) { apiState = 'error'; lastError = 'Сервер не входит в эту сборку приложения.' }
     else await startApi()
   }
@@ -125,16 +128,21 @@ async function startApi() {
   const log = join(dataDir(), 'logs', 'api.log')
   // Owner token, ЮKassa settings and the public address travel only in the process environment (electron/ownerAdmin.ts).
   const extra = await apiEnvironment(await publicSiteUrl())
+  // Which app build runs this server: /health reports it, so a later build can recognise an old server on the port.
+  const build = await runningBuild()
+  const buildEnv = { TARKOV_APP_VERSION: build.version, TARKOV_APP_BUILD: String(build.build), TARKOV_APP_COMMIT: build.commit, TARKOV_APP_EDITION: build.edition }
   const child = utilityProcess.fork(serverScript(), [], {
     serviceName: 'Raid OS API',
     stdio: 'pipe',
-    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...extra },
+    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...buildEnv, ...extra },
   })
   const write = (chunk: Buffer) => void appendFile(log, chunk).catch(() => {})
   child.stdout?.on('data', write)
   child.stderr?.on('data', write)
   child.once('spawn', () => { apiState = 'running' })
   child.once('exit', (code) => {
+    // A process replaced by a restart must not mark the new one as stopped.
+    if (apiProcess !== null && apiProcess !== child) return
     if (apiProcess === child) apiProcess = null
     apiState = code === 0 ? 'stopped' : 'error'
     if (code) lastError = `Сервер остановился с кодом ${code}. Журнал: ${log}`
@@ -160,8 +168,9 @@ function startSite() {
         if (path === '/download/version.json') return sendVersion(response)
         // The API under the site's own address: the site keeps working when opened through the public link.
         // The owner's admin API is for this PC's app only, never through the site or the public link.
-        if (/^\/+v1\/+admin(\/|$)/i.test(path.replace(/\\/g, '/'))) { response.writeHead(404); response.end(); return }
-        if (path === '/health' || path.startsWith('/v1/')) return proxyToApi(request, response)
+        const route = siteRoute(path)
+        if (route === 'blocked') { response.writeHead(404); response.end(); return }
+        if (route === 'api') return proxyToApi(request, response, API_PORT)
         const file = normalize(join(root, path))
         const inside = file.startsWith(root + sep)
         const info = inside ? await stat(file).catch(() => null) : null
@@ -172,20 +181,15 @@ function startSite() {
       })().catch(() => { response.writeHead(500); response.end() })
     })
     server.once('error', reject)
-    server.listen(SITE_PORT, '127.0.0.1', () => { siteServer = server; siteState = 'running'; resolve() })
+    server.listen(SITE_PORT, '127.0.0.1', () => {
+      siteServer = server
+      siteState = 'running'
+      // Closed by anything but stop/repair: the watchdog sees it as stopped and starts it again.
+      server.once('close', () => { if (siteServer === server) { siteServer = null; siteState = 'stopped' } })
+      server.on('error', (error) => { lastError = error.message })
+      resolve()
+    })
   })
-}
-
-function proxyToApi(request: IncomingMessage, response: ServerResponse) {
-  const upstream = httpRequest({ host: '127.0.0.1', port: API_PORT, method: request.method, path: request.url, headers: { ...request.headers, host: `127.0.0.1:${API_PORT}` } }, (answer) => {
-    response.writeHead(answer.statusCode ?? 502, answer.headers)
-    answer.pipe(response)
-  })
-  upstream.on('error', () => {
-    if (!response.headersSent) response.writeHead(502, { 'content-type': 'application/json' })
-    response.end(JSON.stringify({ error: 'Сервер не запущен' }))
-  })
-  request.pipe(upstream)
 }
 
 interface Published { exe: string; info: { version: string; build: number; commit: string; edition: BuildEdition } | null }
@@ -283,6 +287,78 @@ export async function restartApi() {
   await new Promise<void>((resolve) => { old.once('exit', () => resolve()); old.kill(); setTimeout(resolve, 3000) })
   lastError = ''
   await startApi()
+  return localServerStatus()
+}
+
+/** /health of whatever answers on the API port (null when nothing answers). */
+export async function apiHealth(timeoutMs = 4000): Promise<{ status: number; body: ApiHealth | null } | null> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${API_PORT}/health`, { signal: AbortSignal.timeout(timeoutMs), headers: { 'cache-control': 'no-cache' } })
+    return { status: response.status, body: await response.json().catch(() => null) as ApiHealth | null }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The API port is held by a server we did not start. When it is our own API from another (older) build — or, on the
+ * server laptop (--server-mode), any copy of our own API — stop it safely (electron/staleServer.ts) and start ours.
+ * Foreign programs are never stopped. True when our API now runs.
+ */
+export async function replaceOwnOldServer() {
+  if (apiProcess) return true
+  const health = (await apiHealth())?.body ?? null
+  if (health?.service !== OUR_SERVICE) return false
+  const stale = isStaleOwnServer(health, await runningBuild())
+  if (!stale && !isServerMode()) return false
+  const result = await stopOwnServerOnPort(API_PORT, health)
+  if (!result.stopped) { lastError = result.reason; return false }
+  for (let index = 0; index < 25 && (await portTaken(API_PORT)); index += 1) await new Promise((resolve) => setTimeout(resolve, 200))
+  if (await portTaken(API_PORT)) { lastError = `Старый сервер (сборка ${describeBuild(health)}) не освободил порт ${API_PORT}.`; return false }
+  if (!existsSync(serverScript())) return false
+  lastError = ''
+  await mkdir(serverLogsDir(), { recursive: true })
+  await startApi()
+  return true
+}
+
+/** Ports and log folder for the watchdog (electron/serverMonitor.ts). */
+export const LOCAL_PORTS = { api: API_PORT, site: SITE_PORT } as const
+export const serverLogsDir = () => join(dataDir(), 'logs')
+export { portTaken }
+
+/** What the watchdog needs to tell «the process exited» from «does not answer» and «someone else's program». */
+export function localServerProcesses() {
+  return { apiAlive: apiProcess !== null, siteListening: siteServer?.listening === true, api: apiState, site: siteState, error: lastError }
+}
+
+/**
+ * Watchdog repair of the API: stop this app's process if it hangs and start a new one. A port held by another
+ * program is left alone (never killed) and reported as 'external'.
+ */
+export async function repairApi() {
+  if (apiProcess) return restartApi()
+  if (await portTaken(API_PORT)) {
+    if (!(await replaceOwnOldServer())) apiState = 'external'
+    return localServerStatus()
+  }
+  if (!existsSync(serverScript())) { apiState = 'error'; lastError = 'Сервер не входит в эту сборку приложения.'; return localServerStatus() }
+  lastError = ''
+  await mkdir(serverLogsDir(), { recursive: true })
+  await startApi()
+  return localServerStatus()
+}
+
+/** Watchdog repair of the website server: close this app's listener and listen again; a foreign port is left alone. */
+export async function repairSite() {
+  if (siteServer) {
+    const old = siteServer
+    siteServer = null
+    await new Promise<void>((resolve) => { old.close(() => resolve()); old.closeAllConnections?.(); setTimeout(resolve, 2000) })
+  }
+  siteState = 'stopped'
+  if (await portTaken(SITE_PORT)) { siteState = 'external'; return localServerStatus() }
+  await startSite().catch((error: unknown) => { siteState = 'error'; lastError = error instanceof Error ? error.message : String(error) })
   return localServerStatus()
 }
 

@@ -13,6 +13,14 @@ export interface LocalServerStatus { enabled: boolean; api: LocalServiceState; s
 
 export interface TunnelStatus { state: 'off' | 'downloading' | 'starting' | 'on' | 'error'; url?: string; error?: string; autoStart: boolean; hostname?: string }
 
+/** Server watchdog (electron/serverWatchdog.ts): status lamps, journal and alerts in the owner's app. */
+export type WatchdogServiceId = 'api' | 'site' | 'public' | 'database'
+export type WatchdogLamp = 'green' | 'amber' | 'red' | 'grey'
+export interface WatchdogService { id: WatchdogServiceId; lamp: WatchdogLamp; text: string; lastError?: string; checkedAt?: number; failures: number; attempts: number; nextRetryAt?: number }
+export interface WatchdogEvent { at: number; service: WatchdogServiceId; level: 'info' | 'warn' | 'error'; text: string }
+export interface WatchdogSnapshot { enabled: boolean; services: WatchdogService[]; events: WatchdogEvent[]; worst: WatchdogLamp; checkedAt?: number }
+export interface WatchdogAlert { service: WatchdogServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked'; title: string; body: string; at: number }
+
 export interface ServerAccountStatus {
   signedIn: boolean
   email?: string
@@ -47,6 +55,8 @@ interface TarkovDesktopApi {
   isDesktop: true
   /** 'owner': server, tunnel, payments and streamers controls; 'client' (default): the players' app. */
   edition?: 'owner' | 'client'
+  /** The server laptop (owner build started with --server-mode): no catalog polling. */
+  serverMode?: boolean
   owner?: {
     payments: () => Promise<PaymentSettings>
     setPayments: (settings:
@@ -83,6 +93,11 @@ interface TarkovDesktopApi {
     setTunnel?: (enabled: boolean) => Promise<TunnelStatus>
     /** Permanent address from the owner's Cloudflare account (hostname + tunnel token); empty values remove it. */
     setNamedTunnel?: (hostname: string, token: string) => Promise<TunnelStatus>
+    /** Status lamps + journal of the server watchdog; «Перезапустить сейчас»; live updates and alerts. */
+    watchdogStatus?: () => Promise<WatchdogSnapshot>
+    watchdogCheck?: () => Promise<WatchdogSnapshot>
+    restartService?: (service: 'api' | 'site' | 'public') => Promise<WatchdogSnapshot>
+    onWatchdog?: (onStatus: (snapshot: WatchdogSnapshot) => void, onAlert: (alert: WatchdogAlert) => void) => () => void
     /** A one-time code for the phone app, as a website link for a QR code. */
     mobileLogin?: () => Promise<MobileLoginLink>
     /** The public address of the account website (for links a streamer shares). */

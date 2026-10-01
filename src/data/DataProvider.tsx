@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { AppDataset } from '../domain/types'
 import { demoDataset } from './demo'
@@ -9,11 +9,14 @@ import { cleanDatasetText } from '../shared/questText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
+import { catalogRefetchDelay, createFailureCounter, isInitialCatalogLoad } from './catalogRefresh'
 
 interface DataContextValue {
   data: AppDataset
   source: 'live' | 'cache' | 'demo'
   isFetching: boolean
+  /** Only the very first load (full-screen loader); background refetches keep the page as it is. */
+  initialLoading: boolean
   updatedAt?: number
   error?: string
   refresh: () => void
@@ -25,14 +28,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
   useEffect(() => { if (locale === 'en') void loadEnglishCatalog(raidMode) }, [locale, raidMode])
+  // Failed loads in a row (reset by a successful one): the retry backs off 1 → 2 → 5 → 15 min (src/data/catalogRefresh.ts).
+  const failures = useRef(createFailureCounter())
+  // The server laptop (--server-mode) fetches once and never polls.
+  const serverMode = typeof window !== 'undefined' && window.tarkovDesktop?.serverMode === true
   const query = useQuery({
     queryKey: ['tarkov-companion-data', raidMode],
     queryFn: () => fetchTarkovCatalog(raidMode, 'ru'),
     staleTime: 55_000,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: true,
+    refetchInterval: (current) => catalogRefetchDelay(failures.current(current.queryHash, current.state), serverMode),
+    refetchIntervalInBackground: !serverMode,
+    refetchOnWindowFocus: !serverMode,
     gcTime: 1000 * 60 * 60 * 24 * 7,
-    retry: 1,
+    retry: serverMode ? 0 : 1,
   })
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
@@ -43,6 +51,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     data,
     source,
     isFetching: query.isFetching,
+    initialLoading: isInitialCatalogLoad({ hasData: Boolean(query.data), isFetching: query.isFetching, settledOnce: query.errorUpdateCount > 0 || query.dataUpdatedAt > 0 }),
     updatedAt: query.dataUpdatedAt || undefined,
     error: query.error instanceof Error ? query.error.message : undefined,
     refresh: () => void query.refetch(),

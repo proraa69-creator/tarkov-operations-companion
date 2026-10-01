@@ -1,0 +1,27 @@
+/** English strings for the server status lamps, watchdog journal and alerts (ServerStatusLamps, electron/serverWatchdog.ts). */
+export const SERVER_STATUS_PHRASES: Array<[string, string]> = [
+  ['Состояние сервера', 'Server status'], ['Состояние', 'Status'], ['Проверить сейчас', 'Check now'],
+  ['сервер на этом компьютере выключен', 'the server on this PC is off'],
+  ['Сервер (API)', 'Server (API)'], ['Сайт', 'Website'], ['Публичный адрес', 'Public address'], ['База данных', 'Database'],
+  ['запускается / перезапуск / предупреждение', 'starting / restarting / warning'],
+  ['Перезапустить сейчас', 'Restart now'], ['Журнал', 'Log'], ['Событий пока нет', 'No events yet'],
+  ['попыток:', 'attempts:'], ['следующая через', 'next in'], ['Закрыть', 'Close'],
+  ['Сервер: ошибка', 'Server: error'], ['Сервер: запускается или перезапускается', 'Server: starting or restarting'],
+  // Status texts from the watchdog
+  ['запускается…', 'starting…'], ['перезапуск…', 'restarting…'], ['нужна помощь', 'needs your help'],
+  ['ошибка, не удалось починить', 'error, could not repair'], ['нет данных', 'no data'], ['нет данных (сервер не отвечает)', 'no data (the server does not answer)'],
+  ['нет ответа, проверяю ещё', 'no answer, checking again'], ['не отвечает, проверяю ещё', 'not answering, checking again'],
+  ['работает (запущен отдельно)', 'running (started separately)'], ['работает (временная ссылка)', 'running (temporary link)'],
+  ['Процесс сервера остановился.', 'The server process stopped.'], ['Сервер сайта остановлен.', 'The website server stopped.'],
+  ['cloudflared остановился.', 'cloudflared stopped.'], ['База данных не отвечает.', 'The database does not answer.'],
+  ['База данных не отвечает (проверка SELECT 1 не прошла).', 'The database does not answer (the SELECT 1 check failed).'],
+  ['Наблюдение за сервером включено', 'Server monitoring is on'], ['Сервер и сайт на этом компьютере выключены', 'Server and website on this PC are off'],
+  ['Сервер перезапущен автоматически', 'The server was restarted automatically'],
+  ['Сервер (API): не работает', 'Server (API): down'], ['Сайт: не работает', 'Website: down'], ['Публичный адрес: не работает', 'Public address: down'],
+  ['Сервер (API): не удалось починить', 'Server (API): could not repair'], ['Сайт: не удалось починить', 'Website: could not repair'], ['Публичный адрес: не удалось починить', 'Public address: could not repair'],
+  ['Сайт: перезапущено автоматически', 'Website: restarted automatically'], ['Публичный адрес: перезапущено автоматически', 'Public address: restarted automatically'],
+  ['Сервер (API): снова работает', 'Server (API): working again'], ['Сайт: снова работает', 'Website: working again'], ['Публичный адрес: снова работает', 'Public address: working again'],
+  ['Всё в порядке.', 'All good.'], ['Сервер (API) снова работает.', 'Server (API) works again.'], ['Сайт снова работает.', 'The website works again.'], ['Публичный адрес снова работает.', 'The public address works again.'],
+  ['Сервер (API): перезапуск вручную', 'Server (API): manual restart'], ['Сайт: перезапуск вручную', 'Website: manual restart'], ['Публичный адрес: перезапуск вручную', 'Public address: manual restart'],
+  ['Сервер (API): снова работает после перезапуска', 'Server (API): working again after a restart'], ['Сайт: снова работает после перезапуска', 'Website: working again after a restart'], ['Публичный адрес: снова работает после перезапуска', 'Public address: working again after a restart'],
+]

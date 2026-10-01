@@ -17,6 +17,7 @@ import { accountLogin, accountLogout, accountStatus, forgetLocalPreference, serv
 import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
+import { checkServicesNow, restartServiceNow, serverMonitorStatus, startServerMonitor, stopServerMonitor } from './serverMonitor.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
@@ -136,10 +137,13 @@ app.whenReady().then(async () => {
     if (openSite) void shell.openExternal(`${LOCAL_SITE_URL}/`)
     // A PC that keeps the server running (e.g. a laptop) reopens the public link for friends on start.
     if (await localServerEnabled()) await startTunnelIfWanted()
-  }).catch(() => {})
+  }).catch(() => {}).finally(() => {
+    // Status lamps and self-repair of the server, site and public link (idle while the mode is off).
+    startServerMonitor(() => mainWindow)
+  })
 })
 
-app.on('will-quit', () => { stopTunnel(); stopLocalServer(); finishTrial() })
+app.on('will-quit', () => { stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
@@ -161,6 +165,7 @@ app.on('window-all-closed', () => {
 
 const OWNER_CHANNELS = [
   'local-server:status', 'local-server:set-enabled', 'tunnel:status', 'tunnel:set', 'tunnel:set-named',
+  'server-watchdog:status', 'server-watchdog:restart', 'server-watchdog:check',
   'owner:payments', 'owner:set-payments', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
 ]
 
@@ -196,6 +201,8 @@ function registerIpc() {
   ipcMain.handle('account:status', () => accountStatus())
   // Which app this is: 'owner' (server controls) or 'client' (players). Read once by the preload, synchronously.
   ipcMain.on('app:edition', (event) => { event.returnValue = buildEdition() })
+  // The server laptop (owner build + --server-mode): the renderer skips catalog polling (src/data/catalogRefresh.ts).
+  ipcMain.on('app:server-mode', (event) => { event.returnValue = isOwnerBuild() && isServerMode() })
   // «Войти в мобильную версию»: a two-minute one-time code in a website link, never the session token.
   ipcMain.handle('account:mobile-login', () => mobileLoginLink())
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
@@ -273,6 +280,10 @@ function registerIpc() {
     return status
   })
   ipcMain.handle('tunnel:status', () => tunnelStatus())
+  // Status lamps, journal and «Перезапустить сейчас» (electron/serverMonitor.ts).
+  ipcMain.handle('server-watchdog:status', () => serverMonitorStatus())
+  ipcMain.handle('server-watchdog:restart', (_event, service: unknown) => restartServiceNow(service))
+  ipcMain.handle('server-watchdog:check', () => checkServicesNow())
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
   ipcMain.handle('tunnel:set-named', async (_event, hostname: unknown, token: unknown) => {
     const status = await setNamedTunnel(hostname, token)

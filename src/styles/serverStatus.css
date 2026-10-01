@@ -1,0 +1,69 @@
+/* «Сервер и сайт» popover (ServerQuickButton), status lamps and watchdog toasts (ServerStatusLamps). */
+
+/* The popover fits the window and scrolls inside. The selector outweighs the themes' `.panel { position: relative }`
+ * (Alcantara, Telnyashka), which otherwise put the popover into the top bar's flow and let it run off the screen. */
+:root .server-quick > .server-quick-panel.panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60;
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100vh - var(--topbar, 68px) - 20px);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.server-quick-scroll {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain; scrollbar-gutter: stable; border-radius: inherit;
+}
+/* Alcantara draws the stitch with an absolute ::after; it sits on the non-scrolling frame and stays put. */
+:root[data-theme="alcantara"] .server-quick > .server-quick-panel.panel .server-quick-scroll { margin: 4px; }
+
+/* Lamps */
+.server-lamp {
+  --lamp: var(--text-dim);
+  flex: none; width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, #fff 55%, var(--lamp)), var(--lamp) 60%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 55%), 0 0 8px color-mix(in srgb, var(--lamp) 70%, transparent);
+}
+.server-lamp.is-green { --lamp: #5fd37a; }
+.server-lamp.is-amber { --lamp: #f0b03c; animation: server-lamp-pulse 1.4s ease-in-out infinite; }
+.server-lamp.is-red { --lamp: #ef5a4b; }
+.server-lamp.is-grey { --lamp: #7d8079; box-shadow: 0 0 0 1px rgb(0 0 0 / 55%); }
+@keyframes server-lamp-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .server-lamp.is-amber { animation: none; } }
+
+/* The top-bar icon's dot follows the worst lamp. */
+.server-quick .server-quick-lamp-green .server-quick-dot { background: #5fd37a; box-shadow: 0 0 0 2px var(--surf-1), 0 0 8px rgb(95 211 122 / 70%); }
+.server-quick .server-quick-lamp-amber .server-quick-dot { background: #f0b03c; box-shadow: 0 0 0 2px var(--surf-1), 0 0 8px rgb(240 176 60 / 75%); animation: server-lamp-pulse 1.4s ease-in-out infinite; }
+.server-quick .server-quick-lamp-red .server-quick-dot { background: #ef5a4b; box-shadow: 0 0 0 2px var(--surf-1), 0 0 9px rgb(239 90 75 / 80%); }
+
+.server-lamps { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.server-lamps-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.server-lamps-head small { flex: 1; min-width: 0; }
+.server-lamps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.server-lamps-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.server-lamps-row:first-child { border-top: 0; }
+.server-lamps-row > .server-lamp { margin-top: 8px; }
+.server-lamps-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.server-lamps-text strong { font-size: 13px; }
+.server-lamps-text small { font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+.server-lamps-text small.dim { color: var(--text-dim); }
+.server-lamps-error { color: var(--danger) !important; }
+.server-lamps-row.is-amber .server-lamps-error { color: var(--amber) !important; }
+.button.server-lamps-mini { min-height: 26px; height: auto; padding: 3px 8px; font-size: 11.5px; gap: 5px; white-space: nowrap; }
+.server-lamps-journal-toggle { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.server-lamps-journal-toggle:hover { color: var(--text); }
+.server-lamps-journal { list-style: none; margin: 0; padding: 6px 8px; max-height: 220px; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 3px; border-radius: 8px; background: rgb(0 0 0 / 25%); font-size: 11.5px; }
+.server-lamps-journal li { display: flex; gap: 8px; color: var(--text-muted); }
+.server-lamps-journal li.is-error { color: var(--danger); }
+.server-lamps-journal li.is-warn { color: var(--amber); }
+.server-lamps-journal time { flex: none; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* Toasts (portalled to <body>). */
+.server-toasts { position: fixed; right: 18px; bottom: 18px; z-index: 400; display: grid; gap: 10px; width: min(380px, calc(100vw - 32px)); }
+.server-toast.panel { display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; box-shadow: 0 14px 34px rgb(0 0 0 / 55%); animation: server-quick-in .28s cubic-bezier(.34, 1.56, .64, 1); }
+.server-toast > .server-lamp { margin-top: 4px; }
+.server-toast-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.server-toast-text small { color: var(--text-muted); overflow-wrap: anywhere; }
+.server-toast .icon-button { width: 28px; height: 28px; flex: none; }
+:root[data-theme="alcantara"] .server-toast.panel { padding: 18px; }
+@media (prefers-reduced-motion: reduce) { .server-toast.panel { animation: none; } }
+.server-lamps-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.server-lamps-title strong { min-width: 0; }

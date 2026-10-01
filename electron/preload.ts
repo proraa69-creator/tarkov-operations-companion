@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
   /** 'owner' | 'client' (electron/buildEdition.ts), fixed at build time. */
   edition: ipcRenderer.sendSync('app:edition') === 'owner' ? 'owner' : 'client',
+  /** The server laptop (--server-mode in the owner build). */
+  serverMode: ipcRenderer.sendSync('app:server-mode') === true,
   openWikiMap: (id: string) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('service:request', method, path, body),
   account: {
@@ -17,6 +19,16 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     tunnelStatus: () => ipcRenderer.invoke('tunnel:status'),
     setTunnel: (enabled: boolean) => ipcRenderer.invoke('tunnel:set', Boolean(enabled)),
     setNamedTunnel: (hostname: string, token: string) => ipcRenderer.invoke('tunnel:set-named', String(hostname ?? ''), String(token ?? '')),
+    watchdogStatus: () => ipcRenderer.invoke('server-watchdog:status'),
+    watchdogCheck: () => ipcRenderer.invoke('server-watchdog:check'),
+    restartService: (service: 'api' | 'site' | 'public') => ipcRenderer.invoke('server-watchdog:restart', String(service)),
+    onWatchdog: (onStatus: (snapshot: unknown) => void, onAlert: (alert: unknown) => void) => {
+      const status = (_event: unknown, snapshot: unknown) => onStatus(snapshot)
+      const alert = (_event: unknown, payload: unknown) => onAlert(payload)
+      ipcRenderer.on('server-watchdog:status', status)
+      ipcRenderer.on('server-watchdog:alert', alert)
+      return () => { ipcRenderer.removeListener('server-watchdog:status', status); ipcRenderer.removeListener('server-watchdog:alert', alert) }
+    },
     mobileLogin: () => ipcRenderer.invoke('account:mobile-login'),
     websiteUrl: () => ipcRenderer.invoke('account:website-url'),
     setServerUrl: (url: string) => ipcRenderer.invoke('account:set-server-url', String(url ?? '')),

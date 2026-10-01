@@ -1,5 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
+import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { BrandMonogram, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
@@ -45,7 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const state = useAppState()
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
-  const { source, isFetching, refresh, data } = useTarkovData()
+  const { isFetching, initialLoading, refresh, data } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
@@ -184,7 +185,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       )}
 
-      <main className="content">{uiText(source === 'demo' && isFetching ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
+      <main className="content">{uiText(initialLoading ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
 
       {uiText(searchOpen && <div className="search-overlay" onMouseDown={(event) => event.target === event.currentTarget && setSearchOpen(false)}>
         <div className="search-dialog" role="dialog" aria-modal="true" aria-label={uiText("Глобальный поиск")}>

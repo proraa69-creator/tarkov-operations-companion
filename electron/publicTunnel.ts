@@ -144,8 +144,11 @@ async function startTunnel() {
       ? spawn(exe, ['tunnel', '--no-autoupdate', 'run'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, TUNNEL_TOKEN: named.token } })
       : spawn(exe, ['tunnel', '--no-autoupdate', '--url', SITE], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
     const read = (chunk: Buffer) => {
-      if (url) return
       const text = chunk.toString()
+      // cloudflared logs «ERR …» lines while it cannot reach Cloudflare or the site; the watchdog counts them.
+      for (const line of text.split(/\r?\n/)) if (/\bERR\b/.test(line)) { errorLines.push(Date.now()); lastErrorLine = line.replace(/^\S+\s+ERR\s+/, '').slice(0, 200) }
+      while (errorLines.length && errorLines[0] < Date.now() - 120_000) errorLines.shift()
+      if (url) return
       if (named) { if (/Registered tunnel connection/i.test(text)) { url = `https://${named.hostname}`; state = 'on' } return }
       const found = LINK.exec(text)
       if (found) { url = found[0]; state = 'on' }
@@ -153,16 +156,37 @@ async function startTunnel() {
     next.stdout?.on('data', read)
     next.stderr?.on('data', read)
     next.once('exit', (code) => {
-      if (child === next) child = null
+      // An old process exiting after a restart must not mark the new one as failed.
+      if (child !== next) return
+      child = null
       if (state !== 'off') { state = 'error'; error = `Туннель остановился (код ${code ?? '—'}).`; url = '' }
     })
-    next.once('error', (reason) => { state = 'error'; error = reason.message })
+    next.once('error', (reason) => { if (child === next || child === null) { state = 'error'; error = reason.message } })
     child = next
   } catch (reason) {
     state = 'error'
     error = reason instanceof Error ? reason.message : String(reason)
     await rm(`${exePath()}.part`, { force: true }).catch(() => {})
   }
+}
+
+let errorLines: number[] = []
+let lastErrorLine = ''
+
+/** For the watchdog (electron/serverMonitor.ts): is cloudflared running, and its «ERR» lines in the last 2 minutes. */
+export function tunnelProcess() {
+  while (errorLines.length && errorLines[0] < Date.now() - 120_000) errorLines.shift()
+  return { running: child !== null, recentErrors: errorLines.length, lastErrorLine }
+}
+
+/** Watchdog repair: stop cloudflared and start it again (only when the owner turned the link on). */
+export async function restartTunnel() {
+  if (!(await autoStart())) return tunnelStatus()
+  stopTunnel()
+  errorLines = []
+  lastErrorLine = ''
+  await startTunnel()
+  return tunnelStatus()
 }
 
 export function stopTunnel() {

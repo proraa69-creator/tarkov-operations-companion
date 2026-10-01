@@ -8,6 +8,7 @@ import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
 import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
+import { ServerStatusBlock } from './ServerStatusLamps'
 
 /** Opens a website page in the system browser (desktop) or a new tab (browser build). */
 function openWebsite(page: 'register' | 'cabinet' | 'admin') {
@@ -68,6 +69,7 @@ export function ServerAccountPanel() {
       </div>
       <div className="panel-body stack">
         {!available && <p className="dim" style={{ margin: 0 }}>{uiText('Вход в аккаунт сервера доступен в приложении для Windows.')}</p>}
+        {available && isOwnerApp() && <ServerStatusBlock />}
         {available && isOwnerApp() && <LocalServerRow onChange={() => void refresh()} />}
         {available && status && <ServerAddressRow current={status.serverUrl} onChange={() => void refresh()} />}
 

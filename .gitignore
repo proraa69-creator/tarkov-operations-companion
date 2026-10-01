@@ -14,3 +14,4 @@ playwright-report/
 work/
 server/data/
 scratch-out.txt
+.claude/worktrees/
