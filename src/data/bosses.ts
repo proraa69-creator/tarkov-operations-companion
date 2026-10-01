@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { BossGear, BossInfo, MapMarker } from '../domain/types'
 import { dataRoute, tarkovGraphql } from './tarkovApi'
 
-const CACHE_KEY = 'toc.bosses.graphql.v1'
+const CACHE_KEY = 'toc.bosses.graphql.v2'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const GEAR_SLOTS = ['FirstPrimaryWeapon', 'SecondPrimaryWeapon', 'Holster', 'Headwear', 'ArmorVest', 'TacticalVest']
 
@@ -12,7 +12,7 @@ const BOSSES_QUERY = `query RaidOsBosses {
     normalizedName
     imagePortraitLink
     health { max }
-    equipment { item { id name shortName iconLink } attributes { name value } }
+    equipment { item { id name shortName iconLink properties { ... on ItemPropertiesWeapon { defaultPreset { iconLink } } } } attributes { name value } }
   }
 }`
 
@@ -111,9 +111,11 @@ export function adaptGraphqlBosses(payload: unknown): BossProfile[] {
     const gearList = GEAR_SLOTS.flatMap((slot) => {
       const entry = equipment.find((candidate) => (Array.isArray(candidate.attributes) ? candidate.attributes : [])
         .some((attribute: { name?: string; value?: string }) => attribute?.name === 'slot' && attribute.value === slot))
-      const item = entry?.item as { name?: string; shortName?: string; iconLink?: string } | undefined
+      const item = entry?.item as { name?: string; shortName?: string; iconLink?: string; properties?: { defaultPreset?: { iconLink?: string } | null } | null } | undefined
       const itemName = item?.shortName || item?.name
-      return itemName ? [{ name: itemName, iconUrl: item?.iconLink || undefined, slot }] : []
+      // a weapon shows its default preset (the whole gun), not the bare receiver
+      const icon = item?.properties?.defaultPreset?.iconLink || item?.iconLink
+      return itemName ? [{ name: itemName, iconUrl: icon || undefined, slot }] : []
     })
     const health = (Array.isArray(boss.health) ? boss.health as Array<{ max?: number }> : []).reduce((sum, part) => sum + (Number(part?.max) || 0), 0)
     return [{

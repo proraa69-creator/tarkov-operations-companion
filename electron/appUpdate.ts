@@ -28,8 +28,12 @@ import { verifiedUpdateManifest } from './updateManifest.js'
  * is on), otherwise it is downloaded in the background and swapped in when the app is closed.
  */
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
-/** ready: the new exe is already downloaded and checked (installed on close when «Автоустановка» is on). */
-export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean }
+/**
+ * ready: the new exe is already downloaded and checked (installed on close when «Автоустановка» is on).
+ * phase: while downloading, 'verifying' once all bytes are in and the size / SHA-256 are being checked.
+ * background: a download «Автоустановка» started by itself (the renderer keeps it in the top bar, no full-screen window).
+ */
+export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean }
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Result of a check by hand: what the settings line says. unsigned: the server's build has no valid signature (not offered). */
 export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'
@@ -159,11 +163,11 @@ async function autoInstall(startup: boolean) {
   if (downloaded?.build === remote.build && existsSync(downloaded.file)) return
   const target = remote
   try {
-    const file = await download(target)
+    const file = await download(target, true)
     downloaded = { file, build: target.build }
     set({ state: 'available', version: target.version, commit: target.commit, ready: true })
   } catch (error) {
-    set({ state: 'error', version: target.version, commit: target.commit, error: failure(error) })
+    set({ state: 'error', version: target.version, commit: target.commit, error: failure(error), background: true })
   }
 }
 
@@ -215,11 +219,11 @@ export async function installUpdate() {
 }
 
 /** Downloads the new exe next to this one and checks its size and SHA-256 (the signed values, see probe); returns the file. */
-async function download(target: Remote) {
+async function download(target: Remote, background = false) {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe) throw new Error('Обновление доступно только для portable-версии')
   const partial = `${exe}.update`
-  const base = { version: target.version, commit: target.commit }
+  const base = { version: target.version, commit: target.commit, ...(background ? { background } : {}) }
   if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   set({ state: 'downloading', ...base, progress: 0 })
   try {
@@ -238,6 +242,7 @@ async function download(target: Remote) {
       if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
     }
     await Promise.race([new Promise<void>((resolve) => out.end(resolve)), failed])
+    set({ state: 'downloading', ...base, progress: 100, phase: 'verifying' })
     if (received !== target.size || hash.digest('hex') !== target.sha256) throw new Error('Файл обновления повреждён, попробуйте ещё раз')
     return partial
   } catch (error) {

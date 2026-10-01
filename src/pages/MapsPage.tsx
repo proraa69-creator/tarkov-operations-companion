@@ -3,7 +3,7 @@ import { DocumentGlyph } from '../components/DocumentGlyph'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
-import { MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Pane, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
@@ -29,6 +29,9 @@ import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Qu
 import { calculateAvailability, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
 import { formatPrice } from '../shared/format'
+import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
+import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
+import { useRaidRoute } from '../raidprep/useRaidPrep'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -297,6 +300,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const activeMapId = mapId ?? state.selectedMapId
   const activeMap = data.maps.find((entry) => entry.id === activeMapId) ?? data.maps[0]
   const baseFloor = mainFloor(activeMap)
+  const route = useRaidRoute(activeMap.id, data.markers, data.quests, progress)
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null)
   const [markerStyle, setMarkerStyle] = useState<MarkerStyle>(readMarkerStyle)
   const chooseMarkerStyle = (style: MarkerStyle) => {
@@ -503,13 +507,14 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         </div>
       </aside>
 
-      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}`}>
+      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}`}>
         <div className="map-hud">
           <span>{uiText(activeMap.name.toUpperCase())}</span>
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
+          <RaidRouteControls route={route} />
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -536,6 +541,16 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           {/* Digital: the SVG scheme with the ground level (or the selected SVG floor) shown. */}
           {plan.view === 'digital' && imageUrl && (
             <FloorSvgOverlay key={`base:${imageUrl}`} base url={imageUrl} layers={activeMap.layers ?? []} selected={plan.floorSvg ? floor : baseFloor} bounds={imageBounds} opacity={baseOpacity} />
+          )}
+          {/* Satellite: the scheme under the render tiles, so a gap in a tile shows the plan instead of black. */}
+          {plan.view === 'satellite' && imageUrl && plan.underlay && (
+            <Pane name="satellite-underlay" style={{ zIndex: 150 }}>
+              <FloorSvgOverlay key={`under:${imageUrl}`} base url={imageUrl} layers={activeMap.layers ?? []} selected={baseFloor} bounds={imageBounds} opacity={baseOpacity} />
+            </Pane>
+          )}
+          {/* Satellite, main level: the buildings' ground-floor rooms from the scheme (the render leaves them black). */}
+          {plan.view === 'satellite' && imageUrl && plan.groundInteriors && (
+            <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={activeMap.layers ?? []} selected={baseFloor} bounds={imageBounds} interiors />
           )}
           {/* Satellite: a floor that only exists in the SVG is drawn as a plan over the render. */}
           {plan.view === 'satellite' && imageUrl && plan.floorSvg === 'floor-only' && (
@@ -571,8 +586,9 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           ))}
           <FocusOnMarker marker={flyTarget} />
           <MapRefCapture mapRef={mapRef} />
-          {!toolActive && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
+          {!toolActive && !route.picking && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           <MapToolLayer value={tools} onChange={setTools} />
+          <RaidRouteLayer route={route} />
           <LivePlayerMarker mapId={activeMap.id} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
@@ -632,6 +648,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           }))}
         </MapContainer>
         </div>
+        <RaidRouteHint route={route} />
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}`} aria-hidden={!sheetOpen}>
           {uiText(relatedQuest && (
@@ -704,6 +721,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         <div className="panel-header">
           <div className="panel-title">{uiText("Квесты на карте")}</div>
         </div>
+        {route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
         <div className="filter-row" style={{ padding: 12, margin: 0 }}>
           <div style={{ position: 'relative', width: '100%' }}>
             <Search size={14} style={{ position: 'absolute', left: 11, top: 13, color: 'var(--text-dim)' }} />
@@ -763,6 +781,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
             </div>
           </div>
         ))}
+        {!route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
       </aside>
     </div>
   </div>

@@ -1,0 +1,65 @@
+/* «Экономика»: barter calculator, craft profit, flea price history. */
+.economy-tabs { display: inline-flex; margin-bottom: 16px; }
+.economy-tabs a { padding: 7px 12px; border-radius: 6px; color: var(--text-dim); font-size: 11px; font-weight: 800; text-decoration: none; }
+.economy-tabs a.active { background: #29392e; color: #e3e9e4; }
+.economy-tabs a:not(.active):hover { color: var(--text); }
+
+.economy-toolbar { flex-wrap: wrap; gap: 10px; }
+.economy-toolbar .panel-title { display: flex; align-items: center; gap: 8px; }
+.economy-toolbar .filter-row { margin: 0; }
+.economy-search { position: relative; display: inline-flex; align-items: center; }
+.economy-search svg { position: absolute; left: 11px; color: var(--text-dim); pointer-events: none; }
+.economy-search .input { height: 35px; padding-left: 32px; }
+.economy-toolbar .select { height: 35px; }
+.economy-check { display: inline-flex; align-items: center; gap: 6px; height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); color: var(--text-muted); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.economy-check input { accent-color: var(--brass); margin: 0; }
+.economy-check.disabled { opacity: .55; cursor: not-allowed; }
+
+.economy-table-wrap { overflow-x: auto; }
+.economy-table { min-width: 860px; }
+.economy-table td { vertical-align: top; }
+.economy-table .num { text-align: right; white-space: nowrap; }
+.economy-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; max-width: 220px; }
+.economy-tags .tag { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.economy-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.economy-lines li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.economy-thumb { width: 30px; height: 30px; flex: none; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: var(--surf-0); }
+.economy-line-text { display: grid; min-width: 0; }
+.economy-line-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.economy-line-text small { font-size: 10.5px; }
+.economy-profit { display: inline-grid; justify-items: end; gap: 2px; }
+.economy-profit small { font-size: 10.5px; opacity: .85; }
+.price-down { color: #d48b80; }
+.economy-fuel { display: block; font-size: 10.5px; }
+.economy-locked td { opacity: .5; }
+.economy-more { padding: 10px 14px; margin: 0; }
+.economy-loading { display: flex; align-items: center; gap: 10px; padding: 14px 16px; margin-bottom: 14px; color: var(--text-muted); }
+
+.economy-levels { margin-bottom: 14px; }
+.economy-levels-toggle { width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 16px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.economy-levels-toggle .dim { flex: 1; font-size: 12px; }
+.economy-levels-toggle svg { transition: transform .2s var(--ease-soft); }
+.economy-levels-toggle svg.open { transform: rotate(180deg); }
+.economy-levels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; padding: 0 16px 16px; }
+.economy-levels-grid label { display: grid; gap: 5px; color: var(--text-muted); font-size: 12px; }
+.economy-levels-grid .select { height: 34px; }
+
+/* Flea item card: price history */
+.price-history-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.price-history-head h4 { margin: 0; }
+.price-history .mode-switch button { padding: 5px 9px; }
+.price-chart-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.price-chart-summary strong { font-size: 18px; }
+.price-chart-change.up { color: #9fc49f; }
+.price-chart-change.down { color: #d48b80; }
+.price-chart { display: block; width: 100%; height: 96px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-0); touch-action: none; }
+.price-chart-line { fill: none; stroke: var(--brass); stroke-width: 1.8; stroke-linejoin: round; }
+.price-chart-area { fill: var(--brass); opacity: .1; }
+.price-chart.down .price-chart-line { stroke: #c98f73; }
+.price-chart.down .price-chart-area { fill: #c98f73; }
+.price-chart-cursor { stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 3 3; }
+.price-chart-scale { display: flex; justify-content: space-between; margin-top: 5px; color: var(--text-dim); font-size: 10.5px; }
+.price-chart-skeleton { height: 96px; border-radius: 8px; background: linear-gradient(90deg, var(--surf-1), var(--surf-2), var(--surf-1)); background-size: 200% 100%; animation: price-chart-pulse 1.4s ease-in-out infinite; }
+.price-chart-note { font-size: 12px; }
+@keyframes price-chart-pulse { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .price-chart-skeleton { animation: none; } }

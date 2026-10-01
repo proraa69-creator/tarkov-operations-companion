@@ -13,6 +13,10 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
 import { dirname } from 'node:path'
 import { EntitlementService } from './services/entitlement.js'
+import { installProcessGuards } from './services/serverHealth.js'
+
+// Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
+installProcessGuards()
 
 // One SQLite file holds everything: accounts, sessions, referral stats, goon sightings, quest events, user data.
 const dbPath = resolveDbPath()

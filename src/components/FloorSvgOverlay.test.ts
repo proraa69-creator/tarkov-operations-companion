@@ -23,4 +23,12 @@ describe('SVG floor selection', () => {
     expect(doc.getElementById('kept')?.getAttribute('display')).toBe('none')
     expect(doc.getElementById('third')?.getAttribute('display')).toBe('none')
   })
+  it('draws only the ground-floor rooms kept with the ground level (satellite main level)', () => {
+    const withRooms = svg.replace('<g id="second"/>', '<g id="second"/><g id="rooms" data-keep-with-group="terrain"/>')
+    const doc = new DOMParser().parseFromString(selectSvgFloor(withRooms, layers, 'Main', { interiors: true }), 'image/svg+xml')
+    expect(doc.getElementById('rooms')?.getAttribute('display')).toBe('inline')
+    expect(doc.getElementById('terrain')?.getAttribute('display')).toBe('none')
+    expect(doc.getElementById('second')?.getAttribute('display')).toBe('none')
+    expect(() => selectSvgFloor(svg, layers, 'Main', { interiors: true })).toThrow('no ground-floor interiors')
+  })
 })

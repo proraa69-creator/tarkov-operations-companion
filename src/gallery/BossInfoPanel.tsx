@@ -1,17 +1,16 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Crosshair, Gem, HeartPulse, Map as MapIcon, Package } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useTarkovData } from '../data/DataProvider'
 import { bossMapIds } from '../data/bossFigures'
 import { bossDetails } from '../data/bossInfo'
-import { bossLoadout, resolveBossItem, type BodyHealth, type BossItemRef } from '../data/bossLoadout'
+import { bossLoadout, resolveBossItem, type BossItemRef } from '../data/bossLoadout'
+import { BodyHealthFigure } from '../components/BodyHealthFigure'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { formatPrice } from '../shared/format'
 import type { Item } from '../domain/types'
 import './bossInfoPanel.css'
-
-const PARTS = ['Голова', 'Грудь', 'Живот', 'Левая рука', 'Правая рука', 'Левая нога', 'Правая нога'] as const
 
 /**
  * The Gallery viewer's side panel: who the boss is, the maps he is on, health per body part, the weapons he
@@ -37,7 +36,7 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
 
     {total ? <section className="boss-info-block">
       <h3><HeartPulse size={14} /> {uiText('Здоровье')} <b className="boss-info-total">{total} HP</b></h3>
-      {loadout?.body && <BodyChart body={loadout.body} />}
+      {loadout?.body && <BodyHealthFigure body={loadout.body} showTotal={false} />}
     </section> : null}
 
     {loadout?.weapons?.length ? <section className="boss-info-block">
@@ -61,31 +60,28 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
   </aside>
 }
 
-/** Seven body parts as bars scaled to the strongest part, laid out head / torso / arms / legs. */
-function BodyChart({ body }: { body: BodyHealth }) {
-  const max = Math.max(...body)
-  return <div className="boss-info-body">
-    {body.map((value, part) => <div key={PARTS[part]} className={`boss-info-part is-part-${part}`}>
-      <span className="boss-info-part-name">{uiText(PARTS[part])}</span>
-      <span className="boss-info-part-value">{value}</span>
-      <span className="boss-info-bar" aria-hidden="true"><i style={{ width: `${Math.round((value / max) * 100)}%` }} /></span>
-    </div>)}
-  </div>
-}
-
 function ItemTiles({ refs, items, index, gun = false, price = false }: { refs: BossItemRef[]; items: Item[]; index: Map<string, Item>; gun?: boolean; price?: boolean }) {
   const { locale } = useLocale()
-  return <ul className="boss-info-items">
+  return <ul className={`boss-info-items${gun ? ' is-guns' : ''}`}>
     {refs.map((ref) => {
       const found = resolveBossItem(ref, items, index, gun)
       const value = price ? found?.fleaPrice ?? Math.max(0, ...(found?.prices ?? []).map((quote) => quote.price)) : 0
       return <li key={ref.name.en} className="boss-info-item" title={found ? uiText(found.name) : ref.name[locale]}>
-        <span className="boss-info-item-image">
-          {found?.iconUrl ? <img src={found.iconUrl} alt="" loading="lazy" decoding="async" /> : <Package size={20} aria-hidden="true" />}
+        <span className={`boss-info-item-image${found?.presetImageUrl ? ' is-weapon' : ''}`}>
+          <ItemPicture item={found} />
         </span>
         <span className="boss-info-item-name">{ref.name[locale]}</span>
         {value > 0 && <span className="boss-info-item-price">{formatPrice(value)}</span>}
       </li>
     })}
   </ul>
+}
+
+/** Weapons show the whole gun (tarkov.dev default preset), not the bare receiver; the item icon if that fails. */
+function ItemPicture({ item }: { item?: Item }) {
+  const [failed, setFailed] = useState<string | null>(null)
+  const preset = item?.presetImageUrl && item.presetImageUrl !== failed ? item.presetImageUrl : undefined
+  const src = preset ?? item?.iconUrl
+  if (!src) return <Package size={20} aria-hidden="true" />
+  return <img src={src} alt="" loading="lazy" decoding="async" onError={preset ? () => setFailed(preset) : undefined} />
 }

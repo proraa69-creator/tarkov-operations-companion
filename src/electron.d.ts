@@ -14,12 +14,12 @@ export interface LocalServerStatus { enabled: boolean; api: LocalServiceState; s
 export interface TunnelStatus { state: 'off' | 'downloading' | 'starting' | 'on' | 'error'; url?: string; error?: string; autoStart: boolean; hostname?: string }
 
 /** Server watchdog (electron/serverWatchdog.ts): status lamps, journal and alerts in the owner's app. */
-export type WatchdogServiceId = 'api' | 'site' | 'public' | 'database'
+export type WatchdogServiceId = 'api' | 'site' | 'public' | 'database' | 'security'
 export type WatchdogLamp = 'green' | 'amber' | 'red' | 'grey'
 export interface WatchdogService { id: WatchdogServiceId; lamp: WatchdogLamp; text: string; lastError?: string; checkedAt?: number; failures: number; attempts: number; nextRetryAt?: number }
 export interface WatchdogEvent { at: number; service: WatchdogServiceId; level: 'info' | 'warn' | 'error'; text: string }
 export interface WatchdogSnapshot { enabled: boolean; services: WatchdogService[]; events: WatchdogEvent[]; worst: WatchdogLamp; checkedAt?: number }
-export interface WatchdogAlert { service: WatchdogServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked'; title: string; body: string; at: number }
+export interface WatchdogAlert { service: WatchdogServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked' | 'guard'; title: string; body: string; at: number }
 
 export interface ServerAccountStatus {
   signedIn: boolean
@@ -58,7 +58,8 @@ export interface EntitlementView {
 export interface MobileLoginLink { url: string; expiresAt: string; reachable: boolean }
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean }
+/** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
@@ -162,6 +163,8 @@ interface TarkovDesktopApi {
   saveProfileBackup: (json: string) => Promise<boolean>
   openProfileBackup: () => Promise<string | null>
   getVersion: () => Promise<string>
+  /** A system notification (trader restock reminders); false when the OS does not support them. */
+  notify?: (title: string, body: string) => Promise<boolean>
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number }>

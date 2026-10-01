@@ -1,0 +1,872 @@
+{
+ "fleaMarket": {
+  "enabled": true,
+  "sellOfferFeeRate": 0.03,
+  "sellRequirementFeeRate": 0.03
+ },
+ "items": [
+  {
+   "id": "57347ca924597744596b4e71",
+   "name": "Видеокарта",
+   "shortName": "GPU",
+   "iconLink": "https://assets.tarkov.dev/57347ca924597744596b4e71-icon.webp",
+   "basePrice": 100000,
+   "avg24hPrice": 600000,
+   "low24hPrice": 600000,
+   "lastLowPrice": 600000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 600000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 600000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 124000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "59faff1d86f7746c51718c9c",
+   "name": "Физический биткоин",
+   "shortName": "0.2BTC",
+   "iconLink": "https://assets.tarkov.dev/59faff1d86f7746c51718c9c-icon.webp",
+   "basePrice": 100000,
+   "avg24hPrice": 450000,
+   "low24hPrice": 450000,
+   "lastLowPrice": 450000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 450000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 450000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 100000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "544fb45d4bdc2dee738b4568",
+   "name": "Аптечка Salewa",
+   "shortName": "Salewa",
+   "iconLink": "https://assets.tarkov.dev/544fb45d4bdc2dee738b4568-icon.webp",
+   "basePrice": 21000,
+   "avg24hPrice": 29600,
+   "low24hPrice": 29600,
+   "lastLowPrice": 29600,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 29600,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 23000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      },
+      "minTraderLevel": 1,
+      "buyLimit": null,
+      "taskUnlock": null
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 29600,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 11000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "5c0530ee86f774697952d952",
+   "name": "LEDX Skin Transilluminator",
+   "shortName": "LEDX",
+   "iconLink": "https://assets.tarkov.dev/5c0530ee86f774697952d952-icon.webp",
+   "basePrice": 600000,
+   "avg24hPrice": null,
+   "low24hPrice": null,
+   "lastLowPrice": null,
+   "types": [
+    "barter",
+    "noFlea"
+   ],
+   "buyFor": [],
+   "sellFor": [
+    {
+     "priceRUB": 611000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "5d1b371186f774253763a656",
+   "name": "Экспедиционная канистра",
+   "shortName": "Канистра",
+   "iconLink": "https://assets.tarkov.dev/5d1b371186f774253763a656-icon.webp",
+   "basePrice": 35000,
+   "avg24hPrice": 90000,
+   "low24hPrice": 90000,
+   "lastLowPrice": 90000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 90000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 75000,
+     "vendor": {
+      "name": "Прапор",
+      "normalizedName": "prapor",
+      "trader": {
+       "id": "54cb50c76803fa8b248b4571"
+      },
+      "minTraderLevel": 2,
+      "buyLimit": null,
+      "taskUnlock": null
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 90000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 20000,
+     "vendor": {
+      "name": "Прапор",
+      "normalizedName": "prapor",
+      "trader": {
+       "id": "54cb50c76803fa8b248b4571"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "5d1b36a186f7742523398433",
+   "name": "Металлическая канистра",
+   "shortName": "Мет. канистра",
+   "iconLink": "https://assets.tarkov.dev/5d1b36a186f7742523398433-icon.webp",
+   "basePrice": 55000,
+   "avg24hPrice": 160000,
+   "low24hPrice": 160000,
+   "lastLowPrice": 160000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 160000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 160000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 30000,
+     "vendor": {
+      "name": "Прапор",
+      "normalizedName": "prapor",
+      "trader": {
+       "id": "54cb50c76803fa8b248b4571"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "57347c5b245977448d35f6e1",
+   "name": "Болты",
+   "shortName": "Болты",
+   "iconLink": "https://assets.tarkov.dev/57347c5b245977448d35f6e1-icon.webp",
+   "basePrice": 9000,
+   "avg24hPrice": 20000,
+   "low24hPrice": 20000,
+   "lastLowPrice": 20000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 20000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 20000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 4500,
+     "vendor": {
+      "name": "Прапор",
+      "normalizedName": "prapor",
+      "trader": {
+       "id": "54cb50c76803fa8b248b4571"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "57347da92459774491567cf5",
+   "name": "Банка тушёнки (Большая)",
+   "shortName": "Тушёнка",
+   "iconLink": "https://assets.tarkov.dev/57347da92459774491567cf5-icon.webp",
+   "basePrice": 6000,
+   "avg24hPrice": 12000,
+   "low24hPrice": 12000,
+   "lastLowPrice": 12000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 12000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 9000,
+     "vendor": {
+      "name": "Егерь",
+      "normalizedName": "jaeger",
+      "trader": {
+       "id": "5c0647fdd443bc2504c2d371"
+      },
+      "minTraderLevel": 1,
+      "buyLimit": 5,
+      "taskUnlock": null
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 12000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 3000,
+     "vendor": {
+      "name": "Егерь",
+      "normalizedName": "jaeger",
+      "trader": {
+       "id": "5c0647fdd443bc2504c2d371"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "57514643245977207f2c2d09",
+   "name": "Пачка сахара",
+   "shortName": "Сахар",
+   "iconLink": "https://assets.tarkov.dev/57514643245977207f2c2d09-icon.webp",
+   "basePrice": 11000,
+   "avg24hPrice": 25000,
+   "low24hPrice": 25000,
+   "lastLowPrice": 25000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 25000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 25000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 5000,
+     "vendor": {
+      "name": "Егерь",
+      "normalizedName": "jaeger",
+      "trader": {
+       "id": "5c0647fdd443bc2504c2d371"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "5c0fa877d174af02a012e1cf",
+   "name": "Вода «Aquamari»",
+   "shortName": "Aquamari",
+   "iconLink": "https://assets.tarkov.dev/5c0fa877d174af02a012e1cf-icon.webp",
+   "basePrice": 4000,
+   "avg24hPrice": 9000,
+   "low24hPrice": 9000,
+   "lastLowPrice": 9000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 9000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 8000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      },
+      "minTraderLevel": 1,
+      "buyLimit": null,
+      "taskUnlock": null
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 9000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 2000,
+     "vendor": {
+      "name": "Терапевт",
+      "normalizedName": "therapist",
+      "trader": {
+       "id": "54cb57776803fa99248b456e"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "5d1b376e86f774252519444e",
+   "name": "Бутылка самогона «Fierce Hatchling»",
+   "shortName": "Самогон",
+   "iconLink": "https://assets.tarkov.dev/5d1b376e86f774252519444e-icon.webp",
+   "basePrice": 40000,
+   "avg24hPrice": 320000,
+   "low24hPrice": 320000,
+   "lastLowPrice": 320000,
+   "types": [
+    "barter"
+   ],
+   "buyFor": [
+    {
+     "priceRUB": 320000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    }
+   ],
+   "sellFor": [
+    {
+     "priceRUB": 320000,
+     "vendor": {
+      "name": "Барахолка",
+      "normalizedName": "flea-market"
+     }
+    },
+    {
+     "priceRUB": 25000,
+     "vendor": {
+      "name": "Егерь",
+      "normalizedName": "jaeger",
+      "trader": {
+       "id": "5c0647fdd443bc2504c2d371"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "5c06779c86f77426e00dd782",
+   "name": "Пучок проводов",
+   "shortName": "Провода",
+   "iconLink": "https://assets.tarkov.dev/5c06779c86f77426e00dd782-icon.webp",
+   "basePrice": 8000,
+   "avg24hPrice": null,
+   "low24hPrice": null,
+   "lastLowPrice": null,
+   "types": [
+    "barter",
+    "noFlea"
+   ],
+   "buyFor": [],
+   "sellFor": []
+  }
+ ],
+ "barters": [
+  {
+   "id": "b1",
+   "level": 1,
+   "buyLimit": null,
+   "trader": {
+    "id": "54cb57776803fa99248b456e",
+    "name": "Терапевт",
+    "normalizedName": "therapist"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57347da92459774491567cf5"
+     },
+     "count": 2
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "544fb45d4bdc2dee738b4568"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "b2",
+   "level": 3,
+   "buyLimit": 1,
+   "trader": {
+    "id": "54cb57776803fa99248b456e",
+    "name": "Терапевт",
+    "normalizedName": "therapist"
+   },
+   "taskUnlock": {
+    "id": "t-amb",
+    "name": "Снова скорая"
+   },
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57347ca924597744596b4e71"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5c0530ee86f774697952d952"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "b3",
+   "level": 2,
+   "buyLimit": 2,
+   "trader": {
+    "id": "5c0647fdd443bc2504c2d371",
+    "name": "Егерь",
+    "normalizedName": "jaeger"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57347c5b245977448d35f6e1"
+     },
+     "count": 2
+    },
+    {
+     "item": {
+      "id": "5c06779c86f77426e00dd782"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5d1b371186f774253763a656"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "b4",
+   "level": 4,
+   "buyLimit": null,
+   "trader": {
+    "id": "54cb50c76803fa8b248b4571",
+    "name": "Прапор",
+    "normalizedName": "prapor"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57514643245977207f2c2d09"
+     },
+     "count": 5
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5d1b36a186f7742523398433"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "b5",
+   "level": 2,
+   "buyLimit": null,
+   "trader": {
+    "id": "58330581ace78e27b8b10cee",
+    "name": "Лыжник",
+    "normalizedName": "skier"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "59faff1d86f7746c51718c9c"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "57347ca924597744596b4e71"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "b6",
+   "level": 1,
+   "buyLimit": null,
+   "trader": {
+    "id": "5c0647fdd443bc2504c2d371",
+    "name": "Егерь",
+    "normalizedName": "jaeger"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "544fb45d4bdc2dee738b4568"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5c0fa877d174af02a012e1cf"
+     },
+     "count": 3
+    }
+   ]
+  }
+ ],
+ "crafts": [
+  {
+   "id": "c1",
+   "level": 1,
+   "duration": 4800,
+   "station": {
+    "id": "5d484fe3654e76006657e0ac",
+    "name": "Медблок",
+    "normalizedName": "medstation"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "5c0fa877d174af02a012e1cf"
+     },
+     "count": 2
+    },
+    {
+     "item": {
+      "id": "57347da92459774491567cf5"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "544fb45d4bdc2dee738b4568"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "c2",
+   "level": 1,
+   "duration": 12000,
+   "station": {
+    "id": "5d484fda654e7600691aadf8",
+    "name": "Самогонный аппарат",
+    "normalizedName": "booze-generator"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57514643245977207f2c2d09"
+     },
+     "count": 1
+    },
+    {
+     "item": {
+      "id": "5c0fa877d174af02a012e1cf"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5d1b376e86f774252519444e"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "c3",
+   "level": 2,
+   "duration": 28800,
+   "station": {
+    "id": "5d484fba654e7600691aadf7",
+    "name": "Уборная",
+    "normalizedName": "lavatory"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57347c5b245977448d35f6e1"
+     },
+     "count": 4
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5d1b36a186f7742523398433"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "c4",
+   "level": 1,
+   "duration": 3600,
+   "station": {
+    "id": "5d484fdf654e7600691aadf9",
+    "name": "Пищеблок",
+    "normalizedName": "nutrition-unit"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "5c0fa877d174af02a012e1cf"
+     },
+     "count": 2
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "57347da92459774491567cf5"
+     },
+     "count": 1
+    }
+   ]
+  },
+  {
+   "id": "c5",
+   "level": 3,
+   "duration": 21600,
+   "station": {
+    "id": "5d484fc0654e76006657e0ab",
+    "name": "Верстак",
+    "normalizedName": "workbench"
+   },
+   "taskUnlock": {
+    "id": "t-gun",
+    "name": "Оружейник. Часть 5"
+   },
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57347ca924597744596b4e71"
+     },
+     "count": 1
+    },
+    {
+     "item": {
+      "id": "5c06779c86f77426e00dd782"
+     },
+     "count": 1
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "59faff1d86f7746c51718c9c"
+     },
+     "count": 2
+    }
+   ]
+  },
+  {
+   "id": "c6",
+   "level": 2,
+   "duration": 10800,
+   "station": {
+    "id": "5d484fc0654e76006657e0ab",
+    "name": "Верстак",
+    "normalizedName": "workbench"
+   },
+   "taskUnlock": null,
+   "requiredItems": [
+    {
+     "item": {
+      "id": "57347c5b245977448d35f6e1"
+     },
+     "count": 2
+    }
+   ],
+   "rewardItems": [
+    {
+     "item": {
+      "id": "5d1b371186f774253763a656"
+     },
+     "count": 1
+    }
+   ]
+  }
+ ]
+}

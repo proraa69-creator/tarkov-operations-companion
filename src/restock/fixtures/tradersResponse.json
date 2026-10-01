@@ -1,0 +1,15 @@
+{
+  "data": {
+    "traders": [
+      { "id": "54cb50c76803fa8b248b4571", "name": "Prapor", "normalizedName": "prapor", "resetTime": "2026-10-01T12:30:00.000Z", "imageLink": "https://assets.tarkov.dev/54cb50c76803fa8b248b4571.webp" },
+      { "id": "54cb57776803fa99248b456e", "name": "Therapist", "normalizedName": "therapist", "resetTime": "2026-10-01T13:10:00.000Z", "imageLink": "https://assets.tarkov.dev/54cb57776803fa99248b456e.webp" },
+      { "id": "579dc571d53a0658a154fbec", "name": "Fence", "normalizedName": "fence", "resetTime": "2026-10-01T12:07:00.000Z", "imageLink": "https://assets.tarkov.dev/579dc571d53a0658a154fbec.webp" },
+      { "id": "58330581ace78e27b8b10cee", "name": "Skier", "normalizedName": "skier", "resetTime": "2026-10-01T14:05:00.000Z", "imageLink": "https://assets.tarkov.dev/58330581ace78e27b8b10cee.webp" },
+      { "id": "5935c25fb3acc3127c3d8cd9", "name": "Peacekeeper", "normalizedName": "peacekeeper", "resetTime": "2026-10-01T12:55:00.000Z", "imageLink": "https://assets.tarkov.dev/5935c25fb3acc3127c3d8cd9.webp" },
+      { "id": "5a7c2eca46aef81a7ca2145d", "name": "Mechanic", "normalizedName": "mechanic", "resetTime": "2026-10-01T13:40:00.000Z", "imageLink": "https://assets.tarkov.dev/5a7c2eca46aef81a7ca2145d.webp" },
+      { "id": "5ac3b934156ae10c4430e83c", "name": "Ragman", "normalizedName": "ragman", "resetTime": "2026-10-01T15:20:00.000Z", "imageLink": "https://assets.tarkov.dev/5ac3b934156ae10c4430e83c.webp" },
+      { "id": "5c0647fdd443bc2504c2d371", "name": "Jaeger", "normalizedName": "jaeger", "resetTime": "2026-10-01T12:45:00.000Z", "imageLink": "https://assets.tarkov.dev/5c0647fdd443bc2504c2d371.webp" },
+      { "id": "638f541a29ffd1183d187f57", "name": "Lightkeeper", "normalizedName": "lightkeeper", "resetTime": null, "imageLink": "https://assets.tarkov.dev/638f541a29ffd1183d187f57.webp" }
+    ]
+  }
+}

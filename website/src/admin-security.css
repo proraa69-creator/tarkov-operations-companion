@@ -1,0 +1,36 @@
+/* «Безопасность» tab of the admin panel (components/admin/AdminSecurity.tsx). Same tokens as admin.css. */
+.guard-strip { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
+.guard-strip.is-amber { border-color: #6a5333; background: linear-gradient(160deg, rgb(210 155 88 / 12%), var(--surf-1) 70%); }
+.guard-strip.is-red { border-color: #5a3732; background: linear-gradient(160deg, rgb(189 109 96 / 16%), var(--surf-1) 70%); }
+.guard-strip-text { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text-muted); }
+.guard-strip-text strong { color: var(--text); font-size: 15px; }
+.guard-lamp { flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgb(127 161 131 / 18%); }
+.guard-lamp.is-amber { background: var(--amber); box-shadow: 0 0 0 4px rgb(210 155 88 / 18%); }
+.guard-lamp.is-red { background: var(--danger); box-shadow: 0 0 0 4px rgb(189 109 96 / 22%); }
+.guard-chart .admin-chart-bar.guard-bar { background: var(--danger); }
+.guard-small { font-size: 12px; }
+.guard-table td { font-size: 12px; }
+.guard-path { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.guard-wrap { white-space: normal; overflow-wrap: anywhere; }
+.guard-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding-top: 4px; }
+.guard-field { display: grid; gap: 4px; min-width: 0; }
+.guard-field .input { height: 38px; font-size: 13px; }
+.guard-grow { flex: 1 1 220px; }
+.guard-form .button { height: 38px; }
+.guard-select { width: auto; height: 34px; font-size: 13px; }
+.guard-reasons { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.guard-reasons li { display: grid; grid-template-columns: minmax(0, 240px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.guard-reason-label { color: var(--text-muted); }
+.guard-reason-bar { height: 8px; border-radius: 99px; background: var(--surf-0); overflow: hidden; }
+.guard-reason-bar span { display: block; height: 100%; border-radius: 99px; background: var(--amber); }
+.guard-reason-count { color: var(--text); min-width: 40px; text-align: right; }
+.guard-allow { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.guard-allow li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-0); font-size: 13px; }
+.guard-allow li .muted { flex: 1 1 auto; }
+.guard-details summary { cursor: pointer; color: var(--text-muted); font-size: 13px; }
+@media (max-width: 560px) {
+  .guard-strip { flex-wrap: wrap; }
+  .guard-reasons li { grid-template-columns: 1fr auto; }
+  .guard-reason-bar { grid-column: 1 / -1; grid-row: 2; }
+  .guard-field, .guard-form .button { flex: 1 1 100%; }
+}

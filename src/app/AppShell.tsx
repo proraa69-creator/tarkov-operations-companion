@@ -4,11 +4,12 @@ import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { BrandMonogram, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
+import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, Home, Images, MapPinned, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Search, Settings, Shield, Target, UserRound, X,
+  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageX, Palette,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -36,10 +37,29 @@ const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
   { to: '/quests', ru: 'Текущие задания', en: 'Current Tasks', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
-  { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
-  { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
+]
+
+/** «Рейд» group: preparation for the next raid. */
+const raidNavigation = [
+  { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList },
+  { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX },
+]
+
+/** Sidebar group «Экономика»: market, traders and the profit calculators. */
+const economyNavigation = [
+  { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
+  { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true },
+  { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat },
+  { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical },
+]
+
+/** Sidebar group «Арсенал» (ballistics and other weapon references). */
+const arsenalNavigation = [
+  { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
+  { to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -156,6 +176,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="nav-list" aria-label={uiText("Основная навигация")}>
           {uiText(navigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>))}
         </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'RAID' : 'РЕЙД')}</div>
+        <nav className="nav-list" aria-label={uiText(locale === 'en' ? 'Raid' : 'Рейд')}>
+          {raidNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{locale === 'en' ? en : ru}</span></NavLink>)}
+        </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
+        <nav className="nav-list" aria-label={uiText('Экономика')}>
+          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
+        </nav>
+        <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ARSENAL' : 'АРСЕНАЛ')}</div>
+        <nav className="nav-list" aria-label={uiText('Арсенал')}>
+          {arsenalNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
+        </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink></nav>
         <SidebarOperator />
@@ -178,6 +210,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
+        <TopbarRestock />
         <UpdateButton />
         <ThemeButton />
         <ServerQuickButton />

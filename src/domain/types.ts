@@ -71,6 +71,8 @@ export interface ModeProgress {
   favoriteItemIds: string[]
   raidItemIds: string[]
   hideoutLevels: Record<string, number>
+  /** «Что не продавать»: how many of each item the player says they already have (found / bought), per mode. */
+  itemCounts?: Record<string, number>
   seasonId?: string
   lastLogSyncAt?: string
   logCharacterId?: string
@@ -246,7 +248,37 @@ export interface Quest {
   objectiveIds?: string[]
   mapIds?: string[]
   anyMap?: boolean
-  raidRequirements?: Array<{ itemId: string; count: number; purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'; mapIds: string[] }>
+  raidRequirements?: Array<{
+    itemId: string
+    count: number
+    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'
+    mapIds: string[]
+    /** The item must be found in raid (tarkov.dev TaskObjectiveItem.foundInRaid). */
+    foundInRaid?: boolean
+    /** tarkov.dev objective id the requirement comes from. */
+    objectiveId?: string
+    /** Number of items the objective accepts; above 1 any of them counts (e.g. «hand over 3 of any medical»). */
+    alternatives?: number
+    optional?: boolean
+    /** Item condition the objective accepts, in % (tarkov.dev min/maxDurability). */
+    minDurability?: number
+    maxDurability?: number
+    dogTagLevel?: number
+  }>
+  /** Each objective with its own maps (empty = any map), for the raid briefing. */
+  objectiveDetails?: QuestObjectiveDetail[]
+}
+
+export interface QuestObjectiveDetail {
+  id: string
+  type: string
+  description: string
+  mapIds: string[]
+  optional?: boolean
+  /** Target count (kills, items, …). */
+  count?: number
+  /** The objective has zones or possible spots on a map (a map point); otherwise it is a checklist step. */
+  zoneBound?: boolean
 }
 
 export interface PriceQuote {
@@ -278,6 +310,11 @@ export interface Item {
   fleaPrice?: number
   wikiLink?: string
   types?: string[]
+  /**
+   * Weapons: picture of the whole gun — tarkov.dev's default preset (properties.defaultPreset), whose 512px image
+   * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.
+   */
+  presetImageUrl?: string
 }
 
 export interface HideoutStation {
@@ -295,6 +332,8 @@ export interface HideoutStation {
     level: number
     requirements: string[]
     stationRequirements?: string[]
+    /** Structured item requirements (tarkov.dev RequirementItem); `requirements` keeps the display strings. */
+    itemRequirements?: Array<{ itemId: string; count: number; foundInRaid?: boolean }>
     bonus: string
     constructionTimeHours?: number
   }>
