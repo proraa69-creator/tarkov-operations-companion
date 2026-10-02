@@ -6,7 +6,7 @@
  *   API → app request:  { channel: 'raidos', id, type, payload }      → { channel: 'raidos', replyTo: id, ok, data | error }
  *   API → app event:    { channel: 'raidos', type, payload }           (no answer; e.g. 'error-report')
  *
- * The app trusts these messages only as far as the API's own checks go: «Проверить сейчас» and «Откатить» are owner
+ * The app trusts these messages only as far as the API's own checks go: «Проверить сейчас», «Установить сейчас» and «Откатить» are owner
  * actions the API has authorised (routes/selfUpdate.ts); nothing the API sends can make the app install a build whose
  * signature it has not checked itself with the key built into it.
  */

@@ -1,13 +1,17 @@
 /**
  * «Обновление» tab of the owner's admin panel (website/src/components/admin/AdminUpdate.tsx): the state of
- * «Автообновление сервера» on the server laptop and two buttons. The laptop downloads and verifies releases itself
+ * «Автообновление сервера» on the server laptop and three buttons. The laptop downloads and verifies releases itself
  * (electron/selfUpdate.ts, from a private GitHub repository); nothing is uploaded through the website. Owner session as
  * in routes/ownerAdmin.ts (401 without a session, 404 for everybody else), Bearer token only (no cookies → no CSRF),
- * `Cache-Control: no-store`, per-owner rate limits; both actions go to the audit log.
+ * `Cache-Control: no-store`, per-owner rate limits; every action goes to the audit log.
  *
  *   GET  /v1/accounts/me/admin/update                       -> { available: true, status } | { available: false, reason }
  *   POST /v1/accounts/me/admin/update/check                 -> { available: true, status }   «Проверить сейчас»
+ *   POST /v1/accounts/me/admin/update/install { confirm: true }  -> { available: true, status } «Установить сейчас»
  *   POST /v1/accounts/me/admin/update/rollback { confirm: true } -> { available: true, status } «Откатить на предыдущую»
+ *
+ * «Установить сейчас» installs only the build the laptop itself downloaded and verified (the default install mode is
+ * manual: the laptop waits for this button); the request carries no file, build number or URL.
  *
  * The answers come from the owner app's main process over services/ownerApp.ts; run without it (npm run server:dev)
  * `available` is false.
@@ -20,17 +24,18 @@ import { ownerApp, OwnerAppError, type OwnerAppLink } from '../services/ownerApp
 
 export interface SelfUpdateRouterOptions {
   link?: OwnerAppLink
-  audit?: (actor: string, action: 'server.update-check' | 'server.rollback', details?: Record<string, unknown>) => void
+  audit?: (actor: string, action: 'server.update-check' | 'server.update-install' | 'server.rollback', details?: Record<string, unknown>) => void
 }
 
 const BASE = '/v1/accounts/me/admin/update'
-const rollbackSchema = z.object({ confirm: z.literal(true) })
+const confirmSchema = z.object({ confirm: z.literal(true) })
 
 export function createSelfUpdateRouter(accounts: AccountStore, options: SelfUpdateRouterOptions = {}) {
   const router = express.Router()
   const link = () => options.link ?? ownerApp()
   const readLimiter = new FixedWindowRateLimiter(120, 60 * 1000)
   const checkLimiter = new FixedWindowRateLimiter(6, 60 * 1000)
+  const installLimiter = new FixedWindowRateLimiter(3, 10 * 60 * 1000)
   const rollbackLimiter = new FixedWindowRateLimiter(3, 10 * 60 * 1000)
 
   const owner = (limiter: FixedWindowRateLimiter, run: (req: Request, res: Response, actor: string) => Promise<void>) => async (req: Request, res: Response) => {
@@ -49,7 +54,7 @@ export function createSelfUpdateRouter(accounts: AccountStore, options: SelfUpda
     try {
       await run(req, res, email)
     } catch (error) {
-      if (error instanceof z.ZodError) { res.status(400).json({ error: 'Подтвердите откат: { "confirm": true }' }); return }
+      if (error instanceof z.ZodError) { res.status(400).json({ error: 'Подтвердите действие: { "confirm": true }' }); return }
       res.status(error instanceof OwnerAppError ? 409 : 502).json({ error: error instanceof Error ? error.message : 'Приложение владельца не ответило' })
     }
   }
@@ -62,8 +67,14 @@ export function createSelfUpdateRouter(accounts: AccountStore, options: SelfUpda
     options.audit?.(actor, 'server.update-check')
     res.json({ available: true, status })
   }))
+  router.post(`${BASE}/install`, owner(installLimiter, async (req, res, actor) => {
+    confirmSchema.parse(req.body ?? {})
+    const status = await link().request('self-update:install', { confirm: true }, 60_000)
+    options.audit?.(actor, 'server.update-install')
+    res.json({ available: true, status })
+  }))
   router.post(`${BASE}/rollback`, owner(rollbackLimiter, async (req, res, actor) => {
-    rollbackSchema.parse(req.body ?? {})
+    confirmSchema.parse(req.body ?? {})
     const status = await link().request('self-update:rollback', { confirm: true }, 60_000)
     options.audit?.(actor, 'server.rollback')
     res.json({ available: true, status })

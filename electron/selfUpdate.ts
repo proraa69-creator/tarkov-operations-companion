@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import { isOwnerBuild } from './buildEdition.js'
 import { apiHealth, clientPublishDir, isServerMode, LOCAL_PORTS, runningBuild, serverDataDir } from './localServer.js'
-import type { ErrorEvent } from './errorReport.js'
+import { sanitize, type ErrorEvent } from './errorReport.js'
 import {
-  CHECK_EVERY_MS, DEFAULT_RELEASES_REPO, fileDigest, GitHubReleaseSource, HEALTH_REASON_TEXT, HEALTH_RULES, healthVerdict, helperEnvironment, helperScript,
-  REPO_PATTERN, ServerSelfUpdater, type BuildRef, type HealthReason, type HealthState, type InstallWindow, type StagedRelease, type UpdaterStatus,
+  CHECK_EVERY_MS, DEFAULT_RELEASES_REPO, encodedCommand, fileDigest, GitHubReleaseSource, HEALTH_REASON_TEXT, HEALTH_RULES, healthVerdict, helperEnvironment, helperLogTail,
+  helperScript, installWindowOf, launcherScript, READY_FOR_INSTALL_TEXT, REPO_PATTERN, ServerSelfUpdater, type BuildRef, type HealthReason, type HealthState,
+  type HelperFailure, type InstallWindow, type StagedRelease, type UpdaterStatus,
 } from './serverSelfUpdate.js'
 
 /**
@@ -22,15 +23,27 @@ import {
  * rollback — the GitHub error reports.
  *
  * Settings («Автообновление сервера» in the owner panel): repository, a fine-grained token with «Contents: Read-only»
- * on that repository only (encrypted with safeStorage, write-only), on/off, install window (any time / 03:00–06:00).
- * The website can only read the status and ask for «Проверить сейчас» / «Откатить на предыдущую» (server/src/routes/
- * selfUpdate.ts → electron/apiChannel.ts); it can never hand the laptop a file.
+ * on that repository only (encrypted with safeStorage, write-only), on/off, install mode: «вручную» (the default: the
+ * laptop downloads and verifies, notifies the owner and waits for «Установить сейчас»), any time, or 03:00–06:00.
+ * The website can only read the status and ask for «Проверить сейчас» / «Установить сейчас» / «Откатить на предыдущую»
+ * (server/src/routes/selfUpdate.ts → electron/apiChannel.ts); it can never hand the laptop a file.
+ *
+ * Diagnostics: the helper logs every step to self-update\update-helper.log. Before quitting, the app waits until the
+ * helper has really started (helper.pid); if it has not, the restart is cancelled and the server keeps running. On
+ * start, a pending restart whose helper is gone without a final result is recorded as 'helper-lost' with the log tail.
  */
 
-export interface HistoryEntry { at: string; kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string }
+export interface HistoryEntry {
+  at: string; kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string
+  /** Code of a failure (HEALTH_REASON_TEXT keys, e.g. 'helper-lost'). */
+  code?: string
+  /** Sanitized tail of update-helper.log for a failure. */
+  log?: string
+}
 interface PreviousExe extends BuildRef { size: number; sha256: string; savedAt: string; client: boolean }
-interface Meta { skipped: number[]; previous?: PreviousExe }
-interface PendingRestart { id: string; kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; startedAt: string; deadlineAt: string }
+interface Meta { skipped: number[]; previous?: PreviousExe; readyNotified?: number }
+/** helper: 2 = the helper with helper.pid and update-helper.log (older pending restarts have none). */
+interface PendingRestart { id: string; kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; startedAt: string; deadlineAt: string; helper?: number }
 interface HelperResult { phase: 'checking' | 'ok' | 'rolling-back' | 'rolled-back' | 'failed'; reason?: string; detail?: string; build?: number; at?: string }
 
 export interface SelfUpdateSettings { enabled: boolean; repo: string; window: InstallWindow; hasToken: boolean }
@@ -40,6 +53,8 @@ export interface SelfUpdateView extends SelfUpdateSettings {
   current: BuildRef
   previous: (BuildRef & { savedAt: string }) | null
   updater: UpdaterStatus
+  /** The downloaded and verified build waiting for «Установить сейчас» (or the night window); null = none. */
+  ready: BuildRef | null
   restart: { kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; startedAt: string; deadlineAt: string; phase: string } | null
   history: HistoryEntry[]
   skipped: number[]
@@ -64,6 +79,13 @@ const resultFile = () => join(stateDir(), 'result.json')
 const confirmFile = () => join(stateDir(), 'confirm.json')
 const historyFile = () => join(stateDir(), 'history.json')
 const helperFile = () => join(stateDir(), 'update-helper.ps1')
+const helperLogFile = () => join(stateDir(), 'update-helper.log')
+const helperPidFile = () => join(stateDir(), 'helper.pid')
+const appPidFile = () => join(stateDir(), 'app.pid')
+/** How long the app waits for the helper to write helper.pid before it cancels the restart and stays up. */
+const HELPER_START_TIMEOUT_MS = 20_000
+/** The helper writes a log line at least every ~15 s while it works; older than this and no pid = gone. */
+const HELPER_SILENT_MS = 90_000
 
 let hooks: SelfUpdateHooks = { journal: () => {}, notify: () => {}, report: () => {} }
 let updater: ServerSelfUpdater | null = null
@@ -82,16 +104,17 @@ function savedSettings(): { enabled?: boolean; repo?: string; window?: InstallWi
   return readJson(settingsFile()) ?? {}
 }
 
+/** Settings saved before the install mode existed (or without an explicit choice) mean 'manual'. */
 export function selfUpdateSettings(): SelfUpdateSettings {
   const saved = savedSettings()
-  return { enabled: saved.enabled === true, repo: saved.repo || DEFAULT_RELEASES_REPO, window: saved.window === 'night' ? 'night' : 'any', hasToken: existsSync(tokenFile()) }
+  return { enabled: saved.enabled === true, repo: saved.repo || DEFAULT_RELEASES_REPO, window: installWindowOf(saved.window), hasToken: existsSync(tokenFile()) }
 }
 
 export async function setSelfUpdateSettings(raw: unknown) {
   const input = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
   const next = { ...savedSettings() }
   if (typeof input.enabled === 'boolean') next.enabled = input.enabled
-  if (input.window === 'any' || input.window === 'night') next.window = input.window
+  if (input.window === 'manual' || input.window === 'any' || input.window === 'night') next.window = input.window
   if (typeof input.repo === 'string') {
     const repo = input.repo.trim().replace(/^https:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '')
     if (!REPO_PATTERN.test(repo)) throw new Error('Репозиторий укажите как владелец/имя, например proraa69-creator/raidos-releases')
@@ -120,7 +143,11 @@ async function source() {
 
 function meta(): Meta {
   const saved = readJson<Meta>(metaFile())
-  return { skipped: Array.isArray(saved?.skipped) ? saved.skipped.filter((build) => Number.isSafeInteger(build)).slice(-20) : [], ...(saved?.previous ? { previous: saved.previous } : {}) }
+  return {
+    skipped: Array.isArray(saved?.skipped) ? saved.skipped.filter((build) => Number.isSafeInteger(build)).slice(-20) : [],
+    ...(saved?.previous ? { previous: saved.previous } : {}),
+    ...(Number.isSafeInteger(saved?.readyNotified) ? { readyNotified: saved!.readyNotified } : {}),
+  }
 }
 
 function history(): HistoryEntry[] {
@@ -152,6 +179,7 @@ function theUpdater() {
     onStatus: (status) => {
       if (status.phase === 'error' && status.error && status.error !== lastJournaled) hooks.journal('warn', `Автообновление: ${status.error}`)
       if (status.phase !== 'checking') lastJournaled = status.phase === 'error' ? status.error : undefined
+      if (status.phase === 'ready' && status.waitingForInstall && status.latest) notifyReady(status.latest)
     },
   })
   return updater
@@ -167,11 +195,22 @@ export async function selfUpdateStatus(): Promise<SelfUpdateView> {
     current: ref(await runningBuild()),
     previous: saved.previous ? { version: saved.previous.version, build: saved.previous.build, commit: saved.previous.commit, savedAt: saved.previous.savedAt } : null,
     updater: theUpdater().snapshot(),
+    ready: theUpdater().readyBuild(),
     restart: pending ? { kind: pending.kind, from: pending.from, to: pending.to, startedAt: pending.startedAt, deadlineAt: pending.deadlineAt, phase: result?.phase ?? 'restarting' } : null,
     history: history(),
     skipped: saved.skipped,
     ...(nextCheckAt ? { nextCheckAt: new Date(nextCheckAt).toISOString() } : {}),
   }
+}
+
+/** Manual mode: a verified build is waiting. Journal + Windows notification once per build (remembered across restarts). */
+function notifyReady(build: BuildRef) {
+  const saved = meta()
+  if (saved.readyNotified === build.build) return
+  void writeJson(metaFile(), { ...saved, readyNotified: build.build }).catch(() => {})
+  const text = `Сборка ${build.version} (${build.build}): ${READY_FOR_INSTALL_TEXT.toLowerCase()}. Установите кнопкой «Установить сейчас»: приложение на ноутбуке → «Автообновление сервера» или сайт → Админ-панель → «Обновление».`
+  hooks.journal('info', `Автообновление: ${text}`)
+  hooks.notify('Raid OS: новая версия сервера готова', text)
 }
 
 /** «Проверить сейчас» (owner panel or the website): starts a check and answers after a few seconds with the status. */
@@ -181,6 +220,24 @@ export async function checkSelfUpdateNow() {
   if (swapping || readJson<PendingRestart>(pendingFile())) throw new Error('Сейчас идёт перезапуск после обновления или отката')
   const running = theUpdater().check()
   await Promise.race([running, new Promise((resolve) => setTimeout(resolve, 5000))])
+  return selfUpdateStatus()
+}
+
+/**
+ * «Установить сейчас» (owner panel or the website, `{ confirm: true }`): installs the downloaded and verified build in
+ * any install mode. Answers once the install has started (the server then restarts) or with its error.
+ */
+export async function installSelfUpdateNow(payload?: unknown) {
+  if (!payload || typeof payload !== 'object' || (payload as { confirm?: unknown }).confirm !== true) throw new Error('Подтвердите установку')
+  if (unsupported()) throw new Error(`Автообновление недоступно: ${unsupported()}`)
+  if (!selfUpdateSettings().enabled) throw new Error('Автообновление сервера выключено (приложение на ноутбуке → «Автообновление сервера»).')
+  if (swapping || readJson<PendingRestart>(pendingFile())) throw new Error('Сейчас уже идёт обновление или откат')
+  const instance = theUpdater()
+  if (!instance.readyBuild()) throw new Error('Нет скачанной и проверенной версии: нажмите «Проверить сейчас» и дождитесь «Скачано и проверено, ждёт установки»')
+  hooks.journal('info', 'Автообновление: владелец нажал «Установить сейчас».')
+  const running = instance.installNow()
+  const outcome = await Promise.race([running, new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000))])
+  if (outcome === 'error') throw new Error(instance.snapshot().error || 'Установка не удалась')
   return selfUpdateStatus()
 }
 
@@ -276,29 +333,117 @@ async function installRelease(release: StagedRelease) {
   }
 }
 
-/** Writes the pending state, starts the helper and quits; the helper swaps, restarts and checks health. */
+const stamp = (date = new Date()) => {
+  const pad = (value: number, size = 2) => String(value).padStart(size, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`
+}
+
+/** A line from the app itself in update-helper.log (so the log also shows what happened before the helper ran). */
+async function appendHelperLog(text: string) {
+  await mkdir(stateDir(), { recursive: true }).catch(() => {})
+  await appendFile(helperLogFile(), `${stamp()} [app] ${text}\r\n`).catch(() => {})
+}
+
+/** The log of the previous restart is kept as *.prev.log; update-helper.log holds this restart only. */
+async function rotateHelperLog() {
+  for (const file of [helperLogFile(), helperLogFile().replace(/\.log$/, '.transcript.log')]) {
+    if (existsSync(file)) await rename(file, file.replace(/\.log$/, '.prev.log')).catch(() => {})
+  }
+}
+
+/** The sanitized tail of update-helper.log (last 64 KB read). */
+async function readHelperLogTail() {
+  try {
+    const handle = await open(helperLogFile(), 'r')
+    try {
+      const { size } = await handle.stat()
+      const length = Math.min(size, 64 * 1024)
+      const buffer = Buffer.alloc(length)
+      await handle.read(buffer, 0, length, size - length)
+      return sanitize(helperLogTail(buffer.toString('utf8')), 6000)
+    } finally { await handle.close() }
+  } catch { return '' }
+}
+
+/**
+ * Is the helper of restart `id` still working? It wrote helper.pid with this id, that process exists and it wrote to
+ * update-helper.log within HELPER_SILENT_MS. Otherwise it never started, was killed, or exited without a result.
+ */
+function helperAlive(id: string) {
+  const info = readJson<{ id?: unknown; pid?: unknown }>(helperPidFile())
+  if (!info || String(info.id) !== id || typeof info.pid !== 'number' || !Number.isSafeInteger(info.pid) || info.pid <= 0) return false
+  try { process.kill(info.pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EPERM') return false }
+  try { return Date.now() - statSync(helperLogFile()).mtimeMs <= HELPER_SILENT_MS } catch { return false }
+}
+
+/** Waits until the helper of restart `id` has written helper.pid (it really runs) or the launcher failed. */
+async function waitForHelper(id: string, launchError: () => string) {
+  const until = Date.now() + HELPER_START_TIMEOUT_MS
+  while (Date.now() < until) {
+    const info = readJson<{ id?: unknown }>(helperPidFile())
+    if (info && String(info.id) === id) return true
+    if (launchError()) return false
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return false
+}
+
+/**
+ * Writes the pending state, starts the helper (through a launcher, so it is not in this app's process tree), waits
+ * until it really runs and quits; the helper swaps, restarts and checks health. If the helper does not start, the
+ * restart is cancelled (state.json removed, so a late helper does nothing), recorded and reported, and this copy keeps
+ * running; the caller undoes its preparations.
+ */
 async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; exe: string; next: string; withClient: boolean }) {
   const { previousExe, previousClient, clientDir } = exePaths()
   const now = Date.now()
-  await rm(resultFile(), { force: true })
-  await rm(confirmFile(), { force: true })
-  const pending: PendingRestart = { id: `${now}`, kind: plan.kind, from: plan.from, to: plan.to, startedAt: new Date(now).toISOString(), deadlineAt: new Date(now + HEALTH_RULES.deadlineMs + 60_000).toISOString() }
+  for (const file of [resultFile(), confirmFile(), helperPidFile(), appPidFile()]) await rm(file, { force: true })
+  await rotateHelperLog()
+  const pending: PendingRestart = { id: `${now}`, kind: plan.kind, from: plan.from, to: plan.to, startedAt: new Date(now).toISOString(), deadlineAt: new Date(now + HEALTH_RULES.deadlineMs + 60_000).toISOString(), helper: 2 }
   await writeJson(pendingFile(), pending)
   await writeFile(helperFile(), `\uFEFF${helperScript()}`, 'utf8')
   const env: Record<string, string> = {}
   for (const key of ['SystemRoot', 'windir', 'PATH', 'Path', 'TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'ComSpec', 'PSModulePath', 'ProgramFiles', 'ProgramData']) {
     if (process.env[key]) env[key] = process.env[key]!
   }
-  Object.assign(env, helperEnvironment({
-    exe: plan.exe, next: plan.next, previous: previousExe, clientDir: plan.withClient ? clientDir : '', clientPrevious: plan.withClient ? previousClient : '',
-    resultFile: resultFile(), confirmFile: confirmFile(), appName: basename(process.execPath), pid: process.pid, expectedBuild: plan.to.build, args: process.argv,
-  }))
   const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-  const child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helperFile()], { detached: true, windowsHide: true, stdio: 'ignore', env })
-  child.unref()
-  hooks.journal('info', `${plan.kind === 'update' ? 'Автообновление' : 'Откат'}: перезапуск на ${plan.to.version} (${plan.to.build}); проверка здоровья до 2 минут, при сбое — возврат на ${plan.from.version}.`)
+  Object.assign(env, helperEnvironment({
+    id: pending.id, exe: plan.exe, next: plan.next, previous: previousExe, clientDir: plan.withClient ? clientDir : '', clientPrevious: plan.withClient ? previousClient : '',
+    resultFile: resultFile(), confirmFile: confirmFile(), pendingFile: pendingFile(), logFile: helperLogFile(), helperPidFile: helperPidFile(), appPidFile: appPidFile(),
+    appExe: process.execPath, pid: process.pid, expectedBuild: plan.to.build, args: process.argv,
+  }), { RAIDOS_POWERSHELL: powershell, RAIDOS_HELPER: helperFile() })
+  await appendHelperLog(`${plan.kind} ${plan.from.version} (${plan.from.build}) -> ${plan.to.version} (${plan.to.build}), restart ${pending.id}: starting the helper; app pid ${process.pid} (${process.execPath}), wrapper ${plan.exe}`)
+  let launchError = ''
+  try {
+    const child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())], { detached: true, windowsHide: true, stdio: 'ignore', env })
+    child.on('error', (error) => { launchError ||= error.message })
+    child.on('exit', (code) => { if (code) launchError ||= `launcher exit code ${code}` })
+    child.unref()
+  } catch (error) {
+    launchError = error instanceof Error ? error.message : String(error)
+  }
+  if (!(await waitForHelper(pending.id, () => launchError))) {
+    await rm(pendingFile(), { force: true })
+    await appendHelperLog(`the helper did not start within ${HELPER_START_TIMEOUT_MS / 1000} s${launchError ? ` (${launchError})` : ''}: restart cancelled, this copy keeps running`)
+    await record(pending, { phase: 'failed', reason: 'helper-not-started', at: new Date().toISOString() }, plan.from)
+    throw new Error(HEALTH_REASON_TEXT['helper-not-started'])
+  }
+  await appendHelperLog('the helper runs; quitting')
+  hooks.journal('info', `${plan.kind === 'update' ? 'Автообновление' : 'Откат'}: перезапуск на ${plan.to.version} (${plan.to.build}); проверка здоровья до 2 минут, при сбое — возврат на ${plan.from.version}. Журнал помощника: self-update\\update-helper.log.`)
   // Answer the website / panel first, then quit (the window closes normally: the API and the database close cleanly).
   setTimeout(() => app.quit(), 1500)
+}
+
+/** Exchanges the published players' version and previous\client (symmetric: a second call undoes the first). */
+async function exchangeClient() {
+  const { previousClient, clientDir } = exePaths()
+  const swap = `${previousClient}-swap`
+  await rm(swap, { recursive: true, force: true })
+  await copyFolderFiles(clientDir, swap)
+  await clearPublished(clientDir)
+  await copyFolderFiles(previousClient, clientDir)
+  await rm(previousClient, { recursive: true, force: true })
+  await rename(swap, previousClient)
 }
 
 /** «Откатить на предыдущую»: the saved previous exe (hash checked) goes back in, through the same helper and health check. */
@@ -314,25 +459,25 @@ export async function rollbackToPrevious(payload?: unknown) {
   const current = ref(await runningBuild())
   if (previous.build === current.build) throw new Error('Предыдущая версия совпадает с текущей')
   swapping = true
+  let clientExchanged = false
+  let previousReplaced = false
   try {
     // The saved copy must be exactly the exe that ran before (nothing changed it on disk since).
     await copyVerified(previousExe, next, { size: previous.size, sha256: previous.sha256 })
     const withClient = previous.client && existsSync(previousClient) && Boolean(clientDir)
-    if (withClient) {
-      const swap = `${previousClient}-swap`
-      await rm(swap, { recursive: true, force: true })
-      await copyFolderFiles(clientDir, swap)
-      await clearPublished(clientDir)
-      await copyFolderFiles(previousClient, clientDir)
-      await rm(previousClient, { recursive: true, force: true })
-      await rename(swap, previousClient)
-    }
+    if (withClient) { await exchangeClient(); clientExchanged = true }
+    previousReplaced = true
     await savePrevious(current, withClient)
     // The build we leave is not installed automatically again (a newer one is).
     await writeJson(metaFile(), { ...meta(), skipped: [...new Set([...meta().skipped, current.build])].slice(-20) })
     await handOver({ kind: 'rollback', from: current, to: ref(previous), exe, next, withClient })
   } catch (error) {
     swapping = false
+    // Nothing was swapped: put back the saved previous exe, its record and the players' version.
+    if (previousReplaced) await copyVerified(next, previousExe, { size: previous.size, sha256: previous.sha256 }).catch(() => {})
+    await writeJson(metaFile(), saved).catch(() => {})
+    if (clientExchanged) await exchangeClient().catch(() => {})
+    await rm(next, { force: true }).catch(() => {})
     throw error
   }
   return selfUpdateStatus()
@@ -349,50 +494,82 @@ async function siteOk() {
 }
 
 const RESULT_TEXT = (result: HelperResult) => {
-  const reason = result.reason as HealthReason | 'swap-failed' | 'start-failed' | 'restore-failed' | undefined
+  const reason = result.reason as HealthReason | HelperFailure | 'restore-failed' | undefined
   if (reason === 'restore-failed') return 'не удалось вернуть предыдущую версию — запустите Server-Laptop-Setup.cmd'
   return reason && reason in HEALTH_REASON_TEXT ? HEALTH_REASON_TEXT[reason as keyof typeof HEALTH_REASON_TEXT] : reason || ''
 }
 
-async function finalize(pending: PendingRestart, result: HelperResult) {
+/** Failures that say nothing about the new build itself: it is not marked «не ставить» and can be installed again. */
+const NOT_THE_BUILDS_FAULT = new Set(['helper-lost', 'helper-not-started', 'swap-failed'])
+
+/** Records the outcome of a restart: history (with the helper log tail for a failure), journal, notification, report. */
+async function record(pending: PendingRestart, result: HelperResult, running: BuildRef) {
   const outcome: HistoryEntry['result'] = result.phase === 'ok' ? 'ok' : result.phase === 'rolled-back' ? 'rolled-back' : 'failed'
+  const code = outcome === 'ok' ? undefined : result.reason || undefined
   const reason = outcome === 'ok' ? undefined : RESULT_TEXT(result) || 'неизвестная причина'
-  const entry: HistoryEntry = { at: result.at ?? new Date().toISOString(), kind: pending.kind, from: pending.from, to: pending.to, result: outcome, ...(reason ? { reason } : {}) }
+  const log = outcome === 'ok' ? '' : await readHelperLogTail()
+  const entry: HistoryEntry = { at: result.at ?? new Date().toISOString(), kind: pending.kind, from: pending.from, to: pending.to, result: outcome, ...(reason ? { reason } : {}), ...(code ? { code } : {}), ...(log ? { log } : {}) }
   await writeJson(historyFile(), [entry, ...history()].slice(0, 30))
-  if (outcome !== 'ok' && pending.kind === 'update') await writeJson(metaFile(), { ...meta(), skipped: [...new Set([...meta().skipped, pending.to.build])].slice(-20) })
-  await rm(pendingFile(), { force: true })
-  await rm(resultFile(), { force: true })
-  await rm(confirmFile(), { force: true })
-  // The downloaded parts and exes are not needed any more (a rolled-back build is skipped from now on).
-  await rm(join(stateDir(), 'staging'), { recursive: true, force: true }).catch(() => {})
+  const skip = outcome !== 'ok' && pending.kind === 'update' && !NOT_THE_BUILDS_FAULT.has(code ?? '') && running.build !== pending.to.build
+  if (skip) await writeJson(metaFile(), { ...meta(), skipped: [...new Set([...meta().skipped, pending.to.build])].slice(-20) })
   const what = pending.kind === 'update' ? 'Обновление' : 'Откат'
   if (outcome === 'ok') {
     hooks.journal('info', `${what}: работает ${pending.to.version} (сборка ${pending.to.build}), проверка здоровья пройдена.`)
     hooks.notify(pending.kind === 'update' ? 'Сервер обновлён' : 'Сервер откачен', `Работает версия ${pending.to.version} (сборка ${pending.to.build}).`, true)
-    return
+    return outcome
   }
   const text = outcome === 'rolled-back'
     ? `${what} до ${pending.to.version} (${pending.to.build}) не прошёл проверку: ${reason}. Возвращена ${pending.from.version} (${pending.from.build}); эта сборка больше не ставится автоматически.`
-    : `${what} до ${pending.to.version} (${pending.to.build}) не выполнен: ${reason}.`
+    : `${what} до ${pending.to.version} (${pending.to.build}) не выполнен: ${reason}. Сейчас работает ${running.version} (${running.build}).`
   hooks.journal('error', text)
   hooks.notify(outcome === 'rolled-back' ? 'Обновление сервера откачено' : 'Обновление сервера не удалось', text)
-  hooks.report({ source: 'update', kind: outcome === 'rolled-back' ? 'rollback' : 'failed', name: `SelfUpdate:${outcome}`, message: text, context: `${pending.from.build} → ${pending.to.build}` })
+  hooks.report({
+    source: 'update', kind: outcome === 'rolled-back' ? 'rollback' : code === 'helper-lost' || code === 'helper-not-started' ? code : 'failed',
+    name: `SelfUpdate:${code ?? outcome}`, message: text, context: `${pending.from.build} → ${pending.to.build}`,
+    ...(log ? { stack: `update-helper.log (tail):\n${log}` } : {}),
+  })
+  return outcome
 }
+
+async function finalize(pending: PendingRestart, result: HelperResult, running: BuildRef) {
+  const outcome = await record(pending, result, running)
+  for (const file of [pendingFile(), resultFile(), confirmFile(), helperPidFile(), appPidFile()]) await rm(file, { force: true })
+  // A verified exe that was never moved into place is not needed.
+  if (outcome !== 'ok' && process.env.PORTABLE_EXECUTABLE_FILE) await rm(exePaths().next, { force: true }).catch(() => {})
+  // The downloaded parts and exes are not needed any more (a rolled-back build is skipped from now on); after a failure
+  // that was not the build's fault they stay, so «Установить сейчас» does not download them again.
+  if (outcome === 'ok' || !NOT_THE_BUILDS_FAULT.has(result.reason ?? '')) await rm(join(stateDir(), 'staging'), { recursive: true, force: true }).catch(() => {})
+}
+
+const FINAL_PHASES = ['ok', 'rolled-back', 'failed']
 
 /**
  * On start (server laptop): finish a pending update or rollback. The new build checks its own health (healthVerdict)
- * and confirms through confirm.json; the helper writes the final result; this records it.
+ * and confirms through confirm.json; the helper writes the final result; this records it. A helper that is gone without
+ * a final result (never ran, killed, blocked, laptop restarted) is recorded as 'helper-lost' with its log.
  */
 async function finishPending() {
   const pending = readJson<PendingRestart>(pendingFile())
   if (!pending) return
   const running = ref(await runningBuild())
+  // The helper stops exactly this process (and its wrapper) if it has to roll back.
+  await writeJson(appPidFile(), { pid: process.pid, exe: process.execPath, build: running.build }).catch(() => {})
   let state: HealthState = { startedAt: Date.now(), okStreak: 0 }
   let confirmed = false
+  const finalResult = () => {
+    const result = readJson<HelperResult>(resultFile())
+    return result && FINAL_PHASES.includes(result.phase) ? result : null
+  }
   const hardStop = Math.max(Date.parse(pending.deadlineAt), Date.now() + HEALTH_RULES.deadlineMs) + 90_000
   while (Date.now() < hardStop) {
-    const result = readJson<HelperResult>(resultFile())
-    if (result && ['ok', 'rolled-back', 'failed'].includes(result.phase)) { await finalize(pending, result); return }
+    const result = finalResult()
+    if (result) { await finalize(pending, result, running); return }
+    if (pending.helper && !helperAlive(pending.id)) {
+      // It may have written its result right before exiting.
+      const late = finalResult()
+      await finalize(pending, late ?? { phase: 'failed', reason: 'helper-lost', at: new Date().toISOString() }, running)
+      return
+    }
     if (running.build === pending.to.build && !confirmed) {
       const health = await apiHealth()
       const body = health?.body as { ok?: unknown; build?: { build?: unknown } } | null | undefined
@@ -405,11 +582,12 @@ async function finishPending() {
     }
     await new Promise((resolve) => setTimeout(resolve, HEALTH_RULES.intervalMs))
   }
-  // The helper never reported (killed, laptop restarted…): judge by what runs now.
-  const fallback: HelperResult = running.build === pending.to.build
-    ? (confirmed ? { phase: 'ok' } : { phase: 'failed', reason: 'api-not-responding' })
-    : { phase: 'failed', reason: 'start-failed' }
-  await finalize(pending, { ...fallback, at: new Date().toISOString() })
+  // The helper never reported a final result: judge by what runs now.
+  const last = readJson<HelperResult>(resultFile())
+  const fallback: HelperResult = confirmed && running.build === pending.to.build ? { phase: 'ok' }
+    : !last ? { phase: 'failed', reason: 'helper-lost' }
+      : running.build === pending.to.build ? { phase: 'failed', reason: 'api-not-responding' } : { phase: 'failed', reason: 'start-failed' }
+  await finalize(pending, { ...fallback, at: new Date().toISOString() }, running)
 }
 
 /** Server laptop (owner build, --server-mode): finish what a restart left, then check every 15 minutes. */

@@ -23,7 +23,7 @@ import { mobileLoginLink, websiteBase } from './accountLinks.js'
 import { enableTunnelFromCommandLine, publicSiteUrl, setNamedTunnel, setTunnel, startTunnelIfWanted, stopTunnel, tunnelStatus } from './publicTunnel.js'
 import { checkServicesNow, notifyServerOwner, restartServiceNow, serverJournal, serverMonitorStatus, startServerMonitor, stopServerMonitor } from './serverMonitor.js'
 import { errorReportSettings, reportApiError, reportError, setErrorReportSettings, startErrorReporter, testErrorReports } from './errorReporter.js'
-import { checkSelfUpdateNow, rollbackToPrevious, selfUpdateStatus, setSelfUpdateSettings, startServerSelfUpdate, stopServerSelfUpdate } from './selfUpdate.js'
+import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdateStatus, setSelfUpdateSettings, startServerSelfUpdate, stopServerSelfUpdate } from './selfUpdate.js'
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
@@ -171,6 +171,7 @@ app.whenReady().then(async () => {
   if (ownerBuild) {
     handleApiRequest('self-update:status', () => selfUpdateStatus())
     handleApiRequest('self-update:check', () => checkSelfUpdateNow())
+    handleApiRequest('self-update:install', (payload) => installSelfUpdateNow(payload))
     handleApiRequest('self-update:rollback', (payload) => rollbackToPrevious(payload))
     onApiEvent('error-report', reportApiError)
   }
@@ -215,7 +216,7 @@ const OWNER_CHANNELS = [
   'owner:sms', 'owner:set-sms', 'owner:sms-status', 'owner:sms-test',
   'owner:email', 'owner:set-email', 'owner:email-status', 'owner:email-test',
   'owner:error-reports', 'owner:set-error-reports', 'owner:error-reports-test',
-  'owner:server-update', 'owner:set-server-update', 'owner:server-update-check', 'owner:server-update-rollback',
+  'owner:server-update', 'owner:set-server-update', 'owner:server-update-check', 'owner:server-update-install', 'owner:server-update-rollback',
 ]
 
 function registerIpc() {
@@ -399,6 +400,7 @@ function registerIpc() {
   ipcMain.handle('owner:server-update', () => selfUpdateStatus())
   ipcMain.handle('owner:set-server-update', async (_event, settings: unknown) => { await setSelfUpdateSettings(settings); return selfUpdateStatus() })
   ipcMain.handle('owner:server-update-check', () => checkSelfUpdateNow())
+  ipcMain.handle('owner:server-update-install', () => installSelfUpdateNow({ confirm: true }))
   ipcMain.handle('owner:server-update-rollback', () => rollbackToPrevious({ confirm: true }))
   ipcMain.handle('owner:streamers', () => listStreamers())
   ipcMain.handle('owner:emails', () => ownerEmails())
