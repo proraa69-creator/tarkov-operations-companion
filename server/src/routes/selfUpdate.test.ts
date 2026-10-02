@@ -94,6 +94,46 @@ test('«Проверить сейчас» and «Откатить» go to the own
   } finally { await api.close() }
 })
 
+test('«Установить сейчас»: owner only, needs { confirm: true }, goes to the owner app, audited, rate-limited', async () => {
+  const app = fakeOwnerApp((type) => (type === 'self-update:install' ? { ok: true, data: { ...STATUS, phase: 'installing' } } : { ok: true, data: STATUS }))
+  const api = await setup(app.link)
+  try {
+    assert.equal((await api.call('POST', '/accounts/me/admin/update/install', undefined, { confirm: true })).status, 401)
+    const stranger = await api.register('player@example.com')
+    assert.equal((await api.call('POST', '/accounts/me/admin/update/install', stranger, { confirm: true })).status, 404)
+    const owner = await api.login('owner@example.com')
+    const unconfirmed = await api.call('POST', '/accounts/me/admin/update/install', owner, {})
+    assert.equal(unconfirmed.status, 400)
+    assert.ok(!app.sent.some((message) => message.type === 'self-update:install'))
+    // Nothing the website sends besides the confirmation reaches the app (no file, build or URL).
+    const installed = await api.call('POST', '/accounts/me/admin/update/install', owner, { confirm: true, build: 1, url: 'https://evil.example/x.exe' })
+    assert.equal(installed.status, 200)
+    assert.equal(installed.headers.get('cache-control'), 'no-store')
+    assert.equal((installed.json.status as { phase: string }).phase, 'installing')
+    assert.deepEqual(app.sent.find((message) => message.type === 'self-update:install')?.payload, { confirm: true })
+    const audit = (await api.call('GET', '/accounts/me/admin/audit', owner)).json as { entries: Array<{ action: string }> }
+    assert.ok(audit.entries.some((entry) => entry.action === 'server.update-install'))
+    // 3 per 10 minutes (the unconfirmed attempt counted too).
+    assert.equal((await api.call('POST', '/accounts/me/admin/update/install', owner, { confirm: true })).status, 200)
+    const limited = await api.call('POST', '/accounts/me/admin/update/install', owner, { confirm: true })
+    assert.equal(limited.status, 429)
+    assert.ok(limited.headers.get('retry-after'))
+  } finally { await api.close() }
+})
+
+test('a failed install (nothing downloaded yet) is reported as 409 and not audited', async () => {
+  const app = fakeOwnerApp((type) => (type === 'self-update:install' ? { ok: false, error: 'Нет скачанной и проверенной версии' } : { ok: true, data: STATUS }))
+  const api = await setup(app.link)
+  try {
+    const owner = await api.login('owner@example.com')
+    const answer = await api.call('POST', '/accounts/me/admin/update/install', owner, { confirm: true })
+    assert.equal(answer.status, 409)
+    assert.equal(answer.json.error, 'Нет скачанной и проверенной версии')
+    const audit = (await api.call('GET', '/accounts/me/admin/audit', owner)).json as { entries: Array<{ action: string }> }
+    assert.ok(!audit.entries.some((entry) => entry.action === 'server.update-install'))
+  } finally { await api.close() }
+})
+
 test('checks are rate-limited per owner', async () => {
   const app = fakeOwnerApp(() => ({ ok: true, data: STATUS }))
   const api = await setup(app.link)

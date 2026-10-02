@@ -1,7 +1,8 @@
 /**
  * «Обновление» tab of the admin panel: the owner-only status of «Автообновление сервера» on the server laptop
- * (server/src/routes/selfUpdate.ts → electron/selfUpdate.ts). Only reading and two actions; nothing is uploaded here —
- * the laptop downloads and verifies releases itself.
+ * (server/src/routes/selfUpdate.ts → electron/selfUpdate.ts). Only reading and three actions (check, install the build
+ * the laptop already downloaded and verified, roll back); nothing is uploaded here — the laptop downloads and verifies
+ * releases itself.
  */
 import { ApiError, NETWORK_ERROR_MESSAGE } from '../../api'
 import { API_URL } from '../../config'
@@ -9,17 +10,21 @@ import { API_URL } from '../../config'
 export interface BuildRef { version: string; build: number; commit: string }
 export interface UpdateFile { name: string; size: number; done: number; state: 'pending' | 'downloading' | 'ok' | 'error' }
 export interface UpdateCheck { label: string; ok: boolean; detail?: string }
-export interface HistoryEntry { at: string; kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string }
+export interface HistoryEntry { at: string; kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string; code?: string; log?: string }
+/** 'manual' (default): the laptop downloads and verifies, then waits for «Установить сейчас». */
+export type InstallWindow = 'manual' | 'any' | 'night'
 export type UpdaterPhase = 'off' | 'idle' | 'checking' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error'
 export interface SelfUpdateStatus {
   enabled: boolean
   repo: string
-  window: 'any' | 'night'
+  window: InstallWindow
   hasToken: boolean
   unsupported: string
   current: BuildRef
   previous: (BuildRef & { savedAt: string }) | null
-  updater: { phase: UpdaterPhase; message: string; checkedAt?: string; latest?: BuildRef; files: UpdateFile[]; checks: UpdateCheck[]; error?: string; waitingForWindow?: boolean }
+  updater: { phase: UpdaterPhase; message: string; checkedAt?: string; latest?: BuildRef; files: UpdateFile[]; checks: UpdateCheck[]; error?: string; waitingForWindow?: boolean; waitingForInstall?: boolean }
+  /** The downloaded and verified build waiting to be installed (older laptops do not send it). */
+  ready?: BuildRef | null
   restart: { kind: 'update' | 'rollback'; from: BuildRef; to: BuildRef; startedAt: string; deadlineAt: string; phase: string } | null
   history: HistoryEntry[]
   skipped: number[]
@@ -54,5 +59,6 @@ async function call(token: string, path: string, body?: unknown, timeoutMs = 25_
 export const updateApi = {
   view: (token: string) => call(token, '', undefined, 12_000),
   check: (token: string) => call(token, '/check', {}),
+  install: (token: string) => call(token, '/install', { confirm: true }, 70_000),
   rollback: (token: string) => call(token, '/rollback', { confirm: true }, 70_000),
 }

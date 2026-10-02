@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleX, DownloadCloud, History, LoaderCircle, RefreshCw, RotateCcw, ShieldCheck, Undo2 } from 'lucide-react'
+import { CheckCircle2, CircleX, DownloadCloud, History, LoaderCircle, PackageCheck, RefreshCw, RotateCcw, ShieldCheck, Undo2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
@@ -18,6 +18,8 @@ const RESTART_PHASE: Record<string, string> = {
 const RESULT: Record<HistoryEntry['result'], { label: string; tone: string }> = {
   ok: { label: 'успешно', tone: 'green' }, 'rolled-back': { label: 'откат', tone: 'danger' }, failed: { label: 'не удалось', tone: 'danger' },
 }
+const READY_TEXT = 'Скачано и проверено, ждёт установки'
+const WINDOW_TEXT: Record<string, string> = { manual: 'вручную, кнопкой «Установить сейчас»', any: 'сразу', night: 'только ночью, 03:00–06:00' }
 const build = (value: BuildRef) => `${value.version} · ${value.build}${value.commit ? ` · ${value.commit}` : ''}`
 const when = (iso?: string) => (iso ? dateTime.format(new Date(iso)) : '—')
 const megabytes = (bytes: number) => `${(Math.round(bytes / 1024 / 102.4) / 10).toLocaleString('ru-RU')} МБ`
@@ -33,6 +35,7 @@ function lampOf(status: SelfUpdateStatus): { tone: 'green' | 'amber' | 'red' | '
   if (recent && recent.result !== 'ok' && Date.now() - Date.parse(recent.at) < 24 * 3600_000) {
     return { tone: 'red', title: recent.result === 'rolled-back' ? 'Последнее обновление откачено' : 'Последнее обновление не удалось', text: recent.reason ?? '' }
   }
+  if (updater.phase === 'ready' && updater.waitingForInstall) return { tone: 'amber', title: READY_TEXT, text: `${status.ready ? `Сборка ${build(status.ready)}. ` : ''}Нажмите «Установить сейчас», когда удобно: сервер перезапустится примерно на минуту.` }
   if (BUSY_PHASES.has(updater.phase) || updater.phase === 'ready') return { tone: 'amber', title: PHASE[updater.phase], text: updater.waitingForWindow ? 'Установка ночью, 03:00–06:00 (время ноутбука).' : updater.message }
   return { tone: 'green', title: PHASE.idle, text: `Сервер проверяет репозиторий релизов каждые 15 минут. Последняя проверка: ${when(updater.checkedAt)}.` }
 }
@@ -45,7 +48,7 @@ function lampOf(status: SelfUpdateStatus): { tone: 'green' | 'amber' | 'red' | '
  */
 export function AdminUpdate() {
   const view = useAdminData(useCallback((token: string) => updateApi.view(token), []))
-  const [action, setAction] = useState<'check' | 'rollback' | null>(null)
+  const [action, setAction] = useState<'check' | 'install' | 'rollback' | null>(null)
   const [actionError, setActionError] = useState<Failure | null>(null)
   const data: UpdateView | null = view.data
   const status = data?.available ? data.status : null
@@ -58,12 +61,13 @@ export function AdminUpdate() {
     return () => window.clearInterval(timer)
   }, [busy, offline, reload])
 
-  const run = (kind: 'check' | 'rollback') => {
+  const run = (kind: 'check' | 'install' | 'rollback') => {
     if (!view.token) return
     if (kind === 'rollback' && status?.previous && !window.confirm(`Откатить сервер на предыдущую версию ${build(status.previous)}?\n\nСервер перезапустится (около минуты). Текущая сборка больше не будет ставиться автоматически.`)) return
+    if (kind === 'install' && status?.ready && !window.confirm(`Установить версию сервера ${build(status.ready)}?\n\nСервер перезапустится (около минуты). Если новая версия не ответит за 2 минуты, вернётся текущая.`)) return
     setAction(kind)
     setActionError(null)
-    void (kind === 'check' ? updateApi.check(view.token) : updateApi.rollback(view.token))
+    void (kind === 'check' ? updateApi.check(view.token) : kind === 'install' ? updateApi.install(view.token) : updateApi.rollback(view.token))
       .then((next) => view.setData(next), (reason: unknown) => setActionError(failure(reason)))
       .finally(() => setAction(null))
   }
@@ -85,8 +89,9 @@ export function AdminUpdate() {
               <div><dt>Установлена</dt><dd className="mono">{build(status.current)}</dd></div>
               <div><dt>Предыдущая</dt><dd className="mono">{status.previous ? build(status.previous) : 'ещё нет (появится после первого автообновления)'}</dd></div>
               {status.updater.latest && <div><dt>На GitHub</dt><dd className="mono">{build(status.updater.latest)}</dd></div>}
+              {status.ready && <div><dt>Готова к установке</dt><dd><span className="mono">{build(status.ready)}</span> · {READY_TEXT.toLowerCase()}</dd></div>}
               <div><dt>Репозиторий</dt><dd className="mono">{status.repo}{status.hasToken ? '' : ' · токен не задан'}</dd></div>
-              <div><dt>Когда ставить</dt><dd>{status.window === 'night' ? 'только ночью, 03:00–06:00' : 'сразу'}</dd></div>
+              <div><dt>Когда ставить</dt><dd>{WINDOW_TEXT[status.window] ?? WINDOW_TEXT.manual}</dd></div>
               <div><dt>Проверки</dt><dd>последняя {when(status.updater.checkedAt)} · следующая {when(status.nextCheckAt)}</dd></div>
               {status.skipped.length > 0 && <div><dt>Не ставятся</dt><dd className="mono">{status.skipped.join(', ')}</dd></div>}
             </dl>
@@ -94,11 +99,16 @@ export function AdminUpdate() {
               <button type="button" className="button" disabled={action !== null || busy || !status.enabled || Boolean(status.unsupported)} onClick={() => run('check')}>
                 {action === 'check' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}Проверить сейчас
               </button>
+              {status.ready && (
+                <button type="button" className="button primary" disabled={action !== null || busy || !status.enabled || Boolean(status.unsupported)} onClick={() => run('install')}>
+                  {action === 'install' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <PackageCheck aria-hidden="true" />}Установить сейчас
+                </button>
+              )}
               <button type="button" className="button ghost admin-danger" disabled={action !== null || busy || !status.previous || Boolean(status.unsupported)} onClick={() => run('rollback')}>
                 {action === 'rollback' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Undo2 aria-hidden="true" />}Откатить на предыдущую
               </button>
             </div>
-            <p className="field-hint" style={{ margin: 0 }}>Репозиторий, токен и время установки меняются только в приложении на ноутбуке. Сайт не может передать ноутбуку файл: сервер ставит только сборки, подпись которых проверил сам.</p>
+            <p className="field-hint" style={{ margin: 0 }}>Репозиторий, токен и время установки меняются только в приложении на ноутбуке. Сайт не может передать ноутбуку файл: «Установить сейчас» ставит только сборку, которую ноутбук сам скачал и проверил по подписи. Каждый шаг перезапуска пишется в журнал помощника (self-update\update-helper.log); при сбое его конец виден в истории.</p>
           </section>
           {status.updater.files.length > 0 && <FilesSection status={status} />}
           {status.updater.checks.length > 0 && (
@@ -209,6 +219,12 @@ function HistorySection({ history }: { history: HistoryEntry[] }) {
               </div>
               <div className="mono update-history-builds">{entry.from.version} ({entry.from.build}) → {entry.to.version} ({entry.to.build})</div>
               {entry.reason && <div className="muted update-history-reason">{entry.reason}</div>}
+              {entry.log && (
+                <details className="update-history-log">
+                  <summary className="muted">Журнал помощника обновления</summary>
+                  <pre className="mono">{entry.log}</pre>
+                </details>
+              )}
             </li>
           ))}
         </ul>

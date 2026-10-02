@@ -69,6 +69,7 @@ const ACTION_LABEL: Record<string, string> = {
   'payments.export': 'Выгрузка платежей CSV',
   'device.revoke': 'Отключено устройство',
   'server.update-check': 'Проверка обновления сервера',
+  'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
 const DETAIL_LABEL: Record<string, string> = { days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
