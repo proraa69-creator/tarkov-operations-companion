@@ -1,5 +1,20 @@
 # Trailer generator
 
+## Current home page trailer: `promo-video.mjs`
+
+The video now on the site (`website/public/media/trailer.webm`, 1280×720 VP8, about 75 s, about 11 MB) is a
+walkthrough recorded with Playwright `recordVideo`: title cards and captions on a small host page that cross-fades
+between the website home page and live app screens (demo data; map image = neutral grid, item icons = neutral
+tile, no game art). The blank lead-in is trimmed and the file re-encoded with Playwright's bundled ffmpeg.
+
+```bash
+npx vite --port 5661 --host 127.0.0.1                                   # renderer
+npx vite --config website/vite.config.ts --port 5672 --host 127.0.0.1   # website
+node scripts/trailer/promo-video.mjs                                    # → trailer.webm + trailer-poster.jpg
+```
+
+## Older 15-second trailer: `capture.mjs` → `render.mjs`
+
 Makes the 15-second promo video for the website home page from real screens of the app.
 
 Outputs (in `website/public/media/`):
