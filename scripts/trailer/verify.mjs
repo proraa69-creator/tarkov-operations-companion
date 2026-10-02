@@ -13,7 +13,7 @@ import { chromium } from '../../node_modules/playwright/index.mjs'
 const here = dirname(fileURLToPath(import.meta.url))
 const video = join(here, '..', '..', 'website', 'public', 'media', 'trailer.webm')
 const out = process.argv[2] ?? join(here, '.verify')
-const times = (process.argv[3] ?? '1,5,10,14').split(',').map(Number)
+const times = (process.argv[3] ?? '1.9,6,11,16,21.5,26.5,32,37,42,47.5,52.5,58,63').split(',').map(Number)
 mkdirSync(out, { recursive: true })
 
 const data = readFileSync(video)

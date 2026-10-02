@@ -1,91 +1,91 @@
 # Trailer generator
 
-## Current home page trailer: `promo-video.mjs`
+The cinematic promo video for the website home page (`website/public/media/`), about 66 s, 1920x1080, 30 fps.
+No mouse movement, no cursor, no scrolling walkthrough: clean 2x screenshots of the app with captions, slow
+Ken Burns moves, floating cards and cross-fades, in the style of the first 15 s trailer (title scene with the brand
+badge and a big gold Oswald title, per-scene captions with a number chip, headline and brass bar, closing call to
+action).
 
-The video now on the site (`website/public/media/trailer.webm`, 1280×720 VP8, about 75 s, about 11 MB) is a
-walkthrough recorded with Playwright `recordVideo`: title cards and captions on a small host page that cross-fades
-between the website home page and live app screens (demo data; map image = neutral grid, item icons = neutral
-tile, no game art). The blank lead-in is trimmed and the file re-encoded with Playwright's bundled ffmpeg.
-
-```bash
-npx vite --port 5661 --host 127.0.0.1                                   # renderer
-npx vite --config website/vite.config.ts --port 5672 --host 127.0.0.1   # website
-node scripts/trailer/promo-video.mjs                                    # → trailer.webm + trailer-poster.jpg
-```
-
-## Older 15-second trailer: `capture.mjs` → `render.mjs`
-
-Makes the 15-second promo video for the website home page from real screens of the app.
-
-Outputs (in `website/public/media/`):
+Outputs:
 
 | File | What |
 | --- | --- |
-| `trailer.webm` | 1920×1080, 30 fps, VP8, 15.0 s, about 8 MB |
-| `trailer-poster.jpg` | 1280×720 title card, used as the `<video poster>` |
-| `trailer.mp4` | H.264/yuv420p/faststart. Only made when a full `ffmpeg` with libx264 is on `PATH` |
+| `trailer.webm` | 1920x1080, 30 fps, VP8, about 66 s, under 20 MB |
+| `trailer-poster.jpg` | 1280x720 title card, used as the `<video poster>` |
+| `trailer.mp4` | H.264 high / yuv420p / faststart (plays on iPhone). Needs an ffmpeg with libx264 |
+
+## Scenes
+
+| # | Scene | Content |
+| --- | --- | --- |
+| 0 | Title | Raid OS badge, title, tagline |
+| 1 | Обзор | Quests synced from the game logs, quests of the selected map, items needed for the raid |
+| 2 | Карта | Ruler and sniper tools |
+| 3 | В рейде | Minimap overlay (position from game screenshots) with the active quests |
+| 4 | Маршрут | Route 1-2-3-4-5, the path from quest to quest |
+| 5 | Предметы | Item price in the raid, «нужен на Каппу», «НЕ ПРОДАВАТЬ», MATE tag |
+| 6 | Сюжет и Капа | Story quests by stage, Collector items window, Kappa progress |
+| 7 | Данные | PvP, PvE and Season, separate progress |
+| 8 | Боссы | Boss card with HP per body part, boss busts |
+| 9 | Телефон | Phone layout at 390 px in a phone frame, marked «скоро» (not in the stores yet) |
+| 10 | Синхронизация | PC, website, phone: one account, sign-in by QR |
+| 11 | Отряд | Squad, shared quests, map priority, MATE tag |
+| 12 | Финал | Raid OS, «Скачать для Windows», tagline, raidos.app |
+
+The honesty rules from `CLAUDE.md` apply to the captions: no claim of live inventory or exact real-time position
+(the minimap position comes from game screenshots), the app does not touch the game, and the phone apps are
+«скоро». The in-game backdrops behind the overlays are drawn in CSS: no game footage, no Battlestate artwork. Map
+image = neutral survey grid, item icons = neutral tile. Squad members, nicknames and the QR link are made up for the
+picture. Boss portraits and the 3D boss card are the app's own gallery renders (`website/src/assets/promo`).
 
 ## Regenerate
 
 From the repository root:
 
 ```bash
-npx vite --port 5210              # 1. renderer, in a second terminal (no Electron needed)
-node scripts/trailer/capture.mjs  # 2. click through the app → scripts/trailer/shots/*.png
-node scripts/trailer/render.mjs   # 3. trailer.html → trailer.webm + trailer-poster.jpg (~2.5 min)
-node scripts/trailer/verify.mjs /tmp/frames 1,5,10,14   # 4. stills from the encoded file
+npx vite --port 5210                                      # 1. renderer (no Electron needed)
+npx vite --config website/vite.config.ts --port 5672      #    and the website (for the site shot)
+node scripts/trailer/capture.mjs                          # 2. app → scripts/trailer/shots/*.png (about 4 min)
+node scripts/trailer/render.mjs                           # 3. trailer.html → webm + mp4 + poster (about 12 min)
+node scripts/trailer/verify.mjs /tmp/frames               # 4. stills from the encoded file, one per scene
 ```
 
-Stop the vite server afterwards.
+Stop both vite servers afterwards. `capture.mjs scenegroup ...` re-captures only some groups (`app tools route kappa
+story modes boss busts phone squad item minimap site qr`). `render.mjs --preview=scenes --preview-dir=/tmp/p` writes
+two stills per scene without encoding, `--preview=12.5,30` writes stills at those times.
 
 Paths assume the sandbox layout: Chromium at `/opt/pw-browsers/chromium` and Playwright's ffmpeg under
-`/opt/pw-browsers/ffmpeg-*`. Override them with `TRAILER_CHROMIUM`, `TRAILER_FFMPEG` or
-`PLAYWRIGHT_BROWSERS_PATH`. Set `TRAILER_BASE` if the renderer is not on `http://localhost:5210/`.
+`/opt/pw-browsers/ffmpeg-*` (VP8 only). For the mp4 point `TRAILER_FFMPEG` at an ffmpeg with libx264 (it then
+produces both files in one pass), or have one on `PATH`. Other overrides: `TRAILER_CHROMIUM`,
+`PLAYWRIGHT_BROWSERS_PATH`, `TRAILER_BASE` (renderer, default `http://127.0.0.1:5210/`), `TRAILER_SITE` (website,
+default `http://127.0.0.1:5672/`).
 
 ## How it works
 
-**`capture.mjs`** opens the renderer in Chromium and saves screenshots at 2× (3840×2160), so the Ken Burns
-zoom stays sharp.
-- It seeds a demo profile in `localStorage` (3 finished and 5 active Customs quests, favourites), so the
-  pages are not empty.
-- It turns on the "Новые иконки" map markers (`tarkov-map-marker-style=modern`) and uses the ruler and sniper
-  tools on `#/maps/customs`.
-- For the colour themes it sets `tarkov-app-theme` to `steel` and `crimson`.
-- The overlays (`#/overlay/item`, `#/overlay/minimap`) are rendered with a fake `window.tarkovDesktop` bridge
-  and captured on a transparent background.
-- tarkov.dev is not reachable from the build machine, so the app falls back to its built-in demo data.
-  Requests to `*.tarkov.dev` are answered locally: item icons become a plain dark tile and the map image
-  becomes a dim survey grid. The shots never show broken images, and no game art is used.
-- `#/kappa-items` is captured, but the trailer does not use it. With demo data the Collector quest is
-  missing, so the page is empty.
+**`capture.mjs`** opens the renderer in Chromium at 1920x1080 with a device scale of 2, so the Ken Burns zoom stays
+sharp, and saves one still per feature.
+- It seeds a demo profile per mode (PvP, PvE, Season differ) and adds a «Коллекционер» quest with ten collectible
+  items to the demo data, so the Kappa window is not empty.
+- Overlays (`#/overlay/item`, `#/overlay/minimap`) use a fake `window.tarkovDesktop` bridge, a transparent page
+  and a device scale of 4.
+- The squad and Kappa shots use a fake signed-in desktop bridge that answers `/v1/squads/...` and `/v1/friends`
+  with a made-up squad of three.
+- `*.tarkov.dev` is answered locally with the neutral map grid and item tile.
 
-**`trailer.html`** is the 1920×1080 presentation. The timeline is fixed and built with the Web Animations
-API:
+**`trailer.html`** is the 1920x1080 presentation. A fixed timeline (`T` table near the end) built with the Web
+Animations API; scenes are generated from small helpers (`win` crops a region of a still into a framed window,
+`captionHtml` builds the eyebrow, headline, bar and pills). To change a caption or the timing, edit it and run
+`render.mjs` again; no recapture needed. Fonts are Inter and Oswald (SIL OFL), vendored in `assets/fonts/`. For a
+live preview serve this folder over http and open `trailer.html#autoplay` (`file://` blocks the fonts).
 
-| Time | Beat |
-| --- | --- |
-| 0–2.3 s | Title card |
-| 2.0 s | Maps: ruler → sniper |
-| 4.0 s | Minimap overlay |
-| 6.0 s | Item price overlay |
-| 8.0 s | Quests |
-| 9.8 s | Flea market |
-| 11.5 s | Theme wipes |
-| 13.05–15 s | «Скачать приложение» outro |
+**`render.mjs`** steps the timeline with `window.__seek(t)`, screenshots every frame as JPEG and pipes it to ffmpeg:
+VP8 at about 2.3 Mb/s (constrained quality) and, when libx264 is available, H.264 crf 22. Deterministic: no dropped
+frames, no page-load lead-in.
 
-The in-game backdrop behind the overlays (haze, ridge line, compass strip, stash grid) is drawn in CSS.
-There is no game footage or Battlestate artwork. Fonts are Inter and Oswald (SIL OFL), vendored in
-`assets/fonts/`. To preview it live, serve this folder over http and open `trailer.html#autoplay`.
-Opening it from `file://` blocks the fonts.
+**`verify.mjs`** checks that Chromium can load the webm (duration, size) and decodes stills with ffmpeg at the given
+times (default: the middle of every scene), because headless Chromium paints `<video>` black in screenshots here.
 
-**`render.mjs`** steps the timeline frame by frame with `window.__seek(t)`, screenshots each frame as JPEG,
-and pipes the frames into Playwright's bundled ffmpeg (VP8, about 4.5 Mb/s). The result is deterministic,
-with no dropped frames and no load-time lead-in. Other options:
-- `--realtime` records the page with Playwright `recordVideo` instead, trims the lead-in and re-encodes.
-- `--preview=1,5.5,10 --preview-dir=/tmp/x` saves stills of the timeline without encoding.
+## Older: `promo-video.mjs`
 
-**`verify.mjs`** checks that Chromium can load the webm (duration and size). It then decodes stills with the
-bundled ffmpeg, because headless Chromium paints `<video>` black in screenshots on this machine.
-
-To change a caption or the timing, edit `trailer.html` (see the `T` table and the calls below it), then run
-`render.mjs` again. You don't need to recapture.
+The previous 75 s screen-recording walkthrough (Playwright `recordVideo` with a cursor, captions and the website
+scrolling). Kept for reference; it needs the renderer on :5661 and the website on :5672.
