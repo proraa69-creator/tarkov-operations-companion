@@ -86,13 +86,15 @@ export interface ErrorReportSettings { enabled: boolean; repo: string; hasToken:
 /** «Автообновление сервера» (electron/selfUpdate.ts, electron/serverSelfUpdate.ts). The token is write-only. */
 export interface ServerBuildRef { version: string; build: number; commit: string }
 export interface ServerUpdateFile { name: string; size: number; done: number; state: 'pending' | 'downloading' | 'ok' | 'error' }
-export interface ServerUpdateHistoryEntry { at: string; kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string }
+export interface ServerUpdateHistoryEntry { at: string; kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string; code?: string; log?: string }
+export type ServerInstallWindow = 'manual' | 'any' | 'night'
 export interface ServerUpdateView {
-  enabled: boolean; repo: string; window: 'any' | 'night'; hasToken: boolean
+  enabled: boolean; repo: string; window: ServerInstallWindow; hasToken: boolean
   unsupported: string
   current: ServerBuildRef
   previous: (ServerBuildRef & { savedAt: string }) | null
-  updater: { phase: 'off' | 'idle' | 'checking' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error'; message: string; checkedAt?: string; latest?: ServerBuildRef; files: ServerUpdateFile[]; checks: Array<{ label: string; ok: boolean; detail?: string }>; error?: string; waitingForWindow?: boolean }
+  updater: { phase: 'off' | 'idle' | 'checking' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error'; message: string; checkedAt?: string; latest?: ServerBuildRef; files: ServerUpdateFile[]; checks: Array<{ label: string; ok: boolean; detail?: string }>; error?: string; waitingForWindow?: boolean; waitingForInstall?: boolean }
+  ready: ServerBuildRef | null
   restart: { kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; startedAt: string; deadlineAt: string; phase: string } | null
   history: ServerUpdateHistoryEntry[]
   skipped: number[]
@@ -137,8 +139,9 @@ interface TarkovDesktopApi {
     setErrorReports?: (settings: { enabled?: boolean; repo?: string; token?: string; clearToken?: boolean }) => Promise<ErrorReportSettings>
     testErrorReports?: () => Promise<ErrorReportSettings>
     serverUpdate?: () => Promise<ServerUpdateView>
-    setServerUpdate?: (settings: { enabled?: boolean; repo?: string; window?: 'any' | 'night'; token?: string; clearToken?: boolean }) => Promise<ServerUpdateView>
+    setServerUpdate?: (settings: { enabled?: boolean; repo?: string; window?: ServerInstallWindow; token?: string; clearToken?: boolean }) => Promise<ServerUpdateView>
     checkServerUpdate?: () => Promise<ServerUpdateView>
+    installServerUpdate?: () => Promise<ServerUpdateView>
     rollbackServerUpdate?: () => Promise<ServerUpdateView>
   }
   update?: {

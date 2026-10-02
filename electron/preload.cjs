@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     serverUpdate: () => ipcRenderer.invoke('owner:server-update'),
     setServerUpdate: (settings) => ipcRenderer.invoke('owner:set-server-update', settings),
     checkServerUpdate: () => ipcRenderer.invoke('owner:server-update-check'),
+    installServerUpdate: () => ipcRenderer.invoke('owner:server-update-install'),
     rollbackServerUpdate: () => ipcRenderer.invoke('owner:server-update-rollback'),
   },
   update: {

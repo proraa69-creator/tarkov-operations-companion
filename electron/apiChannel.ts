@@ -4,8 +4,8 @@
  * `{ channel: 'raidos', replyTo: id, ok, data | error }`, events (no `id`) none. Only the types registered here are
  * handled, everything else is refused. No Electron imports (tested in apiChannel.test.ts).
  *
- * What the API may ask is deliberately small: the self-update status, «Проверить сейчас», «Откатить на предыдущую»
- * (electron/selfUpdate.ts) and error events for the GitHub reporter (electron/errorReporter.ts). None of it can make the
+ * What the API may ask is deliberately small: the self-update status, «Проверить сейчас», «Установить сейчас» (only a
+ * build the app downloaded and verified itself), «Откатить на предыдущую» (electron/selfUpdate.ts) and error events for the GitHub reporter (electron/errorReporter.ts). None of it can make the
  * app install anything it has not verified itself.
  */
 export const API_CHANNEL = 'raidos'

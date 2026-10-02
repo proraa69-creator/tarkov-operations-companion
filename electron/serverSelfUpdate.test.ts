@@ -8,8 +8,9 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { canonicalUpdatePayload } from './updateManifest'
 import { canonicalServerUpdatePayload, partName, type ServerUpdateManifest } from './serverUpdateManifest'
 import {
-  GitHubReleaseSource, healthVerdict, helperEnvironment, helperScript, HEALTH_RULES, inInstallWindow, parseLatest, restartArgs, ServerSelfUpdater,
-  SourceError, verifyStagedRelease, writeVerified, type ReleaseSource, type StagedRelease,
+  DEFAULT_INSTALL_WINDOW, encodedCommand, GitHubReleaseSource, healthVerdict, helperEnvironment, helperLogTail, helperScript, HEALTH_RULES, HELPER_QUIT_TIMEOUT_SEC,
+  HELPER_START_VERIFY_SEC, inInstallWindow, installWindowOf, launcherScript, parseLatest, READY_FOR_INSTALL_TEXT, restartArgs, ServerSelfUpdater,
+  SourceError, verifyStagedRelease, writeVerified, type InstallWindow, type ReleaseSource, type StagedRelease, type UpdaterStatus,
 } from './serverSelfUpdate'
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
@@ -69,7 +70,7 @@ function fakeSource(files: Map<string, Buffer>) {
   return { source, downloads }
 }
 
-function updater(files: Map<string, Buffer>, options: { current?: number; window?: 'any' | 'night'; hour?: number; skipped?: number[]; key?: typeof publicKey } = {}) {
+function updater(files: Map<string, Buffer>, options: { current?: number; window?: InstallWindow; hour?: number; skipped?: number[]; key?: typeof publicKey; onStatus?: (status: UpdaterStatus) => void } = {}) {
   const root = tempDir()
   const installed: StagedRelease[] = []
   const { source, downloads } = fakeSource(files)
@@ -82,6 +83,7 @@ function updater(files: Map<string, Buffer>, options: { current?: number; window
     install: async (staged) => { installed.push(staged) },
     now: () => new Date(2026, 9, 1, options.hour ?? 14, 0, 0),
     publicKey: options.key ?? publicKey,
+    ...(options.onStatus ? { onStatus: options.onStatus } : {}),
   })
   return { instance, installed, downloads, root }
 }
@@ -219,6 +221,60 @@ describe('ServerSelfUpdater (download, verify, install)', () => {
     expect(installed).toHaveLength(0)
   })
 
+  it('manual mode (the default): downloads and verifies, then waits for «Установить сейчас» and installs only then', async () => {
+    const statuses: UpdaterStatus[] = []
+    const { instance, installed, downloads } = updater(release(2000).files, { window: 'manual', onStatus: (status) => statuses.push(status) })
+    expect(await instance.check()).toBe('waiting')
+    expect(installed).toHaveLength(0)
+    const snapshot = instance.snapshot()
+    expect(snapshot.phase).toBe('ready')
+    expect(snapshot.waitingForInstall).toBe(true)
+    expect(snapshot.waitingForWindow).toBeUndefined()
+    expect(snapshot.message.toLowerCase()).toContain(READY_FOR_INSTALL_TEXT.toLowerCase())
+    expect(statuses.some((status) => status.phase === 'ready' && status.waitingForInstall && status.latest?.build === 2000)).toBe(true)
+    expect(instance.readyBuild()).toEqual({ version: '0.6.0', build: 2000, commit: 'abc1234' })
+    // The timer keeps checking: still waiting, nothing downloaded again, nothing installed.
+    const fetched = downloads.length
+    expect(await instance.check()).toBe('waiting')
+    expect(downloads.length).toBe(fetched)
+    expect(installed).toHaveLength(0)
+    // The owner's button.
+    expect(await instance.installNow()).toBe('installing')
+    expect(installed).toHaveLength(1)
+    expect(installed[0]!.manifest.build).toBe(2000)
+    expect(instance.readyBuild()).toBeNull()
+  })
+
+  it('«Установить сейчас» without a verified build is refused; a build changed on disk after the download is not installed', async () => {
+    const empty = updater(release(2000).files, { window: 'manual', current: 2000 })
+    expect(await empty.instance.check()).toBe('latest')
+    await expect(empty.instance.installNow()).rejects.toThrow(/Нет скачанной и проверенной версии/)
+    const { instance, installed, root } = updater(release(2000).files, { window: 'manual' })
+    expect(await instance.check()).toBe('waiting')
+    writeFileSync(join(root, '2000', 'owner.exe'), 'not the signed exe')
+    expect(await instance.installNow()).toBe('error')
+    expect(installed).toHaveLength(0)
+    expect(instance.snapshot().phase).toBe('error')
+  })
+
+  it('«Установить сейчас» also works while a build waits for the night window, and refuses a build skipped meanwhile', async () => {
+    const night = updater(release(2000).files, { window: 'night', hour: 14 })
+    expect(await night.instance.check()).toBe('waiting')
+    expect(await night.instance.installNow()).toBe('installing')
+    expect(night.installed).toHaveLength(1)
+    const skipped: number[] = []
+    const { source } = fakeSource(release(2000).files)
+    const installed: StagedRelease[] = []
+    const instance = new ServerSelfUpdater({
+      root: tempDir(), current: () => ({ version: '0.5.4', build: 1000, commit: 'old' }), source: () => source,
+      settings: () => ({ enabled: true, window: 'manual' }), skipped: () => skipped, install: async (staged) => { installed.push(staged) }, publicKey,
+    })
+    expect(await instance.check()).toBe('waiting')
+    skipped.push(2000)
+    expect(await instance.installNow()).toBe('error')
+    expect(installed).toHaveLength(0)
+  })
+
   it('is off when switched off, and asks for settings without a source', async () => {
     const off = new ServerSelfUpdater({ root: tempDir(), current: () => ({ version: '', build: 1, commit: '' }), source: () => null, settings: () => ({ enabled: false, window: 'any' }), skipped: () => [], install: async () => {} })
     expect(await off.check()).toBe('off')
@@ -305,8 +361,68 @@ describe('after the restart (rollback decision)', () => {
     expect(script).toContain('http://127.0.0.1:5202/')
     expect(restartArgs(['x.exe', '--server-mode', '--enable-tunnel', '--evil'])).toEqual(['--server-mode', '--enable-tunnel'])
     expect(restartArgs(['x.exe'])).toEqual(['--server-mode'])
-    const env = helperEnvironment({ exe: 'C:\\A\\Raid OS Server.exe', next: 'n', previous: 'p', clientDir: 'c', clientPrevious: 'cp', resultFile: 'r', confirmFile: 'k', appName: 'Raid OS.exe', pid: 42, expectedBuild: 2000, args: ['--server-mode', '--enable-tunnel'] })
-    expect(env).toMatchObject({ RAIDOS_APP_NAME: 'Raid OS', RAIDOS_BUILD: '2000', RAIDOS_ARGS: '--server-mode --enable-tunnel', RAIDOS_PID: '42' })
+    const env = helperEnvironment({
+      id: '1', exe: 'C:\\A\\Raid OS Server.exe', next: 'n', previous: 'p', clientDir: 'c', clientPrevious: 'cp', resultFile: 'r', confirmFile: 'k', pendingFile: 's', logFile: 'l',
+      helperPidFile: 'h', appPidFile: 'a', appExe: 'C:\\T\\Raid OS.exe', pid: 42, expectedBuild: 2000, args: ['--server-mode', '--enable-tunnel'],
+    })
+    expect(env).toMatchObject({ RAIDOS_ID: '1', RAIDOS_BUILD: '2000', RAIDOS_ARGS: '--server-mode --enable-tunnel', RAIDOS_PID: '42', RAIDOS_APP_EXE: 'C:\\T\\Raid OS.exe', RAIDOS_LOG: 'l', RAIDOS_HELPER_PID: 'h', RAIDOS_APP_PID: 'a', RAIDOS_PENDING: 's' })
+  })
+
+  it('the helper logs every step, waits for both the inner exe and the portable wrapper, and verifies the start', () => {
+    const script = helperScript()
+    // Diagnostics: timestamped log + transcript, helper.pid at once, a log line for every step.
+    expect(script).toContain('$logFile = $env:RAIDOS_LOG')
+    expect(script).toContain('[System.IO.File]::AppendAllText($logFile')
+    expect(script).toContain("ToString('yyyy-MM-dd HH:mm:ss.fff')")
+    expect(script).toContain('Start-Transcript')
+    expect(script).toContain('[System.IO.File]::WriteAllText($helperPidFile')
+    expect(script).toContain('trap { Log')
+    for (const step of ['waiting for the app to quit', 'the app has quit after', 'move attempt', 'moved the new exe into place', 'Start-Process ok', 'Start-Process failed', 'process is running after', "Log ('probe ", 'ROLLBACK: ', 'taskkill ', 'result: ']) {
+      expect(script).toContain(step)
+    }
+    // Portable exe: the inner pid (only while it still runs RAIDOS_APP_EXE) AND the wrapper (Path = RAIDOS_EXE).
+    expect(script).toContain('$oldPid = [int]$env:RAIDOS_PID; $oldAppExe = $env:RAIDOS_APP_EXE')
+    expect(script).toMatch(/function Get-OldApp \{[\s\S]*Get-Process -Id \$oldPid[\s\S]*\$inner\.Path -eq \$oldAppExe[\s\S]*Get-ByPath \$exe/)
+    expect(script).toMatch(/while \(\$true\) \{\s*\$alive = @\(Get-OldApp\)/)
+    expect(script).toContain(`$quitTimeoutSec = ${HELPER_QUIT_TIMEOUT_SEC}`)
+    expect(script).toContain("Stop-Processes 'the old app (inner exe and wrapper)' { Get-OldApp }")
+    // Stop-App: the wrapper's whole tree and the restarted inner exe from app.pid, never «every process with this name».
+    expect(script).toMatch(/function Get-NewApp \{[\s\S]*Get-ByPath \$exe[\s\S]*\$appPidFile/)
+    expect(script).toContain("'/T'")
+    expect(script).not.toContain('Get-Process -Name')
+    // Start-Server checks within 30 s that the process exists.
+    expect(HELPER_START_VERIFY_SEC).toBe(30)
+    expect(script).toContain(`$startVerifySec = ${HELPER_START_VERIFY_SEC}`)
+    expect(script).toMatch(/function Start-Server[\s\S]*-PassThru[\s\S]*Get-ByPath \$exe/)
+    expect(script).toContain("if (-not (Start-Server 'the new version')) { Roll-Back 'start-failed'")
+    // A restart the app cancelled (the helper started too late) changes nothing.
+    expect(script).toContain('if (Test-Cancelled)')
+    expect(script).not.toContain('${')
+  })
+
+  it("the helper is started through a launcher (Start-Process, Bypass), so it is not in the app's process tree", () => {
+    const launcher = launcherScript()
+    expect(launcher).toContain('Start-Process -FilePath $env:RAIDOS_POWERSHELL')
+    expect(launcher).toContain("'-ExecutionPolicy', 'Bypass'")
+    expect(launcher).toContain(`'-File', ('"' + $env:RAIDOS_HELPER + '"')`)
+    expect(launcher).toContain('[launcher]')
+    expect(Buffer.from(encodedCommand(launcher), 'base64').toString('utf16le')).toBe(launcher)
+  })
+
+  it('the log tail keeps the last lines', () => {
+    const text = `\uFEFF${Array.from({ length: 100 }, (_, index) => `line ${index}`).join('\r\n')}\r\n\r\n`
+    expect(helperLogTail(text, 3)).toBe('line 97\nline 98\nline 99')
+    expect(helperLogTail('x'.repeat(100), 5, 10)).toBe('x'.repeat(10))
+  })
+
+  it('install mode: manual is the default; settings saved without an explicit choice are manual', () => {
+    expect(DEFAULT_INSTALL_WINDOW).toBe('manual')
+    expect(installWindowOf(undefined)).toBe('manual')
+    expect(installWindowOf('weird')).toBe('manual')
+    expect(installWindowOf('manual')).toBe('manual')
+    expect(installWindowOf('any')).toBe('any')
+    expect(installWindowOf('night')).toBe('night')
+    expect(inInstallWindow('manual', new Date(2026, 0, 1, 4))).toBe(false)
   })
 
   it('install window: any time, or only 03:00–06:00', () => {
