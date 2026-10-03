@@ -414,17 +414,19 @@ async function probe(powershell: string, env: Record<string, string>) {
     const finish = (text: string) => { if (!done) { done = true; clearTimeout(timer); resolve(text) } }
     let child: ReturnType<typeof spawn>
     try {
-      child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', 'exit 7'], { detached: true, windowsHide: true, stdio: 'ignore', env })
+      child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', 'if ($env:RAIDOS_ID) { exit 7 } else { exit 8 }'], { detached: true, windowsHide: true, stdio: 'ignore', env })
     } catch (error) {
       resolve(`PowerShell could not be started: ${error instanceof Error ? error.message : String(error)}`)
       return
     }
     const timer = setTimeout(() => {
       try { child.kill() } catch { /* already gone */ }
-      finish(`PowerShell (pid ${child.pid ?? '?'}) did not finish «exit 7» within ${PROBE_TIMEOUT_MS / 1000} s — it hangs at start; stopped it`)
+      finish(`PowerShell (pid ${child.pid ?? '?'}) did not finish the one-line check within ${PROBE_TIMEOUT_MS / 1000} s — it hangs at start; stopped it`)
     }, PROBE_TIMEOUT_MS)
     child.on('error', (error) => finish(`PowerShell failed to start: ${error.message}`))
-    child.on('exit', (code, signal) => finish(code === 7 ? `PowerShell works (exit 7 after ${elapsed(since)})` : `PowerShell ended with code ${code ?? signal} after ${elapsed(since)} (expected 7)`))
+    child.on('exit', (code, signal) => finish(code === 7 ? `PowerShell works and sees the helper's settings (exit 7 after ${elapsed(since)})`
+      : code === 8 ? `PowerShell runs but does NOT see the helper's environment variables (exit 8 after ${elapsed(since)})`
+      : `PowerShell ended with code ${code ?? signal} after ${elapsed(since)} (expected 7)`))
   })
 }
 

@@ -594,6 +594,8 @@ export function helperLogTail(text: string, maxLines = 60, maxChars = 6000) {
 export function helperScript(rules = HEALTH_RULES) {
   return `# Raid OS server self-update helper (electron/serverSelfUpdate.ts helperScript). Paths come from environment variables.
 $ErrorActionPreference = 'Continue'
+# First line, independent of the paths below: proves the script runs and whether it got its settings.
+try { [System.IO.File]::AppendAllText([System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'raidos-helper-start.log'), ((Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff') + ' pid ' + $PID + ' restart=' + $env:RAIDOS_ID + ' log=' + $env:RAIDOS_LOG + [Environment]::NewLine)) } catch {}
 $planId = $env:RAIDOS_ID; $exe = $env:RAIDOS_EXE; $next = $env:RAIDOS_NEXT; $prev = $env:RAIDOS_PREVIOUS
 $clientDir = $env:RAIDOS_CLIENT_DIR; $clientPrev = $env:RAIDOS_CLIENT_PREVIOUS
 $resultFile = $env:RAIDOS_RESULT; $confirmFile = $env:RAIDOS_CONFIRM; $pendingFile = $env:RAIDOS_PENDING
