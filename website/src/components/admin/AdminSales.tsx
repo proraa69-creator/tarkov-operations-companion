@@ -5,18 +5,22 @@ import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
 import { Loading } from './adminShared'
 import { dateTime, formatRub, PLAN_LABEL, useAdminData } from './adminData'
+import { AdminYookassaSettings } from './AdminYookassaSettings'
+import { AdminLavaSettings } from './AdminLavaSettings'
 
 const On = ({ on, children }: { on: boolean; children: string }) => (
   <span className={`tag ${on ? 'green' : ''}`}>{on ? <CircleCheck aria-hidden="true" /> : <CircleSlash aria-hidden="true" />}{children}</span>
 )
 
-/** «Настройки продаж»: read-only. Keys stay encrypted in the owner's desktop app, so editing is done there. */
+/** Sales overview and owner-only Lava controls; secrets remain encrypted in the owner app. */
 export function AdminSales() {
   const sales = useAdminData(useCallback((token: string) => api.adminSalesSettings(token), []))
   const data = sales.data
   return (
     <div className="admin-stack">
-      <Notice tone="info" title="Изменения — в приложении владельца">Цены, ключи ЮKassa и Lava.top и общая доля стримеров меняются в приложении на компьютере-сервере: «Сервер» → «Оплата». Ключи хранятся там в зашифрованном виде и на сайт не передаются, поэтому здесь только просмотр.</Notice>
+      <Notice tone="info">Lava.top можно настроить ниже. Стоимость подписки задаётся в кабинете Lava.top. Настройки ЮKassa и общая доля стримеров меняются в приложении: «Сервер» → «Оплата».</Notice>
+      <AdminYookassaSettings />
+      <AdminLavaSettings />
       {sales.error && <Notice tone={sales.error.offline ? 'offline' : 'error'}>{sales.error.message}</Notice>}
       {!data && !sales.error && <Loading />}
       {data && (
@@ -56,6 +60,9 @@ export function AdminSales() {
 }
 
 const ACTION_LABEL: Record<string, string> = {
+  'payments.yookassa-settings': 'Настройки оплаты ЮKassa',
+  'payments.lava-settings': 'Настройки оплаты Lava.top',
+  'payments.lava-test': 'Проверка вебхука Lava.top',
   'subscription.grant': 'Выдана подписка',
   'autopay.cancel': 'Отменено автопродление',
   'account.block': 'Заблокирован вход',

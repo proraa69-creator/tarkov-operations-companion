@@ -13,7 +13,7 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { emailServerStatus, emailSettings, inviteStreamer, lavaWebhookStatus, testLavaWebhook, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
+import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, lavaWebhookStatus, testLavaWebhook, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
@@ -169,6 +169,26 @@ app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   // What the API process may ask this app (electron/apiChannel.ts): the «Обновление» tab and error reports.
   if (ownerBuild) {
+    handleApiRequest('payments:yookassa:get', async () => {
+      const saved = await paymentSettings()
+      return { shopId: saved.shopId, monthPrice: saved.monthPrice, receipts: saved.receipts, streamerPercent: saved.streamerPercent, autopay: saved.autopay, hasKey: saved.hasKey }
+    })
+    handleApiRequest('payments:yookassa:set', async (payload) => {
+      const input = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
+      const saved = await setPaymentSettings({ shopId: input.shopId, monthPrice: input.monthPrice, receipts: input.receipts, streamerPercent: input.streamerPercent, autopay: input.autopay })
+      const environment = await apiEnvironment('https://raidos.app')
+      return { settings: { shopId: saved.shopId, monthPrice: saved.monthPrice, receipts: saved.receipts, streamerPercent: saved.streamerPercent, autopay: saved.autopay, hasKey: saved.hasKey }, env: Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith('YOOKASSA_') || ['TARKOV_PRICE_MONTH_RUB', 'TARKOV_STREAMER_PERCENT', 'TARKOV_PUBLIC_URL'].includes(key))) }
+    })
+    handleApiRequest('payments:lava:get' , async () => (await paymentSettings()).lava)
+    handleApiRequest('payments:lava:set', async (payload) => {
+      const input = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
+      // Only these fields can cross the owner web control; no deletion or other providers' settings.
+      const saved = await setPaymentSettings({ section: 'lava', offerId: input.offerId, currency: input.currency, rubRate: input.rubRate, paymentMethod: input.paymentMethod })
+      const environment = await apiEnvironment('')
+      // These secrets go only to the trusted API utility process, never into the HTTP response.
+      return { settings: saved.lava, env: Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith('LAVA_'))) }
+    })
+    handleApiRequest('payments:lava:test', () => testLavaWebhook('https://raidos.app/v1/payments/lava/webhook'))
     handleApiRequest('self-update:status', () => selfUpdateStatus())
     handleApiRequest('self-update:check', () => checkSelfUpdateNow())
     handleApiRequest('self-update:install', (payload) => installSelfUpdateNow(payload))

@@ -28,7 +28,7 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
-import { LavaError, lavaAuthSeen, lavaWebhookAuth, parseLavaEvent, type LavaClient, type LavaEvent, type LavaPrices } from './lavaTop.js'
+import { LavaClient, LavaError, lavaAuthSeen, lavaWebhookAuth, parseLavaEvent, type LavaConfig, type LavaEvent, type LavaPrices } from './lavaTop.js'
 
 /** Results kept in lava_webhook_log (what the owner sees in «События Lava.top»). */
 export type LavaWebhookResult = 'unauthorized' | 'bad-request' | 'ignored' | 'duplicate' | 'not-ours' | 'amount-mismatch' | 'already-applied' | 'paid' | 'failed' | 'error'
@@ -282,8 +282,13 @@ export class PaymentStore {
   private readonly db: DatabaseSync
   private readonly now: () => number
   private readonly fetch: Fetch
-  readonly config: PaymentConfig | undefined
-  readonly lava: LavaClient | undefined
+  private yooConfig: PaymentConfig | undefined
+  get config() { return this.yooConfig }
+  configureYookassa(config: PaymentConfig | undefined) { this.yooConfig = config }
+  private lavaClient: LavaClient | undefined
+  get lava() { return this.lavaClient }
+  /** Applied only after the owner app persisted the settings; existing invoices keep their stored amounts. */
+  configureLava(config: LavaConfig | undefined) { this.lavaClient = config ? new LavaClient(config) : undefined }
   private readonly notify: (notice: AutopayNotice) => void
   private renewing = false
 
@@ -294,8 +299,8 @@ export class PaymentStore {
    */
   constructor(db: DatabaseSync, config: PaymentConfig | undefined, options: { now?: () => number; fetch?: Fetch; lava?: LavaClient; notify?: (notice: AutopayNotice) => void } = {}) {
     this.db = db
-    this.config = config
-    this.lava = options.lava
+    this.yooConfig = config
+    this.lavaClient = options.lava
     this.now = options.now ?? Date.now
     this.fetch = options.fetch ?? fetch
     this.notify = options.notify ?? (() => {})
