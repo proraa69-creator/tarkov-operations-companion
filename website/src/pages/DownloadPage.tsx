@@ -1,7 +1,6 @@
 import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
 import { Platforms } from '../components/Platforms'
-import { Reveal } from '../components/Reveal'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 
@@ -40,11 +39,6 @@ export function DownloadPage() {
             <Notice tone="info" title="Ссылка скоро появится">Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.</Notice>
           )}
         </div>
-
-        <Reveal className="download-tips">
-          <Notice tone="warn" title="Если Windows SmartScreen предупредит">Нажмите «Подробнее» → «Выполнить в любом случае».</Notice>
-          <Notice tone="info" title="Окно поверх игры">В настройках игры выберите режим экрана «Оконный без рамки» (Borderless).</Notice>
-        </Reveal>
       </div>
     </div>
   )

@@ -63,3 +63,4 @@
 .price-chart-note { font-size: 12px; }
 @keyframes price-chart-pulse { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .price-chart-skeleton { animation: none; } }
+.economy-error-detail { display: block; margin-top: 4px; overflow-wrap: anywhere; }

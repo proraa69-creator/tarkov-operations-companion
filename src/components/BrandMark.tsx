@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import iconUrl from '../assets/brand-icon.webp'
 import '../styles/brand.css'
 
 // «Raid OS» monogram (build/brand/mark.svg): an R whose leg is olive. The R takes the tile's text colour from the
@@ -18,7 +19,12 @@ export function BrandMonogram() {
   )
 }
 
-/** Sidebar logo: R tile + «RAID OS» + «полевой компаньон». */
+/** The app's emblem: the Raid OS icon of the exe and the desktop shortcut (build/icon.png), the same in every theme. */
+export function BrandEmblem() {
+  return <div className="brand-mark brand-mark-image"><img src={iconUrl} alt="" draggable={false} /></div>
+}
+
+/** Sidebar logo: emblem + «RAID OS» + «полевой компаньон». */
 export function BrandName({ locale }: { locale: string }) {
   return (
     <div className="brand-name">

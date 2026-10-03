@@ -628,6 +628,10 @@
   letter-spacing: .02em; line-height: 1.35; text-align: center; text-transform: none;
 }
 :root[data-theme="telnyashka"][lang="en"] .sidebar > .nav-label:last-of-type::after { content: 'A bottle of vodka — then the raid.'; left: 14px; width: 202px; font-size: 11px; letter-spacing: 0; }
+/* only where they fit under the menu (TelnyashkaTable.tsx measures it) */
+:root[data-theme="telnyashka"] .sidebar:is(.tel-room-table, .tel-room-none)::before,
+:root[data-theme="telnyashka"] .sidebar:is(.tel-room-table, .tel-room-none) > .nav-list:last-of-type::after,
+:root[data-theme="telnyashka"] .sidebar.tel-room-none > .nav-label:last-of-type::after { display: none; }
 @media (max-height: 900px) {
   :root[data-theme="telnyashka"] .sidebar::before, :root[data-theme="telnyashka"] .sidebar > .nav-list:last-of-type::after { display: none; }
 }

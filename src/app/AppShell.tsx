@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
-import { BrandMonogram, BrandName } from '../components/BrandMark'
+import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
 import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -190,7 +190,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className={`app-shell${mobile ? ' is-mobile' : ''}`}>
       {!mobile && <aside className="sidebar">
         <NavLink to="/" className="brand">
-          <div className="brand-mark"><BrandMonogram /></div>
+          <BrandEmblem />
           <BrandName locale={locale} />
         </NavLink>
         <div className="nav-label">{uiText(locale === 'en' ? 'OPERATIONS' : 'ОПЕРАЦИИ')}</div>
@@ -219,7 +219,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {mobile ? (
         <header className="topbar mobile-topbar">
-          <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><div className="brand-mark"><BrandMonogram /></div></NavLink>
+          <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
           <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
           <ThemeButton />

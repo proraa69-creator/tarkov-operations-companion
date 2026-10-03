@@ -47,6 +47,12 @@ export function ProfitCell({ profit, percent, perHour }: { profit: number | null
 export function EconomyStatus({ supported, isLoading, error }: { supported: boolean; isLoading: boolean; error: unknown }) {
   if (!supported) return <div className="panel import-warning"><AlertTriangle size={17} />{uiText('Для Сезона tarkov.dev не публикует отдельные цены бартеров и крафтов. Цены PvP здесь не подставляются, чтобы не смешивать режимы — переключитесь на PvP или PvE.')}</div>
   if (isLoading) return <div className="panel economy-loading"><LoaderCircle size={17} className="spin" />{uiText('Загружаем цены, бартеры и крафты с tarkov.dev…')}</div>
-  if (error) return <div className="panel import-warning"><AlertTriangle size={17} />{uiText('tarkov.dev сейчас недоступен, а сохранённых данных для этого режима нет. Попробуйте обновить позже.')}</div>
+  if (error) return <div className="panel import-warning"><AlertTriangle size={17} /><span>{uiText('tarkov.dev сейчас недоступен, а сохранённых данных для этого режима нет. Попробуйте обновить позже.')}{errorText(error) && <small className="dim economy-error-detail">{uiText('Причина')}: {errorText(error)}</small>}</span></div>
   return null
+}
+
+/** The reason under the warning, so a failure can be told apart (network, timeout, an answer from tarkov.dev). */
+function errorText(error: unknown): string {
+  const text = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  return text.replace(/^Error invoking remote method '[^']+': (Error: )?/, '').slice(0, 300)
 }

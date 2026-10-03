@@ -7,3 +7,7 @@
 :root[data-theme="blackmc"] .brand-mark { color: #ecede8; }
 :root:is([data-theme="perforated"], [data-theme="gear"], [data-theme="telnyashka"]) { --brand-leg: currentColor; }
 .brand-name .brand-sub { white-space: nowrap; }
+/* The emblem picture (BrandEmblem) replaces every theme's tile: no frame, background or engraving of its own. */
+:root:root .brand-mark.brand-mark-image { padding: 0; border: 0; outline: 0; background: none; box-shadow: none; overflow: hidden; border-radius: 9px; }
+:root:root .brand-mark.brand-mark-image::before, :root:root .brand-mark.brand-mark-image::after { display: none; }
+.brand-mark.brand-mark-image img { width: 100%; height: 100%; display: block; object-fit: cover; user-select: none; }

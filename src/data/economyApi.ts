@@ -96,15 +96,22 @@ export interface PricePoint { timestamp: number; price: number; priceMin?: numbe
 const VENDOR_FIELDS = `priceRUB vendor { name normalizedName ... on TraderOffer { trader { id } minTraderLevel buyLimit taskUnlock { id name } } }`
 const COUNT_FIELDS = 'item { id } count'
 
-/** One request for everything the barter and craft pages need. Enum values are inlined (no variable types). */
-export function economyQuery(gameMode: 'regular' | 'pve', lang: AppLocale): string {
-  return `{
+/**
+ * The barter and craft pages need prices, barters and crafts. They are three separate requests (`economyQueries`):
+ * the single combined one — every item with every offer plus all barters and crafts — was too heavy for tarkov.dev
+ * and failed as a whole («tarkov.dev недоступен» on both pages). Enum values are inlined (no variable types).
+ */
+export function economyQueries(gameMode: 'regular' | 'pve', lang: AppLocale): { prices: string; barters: string; crafts: string } {
+  return {
+    prices: `{
   fleaMarket(gameMode: ${gameMode}) { enabled sellOfferFeeRate sellRequirementFeeRate }
   items(gameMode: ${gameMode}, lang: ${lang}) {
     id name shortName iconLink basePrice avg24hPrice low24hPrice lastLowPrice types
     buyFor { ${VENDOR_FIELDS} }
     sellFor { ${VENDOR_FIELDS} }
   }
+}`,
+    barters: `{
   barters(gameMode: ${gameMode}, lang: ${lang}) {
     id level buyLimit
     trader { id name normalizedName }
@@ -112,6 +119,8 @@ export function economyQuery(gameMode: 'regular' | 'pve', lang: AppLocale): stri
     requiredItems { ${COUNT_FIELDS} }
     rewardItems { ${COUNT_FIELDS} }
   }
+}`,
+    crafts: `{
   crafts(gameMode: ${gameMode}, lang: ${lang}) {
     id level duration
     station { id name normalizedName }
@@ -119,7 +128,13 @@ export function economyQuery(gameMode: 'regular' | 'pve', lang: AppLocale): stri
     requiredItems { ${COUNT_FIELDS} }
     rewardItems { ${COUNT_FIELDS} }
   }
-}`
+}`,
+  }
+}
+
+/** All three requests as one text (tests, schema checks). */
+export function economyQuery(gameMode: 'regular' | 'pve', lang: AppLocale): string {
+  return Object.values(economyQueries(gameMode, lang)).join('\n')
 }
 
 export function priceHistoryQuery(itemId: string, gameMode: 'regular' | 'pve', days = 30): string {
@@ -249,7 +264,13 @@ export async function fetchEconomySnapshot(mode: RaidMode, locale: AppLocale): P
   if (!gameMode) throw new SeasonPricesUnavailable()
   const cacheKey = `${CACHE_PREFIX}-${mode}-${locale}`
   try {
-    const snapshot = parseEconomyResponse(await graphql(economyQuery(gameMode, locale)), mode)
+    const queries = economyQueries(gameMode, locale)
+    // Prices are required; barters or crafts alone may fail (that page then says so) without hiding the other one.
+    const [prices, barters, crafts] = await Promise.allSettled([graphql(queries.prices), graphql(queries.barters), graphql(queries.crafts)])
+    if (prices.status === 'rejected') throw prices.reason
+    if (barters.status === 'rejected' && crafts.status === 'rejected') throw barters.reason
+    const data = { ...asRecord(prices.value), ...(barters.status === 'fulfilled' ? asRecord(barters.value) : {}), ...(crafts.status === 'fulfilled' ? asRecord(crafts.value) : {}) }
+    const snapshot = parseEconomyResponse(data, mode)
     if (!snapshot.barters.length && !snapshot.crafts.length) throw new Error('tarkov.dev: нет бартеров и крафтов')
     await writeGameCache(cacheKey, snapshot, ECONOMY_CACHE_MS)
     return { ...snapshot, source: 'live' }

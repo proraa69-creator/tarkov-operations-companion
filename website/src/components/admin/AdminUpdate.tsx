@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleX, DownloadCloud, History, LoaderCircle, PackageCheck, RefreshCw, RotateCcw, ShieldCheck, Undo2 } from 'lucide-react'
+import { CheckCircle2, CircleX, DownloadCloud, History, LoaderCircle, PackageCheck, RefreshCw, RotateCcw, ShieldCheck, Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
@@ -25,16 +25,35 @@ const when = (iso?: string) => (iso ? dateTime.format(new Date(iso)) : '—')
 const megabytes = (bytes: number) => `${(Math.round(bytes / 1024 / 102.4) / 10).toLocaleString('ru-RU')} МБ`
 const BUSY_PHASES = new Set(['checking', 'downloading', 'verifying', 'installing'])
 
-function lampOf(status: SelfUpdateStatus): { tone: 'green' | 'amber' | 'red' | 'grey'; title: string; text: string } {
+type Lamp = { tone: 'green' | 'amber' | 'red' | 'grey'; title: string; text: string; key?: string }
+
+/** A failure the owner closed with ✕ stays closed in this browser (the key names that one failure). */
+const DISMISSED_KEY = 'raidos-admin-update-dismissed'
+const readDismissed = () => { try { return window.localStorage.getItem(DISMISSED_KEY) ?? '' } catch { return '' } }
+const writeDismissed = (key: string) => { try { window.localStorage.setItem(DISMISSED_KEY, key) } catch { /* private window */ } }
+
+function lampOf(status: SelfUpdateStatus, dismissed = ''): Lamp {
+  const lamp = failureLamp(status)
+  return lamp && lamp.key !== dismissed ? lamp : normalLamp(status)
+}
+
+/** A failed or rolled-back update, until a newer build is installed (then it is history only) or the owner closes it. */
+function failureLamp(status: SelfUpdateStatus): Lamp | null {
+  if (status.restart || status.unsupported || !status.enabled) return null
+  const updater = status.updater
+  if (updater.phase === 'error') return { tone: 'red', title: PHASE.error, text: updater.error ?? updater.message, key: `error:${updater.checkedAt ?? ''}:${updater.error ?? ''}` }
+  const recent = status.history[0]
+  if (recent && recent.result !== 'ok' && status.current.build <= recent.from.build && Date.now() - Date.parse(recent.at) < 24 * 3600_000) {
+    return { tone: 'red', title: recent.result === 'rolled-back' ? 'Последнее обновление откачено' : 'Последнее обновление не удалось', text: recent.reason ?? '', key: `history:${recent.at}` }
+  }
+  return null
+}
+
+function normalLamp(status: SelfUpdateStatus): Lamp {
   const updater = status.updater
   if (status.restart) return { tone: 'amber', title: RESTART_PHASE[status.restart.phase] ?? 'Перезапуск…', text: `${status.restart.kind === 'update' ? 'Обновление' : 'Откат'}: ${status.restart.from.version} → ${status.restart.to.version}. Сайт может не открываться около минуты.` }
   if (status.unsupported) return { tone: 'grey', title: 'Автообновление здесь недоступно', text: status.unsupported }
   if (!status.enabled) return { tone: 'grey', title: PHASE.off, text: 'Включите его в приложении на ноутбуке: «Сервер» → «Автообновление сервера».' }
-  const recent = status.history[0]
-  if (updater.phase === 'error') return { tone: 'red', title: PHASE.error, text: updater.error ?? updater.message }
-  if (recent && recent.result !== 'ok' && Date.now() - Date.parse(recent.at) < 24 * 3600_000) {
-    return { tone: 'red', title: recent.result === 'rolled-back' ? 'Последнее обновление откачено' : 'Последнее обновление не удалось', text: recent.reason ?? '' }
-  }
   if (updater.phase === 'ready' && updater.waitingForInstall) return { tone: 'amber', title: READY_TEXT, text: `${status.ready ? `Сборка ${build(status.ready)}. ` : ''}Нажмите «Установить сейчас», когда удобно: сервер перезапустится примерно на минуту.` }
   if (BUSY_PHASES.has(updater.phase) || updater.phase === 'ready') return { tone: 'amber', title: PHASE[updater.phase], text: updater.waitingForWindow ? 'Установка ночью, 03:00–06:00 (время ноутбука).' : updater.message }
   return { tone: 'green', title: PHASE.idle, text: `Сервер проверяет репозиторий релизов каждые 15 минут. Последняя проверка: ${when(updater.checkedAt)}.` }
@@ -134,7 +153,9 @@ export function AdminUpdate() {
 }
 
 function StatusStrip({ status, loading, onRefresh }: { status: SelfUpdateStatus; loading: boolean; onRefresh: () => void }) {
-  const lamp = lampOf(status)
+  const [dismissed, setDismissed] = useState(readDismissed)
+  const lamp = lampOf(status, dismissed)
+  const close = () => { if (lamp.key) { writeDismissed(lamp.key); setDismissed(lamp.key) } }
   return (
     <div className={`guard-strip is-${lamp.tone === 'grey' ? 'grey' : lamp.tone}`} role="status">
       <span className={`guard-lamp is-${lamp.tone}`} aria-hidden="true" />
@@ -145,6 +166,7 @@ function StatusStrip({ status, loading, onRefresh }: { status: SelfUpdateStatus;
       <button type="button" className="button small ghost" onClick={onRefresh} disabled={loading}>
         <RefreshCw aria-hidden="true" className={loading ? 'spinner' : undefined} />Обновить
       </button>
+      {lamp.key && <button type="button" className="button small ghost guard-strip-close" onClick={close} aria-label="Скрыть сообщение" title="Скрыть сообщение"><X aria-hidden="true" /></button>}
     </div>
   )
 }

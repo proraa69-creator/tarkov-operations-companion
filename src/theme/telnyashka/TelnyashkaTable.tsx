@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import baseUrl from '../../assets/textures/telnyashka/table/base.webp'
 import sausageUrl from '../../assets/textures/telnyashka/table/sausage.webp'
@@ -8,6 +8,8 @@ import slice3Url from '../../assets/textures/telnyashka/table/slice-3.webp'
 import slice4Url from '../../assets/textures/telnyashka/table/slice-4.webp'
 import slice5Url from '../../assets/textures/telnyashka/table/slice-5.webp'
 import { TABLE_LAYOUT as L } from './tableLayers'
+
+const TABLE_LAYOUT_HEIGHT = L.height
 import { useTelnyashkaActive } from './useTelnyashkaActive'
 import './table.css'
 
@@ -21,8 +23,54 @@ import './table.css'
  */
 export function TelnyashkaTable() {
   const active = useTelnyashkaActive()
-  if (!active) return null
+  const room = useSidebarRoom(active)
+  if (!active || room === 'none') return null
   return createPortal(<TableScene />, document.body)
+}
+
+/** Where the decorations sit, measured from the window bottom (table.css, themes.css «telnyashka»). */
+const TABLE_BOTTOM = 148
+const PHOTOS_TOP_FROM_BOTTOM = 290 + 120
+const GAP = 8
+type SidebarRoom = 'all' | 'table' | 'none'
+
+/** Pure: which decorations fit under the last menu item without covering it. */
+function sidebarRoom(navBottom: number, windowHeight: number, tableHeight = TABLE_LAYOUT_HEIGHT): SidebarRoom {
+  if (navBottom + GAP > windowHeight - TABLE_BOTTOM - tableHeight) return 'none'
+  if (navBottom + GAP > windowHeight - PHOTOS_TOP_FROM_BOTTOM) return 'table'
+  return 'all'
+}
+
+/**
+ * The still life, the tagline and the instant photos are placed against the window bottom; the menu has grown, so on
+ * a 1080p window they used to cover «Торговцы», «Рейтинг ценности» and «Бартеры». They are shown only where they fit:
+ * the sidebar gets `tel-room-table` (no photos) or `tel-room-none` (nothing), re-measured on resize.
+ */
+function useSidebarRoom(active: boolean): SidebarRoom {
+  const [room, setRoom] = useState<SidebarRoom>('none')
+  useEffect(() => {
+    if (!active) return
+    const sidebar = document.querySelector<HTMLElement>('.sidebar')
+    if (!sidebar) return
+    const measure = () => {
+      const lists = sidebar.querySelectorAll<HTMLElement>(':scope > .nav-list')
+      const last = lists[lists.length - 1]
+      const next = last ? sidebarRoom(last.getBoundingClientRect().bottom, window.innerHeight) : 'none'
+      sidebar.classList.toggle('tel-room-table', next === 'table')
+      sidebar.classList.toggle('tel-room-none', next === 'none')
+      setRoom(next)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(sidebar)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+      sidebar.classList.remove('tel-room-table', 'tel-room-none')
+    }
+  }, [active])
+  return room
 }
 
 const SLICE_URLS = [slice1Url, slice2Url, slice3Url, slice4Url, slice5Url]
