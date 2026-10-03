@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, statSync } from 'node:fs'
 import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
@@ -83,7 +83,7 @@ const helperLogFile = () => join(stateDir(), 'update-helper.log')
 const helperPidFile = () => join(stateDir(), 'helper.pid')
 const appPidFile = () => join(stateDir(), 'app.pid')
 /** How long the app waits for the helper to write helper.pid before it cancels the restart and stays up. */
-const HELPER_START_TIMEOUT_MS = 20_000
+const HELPER_START_TIMEOUT_MS = 15_000
 /** The helper writes a log line at least every ~15 s while it works; older than this and no pid = gone. */
 const HELPER_SILENT_MS = 90_000
 
@@ -402,31 +402,51 @@ async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to:
   const pending: PendingRestart = { id: `${now}`, kind: plan.kind, from: plan.from, to: plan.to, startedAt: new Date(now).toISOString(), deadlineAt: new Date(now + HEALTH_RULES.deadlineMs + 60_000).toISOString(), helper: 2 }
   await writeJson(pendingFile(), pending)
   await writeFile(helperFile(), `\uFEFF${helperScript()}`, 'utf8')
+  // The helper gets this app's whole environment (a trimmed copy made PowerShell's own start fail silently on one laptop:
+  // update-helper.log had no [launcher] or [helper] line at all) plus the paths it needs.
   const env: Record<string, string> = {}
-  for (const key of ['SystemRoot', 'windir', 'PATH', 'Path', 'TEMP', 'TMP', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'ComSpec', 'PSModulePath', 'ProgramFiles', 'ProgramData']) {
-    if (process.env[key]) env[key] = process.env[key]!
-  }
+  for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string' && !/^ELECTRON_RUN_AS_NODE$/i.test(key)) env[key] = value
   const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
   Object.assign(env, helperEnvironment({
     id: pending.id, exe: plan.exe, next: plan.next, previous: previousExe, clientDir: plan.withClient ? clientDir : '', clientPrevious: plan.withClient ? previousClient : '',
     resultFile: resultFile(), confirmFile: confirmFile(), pendingFile: pendingFile(), logFile: helperLogFile(), helperPidFile: helperPidFile(), appPidFile: appPidFile(),
     appExe: process.execPath, pid: process.pid, expectedBuild: plan.to.build, args: process.argv,
   }), { RAIDOS_POWERSHELL: powershell, RAIDOS_HELPER: helperFile() })
-  await appendHelperLog(`${plan.kind} ${plan.from.version} (${plan.from.build}) -> ${plan.to.version} (${plan.to.build}), restart ${pending.id}: starting the helper; app pid ${process.pid} (${process.execPath}), wrapper ${plan.exe}`)
-  let launchError = ''
-  try {
-    const child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())], { detached: true, windowsHide: true, stdio: 'ignore', env })
-    child.on('error', (error) => { launchError ||= error.message })
-    child.on('exit', (code) => { if (code) launchError ||= `launcher exit code ${code}` })
-    child.unref()
-  } catch (error) {
-    launchError = error instanceof Error ? error.message : String(error)
+  await appendHelperLog(`${plan.kind} ${plan.from.version} (${plan.from.build}) -> ${plan.to.version} (${plan.to.build}), restart ${pending.id}: starting the helper; app pid ${process.pid} (${process.execPath}), wrapper ${plan.exe}; PowerShell ${existsSync(powershell) ? 'found' : 'NOT FOUND'} at ${powershell}`)
+  // Attempt 1: the helper directly (what worked in the first versions); attempt 2: through the launcher (its own process
+  // tree). Whatever PowerShell prints on stdout/stderr goes to update-helper.out.log and is copied into the log.
+  const outFile = helperLogFile().replace(/\.log$/, '.out.log')
+  const attempts: Array<{ name: string; args: string[] }> = [
+    { name: 'direct', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helperFile()] },
+    { name: 'launcher', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())] },
+  ]
+  let started = false
+  let lastError = ''
+  for (const attempt of attempts) {
+    let launchError = ''
+    let outFd = -1
+    try {
+      outFd = openSync(outFile, 'a')
+      const child = spawn(powershell, attempt.args, { detached: true, windowsHide: true, stdio: ['ignore', outFd, outFd], env })
+      child.on('error', (error) => { launchError ||= error.message })
+      child.on('exit', (code) => { if (code) launchError ||= `exit code ${code}` })
+      await appendHelperLog(`attempt "${attempt.name}": PowerShell spawned${child.pid ? `, pid ${child.pid}` : ' (no pid)'}`)
+      child.unref()
+    } catch (error) {
+      launchError = error instanceof Error ? error.message : String(error)
+    } finally {
+      if (outFd >= 0) try { closeSync(outFd) } catch { /* nothing to close */ }
+    }
+    if (await waitForHelper(pending.id, () => launchError)) { started = true; break }
+    lastError = launchError
+    const printed = (await readFile(outFile, 'utf8').catch(() => '')).replace(/\0/g, '').trim().slice(-1500)
+    await appendHelperLog(`attempt "${attempt.name}" failed${launchError ? ` (${launchError})` : ''}${printed ? `; PowerShell printed: ${printed}` : '; PowerShell printed nothing'}`)
   }
-  if (!(await waitForHelper(pending.id, () => launchError))) {
+  if (!started) {
     await rm(pendingFile(), { force: true })
-    await appendHelperLog(`the helper did not start within ${HELPER_START_TIMEOUT_MS / 1000} s${launchError ? ` (${launchError})` : ''}: restart cancelled, this copy keeps running`)
+    await appendHelperLog(`the helper did not start: restart cancelled, this copy keeps running`)
     await record(pending, { phase: 'failed', reason: 'helper-not-started', at: new Date().toISOString() }, plan.from)
-    throw new Error(HEALTH_REASON_TEXT['helper-not-started'])
+    throw new Error(HEALTH_REASON_TEXT['helper-not-started'] + (lastError ? ` (${lastError})` : ''))
   }
   await appendHelperLog('the helper runs; quitting')
   hooks.journal('info', `${plan.kind === 'update' ? 'Автообновление' : 'Откат'}: перезапуск на ${plan.to.version} (${plan.to.build}); проверка здоровья до 2 минут, при сбое — возврат на ${plan.from.version}. Журнал помощника: self-update\\update-helper.log.`)
