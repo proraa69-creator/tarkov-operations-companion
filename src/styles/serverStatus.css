@@ -12,6 +12,17 @@
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
   overscroll-behavior: contain; scrollbar-gutter: stable; border-radius: inherit;
 }
+/* Never wider than the popover: a grid track or flex item defaults to its min-content width, so one long unbroken
+ * line (an error with a Windows path, a build number, a URL) used to widen every row and push the buttons off the
+ * right edge. Tracks and text columns may shrink, long words break, button groups wrap. */
+.server-quick-scroll .stack { grid-template-columns: minmax(0, 1fr); }
+.server-quick-scroll :is(.stack, .owner-panel, .owner-form) > * { min-width: 0; }
+.server-quick-scroll :is(.setting-row, .owner-panel-head) > span:first-child { flex: 1 1 auto; min-width: 0; }
+.server-quick-scroll :is(.setting-row, .owner-panel-head) > :not(:first-child) { flex: 0 1 auto; max-width: 100%; }
+.server-quick-scroll :is(small, strong, code, pre, a) { overflow-wrap: anywhere; }
+.server-quick-scroll :is(.owner-panel-head, .owner-actions) { flex-wrap: wrap; }
+.server-quick-scroll .owner-form label { grid-template-columns: minmax(0, 150px) minmax(0, 1fr); }
+.server-quick-scroll .owner-form select.input { max-width: 100%; min-width: 0; }
 /* Alcantara draws the stitch with an absolute ::after; it sits on the non-scrolling frame and stays put. */
 :root[data-theme="alcantara"] .server-quick > .server-quick-panel.panel .server-quick-scroll { margin: 4px; }
 
