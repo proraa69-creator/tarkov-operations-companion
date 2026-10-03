@@ -51,7 +51,8 @@ const JSON_PRICE_ENDPOINTS = new Set(['items', 'maps', 'barters', 'crafts'])
 export const MAX_QUERY_LENGTH = 20_000
 export const MAX_VARIABLES_LENGTH = 4_000
 export const DEFAULT_MAX_RESPONSE_BYTES = 48 * 1024 * 1024
-export const DEFAULT_MAX_CACHE_BYTES = 384 * 1024 * 1024
+/** The answer cache is held in memory (Cyrillic text takes about 2 bytes per character there): 384 MB filled the laptop's RAM up to 800 MB and made the guardian restart the server (auto-report #4). */
+export const DEFAULT_MAX_CACHE_BYTES = 96 * 1024 * 1024
 
 export class GatewayError extends Error {
   readonly status: number
@@ -274,6 +275,13 @@ export class DataGateway {
     const previous = this.cache.get(key)
     if (previous) { this.cacheBytes -= previous.bytes; this.cache.delete(key) }
     if (bytes > this.maxCacheBytes) return
+    // Expired answers go first: they would only be refetched anyway.
+    const now = this.now()
+    for (const [oldKey, value] of this.cache) {
+      if (value.expires > now) continue
+      this.cache.delete(oldKey)
+      this.cacheBytes -= value.bytes
+    }
     while (this.cacheBytes + bytes > this.maxCacheBytes && this.cache.size) {
       const [oldest, value] = this.cache.entries().next().value as [string, Entry]
       this.cache.delete(oldest)
