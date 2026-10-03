@@ -65,7 +65,10 @@ export interface MapLayerPlan {
    * tarkov.dev's top-down render leaves them black.
    */
   underlay?: boolean
+  /** No longer drawn (04.10.2026): it made the main level of the satellite view look like the scheme. Always false. */
   groundInteriors?: boolean
+  /** Digital view, a floor the scheme has no drawing of: the scheme stays as it is (never the render tiles). */
+  floorWithoutScheme?: boolean
 }
 
 export function planMapLayers(map: GameMap, preferred: MapView, floor: string): MapLayerPlan {
@@ -78,14 +81,17 @@ export function planMapLayers(map: GameMap, preferred: MapView, floor: string): 
   if (view === 'satellite') {
     const floorSvg = !floorTileUrl && svgFloor ? 'floor-only' as const : undefined
     const scheme = Boolean(tileUrl && imageUrl)
+    // «Спутник» is the render on every level: the floor's own render tiles, or (a floor only the scheme has) its plan
+    // over the dimmed render. The scheme under the tiles only fills gaps where a tile is empty.
     return {
       view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg, dimBase: Boolean(floorTileUrl || floorSvg),
-      underlay: scheme, groundInteriors: scheme && floor === baseFloor,
+      underlay: scheme, groundInteriors: false,
     }
   }
+  // «Схема» is the scheme on every level: the floor's group when the SVG has it, otherwise the scheme unchanged —
+  // never the render tiles (they used to show through on Customs 4th floor and Reserve's upper floors).
   const floorSvg = svgFloor ? 'with-terrain' as const : undefined
-  const floorTiles = floorSvg ? undefined : floorTileUrl
-  return { view, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl: floorTiles, floorSvg, dimBase: Boolean(floorTiles) }
+  return { view, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl: undefined, floorSvg, dimBase: false, floorWithoutScheme: Boolean(floorLayer) && !floorSvg }
 }
 
 /**

@@ -749,6 +749,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                 {uiText(entry)}
               </button>
             )))}
+            {plan.floorWithoutScheme && <small className="dim map-floor-note">{uiText('У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».')}</small>}
           </div>
         ))}
         {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (

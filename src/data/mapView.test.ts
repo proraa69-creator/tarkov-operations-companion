@@ -49,19 +49,19 @@ describe('map view preference', () => {
 describe('map layer plan', () => {
   it('satellite: base tiles, own floor tiles or an SVG floor plan over the render', () => {
     const map = customs()
-    expect(planMapLayers(map, 'satellite', 'Основной')).toMatchObject({ view: 'satellite', tileUrl: TILE, floorTileUrl: undefined, floorSvg: undefined, dimBase: false, underlay: true, groundInteriors: true })
+    expect(planMapLayers(map, 'satellite', 'Основной')).toMatchObject({ view: 'satellite', tileUrl: TILE, floorTileUrl: undefined, floorSvg: undefined, dimBase: false, underlay: true, groundInteriors: false })
     expect(planMapLayers(map, 'satellite', '2 этаж')).toMatchObject({ underlay: true, groundInteriors: false })
     expect(planMapLayers(map, 'digital', 'Основной').groundInteriors).toBeFalsy()
     expect(planMapLayers(map, 'satellite', '2 этаж')).toMatchObject({ floorTileUrl: expect.stringContaining('/2nd/'), floorSvg: undefined, dimBase: true })
     expect(planMapLayers(map, 'satellite', 'Подземный')).toMatchObject({ floorTileUrl: undefined, floorSvg: 'floor-only', dimBase: true })
   })
 
-  it('digital: the SVG with the floor group, or floor tiles when the SVG has no such floor', () => {
+  it('digital: the SVG with the floor group, or the scheme unchanged when the SVG has no such floor (never tiles)', () => {
     const map = customs()
     expect(planMapLayers(map, 'digital', 'Основной')).toMatchObject({ view: 'digital', imageUrl: SVG, floorSvg: undefined, dimBase: false })
     expect(planMapLayers(map, 'digital', 'Основной').tileUrl).toBeUndefined()
     expect(planMapLayers(map, 'digital', '2 этаж')).toMatchObject({ floorSvg: 'with-terrain', floorTileUrl: undefined, dimBase: false })
-    expect(planMapLayers(map, 'digital', '4 этаж')).toMatchObject({ floorSvg: undefined, floorTileUrl: expect.stringContaining('/4th/'), dimBase: true })
+    expect(planMapLayers(map, 'digital', '4 этаж')).toMatchObject({ floorSvg: undefined, floorTileUrl: undefined, dimBase: false, floorWithoutScheme: true })
   })
 
   it('places the SVG by svgBounds when tarkov.dev gives them (Reserve)', () => {

@@ -7,7 +7,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'], ['Контейнер или ящик с добычей.', 'Loot container or crate.'],
   ['Точка свободного лута из данных Tarkov.dev.', 'Loose loot spot from Tarkov.dev data.'],
-  ['Запертая дверь', 'Locked door'], ['Двери', 'Doors'], ['Станковое оружие', 'Mounted weapons'], ['Требуется ключ.', 'Key required.'], ['Также необходимо питание.', 'Power is also required.'],
+  ['Запертая дверь', 'Locked door'], ['Двери', 'Doors'], ['У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».', 'This floor has no scheme of its own: the general scheme and the floor markers are shown. The floor plan is in «Satellite».'], ['Станковое оружие', 'Mounted weapons'], ['Требуется ключ.', 'Key required.'], ['Также необходимо питание.', 'Power is also required.'],
   ['Стационарное оружие', 'Stationary weapon'], ['Стационарное вооружение на локации.', 'Stationary weapon on the location.'],
   ['Зона выполнения задания.', 'Task objective zone.'], ['Квестовый предмет.', 'Quest item.'], ['место предмета', 'item location'],
   ['Выход ЧВК.', 'PMC extract.'], ['Выход Диких.', 'Scav extract.'], ['Совместный или общий выход.', 'Co-op or shared extract.'],
