@@ -148,7 +148,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const phones = options.phones ?? new PhoneAuthService(accounts)
   app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
-  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails, payments))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).

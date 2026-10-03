@@ -28,7 +28,44 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
-import { LavaError, lavaWebhookAuthorized, parseLavaEvent, type LavaClient, type LavaEvent, type LavaPrices } from './lavaTop.js'
+import { LavaError, lavaAuthSeen, lavaWebhookAuth, parseLavaEvent, type LavaClient, type LavaEvent, type LavaPrices } from './lavaTop.js'
+
+/** Results kept in lava_webhook_log (what the owner sees in «События Lava.top»). */
+export type LavaWebhookResult = 'unauthorized' | 'bad-request' | 'ignored' | 'duplicate' | 'not-ours' | 'amount-mismatch' | 'already-applied' | 'paid' | 'failed' | 'error'
+  | 'renewed' | 'renewal-failed' | 'cancelled'
+export type LavaAuthMethod = 'none' | 'api-key' | 'basic'
+/** The marker contract id of the desktop app's «Проверить вебхук» self-test (never a real invoice). */
+export const LAVA_SELFTEST_PREFIX = 'raidos-selftest-'
+export const LAVA_LOG_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
+/** What a webhook call tells the log: filled in while the call is handled. Never keys, headers, e-mails or bodies. */
+interface LavaLogContext {
+  authMethod: LavaAuthMethod
+  eventType?: string
+  contractId?: string
+  gotAmount?: number
+  gotCurrency?: string
+  expectedAmount?: number
+  expectedCurrency?: string
+  paymentId?: string
+  selftest?: boolean
+}
+export interface LavaWebhookLogEntry {
+  id: number
+  at: string
+  lastAt: string
+  count: number
+  result: string
+  eventType?: string
+  /** Last six characters of the contract id. */
+  contract?: string
+  got?: { amount?: number; currency?: string }
+  expected?: { amount?: number; currency?: string }
+  authMethod: LavaAuthMethod
+  /** An amount-mismatch of a first payment that the owner can confirm. */
+  confirmable: boolean
+  confirmedAt?: string
+}
+export interface LavaPendingInvoice { paymentId: string; email: string; plan: PlanId; createdAt: string; ageMinutes: number; contract?: string; expected?: { amount: number; currency: string } }
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export const PLAN_MONTHS: Record<PlanId, number> = { '1m': 1, '3m': 3, '6m': 6, '12m': 12 }
@@ -197,6 +234,23 @@ const SCHEMA = `
     got_amount INTEGER,
     got_currency TEXT,
     received_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS lava_webhook_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    received_at INTEGER NOT NULL,
+    last_at INTEGER NOT NULL,
+    result TEXT NOT NULL,
+    event_type TEXT,
+    contract_tail TEXT,
+    got_amount INTEGER,
+    got_currency TEXT,
+    expected_amount INTEGER,
+    expected_currency TEXT,
+    auth_method TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1,
+    payment_id TEXT,
+    selftest INTEGER NOT NULL DEFAULT 0,
+    confirmed_at INTEGER);
+  CREATE INDEX IF NOT EXISTS lava_webhook_log_at ON lava_webhook_log(received_at);
   CREATE TABLE IF NOT EXISTS streamer_percent_overrides (
     code TEXT PRIMARY KEY,
     percent REAL NOT NULL,
@@ -659,16 +713,153 @@ export class PaymentStore {
    * Each event is applied once (lava_events keeps its key); an error rolls the whole event back for Lava to retry.
    */
   lavaWebhook(headers: { apiKey?: string; authorization?: string }, body: unknown): { status: number; result: string } {
-    if (!this.lava || !lavaWebhookAuthorized(headers, this.lava.config.webhookKey)) return { status: 401, result: 'unauthorized' }
+    const seen = lavaAuthSeen(headers)
+    const ctx: LavaLogContext = { authMethod: seen }
+    let outcome: { status: number; result: string }
+    try {
+      outcome = this.handleLavaWebhook(headers, body, ctx)
+    } catch {
+      // The transaction was rolled back; Lava retries on 500.
+      outcome = { status: 500, result: 'error' }
+    }
+    try { this.logLavaWebhook(outcome.result as LavaWebhookResult, ctx) } catch { /* the log never breaks a payment */ }
+    return outcome
+  }
+
+  private handleLavaWebhook(headers: { apiKey?: string; authorization?: string }, body: unknown, ctx: LavaLogContext): { status: number; result: string } {
+    const matched = this.lava ? lavaWebhookAuth(headers, this.lava.config.webhookKey) : undefined
+    if (!this.lava || !matched) return { status: 401, result: 'unauthorized' }
+    ctx.authMethod = matched
     const event = parseLavaEvent(body)
     if (!event) return { status: 400, result: 'bad-request' }
+    ctx.eventType = event.type.replace(/[^\w.:-]/g, '?').slice(0, 40) || undefined
+    const contract = event.contractId ?? event.parentContractId
+    if (contract) {
+      ctx.contractId = contract
+      ctx.selftest = contract.startsWith(LAVA_SELFTEST_PREFIX)
+    }
+    if (event.amount !== undefined && Math.abs(event.amount) < 1e9) ctx.gotAmount = Math.round(event.amount * 100)
+    if (event.currency && /^[A-Z]{2,8}$/.test(event.currency)) ctx.gotCurrency = event.currency
     if (event.kind === 'unknown' || (!event.contractId && !event.parentContractId)) return { status: 200, result: 'ignored' }
     const key = [event.type, event.eventId ?? '', event.contractId ?? '', event.parentContractId ?? '', /fail/.test(event.kind) ? event.timestamp ?? '' : ''].join('|').slice(0, 400)
     return transaction(this.db, () => {
       const inserted = this.db.prepare('INSERT INTO lava_events (key, received_at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING').run(key, this.now())
       if (!Number(inserted.changes)) return { status: 200, result: 'duplicate' }
-      return { status: 200, result: this.applyLava(event) }
+      return { status: 200, result: this.applyLava(event, ctx) }
     })
+  }
+
+  private lastLavaPrune = 0
+
+  /**
+   * One row per webhook call, whatever its result (lava_webhook_log). Repeated unauthorized calls with the same
+   * credential kind within a minute collapse into one row with a counter (a scanner cannot fill the table). Only the
+   * last six characters of the contract id are kept; keys, headers, e-mails and bodies never are. 90 days retention.
+   */
+  private logLavaWebhook(result: LavaWebhookResult, ctx: LavaLogContext) {
+    const now = this.now()
+    if (now - this.lastLavaPrune > 60 * 60 * 1000) {
+      this.lastLavaPrune = now
+      this.db.prepare('DELETE FROM lava_webhook_log WHERE received_at < ?').run(now - LAVA_LOG_RETENTION_MS)
+    }
+    if (result === 'unauthorized') {
+      const same = this.db.prepare("SELECT id FROM lava_webhook_log WHERE result = 'unauthorized' AND auth_method = ? AND last_at > ? ORDER BY id DESC LIMIT 1").get(ctx.authMethod, now - 60_000) as Row | undefined
+      if (same) {
+        this.db.prepare('UPDATE lava_webhook_log SET count = count + 1, last_at = ? WHERE id = ?').run(now, Number(same.id))
+        return
+      }
+    }
+    this.db.prepare('INSERT INTO lava_webhook_log (received_at, last_at, result, event_type, contract_tail, got_amount, got_currency, expected_amount, expected_currency, auth_method, payment_id, selftest) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(now, now, result, ctx.eventType ?? null, ctx.contractId ? ctx.contractId.slice(-6) : null, ctx.gotAmount ?? null, ctx.gotCurrency ?? null, ctx.expectedAmount ?? null, ctx.expectedCurrency ?? null, ctx.authMethod, ctx.paymentId ?? null, ctx.selftest ? 1 : 0)
+    if (!ctx.selftest && (result === 'unauthorized' || result === 'not-ours' || result === 'error')) {
+      const why = result === 'unauthorized' ? `key not accepted (credential seen: ${ctx.authMethod}${this.lava ? '' : '; Lava.top is not configured on this server'})` : result === 'not-ours' ? 'no invoice of ours for this contract' : 'handler failed, answered 500 for a retry'
+      console.warn(`Lava.top webhook ${result}: ${why}${ctx.eventType ? `, event ${ctx.eventType}` : ''}${ctx.contractId ? `, contract …${ctx.contractId.slice(-6)}` : ''}`)
+    }
+  }
+
+  /** The newest real (not self-test) webhook call, for the desktop app's status line. */
+  lastLavaWebhook(): { at: string; result: string; eventType?: string } | null {
+    const row = this.db.prepare('SELECT last_at, result, event_type FROM lava_webhook_log WHERE selftest = 0 ORDER BY id DESC LIMIT 1').get() as Row | undefined
+    return row ? { at: new Date(Number(row.last_at)).toISOString(), result: String(row.result), ...(row.event_type ? { eventType: String(row.event_type) } : {}) } : null
+  }
+
+  /** The last webhook calls, newest first (owner panel «События Lava.top»); self-tests are left out. */
+  lavaWebhookLog(limit = 100): LavaWebhookLogEntry[] {
+    const rows = this.db.prepare('SELECT * FROM lava_webhook_log WHERE selftest = 0 ORDER BY id DESC LIMIT ?').all(Math.max(1, Math.min(500, limit))) as Row[]
+    const iso = (value: unknown) => new Date(Number(value)).toISOString()
+    const money = (amount: unknown, currency: unknown) => (amount == null && currency == null ? undefined : { ...(amount == null ? {} : { amount: Number(amount) / 100 }), ...(currency == null ? {} : { currency: String(currency) }) })
+    return rows.map((row) => {
+      const got = money(row.got_amount, row.got_currency)
+      const expected = money(row.expected_amount, row.expected_currency)
+      return {
+        id: Number(row.id), at: iso(row.received_at), lastAt: iso(row.last_at), count: Number(row.count), result: String(row.result),
+        ...(row.event_type ? { eventType: String(row.event_type) } : {}), ...(row.contract_tail ? { contract: String(row.contract_tail) } : {}),
+        ...(got ? { got } : {}), ...(expected ? { expected } : {}), authMethod: String(row.auth_method) as LavaAuthMethod,
+        confirmable: row.result === 'amount-mismatch' && row.payment_id != null && row.confirmed_at == null,
+        ...(row.confirmed_at == null ? {} : { confirmedAt: iso(row.confirmed_at) }),
+      }
+    })
+  }
+
+  /** Lava invoices that were started and not confirmed (newest first): the buyer may have left the page, or the webhook never arrived. */
+  lavaPendingInvoices(limit = 50): LavaPendingInvoice[] {
+    const now = this.now()
+    const rows = this.db.prepare("SELECT p.id, p.plan, p.created_at, p.provider_id, p.amount_original, p.currency, a.email FROM payments p JOIN accounts a ON a.id = p.account_id WHERE p.provider = 'lava' AND p.status = 'pending' AND p.recurring_id IS NULL ORDER BY p.created_at DESC, p.rowid DESC LIMIT ?").all(Math.max(1, Math.min(200, limit))) as Row[]
+    return rows.map((row) => ({
+      paymentId: String(row.id), email: String(row.email), plan: row.plan as PlanId, createdAt: new Date(Number(row.created_at)).toISOString(), ageMinutes: Math.max(0, Math.floor((now - Number(row.created_at)) / 60_000)),
+      ...(row.provider_id ? { contract: String(row.provider_id).slice(-6) } : {}),
+      ...(row.amount_original == null ? {} : { expected: { amount: Number(row.amount_original) / 100, currency: String(row.currency ?? '') } }),
+    }))
+  }
+
+  private rubOf(minor: number, currency: string, fallbackMinor?: number, fallbackCurrency?: string): number {
+    const rate = this.lava!.config.rubRate
+    const config = this.lava!.config.currency
+    if (currency === 'RUB') return minor
+    if (currency === config) return Math.round(minor * rate)
+    // A currency we have no rate for: count the invoice's own (expected) amount, else nothing.
+    return fallbackMinor !== undefined && fallbackCurrency === config ? Math.round(fallbackMinor * rate) : 0
+  }
+
+  /**
+   * The owner's «Подтвердить и выдать подписку» for an amount-mismatch row of a FIRST payment: the owner has checked in
+   * the Lava cabinet that the payment is genuine. Grants exactly the plan stored with our invoice, once: the payment is
+   * marked succeeded with the amount the webhook reported, the same way a matching webhook would. Idempotent (a second
+   * call, or a payment that was applied meanwhile, grants nothing and answers `already`). Call it inside a transaction
+   * together with the audit entry (AdminStore.confirmLavaMismatch).
+   */
+  confirmLavaMismatch(logId: number): { already: boolean; paymentId: string; accountId: string; plan: PlanId; amount: number; currency: string } {
+    const log = this.db.prepare('SELECT * FROM lava_webhook_log WHERE id = ? AND selftest = 0').get(logId) as Row | undefined
+    if (!log || log.result !== 'amount-mismatch' || log.payment_id == null) throw new PaymentError(404, 'Не найдено')
+    const payment = this.db.prepare("SELECT * FROM payments WHERE id = ? AND provider = 'lava'").get(String(log.payment_id)) as Row | undefined
+    if (!payment) throw new PaymentError(404, 'Не найдено')
+    const plan = payment.plan as PlanId
+    const view = (already: boolean, amount: number, currency: string) => ({ already, paymentId: String(payment.id), accountId: String(payment.account_id), plan, amount, currency })
+    if (log.confirmed_at != null || payment.status !== 'pending') {
+      const amount = payment.amount_original == null ? 0 : Number(payment.amount_original)
+      return view(true, amount, String(payment.currency ?? ''))
+    }
+    // The amount the webhook reported (the owner has seen it in the list); without one there is nothing to record.
+    if (log.got_amount == null) throw new PaymentError(409, 'В уведомлении Lava.top не было суммы: выдайте подписку вручную в карточке пользователя')
+    const minor = Number(log.got_amount)
+    const currency = String(log.got_currency ?? log.expected_currency ?? payment.currency ?? this.lava!.config.currency)
+    const expectedMinor = log.expected_amount == null ? undefined : Number(log.expected_amount)
+    this.markSucceeded(payment, this.rubOf(minor, currency, expectedMinor, log.expected_currency == null ? undefined : String(log.expected_currency)), { amount: minor, currency })
+    this.finishLavaFirstPayment(payment, minor, currency)
+    this.db.prepare('UPDATE lava_webhook_log SET confirmed_at = ? WHERE id = ?').run(this.now(), logId)
+    return view(false, minor, currency)
+  }
+
+  /** After a first Lava payment succeeded: the access period and, with the autopay consent, the renewal record. */
+  private finishLavaFirstPayment(row: Row, minor: number, currency: string, hasRecurring = this.db.prepare("SELECT 1 FROM recurring_subscriptions WHERE provider = 'lava' AND contract_id = ?").get(String(row.provider_id)) !== undefined) {
+    const accountId = String(row.account_id)
+    const plan = row.plan as PlanId
+    this.extend(accountId, plan, true)
+    if (row.autopay_consent_version != null && row.provider_id != null && !hasRecurring) {
+      this.db.prepare("UPDATE recurring_subscriptions SET status = 'canceled', canceled_at = ?, method_id = NULL WHERE account_id = ? AND status = 'active'").run(this.now(), accountId)
+      this.db.prepare("INSERT INTO recurring_subscriptions (id, account_id, provider, plan, amount, currency, contract_id, referral_code, status, consent_version, consent_at, created_at) VALUES (?, ?, 'lava', ?, ?, ?, ?, ?, 'active', ?, ?, ?)")
+        .run(randomBytes(12).toString('hex'), accountId, plan, minor, currency, String(row.provider_id), nullableText(row.referral_code), String(row.autopay_consent_version), Number(row.autopay_consent_at), this.now())
+    }
   }
 
   /**
@@ -686,9 +877,9 @@ export class PaymentStore {
     return false
   }
 
-  private applyLava(event: LavaEvent): string {
+  private applyLava(event: LavaEvent, ctx: LavaLogContext): string {
+    const rubOf = (minor: number, currency: string) => this.rubOf(minor, currency)
     const lava = this.lava!
-    const rubOf = (minor: number, currency: string) => (currency === 'RUB' ? minor : Math.round(minor * lava.config.rubRate))
     const findRecurring = () => {
       for (const id of [event.parentContractId, event.contractId]) {
         if (!id) continue
@@ -701,26 +892,24 @@ export class PaymentStore {
       case 'payment.success': {
         const row = this.findLavaPayment(event)
         if (!row) return 'not-ours'
-        if (row.status !== 'pending') return 'already-applied'
-        // The plan, amount and currency of our own invoice; the webhook only confirms them (lavaAgrees).
         const currency = String(row.currency ?? lava.config.currency)
         const expected = row.amount_original == null ? undefined : Number(row.amount_original)
+        ctx.paymentId = String(row.id)
+        if (expected !== undefined) ctx.expectedAmount = expected
+        ctx.expectedCurrency = currency
+        if (row.status !== 'pending') return 'already-applied'
+        // The plan, amount and currency of our own invoice; the webhook only confirms them (lavaAgrees).
         if (!this.lavaAgrees(event, { amount: expected, currency }, { paymentId: String(row.id) }) || expected === undefined) return 'amount-mismatch'
         const minor = expected
         this.markSucceeded(row, rubOf(minor, currency), { amount: minor, currency })
-        const accountId = String(row.account_id)
-        const plan = row.plan as PlanId
-        this.extend(accountId, plan, true)
-        if (row.autopay_consent_version != null && !findRecurring()) {
-          this.db.prepare("UPDATE recurring_subscriptions SET status = 'canceled', canceled_at = ?, method_id = NULL WHERE account_id = ? AND status = 'active'").run(this.now(), accountId)
-          this.db.prepare("INSERT INTO recurring_subscriptions (id, account_id, provider, plan, amount, currency, contract_id, referral_code, status, consent_version, consent_at, created_at) VALUES (?, ?, 'lava', ?, ?, ?, ?, ?, 'active', ?, ?, ?)")
-            .run(randomBytes(12).toString('hex'), accountId, plan, minor, currency, String(row.provider_id), nullableText(row.referral_code), String(row.autopay_consent_version), Number(row.autopay_consent_at), this.now())
-        }
+        this.finishLavaFirstPayment(row, minor, currency, findRecurring() !== undefined)
         return 'paid'
       }
       case 'recurring.success': {
         const rec = findRecurring()
         if (!rec) return 'not-ours'
+        ctx.expectedAmount = Number(rec.amount)
+        ctx.expectedCurrency = String(rec.currency)
         const providerId = event.contractId && event.contractId !== rec.contract_id ? event.contractId : `${String(rec.contract_id)}:${event.timestamp ?? this.now()}`
         if (this.db.prepare('SELECT 1 FROM payments WHERE provider_id = ?').get(providerId)) return 'already-applied'
         // A renewal of the subscription the payer agreed to: its plan, amount and currency (never the webhook's).
