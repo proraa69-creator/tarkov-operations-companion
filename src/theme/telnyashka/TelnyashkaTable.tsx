@@ -61,11 +61,11 @@ function useSidebarRoom(active: boolean): SidebarRoom {
       setRoom(next)
     }
     measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(sidebar)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(sidebar)
     window.addEventListener('resize', measure)
     return () => {
-      observer.disconnect()
+      observer?.disconnect()
       window.removeEventListener('resize', measure)
       sidebar.classList.remove('tel-room-table', 'tel-room-none')
     }

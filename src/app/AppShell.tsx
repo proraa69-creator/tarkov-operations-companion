@@ -196,6 +196,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (!sidebar) return
     const sync = () => sidebar.style.setProperty('--sidebar-scroll-h', `${sidebar.scrollHeight}px`)
     sync()
+    if (typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(sync)
     observer.observe(sidebar)
     for (const child of Array.from(sidebar.children)) observer.observe(child)
