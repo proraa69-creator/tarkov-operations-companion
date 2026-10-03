@@ -89,13 +89,19 @@ export function sameSecret(supplied: string, expected: string) {
 }
 
 /**
- * Webhook authentication as configured in lava.top: the webhook key in the `X-Api-Key` header, or Basic auth whose
- * password (or whole «login:password») is the key.
+ * Webhook authentication as configured in lava.top (webhook settings, auth type): the webhook key in the `X-Api-Key`
+ * header ("API key" mode; an integrator's lava.top setup notes say the key «приходит в X-Api-Key»,
+ * github.com/inite-ai/inite-billing-service PR #162), or Basic auth whose password (or whole «login:password») is the key.
  */
 export function lavaWebhookAuthorized(headers: { apiKey?: string; authorization?: string }, webhookKey: string) {
-  if (!webhookKey) return false
-  let ok = false
-  if (headers.apiKey) ok = sameSecret(headers.apiKey.trim(), webhookKey) || ok
+  return lavaWebhookAuth(headers, webhookKey) !== undefined
+}
+
+/** Which method matched the webhook key (`undefined` if none did). */
+export function lavaWebhookAuth(headers: { apiKey?: string; authorization?: string }, webhookKey: string): 'api-key' | 'basic' | undefined {
+  if (!webhookKey) return undefined
+  const byKey = headers.apiKey ? sameSecret(headers.apiKey.trim(), webhookKey) : false
+  let byBasic = false
   const basic = /^Basic\s+([A-Za-z0-9+/=]+)\s*$/i.exec(headers.authorization ?? '')
   if (basic) {
     const decoded = Buffer.from(basic[1]!, 'base64').toString('utf8')
@@ -104,9 +110,16 @@ export function lavaWebhookAuthorized(headers: { apiKey?: string; authorization?
     // Both comparisons always run: the time does not depend on which one matched.
     const whole = sameSecret(decoded, webhookKey)
     const onlyPassword = sameSecret(password, webhookKey)
-    ok = whole || onlyPassword || ok
+    byBasic = whole || onlyPassword
   }
-  return ok
+  return byKey ? 'api-key' : byBasic ? 'basic' : undefined
+}
+
+/** Which credential a request carried, for diagnostics only (never its value). */
+export function lavaAuthSeen(headers: { apiKey?: string; authorization?: string }): 'none' | 'api-key' | 'basic' {
+  if (headers.apiKey) return 'api-key'
+  if (/^Basic\s+\S+/i.test(headers.authorization ?? '')) return 'basic'
+  return 'none'
 }
 
 export type LavaEventKind = 'payment.success' | 'payment.failed' | 'recurring.success' | 'recurring.failed' | 'subscription.cancelled' | 'unknown'
@@ -131,7 +144,19 @@ export interface LavaEvent {
   plan?: PlanId
 }
 
-/** Reads a webhook body. Unknown event types come back as `unknown` (answered 200 and ignored). */
+/**
+ * Reads a webhook body. Unknown event types come back as `unknown` (answered 200 and ignored).
+ *
+ * Evidence for the shape (gate.lava.top/docs itself was not reachable from the build machine): the lava-top SDKs
+ * (pypi.org/project/lava-top-sdk, npmjs.com/package/lava-top-sdk) expose `eventType` (PAYMENT_SUCCESS / PAYMENT_FAILED
+ * and the subscription recurring variants), `contractId` and `errorMessage`; integrators report that lava.top sends
+ * `contractId` (= the id of the invoice we created) and that refund / chargeback events have another shape WITHOUT a
+ * contractId (inite-ai/inite-billing-service PR #162; STEALTHNET-APP/remnawave-STEALTHNET-Bot issue #166). Event names
+ * are matched loosely (dots, underscores, case) for that reason. `status` is not used to decide anything: the API
+ * spells it in upper case («COMPLETED»), and a payment is granted only on a success event for our own invoice.
+ * The amount / currency spellings are NOT confirmed; whatever is missing or different is caught by the strict amount
+ * check (paymentStore.lavaAgrees) and shown to the owner instead of being trusted.
+ */
 export function parseLavaEvent(body: unknown): LavaEvent | undefined {
   const root = obj(body)
   if (!root) return undefined

@@ -19,6 +19,8 @@
  *   PUT  /me/admin/streamers/:code/percent   { percent: 0–100 | null } -> streamer settings
  *   PUT  /me/admin/streamers/:code/link      { enabled: boolean }      -> streamer settings
  *   GET  /me/admin/sales-settings                    -> prices, plans, providers (no keys; editing stays in the desktop app)
+ *   GET  /me/admin/lava/events                       -> { configured, events (last 100 webhook calls), pending (unconfirmed invoices) }
+ *   POST /me/admin/lava/events/:id/confirm           -> { already, paymentId, …events }  (amount-mismatch rows only; grants the stored plan once)
  *   GET  /me/admin/audit?limit&offset                -> { entries, total }
  *
  * The owner's existing actions (streamer invites, payout decisions, payout limits; routes/accounts.ts, payouts.ts) are
@@ -157,6 +159,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     res.json(admin.setStreamerLink(actor, codeSchema.parse(req.params.code), enabled))
   }))
 
+  router.get('/me/admin/lava/events', owner('read', (_req, res) => { res.json(admin.lavaEvents()) }))
+  router.post('/me/admin/lava/events/:id/confirm', owner('write', (req, res, actor) => {
+    const id = z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).parse(req.params.id)
+    res.json(admin.confirmLavaMismatch(actor, id))
+  }))
   router.get('/me/admin/sales-settings', owner('read', (_req, res) => { res.json(admin.salesSettings()) }))
   router.get('/me/admin/audit', owner('read', (req, res) => {
     const { limit, offset } = pageSchema.parse(req.query)

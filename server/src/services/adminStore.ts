@@ -46,7 +46,7 @@ const SCHEMA = `
 export type AuditAction =
   | 'subscription.grant' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
-  | 'server.update-check' | 'server.update-install' | 'server.rollback'
+  | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -335,6 +335,28 @@ export class AdminStore {
     const row = this.db.prepare('SELECT id, email FROM accounts WHERE id = ?').get(id) as Row | undefined
     if (!row) throw new AccountError(404, 'Пользователь не найден')
     return { id: String(row.id), email: String(row.email) }
+  }
+
+  // Lava.top diagnostics (events of the webhook, started-but-unconfirmed invoices, the owner's confirmation)
+
+  lavaEvents() {
+    return { configured: Boolean(this.payments.lava), events: this.payments.lavaWebhookLog(100), pending: this.payments.lavaPendingInvoices(50) }
+  }
+
+  /**
+   * «Подтвердить и выдать подписку» for an amount-mismatch webhook row: the owner has checked the payment in the Lava
+   * cabinet. Grants the stored plan once (PaymentStore.confirmLavaMismatch), audited as `payment.lava-confirm`.
+   */
+  confirmLavaMismatch(actor: string, logId: number) {
+    const result = transaction(this.db, () => {
+      const done = this.payments.confirmLavaMismatch(logId)
+      if (!done.already) {
+        const target = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(done.accountId) as Row | undefined
+        this.audit(actor, 'payment.lava-confirm', target ? String(target.email) : done.accountId, { paymentId: done.paymentId, plan: done.plan, amount: done.amount / 100, currency: done.currency })
+      }
+      return done
+    })
+    return { already: result.already, paymentId: result.paymentId, ...this.lavaEvents() }
   }
 
   /** «Выдать / продлить подписку на N дней»: from the end of the running paid period (or now), logged with the reason. */

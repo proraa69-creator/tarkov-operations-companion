@@ -207,6 +207,49 @@ export async function sendTestSms(phone: unknown) {
   return await admin('POST', '/sms/test', { phone: String(phone ?? '').slice(0, 32) }) as { ok: boolean; provider: string; sentToday: number; dailyLimit: number }
 }
 
+/** The newest real Lava.top webhook call the running API has seen (self-tests excluded). */
+export interface LavaWebhookStatus { configured: boolean; last: { at: string; result: string; eventType?: string } | null }
+export async function lavaWebhookStatus() {
+  return await admin('GET', '/lava/status') as LavaWebhookStatus
+}
+
+/** The marker of the self-test contract; the server logs such calls apart (server/src/services/paymentStore.ts). */
+const LAVA_SELFTEST_PREFIX = 'raidos-selftest-'
+export interface LavaWebhookTest { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
+
+/**
+ * «Проверить вебхук»: sends an authorized webhook for an UNKNOWN contract to the API on this PC and expects the
+ * answer 'not-ours' (the key matches and the handler runs; no payment is created or changed). Then, without any key,
+ * knocks on the public address: the API must answer 401 (the tunnel reaches this very server).
+ */
+export async function testLavaWebhook(publicUrl: string): Promise<LavaWebhookTest> {
+  const key = await secretKey(lavaWebhookKeyFile())
+  if (!key) throw new Error('Ключ вебхука не сохранён: укажите его в настройках Lava.top')
+  let publicResult: LavaWebhookTest['publicUrl']
+  let response: Response
+  try {
+    response = await fetch(`${API}/v1/payments/lava/webhook`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(8000),
+      headers: { 'x-api-key': key, 'content-type': 'application/json' },
+      body: JSON.stringify({ eventType: 'payment.success', contractId: `${LAVA_SELFTEST_PREFIX}${randomBytes(6).toString('hex')}`, amount: 1, currency: 'USD' }),
+    })
+  } catch {
+    throw new Error('Сервер на этом компьютере не запущен')
+  }
+  const answer = await response.json().catch(() => null) as { result?: string } | null
+  try {
+    const outside = await fetch(publicUrl, { method: 'POST', signal: AbortSignal.timeout(8000), headers: { 'content-type': 'application/json' }, body: '{}' })
+    publicResult = outside.status === 401 ? 'ok' : 'unexpected'
+  } catch {
+    publicResult = 'unreachable'
+  }
+  const outsideNote = publicResult === 'ok' ? ' Адрес для Lava.top отвечает и ведёт на этот сервер.' : publicResult === 'unreachable' ? ' Но адрес для Lava.top снаружи не открывается: проверьте туннель/интернет.' : publicResult === 'unexpected' ? ' Но адрес для Lava.top отвечает не так, как наш сервер: проверьте, куда он ведёт.' : ''
+  if (response.status === 401) return { ok: false, publicUrl: publicResult, message: 'Сервер отклонил ключ: Lava.top на сервере не включена или ключ не применился. Сохраните настройки (сервер перезапустится) и повторите.' }
+  if (response.status === 200 && answer?.result === 'not-ours') return { ok: true, publicUrl: publicResult, message: `Вебхук работает: ключ принят, неизвестный платёж отклонён как «не наш».${outsideNote}` }
+  return { ok: false, publicUrl: publicResult, message: `Неожиданный ответ сервера: ${response.status}${answer?.result ? ` (${String(answer.result).slice(0, 40)})` : ''}.${outsideNote}` }
+}
+
 async function smsEnvironment(): Promise<Record<string, string>> {
   const saved = await readSms()
   const key = await secretKey(smsKeyFile())

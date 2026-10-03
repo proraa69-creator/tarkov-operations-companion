@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Copy, Globe2 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import type { LavaSettings, PaymentSettings } from '../electron'
+import type { LavaSettings, LavaWebhookStatus, PaymentSettings } from '../electron'
 
 /**
  * «Оплата: другие страны (Lava.top)» under «Сервер и сайт на этом компьютере»: API key and webhook key (both encrypted
@@ -11,6 +11,12 @@ import type { LavaSettings, PaymentSettings } from '../electron'
  */
 export const LAVA_WEBHOOK_URL = 'https://raidos.app/v1/payments/lava/webhook'
 const DEFAULT_OFFER_ID = 'dde8abeb-b5ae-4a23-87b8-6bda4c7789e1'
+/** Short names of the server's webhook results (the long explanations are in the website's «События Lava.top»). */
+const RESULT_LABEL: Record<string, string> = {
+  paid: 'Оплачено', renewed: 'Продление', unauthorized: 'Нет доступа (401)', 'bad-request': 'Непонятное тело', ignored: 'Пропущено', duplicate: 'Повтор',
+  'not-ours': 'Не наш платёж', 'amount-mismatch': 'Сумма не совпала', 'already-applied': 'Уже применён', failed: 'Оплата не прошла',
+  'renewal-failed': 'Продление не прошло', cancelled: 'Подписка отменена', error: 'Ошибка сервера',
+}
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
 export function LavaPaymentsPanel() {
@@ -20,12 +26,25 @@ export function LavaPaymentsPanel() {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const [hook, setHook] = useState<LavaWebhookStatus | null>(null)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const refreshHook = () => { void api?.lavaWebhookStatus?.().then(setHook).catch(() => setHook(null)) }
+  const testHook = () => {
+    if (!api?.testLavaWebhook) return
+    setTesting(true); setTestResult(null)
+    void api.testLavaWebhook()
+      .then((result) => setTestResult({ ok: result.ok, text: result.message }))
+      .catch((reason: unknown) => setTestResult({ ok: false, text: errorText(reason) }))
+      .finally(() => { setTesting(false); refreshHook() })
+  }
   const apply = (value: PaymentSettings) => {
     if (!value.lava) return
     setSaved(value.lava)
     setForm({ offerId: value.lava.offerId || DEFAULT_OFFER_ID, currency: value.lava.currency, rubRate: value.lava.rubRate ? String(value.lava.rubRate) : '', paymentMethod: value.lava.paymentMethod, apiKey: '', webhookKey: '' })
   }
   useEffect(() => { void api?.payments().then(apply).catch(() => {}) }, [api])
+  useEffect(refreshHook, [api])
   if (!api || !saved) return null
   const on = saved.hasApiKey && saved.hasWebhookKey && saved.rubRate > 0
   const save = (clearKeys = false) => {
@@ -75,6 +94,16 @@ export function LavaPaymentsPanel() {
             <code style={{ userSelect: 'text', wordBreak: 'break-all' }}>{LAVA_WEBHOOK_URL}</code>
             <button type="button" className="button ghost" onClick={() => void navigator.clipboard?.writeText(LAVA_WEBHOOK_URL)}><Copy size={14} />{uiText('Скопировать')}</button>
           </span>
+          <small>
+            {uiText('Последнее уведомление от Lava')}: {hook?.last ? `${new Date(hook.last.at).toLocaleString()}, ${uiText(RESULT_LABEL[hook.last.result] ?? hook.last.result)}` : uiText('пока не было')}
+          </small>
+          <small>{uiText('Подробности и что делать: события Lava.top в админ-панели на сайте (вкладка «Платежи») и docs/lava-troubleshooting.md.')}</small>
+          {api.testLavaWebhook && (
+            <span className="owner-actions">
+              <button type="button" className="button ghost" disabled={testing} onClick={testHook}>{uiText(testing ? 'Проверяю…' : 'Проверить вебхук')}</button>
+            </span>
+          )}
+          {testResult && <small style={{ color: testResult.ok ? 'var(--green)' : 'var(--danger)' }}>{uiText(testResult.text)}</small>}
           {message && <small style={{ color: message.ok ? 'var(--green)' : 'var(--danger)' }}>{uiText(message.text)}</small>}
           <span className="owner-actions">
             {(saved.hasApiKey || saved.hasWebhookKey) && <button type="button" className="button ghost" disabled={busy} onClick={() => save(true)}>{uiText('Удалить ключи')}</button>}

@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     streamers: () => ipcRenderer.invoke('owner:streamers'),
     sms: () => ipcRenderer.invoke('owner:sms'),
     setSms: (settings) => ipcRenderer.invoke('owner:set-sms', settings),
+    lavaWebhookStatus: () => ipcRenderer.invoke('owner:lava-webhook-status'),
+    testLavaWebhook: () => ipcRenderer.invoke('owner:lava-webhook-test'),
     smsStatus: () => ipcRenderer.invoke('owner:sms-status'),
     sendTestSms: (phone) => ipcRenderer.invoke('owner:sms-test', String(phone ?? '')),
     email: () => ipcRenderer.invoke('owner:email'),
