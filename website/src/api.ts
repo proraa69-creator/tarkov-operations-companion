@@ -117,9 +117,9 @@ export type PaymentRegion = 'ru' | 'intl'
 export interface PaymentOptions { region: PaymentRegion; /** The separate autopayment consent (LEGAL_VERSION) — only when ticked. */ autopayVersion?: string; language: 'ru' | 'en' }
 export interface CreatedPayment { paymentId: string; confirmationUrl: string }
 
-async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string } = {}): Promise<T> {
+async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string; timeoutMs?: number } = {}): Promise<T> {
   const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), 12_000)
+  const timer = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000)
   let response: Response
   try {
     response = await fetch(`${API_URL}${options.root ?? '/v1/accounts'}${path}`, {
@@ -238,6 +238,11 @@ export interface AdminSalesSettings {
   streamerPercent: number
   trialDays: number
 }
+export interface YookassaSettingsInput { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay: boolean }
+export interface YookassaSettingsView { configured: boolean; settings: YookassaSettingsInput & { hasKey: boolean } }
+export interface LavaSettingsInput { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE' }
+export interface LavaSettingsView { configured: boolean; settings: LavaSettingsInput & { hasApiKey: boolean; hasWebhookKey: boolean } }
+export interface LavaTestResult { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
 export interface LavaEvent {
   id: number; at: string; lastAt: string; count: number; result: string; eventType?: string; contract?: string
   got?: { amount?: number; currency?: string }; expected?: { amount?: number; currency?: string }
@@ -326,6 +331,11 @@ export const api = {
   adminSetStreamerPercent: (token: string, code: string, percent: number | null) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/percent`, { method: 'PUT', token, body: { percent } }),
   adminSetStreamerLink: (token: string, code: string, enabled: boolean) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/link`, { method: 'PUT', token, body: { enabled } }),
   adminSalesSettings: (token: string) => request<AdminSalesSettings>('/me/admin/sales-settings', { token }),
+  adminYookassaSettings: (token: string) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { token }),
+  adminSaveYookassaSettings: (token: string, body: YookassaSettingsInput) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { method: 'PUT', token, body }),
+  adminLavaSettings: (token: string) => request<LavaSettingsView>('/me/admin/payment-settings/lava', { token }),
+  adminSaveLavaSettings: (token: string, body: LavaSettingsInput) => request<LavaSettingsView>('/me/admin/payment-settings/lava', { method: 'PUT', token, body }),
+  adminTestLava: (token: string) => request<LavaTestResult>('/me/admin/payment-settings/lava/test', { method: 'POST', token, body: {}, timeoutMs: 30_000 }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
