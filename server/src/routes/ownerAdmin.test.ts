@@ -46,15 +46,15 @@ async function setup() {
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, payouts }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
-  const call = async (method: string, path: string, token?: string, body?: unknown) => {
+  const call = async <T = Record<string, unknown> & Record<string, never>>(method: string, path: string, token?: string, body?: unknown) => {
     const response = await fetch(`${base}${path}`, { method, headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
     const text = await response.text()
     let json: unknown = text
     try { json = JSON.parse(text) } catch { /* CSV */ }
-    return { status: response.status, json: json as Record<string, unknown> & Record<string, never>, text, headers: response.headers }
+    return { status: response.status, json: json as T, text, headers: response.headers }
   }
-  const login = async (email: string) => ((await call('POST', '/accounts/login', undefined, { email, password })).json as { token: string }).token
-  const register = async (email: string, referralCode?: string) => ((await call('POST', '/accounts/register', undefined, { email, password, ...(referralCode ? { referralCode } : {}) })).json as { token: string }).token
+  const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
+  const register = async (email: string, referralCode?: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, ...(referralCode ? { referralCode } : {}) })).json.token
   /** A succeeded ЮKassa payment of `plan` for the account behind `token`. */
   const pay = async (token: string, plan: '1m' | '3m' | '6m' | '12m') => {
     const created = await call('POST', '/payments', token, { plan, consent: { version: '2026-09-01' } })
