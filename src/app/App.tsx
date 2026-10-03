@@ -58,15 +58,15 @@ export function App() {
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
     <Route path="/flea" element={<FleaMarketPage />} />
-    <Route path="/economy" element={<EconomyPage />} />
-    <Route path="/economy/barters" element={<BartersPage />} />
-    <Route path="/economy/crafts" element={<CraftsPage />} />
+    <Route path="/economy" element={featureEnabled('economyTools') ? <EconomyPage /> : <Navigate to="/flea" replace />} />
+    <Route path="/economy/barters" element={featureEnabled('economyTools') ? <BartersPage /> : <Navigate to="/flea" replace />} />
+    <Route path="/economy/crafts" element={featureEnabled('economyTools') ? <CraftsPage /> : <Navigate to="/flea" replace />} />
     <Route path="/keys" element={<Navigate to="/flea?tab=keys" replace />} />
     <Route path="/ammo" element={<Navigate to="/ballistics" replace />} />
     <Route path="/ballistics" element={<AmmoPage />} />
     <Route path="/hideout" element={<Navigate to="/" replace />} />
     <Route path="/traders" element={<TradersPage />} />
-    <Route path="/arsenal/builder" element={<Suspense fallback={null}><GunBuilderPage /></Suspense>} />
+    <Route path="/arsenal/builder" element={featureEnabled('gunBuilder') ? <Suspense fallback={null}><GunBuilderPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></>

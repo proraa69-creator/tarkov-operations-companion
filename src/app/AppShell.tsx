@@ -46,24 +46,25 @@ const navigation = [
 const raidNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; feature?: ArchivedFeature }> = [
   { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList, feature: 'raidBriefing' },
   { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX, feature: 'keepItems' },
-  { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
+  { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck, feature: 'kappaMenu' },
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
 ]
 const raidNavigation = raidNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
 
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
-const economyNavigation = [
+const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
-  { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true },
-  { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat },
-  { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical },
+  { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true, feature: 'economyTools' },
+  { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat, feature: 'economyTools' },
+  { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical, feature: 'economyTools' },
 ]
+const economyNavigation = economyNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
 
 /** Sidebar group «Арсенал» (ballistics and other weapon references). */
 const arsenalNavigation = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
-  { to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench },
+  ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
