@@ -5,13 +5,12 @@ import { prefersReducedMotion } from '../hooks/motion'
 /**
  * Product trailer — the centrepiece of the home page.
  *
- * Sources, tried in order: `website/public/media/trailer.webm` (preferred) and `trailer.mp4` (fallback).
+ * Source: `website/public/media/trailer.mp4` (H.264, 720p, small: it ships inside the server exe, so every MB slows the server's start).
  * Poster: `trailer-poster.jpg` when present, otherwise the placeholder `trailer-poster.svg`.
  * When a file exists it autoplays muted and loops (unless the visitor prefers reduced motion); the custom
  * controls toggle play/pause and sound. When no source can be played the poster stays with a "coming soon" note.
  */
 const TRAILER_SOURCES = [
-  { src: '/media/trailer.webm', type: 'video/webm' },
   { src: '/media/trailer.mp4', type: 'video/mp4' },
 ]
 const POSTER_JPG = '/media/trailer-poster.jpg'
