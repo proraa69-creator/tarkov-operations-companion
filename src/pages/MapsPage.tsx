@@ -48,12 +48,12 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   transit: { label: 'Переходы', color: '#9bb2d0', size: 30, icon: ArrowRightLeft, shape: 'badge' },
   'quest.zone': { label: 'Квесты', color: '#d5b76f', size: 34, icon: Target, shape: 'pin' },
   'quest.item': { label: 'Квестовые предметы', color: '#e0c76f', size: 32, icon: Box, shape: 'pin' },
-  key: { label: 'Ключи', color: '#8ea8c4', size: 26, icon: KeyRound, shape: 'round' },
+  key: { label: 'Двери', color: '#8ea8c4', size: 26, icon: KeyRound, shape: 'round' },
   boss: { label: 'Боссы', color: '#d0584a', size: 36, icon: Skull, shape: 'boss' },
   spawn: { label: 'Спавн', color: '#b789be', size: 24, icon: CircleDot, shape: 'dot' },
   hazard: { label: 'Опасности', color: '#e07a54', size: 28, icon: AlertTriangle, shape: 'diamond' },
   'loot.valuable': { label: 'Драгоценности', color: '#cc9fe0', size: 26, icon: Diamond, shape: 'loot' },
-  'loot.weapon': { label: 'Оружие/боеприпасы', color: '#c18b65', size: 26, icon: Crosshair, shape: 'loot' },
+  'loot.weapon': { label: 'Станковое оружие', color: '#c18b65', size: 26, icon: Crosshair, shape: 'loot' },
   'loot.medical': { label: 'Медицина', color: '#d97878', size: 26, icon: HeartPulse, shape: 'loot' },
   'loot.provision': { label: 'Провизия', color: '#a9b96f', size: 26, icon: FlaskConical, shape: 'loot' },
   'loot.technical': { label: 'Технический лут', color: '#8aa28f', size: 26, icon: Wrench, shape: 'loot' },
@@ -81,12 +81,12 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   transit: 'Переход',
   'quest.zone': 'Квест',
   'quest.item': 'Квестовый предмет',
-  key: 'Ключ',
+  key: 'Запертая дверь',
   boss: 'Босс',
   spawn: 'Спавн',
   hazard: 'Опасность',
   'loot.valuable': 'Драгоценности',
-  'loot.weapon': 'Оружие/боеприпасы',
+  'loot.weapon': 'Станковое оружие',
   'loot.medical': 'Медицина',
   'loot.provision': 'Провизия',
   'loot.technical': 'Технический лут',
@@ -98,7 +98,8 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
 const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Выходы и переходы', layers: ['extract.pmc', 'extract.scav', 'extract.coop', 'transit'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
-  { title: 'Дополнительно', layers: ['key', 'boss', 'spawn', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents'] },
+  // Battle pass documents first; spawns are not offered (04.10.2026); «Станковое оружие» = mounted AGS / Utyos only.
+  { title: 'Дополнительно', layers: ['loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
 ]
 
 const glyphCache = new Map<MarkerLayerId, string>()
@@ -205,16 +206,17 @@ function readMarkerStyle(): MarkerStyle {
   try {
     const saved = localStorage.getItem(MARKER_STYLE_KEY)
     if (saved === 'classic') return 'modern'
-    return saved === 'minimal' || saved === 'modern' ? saved : 'realistic'
+    return saved === 'minimal' || saved === 'realistic' ? saved : 'modern'
   } catch {
-    return 'realistic'
+    return 'modern'
   }
 }
 
+/** «Стандартные» (the former «Новые иконки») is the default for everyone who has not picked a style. */
 const markerStyleOptions: Array<{ id: MarkerStyle; label: string }> = [
-  { id: 'realistic', label: 'Тактические' },
-  { id: 'minimal', label: 'Минимал' },
-  { id: 'modern', label: 'Новые иконки' },
+  { id: 'modern', label: 'Стандартные' },
+  { id: 'realistic', label: 'Реалистичные' },
+  { id: 'minimal', label: 'Компактные' },
 ]
 const markerStylePreview: MarkerLayerId[] = ['quest.zone']
 
@@ -364,6 +366,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     const stageOk = markerMatchesStage(marker, focusedQuestId, focusedStage, progress, data.quests)
     return relevant
       && stageOk
+      && layerId !== 'spawn'
       && (focused || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))

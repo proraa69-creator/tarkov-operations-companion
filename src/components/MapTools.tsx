@@ -42,7 +42,7 @@ export function MapToolbar({ value, onChange }: { value: MapToolsState; onChange
       <button type="button" className={`map-tool${value.tool === 'ruler' ? ' active' : ''}`} onClick={() => pick('ruler')} title={uiText('Рулетка: левая кнопка ставит точку, правая отменяет последний участок')}>
         <Ruler size={14} /><span>{uiText('Рулетка')}</span>{value.rulerPoints.length > 1 && <em>{uiText(formatMetres(total))}</em>}
       </button>
-      <button type="button" className={`map-tool${value.tool === 'sniper' ? ' active' : ''}`} onClick={() => pick('sniper')} title={uiText('Радиус снайперской стрельбы: кликните по карте и перетаскивайте прицел')}>
+      <button type="button" className={`map-tool${value.tool === 'sniper' ? ' active' : ''}`} onClick={() => pick('sniper')} title={uiText('Радиус снайперской стрельбы: кликните по карте и перетаскивайте прицел; правая кнопка мыши — убрать')}>
         <Crosshair size={14} /><span>{uiText('Снайпер')}</span>
       </button>
       {(value.tool === 'ruler' && value.rulerPoints.length > 0) || (value.tool === 'sniper' && value.sniperCenter) ? (
@@ -63,6 +63,8 @@ const targetIcon = divIcon({
 /** Draws the ruler / sniper overlays and collects clicks while a tool is active. */
 export function MapToolLayer({ value, onChange }: { value: MapToolsState; onChange: (next: MapToolsState) => void }) {
   const [cursor, setCursor] = useState<LatLngTuple | null>(null)
+  // Right click anywhere on the map (or on the scope) while the sniper tool is on: the grid goes away and the tool is off.
+  const cancelSniper = () => onChange({ ...value, tool: 'none', sniperCenter: null })
   useMapEvents({
     click: (event) => {
       const point: LatLngTuple = [event.latlng.lat, event.latlng.lng]
@@ -70,6 +72,7 @@ export function MapToolLayer({ value, onChange }: { value: MapToolsState; onChan
       else if (value.tool === 'sniper' && !value.sniperCenter) onChange({ ...value, sniperCenter: point })
     },
     contextmenu: (event) => {
+      if (value.tool === 'sniper') { event.originalEvent.preventDefault(); cancelSniper(); return }
       if (value.tool !== 'ruler') return
       event.originalEvent.preventDefault()
       onChange({ ...value, rulerPoints: value.rulerPoints.slice(0, -1) })
@@ -111,7 +114,10 @@ export function MapToolLayer({ value, onChange }: { value: MapToolsState; onChan
             icon={targetIcon}
             draggable
             zIndexOffset={2000}
-            eventHandlers={{ dragend: (event) => { const next = event.target.getLatLng(); onChange({ ...value, sniperCenter: [next.lat, next.lng] }) } }}
+            eventHandlers={{
+              dragend: (event) => { const next = event.target.getLatLng(); onChange({ ...value, sniperCenter: [next.lat, next.lng] }) },
+              contextmenu: (event) => { event.originalEvent.preventDefault(); cancelSniper() },
+            }}
           />
         </>
       )}

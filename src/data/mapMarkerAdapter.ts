@@ -453,7 +453,9 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     const base = baseMarker(map, `loot-loose-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
     const layerId = lootLayer(strings(loot.items), items)
-    const type: MarkerType = layerId === 'loot.medical' ? 'landmark' : layerId === 'loot.weapon' ? 'key' : 'cache'
+    // The weapon layer holds only mounted weapons (adaptStationaryWeapons); loose guns and ammo are not shown.
+    if (layerId === 'loot.weapon') return []
+    const type: MarkerType = layerId === 'loot.medical' ? 'landmark' : 'cache'
     return [{
       ...base,
       type,
@@ -773,7 +775,7 @@ function lootLayer(itemIds: string[], items: Map<string, Item>): MarkerLayerId {
 function lootTitle(layerId: MarkerLayerId) {
   if (layerId === 'loot.medical') return 'Медицинский лут'
   if (layerId === 'loot.provision') return 'Провизия'
-  if (layerId === 'loot.weapon') return 'Оружие/боеприпасы'
+  if (layerId === 'loot.weapon') return 'Станковое оружие'
   if (layerId === 'loot.valuable') return 'Ценный лут'
   return 'Технический лут'
 }
