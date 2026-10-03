@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { closeSync, existsSync, openSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { app, safeStorage } from 'electron'
@@ -83,7 +83,9 @@ const helperLogFile = () => join(stateDir(), 'update-helper.log')
 const helperPidFile = () => join(stateDir(), 'helper.pid')
 const appPidFile = () => join(stateDir(), 'app.pid')
 /** How long the app waits for the helper to write helper.pid before it cancels the restart and stays up. */
-const HELPER_START_TIMEOUT_MS = 15_000
+const HELPER_START_TIMEOUT_MS = 40_000
+/** How long the «does PowerShell start at all» probe may take before it is reported as hanging. */
+const PROBE_TIMEOUT_MS = 30_000
 /** The helper writes a log line at least every ~15 s while it works; older than this and no pid = gone. */
 const HELPER_SILENT_MS = 90_000
 
@@ -388,6 +390,68 @@ async function waitForHelper(id: string, launchError: () => string) {
   return false
 }
 
+/** Environment variables the helper's PowerShell gets (the list the first, working version used, plus a few basics). */
+const HELPER_ENV_KEYS = ['SystemRoot', 'windir', 'SystemDrive', 'PATH', 'Path', 'PATHEXT', 'TEMP', 'TMP', 'USERPROFILE', 'USERNAME', 'USERDOMAIN',
+  'HOMEDRIVE', 'HOMEPATH', 'LOCALAPPDATA', 'APPDATA', 'ComSpec', 'PSModulePath', 'ProgramFiles', 'ProgramData', 'ProgramFiles(x86)',
+  'CommonProgramFiles', 'ALLUSERSPROFILE', 'PUBLIC', 'COMPUTERNAME', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'OS']
+
+function fullEnvironment() {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string' && !/^(ELECTRON_|NODE_OPTIONS$)/i.test(key)) env[key] = value
+  return env
+}
+
+/** One argument for a verbatim Windows command line. */
+const quoteArg = (value: string) => (/[\s"]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value)
+
+const elapsed = (since: number) => `${((Date.now() - since) / 1000).toFixed(1)} s`
+
+/** Starts PowerShell with a one-line command and says how it ended: the first thing to read when the helper is silent. */
+async function probe(powershell: string, env: Record<string, string>) {
+  const since = Date.now()
+  return await new Promise<string>((resolve) => {
+    let done = false
+    const finish = (text: string) => { if (!done) { done = true; clearTimeout(timer); resolve(text) } }
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', 'exit 7'], { detached: true, windowsHide: true, stdio: 'ignore', env })
+    } catch (error) {
+      resolve(`PowerShell could not be started: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+    const timer = setTimeout(() => {
+      try { child.kill() } catch { /* already gone */ }
+      finish(`PowerShell (pid ${child.pid ?? '?'}) did not finish «exit 7» within ${PROBE_TIMEOUT_MS / 1000} s — it hangs at start; stopped it`)
+    }, PROBE_TIMEOUT_MS)
+    child.on('error', (error) => finish(`PowerShell failed to start: ${error.message}`))
+    child.on('exit', (code, signal) => finish(code === 7 ? `PowerShell works (exit 7 after ${elapsed(since)})` : `PowerShell ended with code ${code ?? signal} after ${elapsed(since)} (expected 7)`))
+  })
+}
+
+/** Starts one attempt and waits for helper.pid; says how the process ended if the helper never reported. */
+async function launchAndWait(attempt: { name: string; file: string; args: string[]; env: Record<string, string>; verbatim?: boolean }, id: string): Promise<{ started: boolean; detail: string }> {
+  const since = Date.now()
+  let ended = ''
+  let child: ReturnType<typeof spawn>
+  try {
+    child = spawn(attempt.file, attempt.args, { detached: true, windowsHide: true, stdio: 'ignore', env: attempt.env, windowsVerbatimArguments: attempt.verbatim === true })
+  } catch (error) {
+    return { started: false, detail: `could not start: ${error instanceof Error ? error.message : String(error)}` }
+  }
+  child.on('error', (error) => { ended ||= `failed to start: ${error.message}` })
+  child.on('exit', (code, signal) => { ended ||= `process ended with code ${code ?? signal} after ${elapsed(since)}` })
+  child.unref()
+  await appendHelperLog(`attempt "${attempt.name}": spawned${child.pid ? ` pid ${child.pid}` : ' (no pid)'}`)
+  // «cmd /c start» ends at once by design: only the helper's own helper.pid counts there.
+  const fatal = () => (attempt.name === 'cmd-start' ? '' : ended.startsWith('failed') || /code [^0]/.test(ended) ? ended : '')
+  if (await waitForHelper(id, fatal)) return { started: true, detail: '' }
+  if (!ended) {
+    try { child.kill() } catch { /* already gone */ }
+    return { started: false, detail: `no helper.pid within ${HELPER_START_TIMEOUT_MS / 1000} s; the process was still running (stopped it)` }
+  }
+  return { started: false, detail: `no helper.pid; ${ended}` }
+}
+
 /**
  * Writes the pending state, starts the helper (through a launcher, so it is not in this app's process tree), waits
  * until it really runs and quits; the helper swaps, restarts and checks health. If the helper does not start, the
@@ -402,10 +466,9 @@ async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to:
   const pending: PendingRestart = { id: `${now}`, kind: plan.kind, from: plan.from, to: plan.to, startedAt: new Date(now).toISOString(), deadlineAt: new Date(now + HEALTH_RULES.deadlineMs + 60_000).toISOString(), helper: 2 }
   await writeJson(pendingFile(), pending)
   await writeFile(helperFile(), `\uFEFF${helperScript()}`, 'utf8')
-  // The helper gets this app's whole environment (a trimmed copy made PowerShell's own start fail silently on one laptop:
-  // update-helper.log had no [launcher] or [helper] line at all) plus the paths it needs.
+  // The same short environment the first, working version gave PowerShell, plus the paths the helper needs.
   const env: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) if (typeof value === 'string' && !/^ELECTRON_RUN_AS_NODE$/i.test(key)) env[key] = value
+  for (const key of HELPER_ENV_KEYS) if (process.env[key]) env[key] = process.env[key]!
   const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
   Object.assign(env, helperEnvironment({
     id: pending.id, exe: plan.exe, next: plan.next, previous: previousExe, clientDir: plan.withClient ? clientDir : '', clientPrevious: plan.withClient ? previousClient : '',
@@ -413,34 +476,25 @@ async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to:
     appExe: process.execPath, pid: process.pid, expectedBuild: plan.to.build, args: process.argv,
   }), { RAIDOS_POWERSHELL: powershell, RAIDOS_HELPER: helperFile() })
   await appendHelperLog(`${plan.kind} ${plan.from.version} (${plan.from.build}) -> ${plan.to.version} (${plan.to.build}), restart ${pending.id}: starting the helper; app pid ${process.pid} (${process.execPath}), wrapper ${plan.exe}; PowerShell ${existsSync(powershell) ? 'found' : 'NOT FOUND'} at ${powershell}`)
-  // Attempt 1: the helper directly (what worked in the first versions); attempt 2: through the launcher (its own process
-  // tree). Whatever PowerShell prints on stdout/stderr goes to update-helper.out.log and is copied into the log.
-  const outFile = helperLogFile().replace(/\.log$/, '.out.log')
-  const attempts: Array<{ name: string; args: string[] }> = [
-    { name: 'direct', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helperFile()] },
-    { name: 'launcher', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())] },
+  // Does PowerShell start and finish at all from this app? (On one laptop it started, printed nothing and never ran
+  // a line of the helper.) The answer goes into the log either way; the attempts follow regardless.
+  await appendHelperLog(`probe: ${await probe(powershell, env)}`)
+  const helperArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helperFile()]
+  const comspec = process.env.ComSpec || join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe')
+  // 1: the helper directly, exactly as the first working version; 2: through the launcher (its own process tree);
+  // 3: through cmd «start», the way Explorer starts programs, with the app's whole environment.
+  const attempts: Array<{ name: string; file: string; args: string[]; env: Record<string, string>; verbatim?: boolean }> = [
+    { name: 'direct', file: powershell, args: helperArgs, env },
+    { name: 'launcher', file: powershell, args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())], env },
+    { name: 'cmd-start', file: comspec, args: ['/d', '/c', 'start', '""', '/min', quoteArg(powershell), ...helperArgs.map(quoteArg)], env: { ...fullEnvironment(), ...env }, verbatim: true },
   ]
   let started = false
   let lastError = ''
   for (const attempt of attempts) {
-    let launchError = ''
-    let outFd = -1
-    try {
-      outFd = openSync(outFile, 'a')
-      const child = spawn(powershell, attempt.args, { detached: true, windowsHide: true, stdio: ['ignore', outFd, outFd], env })
-      child.on('error', (error) => { launchError ||= error.message })
-      child.on('exit', (code) => { if (code) launchError ||= `exit code ${code}` })
-      await appendHelperLog(`attempt "${attempt.name}": PowerShell spawned${child.pid ? `, pid ${child.pid}` : ' (no pid)'}`)
-      child.unref()
-    } catch (error) {
-      launchError = error instanceof Error ? error.message : String(error)
-    } finally {
-      if (outFd >= 0) try { closeSync(outFd) } catch { /* nothing to close */ }
-    }
-    if (await waitForHelper(pending.id, () => launchError)) { started = true; break }
-    lastError = launchError
-    const printed = (await readFile(outFile, 'utf8').catch(() => '')).replace(/\0/g, '').trim().slice(-1500)
-    await appendHelperLog(`attempt "${attempt.name}" failed${launchError ? ` (${launchError})` : ''}${printed ? `; PowerShell printed: ${printed}` : '; PowerShell printed nothing'}`)
+    const outcome = await launchAndWait(attempt, pending.id)
+    if (outcome.started) { started = true; await appendHelperLog(`attempt "${attempt.name}": the helper runs`); break }
+    lastError = outcome.detail
+    await appendHelperLog(`attempt "${attempt.name}" failed: ${outcome.detail}`)
   }
   if (!started) {
     await rm(pendingFile(), { force: true })
