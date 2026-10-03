@@ -238,6 +238,13 @@ export interface AdminSalesSettings {
   streamerPercent: number
   trialDays: number
 }
+export interface LavaEvent {
+  id: number; at: string; lastAt: string; count: number; result: string; eventType?: string; contract?: string
+  got?: { amount?: number; currency?: string }; expected?: { amount?: number; currency?: string }
+  authMethod: 'none' | 'api-key' | 'basic'; confirmable: boolean; confirmedAt?: string
+}
+export interface LavaPendingInvoice { paymentId: string; email: string; plan: PlanId; createdAt: string; ageMinutes: number; contract?: string; expected?: { amount: number; currency: string } }
+export interface AdminLavaEvents { configured: boolean; events: LavaEvent[]; pending: LavaPendingInvoice[] }
 export interface AdminAuditEntry { id: number; at: string; actor: string; action: string; target?: string; details?: Record<string, unknown> }
 
 function adminQuery(params: Record<string, string | number | undefined>) {
@@ -305,6 +312,8 @@ export const api = {
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
+  adminLavaEvents: (token: string) => request<AdminLavaEvents>('/me/admin/lava/events', { token }),
+  adminLavaConfirm: (token: string, id: number) => request<AdminLavaEvents & { already: boolean; paymentId: string }>(`/me/admin/lava/events/${id}/confirm`, { method: 'POST', token, body: {} }),
   adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number) => request<{ users: AdminUser[]; total: number }>(`/me/admin/users${adminQuery({ q, filter, limit, offset })}`, { token }),
   adminUser: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}`, { token }),
   adminGrant: (token: string, id: string, days: number, reason: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/grant`, { method: 'POST', token, body: { days, reason } }),

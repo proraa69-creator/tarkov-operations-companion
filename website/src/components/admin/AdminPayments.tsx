@@ -4,6 +4,7 @@ import { api, downloadAdminPaymentsCsv, type AdminPaymentFilter, type PaymentPro
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
+import { AdminLavaEvents } from './AdminLavaEvents'
 import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 100
@@ -59,6 +60,7 @@ export function AdminPayments() {
 
   return (
     <div className="admin-stack">
+      <AdminLavaEvents />
       <div className="admin-filters">
         <div role="group" aria-label="Период" className="admin-chips">
           {RANGES.map(({ id, label }) => <button key={id} type="button" aria-pressed={range === id} className={`button small ${range === id ? 'primary' : 'ghost'}`} onClick={() => change(setRange)(id)}>{label}</button>)}

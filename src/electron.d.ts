@@ -76,6 +76,8 @@ export interface PaymentSettings { shopId: string; monthPrice: number; receipts:
 /** «SMS: одноразовые коды» (electron/ownerAdmin.ts). The key is write-only. */
 export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
 export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
+export interface LavaWebhookStatus { configured: boolean; last: { at: string; result: string; eventType?: string } | null }
+export interface LavaWebhookTest { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
 export interface SmsServerStatus { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
 /** «Почта: коды подтверждения» (electron/ownerAdmin.ts). The key is write-only. */
 export type EmailProvider = '' | 'resend'
@@ -124,6 +126,9 @@ interface TarkovDesktopApi {
     /** Missing when the main process is older than the renderer. */
     sms?: () => Promise<SmsSettings>
     setSms?: (settings: { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; apiKey?: string; clearKey?: boolean }) => Promise<SmsSettings>
+    /** Missing when the main process is older than the renderer. */
+    lavaWebhookStatus?: () => Promise<LavaWebhookStatus>
+    testLavaWebhook?: () => Promise<LavaWebhookTest>
     smsStatus?: () => Promise<SmsServerStatus>
     sendTestSms?: (phone: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
     email?: () => Promise<EmailSettings>
