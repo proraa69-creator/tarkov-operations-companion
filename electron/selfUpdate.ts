@@ -483,12 +483,14 @@ async function handOver(plan: { kind: 'update' | 'rollback'; from: BuildRef; to:
   await appendHelperLog(`probe: ${await probe(powershell, env)}`)
   const helperArgs = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', helperFile()]
   const comspec = process.env.ComSpec || join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe')
-  // 1: the helper directly, exactly as the first working version; 2: through the launcher (its own process tree);
-  // 3: through cmd «start», the way Explorer starts programs, with the app's whole environment.
+  // 1: through cmd «start» (a new console, the way Explorer starts programs) — on the server laptop this is the only
+  // way that works: powershell.exe spawned straight from the app ends at once with code 0 without running a line
+  // (update-helper.log of 04.10.2026: probe and both direct attempts «code 0 after 0.1 s», cmd-start ran the helper);
+  // 2: the helper directly, as the first version; 3: through the launcher.
   const attempts: Array<{ name: string; file: string; args: string[]; env: Record<string, string>; verbatim?: boolean }> = [
+    { name: 'cmd-start', file: comspec, args: ['/d', '/c', 'start', '""', '/min', quoteArg(powershell), ...helperArgs.map(quoteArg)], env: { ...fullEnvironment(), ...env }, verbatim: true },
     { name: 'direct', file: powershell, args: helperArgs, env },
     { name: 'launcher', file: powershell, args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-EncodedCommand', encodedCommand(launcherScript())], env },
-    { name: 'cmd-start', file: comspec, args: ['/d', '/c', 'start', '""', '/min', quoteArg(powershell), ...helperArgs.map(quoteArg)], env: { ...fullEnvironment(), ...env }, verbatim: true },
   ]
   let started = false
   let lastError = ''

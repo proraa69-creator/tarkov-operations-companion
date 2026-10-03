@@ -1,5 +1,25 @@
 # Автообновление сервера Raid OS: «помощник обновления не запустился»
 
+> **Решено 04.10.2026.** Причина: `powershell.exe`, запущенный из приложения напрямую (`spawn` с `detached: true`,
+> `windowsHide: true`), на ноутбуке-сервере сразу завершается с кодом 0 за 0,1 с и не выполняет ни строки — даже
+> пробу `-Command "exit 7"`. Запуск через `cmd.exe /d /c start "" /min powershell … -File update-helper.ps1`
+> работает: помощник стартовал, подменил exe, новая версия прошла проверку здоровья (`result: ok`).
+> Теперь `cmd-start` — первая попытка (`electron/selfUpdate.ts`, `handOver`), прямой запуск и launcher остались
+> запасными. Журнал успешного обновления 1791050321570 → 1791051001357:
+>
+> ```text
+> [app] probe: PowerShell ended with code 0 after 0.1 s (expected 7)
+> [app] attempt "direct" failed: no helper.pid; process ended with code 0 after 0.1 s
+> [app] attempt "launcher" failed: no helper.pid; process ended with code 0 after 0.1 s
+> [app] attempt "cmd-start": the helper runs
+> [helper] started: pid 9792, PowerShell 5.1.19041.6456 …
+> [helper] moved the new exe into place (163087493 bytes)
+> [helper] probe 2: api ok=True build=1791051001357; healthy, streak 1
+> [helper] result: ok  probed
+> ```
+>
+> Ниже — исходный разбор, как он был до решения.
+
 Документ для разработчика или ИИ-ассистента, который будет чинить проблему. Здесь всё, что известно на 04.10.2026:
 как устроено обновление, что именно ломается, что уже проверено и исключено, гипотезы, что нужно сделать и как проверить.
 
