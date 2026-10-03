@@ -2,17 +2,14 @@ export interface ThemeOption { id: string; label: string; swatch: [string, strin
 
 export const THEMES: ThemeOption[] = [
   { id: 'tarkov', label: 'Тарков', swatch: ['#0a0f0c', '#19241e', '#c4a665'] },
-  { id: 'steel', label: 'Сталь', swatch: ['#0c0e10', '#272c31', '#b9c6d0'] },
   { id: 'crimson', label: 'Багровый', swatch: ['#12060a', '#3a0f1b', '#e6a35c'] },
   // Material themes: procedural textures from scripts/textures, styles in src/styles/themes.css
   { id: 'blackmc', label: 'Чёрный мультикам', swatch: ['#060607', '#1b1b1d', '#a9b973'] },
-  { id: 'perforated', label: 'Перфорация', swatch: ['#0b0c0e', '#26282c', '#f0a92a'] },
   { id: 'rust', label: 'Ржавая сталь', swatch: ['#62717d', '#7c8d99', '#a4582a'] },
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
-  // Suede car interior: src/styles/theme-alcantara.css, texture from scripts/textures/alcantara.mjs, nap trail in src/theme/alcantara
-  { id: 'alcantara', label: 'Алькантара', swatch: ['#17181b', '#2a2b2f', '#cdd2d8'] },
+  // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026 (their CSS stays; a saved choice falls back to the default)
 ]
 
 /** «Алькантара»: the thread colour of the seams (Settings → «Цветовая схема» → «Строчка»). */

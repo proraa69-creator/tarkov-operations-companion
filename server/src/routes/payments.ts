@@ -11,6 +11,7 @@
  *   POST /autopay/cancel             Bearer -> 200 { autopay } («Отменить автопродление», one click)
  *   GET  /:id                        Bearer -> 200 payment (re-checked with ЮKassa while pending)
  *   POST /yookassa/webhook           ЮKassa notification -> 200 (the body is only a hint: the payment is re-read)
+ *   GET  /lava/webhook               plain-text «the address works» for a browser (nothing applied)
  *   POST /lava/webhook               Lava.top notification, X-Api-Key or Basic auth with the webhook key -> 200 / 401
  */
 import express from 'express'
@@ -108,6 +109,11 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const parsed = webhookSchema.safeParse(req.body)
     res.status(200).json({ ok: true })
     if (parsed.success && parsed.data.event.startsWith('payment.')) void payments.sync(parsed.data.object.id).catch(() => {})
+  })
+
+  // Opened in a browser (GET): say that the address is right and that Lava.top sends POST here. Nothing is read or applied.
+  router.get('/lava/webhook', (_req, res) => {
+    res.status(200).type('text/plain; charset=utf-8').send('Адрес вебхука Lava.top работает: сервер Raid OS на связи. Lava.top присылает сюда POST-запросы с ключом вебхука; в браузере здесь больше ничего нет.')
   })
 
   // Lava.top: authenticated by the webhook key; applied once per event. Errors answer 500 so that Lava retries.

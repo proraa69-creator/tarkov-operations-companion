@@ -1,4 +1,5 @@
 import { uiText } from '../i18n/renderText'
+import { featureEnabled } from '../app/archivedFeatures'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronRight, Clock3, KeyRound, LockKeyhole, Map, PackageCheck, Route, Users } from 'lucide-react'
@@ -85,7 +86,7 @@ export function DashboardPage() {
                 }))}
               </div>
             </div>
-              <div className="raid-actions"><button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button><button className="button" onClick={() => setMapPickerOpen((value) => !value)}><Map size={16} />{uiText(" Выбрать карту")}</button></div>
+              <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><Map size={16} />{uiText(" Выбрать карту")}</button></div>
           </div>
         </section>
 

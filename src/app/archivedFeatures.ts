@@ -1,0 +1,17 @@
+/**
+ * Features taken out of the app for now but kept in the code (the owner turns them back on when needed, 04.10.2026):
+ * set a flag to `false` and the menu item, the route and the buttons come back as they were.
+ *
+ * - raidBriefing: «Брифинг рейда» page (/briefing) and the briefing panel on the map.
+ * - keepItems: «Что не продавать» page (/keep-items). «Предметы для Каппы» (/kappa-items) stays.
+ * - raidRoute: «Построить маршрут» on the overview and the route controls / layer / hint on the map.
+ */
+export const ARCHIVED = {
+  raidBriefing: true,
+  keepItems: true,
+  raidRoute: true,
+} as const
+
+export type ArchivedFeature = keyof typeof ARCHIVED
+
+export const featureEnabled = (feature: ArchivedFeature) => !ARCHIVED[feature]

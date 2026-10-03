@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Target, UserRound, Users, Wrench, X,
@@ -22,8 +23,8 @@ const MORE = [
   { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
   { to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench },
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
-  { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList },
-  { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX },
+  ...(featureEnabled('raidBriefing') ? [{ to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList }] : []),
+  ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
   { to: '/profile', ru: 'Профиль', en: 'Profile', icon: UserRound },
   { to: '/settings', ru: 'Настройки', en: 'Settings', icon: Settings },

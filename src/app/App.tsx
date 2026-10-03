@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { featureEnabled } from './archivedFeatures'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
@@ -44,8 +45,8 @@ export function App() {
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />
     <Route path="/kappa-items" element={<KappaItemsPage />} />
-    <Route path="/keep-items" element={<KeepItemsPage />} />
-    <Route path="/briefing" element={<RaidBriefingPage />} />
+    <Route path="/keep-items" element={featureEnabled('keepItems') ? <KeepItemsPage /> : <Navigate to="/kappa-items" replace />} />
+    <Route path="/briefing" element={featureEnabled('raidBriefing') ? <RaidBriefingPage /> : <Navigate to="/" replace />} />
     <Route path="/" element={<DashboardPage />} />
     <Route path="/maps" element={<MapsPage />} />
     <Route path="/maps/:mapId" element={<MapsPage />} />

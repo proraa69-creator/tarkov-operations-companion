@@ -1,4 +1,5 @@
 import { uiText } from '../i18n/renderText'
+import { featureEnabled } from '../app/archivedFeatures'
 import { DocumentGlyph } from '../components/DocumentGlyph'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -518,7 +519,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
-          <RaidRouteControls route={route} />
+          {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -592,7 +593,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <MapRefCapture mapRef={mapRef} />
           {!toolActive && !route.picking && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           <MapToolLayer value={tools} onChange={setTools} />
-          <RaidRouteLayer route={route} />
+          {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker mapId={activeMap.id} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
@@ -652,7 +653,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           }))}
         </MapContainer>
         </div>
-        <RaidRouteHint route={route} />
+        {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}`} aria-hidden={!sheetOpen}>
           {uiText(relatedQuest && (
@@ -725,7 +726,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         <div className="panel-header">
           <div className="panel-title">{uiText("Квесты на карте")}</div>
         </div>
-        {route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
+        {featureEnabled('raidBriefing') && route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
         <div className="filter-row" style={{ padding: 12, margin: 0 }}>
           <div style={{ position: 'relative', width: '100%' }}>
             <Search size={14} style={{ position: 'absolute', left: 11, top: 13, color: 'var(--text-dim)' }} />
@@ -787,7 +788,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
             </div>
           </div>
         ))}
-        {!route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
+        {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
       </aside>
     </div>
   </div>

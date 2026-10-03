@@ -2,13 +2,14 @@ import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
+import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
 import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageX, Palette,
+  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageCheck, PackageX, Palette,
   Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -42,11 +43,13 @@ const navigation = [
 ]
 
 /** «Рейд» group: preparation for the next raid (briefing, items to keep, squad and raid planner). */
-const raidNavigation = [
-  { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList },
-  { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX },
+const raidNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; feature?: ArchivedFeature }> = [
+  { to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList, feature: 'raidBriefing' },
+  { to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX, feature: 'keepItems' },
+  { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
 ]
+const raidNavigation = raidNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
 
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigation = [
@@ -186,9 +189,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     setQuery('')
   }
 
+  // The sidebar scrolls in a short window; the themes' edge stripes (::after) follow its full scroll height.
+  const sidebarRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const sidebar = sidebarRef.current
+    if (!sidebar) return
+    const sync = () => sidebar.style.setProperty('--sidebar-scroll-h', `${sidebar.scrollHeight}px`)
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(sidebar)
+    for (const child of Array.from(sidebar.children)) observer.observe(child)
+    return () => observer.disconnect()
+  }, [mobile])
+
   return (
     <div className={`app-shell${mobile ? ' is-mobile' : ''}`}>
-      {!mobile && <aside className="sidebar">
+      {!mobile && <aside className="sidebar" ref={sidebarRef}>
         <NavLink to="/" className="brand">
           <BrandEmblem />
           <BrandName locale={locale} />
