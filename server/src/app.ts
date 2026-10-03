@@ -32,6 +32,7 @@ import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/
 import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
 import { createSelfUpdateRouter } from './routes/selfUpdate.js'
+import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
@@ -134,6 +135,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments))
   const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
   app.use(createSelfUpdateRouter(accounts, { link: options.ownerApp, audit: (actor, action, details) => { try { adminStore?.audit(actor, action, undefined, details) } catch { /* the action itself already ran */ } } }))
   // «Админ-панель» (owner only); first, so it can also write the owner's older actions to the audit log.
