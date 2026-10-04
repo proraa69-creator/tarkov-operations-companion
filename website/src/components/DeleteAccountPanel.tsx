@@ -16,7 +16,7 @@ export function DeleteAccountPanel() {
         <div className="panel-title" id="delete-account-title"><Trash2 aria-hidden="true" />Удаление аккаунта</div>
       </div>
       <div className="panel-body form">
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Почта, телефон, никнеймы, прогресс, друзья и настройки удаляются без возможности восстановления. Оплаченный срок подписки сгорает.</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Почта, никнеймы, прогресс, друзья и настройки удаляются без возможности восстановления. Оплаченный срок подписки сгорает.</p>
         <div><button type="button" className="button account-delete" onClick={() => setOpen(true)}><Trash2 aria-hidden="true" />Удалить аккаунт</button></div>
       </div>
       {open && <DeleteAccountDialog onClose={() => setOpen(false)} />}
