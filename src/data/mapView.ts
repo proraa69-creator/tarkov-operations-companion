@@ -60,9 +60,8 @@ export interface MapLayerPlan {
   /** Fade the base while a floor is drawn on top of it (tarkov.dev does the same). */
   dimBase: boolean
   /**
-   * Satellite view with a scheme: the scheme is laid under the render tiles (wherever a tile is empty the plan shows,
-   * not the black page), and on the main level the buildings' ground-floor rooms from the scheme are drawn over it —
-   * tarkov.dev's top-down render leaves them black.
+   * The scheme laid under the render tiles. No longer drawn (04.10.2026): through the render's empty spots it showed
+   * the scheme's ground floors on the satellite view. Always false.
    */
   underlay?: boolean
   /** No longer drawn (04.10.2026): it made the main level of the satellite view look like the scheme. Always false. */
@@ -80,12 +79,12 @@ export function planMapLayers(map: GameMap, preferred: MapView, floor: string): 
   const svgFloor = Boolean(imageUrl && floorLayer?.svgLayer)
   if (view === 'satellite') {
     const floorSvg = !floorTileUrl && svgFloor ? 'floor-only' as const : undefined
-    const scheme = Boolean(tileUrl && imageUrl)
     // «Спутник» is the render on every level: the floor's own render tiles, or (a floor only the scheme has) its plan
-    // over the dimmed render. The scheme under the tiles only fills gaps where a tile is empty.
+    // over the dimmed render. No scheme under the tiles: through the render's empty spots (Ground Zero's buildings)
+    // it showed the scheme's ground floors on the satellite view (owner, 04.10.2026).
     return {
       view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg, dimBase: Boolean(floorTileUrl || floorSvg),
-      underlay: scheme, groundInteriors: false,
+      underlay: false, groundInteriors: false,
     }
   }
   // «Схема» is the scheme on every level: the floor's group when the SVG has it, otherwise the scheme unchanged —

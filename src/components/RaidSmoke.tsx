@@ -29,7 +29,8 @@ export function RaidSmoke({ mapId }: { mapId: string }) {
 const PERIOD = 72 // s — puff lives are PERIOD / 2 and PERIOD / 3 (36 s, 24 s): very slow
 const FRAME_MS = 1000 / 30
 const SCALE = 0.5 // backing store: half the CSS pixels (the smoke is soft anyway)
-const PUFFS = 40
+// Enough overlapping puffs that the column reads as one continuous plume, not a stack of separate balls.
+const PUFFS = 64
 const STILL_TIME = PERIOD * 0.4
 
 interface Puff { ground: boolean; life: number; off: number; sprite: number; rot: number; spin: number; jx: number; sway: number; dir: number; size: number; alpha: number }
@@ -37,11 +38,46 @@ interface Puff { ground: boolean; life: number; off: number; sprite: number; rot
 function makePuffs(): Puff[] {
   let seed = 7
   const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646 }
-  return Array.from({ length: PUFFS }, (_, index) => {
+  // Puffs of one life length are spread evenly over the loop (a little jitter only): random offsets left gaps in the
+  // column, so the smoke came out in pieces.
+  const groups = new Map<string, number>()
+  const kinds = Array.from({ length: PUFFS }, (_, index) => {
     const ground = index % 4 === 3
     const k = ground ? 2 : 2 + (index % 2)
-    return { ground, life: PERIOD / k, off: rnd(), sprite: index % 4, rot: rnd() * 6.28, spin: (rnd() - 0.5) * 1.6, jx: rnd() - 0.5, sway: rnd() * 6.28, dir: rnd() < 0.5 ? -1 : 1, size: 0.8 + rnd() * 0.5, alpha: 0.8 + rnd() * 0.3 }
+    const key = `${ground}-${k}`
+    const slot = groups.get(key) ?? 0
+    groups.set(key, slot + 1)
+    return { ground, k, key, slot }
   })
+  return kinds.map(({ ground, k, key, slot }, index) => {
+    const count = groups.get(key)!
+    const off = (slot + rnd() * 0.35) / count
+    return { ground, life: PERIOD / k, off, sprite: index % 4, rot: rnd() * 6.28, spin: (rnd() - 0.5) * 1.6, jx: rnd() - 0.5, sway: rnd() * 6.28, dir: rnd() < 0.5 ? -1 : 1, size: 0.8 + rnd() * 0.5, alpha: 0.65 + rnd() * 0.25 }
+  })
+}
+
+/**
+ * The baked puffs are dense discs with a fairly hard rim; a radial alpha falloff turns each into a soft cloud whose
+ * edge melts into its neighbours, so overlapping puffs blend into one plume.
+ */
+function soften(sprite: Sprite): Sprite {
+  const canvas = document.createElement('canvas')
+  const w = sprite instanceof HTMLImageElement ? sprite.naturalWidth : sprite.width
+  const h = sprite instanceof HTMLImageElement ? sprite.naturalHeight : sprite.height
+  canvas.width = w; canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return sprite
+  ctx.drawImage(sprite, 0, 0)
+  const r = Math.min(w, h) / 2
+  const falloff = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, r)
+  falloff.addColorStop(0, 'rgba(0,0,0,1)')
+  falloff.addColorStop(0.35, 'rgba(0,0,0,0.85)')
+  falloff.addColorStop(0.7, 'rgba(0,0,0,0.3)')
+  falloff.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.globalCompositeOperation = 'destination-in'
+  ctx.fillStyle = falloff
+  ctx.fillRect(0, 0, w, h)
+  return canvas
 }
 
 function loadImage(url: string) {
@@ -151,7 +187,7 @@ function SmokeLayer() {
           const rise = 1 - Math.pow(1 - u, 1.7)
           y = sy - H * 1.02 * rise
           x = sx + puff.jx * (6 + 55 * u) * (spread / (W * 0.8)) * wide - W * 0.14 * rise * rise * (1 + gust * 0.6) + Math.sin(u * 7 + puff.sway) * 10 * SCALE * u
-          size = W * (0.06 + 0.34 * Math.pow(u, 0.75)) * puff.size * wide
+          size = W * (0.09 + 0.36 * Math.pow(u, 0.75)) * puff.size * wide
           alpha = Math.min(1, u / 0.06) * Math.pow(1 - u, 0.9) * 1.5
         }
         return { puff, u, x, y, size, alpha }
@@ -204,8 +240,8 @@ function SmokeLayer() {
     const recolour = () => {
       const { hue, tone, gradient, topHue } = optionsRef.current
       bakedKey = colourKey()
-      sprites = baked.map((image) => tint(image, hue, tone))
-      topSprites = gradient && topHue !== hue ? baked.map((image) => tint(image, topHue, tone)) : []
+      sprites = baked.map((image) => soften(tint(image, hue, tone)))
+      topSprites = gradient && topHue !== hue ? baked.map((image) => soften(tint(image, topHue, tone))) : []
       glow = bakedGlow && tint(bakedGlow, hue, tone)
     }
     redrawRef.current = () => {
