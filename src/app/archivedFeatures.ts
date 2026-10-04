@@ -9,6 +9,8 @@
  * - economyTools: «Рейтинг ценности», «Бартеры», «Крафты» (/economy/*); «Барахолка» and «Торговцы» stay.
  * - gunBuilder: «Сборщик оружия» (/arsenal/builder); «Баллистика» stays.
  * - kappaMenu: the «Предметы для Каппы» item of the desktop sidebar (the page stays, the overview links to it).
+ * - manualObjectives: ticking / counting quest objectives by hand, notes and «История изменений» (objectives are
+ *   shown read-only, progress comes from the game logs only).
  */
 export const ARCHIVED = {
   raidBriefing: true,
@@ -17,6 +19,7 @@ export const ARCHIVED = {
   economyTools: true,
   gunBuilder: true,
   kappaMenu: true,
+  manualObjectives: true,
 } as const
 
 export type ArchivedFeature = keyof typeof ARCHIVED

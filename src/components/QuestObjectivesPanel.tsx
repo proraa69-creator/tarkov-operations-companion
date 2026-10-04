@@ -7,6 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { canUndo, objectiveViews, questHistory, type ObjectiveView } from '../progression/objectiveProgress'
 import { catalogStamp, isOverrideStale, objectiveNote, upsertObjectiveNote, useQuestOverrides } from '../progression/questOverrides'
 import { useAppState } from '../state/AppState'
+import { featureEnabled } from '../app/archivedFeatures'
 import './questObjectives.css'
 
 const SOURCE_LABELS: Record<ObjectiveSource, string> = {
@@ -33,22 +34,37 @@ export function QuestObjectivesPanel({ quest }: { quest: Quest }) {
     return <div className="detail-section"><h4>{uiText('Цели')}</h4><p className="dim">{uiText('Подробные цели временно недоступны.')}</p></div>
   }
   const done = views.filter((view) => view.done).length
+  const manual = featureEnabled('manualObjectives')
 
   return <>
     <div className="detail-section quest-objectives">
       <h4>{uiText('Цели')} <span className="quest-objectives-count">{done}/{views.length}</span> <span className="tag">{state.raidMode === 'seasonal' ? uiText('Сезон') : state.raidMode.toUpperCase()}</span></h4>
       <ol className="quest-objective-list">
-        {views.map((view) => <ObjectiveRow key={view.def.id} quest={quest} view={view} />)}
+        {views.map((view) => manual ? <ObjectiveRow key={view.def.id} quest={quest} view={view} /> : <ObjectiveReadOnly key={view.def.id} quest={quest} view={view} />)}
       </ol>
-      <p className="dim quest-objectives-hint">{uiText('Счётчики целей игра в журналы не пишет: поправьте их здесь. Задание, выполненное по журналу, отмечает все цели.')}</p>
+      {manual && <p className="dim quest-objectives-hint">{uiText('Счётчики целей игра в журналы не пишет: поправьте их здесь. Задание, выполненное по журналу, отмечает все цели.')}</p>}
     </div>
-    <div className="detail-section quest-history">
+    {manual && <div className="detail-section quest-history">
       <h4><History size={14} /> {uiText('История изменений')}</h4>
       {history.length
         ? <ul className="quest-history-list">{history.map((event) => <HistoryRow key={event.id} event={event} description={event.objectiveId ? descriptions.get(event.objectiveId) : undefined} />)}</ul>
         : <p className="dim">{uiText('Изменений пока нет.')}</p>}
-    </div>
+    </div>}
   </>
+}
+
+/** Manual marking is archived (src/app/archivedFeatures.ts): the objective and its state from the logs, nothing to click. */
+function ObjectiveReadOnly({ quest, view }: { quest: Quest; view: ObjectiveView }) {
+  const { def } = view
+  return <li className={`quest-objective-row is-readonly ${view.done ? 'is-done' : ''}`}>
+    <div className="quest-objective-main">
+      <span className="quest-objective-check">
+        <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
+        <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+      </span>
+      {def.target > 1 && <span className="quest-objective-counter"><strong>{view.current}/{def.target}</strong></span>}
+    </div>
+  </li>
 }
 
 function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {

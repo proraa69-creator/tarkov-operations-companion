@@ -10,6 +10,10 @@ import { QUEST_OVERRIDES_KEY } from '../progression/questOverrides'
 import { AppStateProvider, useAppState } from '../state/AppState'
 import { QuestObjectivesPanel } from './QuestObjectivesPanel'
 
+// Manual marking is archived in the app (src/app/archivedFeatures.ts); these tests keep the archived code working.
+const archived = vi.hoisted(() => ({ manualObjectives: false }))
+vi.mock('../app/archivedFeatures', () => ({ featureEnabled: (feature: string) => feature === 'manualObjectives' ? !archived.manualObjectives : true }))
+
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { metadata: { source: 'json.tarkov.dev', mode: 'pvp', loadedAt: '2026-10-01T00:00:00.000Z', counts: {}, sourceVersion: 'v2' } } }) }))
 
 const TASK = '5c0d4c12d09282029f539173'
@@ -38,9 +42,19 @@ function renderPanel() {
   return render(<LocaleProvider><AppStateProvider><Probe /><QuestObjectivesPanel quest={quest} /></AppStateProvider></LocaleProvider>)
 }
 
-afterEach(() => { localStorage.clear(); probe.current = undefined })
+afterEach(() => { localStorage.clear(); probe.current = undefined; archived.manualObjectives = false })
 
 describe('QuestObjectivesPanel', () => {
+  it('with manual marking archived: objectives are read-only, no counters to click, no history', async () => {
+    archived.manualObjectives = true
+    renderPanel()
+    expect(await screen.findByText('Найти блокпост ООН')).toBeInTheDocument()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Больше' })).toBeNull()
+    expect(screen.queryByText('История изменений')).toBeNull()
+    expect(screen.getByText('0/30')).toBeInTheDocument()
+  })
+
   it('edits counters and checkboxes per mode and records the history', async () => {
     seed()
     const user = userEvent.setup()
