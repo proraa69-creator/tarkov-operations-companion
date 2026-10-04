@@ -2,7 +2,11 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MapMarker } from '../domain/types'
 
-const editor = vi.hoisted(() => ({ place: vi.fn(async () => {}), remove: vi.fn(async () => {}) }))
+type Placed = { bossKey: string; x: number; z: number; hidden?: boolean }
+const editor = vi.hoisted(() => ({
+  place: vi.fn<(placement: Placed) => Promise<void>>(async () => {}),
+  remove: vi.fn<(id: string) => Promise<void>>(async () => {}),
+}))
 vi.mock('../app/buildEdition', () => ({ isOwnerApp: () => true }))
 vi.mock('../data/mapBossPlacements', async (importOriginal) => ({ ...(await importOriginal<typeof import('../data/mapBossPlacements')>()), useMapBossEditor: () => editor }))
 
