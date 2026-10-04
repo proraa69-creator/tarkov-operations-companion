@@ -163,7 +163,8 @@
   position: absolute;
   left: 12px;
   bottom: 12px;
-  width: min(440px, calc(50% - 18px));
+  /* wide and low: most of the map's width, so the text runs in long lines instead of a tall narrow column */
+  width: min(720px, calc(100% - 24px));
   min-width: min(300px, calc(100% - 24px));
   /* the whole card fits: it grows with its content up to the map's height (a scroll only beyond that) */
   max-height: calc(100% - 24px);
@@ -203,13 +204,14 @@
 .map-quest-sheet-meta .tag { font-size: 10px; }
 .map-quest-sheet-section h4 { margin: 0 0 4px; color: var(--text-dim); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .map-quest-sheet-section p { margin: 0 0 6px; }
-.map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); }
+.map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); columns: 2 180px; column-gap: 20px; }
+.map-quest-sheet-objectives li { break-inside: avoid; }
 .map-quest-sheet-objectives li { margin: 0 0 3px; }
-.map-quest-sheet-link { width: 100%; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
-.map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 118px; gap: 10px; align-items: start; }
+.map-quest-sheet-link { width: auto; min-width: 200px; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
+.map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; align-items: start; }
 .map-quest-sheet-copy { min-width: 0; }
 .map-quest-sheet-visual { margin: 0; display: grid; gap: 6px; }
-.map-quest-sheet-visual .mini-map { height: 104px; border-radius: 6px; }
+.map-quest-sheet-visual .mini-map { height: 120px; border-radius: 6px; }
 .map-quest-sheet-visual figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 6px; color: var(--text-dim); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .map-quest-sheet-visual figcaption span:last-child { color: var(--brass); }
 .map-quest-sheet-point { margin: 0; color: #c3ccc5; font-size: 11px; line-height: 1.3; }
