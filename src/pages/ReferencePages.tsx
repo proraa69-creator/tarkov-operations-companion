@@ -26,7 +26,7 @@ import { EconomyTabs } from "../components/EconomyParts";
 import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats } from "../arsenal/ammoSource";
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
-import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend, DropOffCharts } from "../arsenal/BallisticsCharts";
+import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 
 export function EconomyPage() {
@@ -287,7 +287,7 @@ export function AmmoPage() {
         <div>
           <div className="eyebrow">{uiText("Арсенал")}{" · "}{state.raidMode === "seasonal" ? uiText("Сезон") : state.raidMode.toUpperCase()}</div>
           <h1 className="page-title">{uiText("Баллистика")}</h1>
-          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов, шанс пробить броню 1–6 класса и примерное падение урона с дистанцией.")}</p>
+          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов и шанс пробить броню 1–6 класса.")}</p>
         </div>
         <span className={`tag ${isLive ? "green" : "danger"}`}>
           <Crosshair size={12} />{" "}
@@ -320,26 +320,18 @@ export function AmmoPage() {
             <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
           </div>
         </section>
+        {/* «Падение с дистанцией» was taken off (owner, 04.10.2026): it did not work; DropOffCharts stays in src/arsenal. */}
         {selected && (
-          <div className="ballistics-split">
-            <section className="panel">
-              <div className="panel-header">
-                <div className="panel-title selected-ammo-head">
-                  <span className="swatch" style={{ background: colorOf(selected.caliber) }} />
-                  {uiText("Против брони")}{" · "}{selected.shortName}
-                </div>
-                <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+          <section className="panel">
+            <div className="panel-header">
+              <div className="panel-title selected-ammo-head">
+                <span className="swatch" style={{ background: colorOf(selected.caliber) }} />
+                {uiText("Против брони")}{" · "}{selected.shortName}
               </div>
-              <div className="panel-body"><ArmorEffectivenessTable ammo={selected} /></div>
-            </section>
-            <section className="panel">
-              <div className="panel-header">
-                <div className="panel-title">{uiText("Падение с дистанцией")}{" · "}{selected.shortName}</div>
-                <span className="tag brass">{uiText("приблизительно")}</span>
-              </div>
-              <div className="panel-body"><DropOffCharts ammo={selected} color={colorOf(selected.caliber)} /></div>
-            </section>
-          </div>
+              <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+            </div>
+            <div className="panel-body"><ArmorEffectivenessTable ammo={selected} /></div>
+          </section>
         )}
         <section className="panel">
           <div className="panel-body" style={{ overflowX: "auto" }}>

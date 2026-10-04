@@ -1,7 +1,7 @@
 /** English strings for «Арсенал» (Ballistics 2.0) and trader restock timers / notifications. */
 export const ARSENAL_PHRASES: Array<[string, string]> = [
   ['Арсенал', 'Arsenal'], ['Баллистика', 'Ballistics'],
-  ['Пробитие и урон всех патронов, шанс пробить броню 1–6 класса и примерное падение урона с дистанцией.', 'Penetration and damage of every round, the chance to beat class 1–6 armor and the approximate drop-off with distance.'],
+  ['Пробитие и урон всех патронов и шанс пробить броню 1–6 класса.', 'Penetration and damage of every round and the chance to beat class 1–6 armor.'],
   ['tarkov.dev · живые данные', 'tarkov.dev · live data'], ['Загрузка tarkov.dev…', 'Loading tarkov.dev…'],
   ['Каталог: только урон и пробитие', 'Catalog: damage and penetration only'],
   ['Калибр', 'Caliber'], ['Калибры', 'Calibers'], ['Все калибры', 'All calibers'],
