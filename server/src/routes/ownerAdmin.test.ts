@@ -322,6 +322,31 @@ test('streamer percent per streamer applies to new payments only; a disabled lin
   } finally { await t.close() }
 })
 
+test('the owner can take the streamer status away: the cabinet goes, the code stays reserved', async () => {
+  const t = await setup()
+  try {
+    await t.register('streamer@example.com')
+    t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+    const owner = await t.login('owner@example.com')
+    const streamer = await t.login('streamer@example.com')
+    assert.equal(((await t.call('GET', '/accounts/me', streamer)).json as unknown as { kind: string }).kind, 'streamer')
+
+    assert.equal((await t.call('POST', '/accounts/me/admin/streamers/NOBODY/revoke', owner)).status, 404)
+    assert.equal((await t.call('POST', '/accounts/me/admin/streamers/HUNTER/revoke', streamer)).status, 404)
+    const settings = (await t.call('POST', '/accounts/me/admin/streamers/hunter/revoke', owner)).json as unknown as { streamers: unknown[] }
+    assert.deepEqual(settings.streamers, [])
+
+    const me = (await t.call('GET', '/accounts/me', streamer)).json as unknown as { kind: string; referralCode?: string; subscription: { status: string } }
+    assert.equal(me.kind, 'user')
+    assert.equal(me.referralCode, undefined)
+    assert.equal(me.subscription.status, 'inactive')
+    assert.equal((await t.call('POST', '/accounts/referral-visits', undefined, { code: 'HUNTER' })).status, 404)
+    assert.throws(() => t.accounts.promoteToStreamer('owner@example.com', 'HUNTER'), /already taken/)
+    const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries.map((entry) => `${entry.action}:${entry.target}`)
+    assert.deepEqual(actions, ['streamer.revoke:HUNTER'])
+  } finally { await t.close() }
+})
+
 test("the owner's older actions (streamer invites, payout limits) are written to the audit log", async () => {
   const t = await setup()
   try {

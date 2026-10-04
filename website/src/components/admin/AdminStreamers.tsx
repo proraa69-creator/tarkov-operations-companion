@@ -1,4 +1,4 @@
-import { Link2, Link2Off, LoaderCircle, Percent, RotateCcw, Save } from 'lucide-react'
+import { Link2, Link2Off, LoaderCircle, Percent, RotateCcw, Save, UserX } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { api, type AdminStreamerSettings } from '../../api'
 import { useAuth } from '../../auth'
@@ -44,7 +44,7 @@ function StreamerSettings({ onChange }: { onChange: () => void }) {
       {data && data.streamers.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table admin-table">
-            <thead><tr><th scope="col">Стример</th><th scope="col">Доля, %</th><th scope="col">Ссылка</th></tr></thead>
+            <thead><tr><th scope="col">Стример</th><th scope="col">Доля, %</th><th scope="col">Ссылка</th><th scope="col">Кабинет</th></tr></thead>
             <tbody>
               {data.streamers.map((row) => {
                 const draft = drafts[row.code] ?? String(row.percent)
@@ -66,6 +66,9 @@ function StreamerSettings({ onChange }: { onChange: () => void }) {
                       {row.linkEnabled
                         ? <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отключить ссылку ${row.code}? Новые переходы и регистрации по ней не будут засчитываться стримеру.`)) void apply(row.code, (t) => api.adminSetStreamerLink(t, row.code, false)) }}><Link2Off aria-hidden="true" />Отключить</button>
                         : <span className="admin-link-off"><span className="tag danger admin-mini">отключена{row.linkDisabledAt ? ` ${dateOnly.format(new Date(row.linkDisabledAt))}` : ''}</span><button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void apply(row.code, (t) => api.adminSetStreamerLink(t, row.code, true))}><Link2 aria-hidden="true" />Включить</button></span>}
+                    </td>
+                    <td>
+                      <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Снять статус стримера с ${row.email}? Кабинет стримера и бесплатная подписка исчезнут, ссылка ${row.code} перестанет работать. Код останется за аккаунтом, история оплат сохранится.`)) void apply(row.code, (t) => api.adminRevokeStreamer(t, row.code)) }}><UserX aria-hidden="true" />Удалить</button>
                     </td>
                   </tr>
                 )

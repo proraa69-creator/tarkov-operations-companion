@@ -330,6 +330,7 @@ export const api = {
   adminStreamerSettings: (token: string) => request<AdminStreamerSettings>('/me/admin/streamer-settings', { token }),
   adminSetStreamerPercent: (token: string, code: string, percent: number | null) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/percent`, { method: 'PUT', token, body: { percent } }),
   adminSetStreamerLink: (token: string, code: string, enabled: boolean) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/link`, { method: 'PUT', token, body: { enabled } }),
+  adminRevokeStreamer: (token: string, code: string) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/revoke`, { method: 'POST', token }),
   adminSalesSettings: (token: string) => request<AdminSalesSettings>('/me/admin/sales-settings', { token }),
   adminYookassaSettings: (token: string) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { token }),
   adminSaveYookassaSettings: (token: string, body: YookassaSettingsInput) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { method: 'PUT', token, body }),

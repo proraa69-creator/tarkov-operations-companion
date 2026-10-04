@@ -531,7 +531,7 @@ export class AccountStore {
     if (!account) throw new AccountError(404, `Account not found: ${email}`)
     const code = normalizeReferralCode(rawCode)
     if (!REFERRAL_CODE.test(code)) throw new AccountError(400, 'Referral code must be 3-24 chars: A-Z, 0-9, _ or -')
-    const owner = this.ownerOfCode(code)
+    const owner = this.holderOfCode(code)
     if (owner && owner !== account.id) throw new AccountError(409, `Referral code already taken: ${code}`)
     this.db.prepare("UPDATE accounts SET kind = 'streamer', referral_code = ? WHERE id = ?").run(code, account.id)
     return code
@@ -544,7 +544,7 @@ export class AccountStore {
   createStreamerInvite(rawCode: string) {
     const code = normalizeReferralCode(rawCode)
     if (!REFERRAL_CODE.test(code)) throw new AccountError(400, 'Код стримера: 3–24 символа, латиница, цифры, «_» или «-»')
-    if (this.ownerOfCode(code)) throw new AccountError(409, `Код ${code} уже занят`)
+    if (this.holderOfCode(code)) throw new AccountError(409, `Код ${code} уже занят`)
     const token = randomBytes(24).toString('base64url')
     const expiresAt = this.now() + STREAMER_INVITE_TTL_MS
     this.db.prepare('INSERT INTO streamer_invites (digest, code, created_at, expires_at) VALUES (?, ?, ?, ?)').run(tokenDigest(token), code, this.now(), expiresAt)
@@ -564,7 +564,7 @@ export class AccountStore {
     const invite = this.streamerInvite(token)
     if (!invite) throw new AccountError(404, 'Приглашение не найдено, уже использовано или истекло')
     if (account.kind === 'streamer') throw new AccountError(409, 'Этот аккаунт уже стримерский')
-    const owner = this.ownerOfCode(invite.code)
+    const owner = this.holderOfCode(invite.code)
     if (owner && owner !== account.id) throw new AccountError(409, `Код ${invite.code} уже занят`)
     this.db.prepare('UPDATE streamer_invites SET used_by = ?, used_at = ? WHERE digest = ? AND used_at IS NULL').run(account.id, this.now(), tokenDigest(token))
     this.db.prepare("UPDATE accounts SET kind = 'streamer', referral_code = ? WHERE id = ?").run(invite.code, account.id)
@@ -746,6 +746,12 @@ export class AccountStore {
 
   private ownerOfCode(code: string) {
     const row = this.db.prepare("SELECT id FROM accounts WHERE referral_code = ? AND kind = 'streamer'").get(code) as Row | undefined
+    return row ? String(row.id) : undefined
+  }
+
+  /** Any account holding the code, including a former streamer: the code stays reserved after the status is taken away. */
+  private holderOfCode(code: string) {
+    const row = this.db.prepare('SELECT id FROM accounts WHERE referral_code = ?').get(code) as Row | undefined
     return row ? String(row.id) : undefined
   }
 

@@ -18,6 +18,7 @@
  *   GET  /me/admin/streamer-settings                 -> { defaultPercent, streamers: [{ code, email, percent, custom, linkEnabled }] }
  *   PUT  /me/admin/streamers/:code/percent   { percent: 0–100 | null } -> streamer settings
  *   PUT  /me/admin/streamers/:code/link      { enabled: boolean }      -> streamer settings
+ *   POST /me/admin/streamers/:code/revoke                              -> streamer settings (the account becomes a user)
  *   GET  /me/admin/sales-settings                    -> prices, plans, providers (no keys; editing stays in the desktop app)
  *   GET  /me/admin/lava/events                       -> { configured, events (last 100 webhook calls), pending (unconfirmed invoices) }
  *   POST /me/admin/lava/events/:id/confirm           -> { already, paymentId, …events }  (amount-mismatch rows only; grants the stored plan once)
@@ -158,6 +159,7 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     const { enabled } = linkSchema.parse(req.body)
     res.json(admin.setStreamerLink(actor, codeSchema.parse(req.params.code), enabled))
   }))
+  router.post('/me/admin/streamers/:code/revoke', owner('write', (req, res, actor) => { res.json(admin.revokeStreamer(actor, codeSchema.parse(req.params.code))) }))
 
   router.get('/me/admin/lava/events', owner('read', (_req, res) => { res.json(admin.lavaEvents()) }))
   router.post('/me/admin/lava/events/:id/confirm', owner('write', (req, res, actor) => {

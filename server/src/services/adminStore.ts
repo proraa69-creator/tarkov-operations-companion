@@ -45,7 +45,7 @@ const SCHEMA = `
 
 export type AuditAction =
   | 'subscription.grant' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
-  | 'streamer.percent' | 'streamer.link' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
+  | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
   | 'map.boss-place' | 'map.boss-remove'
@@ -441,6 +441,18 @@ export class AdminStore {
     if (enabled) this.db.prepare("UPDATE accounts SET referral_disabled_at = NULL WHERE referral_code = ? AND kind = 'streamer'").run(code)
     else this.db.prepare("UPDATE accounts SET referral_disabled_at = COALESCE(referral_disabled_at, ?) WHERE referral_code = ? AND kind = 'streamer'").run(this.now(), code)
     this.audit(actor, 'streamer.link', code, { enabled })
+    return this.streamerSettings()
+  }
+
+  /**
+   * Takes the streamer status away: the account becomes an ordinary user (no streamer cabinet, no free lifetime
+   * subscription) and the link stops attributing. The code stays reserved on the account, so it is never handed to
+   * someone else and the users and payments already attributed to it keep their history.
+   */
+  revokeStreamer(actor: string, code: string) {
+    this.mustStreamer(code)
+    this.db.prepare("UPDATE accounts SET kind = 'user', referral_disabled_at = COALESCE(referral_disabled_at, ?) WHERE referral_code = ? AND kind = 'streamer'").run(this.now(), code)
+    this.audit(actor, 'streamer.revoke', code)
     return this.streamerSettings()
   }
 

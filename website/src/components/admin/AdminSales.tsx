@@ -72,6 +72,7 @@ const ACTION_LABEL: Record<string, string> = {
   'sessions.revoke': 'Сброшены сессии',
   'streamer.percent': 'Доля стримера',
   'streamer.link': 'Ссылка стримера',
+  'streamer.revoke': 'Снят статус стримера',
   'streamer.invite': 'Приглашение стримера',
   'payout.decide': 'Решение по выплате',
   'payout.limits': 'Интервал автовыплат',
