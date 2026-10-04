@@ -1,12 +1,11 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, ShieldCheck, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type Payment, type PaymentRegion, type PaymentStatus, type Plan, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
+import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
-import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { CopyButton } from '../components/CopyButton'
-import { AutopayCard, PaymentRegionDialog } from '../components/PaymentRegionDialog'
+import { AutopayCard } from '../components/PaymentRegionDialog'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
 import { LEGAL_VERSION } from '../legal/documents'
@@ -236,9 +235,6 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [history, setHistory] = useState<Payment[]>([])
   const [historyVersion, setHistoryVersion] = useState(0)
   const [paying, setPaying] = useState<PlanId | null>(null)
-  const [consent, setConsent] = useState(false)
-  // «Оплатить» opens the region choice (Россия и СНГ → ЮKassa, Другие страны → Lava.top).
-  const [dialogPlan, setDialogPlan] = useState<Plan | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -263,21 +259,16 @@ function SubscriptionPanel({ account }: { account: Account }) {
     return () => { cancelled = true }
   }, [token, historyVersion])
 
-  function pay(plan: PlanId) {
-    const chosen = plans?.plans.find((item) => item.id === plan)
-    if (!chosen) return
-    setPayError(null)
-    setDialogPlan(chosen)
-  }
-
-  async function startPayment(region: PaymentRegion, autopayConsent: boolean) {
-    if (!token || !dialogPlan) return
-    setPaying(dialogPlan.id)
+  // «Оплатить» goes straight to ЮKassa: a one-off payment, no checkboxes. Pressing it accepts the offer (the text under
+  // the plans says so). Without the separate autopayment consent the law requires, nothing is ever charged again.
+  async function pay(plan: PlanId) {
+    if (!token) return
+    setPaying(plan)
     setPayError(null)
     try {
       const language = navigator.language?.toLowerCase().startsWith('ru') ? 'ru' : 'en'
-      const { confirmationUrl } = await api.createPayment(token, dialogPlan.id, LEGAL_VERSION, { region, language, ...(autopayConsent ? { autopayVersion: LEGAL_VERSION } : {}) })
-      window.location.assign(confirmationUrl) // ЮKassa / Lava.top payment page; buttons stay disabled while the browser leaves
+      const { confirmationUrl } = await api.createPayment(token, plan, LEGAL_VERSION, { region: 'ru', language })
+      window.location.assign(confirmationUrl) // ЮKassa payment page; buttons stay disabled while the browser leaves
     } catch (reason) {
       setPayError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
       setPaying(null)
@@ -323,7 +314,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
     : trial ? 'Бесплатный доступ по приглашению. Чтобы не потерять доступ, оформите подписку заранее — дни сложатся.'
       : 'Выберите тариф — доступ откроется сразу после оплаты.'
   const busy = paying !== null || check?.phase === 'checking'
-  const locked = busy || !consent
+  const locked = busy
 
   return (
     <section className="panel" aria-labelledby="sub-title">
@@ -360,31 +351,29 @@ function SubscriptionPanel({ account }: { account: Account }) {
                     </div>
                     <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
                     <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={locked} title={consent ? undefined : 'Сначала отметьте согласие с условиями ниже'} onClick={() => void pay(plan.id)}>
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={locked} onClick={() => void pay(plan.id)}>
                       {paying === plan.id ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CreditCard aria-hidden="true" />}Оплатить
                     </button>
                   </div>
                 )
               })}
             </div>
-            <ConsentCheckbox checked={consent} onChange={setConsent} id="pay-consent" />
-            {payError && !dialogPlan && <Notice tone={payError.offline ? 'offline' : 'error'} title="Оплата не началась">{payError.message}</Notice>}
+            <p className="dim" style={{ margin: 0, fontSize: 13 }}>
+              Подписку можно отменить в любое время. Нажимая «Оплатить», вы принимаете условия <Link to="/legal/offer" target="_blank" rel="noopener" style={{ color: 'var(--brass-strong)' }}>оферты</Link>.
+            </p>
+            {payError && <Notice tone={payError.offline ? 'offline' : 'error'} title="Оплата не началась">{payError.message}</Notice>}
             <p className="receipt-note">
               <Receipt aria-hidden="true" />
               <span>Чек об оплате придёт на e-mail аккаунта: <strong style={{ color: 'var(--text-muted)' }}>{account.email}</strong>.</span>
             </p>
             <p className="dim" style={{ margin: 0, fontSize: 13 }}>
               <ShieldCheck size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 5 }} />
-              Россия и СНГ — защищённая страница ЮKassa (карта, СБП, SberPay, ЮMoney), другие страны — Lava.top (Visa/Mastercard, PayPal). Автопродление — только с вашего отдельного согласия, отменяется в один клик. <Link to="/legal" style={{ color: 'var(--brass-strong)' }}>Реквизиты и возврат</Link>
+              Оплата на защищённой странице ЮKassa: карта, СБП, SberPay, ЮMoney. <Link to="/legal" style={{ color: 'var(--brass-strong)' }}>Реквизиты и возврат</Link>
             </p>
           </>
         )}
 
         {history.length > 0 && <PaymentHistory payments={history} />}
-        {dialogPlan && plans && (
-          <PaymentRegionDialog plan={dialogPlan} plans={plans} autopay={autopay} busy={paying !== null} error={payError}
-            onClose={() => { setDialogPlan(null); setPayError(null) }} onPay={(region, autopayConsent) => void startPayment(region, autopayConsent)} />
-        )}
       </div>
     </section>
   )
