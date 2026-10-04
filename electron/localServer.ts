@@ -144,10 +144,12 @@ async function startApi() {
   // Which app build runs this server: /health reports it, so a later build can recognise an old server on the port.
   const build = await runningBuild()
   const buildEnv = { TARKOV_APP_VERSION: build.version, TARKOV_APP_BUILD: String(build.build), TARKOV_APP_COMMIT: build.commit, TARKOV_APP_EDITION: build.edition }
+  // The owner's portable exe, for the one-time «Серверная версия» link of the admin panel (server/src/routes/serverDownload.ts).
+  const serverExe = build.edition === 'owner' && process.env.PORTABLE_EXECUTABLE_FILE ? { RAIDOS_SERVER_EXE: process.env.PORTABLE_EXECUTABLE_FILE } : {}
   const child = utilityProcess.fork(serverScript(), [], {
     serviceName: 'Raid OS API',
     stdio: 'pipe',
-    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...buildEnv, ...extra },
+    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...buildEnv, ...serverExe, ...extra },
   })
   const write = (chunk: Buffer) => void appendFile(log, chunk).catch(() => {})
   child.stdout?.on('data', write)

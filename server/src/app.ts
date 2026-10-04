@@ -35,6 +35,7 @@ import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
 import { createSelfUpdateRouter } from './routes/selfUpdate.js'
 import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
+import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
@@ -139,6 +140,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
+  // «Серверная версия» (owner only): a one-time 15-minute link to this laptop's exe (routes/serverDownload.ts).
+  app.use(createServerDownloadRouter(accounts, { audit: (actor, action, details) => { try { adminStore?.audit(actor, action, undefined, details) } catch { /* the link works anyway */ } } }))
   app.use(createSelfUpdateRouter(accounts, { link: options.ownerApp, audit: (actor, action, details) => { try { adminStore?.audit(actor, action, undefined, details) } catch { /* the action itself already ran */ } } }))
   // «Админ-панель» (owner only); first, so it can also write the owner's older actions to the audit log.
   // Signed entitlements, the device limit and the owner's device list (docs/subscription-protection.md).

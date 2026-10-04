@@ -46,7 +46,7 @@ const SCHEMA = `
 export type AuditAction =
   | 'subscription.grant' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
-  | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback'
+  | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
   | 'map.boss-place' | 'map.boss-remove'
 

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { dateTime, failure, numberFormat, useAdminData, type Failure } from './adminData'
+import { API_URL } from '../../config'
 import { updateApi, type BuildRef, type HistoryEntry, type SelfUpdateStatus, type UpdateView } from './updateApi'
 import '../../admin-security.css'
 import '../../admin-update.css'
@@ -129,6 +130,7 @@ export function AdminUpdate() {
             </div>
             <p className="field-hint" style={{ margin: 0 }}>Репозиторий, токен и время установки меняются только в приложении на ноутбуке. Сайт не может передать ноутбуку файл: «Установить сейчас» ставит только сборку, которую ноутбук сам скачал и проверил по подписи. Каждый шаг перезапуска пишется в журнал помощника (self-update\update-helper.log); при сбое его конец виден в истории.</p>
           </section>
+          {view.token && <ServerExeSection token={view.token} />}
           {status.updater.files.length > 0 && <FilesSection status={status} />}
           {status.updater.checks.length > 0 && (
             <section className="admin-section" aria-labelledby="update-checks-title">
@@ -251,6 +253,50 @@ function HistorySection({ history }: { history: HistoryEntry[] }) {
           ))}
         </ul>
       )}
+    </section>
+  )
+}
+
+/**
+ * «Серверная версия»: a one-time link to this laptop's exe (server/src/routes/serverDownload.ts). It lives 15 minutes and
+ * serves at most three downloads; the owner build runs without a subscription, so there is no permanent link.
+ */
+function ServerExeSection({ token }: { token: string }) {
+  const [link, setLink] = useState<{ url: string; expiresAt: string; size: number } | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const request = async () => {
+    setBusy(true); setError(''); setCopied(false)
+    try {
+      const response = await fetch(`${API_URL}/v1/accounts/me/admin/server-exe-link`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) })
+      const data = await response.json().catch(() => ({})) as { url?: string; expiresAt?: string; size?: number; error?: string }
+      if (!response.ok || !data.url) throw new Error(data.error ?? (response.status === 404 ? 'Раздел доступен только владельцу (или сервер ещё не обновлён).' : `Ошибка сервера (HTTP ${response.status})`))
+      setLink({ url: new URL(data.url, API_URL || window.location.origin).toString(), expiresAt: data.expiresAt ?? '', size: data.size ?? 0 })
+    } catch (reason) {
+      setLink(null)
+      setError(reason instanceof Error && reason.name !== 'TimeoutError' ? reason.message : 'Сервер не ответил. Попробуйте ещё раз.')
+    } finally { setBusy(false) }
+  }
+  const copy = () => { if (link) void navigator.clipboard?.writeText(link.url).then(() => setCopied(true), () => {}) }
+  return (
+    <section className="admin-section" aria-labelledby="update-exe-title">
+      <div className="admin-section-head"><h2 className="panel-title" id="update-exe-title"><DownloadCloud aria-hidden="true" />Серверная версия</h2></div>
+      <p className="field-hint" style={{ margin: 0 }}>Программа владельца (сервер), которая сейчас работает на ноутбуке. Ссылка одноразовая: действует 15 минут и до трёх скачиваний. Не пересылайте её: эта версия работает без подписки.</p>
+      {link && (
+        <div className="admin-exe-link">
+          <code className="mono" style={{ userSelect: 'all', wordBreak: 'break-all' }}>{link.url}</code>
+          <span className="muted guard-small">{megabytes(link.size)} · до {when(link.expiresAt)}</span>
+        </div>
+      )}
+      {error && <Notice tone="error">{error}</Notice>}
+      <div className="admin-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <button type="button" className="button" disabled={busy} onClick={() => void request()}>
+          {busy ? <LoaderCircle aria-hidden="true" className="spinner" /> : <RefreshCw aria-hidden="true" />}{link ? 'Новая ссылка' : 'Получить ссылку'}
+        </button>
+        {link && <a className="button primary" href={link.url} download><DownloadCloud aria-hidden="true" />Скачать</a>}
+        {link && <button type="button" className="button ghost" onClick={copy}>{copied ? 'Скопировано' : 'Скопировать ссылку'}</button>}
+      </div>
     </section>
   )
 }
