@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
 import { AutopayCard } from '../components/PaymentRegionDialog'
+import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
 import { LEGAL_VERSION } from '../legal/documents'
@@ -111,6 +112,7 @@ export function CabinetPage() {
             <AppPanel />
             {account.kind === 'user' && <InviteCodePanel account={account} />}
             <PasswordPanel />
+            <DeleteAccountPanel />
           </div>
         </div>
       </div>

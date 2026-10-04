@@ -249,6 +249,8 @@ const SCHEMA = `
  */
 const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['blocked_at', 'INTEGER'],
+  // «Удалить аккаунт»: the row stays (payments refer to it) but holds no personal data any more.
+  ['deleted_at', 'INTEGER'],
   ['last_seen_at', 'INTEGER'],
   ['referral_disabled_at', 'INTEGER'],
   // Verified phone number in E.164 (services/phoneAuth.ts): set only after an SMS code was confirmed.
@@ -668,6 +670,47 @@ export class AccountStore {
     return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
+  /**
+   * «Удалить аккаунт» (the user's own request, password confirmed by the route). Everything personal goes: e-mail, phone,
+   * password, nicknames, sessions and devices, friends, squads, game progress, settings, positions, payout details.
+   * The row itself stays as an anonymous stub, because payments, autopayment records and streamer payouts refer to it and
+   * are kept for accounting; the e-mail is free for a new registration at once. The owner's account cannot be deleted
+   * this way, and an active autopayment must be cancelled first (cancelling needs the payment provider).
+   */
+  deleteAccount(accountId: string) {
+    const account = this.mustGet(accountId)
+    if (this.isOwner(accountId)) throw new AccountError(409, 'Аккаунт владельца удалить нельзя')
+    const has = (table: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined
+    if (has('recurring_subscriptions') && this.db.prepare("SELECT 1 FROM recurring_subscriptions WHERE account_id = ? AND status = 'active'").get(accountId)) {
+      throw new AccountError(409, 'Сначала отмените автопродление подписки в личном кабинете')
+    }
+    const remove: Array<[string, string]> = [
+      ['sessions', 'account_id'], ['account_devices', 'account_id'], ['account_consents', 'account_id'],
+      ['email_challenges', 'account_id'], ['sms_challenges', 'account_id'],
+      ['friend_blocks', 'account_id'], ['friend_blocks', 'blocked_id'], ['friend_profiles', 'account_id'],
+      ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
+      ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
+      ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
+      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'],
+      ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
+    ]
+    const progressOwner = `user:${account.id}`
+    this.db.exec('BEGIN')
+    try {
+      for (const [table, column] of remove) {
+        if (has(table)) this.db.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(column === 'owner' ? progressOwner : account.id)
+      }
+      // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
+      this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', phone = NULL, phone_verified_at = NULL,
+        email_verified_at = NULL, email_grandfathered = 0, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
+        .run(`deleted-${account.id}@deleted.invalid`, randomBytes(16), randomBytes(64), this.now(), this.now(), this.now(), account.id)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
   /** Checks the account's current password (phone binding, password change); same scrypt cost either way. */
   async verifyPassword(accountId: string, password: string) {
     const account = this.mustGet(accountId)
@@ -837,6 +880,7 @@ const consentSchema = z.object({ kind: z.enum(['registration', 'payment']), vers
 const ownerSeriesSchema = periodSchema.extend({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const ownerInviteSchema = z.object({ code: z.string().trim().max(24) })
 const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema })
+const deleteAccountSchema = z.object({ password: z.string().min(1).max(128) })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
 const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
@@ -930,6 +974,17 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (!(await store.verifyPassword(accountId, parsed.data.currentPassword))) return { status: 403, body: { error: 'Текущий пароль указан неверно' } }
       const token = await store.setPassword(accountId, parsed.data.newPassword)
       return { status: 200, body: { token, account: store.view(accountId) } }
+    }),
+
+    /** «Удалить аккаунт»: needs the current password; see AccountStore.deleteAccount. */
+    deleteAccount: (req: AccountsRequest) => authedAsync(req, async (accountId) => {
+      const blocked = limited(authLimiter, `password:${accountId}`)
+      if (blocked) return blocked
+      const parsed = deleteAccountSchema.safeParse(req.body)
+      if (!parsed.success) return invalid('Введите пароль')
+      if (!(await store.verifyPassword(accountId, parsed.data.password))) return { status: 403, body: { error: 'Пароль указан неверно' } }
+      store.deleteAccount(accountId)
+      return { status: 200, body: { deleted: true } }
     }),
 
     applyReferral: (req: AccountsRequest) => authed(req, (accountId) => {

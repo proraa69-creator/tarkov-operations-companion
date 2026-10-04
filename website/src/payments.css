@@ -57,3 +57,7 @@
 @keyframes pay-fade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes pay-rise { from { opacity: 0; transform: translateY(10px) scale(.98) } to { opacity: 1; transform: none } }
 @media (prefers-reduced-motion: reduce) { .pay-dialog-backdrop, .pay-dialog { animation: none } }
+
+/* «Удалить аккаунт» (DeleteAccountPanel). */
+.button.account-delete { color: #d48b80; border-color: #5a3732; }
+.button.account-delete:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }

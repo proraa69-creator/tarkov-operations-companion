@@ -159,7 +159,7 @@ export class AdminStore {
       today: count('SELECT COUNT(*) AS n FROM accounts WHERE created_at >= ?', today),
       days7: count('SELECT COUNT(*) AS n FROM accounts WHERE created_at >= ?', now - 7 * DAY_MS),
       days30: count('SELECT COUNT(*) AS n FROM accounts WHERE created_at >= ?', now - 30 * DAY_MS),
-      blocked: count('SELECT COUNT(*) AS n FROM accounts WHERE blocked_at IS NOT NULL'),
+      blocked: count('SELECT COUNT(*) AS n FROM accounts WHERE blocked_at IS NOT NULL AND deleted_at IS NULL'),
     }
     const subscriptions = {
       active: count("SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND s.paid_until > ?", now),
@@ -280,7 +280,8 @@ export class AdminStore {
 
   users(q: string, filter: UserFilter, limit: number, offset: number) {
     const now = this.now()
-    const where: string[] = []
+    // Deleted accounts (anonymous stubs kept for the payment records) are not users any more.
+    const where: string[] = ['a.deleted_at IS NULL']
     const args: Array<string | number> = []
     if (q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(q.toLowerCase())) }
     const active = "(a.kind = 'user' AND s.paid_until > ?)"

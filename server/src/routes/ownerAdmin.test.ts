@@ -393,3 +393,37 @@ test('sales settings show prices and providers, never keys; the database migrati
   assert.equal((db.prepare('SELECT email, blocked_at FROM accounts').get() as { email: string; blocked_at: null }).blocked_at, null)
   assert.throws(() => new AdminStore(new AccountStore({ db, ownerEmails: [] }), new PaymentStore(openDatabase(':memory:'), undefined)), /share one database/)
 })
+
+test('«Удалить аккаунт»: password required, personal data erased, payments kept, the e-mail is free again', async () => {
+  const t = await setup()
+  try {
+    await t.register('streamer@example.com')
+    t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+    const player = await t.register('player@example.com', 'HUNTER')
+    await t.pay(player, '1m')
+    const owner = await t.login('owner@example.com')
+    const id = t.accounts.accountByEmail('player@example.com')!.id
+
+    assert.equal((await t.call('POST', '/accounts/me/delete', undefined, { password })).status, 401)
+    assert.equal((await t.call('POST', '/accounts/me/delete', player, {})).status, 400)
+    assert.equal((await t.call('POST', '/accounts/me/delete', player, { password: 'wrong password' })).status, 403)
+    assert.equal((await t.call('POST', '/accounts/me/delete', owner, { password })).status, 409)
+
+    assert.equal((await t.call('POST', '/accounts/me/delete', player, { password })).status, 200)
+    assert.equal((await t.call('GET', '/accounts/me', player)).status, 401)
+    assert.equal((await t.call('POST', '/accounts/login', undefined, { email: 'player@example.com', password })).status, 401)
+    const row = t.db.prepare('SELECT email, phone, nicknames, deleted_at FROM accounts WHERE id = ?').get(id) as Record<string, unknown>
+    assert.equal(row.email, `deleted-${id}@deleted.invalid`)
+    assert.equal(row.phone, null)
+    assert.notEqual(row.deleted_at, null)
+    assert.equal((t.db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE account_id = ?').get(id) as { n: number }).n, 0)
+    assert.equal((t.db.prepare('SELECT COUNT(*) AS n FROM subscriptions WHERE account_id = ?').get(id) as { n: number }).n, 0)
+    // The payment and the streamer's earning stay for accounting.
+    assert.equal((t.db.prepare('SELECT COUNT(*) AS n FROM payments WHERE account_id = ?').get(id) as { n: number }).n, 1)
+    assert.equal(t.payments.streamerEarned('HUNTER'), 3000)
+    // Gone from the owner's user list; the address can register again.
+    const users = (await t.call('GET', '/accounts/me/admin/users', owner)).json as unknown as { users: Array<{ email: string }> }
+    assert.ok(!users.users.some((user) => user.email.includes('player') || user.email.startsWith('deleted-')))
+    assert.equal(typeof (await t.register('player@example.com')), 'string')
+  } finally { await t.close() }
+})

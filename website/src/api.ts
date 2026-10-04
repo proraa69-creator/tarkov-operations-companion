@@ -301,6 +301,7 @@ export const api = {
   me: (token: string) => request<Account>('/me', { token }),
   /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */
   changePassword: (token: string, currentPassword: string, newPassword: string) => request<AuthResult>('/me/password', { method: 'POST', token, body: { currentPassword, newPassword } }),
+  deleteAccount: (token: string, password: string) => request<{ deleted: true }>('/me/delete', { method: 'POST', token, body: { password } }),
   authConfig: () => request<AuthConfig>('/auth-config'),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   setNicknames: (token: string, nicknames: Partial<Record<AccountMode, string>>) => request<Account>('/me/nicknames', { method: 'PUT', token, body: nicknames }),
