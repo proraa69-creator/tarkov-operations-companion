@@ -607,7 +607,9 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
             const meta = markerMeta[layerId]
             const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId)
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
-            const icon = markerIcon(markerStyle, layerId, focused, noFloorBadgeLayers.has(layerId) ? '' : floorBadge(marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, Boolean(marker.possibleSpot))
+            // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
+            const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
+            const icon = markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, noFloorBadgeLayers.has(layerId) ? '' : floorBadge(marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot))
             return (
               <Marker
                 key={marker.id}
