@@ -48,6 +48,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
+  | 'map.boss-place' | 'map.boss-remove'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 

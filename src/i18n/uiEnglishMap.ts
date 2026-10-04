@@ -68,6 +68,12 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Ключ-карта TerraGroup Labs (жёлтая)', 'TerraGroup Labs keycard (Yellow)'], ['Ключ-карта TerraGroup Labs (чёрная)', 'TerraGroup Labs keycard (Black)'],
   ['Ключ-карта с синей полосой', 'Keycard with a blue marking'], ['Ключ-карта жилого блока TerraGroup Labs', 'TerraGroup Labs residential unit keycard'],
   ['Ключ-карта доступа в Лабораторию', 'TerraGroup Labs access keycard'],
+  // «Расставить боссов» (owner app, src/components/BossPlacement.tsx).
+  ['Расставить боссов', 'Place bosses'], ['Поставить босса на карту вручную: метку увидят все игроки', 'Place a boss on the map by hand: every player will see the marker'],
+  ['Кликните по карте, чтобы поставить босса', 'Click the map to place the boss'], ['Босс', 'Boss'], ['Рейдеры', 'Raiders'],
+  ['Метка поставлена вручную, её видят все игроки.', 'Placed by hand; every player sees this marker.'], ['Убрать с карты', 'Remove from the map'],
+  ['Место появления отмечено вручную.', 'Spawn place marked by hand.'],
+  ['Расставлять боссов может только аккаунт владельца.', 'Only the owner account can place bosses.'], ['Войдите в аккаунт владельца на сервере.', 'Sign in to the owner account on the server.'],
 ]
 
 /** Patterns with a variable part, applied after the phrase table. */

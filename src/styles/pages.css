@@ -1004,3 +1004,10 @@ a.quest-stage:hover { color: var(--text); }
 .owner-table th, .owner-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
 .owner-table th { color: var(--text-dim); font-weight: 600; }
 .owner-table td:nth-child(n+3), .owner-table th:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* «Расставить боссов» (owner app, src/components/BossPlacement.tsx). */
+.map-stage.is-boss-placing .leaflet-container { cursor: crosshair; }
+.boss-placement { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.boss-placement-select { width: auto; height: 28px; padding: 2px 8px; font-size: 12px; }
+.boss-placement-hint { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 12px; }
+.boss-placement-remove { display: grid; gap: 8px; justify-items: start; margin-top: 10px; }

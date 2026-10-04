@@ -61,6 +61,8 @@ export function AdminSales() {
 
 const ACTION_LABEL: Record<string, string> = {
   'payments.yookassa-settings': 'Настройки оплаты ЮKassa',
+  'map.boss-place': 'Босс поставлен на карту',
+  'map.boss-remove': 'Босс убран с карты',
   'payments.lava-settings': 'Настройки оплаты Lava.top',
   'payments.lava-test': 'Проверка вебхука Lava.top',
   'subscription.grant': 'Выдана подписка',

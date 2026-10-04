@@ -38,6 +38,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/settings$/ },
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
+  // Bosses placed on the maps by the owner (server/src/routes/mapBosses.ts).
+  { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Кабинет стримера» on the phone too.

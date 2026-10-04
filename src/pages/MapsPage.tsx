@@ -21,6 +21,7 @@ import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { FloorSvgOverlay } from '../components/FloorSvgOverlay'
 import { LivePlayerMarker } from '../components/LivePlayerMarker'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
+import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
 import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
 import { mapViewSupport, planMapLayers, readMapView, saveMapView } from '../data/mapView'
@@ -319,6 +320,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   }
   const [floor, setFloor] = useState(baseFloor)
   const [tools, setTools] = useState<MapToolsState>(initialMapTools)
+  const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor)
   const mapRef = useRef<LeafletMap | null>(null)
   const toolActive = tools.tool !== 'none'
   const [search, setSearch] = useState('')
@@ -367,10 +369,10 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     return relevant
       && stageOk
       && layerId !== 'spawn'
-      && (focused || !state.hiddenMarkerLayers.includes(layerId))
+      && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests, bossPlacement.active])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
@@ -515,7 +517,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         </div>
       </aside>
 
-      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}`}>
+      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           <span>{uiText(activeMap.name.toUpperCase())}</span>
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -523,6 +525,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
+          <BossPlacementControls state={bossPlacement} />
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -594,7 +597,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           ))}
           <FocusOnMarker marker={flyTarget} />
           <MapRefCapture mapRef={mapRef} />
-          {!toolActive && !route.picking && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
+          {!toolActive && !route.picking && !bossPlacement.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
+          {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
           <MapToolLayer value={tools} onChange={setTools} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker mapId={activeMap.id} />
@@ -720,6 +724,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
               {selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.meta && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
+              <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
           ))}
         </div>

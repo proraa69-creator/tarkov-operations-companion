@@ -11,6 +11,7 @@ import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
 import { catalogRefetchDelay, createFailureCounter, isInitialCatalogLoad } from './catalogRefresh'
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
+import { useMapBossPlacements, withOwnerBosses } from './mapBossPlacements'
 
 interface DataContextValue {
   data: AppDataset
@@ -50,7 +51,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
   const russian = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
-  const data = useEnglishOverlay(russian, raidMode, locale, allowed)
+  const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
+  // Bosses the owner placed by hand replace the automatic markers of that boss on that map (src/data/mapBossPlacements.ts).
+  const placements = useMapBossPlacements(allowed)
+  const data = useMemo(() => placements.length ? { ...translated, markers: withOwnerBosses(translated.markers, placements) } : translated, [translated, placements])
   const value: DataContextValue = {
     data,
     source,
