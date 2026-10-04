@@ -57,7 +57,7 @@ function normalLamp(status: SelfUpdateStatus): Lamp {
   if (!status.enabled) return { tone: 'grey', title: PHASE.off, text: 'Включите его в приложении на ноутбуке: «Сервер» → «Автообновление сервера».' }
   if (updater.phase === 'ready' && updater.waitingForInstall) return { tone: 'amber', title: READY_TEXT, text: `${status.ready ? `Сборка ${build(status.ready)}. ` : ''}Нажмите «Установить сейчас», когда удобно: сервер перезапустится примерно на минуту.` }
   if (BUSY_PHASES.has(updater.phase) || updater.phase === 'ready') return { tone: 'amber', title: PHASE[updater.phase], text: updater.waitingForWindow ? 'Установка ночью, 03:00–06:00 (время ноутбука).' : updater.message }
-  return { tone: 'green', title: PHASE.idle, text: `Сервер проверяет репозиторий релизов каждые 15 минут. Последняя проверка: ${when(updater.checkedAt)}.` }
+  return { tone: 'green', title: PHASE.idle, text: `Сервер проверяет репозиторий релизов каждую минуту. Последняя проверка: ${when(updater.checkedAt)}.` }
 }
 
 /**

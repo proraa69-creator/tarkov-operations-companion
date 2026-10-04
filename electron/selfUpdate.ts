@@ -68,7 +68,7 @@ export interface SelfUpdateHooks {
 }
 
 const TOKEN = /^github_pat_[A-Za-z0-9_]{20,255}$/
-const FIRST_CHECK_MS = 2 * 60_000
+const FIRST_CHECK_MS = 60_000
 
 const settingsFile = () => join(app.getPath('userData'), 'server-update.json')
 const tokenFile = () => join(app.getPath('userData'), 'server-update-token.bin')
@@ -668,7 +668,7 @@ async function finishPending() {
   await finalize(pending, { ...fallback, at: new Date().toISOString() }, running)
 }
 
-/** Server laptop (owner build, --server-mode): finish what a restart left, then check every 15 minutes. */
+/** Server laptop (owner build, --server-mode): finish what a restart left, then check every minute. */
 export function startServerSelfUpdate(next: SelfUpdateHooks) {
   hooks = next
   if (!isOwnerBuild() || !isServerMode() || timer) return

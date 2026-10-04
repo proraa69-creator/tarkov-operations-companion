@@ -38,7 +38,8 @@ export function installWindowOf(saved: unknown): InstallWindow {
 }
 export const DEFAULT_RELEASES_REPO = 'proraa69-creator/raidos-releases'
 export const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/
-export const CHECK_EVERY_MS = 15 * 60_000
+/** A new build is noticed within a minute; the request is conditional (ETag), so an unchanged latest.json costs GitHub nothing. */
+export const CHECK_EVERY_MS = 60_000
 /** «Только ночью»: 03:00–06:00 local time of the laptop. */
 export const NIGHT_WINDOW = { fromHour: 3, toHour: 6 }
 const MANIFEST_MAX_BYTES = 256 * 1024
