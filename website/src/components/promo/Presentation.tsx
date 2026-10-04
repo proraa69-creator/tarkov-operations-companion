@@ -1,4 +1,4 @@
-import { Archive, BookOpen, Database, Download, Layers, LayoutDashboard, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
+import { Archive, BookOpen, Download, Layers, LayoutDashboard, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Reveal } from '../Reveal'
@@ -183,7 +183,6 @@ export function Presentation() {
             </div>
             <ul className="final-trust">
               <li><ShieldCheck aria-hidden="true" /><span><strong>Честная игра.</strong> Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.</span></li>
-              <li><Database aria-hidden="true" /><span><strong>Открытые источники.</strong> Задания, предметы и цены — из tarkov.dev и вики игры.</span></li>
               <li><MonitorSmartphone aria-hidden="true" /><span><strong>Работает рядом с игрой.</strong> Отдельное окно и оверлей поверх игры, Windows 10 и 11.</span></li>
             </ul>
           </Reveal>
