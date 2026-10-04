@@ -15,6 +15,8 @@ export interface MapBossPlacement {
   z: number
   /** Map floor (layer name) when placed on an upper / lower level; absent on the main level. */
   floor?: string
+  /** «Удалить» on an automatic marker: the boss's automatic markers on this map are hidden, nothing is drawn. */
+  hidden?: boolean
   createdAt: string
 }
 
@@ -23,7 +25,7 @@ export type NewMapBossPlacement = Omit<MapBossPlacement, 'id' | 'createdAt'>
 /** Enough for every boss on every map several times over; protects the table from a runaway client. */
 export const MAX_MAP_BOSS_PLACEMENTS = 1000
 
-interface Row { id: string; map_id: string; boss_key: string; boss_name: string; x: number; z: number; floor: string | null; created_at: string }
+interface Row { id: string; map_id: string; boss_key: string; boss_name: string; x: number; z: number; floor: string | null; hidden?: number | null; created_at: string }
 
 export class MapBossStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
@@ -38,6 +40,9 @@ export class MapBossStore {
         created_at TEXT NOT NULL,
         created_by TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS map_boss_placements_map ON map_boss_placements(map_id, boss_key);`)
+    // Older databases: the «hidden» column came later.
+    const columns = db.prepare('PRAGMA table_info(map_boss_placements)').all() as Array<{ name: string }>
+    if (!columns.some((column) => column.name === 'hidden')) db.exec('ALTER TABLE map_boss_placements ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
   }
 
   list(): MapBossPlacement[] {
@@ -57,10 +62,11 @@ export class MapBossStore {
       x: placement.x,
       z: placement.z,
       floor: placement.floor ?? null,
+      hidden: placement.hidden ? 1 : 0,
       created_at: new Date(this.now()).toISOString(),
     }
-    this.db.prepare('INSERT INTO map_boss_placements (id, map_id, boss_key, boss_name, x, z, floor, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(row.id, row.map_id, row.boss_key, row.boss_name, row.x, row.z, row.floor, row.created_at, actor)
+    this.db.prepare('INSERT INTO map_boss_placements (id, map_id, boss_key, boss_name, x, z, floor, hidden, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(row.id, row.map_id, row.boss_key, row.boss_name, row.x, row.z, row.floor, row.hidden ?? 0, row.created_at, actor)
     return toPlacement(row)
   }
 
@@ -82,6 +88,7 @@ function toPlacement(row: Row): MapBossPlacement {
     x: Number(row.x),
     z: Number(row.z),
     ...(row.floor ? { floor: row.floor } : {}),
+    ...(row.hidden ? { hidden: true } : {}),
     createdAt: row.created_at,
   }
 }

@@ -24,6 +24,7 @@ const placementSchema = z.object({
   x: metres,
   z: metres,
   floor: z.string().trim().min(1).max(40).optional(),
+  hidden: z.boolean().optional(),
 })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
@@ -55,7 +56,7 @@ export function createMapBossesRouter(accounts: AccountStore, store: MapBossStor
     if (!body.success) { res.status(400).json({ error: 'Некорректные данные метки' }); return }
     const placement = store.add(body.data, actor)
     if (!placement) { res.status(409).json({ error: 'Слишком много меток боссов. Удалите лишние.' }); return }
-    try { audit?.(actor, 'map.boss-place', placement.id, { mapId: placement.mapId, boss: placement.bossKey, x: Math.round(placement.x), z: Math.round(placement.z) }) } catch { /* placed anyway */ }
+    try { audit?.(actor, 'map.boss-place', placement.id, { mapId: placement.mapId, boss: placement.bossKey, x: Math.round(placement.x), z: Math.round(placement.z), ...(placement.hidden ? { hidden: true } : {}) }) } catch { /* placed anyway */ }
     res.status(201).json({ placement, placements: store.list() })
   })
 

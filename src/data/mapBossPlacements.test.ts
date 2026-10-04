@@ -25,4 +25,10 @@ describe('owner-placed bosses', () => {
     const markers = [auto('i-killa', 'interchange', 'killa')]
     expect(withOwnerBosses(markers, [])).toBe(markers)
   })
+
+  it('a hidden placement (a deleted automatic boss) hides that boss and draws nothing', () => {
+    const markers = [auto('i-killa', 'interchange', 'killa'), auto('i-tagilla', 'interchange', 'tagilla')]
+    const result = withOwnerBosses(markers, [{ ...placed, hidden: true }])
+    expect(result.map((marker) => marker.id)).toEqual(['i-tagilla'])
+  })
 })

@@ -1011,3 +1011,4 @@ a.quest-stage:hover { color: var(--text); }
 .boss-placement-select { width: auto; height: 28px; padding: 2px 8px; font-size: 12px; }
 .boss-placement-hint { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 12px; }
 .boss-placement-remove { display: grid; gap: 8px; justify-items: start; margin-top: 10px; }
+.boss-placement-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

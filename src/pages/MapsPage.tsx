@@ -320,7 +320,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   }
   const [floor, setFloor] = useState(baseFloor)
   const [tools, setTools] = useState<MapToolsState>(initialMapTools)
-  const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor)
+  const plottedMarkersForBosses = useMemo(() => data.markers.filter((marker) => marker.mapId === activeMap.id && marker.type === 'boss'), [activeMap.id, data.markers])
+  const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor, plottedMarkersForBosses)
   const mapRef = useRef<LeafletMap | null>(null)
   const toolActive = tools.tool !== 'none'
   const [search, setSearch] = useState('')
@@ -619,8 +620,15 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                 bubblingMouseEvents={false}
                 zIndexOffset={focused ? 800 : layerId === 'boss' ? 400 : 0}
                 riseOnHover
+                draggable={bossPlacement.active && layerId === 'boss' && !bossPlacement.busy}
                 eventHandlers={{
                   add: (event) => event.target.getElement()?.setAttribute('data-marker-id', marker.id),
+                  // «Расставить боссов»: a boss dragged to a new place is saved at once (components/BossPlacement.tsx).
+                  dragend: (event) => {
+                    if (!bossPlacement.active || layerId !== 'boss') return
+                    const point = (event.target as LeafletMarker).getLatLng()
+                    void bossPlacement.move(marker, point.lng, point.lat)
+                  },
                   click: (event) => {
                     if (toolActive) return
                     event.originalEvent.stopPropagation()

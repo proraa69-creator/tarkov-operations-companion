@@ -53,13 +53,18 @@ test('map bosses: the owner places and removes, everybody reads, players cannot 
 
     const id = placed.json.placement.id
     assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${id}/remove`, player)).status, 404)
+    // A deleted automatic boss is kept as a hidden placement.
+    const hidden = await call<{ placement: { id: string; hidden?: boolean } }>('POST', '/accounts/me/admin/map-bosses', owner, { ...killa, hidden: true })
+    assert.equal(hidden.status, 201)
+    assert.equal(hidden.json.placement.hidden, true)
+    assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${hidden.json.placement.id}/remove`, owner)).status, 200)
     const removed = await call<{ placements: unknown[] }>('POST', `/accounts/me/admin/map-bosses/${id}/remove`, owner)
     assert.equal(removed.status, 200)
     assert.deepEqual(removed.json.placements, [])
     assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${id}/remove`, owner)).status, 404)
 
     const audit = await call<{ entries: Array<{ action: string }> }>('GET', '/accounts/me/admin/audit', owner)
-    assert.deepEqual(audit.json.entries.map((entry) => entry.action).sort(), ['map.boss-place', 'map.boss-remove'])
+    assert.deepEqual(audit.json.entries.map((entry) => entry.action).sort(), ['map.boss-place', 'map.boss-place', 'map.boss-remove', 'map.boss-remove'])
   } finally {
     await close()
   }

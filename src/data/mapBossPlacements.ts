@@ -17,10 +17,12 @@ export interface MapBossPlacement {
   x: number
   z: number
   floor?: string
+  /** A deleted automatic boss: hides that boss's automatic markers on the map and draws nothing. */
+  hidden?: boolean
   createdAt: string
 }
 
-export type NewMapBossPlacement = Pick<MapBossPlacement, 'mapId' | 'bossKey' | 'bossName' | 'x' | 'z' | 'floor'>
+export type NewMapBossPlacement = Pick<MapBossPlacement, 'mapId' | 'bossKey' | 'bossName' | 'x' | 'z' | 'floor' | 'hidden'>
 
 export const OWNER_BOSS_SOURCE = 'owner-placed'
 const PLACEMENTS_KEY = ['map-boss-placements'] as const
@@ -42,7 +44,7 @@ function parsePlacements(answer: unknown): MapBossPlacement[] {
     const row = entry as Partial<MapBossPlacement>
     if (typeof row.id !== 'string' || typeof row.mapId !== 'string' || typeof row.bossKey !== 'string' || typeof row.bossName !== 'string') return []
     if (!Number.isFinite(row.x) || !Number.isFinite(row.z)) return []
-    return [{ id: row.id, mapId: row.mapId, bossKey: row.bossKey, bossName: row.bossName, x: Number(row.x), z: Number(row.z), ...(typeof row.floor === 'string' && row.floor ? { floor: row.floor } : {}), createdAt: String(row.createdAt ?? '') }]
+    return [{ id: row.id, mapId: row.mapId, bossKey: row.bossKey, bossName: row.bossName, x: Number(row.x), z: Number(row.z), ...(typeof row.floor === 'string' && row.floor ? { floor: row.floor } : {}), ...(row.hidden === true ? { hidden: true } : {}), createdAt: String(row.createdAt ?? '') }]
   })
 }
 
@@ -61,14 +63,15 @@ export function placementMarker(placement: MapBossPlacement): MapMarker {
   }
 }
 
-const bossKeyOf = (marker: MapMarker) => (marker.boss?.key ?? marker.boss?.name ?? marker.title).toLowerCase()
+export const bossKeyOf = (marker: MapMarker) => (marker.boss?.key ?? marker.boss?.name ?? marker.title).toLowerCase()
 
 /** The catalog markers with the owner's bosses: automatic markers of a boss placed by hand on that map are dropped. */
 export function withOwnerBosses(markers: MapMarker[], placements: MapBossPlacement[]): MapMarker[] {
   if (!placements.length) return markers
   const placed = new Set(placements.flatMap((entry) => [`${entry.mapId}:${entry.bossKey.toLowerCase()}`, `${entry.mapId}:${entry.bossName.toLowerCase()}`]))
-  const kept = markers.filter((marker) => marker.type !== 'boss' || !placed.has(`${marker.mapId}:${bossKeyOf(marker)}`))
-  return [...kept, ...placements.map(placementMarker)]
+  const names = (marker: MapMarker) => [bossKeyOf(marker), (marker.boss?.name ?? marker.title).toLowerCase()]
+  const kept = markers.filter((marker) => marker.type !== 'boss' || !names(marker).some((name) => placed.has(`${marker.mapId}:${name}`)))
+  return [...kept, ...placements.filter((entry) => !entry.hidden).map(placementMarker)]
 }
 
 /** The owner's placements (refreshed every 10 minutes); an empty list without a server. */
