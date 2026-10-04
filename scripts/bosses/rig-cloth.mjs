@@ -1,6 +1,7 @@
 // Adds a per-vertex sway attribute (_SWAY: x = how much the vertex swings 0..1, y = 1 on hair) to a boss
 // model so everything that hangs — a cape, cloth panels on the hips, dreadlocks — swings and sags in the
-// Gallery viewer (src/gallery/swayMaterial.ts). Tripo models are one fused mesh, so hanging parts are found
+// Gallery viewer (an earlier, offline version: the viewer now analyses each model as it loads, src/gallery/swayWeights.ts
+// and src/gallery/physics). Tripo models are one fused mesh, so hanging parts are found
 // by shape: a thin sheet or tube (short distance through the mesh along the inward normal) with free air
 // on both sides (armour plates are thin too, but the body sits right behind them). The swing weight grows
 // with the distance along the surface from where the cloth joins the rest of the model.

@@ -1,16 +1,20 @@
 /**
- * Hand-measured corrections for the Gallery's cloth motion (swayWeights.ts), per boss model. The automatic
- * shape analysis cannot tell a rifle barrel from a strap or a holster from a pouch, so each model lists:
+ * Hand-measured corrections for the Gallery's secondary physics (swayWeights.ts analysis, physics/rig.ts), per boss
+ * model. The automatic shape analysis cannot tell a rifle barrel from a strap or a holster from a pouch, so each model
+ * lists:
  * - rigid: weapons and weapon parts (barrels, stocks, magazines, launchers, blades) — they never move;
- * - pieces: holsters, backpacks, buckles, hoods… that swing a little as ONE whole piece about a pivot
- *   (default: the top centre of the box), left-right with the turn and in the idle breeze;
+ * - pieces: holsters, backpacks, buckles, hoods… that swing as ONE rigid piece about a pivot (default: the top
+ *   centre of the box); `amount` scales the swing;
  * - whips: radio antennas, fixed at the bottom of the box and bending more towards the tip;
  * - hair: dreads and strands in the box hang from `root` (the scalp line) and swing like hair;
- * - soften: a part that swings too far for its size moves less.
+ * - soften: a part that swings too far for its size moves less;
+ * - physics: material settings of this model's elements, over the defaults of physics/config.ts.
  * Boxes are [x0, y0, z0, x1, y1, z1] in fractions of the model height: y from the feet, x and z from the centre
  * of the model's bounding box; +z is the model's front and +x is on the viewer's right when looking at its face.
  * Measured on orthographic renders with a grid (September 2026).
  */
+import type { PhysicsOverrides } from './physics/config'
+
 export type HintBox = readonly [number, number, number, number, number, number]
 
 export interface BossSwayHints {
@@ -20,6 +24,13 @@ export interface BossSwayHints {
   hair?: { box: HintBox; root: number; reach?: number; amount?: number }[]
   /** Parts that swing too far for their size (a short rope): their swing is scaled down. */
   soften?: { box: HintBox; factor: number }[]
+  /**
+   * Capes and cloaks the shape analysis rejects: thick folds read as lumps and long straight strips as blades. Inside
+   * these boxes folds count as cloth and every thin piece hanging from its top seam is a cloth sheet.
+   */
+  cloth?: HintBox[]
+  /** Material settings for this model (mass, stiffness, damping, limits, collisions per kind of element). */
+  physics?: PhysicsOverrides
 }
 
 export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {

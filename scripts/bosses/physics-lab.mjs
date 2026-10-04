@@ -1,5 +1,5 @@
 // Renders the physics lab page (physics-lab.html) for boss models into PNGs.
-//   node scripts/bosses/physics-lab.mjs <out dir> [mode] [key ...]
+//   node scripts/bosses/physics-lab.mjs <out dir> [classes|sim|walk] [key ...]   (sim: turns; walk: walking, see physics-lab.ts)
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 import fs from 'node:fs'
@@ -26,7 +26,8 @@ for (const file of files) {
   const page = await browser.newPage()
   page.on('console', (msg) => { if (msg.type() === 'error') console.error(key, msg.text()) })
   const model = '/@fs/' + path.join(srcDir, file).split(path.sep).join('/').replace(/^\//, '')
-  await page.goto(`http://127.0.0.1:${port}/scripts/bosses/physics-lab.html?m=${encodeURIComponent(model)}&key=${key}&mode=${mode}`)
+  const query = mode === 'walk' ? 'mode=sim&motion=walk' : `mode=${mode}`
+  await page.goto(`http://127.0.0.1:${port}/scripts/bosses/physics-lab.html?m=${encodeURIComponent(model)}&key=${key}&${query}`)
   await page.waitForFunction(() => document.title !== '', null, { timeout: 300000 })
   const title = await page.title()
   console.log(title)

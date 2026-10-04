@@ -1,26 +1,30 @@
 /**
  * The Gallery's single 3D boss viewer. Loaded with a dynamic import only when a card is opened, so three.js
  * never reaches the main bundle. Rendering is on demand: frames are drawn only while the model is dragged,
- * easing to a stop, its cloth is still swinging, it is loading, or (opt-in) slowly spinning. After a turn the
- * loose cloth breathes in a faint breeze for a few seconds at a low frame rate and then the loop stops, so an
- * idle viewer costs nothing. Nothing is drawn while the canvas is off screen or the window is hidden.
+ * easing to a stop, turning to a key press or a reset, its loose parts are still moving, it is loading, or (opt-in)
+ * slowly spinning; then the loop stops, so an idle viewer costs nothing. Nothing is drawn while the canvas is off
+ * screen or the window is hidden.
+ * Secondary physics (physics/): capes, cloaks and coat hems, straps and slings, hair and dreads, antennas, pouches
+ * and gear follow the model's real motion — its world matrix goes into the simulation every frame — so a turn makes
+ * them lag, flare and swing, and they settle once it stops. The body, the weapons and rigid armour never move.
  * The look (tone mapping, lights, material grade) is shared with the Overview stills: bossLook.ts.
  */
 import {
-  Box3, Group, PerspectiveCamera, Scene, Vector3, WebGLRenderer,
+  Box3, Group, PerspectiveCamera, Quaternion, Scene, Vector3, WebGLRenderer,
   type BufferAttribute, type Material, type Mesh, type Object3D, type Texture,
 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { BossModelFix } from '../data/bossModels'
 import { applyBossLighting, gradeBossMaterial } from './bossLook'
 import type { BossSwayHints } from './bossSwayHints'
-import { addSway, type Sway } from './swayMaterial'
-import { computeSwayWeights, type SwayWeights } from './swayWeights'
-import type { SwayReply, SwayRequest } from './swayWeights.worker'
-import SwayWorker from './swayWeights.worker?worker&inline'
+import { rigFromMesh, type PhysicsRig } from './physics/rig'
+import type { RigReply, RigRequest } from './physics/rig.worker'
+import RigWorker from './physics/rig.worker?worker&inline'
+import { BossPhysics } from './physics/sim'
+import { PhysicsMesh } from './physics/skin'
 
 export interface BossViewerHandle {
-  /** Swap to another model; the renderer and lights are kept. `hints`: the model's cloth-motion hints. */
+  /** Swap to another model; the renderer and lights are kept. `hints`: the model's loose-part hints (bossSwayHints.ts). */
   load(url: string, fix?: BossModelFix, hints?: BossSwayHints): void
   resetView(): void
   setSpin(on: boolean): void
@@ -29,14 +33,23 @@ export interface BossViewerHandle {
 
 const DEG = Math.PI / 180
 const START_YAW = -18 * DEG
+const START_PITCH = 4 * DEG
 const PITCH_LIMIT = 18 * DEG
 const DIST_MIN = 1.7, DIST_MAX = 4.2, DIST_START = 3.1
 const TARGET = new Vector3(0, 0.5, 0)
 const SPIN_SPEED = 0.35 // rad/s
 const SPIN_FRAME_MS = 1000 / 30
-const IDLE_FRAME_MS = 1000 / 24
-/** How long the idle breeze lasts after the last interaction, and its fade-out at the end. */
-const BREEZE_MS = 9000, BREEZE_FADE_MS = 2500
+/** An arrow key turns by KEY_TURN in KEY_TURN_MS and a reset eases back in RESET_MS: real turns the cloth follows. */
+const KEY_TURN = 15 * DEG, KEY_TURN_MS = 280, RESET_MS = 650
+
+/** A model with secondary physics: its skinned mesh and the simulation behind it. */
+interface Loose { mesh: PhysicsMesh; physics: BossPhysics }
+/** An eased turn of the view (keys, reset); pitch and distance only when they change. */
+interface Turn { start: number; duration: number; yaw: [number, number]; pitch?: [number, number]; dist?: [number, number] }
+
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
+/** The same angle within (−π, π]. */
+const wrap = (angle: number) => angle - Math.ceil((angle - Math.PI) / (2 * Math.PI)) * 2 * Math.PI
 
 export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: boolean; onLoading?: (loading: boolean) => void; onError?: () => void }): BossViewerHandle {
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' })
@@ -50,8 +63,9 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   const turntable = new Group()
   scene.add(turntable)
 
-  let yaw = START_YAW, pitch = 4 * DEG, dist = DIST_START
+  let yaw = START_YAW, pitch = START_PITCH, dist = DIST_START
   let yawVelocity = 0
+  let turn: Turn | null = null
   let spin = false
   let dragging = false
   let visible = true
@@ -59,14 +73,11 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   let lastFrame = 0
   let loadToken = 0
   let disposed = false
-  let sways: Sway[] = []
-  let swaying = false
-  let lastYaw = yaw
-  let breezeUntil = 0
-  /** The current model has loose parts with weights (otherwise there is nothing to breeze). */
-  let clothReady = false
+  let loose: Loose[] = []
+  /** Some loose part is still moving (the simulation is awake). */
+  let moving = false
   const loader = new GLTFLoader()
-  const weights = createWeightSolver()
+  const rigs = createRigSolver()
 
   function resize() {
     const width = canvas.clientWidth || 1, height = canvas.clientHeight || 1
@@ -84,32 +95,56 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
 
   const animated = !options.reduced
   const spinning = () => spin && animated && visible && !dragging
-  /** Breeze strength 0..1: on after an interaction, fading out, then off (the loop may stop). */
-  const breeze = (now: number) => (animated && clothReady ? Math.max(0, Math.min(1, (breezeUntil - now) / BREEZE_FADE_MS)) : 0)
-  const wake = () => { breezeUntil = performance.now() + BREEZE_MS }
 
   function frame(now: number) {
     raf = 0
-    const busy = dragging || yawVelocity !== 0 || swaying
-    // idle motion (spin, breeze) runs at a reduced frame rate
-    const minGap = busy ? 0 : spinning() ? SPIN_FRAME_MS : IDLE_FRAME_MS
+    const busy = dragging || yawVelocity !== 0 || turn !== null || moving
+    // the slow spin alone runs at a reduced frame rate
+    const minGap = busy ? 0 : spinning() ? SPIN_FRAME_MS : 0
     if (lastFrame && now - lastFrame < minGap - 1) { raf = requestAnimationFrame(frame); return }
     const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0
     lastFrame = now
-    if (!dragging && Math.abs(yawVelocity) > 0.02) {
+    if (turn) {
+      const t = Math.min(1, (now - turn.start) / turn.duration), e = easeInOut(t)
+      yaw = turn.yaw[0] + (turn.yaw[1] - turn.yaw[0]) * e
+      if (turn.pitch) pitch = turn.pitch[0] + (turn.pitch[1] - turn.pitch[0]) * e
+      if (turn.dist) dist = turn.dist[0] + (turn.dist[1] - turn.dist[0]) * e
+      if (t >= 1) turn = null
+    } else if (!dragging && Math.abs(yawVelocity) > 0.02) {
       yaw += yawVelocity * dt
       yawVelocity *= Math.pow(0.02, dt) // inertia fades out in about a second
     } else if (!dragging) yawVelocity = 0
     if (spinning()) yaw += SPIN_SPEED * dt
-    // loose cloth follows the turning speed (dragging included) until it settles
-    const wind = breeze(now)
-    const turnSpeed = dt > 0 ? (yaw - lastYaw) / dt : 0
-    swaying = false
-    if (animated && dt > 0) for (const sway of sways) swaying = sway.step(turnSpeed, dt, wind) || swaying
-    lastYaw = yaw
+    // the loose parts feel the model's real motion this frame: its world matrix, turntable included
+    turntable.rotation.y = yaw
+    turntable.updateMatrixWorld(true)
+    moving = false
+    for (const part of loose) {
+      const wasAwake = !part.physics.sleeping
+      const awake = part.physics.step(dt, part.mesh.matrixWorld.elements)
+      if (awake) moving = true
+      // the bones go to the GPU while it moves, and once more as it comes to rest
+      if (awake || wasAwake) part.mesh.invalidate()
+    }
     draw()
-    if (visible && (spinning() || yawVelocity !== 0 || swaying || dragging || wind > 0)) raf = requestAnimationFrame(frame)
+    if (visible && (spinning() || yawVelocity !== 0 || turn || moving || dragging)) raf = requestAnimationFrame(frame)
     else lastFrame = 0
+  }
+
+  /** Eases the view to a new angle (and pitch and distance), as a real turn the loose parts react to. */
+  function turnTo(target: { yaw: number; pitch?: number; dist?: number }, duration: number) {
+    if (!animated) {
+      yaw = target.yaw; pitch = target.pitch ?? pitch; dist = target.dist ?? dist
+      invalidate()
+      return
+    }
+    turn = {
+      start: performance.now(), duration, yaw: [yaw, target.yaw],
+      ...(target.pitch !== undefined ? { pitch: [pitch, target.pitch] as [number, number] } : {}),
+      ...(target.dist !== undefined ? { dist: [dist, target.dist] as [number, number] } : {}),
+    }
+    yawVelocity = 0
+    invalidate()
   }
   function invalidate() { if (!raf && !disposed && visible) raf = requestAnimationFrame(frame) }
 
@@ -127,7 +162,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
     canvas.setPointerCapture(event.pointerId)
     yawVelocity = 0
-    wake()
+    turn = null
     if (pointers.size === 2) {
       // Second finger: stop turning and start pinching from the current zoom.
       dragging = false
@@ -153,13 +188,12 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     if (!dragging) return
     const dx = event.clientX - lastX, dy = event.clientY - lastY
     const now = performance.now()
-    const turn = dx * 0.0105
+    const step = dx * 0.0105
     moved += Math.abs(dx) + Math.abs(dy)
-    yaw += turn
+    yaw += step
     pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch + dy * 0.005))
-    yawVelocity = turn / Math.max(0.008, (now - lastT) / 1000)
+    yawVelocity = step / Math.max(0.008, (now - lastT) / 1000)
     lastX = event.clientX; lastY = event.clientY; lastT = now
-    wake()
     invalidate()
   }
   const onUp = (event: PointerEvent) => {
@@ -189,13 +223,13 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     invalidate()
   }
   const onKey = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowLeft') yaw -= 15 * DEG
-    else if (event.key === 'ArrowRight') yaw += 15 * DEG
+    // a key press adds to a turn still under way
+    if (event.key === 'ArrowLeft') turnTo({ yaw: (turn ? turn.yaw[1] : yaw) - KEY_TURN }, KEY_TURN_MS)
+    else if (event.key === 'ArrowRight') turnTo({ yaw: (turn ? turn.yaw[1] : yaw) + KEY_TURN }, KEY_TURN_MS)
     else if (event.key === '+' || event.key === '=') dist = Math.max(DIST_MIN, dist * 0.88)
     else if (event.key === '-') dist = Math.min(DIST_MAX, dist / 0.88)
     else return
     event.preventDefault()
-    wake()
     invalidate()
   }
   canvas.addEventListener('pointerdown', onDown)
@@ -226,27 +260,25 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     loader.load(url, (gltf) => {
       if (disposed || token !== loadToken) { release(gltf.scene); return }
       for (const child of [...turntable.children]) { turntable.remove(child); release(child) }
+      // a new model starts its physics from rest
+      loose = []
+      moving = false
       const model = gltf.scene
-      sways = []
-      swaying = false
-      clothReady = false
-      model.traverse((object) => {
-        const mesh = object as Mesh
-        if (!mesh.isMesh) return
-        if (!animated) { gradeBossMaterial(mesh.material as Material); return }
-        // graded and rigged at once (one shader compile); the weights arrive a moment later from the worker
-        const sway = addSway(mesh)
-        sways.push(sway)
-        const position = (mesh.geometry.getAttribute('position') as BufferAttribute).array as Float32Array
-        const index = (mesh.geometry.index?.array ?? null) as Uint32Array | Uint16Array | null
-        weights.solve(position, index, hints).then((data) => {
-          if (disposed || token !== loadToken || !data) return
-          sway.setWeights(data)
-          clothReady = true
-          wake()
-          invalidate()
-        }, () => { /* no weights: the model simply stays rigid */ })
-      })
+      const meshes: Mesh[] = []
+      model.traverse((object) => { if ((object as Mesh).isMesh) meshes.push(object as Mesh) })
+      const skinned: PhysicsMesh[] = []
+      for (const mesh of meshes) {
+        gradeBossMaterial(mesh.material as Material)
+        if (!animated) continue
+        // graded and skinned at once (one shader compile); rigid until its rig arrives from the worker
+        const physicsMesh = new PhysicsMesh(mesh.geometry, mesh.material)
+        physicsMesh.name = mesh.name
+        physicsMesh.position.copy(mesh.position); physicsMesh.quaternion.copy(mesh.quaternion); physicsMesh.scale.copy(mesh.scale)
+        for (const child of [...mesh.children]) physicsMesh.add(child)
+        mesh.parent!.add(physicsMesh)
+        mesh.parent!.remove(mesh)
+        skinned.push(physicsMesh)
+      }
       // Straighten first (about the feet), then stand the result on the floor, centred, 1 unit tall.
       const upright = new Group()
       upright.add(model)
@@ -260,6 +292,20 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       holder.add(upright)
       holder.scale.setScalar(1 / Math.max(size.y, 1e-6))
       turntable.add(holder)
+      turntable.updateMatrixWorld(true)
+      for (const mesh of skinned) {
+        // up in the mesh's own space as the model stands here: the model was sculpted hanging under the opposite gravity
+        const up = new Vector3(0, 1, 0).applyQuaternion(mesh.getWorldQuaternion(new Quaternion()).invert())
+        const position = (mesh.geometry.getAttribute('position') as BufferAttribute).array as Float32Array
+        const index = (mesh.geometry.index?.array ?? null) as Uint32Array | Uint16Array | null
+        rigs.solve(position, index, hints, [up.x, up.y, up.z]).then((rig) => {
+          if (disposed || token !== loadToken || !rig || rig.particles + rig.pieces === 0) return
+          const physics = new BossPhysics(rig, { overrides: hints?.physics })
+          mesh.setPhysics(physics)
+          loose.push({ mesh, physics })
+          invalidate()
+        }, () => { /* no rig: the model simply stays rigid */ })
+      }
       options.onLoading?.(false)
       invalidate()
     }, undefined, () => {
@@ -270,8 +316,8 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   }
 
   function resetView() {
-    yaw = START_YAW; pitch = 4 * DEG; dist = DIST_START; yawVelocity = 0
-    invalidate()
+    // the way round to the start angle that is shortest from here
+    turnTo({ yaw: yaw + wrap(START_YAW - yaw), pitch: START_PITCH, dist: DIST_START }, RESET_MS)
   }
 
   return {
@@ -290,7 +336,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('keydown', onKey)
       canvas.removeEventListener('dblclick', resetView)
-      weights.dispose()
+      rigs.dispose()
       release(turntable)
       disposeLighting()
       renderer.dispose()
@@ -300,40 +346,41 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
 }
 
 /**
- * Cloth weights are computed in a worker (inline, so it also works from file:// in the desktop build);
- * if a worker cannot be started they are computed on the main thread once the model is already on screen.
+ * Physics rigs are built in a worker (inline, so it also works from file:// in the desktop build); if a worker cannot
+ * be started they are built on the main thread once the model is already on screen.
  */
-function createWeightSolver() {
+function createRigSolver() {
   let worker: Worker | null = null
-  try { worker = new SwayWorker() } catch { worker = null }
+  try { worker = new RigWorker() } catch { worker = null }
   let nextId = 0
   let disposed = false
-  const pending = new Map<number, { resolve: (data: SwayWeights | null) => void; position: Float32Array; index: Uint32Array | Uint16Array | null; hints?: BossSwayHints }>()
-  const onMainThread = (position: Float32Array, index: Uint32Array | Uint16Array | null, hints?: BossSwayHints) => new Promise<SwayWeights | null>((resolve) => setTimeout(() => {
+  type Job = Omit<RigRequest, 'id'>
+  const pending = new Map<number, { resolve: (rig: PhysicsRig | null) => void; job: Job }>()
+  const onMainThread = (job: Job) => new Promise<PhysicsRig | null>((resolve) => setTimeout(() => {
     if (disposed) { resolve(null); return }
-    try { resolve(computeSwayWeights(position, index, { hints })) } catch { resolve(null) }
+    try { resolve(rigFromMesh(job.position, job.index, job.hints, job.up)) } catch { resolve(null) }
   }, 120))
   if (worker) {
-    worker.onmessage = (event: MessageEvent<SwayReply>) => {
-      pending.get(event.data.id)?.resolve(event.data.result)
+    worker.onmessage = (event: MessageEvent<RigReply>) => {
+      pending.get(event.data.id)?.resolve(event.data.rig)
       pending.delete(event.data.id)
     }
     // the worker could not start (or crashed): finish what was asked on the main thread
     worker.onerror = () => {
       worker?.terminate()
       worker = null
-      for (const job of pending.values()) void onMainThread(job.position, job.index, job.hints).then(job.resolve)
+      for (const { resolve, job } of pending.values()) void onMainThread(job).then(resolve)
       pending.clear()
     }
   }
   return {
-    solve(position: Float32Array, index: Uint32Array | Uint16Array | null, hints?: BossSwayHints): Promise<SwayWeights | null> {
-      if (!worker) return onMainThread(position, index, hints)
+    solve(position: Float32Array, index: Uint32Array | Uint16Array | null, hints: BossSwayHints | undefined, up: [number, number, number]): Promise<PhysicsRig | null> {
+      if (!worker) return onMainThread({ position, index, hints, up })
       const id = ++nextId
       // copies go to the worker; the originals stay in the geometry
-      const request: SwayRequest = { id, position: position.slice(), index: index ? index.slice() : null, hints }
+      const request: RigRequest = { id, position: position.slice(), index: index ? index.slice() : null, hints, up }
       return new Promise((resolve) => {
-        pending.set(id, { resolve, position, index, hints })
+        pending.set(id, { resolve, job: { position, index, hints, up } })
         worker!.postMessage(request, [request.position.buffer, ...(request.index ? [request.index.buffer] : [])])
       })
     },
@@ -352,6 +399,7 @@ function release(root: Object3D) {
   root.traverse((object) => {
     const mesh = object as Mesh
     if (!mesh.isMesh) return
+    if (mesh instanceof PhysicsMesh) mesh.disposeSkeleton()
     mesh.geometry.dispose()
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(material)
   })

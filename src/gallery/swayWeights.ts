@@ -1,6 +1,7 @@
 /**
  * Finds the loose, hanging parts of a boss model — cloth flaps, coat and jacket hems, hoods, straps, cords,
- * dreadlocks — and gives every vertex a swing weight for the Gallery's cloth motion (swayMaterial.ts).
+ * dreadlocks — and gives every vertex a swing weight: the analysis the Gallery's secondary physics is built from
+ * (physics/rig.ts).
  *
  * The Tripo exports are one fused mesh with no skeleton, so parts are told apart by shape:
  * 1. on a voxel grid the surface is rasterised and the inside filled (flood fill of the outside);
@@ -20,7 +21,7 @@
  *    rigid whatever their shape, holsters/backpacks/buckles swing as one whole piece, antennas bend towards the
  *    tip, hair hangs from its roots.
  * Coincident vertices (UV seams) always get the same weight, so the surface never cracks open.
- * Runs once per model, off the main thread (swayWeights.worker.ts): about 0.2–1.5 s for a 30k-vertex model.
+ * Runs once per model, off the main thread (physics/rig.worker.ts): about 0.2–1.5 s for a 30k-vertex model.
  */
 import type { BossSwayHints, HintBox } from './bossSwayHints'
 
@@ -54,6 +55,37 @@ export interface SwayOptions {
   hints?: BossSwayHints
   /** Also return each vertex's class (debug views): 0 body, 1 swinging cloth, 2 cord/hair/antenna, 3 pouch, 4 held rigid, 5 whole piece. */
   debug?: boolean
+  /** Also return the analysis internals the physics rig is built from (physics/rig.ts); stays in the worker. */
+  internals?: boolean
+}
+
+/** Kind of a loose vertex (SwayInternals.kind). */
+export const KIND = { body: 0, cloth: 1, strand: 2, pouch: 3, rigid: 4, piece: 5 } as const
+/** What a strand (kind 2) is (SwayInternals.strand). */
+export const STRAND_TYPE = { cord: 0, hair: 1, antenna: 2 } as const
+
+/** Everything the physics rig needs from the analysis, per welded vertex (index = the first vertex at a position). */
+export interface SwayInternals {
+  /** Every vertex → the first vertex at the same position (UV seams welded). */
+  weld: Int32Array
+  /** Mesh neighbours of every welded vertex. */
+  neighbours: number[][]
+  /** Swing weight 0..1 (after smoothing and hints). */
+  w: Float32Array
+  /** KIND per welded vertex. */
+  kind: Uint8Array
+  /** STRAND_TYPE per welded vertex (meaningful where kind = strand). */
+  strand: Uint8Array
+  /** Whole piece (hints.pieces index) per welded vertex, -1 = none. */
+  piece: Int16Array
+  /** Rigid body voxels (the opening's core): 1 = body. */
+  core: Uint8Array
+  grid: { ox: number; oy: number; oz: number; cell: number; nx: number; ny: number; nz: number }
+  minY: number
+  height: number
+  /** Centre of the model's bounding box (x, z): the hints' origin. */
+  cx: number
+  cz: number
 }
 
 export interface SwayWeights {
@@ -70,6 +102,7 @@ export interface SwayWeights {
   share: number
   kind?: Uint8Array
   info?: string[]
+  internals?: SwayInternals
 }
 
 const smooth = (t: number) => { const c = t < 0 ? 0 : t > 1 ? 1 : t; return c * c * (3 - 2 * c) }
@@ -246,6 +279,10 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
       if (id >= 0 && sizes[id] < n * 0.04 && allEdge[id] > 0 && thinEdge[id] >= allEdge[id] * share) cls[i] = THIN
     }
   }
+  // capes the hints mark as cloth: their thick folds are cloth, not lumps (bossSwayHints.ts `cloth`)
+  const cx0 = (minX + maxX) / 2, cz0 = (minZ + maxZ) / 2
+  const inCloth = (v: number) => (options.hints?.cloth ?? []).some((box) => outside(box, (position[v * 3] - cx0) / height, (position[v * 3 + 1] - minY) / height, (position[v * 3 + 2] - cz0) / height) === 0)
+  if (options.hints?.cloth?.length) for (let i = 0; i < n; i++) if (weld[i] === i && cls[i] === MEDIUM && inCloth(i)) cls[i] = THIN
   absorb(MEDIUM, 0.6)
   absorb(BODY, 0.6)
 
@@ -292,7 +329,7 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
     return { pieceOf, list }
   }
 
-  const raw = new Float32Array(n), lively = new Float32Array(n), kind = new Uint8Array(n)
+  const raw = new Float32Array(n), lively = new Float32Array(n), kind = new Uint8Array(n), strand = new Uint8Array(n)
   const debugInfo: string[] = []
 
   // 6. pouches and pockets: small lumps on the torso, hips and thighs swing a little from their top seam as
@@ -361,7 +398,11 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
       onBody = cord || sheet ? 1 : smooth((reach + 0.02 - radial) / 0.03)
       // nothing hangs from the ankles: boot edges and laces stay put
       ok = !rod && (cord || sheet || (!heldInFront && onBody > 0)) && hanging && p.topY > 0.2
-      if (rod || !ok) for (const m of p.members) kind[m] = 4
+      // a cape the hints mark as cloth hangs from its top seam whatever the shape rules say
+      if (options.hints?.cloth?.length && (inCloth(top) || p.members.filter(inCloth).length * 2 > p.members.length)) {
+        ok = true; cord = false; hair = false; onBody = 1
+      }
+      if (!ok) for (const m of p.members) kind[m] = 4
       if (options.debug && p.members.length > 30) debugInfo.push(JSON.stringify({ id: thins.pieceOf[p.members[0]], n: p.members.length, topY: +p.topY.toFixed(3), radial: +radial.toFixed(3), front: +front.toFixed(3), hanging, girth: +girth.toFixed(3), longest: +(longest / height).toFixed(3), cord, rod, heldInFront, sheet, x: +(((p.box[0] + p.box[3]) / 2 - ox) / height).toFixed(2), y: +((p.box[1] - minY) / height).toFixed(2), w: +((p.box[3] - p.box[0]) / height).toFixed(2), zs: +((p.box[5] - p.box[2]) / height).toFixed(2), straight: +principal(p.members, position).share.toFixed(3), meanRadial: +meanRadial.toFixed(3), onBody: +onBody.toFixed(2), ok }))
     }
     // a strap hanging from a pouch moves with the pouch
@@ -385,6 +426,7 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
     if (!(w > 0.001)) continue
     raw[i] = w
     kind[i] = a.cord || a.hair ? 2 : 1
+    strand[i] = a.hair ? STRAND_TYPE.hair : STRAND_TYPE.cord
     if (a.cord || a.hair) lively[i] = 1
   }
 
@@ -434,7 +476,7 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
     const hang = smooth((position[p.top * 3 + 1] - position[i * 3 + 1]) / (0.03 * height))
     const w = smooth(strandFromTop[i] / (CORD_REACH * height)) * smooth(strandAny[i] / (PIN * height)) * hang
     if (!(w > 0.001)) continue
-    raw[i] = w; lively[i] = 1; kind[i] = 2
+    raw[i] = w; lively[i] = 1; kind[i] = 2; strand[i] = STRAND_TYPE.cord
   }
 
   // smooth over the mesh; body vertices stay exactly still, seam twins share one value
@@ -452,7 +494,8 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
     w = next; live = nextLive
   }
   // 9. the model's hints: hair and antennas added, weapons held still, whole pieces swinging about a pivot
-  const parts = options.hints ? applyHints(options.hints, { n, weld, position, w, live, kind, minY, height, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 }) : null
+  const piece = new Int16Array(n).fill(-1)
+  const parts = options.hints ? applyHints(options.hints, { n, weld, position, w, live, kind, strand, piece, minY, height, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 }) : null
   const weights = new Float32Array(n * 2)
   let moving = 0
   for (let i = 0; i < n; i++) {
@@ -470,6 +513,9 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
     minY, height, share: moving / n,
     kind: options.debug ? Uint8Array.from({ length: n }, (_, i) => kind[weld[i]]) : undefined,
     info: options.debug ? debugInfo : undefined,
+    internals: options.internals
+      ? { weld, neighbours, w, kind, strand, piece, core, grid: { ox, oy, oz, cell, nx, ny, nz }, minY, height, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 }
+      : undefined,
   }
 }
 
@@ -477,6 +523,8 @@ interface HintContext {
   n: number; weld: Int32Array; position: ArrayLike<number>
   /** Per welded vertex swing weight and liveliness (changed in place). */
   w: Float32Array; live: Float32Array; kind: Uint8Array
+  /** STRAND_TYPE per welded vertex and the whole piece (hints.pieces index) it belongs to (changed in place). */
+  strand: Uint8Array; piece: Int16Array
   minY: number; height: number; cx: number; cz: number
 }
 
@@ -491,7 +539,7 @@ function outside(box: HintBox, x: number, y: number, z: number) {
  * (pivot xyz + amount per vertex), or null when the model has no whole pieces.
  */
 function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
-  const { n, weld, position, w, live, kind, minY, height, cx, cz } = c
+  const { n, weld, position, w, live, kind, strand, piece, minY, height, cx, cz } = c
   const parts = hints.pieces?.length ? new Float32Array(n * 4) : null
   for (let i = 0; i < n; i++) {
     if (weld[i] !== i) continue
@@ -502,7 +550,7 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
       if (fade <= 0) continue
       // (around the head the hair is close to the body axis: only a little livelier, no flaring disc)
       const hang = smooth((hair.root - y) / (hair.reach ?? 0.07)) * fade * (hair.amount ?? 0.6)
-      if (hang > w[i]) { w[i] = hang; live[i] = 0.3 * fade; kind[i] = 2 }
+      if (hang > w[i]) { w[i] = hang; live[i] = 0.3 * fade; kind[i] = 2; strand[i] = STRAND_TYPE.hair }
     }
     // antennas: fixed at the bottom of the box, bending more and more towards the tip
     for (const whip of hints.whips ?? []) {
@@ -510,7 +558,7 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
       if (x < x0 || x > x1 || z < z0 || z > z1 || y < y0 || y > y1) continue
       const t = (y - y0) / Math.max(1e-6, y1 - y0)
       const bend = t * t * (whip.amount ?? 0.6)
-      if (bend > w[i]) { w[i] = bend; live[i] = 1; kind[i] = 2 }
+      if (bend > w[i]) { w[i] = bend; live[i] = 1; kind[i] = 2; strand[i] = STRAND_TYPE.antenna }
     }
     for (const soft of hints.soften ?? []) {
       const fade = 1 - smooth(outside(soft.box, x, y, z) / HINT_MARGIN)
@@ -521,19 +569,20 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
     for (const box of hints.rigid ?? []) hold = Math.min(hold, smooth(outside(box, x, y, z) / HINT_MARGIN))
     if (hold < 1) { w[i] *= hold; if (hold === 0) kind[i] = 4 }
     // whole pieces: the piece turns about its pivot as one; its own cloth motion is replaced by that
-    if (parts) for (const piece of hints.pieces!) {
-      const d = outside(piece.box, x, y, z)
-      if (d >= PIECE_MARGIN) continue
+    if (parts) hints.pieces!.forEach((hint, index) => {
+      const d = outside(hint.box, x, y, z)
+      if (d >= PIECE_MARGIN) return
       const fade = 1 - smooth(d / PIECE_MARGIN)
-      const b = piece.box
-      const pivot = piece.pivot ?? [(b[0] + b[3]) / 2, b[4], (b[2] + b[5]) / 2]
-      const amount = fade * (piece.amount ?? 1) * hold
-      if (amount <= parts[i * 4 + 3]) continue
+      const b = hint.box
+      const pivot = hint.pivot ?? [(b[0] + b[3]) / 2, b[4], (b[2] + b[5]) / 2]
+      const amount = fade * (hint.amount ?? 1) * hold
+      if (amount <= parts[i * 4 + 3]) return
       parts[i * 4] = pivot[0] * height + cx; parts[i * 4 + 1] = pivot[1] * height + minY; parts[i * 4 + 2] = pivot[2] * height + cz
       parts[i * 4 + 3] = amount
       w[i] *= 1 - fade
       kind[i] = 5
-    }
+      piece[i] = index
+    })
   }
   if (!parts) return null
   // seam twins share their first vertex's values
@@ -588,7 +637,7 @@ function principal(members: number[], position: ArrayLike<number>): { share: num
  * Squared Euclidean distance (in voxels) from every voxel to the nearest voxel whose mask equals `target`
  * (Felzenszwalb–Huttenlocher, separable in x, y, z).
  */
-function distanceTransform(mask: Uint8Array, target: 0 | 1, nx: number, ny: number, nz: number): Float32Array {
+export function distanceTransform(mask: Uint8Array, target: 0 | 1, nx: number, ny: number, nz: number): Float32Array {
   const INF = 1e20
   const out = new Float32Array(mask.length)
   for (let k = 0; k < mask.length; k++) out[k] = mask[k] === target ? 0 : INF
@@ -618,7 +667,7 @@ function distanceTransform(mask: Uint8Array, target: 0 | 1, nx: number, ny: numb
   return out
 }
 
-class MinHeap {
+export class MinHeap {
   private keys: number[] = []
   private values: number[] = []
   get size() { return this.keys.length }
