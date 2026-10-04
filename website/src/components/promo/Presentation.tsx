@@ -1,10 +1,10 @@
-import { Archive, BookOpen, Download, Layers, LayoutDashboard, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
+import { Archive, BookOpen, Crosshair, Download, Layers, LayoutDashboard, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Reveal } from '../Reveal'
 import {
-  BossesVisual, CollectorVisual, ItemPriceVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual, StoryVisual,
-  SyncVisual,
+  BallisticsVisual, BossesVisual, CollectorVisual, ItemPriceVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual,
+  StoryVisual, SyncVisual,
 } from './PromoVisuals'
 import '../../promo.css'
 
@@ -102,6 +102,20 @@ const FEATURES: Feature[] = [
     visual: <BossesVisual />,
   },
   {
+    id: 'ballistics',
+    icon: <Crosshair />,
+    eyebrow: 'Баллистика',
+    title: 'Какой патрон пробьёт броню',
+    lead: 'Все патроны на одном графике пробития и урона. Выберите патрон — Raid OS покажет шанс пробить броню каждого класса и сколько выстрелов на это уйдёт.',
+    points: [
+      'График «пробитие — урон» по всем калибрам, фильтр по калибру',
+      'Шанс пробития брони 1–6 класса при разной прочности',
+      'Сколько выстрелов в среднем нужно, чтобы пробить броню',
+      'Цена патрона на барахолке и у торговцев',
+    ],
+    visual: <BallisticsVisual />,
+  },
+  {
     id: 'mobile',
     icon: <Smartphone />,
     eyebrow: 'iOS и Android',
@@ -165,7 +179,7 @@ export function Presentation() {
       <div className="container">
         <Reveal className="promo-intro">
           <div className="eyebrow">Что внутри</div>
-          <h2 className="promo-intro-title">Девять причин держать Raid&nbsp;OS открытым</h2>
+          <h2 className="promo-intro-title">Десять причин держать Raid&nbsp;OS открытым</h2>
           <p className="promo-intro-lead">Квесты, карты, цены и отряд — в одном окне рядом с игрой.</p>
         </Reveal>
         {FEATURES.map((feature, index) => <FeatureSection key={feature.id} feature={feature} index={index} />)}

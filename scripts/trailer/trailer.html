@@ -241,42 +241,16 @@ sceneEl('s-intro', `
     <div class="kicker" id="intro-kicker">Полевой компаньон</div>
     <div class="big-title" id="intro-title">Raid OS</div>
     <div class="rule" id="intro-rule"></div>
-    <div class="tagline" id="intro-tag">Задания<span>·</span>Карты<span>·</span>Мини-карта<span>·</span>Отряд</div>
+    <div class="tagline" id="intro-tag">Задания<span>·</span>Карты<span>·</span>Цены<span>·</span>Отряд</div>
   </div></div>`)
 
 // 1. Overview --------------------------------------------------------------------------------------
 sceneEl('s-overview', `
   <div class="layer" id="ov-move"><img class="shot" src="${SH('dashboard.png')}" alt=""></div>
   <div class="shade"></div>
-  ${captionHtml('01', 'Обзор', 'Квесты подтягиваются сами', [['Синхронизация из журналов игры', 'hot'], 'Квесты выбранной карты', 'Предметы для рейда'])}`)
+  ${captionHtml('01', 'Обзор', 'Квесты подтягиваются сами', [['План на выбранную карту', 'hot'], 'Текущие задания карты', 'Требования рейда'])}`)
 
-// 2. Map tools -------------------------------------------------------------------------------------
-sceneEl('s-tools', `
-  <div class="layer" id="tools-move"><img class="shot" src="${SH('maps-tools.png')}" alt=""></div>
-  <div class="shade"></div>
-  ${captionHtml('02', 'Карта', 'Рулетка и режим «Снайпер»', [['Расстояния в метрах', 'hot'], 'Кольца дальности'])}`)
-
-const wQuests = win('s-minimap', 130, 160, 700, 400, 'dashboard.png', [1610, 520, 620], [1610, 515, 570])
-// 3. Minimap over the game --------------------------------------------------------------------------
-sceneEl('s-minimap', `
-  ${gameBackdrop('Оверлей поверх игры · пример')}
-  <div class="compass"><div class="compass-strip" id="compass-a">${compass}</div></div>
-  ${wQuests.html}
-  <div class="label" id="lb-quests" style="left:130px;top:112px">Активные квесты</div>
-  <div class="toast" id="mm-toast" style="left:130px;top:600px">Скриншот в игре → позиция на карте<small>…_503.4, 3.3, 498.1_0.0, -0.8, 0.0, 0.5_….png</small></div>
-  <div class="card bare" id="mm-card" style="right:140px;top:36px;width:600px"><img src="${SH('overlay-minimap.png')}" width="600" alt=""></div>
-  <div class="label" id="mm-label" style="right:150px;top:36px;transform:translateY(-100%);display:none"></div>
-  <div class="flash" id="mm-flash"></div>
-  <div class="shade"></div>
-  ${captionHtml('03', 'В рейде', 'Мини-карта поверх игры', [['Текущая позиция', 'hot'], 'Активные квесты на карте', 'Позиция по скриншотам'])}`)
-
-// 4. Route ------------------------------------------------------------------------------------------
-sceneEl('s-route', `
-  <div class="layer" id="route-move"><img class="shot" src="${SH('route.png')}" alt=""></div>
-  <div class="shade"></div>
-  ${captionHtml('04', 'Маршрут', 'Путь от квеста к квесту', [1, 2, 3, 4, 5].map((n) => `<span class="pill hot"><em>${n}</em>${n < 5 ? ARROW : 'финиш'}</span>`).join(''))}`)
-
-// 5. Item price + Kappa / DO NOT SELL + MATE ---------------------------------------------------------
+// 2. Item price in the raid: the «Каппа» tag and the MATE tag ----------------------------------------
 {
   const cells = [[0,0,2,1],[2,0,1,1],[3,0,2,2],[5,0,1,1],[6,0,2,1],[8,0,2,2],[0,1,1,2],[1,1,2,2],[5,1,1,1],[6,1,2,2],
     [3,2,1,1],[4,2,1,2],[5,2,1,1],[8,2,2,1],[0,3,2,2],[2,3,1,1],[5,3,3,2],[8,3,1,1],[9,3,1,2],[2,4,2,1],
@@ -289,22 +263,32 @@ sceneEl('s-route', `
     <div class="card bare" id="item-kappa" style="left:900px;top:120px;width:700px"><img src="${SH('overlay-item-kappa.png')}" width="700" alt=""></div>
     <div class="card bare" id="item-mate" style="left:1180px;top:440px;width:460px"><img src="${SH('overlay-item-mate.png')}" width="460" alt=""></div>
     <div class="shade"></div>
-    ${captionHtml('05', 'Предметы', 'Цена предмета — прямо в рейде', [['Нужен на Каппу', 'hot'], ['НЕ ПРОДАВАТЬ', 'red'], 'Метка MATE'])}`)
+    ${captionHtml('02', 'Цена в рейде', 'Продать или оставить?', [['Барахолка и лучший торговец', 'hot'], 'Пометка «Каппа»', 'Метка MATE'])}`)
 }
 
-// 6. Story + Kappa -----------------------------------------------------------------------------------
-const wStory = win('s-story', 120, 96, 780, 640, 'story.png', [1500, 580, 800], [1500, 640, 760])
-const wKappa = win('s-story', 960, 96, 840, 330, 'kappa.png', [900, 320, 1340], [900, 320, 1280])
-const wCapa = win('s-story', 960, 456, 840, 280, 'dashboard.png', [1255, 258, 470], [1255, 258, 430])
+// 3. Story quests -------------------------------------------------------------------------------------
+const wChapter = win('s-story', 120, 150, 900, 250, 'story.png', [748, 372, 930], [748, 372, 900])
+const wStages = win('s-story', 1100, 70, 700, 680, 'story.png', [1550, 592, 670], [1550, 650, 650])
 sceneEl('s-story', `
   <div class="bg-grid"></div>
-  ${wStory.html}${wKappa.html}${wCapa.html}
-  <div class="label" id="lb-story" style="left:120px;top:36px">Сюжет по этапам</div>
-  <div class="label green" id="lb-kappa" style="left:960px;top:36px">Предметы для «Коллекционера»</div>
-  <div class="label" id="lb-capa" style="left:960px;top:396px;display:none">Путь к Каппе</div>
-  ${captionHtml('06', 'Сюжет и Капа', 'Путь к Каппе — шаг за шагом', [['Главы по этапам', 'hot'], 'Синхронизация предметов', 'Прогресс по Капе'])}`)
+  ${wChapter.html}${wStages.html}
+  <div class="label" id="lb-chapter" style="left:120px;top:96px">Глава и этап — сами</div>
+  <div class="label green" id="lb-stages" style="left:1100px;top:20px;display:none">Этапы главы</div>
+  ${captionHtml('03', 'Сюжетные квесты', 'Каждый этап — на своём месте', [['Автоматическая синхронизация', 'hot'], 'Главы по этапам', 'Показать на карте'])}`)
 
-// 7. Modes ---------------------------------------------------------------------------------------------
+// 4. Collector (Kappa) ------------------------------------------------------------------------------------
+const wKappa = win('s-collector', 120, 96, 1680, 330, 'kappa.png', [1075, 222, 1660], [1080, 226, 1610])
+const wCapa = win('s-collector', 120, 500, 620, 220, 'dashboard.png', [1277, 250, 404], [1277, 250, 392])
+sceneEl('s-collector', `
+  <div class="bg-grid"></div>
+  ${wKappa.html}${wCapa.html}
+  <div class="card bare" id="col-item" style="left:1020px;top:470px;width:620px"><img src="${SH('overlay-item-kappa.png')}" width="620" alt=""></div>
+  <div class="label green" id="lb-kappa" style="left:120px;top:42px">Предметы для «Коллекционера»</div>
+  <div class="label" id="lb-capa" style="left:120px;top:446px">Прогресс Каппы</div>
+  <div class="label" id="lb-item" style="left:1020px;top:416px">Пометка в рейде</div>
+  ${captionHtml('04', 'Путь к Каппе', '«Коллекционер» собирается сам', [['Сканирование схрона', 'hot'], 'Счётчик предметов', 'Общий для ПК и телефона'])}`)
+
+// 5. Modes ---------------------------------------------------------------------------------------------
 const wModes = ['pvp', 'pve', 'season'].map((m, i) => win('s-modes', 300, 56 + i * 240, 1500, 226, `mode-${m}.png`, [835, 135, 1670], [835, 135, 1580], [1670, 270]))
 sceneEl('s-modes', `
   <div class="bg-grid"></div>
@@ -312,18 +296,28 @@ sceneEl('s-modes', `
   <div class="label" id="md-0" style="left:120px;top:152px;font-size:26px">PvP</div>
   <div class="label" id="md-1" style="left:120px;top:392px;font-size:26px">PvE</div>
   <div class="label" id="md-2" style="left:120px;top:632px;font-size:26px">Сезон</div>
-  ${captionHtml('07', 'Данные', 'PvP, PvE и Сезон — отдельно', [['Свой прогресс в каждом режиме', 'hot'], 'Свои задания и предметы'])}`)
+  ${captionHtml('05', 'Данные', 'PvP, PvE и Сезон — отдельно', [['Свой прогресс в каждом режиме', 'hot'], 'Свои задания и предметы'])}`)
 
-// 8. Bosses ---------------------------------------------------------------------------------------------
+// 6. Bosses ---------------------------------------------------------------------------------------------
 const BOSSES = [['reshala', 'Решала'], ['killa', 'Килла'], ['tagilla', 'Тагилла'], ['glukhar', 'Глухарь'], ['shturman', 'Штурман'], ['sanitar', 'Санитар'], ['kaban', 'Кабан'], ['zryachiy', 'Зрячий']]
 sceneEl('s-boss', `
   <div class="bg-grid"></div>
   <div class="win" id="boss-win" style="left:120px;top:60px;width:910px;height:700px"><img id="boss-img" src="${SH('boss.png')}" style="width:910px;height:auto" alt=""></div>
   <div class="label" style="left:1100px;top:80px;border:0;background:none;box-shadow:none;padding:0;font-size:22px">Основные боссы</div>
   <div class="busts" id="busts" style="left:1100px;top:130px">${BOSSES.map(([k, n]) => `<div class="bust"><div><img src="${SH(`bust-${k}.webp`)}" alt=""></div><span>${n}</span></div>`).join('')}</div>
-  ${captionHtml('08', 'Боссы', 'Информация по основным боссам', [['Здоровье по частям тела', 'hot'], 'Где встречаются', 'Вооружение'])}`)
+  ${captionHtml('06', 'Боссы', 'Информация по основным боссам', [['Здоровье по частям тела', 'hot'], 'Где встречаются', 'Вооружение'])}`)
 
-// 9. Phone -----------------------------------------------------------------------------------------------
+// 7. Ballistics: the penetration/damage chart and the armor table (ballistics-site.png is 1050x1075 CSS px at 2x)
+const wChart = win('s-ballistics', 120, 64, 1040, 660, 'ballistics-site.png', [525, 322, 1050], [690, 360, 820], [1050, 1075])
+const wArmor = win('s-ballistics', 1240, 150, 560, 470, 'ballistics-site.png', [290, 857, 548], [290, 860, 520], [1050, 1075])
+sceneEl('s-ballistics', `
+  <div class="bg-grid"></div>
+  ${wChart.html}${wArmor.html}
+  <div class="label" id="lb-chart" style="left:120px;top:14px;display:none">Пробитие и урон</div>
+  <div class="label green" id="lb-armor" style="left:1240px;top:96px">Против брони · 7.62×39 BP</div>
+  ${captionHtml('07', 'Баллистика', 'Какой патрон пробьёт броню', [['Пробитие и урон', 'hot'], 'Шанс пробития 1–6 класса', 'Выстрелов до пробития'])}`)
+
+// 8. Phone -----------------------------------------------------------------------------------------------
 sceneEl('s-phone', `
   <div class="bg-grid"></div>
   <div class="phone" id="ph1" style="left:1020px;top:60px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone.png')}" alt=""></div></div>
@@ -331,9 +325,9 @@ sceneEl('s-phone', `
   <div class="platform" id="pf1" style="left:120px;top:150px"><b>iOS</b><span>скоро</span></div>
   <div class="platform" id="pf2" style="left:520px;top:150px"><b>Android</b><span>скоро</span></div>
   <div class="soon" id="soon" style="left:1260px;top:30px;transform:rotate(5deg)">скоро</div>
-  ${captionHtml('09', 'Телефон', 'Приложения для iOS и Android', [['Скоро', 'hot'], 'Те же задания и карты', 'Макет 390 px'])}`)
+  ${captionHtml('08', 'Телефон', 'Приложения для iOS и Android', [['Скоро', 'hot'], 'Те же задания и карты', 'Вход по QR'])}`)
 
-// 10. Sync ------------------------------------------------------------------------------------------------
+// 9. Sync -------------------------------------------------------------------------------------------------
 const SYNC_ICON = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/></svg>'
 sceneEl('s-sync', `
   <div class="bg-grid"></div>
@@ -347,16 +341,16 @@ sceneEl('s-sync', `
   <div class="label" id="sy-web" style="left:860px;top:550px">Сайт</div>
   <div class="label" id="sy-ph" style="left:1590px;top:600px">Телефон</div>
   <div class="qr" id="qr" style="right:120px;top:690px"><img src="${SH('qr.svg')}" alt=""><div><strong>Вход по QR</strong><span>Отсканируйте код — тот же аккаунт на телефоне</span></div></div>
-  ${captionHtml('10', 'Синхронизация', 'ПК · сайт · телефон', [['Один аккаунт', 'hot'], 'Вход по QR'])}`)
+  ${captionHtml('09', 'Синхронизация', 'ПК · сайт · телефон', [['Один аккаунт', 'hot'], 'Прогресс общий', 'Вход по QR'])}`)
 
-// 11. Squad ------------------------------------------------------------------------------------------------
+// 10. Squad ------------------------------------------------------------------------------------------------
 sceneEl('s-squad', `
   <div class="layer" id="sq-move"><img class="shot" src="${SH('squad.png')}" alt=""><img class="shot" id="sq-plan" src="${SH('squad-plan.png')}" alt="" style="opacity:0"></div>
   <div class="shade"></div>
   <div class="card bare" id="mate-card" style="right:70px;top:40px;width:520px"><img src="${SH('overlay-item-mate.png')}" width="520" alt=""></div>
-  ${captionHtml('11', 'Отряд', 'Совместные квесты', [['Общие задания отряда', 'hot'], 'Приоритет карт', 'Метка MATE'])}`)
+  ${captionHtml('10', 'Отряд', 'Совместные квесты', [['Общие задания отряда', 'hot'], 'Приоритет карт', 'Метка MATE'])}`)
 
-// 12. Outro ------------------------------------------------------------------------------------------------
+// 11. Outro ------------------------------------------------------------------------------------------------
 sceneEl('s-outro', `
   <div class="title-scene" style="position:absolute;inset:0">
   <div class="title-bg" style="background-image:url(${SH('squad.png')})"></div>
@@ -395,12 +389,12 @@ function caption(sid, a, b) {
 }
 
 const T = {
-  intro: [0, 3.2], overview: [2.9, 8.7], tools: [8.3, 13.7], minimap: [13.3, 19.1], route: [18.7, 24.1],
-  item: [23.7, 29.7], story: [29.3, 35.1], modes: [34.7, 39.9], boss: [39.5, 45.1], phone: [44.7, 50.1],
-  sync: [49.7, 55.7], squad: [55.3, 61.3], outro: [60.9, 66.0],
+  intro: [0, 3.2], overview: [2.9, 8.7], item: [8.3, 14.1], story: [13.7, 19.5], collector: [19.1, 24.9],
+  modes: [24.5, 29.7], boss: [29.3, 34.9], ballistics: [34.5, 40.3], phone: [39.9, 45.3], sync: [44.9, 50.9],
+  squad: [50.5, 56.5], outro: [56.1, 61.2],
 }
-const DURATION = 66
-const ids = { intro: 's-intro', overview: 's-overview', tools: 's-tools', minimap: 's-minimap', route: 's-route', item: 's-item', story: 's-story', modes: 's-modes', boss: 's-boss', phone: 's-phone', sync: 's-sync', squad: 's-squad', outro: 's-outro' }
+const DURATION = 61.2
+const ids = { intro: 's-intro', overview: 's-overview', item: 's-item', story: 's-story', collector: 's-collector', modes: 's-modes', boss: 's-boss', ballistics: 's-ballistics', phone: 's-phone', sync: 's-sync', squad: 's-squad', outro: 's-outro' }
 for (const [k, [a, b]] of Object.entries(T)) scene(ids[k], a, k === 'outro' ? DURATION + 0.6 : b)
 
 anim('#fade', [{ opacity: 1 }, { opacity: 0 }], 0, 0.6, 'ease-out')
@@ -426,30 +420,7 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   kenBurns('#ov-move', [960, 540, 1.0], [1060, 550, 1.12], a, b + FADE)
   caption('s-overview', a, b)
 }
-// 2. Map tools
-{
-  const [a, b] = T.tools
-  kenBurns('#tools-move', [1040, 520, 1.2], [1110, 480, 1.45], a, b + FADE)
-  caption('s-tools', a, b)
-}
-// 3. Minimap over the game
-{
-  const [a, b] = T.minimap
-  anim('#s-minimap .game', [{ transform: 'scale(1.06) translateX(0)' }, { transform: 'scale(1.1) translateX(-30px)' }], a, b - a + FADE, 'linear')
-  anim('#compass-a', [{ transform: 'translateX(-600px)' }, { transform: 'translateX(-780px)' }], a, b - a + FADE, SMOOTH)
-  anim('#mm-toast', [{ opacity: 0, transform: 'translateX(-20px)' }, { opacity: 1, transform: 'none', offset: .1 }, { opacity: 1, offset: .8 }, { opacity: 0, transform: 'translateX(-10px)' }], a + 0.9, 3.4)
-  anim('#mm-flash', [{ opacity: 0 }, { opacity: .2, offset: .15 }, { opacity: 0 }], a + 1.5, 0.4, 'ease-out')
-  pop('#' + wQuests.wid, a + 0.5, 0.6); regionBurns(wQuests, a + 0.5, b + FADE); rise('#lb-quests', a + 0.8, 0.4, 10)
-  anim('#mm-card', [{ opacity: 0, transform: 'translateX(60px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'scale(1)', offset: .22 }, { opacity: 1, transform: 'scale(1.03)' }], a + 1.6, b - a - 1.0 + FADE, 'linear')
-  caption('s-minimap', a, b)
-}
-// 4. Route — push in, the numbered chips light up one by one
-{
-  const [a, b] = T.route
-  kenBurns('#route-move', [1000, 560, 1.1], [1120, 600, 1.55], a, b + FADE)
-  caption('s-route', a, b)
-}
-// 5. Item overlay: highlight → card → second card
+// 2. Item overlay: highlight → card → second card
 {
   const [a, b] = T.item
   anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
@@ -459,22 +430,31 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   anim('#item-mate', [{ opacity: 0, transform: 'translateY(30px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .3 }, { opacity: 1, transform: 'scale(1.03)' }], a + 2.7, b - a - 1.9 + FADE, 'linear')
   caption('s-item', a, b)
 }
-// 6. Story + Kappa
+// 3. Story: the chapter card, then the stages column scrolling down a little
 {
   const [a, b] = T.story
   anim('#s-story .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  ;[[wStory, 0.25], [wKappa, 0.5], [wCapa, 0.75]].forEach(([w, d]) => { pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE) })
-  ;[['#lb-story', 0.6], ['#lb-kappa', 0.85], ['#lb-capa', 1.1]].forEach(([s, d]) => rise(s, a + d, 0.4, 10))
+  ;[[wChapter, 0.25], [wStages, 0.5]].forEach(([w, d]) => { pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE) })
+  rise('#lb-chapter', a + 0.6, 0.4, 10)
   caption('s-story', a, b)
 }
-// 7. Modes
+// 4. Collector: the items window, the Kappa progress card and the in-raid card with its «Каппа» tag
+{
+  const [a, b] = T.collector
+  anim('#s-collector .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+  ;[[wKappa, 0.25], [wCapa, 0.55]].forEach(([w, d]) => { pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE) })
+  ;[['#lb-kappa', 0.6], ['#lb-capa', 0.9], ['#lb-item', 1.3]].forEach(([sel, d]) => rise(sel, a + d, 0.4, 10))
+  anim('#col-item', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .25 }, { opacity: 1, transform: 'scale(1.03)' }], a + 1.1, b - a - 0.7 + FADE, 'linear')
+  caption('s-collector', a, b)
+}
+// 5. Modes
 {
   const [a, b] = T.modes
   anim('#s-modes .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
   wModes.forEach((w, i) => { const d = 0.2 + i * 0.38; pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE); rise(`#md-${i}`, a + d + 0.2, 0.4, 10) })
   caption('s-modes', a, b)
 }
-// 8. Bosses
+// 6. Bosses
 {
   const [a, b] = T.boss
   pop('#boss-win', a + 0.2, 0.6)
@@ -483,7 +463,16 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   document.querySelectorAll('#busts .bust').forEach((el, i) => pop(el, a + 0.6 + i * 0.12, 0.5))
   caption('s-boss', a, b)
 }
-// 9. Phone
+// 7. Ballistics: the chart pushes in toward 7.62×39 BP, the armor table pops in beside it
+{
+  const [a, b] = T.ballistics
+  anim('#s-ballistics .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+  pop('#' + wChart.wid, a + 0.2, 0.6); regionBurns(wChart, a + 0.2, b + FADE)
+  pop('#' + wArmor.wid, a + 1.0, 0.6); regionBurns(wArmor, a + 1.0, b + FADE)
+  rise('#lb-armor', a + 1.2, 0.4, 10)
+  caption('s-ballistics', a, b)
+}
+// 8. Phone
 {
   const [a, b] = T.phone
   pop('#ph1', a + 0.2, 0.7); pop('#ph2', a + 0.45, 0.7); pop('#soon', a + 1.2, 0.5); pop('#pf1', a + 0.5, 0.6); pop('#pf2', a + 0.7, 0.6)
@@ -491,7 +480,7 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   anim('#ph2', [{ translate: '0 0' }, { translate: '0 -10px' }], a + 1.1, b - a, SMOOTH)
   caption('s-phone', a, b)
 }
-// 10. Sync
+// 9. Sync
 {
   const [a, b] = T.sync
   pop('#d-pc', a + 0.2, 0.6); pop('#d-web', a + 0.45, 0.6); pop('#d-ph', a + 0.7, 0.6)
@@ -503,7 +492,7 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   pop('#qr', a + 2.2, 0.6)
   caption('s-sync', a, b)
 }
-// 11. Squad: members + shared quests, then the raid plan with map priority
+// 10. Squad: members + shared quests, then the raid plan with map priority
 {
   const [a, b] = T.squad
   kenBurns('#sq-move', [960, 540, 1.0], [980, 600, 1.12], a, b + FADE)
@@ -511,7 +500,7 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   anim('#mate-card', [{ opacity: 0, transform: 'translateY(20px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, offset: .86 }, { opacity: 0 }], a + 0.9, 2.1, 'linear')
   caption('s-squad', a, b)
 }
-// 12. Outro
+// 11. Outro
 {
   const [a] = T.outro
   anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, 5.8, 'linear')

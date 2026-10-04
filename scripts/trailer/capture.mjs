@@ -4,12 +4,13 @@
 // (`npx vite --config website/vite.config.ts --port 5672`).
 //
 //   node scripts/trailer/capture.mjs [name ...]     all shots, or only the named groups:
-//   app tools route kappa story modes boss busts phone squad item minimap site qr
+//   app kappa story modes boss ballistics busts phone squad item site qr
 //
 // External hosts (tarkov.dev, assets.tarkov.dev) are answered locally with neutral placeholders: item icons become a
-// plain dark tile and the map image a dim survey grid. No game art is used. The squad shots use a made-up account
-// served by a fake desktop bridge: names, ids and quests are invented for the picture.
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
+// plain dark tile and the map image a dim survey grid. No game art is used. The ammo for «Баллистика» comes from the
+// repository's tarkov.dev fixture (src/arsenal/fixtures/ammoResponse.json, 16 real rounds). The squad shots use a
+// made-up account served by a fake desktop bridge: names, ids and quests are invented for the picture.
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -19,6 +20,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const BASE = process.env.TRAILER_BASE ?? 'http://127.0.0.1:5210/'
 const SITE = process.env.TRAILER_SITE ?? 'http://127.0.0.1:5672/'
 const OUT = join(here, 'shots')
+const AMMO_FIXTURE = readFileSync(join(here, '..', '..', 'src', 'arsenal', 'fixtures', 'ammoResponse.json'), 'utf8')
 mkdirSync(OUT, { recursive: true })
 const only = process.argv.slice(2)
 const want = (name) => !only.length || only.includes(name)
@@ -146,6 +148,7 @@ async function newPage(opts = {}) {
       return route.continue()
     }
     if (url.startsWith(SITE)) return route.continue()
+    if (url.startsWith('https://api.tarkov.dev/graphql')) return route.fulfill({ status: 200, contentType: 'application/json', body: AMMO_FIXTURE })
     if (/^https?:\/\/([^/]+\.)?tarkov\.dev\//.test(url)) {
       if (/\/maps\//.test(url) || /\.svg(\?|$)/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: MAP_GRID })
       if (/\.(webp|png|jpe?g|gif)(\?|$)/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: ITEM_TILE })
@@ -199,44 +202,6 @@ if (want('app')) {
   await context.close()
 }
 
-// 2. Map tools: ruler + sniper
-if (want('tools')) {
-  const { context, page } = await newPage()
-  await open(page, '#/maps/customs', 2200)
-  const box = await page.locator('.leaflet-container').first().boundingBox()
-  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5)
-  await page.getByRole('button', { name: /Рулетка/ }).first().click()
-  for (const [x, y] of [[0.16, 0.66], [0.36, 0.48], [0.50, 0.56]]) { await page.mouse.click(box.x + box.width * x, box.y + box.height * y); await page.waitForTimeout(250) }
-  await page.getByRole('button', { name: /Снайпер/ }).first().click()
-  await page.waitForTimeout(300)
-  await page.mouse.click(box.x + box.width * 0.73, box.y + box.height * 0.30)
-  await page.waitForTimeout(400)
-  await page.mouse.move(box.x + box.width * 0.99, box.y + box.height * 0.99)
-  await page.waitForTimeout(700)
-  await shot(page, 'maps-tools')
-  await context.close()
-}
-
-// 3. Raid route ①→②→③→④→⑤
-if (want('route')) {
-  const { context, page } = await newPage()
-  await open(page, '#/maps/customs?route=1', 2500)
-  const box = await page.locator('.leaflet-container').first().boundingBox()
-  const n = await page.locator('.raid-route-step').count()
-  const boxes = []
-  for (let i = 0; i < n; i++) boxes.push(await page.locator('.raid-route-step').nth(i).boundingBox())
-  console.log('route steps', n)
-  if (n) {
-    const cx = boxes.reduce((a, b) => a + b.x, 0) / n, cy = boxes.reduce((a, b) => a + b.y, 0) / n
-    await page.mouse.move(cx, cy)
-    await page.mouse.wheel(0, -100); await page.waitForTimeout(1200)
-  }
-  await page.mouse.move(box.x + box.width * 0.99, box.y + box.height * 0.99)
-  await page.waitForTimeout(600)
-  await shot(page, 'route')
-  await context.close()
-}
-
 // 5a. Items for the Collector (Kappa)
 if (want('kappa')) {
   const { context, page } = await newPage({ squad: true })
@@ -247,11 +212,17 @@ if (want('kappa')) {
   await context.close()
 }
 
-// 5b. Story quests by stage
+// 5b. Story quests by stage (the page's hint line on how the stages are picked up is left out of the picture)
 if (want('story')) {
   const { context, page } = await newPage()
   await open(page, '#/quests?filter=story', 2500)
+  await page.addStyleTag({ content: '.page-header .page-subtitle{display:none!important}' })
+  await page.waitForTimeout(500)
   await shot(page, 'story')
+  // the website's still: the page without the sidebar and the top bar
+  const head = await page.locator('.page-header').first().boundingBox()
+  const right = await page.locator('.page-header').first().evaluate((el) => el.closest('.page')?.getBoundingClientRect().right ?? 1904)
+  if (head) await page.screenshot({ path: join(OUT, 'story-site.png'), clip: { x: head.x - 16, y: head.y - 14, width: Math.min(1920, right + 14) - (head.x - 16), height: 1080 - (head.y - 14) } })
   await context.close()
 }
 
@@ -274,6 +245,28 @@ if (want('boss')) {
   await page.waitForTimeout(5000)
   await page.locator('.gallery-viewer, [role=dialog]').first().screenshot({ path: join(OUT, 'boss.png') })
   await context.close()
+}
+
+// 7c. Ballistics: penetration/damage chart and the armor table for 7.62×39 BP (fixture ammo, see the header)
+if (want('ballistics')) {
+  const { context, page } = await newPage()
+  await open(page, '#/ballistics', 2500)
+  await page.locator('.ammo-table tbody tr', { hasText: '7.62x39mm BP' }).first().click().catch(() => {})
+  await page.waitForTimeout(900)
+  await page.evaluate(() => { document.querySelector('.page')?.scrollIntoView(); window.scrollTo(0, 0) })
+  await page.waitForTimeout(400)
+  await shot(page, 'ballistics')
+  await context.close()
+  // the website's still, in a narrower window so the chart and the armor table read at the site's column width
+  const narrow = await newPage({ viewport: { width: 1180, height: 2000 } })
+  await open(narrow.page, '#/ballistics', 2500)
+  await narrow.page.locator('.ammo-table tbody tr', { hasText: '7.62x39mm BP' }).first().click().catch(() => {})
+  await narrow.page.waitForTimeout(900)
+  const chart = await narrow.page.locator('.ballistics-layout > .panel').first().boundingBox()
+  const table = await narrow.page.locator('.selected-ammo-head').first().evaluate((el) => { const r = el.closest('.panel').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height } })
+  console.log('ballistics site boxes', JSON.stringify(chart), JSON.stringify(table))
+  if (chart && table) await narrow.page.screenshot({ path: join(OUT, 'ballistics-site.png'), clip: { x: chart.x - 2, y: chart.y - 2, width: chart.width + 4, height: table.y + table.height - chart.y + 4 } })
+  await narrow.context.close()
 }
 
 // 8. Phone layout at 390 px
@@ -304,13 +297,12 @@ if (want('squad')) {
   await context.close()
 }
 
-// 4. Overlay cards: item price + «нужен на Каппу / НЕ ПРОДАВАТЬ», and the MATE tag
+// 4. Overlay cards: item price with the «Каппа» tag, and the MATE tag
 if (want('item')) {
   for (const [name, payload] of [
     ['overlay-item-kappa', {
       state: 'found', itemId: 'kappa-book', name: 'Потрёпанная старинная книга', shortName: 'Книга', fleaPrice: 145200,
       bestTrader: { name: 'Терапевт', price: 61000 }, quests: [], kappa: true, collector: true,
-      keep: { need: 1, remaining: 1, foundInRaid: true, kind: 'kappa', reason: '«Коллекционер»', more: 0 },
     }],
     ['overlay-item-mate', {
       state: 'found', itemId: 'salewa', name: 'Аптечка Salewa', shortName: 'Salewa', fleaPrice: 29600,
@@ -325,40 +317,6 @@ if (want('item')) {
     await cardShot(page, name, '.eft-card')
     await context.close()
   }
-}
-
-// 3b. Minimap overlay with the current position and the active quests
-if (want('minimap')) {
-  const { context, page } = await newPage({ bridge: true, viewport: { width: 560, height: 540 }, scale: 4 })
-  await page.goto(BASE + '#/overlay/minimap'); await settle(page, 800)
-  await transparent(page)
-  await page.evaluate(async () => {
-    const demo = await import('/src/data/demo.ts')
-    const map = demo.maps.find((m) => m.id === 'customs')
-    const layer = { extract: 'extract.pmc', quest: 'quest.zone', boss: 'boss', cache: 'loot.container', danger: 'hazard', key: 'key' }
-    const markers = demo.markers.filter((m) => m.mapId === 'customs').map((m) => ({ id: m.id, position: m.position, layerId: layer[m.type] ?? 'landmark', title: m.title, questId: m.questId }))
-    window.__emit('overlay:minimap', {
-      state: 'ready', map, markers, questCount: 3, opacity: 0.94, playerMarker: 'arrow',
-      quests: [
-        { questId: 'operation-aquarius', name: 'Операция «Водолей»', trader: 'Терапевт', markerIds: ['customs-aquarius'], objectives: ['Найти спрятанную воду в общежитии', 'Выжить и выйти'] },
-        { questId: 'golden-swag', name: 'Золотая добыча', trader: 'Лыжник', markerIds: ['customs-golden-swag'], objectives: ['Найти зажигалку Зиббо', 'Спрятать зажигалку в бытовке'] },
-        { questId: 'checking', name: 'Проверка', trader: 'Прапор', markerIds: ['customs-checking'], objectives: ['Найти ключ от бензовоза', 'Забрать бронзовые часы'] },
-      ],
-    })
-  })
-  await page.waitForTimeout(800)
-  await page.evaluate(() => window.__emit('overlay:position', { x: 600, y: 0, z: 470, yaw: -60, at: Date.now() - 2000 }))
-  await page.waitForTimeout(400)
-  await page.locator('.ov-quest-list button').first().click().catch(() => {})
-  await page.waitForTimeout(1500)
-  const mb = await page.locator('.ov-minimap-map').boundingBox()
-  await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2)
-  for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, 120); await page.waitForTimeout(450) }
-  await page.mouse.move(0, 0)
-  await page.evaluate(() => window.__emit('overlay:position', { x: 503, y: 0, z: 498, yaw: 35, at: Date.now() }))
-  await page.waitForTimeout(1000)
-  await cardShot(page, 'overlay-minimap', '.ov-minimap, .ov-card')
-  await context.close()
 }
 
 // 9. Website (the same account on the site)

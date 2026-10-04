@@ -8,6 +8,7 @@ import itemMate from '../../assets/promo/item-mate.webp'
 import storyShot from '../../assets/promo/story.webp'
 import kappaShot from '../../assets/promo/kappa.webp'
 import bossShot from '../../assets/promo/boss-killa.webp'
+import ballisticsShot from '../../assets/promo/ballistics.webp'
 import phoneShot from '../../assets/promo/phone-overview.webp'
 import bustReshala from '../../assets/promo/bust-reshala.webp'
 import bustKilla from '../../assets/promo/bust-killa.webp'
@@ -63,7 +64,7 @@ export function ItemPriceVisual() {
 export function StoryVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={storyShot} width={1200} height={819} title="Задания · сюжет" alt="Сюжетные квесты в Raid OS: глава «Тур», актуальный этап 1 из 22 и список этапов главы" />
+      <Shot src={storyShot} width={1200} height={742} title="Задания · сюжет" alt="Сюжетные квесты в Raid OS: глава «Тур», актуальный этап 1 из 22 и список этапов главы" />
     </figure>
   )
 }
@@ -115,6 +116,15 @@ export function BossesVisual() {
           </li>
         ))}
       </ul>
+    </figure>
+  )
+}
+
+export function BallisticsVisual() {
+  return (
+    <figure className="promo-figure">
+      <Shot src={ballisticsShot} width={1200} height={1229} title="Арсенал · Баллистика" className="is-narrow" alt="Баллистика в Raid OS: график пробития и урона патронов по калибрам и таблица «Против брони» для 7.62×39 BP — шанс пробить броню 1–6 класса и число выстрелов" />
+      <Caption>7.62×39 BP против брони 1–6 класса. На картинке — часть патронов, в приложении — все патроны с tarkov.dev.</Caption>
     </figure>
   )
 }

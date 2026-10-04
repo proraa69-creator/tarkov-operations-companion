@@ -4,9 +4,11 @@
 //   node scripts/trailer/render.mjs --preview=1,5.5,10        only save stills of the timeline (see --preview-dir=)
 //   node scripts/trailer/render.mjs --preview=scenes          one still near the end of every scene
 //
-// Outputs trailer.webm (VP8, <= 20 MB), trailer-poster.jpg (1280x720) and trailer.mp4 (H.264 yuv420p faststart, plays
-// on iPhone). ffmpeg: TRAILER_FFMPEG, else Playwright's bundled one (VP8 only, no mp4). The mp4 needs an ffmpeg with
-// libx264 (TRAILER_FFMPEG=/path/to/ffmpeg, or one on PATH).
+// Outputs what the website ships (website/public/media): trailer.mp4 — H.264 1280x720 yuv420p faststart, about 3–4 MB
+// (it is packed into the server exe, so every MB slows the server's start; every current browser and iPhone plays it) —
+// and trailer-poster.jpg (1280x720). Frames are rendered at 1920x1080 and scaled down by ffmpeg. Needs an ffmpeg with
+// libx264: TRAILER_FFMPEG, else the one on PATH, else Playwright's bundled one (which has no libx264).
+// --webm also writes a full-size 1080p VP8 trailer.webm next to this script (not shipped).
 import { spawn, spawnSync } from 'node:child_process'
 import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
@@ -35,10 +37,13 @@ const hasX264 = (() => {
   const sys = spawnSync('ffmpeg', ['-hide_banner', '-encoders'], { encoding: 'utf8' })
   return sys.status === 0 && sys.stdout.includes('libx264') ? 'ffmpeg' : null
 })()
-// Constrained-quality VP8: about 2.3 Mb/s keeps 66 s of 1080p under 20 MB; the picture is mostly still frames.
+// Constrained-quality VP8 (only with --webm): about 2.3 Mb/s keeps a minute of 1080p under 20 MB.
 const VP8 = ['-c:v', 'libvpx', '-pix_fmt', 'yuv420p', '-b:v', '2300k', '-maxrate', '3500k', '-bufsize', '7000k', '-crf', '9', '-qmin', '2', '-qmax', '34',
   '-quality', 'good', '-cpu-used', '1', '-auto-alt-ref', '1', '-lag-in-frames', '16', '-g', '60', '-an']
-const H264 = ['-c:v', 'libx264', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-preset', 'slow', '-crf', '22', '-movflags', '+faststart', '-an']
+// The shipped 720p H.264: mostly still frames with slow moves, so crf 27 stays sharp at about 0.5 Mb/s.
+const H264 = ['-vf', 'scale=1280:720:flags=lanczos', '-c:v', 'libx264', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-preset', 'slow', '-crf', '27',
+  '-maxrate', '1500k', '-bufsize', '3000k', '-movflags', '+faststart', '-an']
+const WANT_WEBM = process.argv.includes('--webm')
 
 // Small static server so fonts/images load over http (file:// blocks font loading).
 const TYPES = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.webp': 'image/webp' }
@@ -82,17 +87,16 @@ if (previewArg) {
   await browser.close(); server.close(); process.exit(0)
 }
 
-const webm = join(OUT, 'trailer.webm')
+const webm = join(here, 'trailer.webm')
 const mp4 = join(OUT, 'trailer.mp4')
+if (!hasX264) throw new Error('No ffmpeg with libx264: set TRAILER_FFMPEG or put one on PATH (the site ships trailer.mp4)')
 {
   const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
   const page = await load(context)
   const duration = await page.evaluate(() => window.__duration)
-  const outputs = [...VP8, '-r', String(FPS), webm]
-  const args = ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', 'pipe:0', ...outputs]
-  const jobs = [spawn(FFMPEG, args, { stdio: ['pipe', 'inherit', 'inherit'] })]
-  if (hasX264) jobs.push(spawn(hasX264, ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', 'pipe:0', ...H264, '-r', String(FPS), mp4], { stdio: ['pipe', 'inherit', 'inherit'] }))
-  else console.log('No ffmpeg with libx264: skipping trailer.mp4')
+  const input = ['-y', '-hide_banner', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', 'pipe:0']
+  const jobs = [spawn(hasX264, [...input, ...H264, '-r', String(FPS), mp4], { stdio: ['pipe', 'inherit', 'inherit'] })]
+  if (WANT_WEBM) jobs.push(spawn(FFMPEG, [...input, ...VP8, '-r', String(FPS), webm], { stdio: ['pipe', 'inherit', 'inherit'] }))
   const done = jobs.map((ff) => new Promise((resolve, reject) => ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg exited with ${code}`)))))
   const frames = Math.round(duration * FPS)
   for (let i = 0; i < frames; i++) {
@@ -117,7 +121,6 @@ const mp4 = join(OUT, 'trailer.mp4')
 
 await browser.close()
 server.close()
-for (const f of ['trailer.webm', 'trailer-poster.jpg', 'trailer.mp4']) {
-  const p = join(OUT, f)
-  if (existsSync(p)) console.log(f, (statSync(p).size / 1024 / 1024).toFixed(2), 'MB')
+for (const p of [mp4, join(OUT, 'trailer-poster.jpg'), ...(WANT_WEBM ? [webm] : [])]) {
+  if (existsSync(p)) console.log(p, (statSync(p).size / 1024 / 1024).toFixed(2), 'MB')
 }
