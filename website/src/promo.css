@@ -36,11 +36,7 @@
 .stack-figure { gap: 14px; }
 
 /* Minimap: the route screen with the overlay window floating over its corner */
-.minimap-combo { position: relative; padding-bottom: 12%; }
-.overlay-float { position: absolute; left: -3%; bottom: 0; width: 34%; filter: drop-shadow(0 18px 30px rgb(0 0 0 / 65%)); }
-.overlay-float img { display: block; width: 100%; height: auto; border-radius: 6px; }
-.float-tag, .phone-badge { position: absolute; z-index: 1; padding: 3px 9px; border: 1px solid #7d8a4f; border-radius: 999px; background: #1f2614; color: #d8e6a6; font-size: 10.5px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
-.float-tag { top: -11px; left: 50%; transform: translateX(-50%); }
+.phone-badge { position: absolute; z-index: 1; padding: 3px 9px; border: 1px solid #7d8a4f; border-radius: 999px; background: #1f2614; color: #d8e6a6; font-size: 10.5px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 
 /* In-game backdrop (CSS only, no game art) */
 .scene { position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; background:
@@ -60,15 +56,6 @@
 .modes-switch { justify-self: center; display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); }
 .modes-switch span { min-width: 74px; padding: 8px 14px; border-radius: 8px; color: var(--text-muted); font-size: 14px; font-weight: 800; text-align: center; }
 .modes-switch span.is-on { color: #f4f8e4; background: linear-gradient(180deg, #5d6b3c, #3f4a2a); box-shadow: 0 1px 0 rgb(255 255 255 / 12%) inset; }
-.modes-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.mode-card { display: grid; gap: 10px; align-content: start; padding: 14px; border: 1px solid var(--line); border-top-width: 3px; border-radius: 11px; background: var(--surf-1); }
-.mode-card.is-pvp { border-top-color: #a9b973; }
-.mode-card.is-pve { border-top-color: var(--blue); }
-.mode-card.is-season { border-top-color: var(--amber); }
-.mode-card strong { font-size: 18px; letter-spacing: -.02em; }
-.mode-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
-.mode-card li { display: flex; gap: 6px; align-items: flex-start; color: var(--text-muted); font-size: 13px; line-height: 1.35; }
-.mode-card li svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 1px; color: var(--green); }
 
 /* Bosses */
 .boss-grid { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -141,7 +128,6 @@
   .feature-lead, .promo-intro-lead, .final-lead { font-size: 16px; }
   .feature-points li { font-size: 14.5px; }
   .modes-mock, .sync-mock, .squad-card { padding: 14px; }
-  .modes-cards { grid-template-columns: 1fr; }
   .boss-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .phone-figure { grid-template-columns: 1fr; justify-items: center; }
   .phone-badge { right: -6px; }
@@ -150,8 +136,6 @@
   .sync-node { padding: 10px 4px; }
   .sync-node span { font-size: 11px; }
   .sync-qr { flex-direction: column; text-align: center; }
-  .overlay-float { left: 0; width: 40%; }
-  .float-tag { top: -9px; padding: 2px 7px; font-size: 9px; letter-spacing: .06em; }
   .stash-scene { min-height: 280px; }
   .mate-card { right: 0; width: 74%; }
   .squad-mock { padding-bottom: 64px; }

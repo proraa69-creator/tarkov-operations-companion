@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CreditCard, Gift, Lock, LogOut, MonitorSmartphone, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CreditCard, Gift, Lock, LogOut, MonitorSmartphone, RefreshCw } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
@@ -47,7 +47,6 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
           <PaywallHeader />
           {/* The phone signs in with its own form (server address included); the desktop with the first-run form. */}
           {usesWebAccount() ? <ServerAccountPanel /> : <SignInStep onSigningIn={() => {}} onSignedIn={(nicknames) => { requestNicknameStep(nicknames); void refresh() }} />}
-          <LockedFeatures />
         </section>
       </div>
     )
@@ -77,7 +76,6 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
           <button className="button danger" onClick={() => { if (window.confirm(uiText('Выйти из аккаунта на этом устройстве?'))) void logout() }}><LogOut size={14} />{uiText('Выйти')}</button>
         </div>
         <p className="paywall-note"><MonitorSmartphone size={13} />{uiText('Подписка работает на трёх устройствах одновременно. Вход на четвёртом отключает то, которым пользовались давнее всех.')}</p>
-        <LockedFeatures />
       </section>
     </div>
   )
@@ -90,14 +88,9 @@ function PaywallHeader() {
       <div>
         <div className="eyebrow">Raid OS</div>
         <h1>{uiText('Нужна подписка')}</h1>
-        <p className="muted">{uiText('Данные заданий, карт и барахолки приходят с сервера Raid OS только для аккаунта с активной подпиской или пробным периодом.')}</p>
       </div>
     </header>
   )
-}
-
-function LockedFeatures() {
-  return <p className="paywall-note"><ShieldCheck size={13} />{uiText('Закрыто до оплаты: обзор, карты, задания, барахолка, торговцы, убежище и мини-карта. Открыто: вход в аккаунт и подписка.')}</p>
 }
 
 /** Plans and prices from the server (GET /v1/payments/plans); without prices — «цена на странице оплаты». */

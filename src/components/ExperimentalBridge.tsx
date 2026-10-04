@@ -13,6 +13,7 @@ import type { MarkerLayerId } from '../domain/types'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
 import { mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
+import { featureEnabled } from '../app/archivedFeatures'
 
 const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
 const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
@@ -38,8 +39,9 @@ export function ExperimentalBridge() {
   const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, nameVariants ?? undefined), [data.items, nameVariants])
   // «Что не продавать» of the selected mode, for the badge on the item card (computed once per progress change).
   const progressNow = state.activeProfile.modes[state.raidMode]
+  // Archived with the «Что не продавать» page: the item card shows only «Каппа» and «MATE» then.
   const keepRows = useMemo(() => {
-    if (!window.tarkovDesktop?.experimental) return new Map<string, KeepRow>()
+    if (!window.tarkovDesktop?.experimental || !featureEnabled('keepItems')) return new Map<string, KeepRow>()
     const rows = computeKeepList({ quests: data.quests, hideout: data.hideout, items: data.items, progress: progressNow, collectorCollected: loadCollected(state.raidMode) })
     return new Map(rows.map((row) => [row.item.id, row]))
   }, [data.quests, data.hideout, data.items, progressNow, state.raidMode])

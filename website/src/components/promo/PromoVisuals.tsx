@@ -1,11 +1,8 @@
-import { Check, Globe, Monitor, Server, Smartphone } from 'lucide-react'
+import { Globe, Monitor, Server, Smartphone } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { LoginQr } from '../LoginQr'
 import { Platforms } from '../Platforms'
 import overviewShot from '../../assets/promo/overview.webp'
-import mapToolsShot from '../../assets/promo/map-tools.webp'
-import routeShot from '../../assets/promo/route.webp'
-import minimapOverlay from '../../assets/promo/minimap-overlay.webp'
 import itemKappa from '../../assets/promo/item-kappa.webp'
 import itemMate from '../../assets/promo/item-mate.webp'
 import storyShot from '../../assets/promo/story.webp'
@@ -43,32 +40,7 @@ function Caption({ children }: { children: ReactNode }) {
 export function OverviewVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={overviewShot} width={1200} height={819} title="Raid OS · Обзор" alt="Вкладка «Обзор» в Raid OS: текущие задания на Таможне, приоритет карт и требования рейда — ключи и маркер, которые нужно взять с собой" />
-      <Caption>Демо-профиль: 5 текущих заданий на Таможне и ключи, которые нужны в этот рейд.</Caption>
-    </figure>
-  )
-}
-
-export function MapToolsVisual() {
-  return (
-    <figure className="promo-figure">
-      <Shot src={mapToolsShot} width={756} height={804} title="Карты · Таможня" className="is-narrow" alt="Карта в Raid OS с включёнными инструментами: рулетка из двух отрезков 311 м и общей длиной 492 м и прицел «Снайпер» с кольцами дальности 100–500 м" />
-      <Caption>Рулетка показывает длину каждого отрезка и общую, «Снайпер» — кольца дальности вокруг прицела.</Caption>
-    </figure>
-  )
-}
-
-export function MinimapVisual() {
-  return (
-    <figure className="promo-figure">
-      <div className="minimap-combo">
-        <Shot src={routeShot} width={1078} height={804} title="Карты · маршрут рейда" alt="Маршрут рейда на карте Таможни: пять пронумерованных точек текущих заданий соединены пунктиром, справа брифинг рейда с ключами и предметами" />
-        <div className="overlay-float">
-          <span className="float-tag">Поверх игры</span>
-          <img src={minimapOverlay} width={560} height={716} loading="lazy" decoding="async" alt="Окно мини-карты поверх игры: стрелка игрока у общежитий Таможни, метки заданий и выбранное задание «Операция «Водолей»» с целями" />
-        </div>
-      </div>
-      <Caption>Маршрут ①→②→③→④→⑤ по точкам текущих заданий и мини-карта с позицией по последнему скриншоту.</Caption>
+      <Shot src={overviewShot} width={1200} height={638} title="Raid OS · Обзор" alt="Вкладка «Обзор» в Raid OS: план рейда на Таможню, текущие задания, приоритет карт и прогресс Каппы" />
     </figure>
   )
 }
@@ -81,41 +53,36 @@ export function ItemPriceVisual() {
           {Array.from({ length: 40 }, (_, index) => <span key={index} className={index === 13 ? 'is-hover' : undefined} />)}
         </div>
         <div className="key-hint" aria-hidden="true"><span>наведите курсор</span><kbd>;</kbd></div>
-        <img className="item-card-shot" src={itemKappa} width={560} height={226} loading="lazy" decoding="async" alt="Карточка предмета в рейде: «Потрёпанная старинная книга», пометка «Каппа», «НЕ ПРОДАВАТЬ · нужно 1 · капа «Коллекционер» (FIR)», цены барахолки и Терапевта" />
+        <img className="item-card-shot" src={itemKappa} width={560} height={149} loading="lazy" decoding="async" alt="Карточка предмета в рейде: «Потрёпанная старинная книга», пометка «Каппа», цены барахолки и Терапевта" />
       </div>
       <Caption>«Потрёпанная старинная книга» — один из предметов для задания «Коллекционер». Цены на картинке — пример.</Caption>
     </figure>
   )
 }
 
-export function StoryKappaVisual() {
+export function StoryVisual() {
   return (
-    <figure className="promo-figure stack-figure">
+    <figure className="promo-figure">
       <Shot src={storyShot} width={1200} height={819} title="Задания · сюжет" alt="Сюжетные квесты в Raid OS: глава «Тур», актуальный этап 1 из 22 и список этапов главы" />
+    </figure>
+  )
+}
+
+export function CollectorVisual() {
+  return (
+    <figure className="promo-figure">
       <Shot src={kappaShot} width={1200} height={251} title="Предметы для «Коллекционера»" className="is-strip" alt="Чек-лист предметов для «Коллекционера»: собрано 4 из 10, кнопка «Сканировать»" />
     </figure>
   )
 }
 
-const MODES = [
-  { id: 'PvP', tone: 'pvp', lines: ['Свой прогресс квестов', 'Свой чек-лист Каппы', 'Цены PvP-барахолки'] },
-  { id: 'PvE', tone: 'pve', lines: ['Отдельный профиль', 'Свой список «не продавать»', 'Цены PvE-барахолки'] },
-  { id: 'Сезон', tone: 'season', lines: ['Сезонный каталог', 'Свой ник и прогресс', 'Не смешивается с PvP'] },
-]
+const MODES = ['PvP', 'PvE', 'Сезон']
 
 export function ModesVisual() {
   return (
     <figure className="promo-figure">
-      <div className="modes-mock" role="img" aria-label="Схема: три режима — PvP, PvE и Сезон — с отдельным прогрессом, чек-листом и ценами">
-        <div className="modes-switch" aria-hidden="true">{MODES.map((mode, index) => <span key={mode.id} className={index === 0 ? 'is-on' : undefined}>{mode.id}</span>)}</div>
-        <div className="modes-cards" aria-hidden="true">
-          {MODES.map((mode) => (
-            <div key={mode.id} className={`mode-card is-${mode.tone}`}>
-              <strong>{mode.id}</strong>
-              <ul>{mode.lines.map((line) => <li key={line}><Check />{line}</li>)}</ul>
-            </div>
-          ))}
-        </div>
+      <div className="modes-mock" role="img" aria-label="Переключатель режимов PvP, PvE и Сезон">
+        <div className="modes-switch" aria-hidden="true">{MODES.map((mode, index) => <span key={mode} className={index === 0 ? 'is-on' : undefined}>{mode}</span>)}</div>
       </div>
       <Caption>Переключатель режимов в верхней панели приложения меняет все разделы сразу.</Caption>
     </figure>
@@ -173,8 +140,8 @@ export function SyncVisual() {
     <figure className="promo-figure">
       <div className="sync-mock">
         <div className="sync-devices" role="img" aria-label="Схема: приложение для ПК, сайт и телефон связаны через один аккаунт на сервере Raid OS">
-          <div className="sync-node"><Monitor aria-hidden="true" /><strong>ПК</strong><span>квесты из логов, позиция, Каппа</span></div>
-          <div className="sync-node"><Globe aria-hidden="true" /><strong>Сайт</strong><span>кабинет, подписка, отряд</span></div>
+          <div className="sync-node"><Monitor aria-hidden="true" /><strong>ПК</strong><span>квесты, сюжет, Каппа</span></div>
+          <div className="sync-node"><Globe aria-hidden="true" /><strong>Сайт</strong><span>кабинет и подписка</span></div>
           <div className="sync-node"><Smartphone aria-hidden="true" /><strong>Телефон</strong><span>прогресс и мини-карта</span></div>
           <div className="sync-hub"><Server aria-hidden="true" /><strong>Один аккаунт</strong></div>
         </div>

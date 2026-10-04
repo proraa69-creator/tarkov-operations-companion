@@ -1,10 +1,10 @@
-import { BookOpen, Crosshair, Database, Download, Layers, LayoutDashboard, MapPinned, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
+import { Archive, BookOpen, Database, Download, Layers, LayoutDashboard, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Reveal } from '../Reveal'
 import {
-  BossesVisual, ItemPriceVisual, MapToolsVisual, MinimapVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual,
-  StoryKappaVisual, SyncVisual,
+  BossesVisual, CollectorVisual, ItemPriceVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual, StoryVisual,
+  SyncVisual,
 } from './PromoVisuals'
 import '../../promo.css'
 
@@ -20,11 +20,9 @@ interface Feature {
 }
 
 /**
- * The home page presentation below the hero. Every claim here was checked against the app code:
- * quests — EFT log files (electron/logScanner.ts); position — the coordinates EFT writes into a screenshot file name
- * (src/overlay/screenshotPosition.ts); item price — game tooltip recognised from the screen after a hotkey
- * (src/overlay/tooltipLookup.ts); map tools — src/components/MapTools.tsx; squad — src/squad/*. The phone app is not
- * in the stores yet (docs/mobile.md), so it is «скоро».
+ * The home page presentation below the hero. Every claim here was checked against the app code. The copy does not
+ * explain how the app gets its data (owner's request, 04.10.2026): only what the player sees. The map tools and the
+ * minimap / route sections were taken off the page; the phone app is not in the stores yet (docs/mobile.md) — «скоро».
  */
 const FEATURES: Feature[] = [
   {
@@ -32,67 +30,51 @@ const FEATURES: Feature[] = [
     icon: <LayoutDashboard />,
     eyebrow: 'Вкладка «Обзор»',
     title: 'Квесты подтягиваются сами',
-    lead: 'Приняли задание в игре — оно уже на «Обзоре». Raid OS читает журналы EFT и собирает план на выбранную карту.',
+    lead: 'Приняли задание в игре — оно уже на «Обзоре», а Raid OS собирает план на выбранную карту.',
     points: [
-      'Автосинхронизация квестов по лог-файлам игры — без ручных галочек',
       'Текущие задания на выбранной карте и приоритет карт по их числу',
       '«Требования рейда»: ключи, маркеры и предметы, которые нужно взять с собой',
     ],
     visual: <OverviewVisual />,
   },
   {
-    id: 'map-tools',
-    icon: <Crosshair />,
-    eyebrow: 'Рулетка и «Снайпер»',
-    title: 'Дистанция — в метрах игры',
-    lead: 'Измерьте путь до точки или посмотрите, какие позиции попадают в дальность вашего выстрела.',
-    points: [
-      'Рулетка: клик ставит точку, правая кнопка убирает последний отрезок',
-      'Длина каждого отрезка и всего пути в метрах',
-      '«Снайпер»: кольца каждые 50 м до 500 м вокруг прицела, прицел можно перетаскивать',
-    ],
-    visual: <MapToolsVisual />,
-  },
-  {
-    id: 'minimap',
-    icon: <MapPinned />,
-    eyebrow: 'Мини-карта и маршрут',
-    title: 'Где вы и куда дальше',
-    lead: 'Нажмите в игре клавишу скриншота — мини-карта поверх игры поставит вас на карту и покажет активные задания этой локации.',
-    points: [
-      'Позиция обновляется по скриншоту в игре: EFT пишет координаты и направление взгляда в имя файла',
-      'Окно поверх игры: прозрачность настраивается, вызывается горячей клавишей',
-      'Маршрут ①→②→③→④→⑤: порядок обхода точек текущих заданий, старт можно указать на карте',
-    ],
-    note: 'Позиция — на момент последнего скриншота, а не непрерывное слежение.',
-    visual: <MinimapVisual />,
-  },
-  {
     id: 'item-price',
     icon: <Tag />,
     eyebrow: 'Цена прямо в рейде',
     title: 'Продать или оставить?',
-    lead: 'Наведите курсор на предмет, дождитесь подсказки игры и нажмите горячую клавишу — Raid OS узнает предмет по названию на экране.',
+    lead: 'Наведите курсор на предмет, дождитесь подсказки игры и нажмите горячую клавишу — Raid OS покажет, сколько он стоит.',
     points: [
       'Цена на барахолке и у лучшего торговца в одной карточке',
       'Пометка «Каппа»: предмет нужен для задания «Коллекционер»',
-      '«НЕ ПРОДАВАТЬ»: сколько ещё нужно для квестов, убежища или Каппы и нужен ли FIR',
     ],
     visual: <ItemPriceVisual />,
   },
   {
-    id: 'story-kappa',
+    id: 'story',
     icon: <BookOpen />,
-    eyebrow: 'Сюжет и путь к Каппе',
+    eyebrow: 'Сюжетные квесты',
     title: 'Каждый этап — на своём месте',
-    lead: 'Сюжетные главы разложены по этапам: что делать сейчас и что потом. Чек-лист «Коллекционера» считает, сколько осталось до контейнера «Каппа».',
+    lead: 'Сюжетные главы разложены по этапам: что делать сейчас и что потом. Прогресс по сюжетным квестам синхронизируется автоматически — отмечать ничего не нужно.',
     points: [
-      'Глава и этап подхватываются с экрана игры, когда открыта вкладка заданий',
+      'Автоматическая синхронизация по сюжетным квестам: глава и текущий этап обновляются сами',
       '«Показать на карте» ведёт к локации текущего этапа',
-      'Предметы для Каппы: отметьте вручную или нажмите «Сканировать» и пролистайте схрон',
+      'Прогресс общий для ПК и телефона через аккаунт',
+    ],
+    visual: <StoryVisual />,
+  },
+  {
+    id: 'collector',
+    icon: <Archive />,
+    eyebrow: 'Путь к Каппе',
+    title: '«Коллекционер» собирается сам',
+    lead: 'Чек-лист «Коллекционера» показывает, сколько предметов осталось до контейнера «Каппа». Нажмите «Сканировать», пролистайте схрон — найденные предметы отметятся автоматически.',
+    points: [
+      'Автоматическая отметка: «Сканировать» и пролистать схрон',
+      'Счётчик собранных предметов и список того, что ещё не найдено',
+      'Отметить предмет можно и вручную',
       'Чек-лист общий для ПК и телефона через аккаунт',
     ],
-    visual: <StoryKappaVisual />,
+    visual: <CollectorVisual />,
   },
   {
     id: 'modes',
@@ -101,9 +83,8 @@ const FEATURES: Feature[] = [
     title: 'PvP, PvE и Сезон — отдельно',
     lead: 'У каждого режима свой каталог, свой прогресс и свои цены. Переключились — всё приложение показывает выбранный режим.',
     points: [
-      'Квесты, Каппа и «что не продавать» хранятся по режимам',
+      'Квесты и Каппа хранятся отдельно для каждого режима',
       'Каталог заданий, предметов и цен загружается для каждого режима свой',
-      'База обновляется кнопкой в приложении — данные из открытых источников',
     ],
     visual: <ModesVisual />,
   },
@@ -128,7 +109,7 @@ const FEATURES: Feature[] = [
     lead: 'Те же задания, карты и темы в мобильной раскладке. Телефон удобно держать рядом, пока на ПК идёт рейд.',
     points: [
       'Внизу экрана: «Обзор», «Задания», «Карты», «Мини Карта»',
-      'Мини-карта на телефоне показывает позицию, которую передаёт приложение для ПК',
+      'Прогресс заданий и чек-лист Каппы — те же, что на ПК',
       'Вход по QR-коду с компьютера — без ввода пароля',
     ],
     visual: <PhoneVisual />,
@@ -140,7 +121,7 @@ const FEATURES: Feature[] = [
     title: 'ПК, сайт и телефон — один аккаунт',
     lead: 'Войдите один раз — прогресс заданий, чек-лист Каппы и настройки поедут за вами.',
     points: [
-      'ПК отправляет то, что умеет читать только он: квесты из логов, позицию со скриншота',
+      'Прогресс с ПК сразу виден на телефоне и на сайте',
       'Телефон и сайт берут данные из аккаунта',
       'Вход по QR: одноразовый код на 2 минуты, пароль на телефоне не нужен',
     ],
@@ -184,7 +165,7 @@ export function Presentation() {
       <div className="container">
         <Reveal className="promo-intro">
           <div className="eyebrow">Что внутри</div>
-          <h2 className="promo-intro-title">Десять причин держать Raid&nbsp;OS открытым</h2>
+          <h2 className="promo-intro-title">Девять причин держать Raid&nbsp;OS открытым</h2>
           <p className="promo-intro-lead">Квесты, карты, цены и отряд — в одном окне рядом с игрой.</p>
         </Reveal>
         {FEATURES.map((feature, index) => <FeatureSection key={feature.id} feature={feature} index={index} />)}
@@ -195,13 +176,13 @@ export function Presentation() {
           <Reveal className="final-card panel">
             <div className="eyebrow">Готовы к рейду?</div>
             <h2 className="final-title" id="final-title">Следующий рейд — уже с планом</h2>
-            <p className="final-lead">Скачайте Raid OS для Windows, войдите в аккаунт — и квесты, маршрут и цены будут под рукой с первого захода.</p>
+            <p className="final-lead">Скачайте Raid OS для Windows, войдите в аккаунт — и квесты, карты и цены будут под рукой с первого захода.</p>
             <div className="hero-actions center">
               <Link to="/download" className="button primary large"><Download aria-hidden="true" />Скачать для Windows</Link>
               <Link to="/cabinet" className="button large"><UserRound aria-hidden="true" />Личный кабинет и подписка</Link>
             </div>
             <ul className="final-trust">
-              <li><ShieldCheck aria-hidden="true" /><span><strong>Не вмешивается в игру.</strong> Не читает память и не внедряется в процесс EFT — только логи, скриншоты и экран.</span></li>
+              <li><ShieldCheck aria-hidden="true" /><span><strong>Честная игра.</strong> Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.</span></li>
               <li><Database aria-hidden="true" /><span><strong>Открытые источники.</strong> Задания, предметы и цены — из tarkov.dev и вики игры.</span></li>
               <li><MonitorSmartphone aria-hidden="true" /><span><strong>Работает рядом с игрой.</strong> Отдельное окно и оверлей поверх игры, Windows 10 и 11.</span></li>
             </ul>

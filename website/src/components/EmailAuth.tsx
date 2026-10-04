@@ -21,12 +21,12 @@ function useSecondsLeft(until: number) {
   return Math.max(0, Math.ceil((until - now) / 1000))
 }
 
-const retryAfter = (error: unknown) => {
+export const retryAfter = (error: unknown) => {
   const match = error instanceof ApiError ? /через (\d+) с/.exec(error.message) : null
   return match ? Date.now() + Number(match[1]) * 1000 : 0
 }
 
-const failure = (error: unknown) => error !== null && <Notice tone={error instanceof ApiError && error.network ? 'offline' : 'error'}>{errorMessage(error)}</Notice>
+export const failure = (error: unknown) => error !== null && <Notice tone={error instanceof ApiError && error.network ? 'offline' : 'error'}>{errorMessage(error)}</Notice>
 
 export function EmailCodeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
@@ -38,7 +38,7 @@ export function EmailCodeField({ value, onChange }: { value: string; onChange: (
   )
 }
 
-function ResendButton({ until, busy, onClick }: { until: number; busy: boolean; onClick: () => void }) {
+export function ResendButton({ until, busy, onClick }: { until: number; busy: boolean; onClick: () => void }) {
   const left = useSecondsLeft(until)
   return (
     <button type="button" className="button ghost small" disabled={busy || left > 0} onClick={onClick}>

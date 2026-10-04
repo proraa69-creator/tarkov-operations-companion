@@ -1,10 +1,9 @@
 import { Link2Off, LoaderCircle, LogIn, UserPlus, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { ApiError, errorMessage, FRIEND_CODE_PATTERN, squadApi, SQUAD_CODE_PATTERN } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
-import { savePendingSquadCode } from '../storage'
 
 /** Invite links are personal: keep them out of search results. */
 function useNoIndex() {
@@ -19,20 +18,17 @@ function useNoIndex() {
 
 /**
  * /squad/<code> (join a squad) and /friend/<code> (send a friend request). Nothing happens without a click: the
- * signed-in person confirms; somebody signed out is sent to sign in, and a squad code waits in the cabinet.
+ * signed-in person confirms; somebody signed out signs in and opens the link again (the cabinet has no squad block).
  */
 export function SquadLinkPage({ kind }: { kind: 'squad' | 'friend' }) {
   useNoIndex()
   const { code = '' } = useParams()
   const auth = useAuth()
-  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [done, setDone] = useState('')
   const valid = (kind === 'squad' ? SQUAD_CODE_PATTERN : FRIEND_CODE_PATTERN).test(code)
   const signedIn = auth.status === 'ready' && auth.account !== null && auth.token
-
-  useEffect(() => { if (kind === 'squad' && valid && !signedIn) savePendingSquadCode(code) }, [kind, valid, signedIn, code])
 
   async function accept() {
     if (!auth.token) return
@@ -41,8 +37,7 @@ export function SquadLinkPage({ kind }: { kind: 'squad' | 'friend' }) {
     try {
       if (kind === 'squad') {
         await squadApi.join(auth.token, code)
-        savePendingSquadCode(null)
-        navigate('/cabinet#squad', { replace: true })
+        setDone('Вы в отряде. Общие задания и кому что нужно — в приложении, раздел «Отряд».')
       } else {
         const answer = await squadApi.friendRequest(auth.token, code)
         setDone(answer.status === 'friends' ? 'Вы теперь друзья. Список друзей — в приложении, раздел «Отряд».' : 'Запрос отправлен. Когда друг примет его, вы увидите друг друга в приложении, раздел «Отряд» → «Друзья».')
@@ -89,7 +84,7 @@ export function SquadLinkPage({ kind }: { kind: 'squad' | 'friend' }) {
           </button>
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>{kind === 'squad' ? 'Войдите или зарегистрируйтесь — код будет ждать в личном кабинете, в блоке «Отряд».' : 'Войдите или зарегистрируйтесь, затем откройте ссылку ещё раз.'}</p>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Войдите или зарегистрируйтесь, затем откройте ссылку ещё раз.</p>
             <Link to="/login" className="button primary block"><LogIn aria-hidden="true" />Войти</Link>
             <Link to="/register" className="button ghost block"><UserPlus aria-hidden="true" />Регистрация</Link>
           </div>

@@ -6,13 +6,13 @@ import { lockedReasonText } from './dataAccess'
 import { setRenderLanguage, uiText } from '../i18n/renderText'
 
 describe('paywall of the players’ app', () => {
-  it('without a subscription: plans, «Оплатить», the referral trial and what stays locked', () => {
+  it('without a subscription: plans, «Оплатить», and the referral trial', () => {
     render(<MemoryRouter><Paywall access={{ state: 'locked', reason: 'subscription' }} /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Нужна подписка' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Оплатить/ })).toBeInTheDocument()
     expect(screen.getByText('12 месяцев')).toBeInTheDocument()
     expect(screen.getByText(/первые 3 дня бесплатно/)).toBeInTheDocument()
-    expect(screen.getByText(/Закрыто до оплаты/)).toBeInTheDocument()
+    expect(screen.queryByText(/Закрыто до оплаты/)).toBeNull()
   })
 
   it('signed out: the sign-in form first', () => {

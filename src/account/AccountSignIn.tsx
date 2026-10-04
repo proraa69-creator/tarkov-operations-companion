@@ -1,12 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { AlertTriangle, Check, Gift, LoaderCircle, LogIn, Mail, QrCode, RefreshCw, Server, UserPlus } from 'lucide-react'
+import { AlertTriangle, Check, Gift, LoaderCircle, LogIn, Mail, QrCode, RefreshCw, UserPlus } from 'lucide-react'
 import type { PendingServerRegistration, ServerAccountStatus } from '../electron'
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { isDesktopShell } from '../platform'
-import { confirmRegistrationOnServer, refreshServerStatus, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
-import { setApiBaseUrl } from '../sync/webAccount'
+import { confirmRegistrationOnServer, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { LEGAL_VERSION, legalUrl, PHONE_AUTH_UI } from './authFeatures'
 import { CodeInput, Warning } from './codeFields'
 import { postService, useCooldown, waitFrom, type CodeChallenge } from './codeRequest'
@@ -77,7 +76,6 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       <div className="eyebrow">{uiText('Raid OS · шаг 1 из 2')}</div>
       {body}
       {status && !online && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Сервер недоступен. Проверьте интернет и адрес сервера или попробуйте позже.')}</span></div>}
-      <ServerAddressLine />
       {status && !online && (
         <div className="account-gate-offline">
           <button type="button" className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить снова')}</button>
@@ -123,7 +121,6 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
 
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
-      <p className="muted">{uiText('Войдите тем же e-mail и паролем, что на сайте. Приложение свяжется с сервером: ваши ники, прогресс заданий и подписка хранятся в аккаунте.')}</p>
       <label className="field-label">{uiText('E-mail')}
         <input className="input" type="email" autoComplete="username" value={email} maxLength={254} onChange={(event) => setEmail(event.target.value)} required autoFocus />
       </label>
@@ -297,44 +294,4 @@ function ConsentText() {
   return locale === 'en'
     ? <span>I accept the {link('offer', 'terms of the offer')} and give my {link('consent', 'consent to the processing of personal data')} under the {link('privacy', 'privacy policy')}</span>
     : <span>Я принимаю условия {link('offer', 'оферты')} и даю {link('consent', 'согласие на обработку персональных данных')} в соответствии с {link('privacy', 'политикой конфиденциальности')}</span>
-}
-
-/**
- * The server this app talks to; a player normally never changes it (the owner's address is built in). The desktop
- * app saves it in the main process, the phone in its own storage (same as Settings → «Адрес сервера»).
- */
-function ServerAddressLine() {
-  const { status, refresh } = useServerAccount()
-  const desktop = window.tarkovDesktop?.account?.setServerUrl
-  const save = desktop
-    ? async (value: string) => { await desktop(value) }
-    : usesWebAccount() ? async (value: string) => { setApiBaseUrl(value); await refreshServerStatus() } : undefined
-  const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState('')
-  const [error, setError] = useState('')
-  if (!status || !save) return null
-  const submit = async () => {
-    setError('')
-    try {
-      await save(value)
-      setEditing(false)
-      void refresh()
-    } catch (reason) {
-      setError((reason instanceof Error ? reason.message : String(reason)).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
-    }
-  }
-  return (
-    <div className="account-gate-server">
-      <small><Server size={12} />{uiText('Сервер:')} <span className="account-gate-url">{status.serverUrl}</span></small>
-      {!editing && <button type="button" className="link-button" onClick={() => { setValue(status.serverUrl); setEditing(true) }}>{uiText('Изменить')}</button>}
-      {editing && (
-        <div className="account-gate-server-edit">
-          <input className="input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="https://…" spellCheck={false} autoComplete="off" aria-label={uiText('Адрес сервера')} />
-          <button type="button" className="button ghost" onClick={() => void submit()}>{uiText('Сохранить')}</button>
-          <button type="button" className="button ghost" onClick={() => setEditing(false)}>{uiText('Отмена')}</button>
-        </div>
-      )}
-      {error && <small className="account-error">{uiText(error)}</small>}
-    </div>
-  )
 }

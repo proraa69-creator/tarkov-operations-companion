@@ -12,6 +12,7 @@
   box-shadow: var(--shadow);
   animation: pay-rise .28s var(--ease-out);
 }
+.password-dialog { width: min(420px, 100%); }
 .pay-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .pay-dialog-head h2 { margin: 4px 0 0; font-size: 22px; letter-spacing: -.01em; }
 .pay-regions { margin: 0; padding: 0; border: 0; display: grid; gap: 10px; min-width: 0; }

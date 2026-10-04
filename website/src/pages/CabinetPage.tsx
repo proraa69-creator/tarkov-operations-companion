@@ -16,7 +16,6 @@ import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
-import { SquadPanel } from '../components/SquadPanel'
 
 const MODES: { id: AccountMode; label: string; color: string }[] = [
   { id: 'pvp', label: 'PvP', color: 'var(--brass)' },
@@ -107,7 +106,6 @@ export function CabinetPage() {
           <div className="cabinet-col">
             {account.kind === 'streamer' && account.referralCode && <ReferralProgramPanel account={account} />}
             <SubscriptionPanel account={account} />
-            <SquadPanel />
             <NicknamesPanel account={account} />
           </div>
           <div className="cabinet-col">
