@@ -2,10 +2,11 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MapMarker } from '../domain/types'
 
-type Placed = { bossKey: string; x: number; z: number; hidden?: boolean }
+type Placed = { mapId?: string; bossKey: string; x: number; z: number; hidden?: boolean }
 const editor = vi.hoisted(() => ({
   place: vi.fn<(placement: Placed) => Promise<void>>(async () => {}),
   remove: vi.fn<(id: string) => Promise<void>>(async () => {}),
+  placeMany: vi.fn<(placements: Placed[]) => Promise<void>>(async () => {}),
 }))
 vi.mock('../app/buildEdition', () => ({ isOwnerApp: () => true }))
 vi.mock('../data/mapBossPlacements', async (importOriginal) => ({ ...(await importOriginal<typeof import('../data/mapBossPlacements')>()), useMapBossEditor: () => editor }))
@@ -16,7 +17,7 @@ const auto = (id: string, key: string, position: [number, number]): MapMarker =>
 const manual = (id: string, key: string, position: [number, number]): MapMarker => ({ ...auto(`owner-boss-${id}`, key, position), source: 'owner-placed' })
 
 describe('«Расставить боссов»: drag, delete and replace save at once', () => {
-  beforeEach(() => { editor.place.mockClear(); editor.remove.mockClear() })
+  beforeEach(() => { editor.place.mockClear(); editor.remove.mockClear(); editor.placeMany.mockClear() })
 
   it('dragging an automatic boss keeps its other points and saves the moved one', async () => {
     const a = auto('a', 'reshala', [10, 20]), b = auto('b', 'reshala', [30, 40])
@@ -42,5 +43,22 @@ describe('«Расставить боссов»: drag, delete and replace save a
     editor.place.mockClear()
     await act(async () => { await result.current.replace(a, 'killa') })
     expect(editor.place.mock.calls.map(([p]) => [p.bossKey, p.hidden ?? false])).toEqual([['killa', false], ['reshala', true]])
+  })
+
+  it('«PvP → все режимы» fixes every automatic PvP boss and locks each map, in one request', async () => {
+    const a = auto('a', 'reshala', [10, 20]), b = { ...auto('b', 'killa', [3, 4]), mapId: 'interchange' }
+    const m = manual('d'.repeat(24), 'tagilla', [1, 2])
+    const { result } = renderHook(() => useBossPlacement('customs', 'Основной', 'Основной', [a, m], [a, b, m], 'pvp'))
+    await act(async () => { await result.current.copyToAllModes() })
+    const [batch] = editor.placeMany.mock.calls[0]!
+    expect(batch.filter((p) => p.bossKey !== 'map-lock').map((p) => [p.mapId, p.bossKey, p.x, p.z])).toEqual([['customs', 'reshala', 20, 10], ['interchange', 'killa', 4, 3]])
+    expect(batch.filter((p) => p.bossKey === 'map-lock').map((p) => [p.mapId, p.hidden])).toEqual([['customs', true], ['interchange', true]])
+  })
+
+  it('copies only from PvP', async () => {
+    const { result } = renderHook(() => useBossPlacement('customs', 'Основной', 'Основной', [], [auto('a', 'reshala', [1, 1])], 'pve'))
+    await act(async () => { await result.current.copyToAllModes() })
+    expect(editor.placeMany).not.toHaveBeenCalled()
+    expect(result.current.error).toMatch(/PvP/)
   })
 })

@@ -40,7 +40,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
   // Bosses placed on the maps by the owner (server/src/routes/mapBosses.ts): everybody reads, only the owner's account writes.
   { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/map-bosses(?:\/[a-f0-9]{24}\/remove)?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/map-bosses(?:\/[a-f0-9]{24}\/remove|\/batch)?$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/events$`) },

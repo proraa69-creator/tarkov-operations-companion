@@ -12,7 +12,7 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
-import { MapBossStore } from '../services/mapBossStore.js'
+import { MAX_MAP_BOSS_PLACEMENTS, MapBossStore } from '../services/mapBossStore.js'
 
 const slug = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/)
 /** Game metres; the largest maps are well within ±2000. */
@@ -58,6 +58,18 @@ export function createMapBossesRouter(accounts: AccountStore, store: MapBossStor
     if (!placement) { res.status(409).json({ error: 'Слишком много меток боссов. Удалите лишние.' }); return }
     try { audit?.(actor, 'map.boss-place', placement.id, { mapId: placement.mapId, boss: placement.bossKey, x: Math.round(placement.x), z: Math.round(placement.z), ...(placement.hidden ? { hidden: true } : {}) }) } catch { /* placed anyway */ }
     res.status(201).json({ placement, placements: store.list() })
+  })
+
+  /** «Применить расстановку PvP ко всем режимам»: many placements in one request (all or nothing). */
+  router.post('/v1/accounts/me/admin/map-bosses/batch', (req, res) => {
+    const actor = owner(req, res)
+    if (!actor) return
+    const body = z.object({ placements: z.array(placementSchema).min(1).max(500) }).safeParse(req.body)
+    if (!body.success) { res.status(400).json({ error: 'Некорректные данные меток' }); return }
+    if (store.list().length + body.data.placements.length > MAX_MAP_BOSS_PLACEMENTS) { res.status(409).json({ error: 'Слишком много меток боссов. Удалите лишние.' }); return }
+    const added = body.data.placements.map((placement) => store.add(placement, actor)).filter(Boolean)
+    try { audit?.(actor, 'map.boss-place', `batch:${added.length}`, { batch: added.length, maps: [...new Set(body.data.placements.map((entry) => entry.mapId))] }) } catch { /* placed anyway */ }
+    res.status(201).json({ placements: store.list() })
   })
 
   router.post('/v1/accounts/me/admin/map-bosses/:id/remove', (req, res) => {

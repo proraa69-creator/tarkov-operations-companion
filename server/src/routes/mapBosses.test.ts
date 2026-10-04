@@ -53,6 +53,16 @@ test('map bosses: the owner places and removes, everybody reads, players cannot 
 
     const id = placed.json.placement.id
     assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${id}/remove`, player)).status, 404)
+    // «PvP → все режимы»: many placements in one request; players cannot.
+    const batch = { placements: [{ ...killa, mapId: 'factory' }, { mapId: 'factory', bossKey: 'map-lock', bossName: 'map-lock', x: 0, z: 0, hidden: true }] }
+    assert.equal((await call('POST', '/accounts/me/admin/map-bosses/batch', player, batch)).status, 404)
+    assert.equal((await call('POST', '/accounts/me/admin/map-bosses/batch', owner, { placements: [] })).status, 400)
+    const many = await call<{ placements: Array<{ id: string; mapId: string; hidden?: boolean }> }>('POST', '/accounts/me/admin/map-bosses/batch', owner, batch)
+    assert.equal(many.status, 201)
+    const factory = many.json.placements.filter((entry) => entry.mapId === 'factory')
+    assert.equal(factory.length, 2)
+    for (const entry of factory) assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${entry.id}/remove`, owner)).status, 200)
+
     // A deleted automatic boss is kept as a hidden placement.
     const hidden = await call<{ placement: { id: string; hidden?: boolean } }>('POST', '/accounts/me/admin/map-bosses', owner, { ...killa, hidden: true })
     assert.equal(hidden.status, 201)
@@ -64,7 +74,7 @@ test('map bosses: the owner places and removes, everybody reads, players cannot 
     assert.equal((await call('POST', `/accounts/me/admin/map-bosses/${id}/remove`, owner)).status, 404)
 
     const audit = await call<{ entries: Array<{ action: string }> }>('GET', '/accounts/me/admin/audit', owner)
-    assert.deepEqual(audit.json.entries.map((entry) => entry.action).sort(), ['map.boss-place', 'map.boss-place', 'map.boss-remove', 'map.boss-remove'])
+    assert.deepEqual(audit.json.entries.map((entry) => entry.action).sort(), ['map.boss-place', 'map.boss-place', 'map.boss-place', 'map.boss-remove', 'map.boss-remove', 'map.boss-remove', 'map.boss-remove'])
   } finally {
     await close()
   }

@@ -321,7 +321,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const [floor, setFloor] = useState(baseFloor)
   const [tools, setTools] = useState<MapToolsState>(initialMapTools)
   const plottedMarkersForBosses = useMemo(() => data.markers.filter((marker) => marker.mapId === activeMap.id && marker.type === 'boss'), [activeMap.id, data.markers])
-  const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor, plottedMarkersForBosses)
+  const allBossMarkers = useMemo(() => data.markers.filter((marker) => marker.type === 'boss'), [data.markers])
+  const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor, plottedMarkersForBosses, allBossMarkers, state.raidMode)
   const mapRef = useRef<LeafletMap | null>(null)
   const toolActive = tools.tool !== 'none'
   const [search, setSearch] = useState('')

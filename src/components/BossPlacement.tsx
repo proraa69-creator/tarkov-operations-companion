@@ -2,10 +2,11 @@
 import { uiText } from '../i18n/renderText'
 import { useState } from 'react'
 import { useMapEvents } from 'react-leaflet'
-import { LoaderCircle, Repeat, Skull, Trash2 } from 'lucide-react'
+import { CopyCheck, LoaderCircle, Repeat, Skull, Trash2 } from 'lucide-react'
 import { isOwnerApp } from '../app/buildEdition'
 import { cleanIpcError } from '../sync/serverSync'
-import { bossKeyOf, OWNER_BOSS_SOURCE, PLACEABLE_BOSSES, placementIdOf, useMapBossEditor, type NewMapBossPlacement } from '../data/mapBossPlacements'
+import { MAIN_FLOOR } from '../data/mapProjection'
+import { bossKeyOf, MAP_LOCK_KEY, OWNER_BOSS_SOURCE, PLACEABLE_BOSSES, placementIdOf, useMapBossEditor, type NewMapBossPlacement } from '../data/mapBossPlacements'
 import type { MapMarker } from '../domain/types'
 
 /**
@@ -13,7 +14,7 @@ import type { MapMarker } from '../domain/types'
  * on the server and every player's map shows it instead of the automatic markers of that boss on that map.
  * The selected floor goes with the point when it is not the main level.
  */
-export function useBossPlacement(mapId: string, floor: string, baseFloor: string, bossMarkers: MapMarker[] = []) {
+export function useBossPlacement(mapId: string, floor: string, baseFloor: string, bossMarkers: MapMarker[] = [], allBossMarkers: MapMarker[] = [], mode = 'pvp') {
   const enabled = isOwnerApp()
   const editor = useMapBossEditor()
   const [active, setActive] = useState(false)
@@ -69,7 +70,30 @@ export function useBossPlacement(mapId: string, floor: string, baseFloor: string
     const id = placementIdOf(marker)
     if (id) { await editor.place(asPlacement(marker, { bossKey: boss.key, bossName: boss.name })); await editor.remove(id) } else await rewriteAutomatic(marker, { bossKey: boss.key, bossName: boss.name })
   })
-  return { enabled, active: enabled && active, setActive, bossKey, setBossKey, busy, error, place, move, remove, replace }
+  /**
+   * «Применить расстановку PvP ко всем режимам»: every automatic PvP boss on every map becomes a placement where it stands,
+   * and each such map is locked, so PvE and Season show exactly the PvP arrangement (their own automatic bosses are
+   * dropped there). One request; the owner's own placements stay as they are.
+   */
+  const copyToAllModes = () => run(async () => {
+    if (mode !== 'pvp') throw new Error('Переключитесь на PvP: копируется расстановка PvP.')
+    const maps = new Set(allBossMarkers.map((marker) => marker.mapId))
+    const automatic = allBossMarkers.filter((marker) => marker.source !== OWNER_BOSS_SOURCE)
+    const placements: NewMapBossPlacement[] = [
+      ...automatic.map((marker) => ({
+        mapId: marker.mapId,
+        bossKey: bossKeySlug(marker),
+        bossName: marker.boss?.name ?? marker.title,
+        x: round(marker.position[1]),
+        z: round(marker.position[0]),
+        ...(marker.floor && marker.floor !== MAIN_FLOOR ? { floor: marker.floor } : {}),
+      })),
+      ...[...maps].map((map) => ({ mapId: map, bossKey: MAP_LOCK_KEY, bossName: MAP_LOCK_KEY, x: 0, z: 0, hidden: true })),
+    ]
+    if (!placements.length) return
+    await editor.placeMany(placements)
+  })
+  return { enabled, active: enabled && active, setActive, bossKey, setBossKey, busy, error, place, move, remove, replace, copyToAllModes, mode }
 }
 
 export type BossPlacementState = ReturnType<typeof useBossPlacement>
@@ -104,6 +128,12 @@ export function BossPlacementControls({ state }: { state: BossPlacementState }) 
           <select className="input boss-placement-select" value={state.bossKey} onChange={(event) => state.setBossKey(event.target.value)} aria-label={uiText('Босс')} title={uiText('Клик по карте — поставить выбранного босса; босса на карте можно перетащить мышью, а по клику — удалить или заменить')}>
             {PLACEABLE_BOSSES.map((boss) => <option key={boss.key} value={boss.key}>{uiText(boss.name)}</option>)}
           </select>
+          {state.mode === 'pvp' && (
+            <button type="button" className="map-tool" disabled={state.busy} title={uiText('Закрепить текущую PvP-расстановку боссов на всех картах: PvE и Сезон покажут её же')}
+              onClick={() => { if (window.confirm(uiText('Применить расстановку боссов PvP ко всем режимам?\n\nВсе боссы PvP на всех картах закрепятся там, где стоят сейчас, и PvE и Сезон будут показывать ту же расстановку. Дальше любые изменения тоже будут общими для всех режимов.'))) void state.copyToAllModes() }}>
+              <CopyCheck size={14} />{uiText('PvP → все режимы')}
+            </button>
+          )}
           {(state.busy || state.error) && (
             <span className="boss-placement-hint">
               {state.busy ? <LoaderCircle size={13} className="spin" /> : uiText(state.error)}

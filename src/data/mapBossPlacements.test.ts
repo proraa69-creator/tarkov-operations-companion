@@ -31,4 +31,11 @@ describe('owner-placed bosses', () => {
     const result = withOwnerBosses(markers, [{ ...placed, hidden: true }])
     expect(result.map((marker) => marker.id)).toEqual(['i-tagilla'])
   })
+
+  it('a locked map drops every automatic boss in every mode, only the owner placements stay', () => {
+    const markers = [auto('i-killa', 'interchange', 'killa'), auto('i-tagilla', 'interchange', 'tagilla'), auto('f-killa', 'factory', 'killa')]
+    const lock: MapBossPlacement = { ...placed, id: 'b'.repeat(24), bossKey: 'map-lock', bossName: 'map-lock', hidden: true }
+    const result = withOwnerBosses(markers, [lock, { ...placed, bossKey: 'tagilla', bossName: 'Тагилла' }])
+    expect(result.map((marker) => marker.id)).toEqual(['f-killa', `owner-boss-${placed.id}`])
+  })
 })

@@ -25,6 +25,11 @@ export interface MapBossPlacement {
 export type NewMapBossPlacement = Pick<MapBossPlacement, 'mapId' | 'bossKey' | 'bossName' | 'x' | 'z' | 'floor' | 'hidden'>
 
 export const OWNER_BOSS_SOURCE = 'owner-placed'
+/**
+ * A hidden placement with this key «locks» a map: its automatic boss markers are dropped in every mode, only the owner's
+ * placements are shown (set by «Применить расстановку PvP ко всем режимам» together with the PvP bosses as placements).
+ */
+export const MAP_LOCK_KEY = 'map-lock'
 const PLACEMENTS_KEY = ['map-boss-placements'] as const
 /** One shared empty list, so the dataset keeps its identity while nothing is placed. */
 const NONE: MapBossPlacement[] = []
@@ -70,7 +75,8 @@ export function withOwnerBosses(markers: MapMarker[], placements: MapBossPlaceme
   if (!placements.length) return markers
   const placed = new Set(placements.flatMap((entry) => [`${entry.mapId}:${entry.bossKey.toLowerCase()}`, `${entry.mapId}:${entry.bossName.toLowerCase()}`]))
   const names = (marker: MapMarker) => [bossKeyOf(marker), (marker.boss?.name ?? marker.title).toLowerCase()]
-  const kept = markers.filter((marker) => marker.type !== 'boss' || !names(marker).some((name) => placed.has(`${marker.mapId}:${name}`)))
+  const locked = new Set(placements.filter((entry) => entry.bossKey === MAP_LOCK_KEY).map((entry) => entry.mapId))
+  const kept = markers.filter((marker) => marker.type !== 'boss' || (!locked.has(marker.mapId) && !names(marker).some((name) => placed.has(`${marker.mapId}:${name}`))))
   return [...kept, ...placements.filter((entry) => !entry.hidden).map(placementMarker)]
 }
 
@@ -105,7 +111,12 @@ export function useMapBossEditor() {
     if (!request) throw new Error('Нет связи с сервером')
     store(parsePlacements(await request('POST', `/v1/accounts/me/admin/map-bosses/${id}/remove`)))
   }, [store])
-  return { place, remove }
+  const placeMany = useCallback(async (placements: NewMapBossPlacement[]) => {
+    const request = serviceClient()
+    if (!request) throw new Error('Нет связи с сервером')
+    store(parsePlacements(await request('POST', '/v1/accounts/me/admin/map-bosses/batch', { placements })))
+  }, [store])
+  return { place, remove, placeMany }
 }
 
 /** The placement behind a marker drawn from it, if any. */
