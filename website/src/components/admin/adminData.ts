@@ -1,17 +1,16 @@
 /** Formatting, labels and the data hook of the «Админ-панель» tabs (components/admin/*). */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError, errorMessage, type PaymentProvider, type PaymentStatus, type PlanId } from '../../api'
+import { ApiError, errorMessage, paymentProviderLabel, type PaymentStatus, type PlanId } from '../../api'
 import { useAuth } from '../../auth'
 import { formatPeriodKey, formatRub } from '../ReferralStatsTable'
 
-export { formatPeriodKey, formatRub }
+export { formatPeriodKey, formatRub, paymentProviderLabel }
 
 export const numberFormat = new Intl.NumberFormat('ru-RU')
 export const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
 export const dateOnly = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Moscow' })
 export const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
 export const PLAN_LABEL: Record<PlanId, string> = { '1m': '1 мес', '3m': '3 мес', '6m': '6 мес', '12m': '12 мес' }
-export const PROVIDER_LABEL: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', lava: 'Lava.top' }
 export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },

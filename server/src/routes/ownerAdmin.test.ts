@@ -7,28 +7,14 @@ import { AdminStore } from '../services/adminStore.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { PayoutStore } from '../services/payoutStore.js'
+import { recordPayment } from '../services/testPayments.js'
 import { ProgressStore } from '../services/progressStore.js'
 
 const password = 'correct horse battery'
 const DAY = 24 * 60 * 60 * 1000
 
-/** A fake ЮKassa (as in payments.test.ts): `pay()` makes a created payment succeed. */
-function fakeYooKassa() {
-  const remote = new Map<string, Record<string, unknown>>()
-  let next = 1
-  const fetch = (async (url: string, init: RequestInit) => {
-    const body = init.body ? JSON.parse(String(init.body)) : undefined
-    if (init.method === 'POST') {
-      const id = `2d${String(next++).padStart(10, '0')}-000f-5000-9000-1b68e7b15f3f`
-      const payment = { id, status: 'pending', paid: false, amount: body.amount, metadata: body.metadata, confirmation: { type: 'redirect', confirmation_url: `https://yoomoney.ru/checkout?orderId=${id}` } }
-      remote.set(id, payment)
-      return new Response(JSON.stringify(payment), { status: 200 })
-    }
-    const payment = remote.get(url.split('/').pop()!)
-    return payment ? new Response(JSON.stringify(payment), { status: 200 }) : new Response('{}', { status: 404 })
-  }) as unknown as typeof globalThis.fetch
-  return { fetch, pay: (id: string) => Object.assign(remote.get(id)!, { status: 'succeeded', paid: true }) }
-}
+/** Plan prices at 300 ₽ a month, the year 33 % off. */
+const PRICES = { '1m': 300, '3m': 900, '6m': 1800, '12m': 2412 } as const
 
 /** The owner registers before the e-mail is listed (as the desktop app / build default requires). */
 async function setup() {
@@ -39,8 +25,7 @@ async function setup() {
   await first.register('owner@example.com', password)
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id) // owner rights need a confirmed e-mail
   const accounts = new AccountStore({ db, now, ownerEmails: ['owner@example.com'] })
-  const yoo = fakeYooKassa()
-  const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_secret', monthPrice: 300, receipts: false, streamerPercent: 10, publicUrl: 'https://raidos.example.com' }, { now, fetch: yoo.fetch })
+  const payments = new PaymentStore(db, { streamerPercent: 10 }, { now })
   accounts.attachSubscriptions(payments)
   const payouts = new PayoutStore(db, payments, { now })
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, payouts }).listen(0, '127.0.0.1')
@@ -55,15 +40,8 @@ async function setup() {
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
   const register = async (email: string, referralCode?: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, ...(referralCode ? { referralCode } : {}) })).json.token
-  /** A succeeded ЮKassa payment of `plan` for the account behind `token`. */
-  const pay = async (token: string, plan: '1m' | '3m' | '6m' | '12m') => {
-    const created = await call('POST', '/payments', token, { plan, consent: { version: '2026-09-01' } })
-    assert.equal(created.status, 201, JSON.stringify(created.json))
-    const { paymentId, confirmationUrl } = created.json as unknown as { paymentId: string; confirmationUrl: string }
-    yoo.pay(new URL(confirmationUrl).searchParams.get('orderId')!)
-    await call('GET', `/payments/${paymentId}`, token)
-    return paymentId
-  }
+  /** A succeeded payment of `plan` for the account behind `token`. */
+  const pay = async (token: string, plan: '1m' | '3m' | '6m' | '12m') => recordPayment(payments, accounts.authenticate(token)!, plan, PRICES[plan], { now: now(), provider: 'yookassa' })
   const close = () => new Promise<void>((resolve) => server.close(() => resolve()))
   return { db, accounts, payments, call, login, register, pay, close, advance: (ms: number) => { clock += ms } }
 }
@@ -193,7 +171,7 @@ test('blocking revokes sessions, refuses login with 403 and cannot target the ow
   } finally { await t.close() }
 })
 
-test('statistics: users, revenue by provider and plan per day / month, payouts, filters and CSV', async () => {
+test('statistics: users, revenue by plan per day / month, payouts, filters and CSV', async () => {
   const t = await setup()
   try {
     // A streamer and two referred players; one pays 1 month, the other 12 months the next day; a Lava payment by SQL.
@@ -211,25 +189,24 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
 
     const overview = (await t.call('GET', '/accounts/me/admin/overview', owner)).json as unknown as {
       users: { total: number; today: number; days7: number }; subscriptions: { active: number; trials: number; streamers: number }
-      revenue: { today: { yookassa: number; lava: number; total: number }; month: { total: number }; all: { total: number; payments: number }; lavaOriginal: Array<{ currency: string; amount: number }> }
+      revenue: { today: { total: number; payments: number }; month: { total: number }; all: { total: number; payments: number } }
       payouts: { earned: number }
     }
     assert.deepEqual([overview.users.total, overview.users.today, overview.users.days7], [4, 1, 4])
     assert.equal(overview.subscriptions.active, 2)
     assert.equal(overview.subscriptions.streamers, 1)
-    // 12 months: 300 × 12 × 0.67 = 2412 ₽ today (ЮKassa) + 900 ₽ (Lava at the owner's rate).
-    assert.deepEqual(overview.revenue.today, { yookassa: 2412, lava: 900, total: 3312, payments: 2 })
+    // 12 months: 300 × 12 × 0.67 = 2412 ₽ today + 900 ₽ (an old Lava payment, counted in roubles).
+    assert.deepEqual(overview.revenue.today, { total: 3312, payments: 2 })
     assert.equal(overview.revenue.all.total, 3612)
     assert.equal(overview.revenue.all.payments, 3)
-    assert.deepEqual(overview.revenue.lavaOriginal, [{ currency: 'USD', amount: 10 }])
-    // 10 % of the two referred ЮKassa payments (the Lava row was inserted without a referral code).
+    // 10 % of the two referred payments (the Lava row was inserted without a referral code).
     assert.equal(overview.payouts.earned, 271.2)
 
-    const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<string, { count: number; revenue: number }> }> }
+    const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; plans: Record<string, { count: number; revenue: number }> }> }
     assert.equal(days.rows.length, 31)
     const [today, yesterday] = days.rows
     assert.equal(today!.period, '2026-10-02')
-    assert.deepEqual([today!.registrations, today!.payments, today!.revenue, today!.yookassa, today!.lava], [1, 2, 3312, 2412, 900])
+    assert.deepEqual([today!.registrations, today!.payments, today!.revenue], [1, 2, 3312])
     assert.deepEqual(today!.plans['12m'], { count: 1, revenue: 2412 })
     assert.deepEqual(today!.plans['3m'], { count: 1, revenue: 900 })
     assert.deepEqual([yesterday!.period, yesterday!.registrations, yesterday!.payments, yesterday!.revenue], ['2026-10-01', 3, 1, 300])
@@ -241,10 +218,10 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.equal((await t.call('GET', '/accounts/me/admin/series?period=week', owner)).status, 400)
 
     // Payments: filters and totals.
-    const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; lava: number; yookassa: number } }
-    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.lava, all.totals.yookassa], [4, 3, 3612, 900, 2712])
-    const lava = (await t.call('GET', '/accounts/me/admin/payments?provider=lava', owner)).json as unknown as { payments: Array<{ original: { amount: number; currency: string } }> }
-    assert.deepEqual(lava.payments.map((item) => item.original), [{ amount: 10, currency: 'USD' }])
+    const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number }; payments: Array<{ provider: string; original?: { amount: number; currency: string } }> }
+    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.streamerEarnings], [4, 3, 3612, 271.2])
+    assert.deepEqual(all.payments.filter((item) => item.provider === 'lava').map((item) => item.original), [{ amount: 10, currency: 'USD' }])
+    assert.deepEqual(all.payments.filter((item) => item.provider === 'yookassa').map((item) => item.original), [undefined, undefined, undefined], 'roubles need no second amount')
     const canceled = (await t.call('GET', '/accounts/me/admin/payments?status=canceled&plan=6m', owner)).json as unknown as { total: number }
     assert.equal(canceled.total, 1)
     const byEmail = (await t.call('GET', '/accounts/me/admin/payments?q=A%40EXAMPLE', owner)).json as unknown as { total: number; payments: Array<{ email: string }> }
@@ -367,17 +344,12 @@ test("the owner's older actions (streamer invites, payout limits) are written to
   } finally { await t.close() }
 })
 
-test('sales settings show prices and providers, never keys; the database migration is additive and repeatable', async () => {
+test('sales settings: no way to pay, the streamer share and trial; the database migration is additive and repeatable', async () => {
   const t = await setup()
   try {
     const owner = await t.login('owner@example.com')
     const sales = await t.call('GET', '/accounts/me/admin/sales-settings', owner)
-    const text = JSON.stringify(sales.json)
-    assert.equal(text.includes('test_secret'), false)
-    const body = sales.json as unknown as { yookassa: { monthPrice: number }; plans: Array<{ id: string; price: number }>; streamerPercent: number }
-    assert.equal(body.yookassa.monthPrice, 300)
-    assert.deepEqual(body.plans.map((plan) => plan.price), [300, 900, 1800, 2412])
-    assert.equal(body.streamerPercent, 10)
+    assert.deepEqual(sales.json, { enabled: false, plans: [], streamerPercent: 10, trialDays: 3 })
   } finally { await t.close() }
 
   // An «old» database without the new columns/tables gets them on start, and starting twice changes nothing.

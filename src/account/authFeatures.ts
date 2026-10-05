@@ -14,6 +14,6 @@ export const LEGAL_SITE_URL = 'https://raidos.app'
  * The version of the legal documents a registration in the app accepts (POST /v1/accounts/me/consents). Must equal
  * LEGAL_VERSION of website/src/legal/documents.ts (checked by src/account/AccountGate.test.tsx).
  */
-export const LEGAL_VERSION = '2026-10-01.2'
+export const LEGAL_VERSION = '2026-10-05'
 
 export const legalUrl = (slug: 'offer' | 'consent' | 'privacy') => `${LEGAL_SITE_URL}/legal/${slug}`

@@ -1,15 +1,13 @@
-import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, ShieldCheck, UserPlus, WifiOff } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, UserPlus, WifiOff } from 'lucide-react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
+import { ApiError, api, errorMessage, paymentProviderLabel, type Account, type AccountMode, type Payment, type PaymentStatus, type PlanId, type StatsPeriod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
-import { AutopayCard } from '../components/PaymentRegionDialog'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
-import { LEGAL_VERSION } from '../legal/documents'
 import { Notice } from '../components/Notice'
 import { PasswordPanel } from '../components/PasswordPanel'
 import { EmailVerifyBanner } from '../components/EmailAuth'
@@ -126,169 +124,24 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   succeeded: { label: 'Оплачен', tone: 'green' },
   canceled: { label: 'Отменён', tone: 'danger' },
 }
-const PAYMENT_ID_PATTERN = /^[a-f0-9]{24}$/
-const PAYMENT_POLL_MS = 3_000
-const PAYMENT_POLL_LIMIT_MS = 120_000
 const shortDateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
 
-type PaymentCheck =
-  | { phase: 'checking' }
-  | { phase: 'succeeded'; paidUntil?: string }
-  | { phase: 'canceled' }
-  | { phase: 'timeout' }
-  | { phase: 'error'; message: string }
-
-/** Drops ?payment=… from the address bar once the check is over, so a reload does not re-check. */
-function clearPaymentParam() {
-  const url = new URL(window.location.href)
-  if (!url.searchParams.has('payment')) return
-  url.searchParams.delete('payment')
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
-}
-
 /**
- * ЮKassa sends the user back to /cabinet?payment=<id>. Poll GET /v1/payments/:id (the server re-checks ЮKassa while the
- * payment is pending) until it settles or ~2 minutes pass, then refresh the account so the new paid period shows.
+ * The subscription status and the payment history. No payment service is connected, so there are no plans and no
+ * «Оплатить» button: the paid period comes from earlier payments, trials and days granted by the owner.
  */
-function usePaymentCheck(paymentId: string | null, onSettled: () => void) {
-  const auth = useAuth()
-  const token = auth.token
-  const [check, setCheck] = useState<PaymentCheck | null>(() => (paymentId ? { phase: 'checking' } : null))
-  const callbacks = useRef({ setAccount: auth.setAccount, onSettled })
-  useEffect(() => { callbacks.current = { setAccount: auth.setAccount, onSettled } })
-
-  useEffect(() => {
-    if (!paymentId || !token) return
-    let cancelled = false
-    let timer: number | undefined
-    const started = Date.now()
-    const finish = (next: PaymentCheck) => {
-      if (cancelled) return
-      setCheck(next)
-      clearPaymentParam()
-      callbacks.current.onSettled()
-    }
-    const poll = async () => {
-      try {
-        const payment = await api.payment(token, paymentId)
-        if (cancelled) return
-        if (payment.status === 'succeeded') {
-          let paidUntil: string | undefined
-          try {
-            const me = await api.me(token)
-            if (cancelled) return
-            callbacks.current.setAccount(me)
-            paidUntil = me.subscription.paidUntil
-          } catch { /* the notice still says the payment went through */ }
-          finish({ phase: 'succeeded', paidUntil })
-          return
-        }
-        if (payment.status === 'canceled') { finish({ phase: 'canceled' }); return }
-      } catch (reason) {
-        if (cancelled) return
-        // Network hiccups, rate limits and server errors are retried; "not found" and the like are final.
-        if (reason instanceof ApiError && !reason.network && reason.status !== 429 && reason.status < 500) {
-          finish({ phase: 'error', message: errorMessage(reason) })
-          return
-        }
-      }
-      if (Date.now() - started >= PAYMENT_POLL_LIMIT_MS) { finish({ phase: 'timeout' }); return }
-      timer = window.setTimeout(() => void poll(), PAYMENT_POLL_MS)
-    }
-    void poll()
-    return () => { cancelled = true; window.clearTimeout(timer) }
-  }, [paymentId, token])
-
-  return check
-}
-
-function PaymentCheckNotice({ check }: { check: PaymentCheck }) {
-  switch (check.phase) {
-    case 'checking':
-      return (
-        <div className="notice info" role="status">
-          <LoaderCircle className="spinner" aria-hidden="true" />
-          <div><strong>Проверяем оплату…</strong>Это займёт несколько секунд — не закрывайте страницу.</div>
-        </div>
-      )
-    case 'succeeded':
-      return <Notice tone="success" title="Оплата прошла">{check.paidUntil ? `Подписка активна до ${dateFormat.format(new Date(check.paidUntil))}` : 'Подписка активна.'}</Notice>
-    case 'canceled':
-      return <Notice tone="warn" title="Оплата отменена">Деньги не списаны. Можно выбрать тариф и попробовать снова.</Notice>
-    case 'timeout':
-      return <Notice tone="warn" title="Оплата ещё обрабатывается">Платёжная система пока не подтвердила платёж. Обновите страницу через пару минут — статус появится в истории платежей.</Notice>
-    case 'error':
-      return <Notice tone="error" title="Не удалось проверить оплату">{check.message}</Notice>
-  }
-}
-
 function SubscriptionPanel({ account }: { account: Account }) {
   const auth = useAuth()
   const token = auth.token
-  const location = useLocation()
-  const [paymentId] = useState(() => {
-    const id = new URLSearchParams(location.search).get('payment')
-    if (id && PAYMENT_ID_PATTERN.test(id)) return id
-    if (id !== null) clearPaymentParam()
-    return null
-  })
-  const [plans, setPlans] = useState<PlansResponse | null>(null)
-  const [plansError, setPlansError] = useState<{ message: string; offline: boolean } | null>(null)
   const [history, setHistory] = useState<Payment[]>([])
-  const [historyVersion, setHistoryVersion] = useState(0)
-  const [paying, setPaying] = useState<PlanId | null>(null)
-  const [autopay, setAutopay] = useState<Autopay | null>(null)
-  const [cancelling, setCancelling] = useState(false)
-  const [cancelError, setCancelError] = useState<string | null>(null)
-  const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
-  const reloadHistory = useCallback(() => setHistoryVersion((n) => n + 1), [])
-  const check = usePaymentCheck(paymentId, reloadHistory)
-
-  useEffect(() => {
-    let cancelled = false
-    api.plans().then(
-      (next) => { if (!cancelled) { setPlans(next); setPlansError(null) } },
-      (reason: unknown) => { if (!cancelled) setPlansError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network }) },
-    )
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     if (!token) return
     let cancelled = false
     // The history is secondary: on errors the table simply stays hidden.
-    api.payments(token).then((next) => { if (!cancelled) { setHistory(next.payments); setAutopay(next.autopay ?? null) } }, () => undefined)
+    api.payments(token).then((next) => { if (!cancelled) setHistory(next.payments) }, () => undefined)
     return () => { cancelled = true }
-  }, [token, historyVersion])
-
-  // «Оплатить» goes straight to ЮKassa: a one-off payment, no checkboxes. Pressing it accepts the offer (the text under
-  // the plans says so). Without the separate autopayment consent the law requires, nothing is ever charged again.
-  async function pay(plan: PlanId) {
-    if (!token) return
-    setPaying(plan)
-    setPayError(null)
-    try {
-      const language = navigator.language?.toLowerCase().startsWith('ru') ? 'ru' : 'en'
-      const { confirmationUrl } = await api.createPayment(token, plan, LEGAL_VERSION, { region: 'ru', language })
-      window.location.assign(confirmationUrl) // ЮKassa payment page; buttons stay disabled while the browser leaves
-    } catch (reason) {
-      setPayError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
-      setPaying(null)
-    }
-  }
-
-  async function cancelAutopay() {
-    if (!token) return
-    setCancelling(true)
-    setCancelError(null)
-    try {
-      setAutopay((await api.cancelAutopay(token)).autopay)
-    } catch (reason) {
-      setCancelError(errorMessage(reason))
-    } finally {
-      setCancelling(false)
-    }
-  }
+  }, [token])
 
   const { status, paidUntil, trialEndsAt, lifetime } = account.subscription
   if (lifetime) {
@@ -312,11 +165,9 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const title = active && paidUntil ? `Активна до ${dateFormat.format(new Date(paidUntil))}`
     : trial && trialEndsAt ? `Пробный период до ${dateFormat.format(new Date(trialEndsAt))}`
       : 'Не активна'
-  const hint = active ? 'Оплата нового тарифа продлит подписку от текущей даты окончания.'
-    : trial ? 'Бесплатный доступ по приглашению. Чтобы не потерять доступ, оформите подписку заранее — дни сложатся.'
-      : 'Выберите тариф — доступ откроется сразу после оплаты.'
-  const busy = paying !== null || check?.phase === 'checking'
-  const locked = busy
+  const hint = active ? 'Все функции открыты до даты окончания подписки.'
+    : trial ? 'Бесплатный доступ по приглашению.'
+      : 'Платные функции сейчас недоступны.'
 
   return (
     <section className="panel" aria-labelledby="sub-title">
@@ -325,8 +176,6 @@ function SubscriptionPanel({ account }: { account: Account }) {
         {active ? <span className="tag green">Активна</span> : trial ? <span className="tag brass">Пробный период</span> : <span className="tag">Не активна</span>}
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 16 }}>
-        {check && <PaymentCheckNotice check={check} />}
-        {autopay && <AutopayCard autopay={autopay} busy={cancelling} error={cancelError} onCancel={() => void cancelAutopay()} />}
         <div className="sub-status">
           <CalendarClock aria-hidden="true" size={28} style={{ color: active ? 'var(--success)' : trial ? 'var(--brass)' : 'var(--text-dim)', flex: '0 0 auto' }} />
           <div style={{ minWidth: 0 }}>
@@ -334,47 +183,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
             <div className="muted" style={{ fontSize: 14 }}>{hint}</div>
           </div>
         </div>
-
-        {plansError && <Notice tone={plansError.offline ? 'offline' : 'error'} title="Не удалось загрузить тарифы">{plansError.message}</Notice>}
-        {!plans && !plansError && <div className="muted" style={{ fontSize: 14 }}>Загружаем тарифы…</div>}
-        {plans && (!plans.enabled || plans.plans.length === 0) && (
-          <Notice tone="info" title="Оплата скоро появится">Тарифы на 1, 3, 6 и 12 месяцев можно будет оплатить прямо здесь. Статус подписки проверяется только на сервере.</Notice>
-        )}
-        {plans?.enabled && plans.plans.length > 0 && (
-          <>
-            <div className="plan-grid">
-              {plans.plans.map((plan) => {
-                const best = plan.discountPercent > 0
-                return (
-                  <div key={plan.id} className={`plan-card${best ? ' is-best' : ''}`}>
-                    {best && <span className="tag brass plan-badge">−{plan.discountPercent}%</span>}
-                    <div className="plan-head">
-                      <span className="stat-label">{PLAN_LABELS[plan.id] ?? `${plan.months} мес.`}</span>
-                    </div>
-                    <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
-                    <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={locked} onClick={() => void pay(plan.id)}>
-                      {paying === plan.id ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CreditCard aria-hidden="true" />}Оплатить
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-            <p className="dim" style={{ margin: 0, fontSize: 13 }}>
-              Подписку можно отменить в любое время. Нажимая «Оплатить», вы принимаете условия <Link to="/legal/offer" target="_blank" rel="noopener" style={{ color: 'var(--brass-strong)' }}>оферты</Link>.
-            </p>
-            {payError && <Notice tone={payError.offline ? 'offline' : 'error'} title="Оплата не началась">{payError.message}</Notice>}
-            <p className="receipt-note">
-              <Receipt aria-hidden="true" />
-              <span>Чек об оплате придёт на e-mail аккаунта: <strong style={{ color: 'var(--text-muted)' }}>{account.email}</strong>.</span>
-            </p>
-            <p className="dim" style={{ margin: 0, fontSize: 13 }}>
-              <ShieldCheck size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 5 }} />
-              Оплата на защищённой странице ЮKassa: карта, СБП, SberPay, ЮMoney. <Link to="/legal" style={{ color: 'var(--brass-strong)' }}>Реквизиты и возврат</Link>
-            </p>
-          </>
-        )}
-
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Оплата пока не подключена.</p>
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>
     </section>
@@ -396,7 +205,7 @@ function PaymentHistory({ payments }: { payments: Payment[] }) {
               return (
                 <tr key={payment.id}>
                   <td className="mono">{shortDateFormat.format(new Date(payment.paidAt ?? payment.createdAt))}</td>
-                  <td>{PLAN_LABELS[payment.plan]?.replace(/ (месяц|месяца|месяцев)$/, ' мес.') ?? payment.plan}{payment.renewal ? ' · автопродление' : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}</td>
+                  <td>{PLAN_LABELS[payment.plan]?.replace(/ (месяц|месяца|месяцев)$/, ' мес.') ?? payment.plan}{payment.renewal ? ' · продление' : ''}{payment.provider ? ` · ${paymentProviderLabel(payment.provider)}` : ''}</td>
                   <td className="num mono">{formatMoney(payment.amount, payment.currency)}</td>
                   <td><span className={`tag ${status.tone}`}>{status.label}</span></td>
                 </tr>
@@ -457,7 +266,7 @@ function ReferralProgramPanel({ account }: { account: Account }) {
           <div className="field-label">Как это работает</div>
           <ol className="steps">
             <li><span><strong>Поделитесь ссылкой или QR-кодом.</strong> Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат 3 дня бесплатного доступа.</span></li>
-            <li><span><strong>Приглашённые оформляют подписку.</strong> С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только платежи, подтверждённые ЮKassa.</span></li>
+            <li><span><strong>Приглашённые оформляют подписку.</strong> С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только подтверждённые платежи.</span></li>
             <li><span><strong>Выплаты.</strong> Запросите выплату любой суммы от минимальной до доступной или включите автовыплату — раз в несколько дней заявка создастся сама.</span></li>
           </ol>
         </div>

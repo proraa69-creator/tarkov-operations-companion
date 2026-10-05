@@ -82,40 +82,17 @@ export interface AccountSummary {
   generatedAt: string
 }
 
-/** Mirrors PlanView / PaymentView / AutopayView in server/src/services/paymentStore.ts. Plan prices are in roubles. */
+/** Mirrors PlanView / PaymentView in server/src/services/paymentStore.ts. Plan prices are in roubles. */
 export type PlanId = '1m' | '3m' | '6m' | '12m'
-/** `price` is null when only foreign payments (Lava.top) are on. */
 export interface Plan { id: PlanId; months: number; price: number | null; currency: 'RUB'; discountPercent: number }
-export interface PaymentProviders { yookassa: boolean; lava: boolean; autopay: boolean; lavaCurrency?: 'USD' | 'EUR' }
-export interface PlansResponse {
-  enabled: boolean
-  plans: Plan[]
-  /** Missing on an older server: then only ЮKassa, without autopayments. */
-  providers?: PaymentProviders
-  /** Lava.top prices per plan (major units); `prices: null` — shown on the Lava.top page. */
-  foreign?: { currency: 'USD' | 'EUR'; prices: Partial<Record<PlanId, number>> | null } | null
-}
+/** GET /v1/payments/plans. No payment service is connected now: always `{ enabled: false, plans: [] }`. */
+export interface PlansResponse { enabled: boolean; plans: Plan[] }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled'
-export type PaymentProvider = 'yookassa' | 'lava'
-export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true }
-export interface Autopay {
-  provider: PaymentProvider
-  plan: PlanId
-  status: 'active' | 'canceled' | 'failed'
-  amount: number
-  currency: string
-  nextChargeAt?: string
-  /** End of the paid period, only while it still runs. */
-  paidUntil?: string
-  method?: string
-  consentVersion: string
-  consentAt: string
-  canceledAt?: string
-}
-/** «Россия и СНГ» (ЮKassa) or «Другие страны» (Lava.top). */
-export type PaymentRegion = 'ru' | 'intl'
-export interface PaymentOptions { region: PaymentRegion; /** The separate autopayment consent (LEGAL_VERSION) — only when ticked. */ autopayVersion?: string; language: 'ru' | 'en' }
-export interface CreatedPayment { paymentId: string; confirmationUrl: string }
+/** `provider`: the payment service of the row; old rows say 'yookassa' or 'lava'. */
+export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider: string; renewal?: true }
+/** Labels of the payment services of old payments; an unknown one is shown as it is. */
+const PAYMENT_PROVIDER_LABEL: Record<string, string> = { yookassa: 'ЮKassa', lava: 'Lava.top' }
+export const paymentProviderLabel = (provider: string) => PAYMENT_PROVIDER_LABEL[provider] ?? provider
 
 async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string; timeoutMs?: number } = {}): Promise<T> {
   const controller = new AbortController()
@@ -202,26 +179,26 @@ export interface AuthResult { token: string; account: Account; referralApplied?:
 export interface PendingRegistration { pending: true; message: string; challengeId: string; expiresAt: string; resendSeconds: number }
 
 /** «Админ-панель» (owner only; server/src/routes/ownerAdmin.ts, services/adminStore.ts). Money in roubles. */
-export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number }
+export interface AdminRevenue { total: number; payments: number }
 export interface AdminOverview {
   generatedAt: string
   users: { total: number; today: number; days7: number; days30: number; blocked: number }
-  subscriptions: { active: number; trials: number; autopay: number; streamers: number }
-  revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
+  subscriptions: { active: number; trials: number; streamers: number }
+  revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
 }
-export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<PlanId, { count: number; revenue: number }> }
+export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminPayment {
-  id: string; email: string; plan: PlanId; provider: PaymentProvider; status: PaymentStatus; amount: number
+  id: string; email: string; plan: PlanId; provider: string; status: PaymentStatus; amount: number
+  /** Only when the payment was not in roubles. */
   original?: { amount: number; currency: string }; createdAt: string; paidAt?: string; renewal?: true; referralCode?: string; streamerEarning?: number
 }
-export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; provider?: PaymentProvider; plan?: PlanId; q?: string }
-export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number } }
+export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
+export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
-  autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
 }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
@@ -231,25 +208,10 @@ export interface AdminUserDetail { user: AdminUser; payments: AdminPayment[]; gr
 export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
 export interface AdminSalesSettings {
   enabled: boolean
-  providers: PaymentProviders
   plans: Plan[]
-  yookassa: { monthPrice: number; receipts: boolean; autopay: boolean; publicUrl: string | null } | null
-  lava: { currency: string; rubRate: number; paymentMethod: string | null; offerId: string } | null
   streamerPercent: number
   trialDays: number
 }
-export interface YookassaSettingsInput { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay: boolean }
-export interface YookassaSettingsView { configured: boolean; settings: YookassaSettingsInput & { hasKey: boolean } }
-export interface LavaSettingsInput { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE' }
-export interface LavaSettingsView { configured: boolean; settings: LavaSettingsInput & { hasApiKey: boolean; hasWebhookKey: boolean } }
-export interface LavaTestResult { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
-export interface LavaEvent {
-  id: number; at: string; lastAt: string; count: number; result: string; eventType?: string; contract?: string
-  got?: { amount?: number; currency?: string }; expected?: { amount?: number; currency?: string }
-  authMethod: 'none' | 'api-key' | 'basic'; confirmable: boolean; confirmedAt?: string
-}
-export interface LavaPendingInvoice { paymentId: string; email: string; plan: PlanId; createdAt: string; ageMinutes: number; contract?: string; expected?: { amount: number; currency: string } }
-export interface AdminLavaEvents { configured: boolean; events: LavaEvent[]; pending: LavaPendingInvoice[] }
 export interface AdminAuditEntry { id: number; at: string; actor: string; action: string; target?: string; details?: Record<string, unknown> }
 
 function adminQuery(params: Record<string, string | number | undefined>) {
@@ -318,12 +280,9 @@ export const api = {
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
-  adminLavaEvents: (token: string) => request<AdminLavaEvents>('/me/admin/lava/events', { token }),
-  adminLavaConfirm: (token: string, id: number) => request<AdminLavaEvents & { already: boolean; paymentId: string }>(`/me/admin/lava/events/${id}/confirm`, { method: 'POST', token, body: {} }),
   adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number) => request<{ users: AdminUser[]; total: number }>(`/me/admin/users${adminQuery({ q, filter, limit, offset })}`, { token }),
   adminUser: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}`, { token }),
   adminGrant: (token: string, id: string, days: number, reason: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/grant`, { method: 'POST', token, body: { days, reason } }),
-  adminCancelAutopay: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/cancel-autopay`, { method: 'POST', token, body: {} }),
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
   adminDevices: (token: string, id: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices`, { token }),
@@ -333,11 +292,6 @@ export const api = {
   adminSetStreamerLink: (token: string, code: string, enabled: boolean) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/link`, { method: 'PUT', token, body: { enabled } }),
   adminRevokeStreamer: (token: string, code: string) => request<AdminStreamerSettings>(`/me/admin/streamers/${encodeURIComponent(code)}/revoke`, { method: 'POST', token }),
   adminSalesSettings: (token: string) => request<AdminSalesSettings>('/me/admin/sales-settings', { token }),
-  adminYookassaSettings: (token: string) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { token }),
-  adminSaveYookassaSettings: (token: string, body: YookassaSettingsInput) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { method: 'PUT', token, body }),
-  adminLavaSettings: (token: string) => request<LavaSettingsView>('/me/admin/payment-settings/lava', { token }),
-  adminSaveLavaSettings: (token: string, body: LavaSettingsInput) => request<LavaSettingsView>('/me/admin/payment-settings/lava', { method: 'PUT', token, body }),
-  adminTestLava: (token: string) => request<LavaTestResult>('/me/admin/payment-settings/lava/test', { method: 'POST', token, body: {}, timeoutMs: 30_000 }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
@@ -347,15 +301,7 @@ export const api = {
   streamerInvite: (inviteToken: string) => request<StreamerInvite>('/streamer-invite', { method: 'POST', body: { token: inviteToken } }),
   redeemStreamerInvite: (token: string, inviteToken: string) => request<Account>('/me/streamer-invite', { method: 'POST', token, body: { token: inviteToken } }),
   plans: () => request<PlansResponse>('/plans', { root: '/v1/payments' }),
-  /** `consentVersion`: the offer / personal data documents the payer accepted with the checkbox. */
-  createPayment: (token: string, plan: PlanId, consentVersion: string, options?: PaymentOptions) => request<CreatedPayment>('', {
-    method: 'POST', token, root: '/v1/payments',
-    body: { plan, consent: { version: consentVersion }, ...(options ? { region: options.region, language: options.language, ...(options.autopayVersion ? { autopay: { version: options.autopayVersion } } : {}) } : {}) },
-  }),
-  /** «Отменить автопродление»: ЮKassa — the saved method is deleted; Lava.top — the subscription is cancelled. */
-  cancelAutopay: (token: string) => request<{ autopay: Autopay | null }>('/autopay/cancel', { method: 'POST', token, root: '/v1/payments' }),
-  payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
-  payments: (token: string) => request<{ payments: Payment[]; autopay?: Autopay | null }>('', { token, root: '/v1/payments' }),
+  payments: (token: string) => request<{ payments: Payment[] }>('', { token, root: '/v1/payments' }),
 }
 
 /** «Отряд» (server/src/routes/squads.ts): members are shown only by the nickname of the chosen mode. */

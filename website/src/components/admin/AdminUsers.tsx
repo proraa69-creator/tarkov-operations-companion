@@ -1,11 +1,11 @@
-import { Ban, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, XCircle } from 'lucide-react'
+import { Ban, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
 import { Loading } from './adminShared'
-import { dateOnly, dateTime, failure, formatRub, numberFormat, PAYMENT_STATUS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
+import { dateOnly, dateTime, failure, formatRub, numberFormat, PAYMENT_STATUS, paymentProviderLabel, PLAN_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 50
 const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
@@ -76,7 +76,6 @@ export function AdminUsers() {
                               {user.owner && <span className="tag brass admin-mini">владелец</span>}
                               {user.kind === 'streamer' && <span className="tag brass admin-mini">{user.referralCode}</span>}
                               {user.blockedAt && <span className="tag danger admin-mini">заблокирован</span>}
-                              {user.autopay?.status === 'active' && <span className="tag green admin-mini">автопродление</span>}
                             </span>
                           </th>
                           <td className="mono" data-label="Регистрация">{dateOnly.format(new Date(user.createdAt))}</td>
@@ -162,9 +161,6 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
               ? <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('block', (t) => api.adminBlock(t, id, false), () => 'Вход разблокирован')}><ShieldCheck aria-hidden="true" />Разблокировать вход</button>
               : <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => { if (window.confirm(`Заблокировать вход для ${user.email}? Все его сессии будут сброшены.`)) void run('block', (t) => api.adminBlock(t, id, true, blockReason.trim() || undefined), () => 'Вход заблокирован, сессии сброшены') }}><Ban aria-hidden="true" />Заблокировать вход</button>}
             <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('sessions', (t) => api.adminRevokeSessions(t, id), (result) => `Сброшено сессий: ${result.revoked ?? 0}`)}><LogOut aria-hidden="true" />Сбросить сессии</button>
-            {user.autopay?.status === 'active' && (
-              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as 'yookassa' | 'lava'] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
-            )}
           </div>
           {user.owner && <span className="field-hint">Аккаунт владельца заблокировать нельзя.</span>}
         </div>
@@ -176,7 +172,7 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
           <div className="field-label">Последние платежи</div>
           {data.payments.length === 0 ? <span className="field-hint">Платежей нет.</span> : (
             <ul className="admin-list">
-              {data.payments.map((item) => <li key={item.id}><span className="mono">{dateTime.format(new Date(item.createdAt))}</span> · {PLAN_LABEL[item.plan]} · {PROVIDER_LABEL[item.provider]} · <span className="mono">{formatRub(item.amount)} ₽</span> · <span className={`tag admin-mini ${PAYMENT_STATUS[item.status].tone}`}>{PAYMENT_STATUS[item.status].label}</span></li>)}
+              {data.payments.map((item) => <li key={item.id}><span className="mono">{dateTime.format(new Date(item.createdAt))}</span> · {PLAN_LABEL[item.plan]} · {paymentProviderLabel(item.provider)} · <span className="mono">{formatRub(item.amount)} ₽</span> · <span className={`tag admin-mini ${PAYMENT_STATUS[item.status].tone}`}>{PAYMENT_STATUS[item.status].label}</span></li>)}
             </ul>
           )}
         </div>

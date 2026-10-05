@@ -2,7 +2,7 @@
  * «Страж сервера», part 1: the request guard (docs/server-guard.md). Watches every request per visitor address (req.ip:
  * the visitor behind the site proxy / Cloudflare tunnel, see `trust proxy` in app.ts) and scores what only attackers
  * and scanners do: probing for /.env, /wp-admin, /.git, *.php…, path traversal, SQL / script injection markers, bursts
- * of 401/403/404/429, failed sign-ins over many e-mails (credential stuffing), Lava webhook key failures and oversized
+ * of 401/403/404/429, failed sign-ins over many e-mails (credential stuffing) and oversized
  * bodies. An address that collects BAN_SCORE points within WINDOW_MS is banned for 15 min → 1 h → 24 h (escalating
  * over 7 days); a banned address gets a cheap 403 before any parsing.
  *
@@ -556,7 +556,6 @@ export class SecurityGuard {
       this.failedLogin(ip, path, email ? createHash('sha256').update(`${this.salt}|${email}`).digest('hex').slice(0, 16) : undefined)
       return
     }
-    if (status === 401 && /^\/v1\/payments\/lava\/webhook\/?$/.test(path)) { this.signal(ip, 'webhook-signature', path); return }
     if (status === 413) { this.signal(ip, 'oversized', path); return }
     if (status === 401 || status === 403) { this.signal(ip, 'auth-fail', path); return }
     if (status === 404 || status === 405) { this.signal(ip, 'not-found', path); return }

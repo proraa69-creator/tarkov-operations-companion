@@ -8,7 +8,7 @@
  *   owner_subscription_grants  — manual «выдать / продлить подписку на N дней» with the reason.
  *
  * Nothing here returns password hashes, salts or session tokens. Money is in roubles in every view (kopecks inside);
- * Lava.top payments are counted in roubles at the owner's rate (as for streamer shares) and also in their own currency.
+ * a payment made in another currency also shows what was paid in it.
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { AccountError, periodKeySql, REFERRAL_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
@@ -44,10 +44,9 @@ const SCHEMA = `
 `
 
 export type AuditAction =
-  | 'subscription.grant' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
+  | 'subscription.grant' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
-  | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
-  | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
+  | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'map.boss-place' | 'map.boss-remove'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
@@ -57,7 +56,6 @@ export interface PaymentFilter {
   from?: string
   to?: string
   status?: 'pending' | 'succeeded' | 'canceled'
-  provider?: 'yookassa' | 'lava'
   plan?: PlanId
   q?: string
 }
@@ -71,7 +69,6 @@ export interface AdminUser {
   referredBy?: string
   referralCode?: string
   subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
-  autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string
   blockedAt?: string
   payments: { count: number; total: number }
@@ -81,11 +78,12 @@ export interface AdminPayment {
   id: string
   email: string
   plan: PlanId
-  provider: 'yookassa' | 'lava'
+  /** 'yookassa' / 'lava' for the payments made before these providers were removed. */
+  provider: string
   status: 'pending' | 'succeeded' | 'canceled'
-  /** Roubles (Lava.top at the owner's rate). */
+  /** Roubles. */
   amount: number
-  /** What the payer paid in his currency (Lava.top: USD/EUR). */
+  /** What the payer paid in another currency. */
   original?: { amount: number; currency: string }
   createdAt: string
   paidAt?: string
@@ -94,6 +92,8 @@ export interface AdminPayment {
   streamerEarning?: number
 }
 
+/** CSV names of the providers that took the older payments. */
+const PROVIDER_NAMES: Record<string, string> = { yookassa: 'ЮKassa', lava: 'Lava.top' }
 const rub = (kopecks: unknown) => Math.round(Number(kopecks ?? 0)) / 100
 const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toISOString())
 /** Start of the Moscow day that contains `time`. */
@@ -164,15 +164,12 @@ export class AdminStore {
     const subscriptions = {
       active: count("SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND s.paid_until > ?", now),
       trials: count("SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.kind = 'user' AND a.referred_at IS NOT NULL AND a.referred_at + ? > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)", REFERRAL_TRIAL_MS, now, now),
-      autopay: count("SELECT COUNT(*) AS n FROM recurring_subscriptions WHERE status = 'active'"),
       streamers: count("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'streamer'"),
     }
     const revenueSince = (since: number) => {
-      const row = this.db.prepare("SELECT COALESCE(SUM(CASE WHEN provider = 'lava' THEN 0 ELSE amount END), 0) AS yookassa, COALESCE(SUM(CASE WHEN provider = 'lava' THEN amount ELSE 0 END), 0) AS lava, COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row
-      return { yookassa: rub(row.yookassa), lava: rub(row.lava), total: rub(Number(row.yookassa) + Number(row.lava)), payments: Number(row.n) }
+      const row = this.db.prepare("SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ?").get(since) as Row
+      return { total: rub(row.total), payments: Number(row.n) }
     }
-    const lavaOriginal = (this.db.prepare("SELECT currency, COALESCE(SUM(amount_original), 0) AS total FROM payments WHERE status = 'succeeded' AND provider = 'lava' GROUP BY currency").all() as Row[])
-      .map((row) => ({ currency: String(row.currency ?? ''), amount: rub(row.total) }))
     const payouts = this.tableExists('streamer_payouts')
       ? this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS open FROM streamer_payouts").get() as Row
       : { paid: 0, pending: 0, open: 0 }
@@ -181,7 +178,7 @@ export class AdminStore {
       generatedAt: new Date(now).toISOString(),
       users,
       subscriptions,
-      revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0), lavaOriginal },
+      revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
       payouts: { paid: rub(payouts.paid), pending: rub(payouts.pending), pendingRequests: Number(payouts.open), earned: rub(earned) },
     }
   }
@@ -190,12 +187,12 @@ export class AdminStore {
   series(period: StatsPeriod) {
     const now = this.now()
     const length = PERIOD_LENGTH[period]
-    type SeriesRow = { period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<PlanId, { count: number; revenue: number }> }
+    type SeriesRow = { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
     const rows = new Map<string, SeriesRow>()
     const row = (key: string) => {
       let entry = rows.get(key)
       if (!entry) {
-        entry = { period: key, registrations: 0, payments: 0, revenue: 0, yookassa: 0, lava: 0, plans: Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as SeriesRow['plans'] }
+        entry = { period: key, registrations: 0, payments: 0, revenue: 0, plans: Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as SeriesRow['plans'] }
         rows.set(key, entry)
       }
       return entry
@@ -209,14 +206,12 @@ export class AdminStore {
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts GROUP BY k`).all() as Row[]) {
       if (String(item.k) >= cutoff) row(String(item.k)).registrations = Number(item.n)
     }
-    for (const item of this.db.prepare(`SELECT ${key('paid_at')} AS k, plan, CASE WHEN provider = 'lava' THEN 'lava' ELSE 'yookassa' END AS p, COUNT(*) AS n, SUM(amount) AS total FROM payments WHERE status = 'succeeded' AND paid_at IS NOT NULL GROUP BY k, plan, p`).all() as Row[]) {
+    for (const item of this.db.prepare(`SELECT ${key('paid_at')} AS k, plan, COUNT(*) AS n, SUM(amount) AS total FROM payments WHERE status = 'succeeded' AND paid_at IS NOT NULL GROUP BY k, plan`).all() as Row[]) {
       if (String(item.k) < cutoff) continue
       const entry = row(String(item.k))
       const total = rub(item.total)
       entry.payments += Number(item.n)
       entry.revenue = Math.round((entry.revenue + total) * 100) / 100
-      if (item.p === 'lava') entry.lava = Math.round((entry.lava + total) * 100) / 100
-      else entry.yookassa = Math.round((entry.yookassa + total) * 100) / 100
       const plan = entry.plans[String(item.plan) as PlanId]
       if (plan) { plan.count += Number(item.n); plan.revenue = Math.round((plan.revenue + total) * 100) / 100 }
     }
@@ -233,8 +228,6 @@ export class AdminStore {
     if (filter.from) { where.push('p.created_at >= ?'); args.push(mskDayRange(filter.from).start) }
     if (filter.to) { where.push('p.created_at < ?'); args.push(mskDayRange(filter.to).end) }
     if (filter.status) { where.push('p.status = ?'); args.push(filter.status) }
-    if (filter.provider === 'lava') where.push("p.provider = 'lava'")
-    if (filter.provider === 'yookassa') where.push("(p.provider IS NULL OR p.provider = 'yookassa')")
     if (filter.plan) { where.push('p.plan = ?'); args.push(filter.plan) }
     if (filter.q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(filter.q.toLowerCase())) }
     return { sql: where.length ? `WHERE ${where.join(' AND ')}` : '', args }
@@ -242,14 +235,12 @@ export class AdminStore {
 
   paymentList(filter: PaymentFilter, limit: number, offset: number) {
     const { sql, args } = this.paymentWhere(filter)
-    const totals = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN 1 ELSE 0 END), 0) AS ok, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN p.amount ELSE 0 END), 0) AS revenue, COALESCE(SUM(CASE WHEN p.status = 'succeeded' AND p.provider = 'lava' THEN p.amount ELSE 0 END), 0) AS lava, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN COALESCE(p.streamer_earning, 0) ELSE 0 END), 0) AS earned FROM payments p JOIN accounts a ON a.id = p.account_id ${sql}`).get(...args) as Row
+    const totals = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN 1 ELSE 0 END), 0) AS ok, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN p.amount ELSE 0 END), 0) AS revenue, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN COALESCE(p.streamer_earning, 0) ELSE 0 END), 0) AS earned FROM payments p JOIN accounts a ON a.id = p.account_id ${sql}`).get(...args) as Row
     const rows = this.db.prepare(`SELECT p.*, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id ${sql} ORDER BY p.created_at DESC, p.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
-    const revenue = Number(totals.revenue)
-    const lava = Number(totals.lava)
     return {
       payments: rows.map(toPayment),
       total: Number(totals.n),
-      totals: { succeeded: Number(totals.ok), revenue: rub(revenue), yookassa: rub(revenue - lava), lava: rub(lava), streamerEarnings: rub(totals.earned) },
+      totals: { succeeded: Number(totals.ok), revenue: rub(totals.revenue), streamerEarnings: rub(totals.earned) },
     }
   }
 
@@ -260,7 +251,7 @@ export class AdminStore {
     const header = ['Создан (МСК)', 'Оплачен (МСК)', 'E-mail', 'Тариф', 'Способ', 'Статус', 'Сумма, ₽', 'Сумма в валюте', 'Валюта', 'Автопродление', 'Код стримера', 'Доля стримера, ₽', 'ID платежа']
     const status: Record<string, string> = { pending: 'Ожидает', succeeded: 'Оплачен', canceled: 'Отменён' }
     const lines = [header, ...rows.map(toPayment).map((item) => [
-      mskText(item.createdAt), item.paidAt ? mskText(item.paidAt) : '', item.email, item.plan, item.provider === 'lava' ? 'Lava.top' : 'ЮKassa', status[item.status] ?? item.status,
+      mskText(item.createdAt), item.paidAt ? mskText(item.paidAt) : '', item.email, item.plan, PROVIDER_NAMES[item.provider] ?? item.provider, status[item.status] ?? item.status,
       money(item.amount), item.original ? money(item.original.amount) : '', item.original?.currency ?? '', item.renewal ? 'да' : '', item.referralCode ?? '',
       item.streamerEarning === undefined ? '' : money(item.streamerEarning), item.id,
     ])]
@@ -274,8 +265,7 @@ export class AdminStore {
   private static readonly USER_SELECT = `
     SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.blocked_at, a.last_seen_at, s.paid_until,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
-      (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
-      (SELECT r.provider || '|' || r.status || '|' || r.plan FROM recurring_subscriptions r WHERE r.account_id = a.id ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1) AS autopay
+      (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total
     FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id`
 
   users(q: string, filter: UserFilter, limit: number, offset: number) {
@@ -316,7 +306,6 @@ export class AdminStore {
     if (trialEnds !== undefined && trialEnds > now) subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }
     if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
-    const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')
     const email = String(row.email)
     return {
       id: String(row.id),
@@ -327,7 +316,6 @@ export class AdminStore {
       ...(row.referred_by == null ? {} : { referredBy: String(row.referred_by) }),
       ...(row.referral_code == null ? {} : { referralCode: String(row.referral_code) }),
       subscription,
-      autopay: provider ? { provider, status: status ?? '', plan: plan ?? '' } : null,
       ...(row.last_seen_at == null ? {} : { lastSeenAt: iso(row.last_seen_at) }),
       ...(row.blocked_at == null ? {} : { blockedAt: iso(row.blocked_at) }),
       payments: { count: Number(row.paid_count ?? 0), total: rub(row.paid_total) },
@@ -340,28 +328,6 @@ export class AdminStore {
     return { id: String(row.id), email: String(row.email) }
   }
 
-  // Lava.top diagnostics (events of the webhook, started-but-unconfirmed invoices, the owner's confirmation)
-
-  lavaEvents() {
-    return { configured: Boolean(this.payments.lava), events: this.payments.lavaWebhookLog(100), pending: this.payments.lavaPendingInvoices(50) }
-  }
-
-  /**
-   * «Подтвердить и выдать подписку» for an amount-mismatch webhook row: the owner has checked the payment in the Lava
-   * cabinet. Grants the stored plan once (PaymentStore.confirmLavaMismatch), audited as `payment.lava-confirm`.
-   */
-  confirmLavaMismatch(actor: string, logId: number) {
-    const result = transaction(this.db, () => {
-      const done = this.payments.confirmLavaMismatch(logId)
-      if (!done.already) {
-        const target = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(done.accountId) as Row | undefined
-        this.audit(actor, 'payment.lava-confirm', target ? String(target.email) : done.accountId, { paymentId: done.paymentId, plan: done.plan, amount: done.amount / 100, currency: done.currency })
-      }
-      return done
-    })
-    return { already: result.already, paymentId: result.paymentId, ...this.lavaEvents() }
-  }
-
   /** «Выдать / продлить подписку на N дней»: from the end of the running paid period (or now), logged with the reason. */
   grant(actor: string, id: string, days: number, reason: string) {
     const target = this.mustUser(id)
@@ -372,14 +338,6 @@ export class AdminStore {
       this.db.prepare('INSERT INTO owner_subscription_grants (account_id, days, reason, actor, at, paid_until_before, paid_until_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, days, reason, actor, this.now(), before ?? null, until)
       this.audit(actor, 'subscription.grant', target.email, { days, reason, paidUntil: new Date(until).toISOString() })
     })
-    return this.user(id)
-  }
-
-  /** «Отменить автопродление» for the user (ЮKassa: the saved method is deleted; Lava.top: cancelled through the API). */
-  async cancelAutopay(actor: string, id: string) {
-    const target = this.mustUser(id)
-    await this.payments.cancelAutopay({ id: target.id, email: target.email })
-    this.audit(actor, 'autopay.cancel', target.email)
     return this.user(id)
   }
 
@@ -462,14 +420,9 @@ export class AdminStore {
   // ------------------------------------------------------------------------------------------------------------
 
   salesSettings() {
-    const config = this.payments.config
-    const lava = this.payments.lava?.config
     return {
       enabled: this.payments.enabled,
-      providers: this.payments.providers(),
       plans: this.payments.plans(),
-      yookassa: config ? { monthPrice: config.monthPrice, receipts: config.receipts, autopay: config.autopay === true, publicUrl: config.publicUrl ?? null } : null,
-      lava: lava ? { currency: lava.currency, rubRate: lava.rubRate, paymentMethod: lava.paymentMethod ?? null, offerId: lava.offerId } : null,
       streamerPercent: this.payments.streamerPercent,
       trialDays: Math.round(REFERRAL_TRIAL_MS / DAY_MS),
     }
@@ -481,15 +434,15 @@ export class AdminStore {
 }
 
 function toPayment(row: Row): AdminPayment {
-  const provider = row.provider === 'lava' ? 'lava' : 'yookassa'
+  const currency = row.currency == null ? 'RUB' : String(row.currency)
   return {
     id: String(row.id),
     email: String(row.email),
     plan: String(row.plan) as PlanId,
-    provider,
+    provider: row.provider == null ? 'yookassa' : String(row.provider),
     status: String(row.status) as AdminPayment['status'],
     amount: rub(row.amount),
-    ...(provider === 'lava' && row.amount_original != null ? { original: { amount: rub(row.amount_original), currency: String(row.currency ?? '') } } : {}),
+    ...(currency !== 'RUB' && row.amount_original != null ? { original: { amount: rub(row.amount_original), currency } } : {}),
     createdAt: iso(row.created_at)!,
     ...(row.paid_at == null ? {} : { paidAt: iso(row.paid_at) }),
     ...(row.recurring_id == null ? {} : { renewal: true as const }),
