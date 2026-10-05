@@ -28,7 +28,8 @@ const REAL_PATHS = [
   '/v1/players/resolve', '/v1/players/pvp/1234567', '/v1/players/seasonal/9999999',
   '/v1/sync/events',
   '/v1/goons/pvp', '/v1/goons/pve/sightings',
-  '/v1/payments/plans', '/v1/payments',
+  '/v1/payments/plans', '/v1/payments', '/v1/payments/autopay/cancel', '/v1/payments/2d0000000001-000f-5000-9000-1b68e7b15f3f',
+  '/v1/payments/yookassa/webhook', '/v1/payments/lava/webhook',
   '/v1/accounts/register', '/v1/accounts/login', '/v1/accounts/logout', '/v1/accounts/me', '/v1/accounts/me/password',
   '/v1/accounts/me/referral', '/v1/accounts/me/nicknames', '/v1/accounts/referral-visits', '/v1/accounts/streamer-invite',
   '/v1/accounts/me/referral-stats?period=day', '/v1/accounts/me/referral-stats?period=month', '/v1/accounts/me/streamer-invite',
@@ -42,10 +43,10 @@ const REAL_PATHS = [
   '/v1/accounts/me/payouts', '/v1/accounts/me/payout-settings', '/v1/accounts/me/admin/payouts', '/v1/accounts/me/admin/payouts/decide',
   '/v1/accounts/me/admin/payout-limits', '/v1/accounts/me/admin/streamers', '/v1/accounts/me/admin/streamer-stats?code=SHELL&period=day',
   '/v1/accounts/me/admin/streamer-invites', '/v1/accounts/me/admin/overview', '/v1/accounts/me/admin/series?period=year',
-  '/v1/accounts/me/admin/payments?from=2026-09-01&to=2026-10-01&status=succeeded&plan=12m&q=o%27brien%40example.com&limit=100&offset=0',
+  '/v1/accounts/me/admin/payments?from=2026-09-01&to=2026-10-01&status=succeeded&provider=lava&plan=12m&q=o%27brien%40example.com&limit=100&offset=0',
   '/v1/accounts/me/admin/payments.csv?from=2026-09-01&q=player%2Btag%40mail.ru',
   '/v1/accounts/me/admin/users?q=select%40example.com&filter=streamers&limit=100&offset=200', '/v1/accounts/me/admin/users/0123456789abcdef01234567',
-  '/v1/accounts/me/admin/users/0123456789abcdef01234567/grant',
+  '/v1/accounts/me/admin/users/0123456789abcdef01234567/grant', '/v1/accounts/me/admin/users/0123456789abcdef01234567/cancel-autopay',
   '/v1/accounts/me/admin/users/0123456789abcdef01234567/block', '/v1/accounts/me/admin/users/0123456789abcdef01234567/unblock',
   '/v1/accounts/me/admin/users/0123456789abcdef01234567/revoke-sessions', '/v1/accounts/me/admin/streamer-settings',
   '/v1/accounts/me/admin/streamers/SHELL/percent', '/v1/accounts/me/admin/streamers/WP-ADMIN/link', '/v1/accounts/me/admin/streamers/CGI_BIN/link',
@@ -301,14 +302,15 @@ test('API: a scanner is banned with a cheap 403; this PC is never banned; the ow
   }
 })
 
-test('API: oversized bodies and injection in the query are scored', async () => {
+test('API: webhook key failures, oversized bodies and injection in the query are scored', async () => {
   const { server, call, events } = await startApi()
   try {
     const ip = '203.0.113.80'
+    assert.equal((await call('POST', '/v1/payments/lava/webhook', { ip, body: { eventType: 'payment.success' } })).status, 401)
     assert.equal((await call('POST', '/v1/accounts/login', { ip, raw: JSON.stringify({ email: 'a@b.c', password: 'x'.repeat(1_100_000) }) })).status, 413)
     assert.equal((await call('GET', "/v1/accounts/me/admin/users?q=1'%20or%20'1'%3D'1", { ip })).status, 400)
     const reasons = events().map((event) => event.reason).sort()
-    assert.deepEqual(reasons, ['injection', 'oversized'])
+    assert.deepEqual(reasons, ['injection', 'oversized', 'webhook-signature'])
   } finally {
     server.close()
   }

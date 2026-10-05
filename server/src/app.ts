@@ -34,6 +34,7 @@ import { createDataRouter, DATA_RATE_LIMITS, requireDataAccess } from './routes/
 import { createEntitlementRouter } from './routes/entitlement.js'
 import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard.js'
 import { createSelfUpdateRouter } from './routes/selfUpdate.js'
+import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
@@ -50,7 +51,7 @@ export interface ApiOptions {
   userData?: UserDataStore
   /** Already-loaded catalog for summaries (Kappa / Collector totals). Defaults to the server catalog cache. */
   catalog?: CatalogPeek
-  /** Payment history and paid periods; defaults to a store on the accounts' database. */
+  /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
@@ -137,6 +138,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments))
   const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
   // «Серверная версия» (owner only): a one-time 15-minute link to this laptop's exe (routes/serverDownload.ts).
   app.use(createServerDownloadRouter(accounts, { audit: (actor, action, details) => { try { adminStore?.audit(actor, action, undefined, details) } catch { /* the link works anyway */ } } }))
@@ -155,7 +157,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const phones = options.phones ?? new PhoneAuthService(accounts)
   app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
-  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails, payments))
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot }))
   mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).

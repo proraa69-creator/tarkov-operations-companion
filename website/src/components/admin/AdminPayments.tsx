@@ -1,10 +1,11 @@
 import { Download, LoaderCircle, Search } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
-import { api, downloadAdminPaymentsCsv, type AdminPaymentFilter, type PaymentStatus, type PlanId } from '../../api'
+import { api, downloadAdminPaymentsCsv, type AdminPaymentFilter, type PaymentProvider, type PaymentStatus, type PlanId } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
-import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, paymentProviderLabel, PLAN_IDS, PLAN_LABEL, useAdminData, type Failure } from './adminData'
+import { AdminLavaEvents } from './AdminLavaEvents'
+import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 100
 type Range = 'today' | '7d' | '30d' | 'month' | 'all' | 'custom'
@@ -32,13 +33,14 @@ export function AdminPayments() {
   const [range, setRange] = useState<Range>('30d')
   const [custom, setCustom] = useState({ from: mskDay(29), to: mskDay(0) })
   const [status, setStatus] = useState<PaymentStatus | ''>('')
+  const [provider, setProvider] = useState<PaymentProvider | ''>('')
   const [plan, setPlan] = useState<PlanId | ''>('')
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const [csv, setCsv] = useState<{ busy: boolean; error: Failure | null }>({ busy: false, error: null })
 
-  const filter: AdminPaymentFilter = { ...rangeDates(range, custom), ...(status ? { status } : {}), ...(plan ? { plan } : {}), ...(q ? { q } : {}) }
+  const filter: AdminPaymentFilter = { ...rangeDates(range, custom), ...(status ? { status } : {}), ...(provider ? { provider } : {}), ...(plan ? { plan } : {}), ...(q ? { q } : {}) }
   const key = JSON.stringify(filter)
   const payments = useAdminData(useCallback((t: string) => api.adminPayments(t, JSON.parse(key) as AdminPaymentFilter, PAGE, page * PAGE), [key, page]))
   const data = payments.data
@@ -58,6 +60,7 @@ export function AdminPayments() {
 
   return (
     <div className="admin-stack">
+      <AdminLavaEvents />
       <div className="admin-filters">
         <div role="group" aria-label="Период" className="admin-chips">
           {RANGES.map(({ id, label }) => <button key={id} type="button" aria-pressed={range === id} className={`button small ${range === id ? 'primary' : 'ghost'}`} onClick={() => change(setRange)(id)}>{label}</button>)}
@@ -72,6 +75,11 @@ export function AdminPayments() {
           <select className="input" aria-label="Статус" value={status} onChange={(e) => change(setStatus)(e.target.value as PaymentStatus | '')}>
             <option value="">Все статусы</option>
             {(Object.keys(PAYMENT_STATUS) as PaymentStatus[]).map((id) => <option key={id} value={id}>{PAYMENT_STATUS[id].label}</option>)}
+          </select>
+          <select className="input" aria-label="Способ оплаты" value={provider} onChange={(e) => change(setProvider)(e.target.value as PaymentProvider | '')}>
+            <option value="">ЮKassa и Lava.top</option>
+            <option value="yookassa">ЮKassa</option>
+            <option value="lava">Lava.top</option>
           </select>
           <select className="input" aria-label="Тариф" value={plan} onChange={(e) => change(setPlan)(e.target.value as PlanId | '')}>
             <option value="">Все тарифы</option>
@@ -93,6 +101,8 @@ export function AdminPayments() {
             <span>Платежей: <strong className="mono">{numberFormat.format(data.total)}</strong></span>
             <span>Оплачено: <strong className="mono">{numberFormat.format(data.totals.succeeded)}</strong></span>
             <span>Выручка: <strong className="mono accent">{formatRub(data.totals.revenue)} ₽</strong></span>
+            <span>ЮKassa: <strong className="mono">{formatRub(data.totals.yookassa)} ₽</strong></span>
+            <span>Lava.top: <strong className="mono">{formatRub(data.totals.lava)} ₽</strong></span>
             <span>Доля стримеров: <strong className="mono">{formatRub(data.totals.streamerEarnings)} ₽</strong></span>
           </div>
           {data.payments.length === 0 ? <div className="muted admin-empty">Платежей с такими условиями нет.</div> : (
@@ -109,8 +119,8 @@ export function AdminPayments() {
                     <tr key={item.id}>
                       <td className="mono">{dateTime.format(new Date(item.createdAt))}</td>
                       <td className="admin-email" title={item.id}>{item.email}</td>
-                      <td>{PLAN_LABEL[item.plan] ?? item.plan}{item.renewal ? <span className="tag admin-mini">продление</span> : null}</td>
-                      <td>{paymentProviderLabel(item.provider)}</td>
+                      <td>{PLAN_LABEL[item.plan] ?? item.plan}{item.renewal ? <span className="tag admin-mini">автопродление</span> : null}</td>
+                      <td>{PROVIDER_LABEL[item.provider]}</td>
                       <td><span className={`tag ${PAYMENT_STATUS[item.status]?.tone ?? ''}`}>{PAYMENT_STATUS[item.status]?.label ?? item.status}</span></td>
                       <td className="num mono">{formatRub(item.amount)}{item.original ? <span className="dim"> · {formatRub(item.original.amount)} {item.original.currency}</span> : null}</td>
                       <td className="mono">{item.referralCode ? <>{item.referralCode}{item.streamerEarning !== undefined ? <span className="dim"> · {formatRub(item.streamerEarning)} ₽</span> : null}</> : '—'}</td>

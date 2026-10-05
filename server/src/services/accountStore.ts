@@ -8,7 +8,7 @@
  * E-mail verification, sign-in and password reset by e-mail code live in services/emailAuth.ts (on once the owner
  * configures an e-mail provider); password reset also works through a verified phone number (services/phoneAuth.ts)
  * when an SMS provider is configured. Subscription state is
- * NEVER taken from the client: paid periods and streamer revenue come from recorded payments
+ * NEVER taken from the client: paid periods and streamer revenue come from verified ЮKassa payments
  * (services/paymentStore.ts, attached through `SubscriptionSource`).
  * Streamer status is granted only by an operator through `promoteToStreamer()` (CLI `npm run promote`, never HTTP).
  *
@@ -665,7 +665,7 @@ export class AccountStore {
   private stats(code: string): ReferralStats {
     const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(code) as Row).n)
     const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
-    // Paid conversions and money come only from recorded payments (PaymentStore).
+    // Paid conversions and money come only from verified ЮKassa payments (PaymentStore).
     const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
     return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
@@ -673,14 +673,17 @@ export class AccountStore {
   /**
    * «Удалить аккаунт» (the user's own request, password confirmed by the route). Everything personal goes: e-mail, phone,
    * password, nicknames, sessions and devices, friends, squads, game progress, settings, positions, payout details.
-   * The row itself stays as an anonymous stub, because payments and streamer payouts refer to it and
+   * The row itself stays as an anonymous stub, because payments, autopayment records and streamer payouts refer to it and
    * are kept for accounting; the e-mail is free for a new registration at once. The owner's account cannot be deleted
-   * this way.
+   * this way, and an active autopayment must be cancelled first (cancelling needs the payment provider).
    */
   deleteAccount(accountId: string) {
     const account = this.mustGet(accountId)
     if (this.isOwner(accountId)) throw new AccountError(409, 'Аккаунт владельца удалить нельзя')
     const has = (table: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined
+    if (has('recurring_subscriptions') && this.db.prepare("SELECT 1 FROM recurring_subscriptions WHERE account_id = ? AND status = 'active'").get(accountId)) {
+      throw new AccountError(409, 'Сначала отмените автопродление подписки в личном кабинете')
+    }
     const remove: Array<[string, string]> = [
       ['sessions', 'account_id'], ['account_devices', 'account_id'], ['account_consents', 'account_id'],
       ['email_challenges', 'account_id'], ['sms_challenges', 'account_id'],

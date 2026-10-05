@@ -127,3 +127,7 @@
 .admin-action .inline-form .admin-days { height: 38px; }
 .admin-action .inline-form .input { flex: 1 1 auto; min-width: 0; width: auto; }
 .admin-action .inline-form .input.admin-days { flex: 0 0 72px; }
+/* Owner Lava settings: controls use the existing site's inputs and buttons. */
+.lava-settings-fields { display: grid; gap: 12px; border: 0; padding: 0; margin: 16px 0; max-width: 720px; }
+.lava-settings-fields label { display: grid; gap: 6px; }
+.lava-settings-fields input, .lava-settings-fields select { width: 100%; min-width: 0; }

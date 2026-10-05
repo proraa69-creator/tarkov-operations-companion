@@ -3,7 +3,7 @@ import '../extras.css'
 
 /**
  * «Я принимаю условия оферты и даю согласие на обработку персональных данных» — never pre-ticked; the caller enables
- * «Зарегистрироваться» only when it is checked and sends LEGAL_VERSION to the server.
+ * «Оплатить» / «Зарегистрироваться» only when it is checked and sends LEGAL_VERSION to the server.
  */
 export function ConsentCheckbox({ checked, onChange, id = 'consent' }: { checked: boolean; onChange: (checked: boolean) => void; id?: string }) {
   return (

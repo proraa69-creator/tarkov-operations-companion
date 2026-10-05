@@ -3,14 +3,15 @@
  * payouts routers. Every route needs the session of an account listed in TARKOV_OWNER_EMAILS: 401 without a session,
  * 404 for everybody else (the routes do not reveal that they exist). Responses are `Cache-Control: no-store`.
  *
- *   GET  /me/admin/overview                          -> users, subscriptions, revenue, payouts
+ *   GET  /me/admin/overview                          -> users, subscriptions, revenue (ЮKassa / Lava / total), payouts
  *   GET  /me/admin/series?period=day|month|year      -> { period, rows: [{ period, registrations, payments, revenue,
- *                                                         plans: { 1m: { count, revenue }, … } }] }
- *   GET  /me/admin/payments?from&to&status&plan&q&limit&offset -> { payments, total, totals }
+ *                                                         yookassa, lava, plans: { 1m: { count, revenue }, … } }] }
+ *   GET  /me/admin/payments?from&to&status&provider&plan&q&limit&offset -> { payments, total, totals }
  *   GET  /me/admin/payments.csv?…same filters        -> text/csv (UTF-8 BOM, «;»)
  *   GET  /me/admin/users?q&filter&limit&offset       -> { users, total }
  *   GET  /me/admin/users/:id                         -> { user, payments, grants }
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
+ *   POST /me/admin/users/:id/cancel-autopay                            -> { user, payments, grants }
  *   POST /me/admin/users/:id/block           { reason? }               -> { user, … } (sessions revoked, login 403)
  *   POST /me/admin/users/:id/unblock                                   -> { user, … }
  *   POST /me/admin/users/:id/revoke-sessions                           -> { revoked, user, … }
@@ -18,7 +19,9 @@
  *   PUT  /me/admin/streamers/:code/percent   { percent: 0–100 | null } -> streamer settings
  *   PUT  /me/admin/streamers/:code/link      { enabled: boolean }      -> streamer settings
  *   POST /me/admin/streamers/:code/revoke                              -> streamer settings (the account becomes a user)
- *   GET  /me/admin/sales-settings                    -> { enabled, plans, streamerPercent, trialDays }
+ *   GET  /me/admin/sales-settings                    -> prices, plans, providers (no keys; editing stays in the desktop app)
+ *   GET  /me/admin/lava/events                       -> { configured, events (last 100 webhook calls), pending (unconfirmed invoices) }
+ *   POST /me/admin/lava/events/:id/confirm           -> { already, paymentId, …events }  (amount-mismatch rows only; grants the stored plan once)
  *   GET  /me/admin/audit?limit&offset                -> { entries, total }
  *
  * The owner's existing actions (streamer invites, payout decisions, payout limits; routes/accounts.ts, payouts.ts) are
@@ -40,6 +43,7 @@ const paymentFilterSchema = z.object({
   from: z.string().regex(DAY).optional(),
   to: z.string().regex(DAY).optional(),
   status: z.enum(['pending', 'succeeded', 'canceled']).optional(),
+  provider: z.enum(['yookassa', 'lava']).optional(),
   plan: z.enum(['1m', '3m', '6m', '12m']).optional(),
   q: z.string().trim().max(254).optional(),
 })
@@ -138,6 +142,7 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     const { days, reason } = grantSchema.parse(req.body)
     res.json(admin.grant(actor, idSchema.parse(req.params.id), days, reason))
   }))
+  router.post('/me/admin/users/:id/cancel-autopay', owner('write', async (req, res, actor) => { res.json(await admin.cancelAutopay(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/block', owner('write', (req, res, actor) => {
     const { reason } = blockSchema.parse(req.body ?? {})
     res.json(admin.setBlocked(actor, idSchema.parse(req.params.id), true, reason || undefined))
@@ -156,6 +161,11 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }))
   router.post('/me/admin/streamers/:code/revoke', owner('write', (req, res, actor) => { res.json(admin.revokeStreamer(actor, codeSchema.parse(req.params.code))) }))
 
+  router.get('/me/admin/lava/events', owner('read', (_req, res) => { res.json(admin.lavaEvents()) }))
+  router.post('/me/admin/lava/events/:id/confirm', owner('write', (req, res, actor) => {
+    const id = z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).parse(req.params.id)
+    res.json(admin.confirmLavaMismatch(actor, id))
+  }))
   router.get('/me/admin/sales-settings', owner('read', (_req, res) => { res.json(admin.salesSettings()) }))
   router.get('/me/admin/audit', owner('read', (req, res) => {
     const { limit, offset } = pageSchema.parse(req.query)

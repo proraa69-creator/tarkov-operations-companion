@@ -2,7 +2,7 @@
  * Signed entitlements and device binding (docs/subscription-protection.md).
  *
  * - Access is decided only here, from server data: the owner (TARKOV_OWNER_EMAILS + proven e-mail), streamers (free for
- *   good), a paid period (recorded payments and the owner's «Выдать дни» grants) or the 3-day referral trial.
+ *   good), a paid period (ЮKassa / Lava payments and the owner's «Выдать дни» grants) or the 3-day referral trial.
  * - The app asks POST /v1/entitlement for an Ed25519-signed token {account, device, plan, iat, exp}; exp is at most
  *   72 hours ahead (offline grace) and never later than the end of the paid period + 1 day (trial: its end).
  * - The signing key: TARKOV_ENTITLEMENT_PRIVATE_KEY (PEM or base64 of it; the owner's app keeps it encrypted with

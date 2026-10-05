@@ -11,7 +11,7 @@
  *   POST /logout            Bearer                               -> 204
  *   GET  /me                Bearer                               -> 200 account view
  *   POST /me/password       Bearer { currentPassword, newPassword } -> 200 { token, account } (all other sessions end)
- *   POST /me/delete         Bearer { password } -> 200 { deleted: true } (personal data erased; 409 for the owner)
+ *   POST /me/delete         Bearer { password } -> 200 { deleted: true } (personal data erased; 409 for the owner or an active autopayment)
  *   POST /me/referral       Bearer { code }                      -> 200 account view (ordinary users only, once)
  *   PUT  /me/nicknames      Bearer { pvp?, pve?, seasonal? }     -> 200 account view
  *   POST /referral-visits   { code }                             -> 200 | 404 (counts a `/r/<code>` landing visit)

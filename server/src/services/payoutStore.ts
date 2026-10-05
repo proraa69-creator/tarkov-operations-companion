@@ -10,7 +10,7 @@
  * The streamer requests any amount from the minimum up to the available balance, one open request at a time, or turns
  * on auto-payout: every N days (he picks N within the owner's limits, default 3) the server itself creates a request for
  * the whole available balance. Money is NOT moved by the server yet: the owner transfers it (SBP by phone) and marks the
- * request paid. A real transfer provider (with its own contract and keys) can be
+ * request paid. A real transfer provider (e.g. ЮKassa «Выплаты», which needs its own contract, agent id and key) can be
  * plugged in through `PayoutProvider` later without changing the ledger.
  *
  * Payout details: only what a manual SBP transfer needs — phone, bank name and recipient name. Card numbers are never
@@ -31,7 +31,7 @@ export interface EarningsSource {
   percentFor?(code: string): number
 }
 
-/** A future automatic transfer (a payouts API). Not used yet: payouts are made by hand by the owner. */
+/** A future automatic transfer (e.g. ЮKassa Payouts API). Not used yet: payouts are made by hand by the owner. */
 export interface PayoutProvider {
   readonly name: string
   send(payout: PayoutView & { phone: string; bank: string; recipient: string }): Promise<{ reference: string }>

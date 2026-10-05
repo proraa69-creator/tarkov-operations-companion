@@ -145,27 +145,76 @@ test('registration and payment consent is stored with its version and time', asy
   assert.equal(store.consents(store.authenticate(token)!).length, 1)
 })
 
-test('no checkout: /v1/payments shows no plans and the payment history only', async () => {
+test('POST /v1/payments requires the offer consent and stores it with the payment', async () => {
   const db = openDatabase(':memory:')
   const accounts = new AccountStore({ db, ownerEmails: [] })
-  const payments = new PaymentStore(db, undefined)
+  const requests: unknown[] = []
+  const fakeFetch = (async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body))
+    requests.push(body)
+    return new Response(JSON.stringify({ id: '2d0000000001-000f-5000-9000-1b68e7b15f3f', status: 'pending', confirmation: { confirmation_url: 'https://yoomoney.ru/checkout/x' } }), { status: 200 })
+  }) as unknown as typeof globalThis.fetch
+  const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_x', monthPrice: 300, receipts: true, streamerPercent: 0, publicUrl: 'https://tarkov.example.com' }, { fetch: fakeFetch })
   accounts.attachSubscriptions(payments)
   const { token } = await accounts.register('payer@example.com', password)
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const address = server.address()
   assert.ok(address && typeof address !== 'string')
-  const base = `http://127.0.0.1:${address.port}/v1/payments`
+  const pay = (body: unknown) => fetch(`http://127.0.0.1:${address.port}/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: auth(token) }, body: JSON.stringify(body) })
   try {
-    assert.deepEqual(await (await fetch(`${base}/plans`)).json(), { enabled: false, plans: [] })
-    assert.equal((await fetch(base)).status, 401)
-    assert.deepEqual(await (await fetch(base, { headers: { authorization: auth(token) } })).json(), { payments: [] })
-    const checkout = await fetch(base, { method: 'POST', headers: { 'content-type': 'application/json', authorization: auth(token) }, body: JSON.stringify({ plan: '1m', consent: { version: '2026-09-30' } }) })
-    assert.equal(checkout.status, 404)
-    for (const path of ['/yookassa/webhook', '/lava/webhook', '/autopay/cancel']) assert.equal((await fetch(`${base}${path}`, { method: 'POST' })).status, 404, path)
+    requests.length = 0
+    const refused = await pay({ plan: '1m' })
+    assert.equal(refused.status, 400)
+    assert.match(((await refused.json()) as { error: string }).error, /оферты/)
+    assert.equal((await pay({ plan: '1m', consent: { version: 'v1' } })).status, 400)
+    const ok = await pay({ plan: '1m', consent: { version: '2026-09-30' } })
+    assert.equal(ok.status, 201)
+    const { paymentId } = await ok.json() as { paymentId: string }
+    assert.equal(payments.consentOf(paymentId)?.version, '2026-09-30')
+    assert.deepEqual(accounts.consents(accounts.authenticate(token)!).map((item) => [item.kind, item.version]), [['payment', '2026-09-30']])
+    // The receipt goes to the account e-mail.
+    const created = requests.at(-1) as { receipt?: { customer: { email: string } } }
+    assert.equal(created.receipt?.customer.email, 'payer@example.com')
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
+})
+
+test('POST /v1/payments returns the payer to the configured site, never to the request Origin', async () => {
+  const run = async (publicUrl: string | undefined, check: (pay: (origin: string) => Promise<Response>, returnUrl: () => string) => Promise<void>) => {
+    const db = openDatabase(':memory:')
+    const accounts = new AccountStore({ db, ownerEmails: [] })
+    const requests: Array<{ confirmation: { return_url: string } }> = []
+    const fakeFetch = (async (_url: string, init: RequestInit) => {
+      requests.push(JSON.parse(String(init.body)))
+      return new Response(JSON.stringify({ id: `2d000000000${requests.length}-000f-5000-9000-1b68e7b15f3f`, status: 'pending', confirmation: { confirmation_url: 'https://yoomoney.ru/checkout/x' } }), { status: 200 })
+    }) as unknown as typeof globalThis.fetch
+    const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_x', monthPrice: 300, receipts: false, streamerPercent: 0, ...(publicUrl ? { publicUrl } : {}) }, { fetch: fakeFetch })
+    accounts.attachSubscriptions(payments)
+    const { token } = await accounts.register('payer@example.com', password)
+    const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments }).listen(0, '127.0.0.1')
+    await new Promise<void>((resolve) => server.on('listening', resolve))
+    const address = server.address()
+    assert.ok(address && typeof address !== 'string')
+    const pay = (origin: string) => fetch(`http://127.0.0.1:${address.port}/v1/payments`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: auth(token), origin }, body: JSON.stringify({ plan: '1m', consent: { version: '2026-09-30' } }) })
+    try { await check(pay, () => requests.at(-1)!.confirmation.return_url) } finally { await new Promise<void>((resolve) => server.close(() => resolve())) }
+  }
+
+  // Configured (TARKOV_PUBLIC_URL): always that site, whatever Origin the request claims.
+  await run('https://raidos.example.com', async (pay, returnUrl) => {
+    assert.equal((await pay('https://evil.example')).status, 201)
+    assert.match(returnUrl(), /^https:\/\/raidos\.example\.com\/cabinet\?payment=[a-f0-9]{24}$/)
+  })
+  // Not configured: only this PC's own site; any other Origin is refused before a payment is created.
+  await run(undefined, async (pay, returnUrl) => {
+    const refused = await pay('https://evil.example')
+    assert.equal(refused.status, 400)
+    assert.match((await refused.json() as { error: string }).error, /адрес сайта/)
+    assert.equal((await pay('https://raidos.example.com.evil.example')).status, 400)
+    assert.equal((await pay('http://127.0.0.1:5202')).status, 201)
+    assert.match(returnUrl(), /^http:\/\/127\.0\.0\.1:5202\/cabinet\?payment=/)
+  })
 })
 
 test('older payment tables get the consent columns on start', () => {

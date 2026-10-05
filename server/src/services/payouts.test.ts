@@ -3,8 +3,7 @@ import assert from 'node:assert/strict'
 import { createApi } from '../app.js'
 import { AccountStore } from './accountStore.js'
 import { openDatabase } from './database.js'
-import { PaymentStore } from './paymentStore.js'
-import { recordPayment } from './testPayments.js'
+import { PaymentStore, type PaymentConfig } from './paymentStore.js'
 import { maskPhone, normalizePhone, PayoutStore } from './payoutStore.js'
 import { ProgressStore } from './progressStore.js'
 
@@ -12,15 +11,31 @@ const password = 'correct horse battery'
 const DAY = 86_400_000
 const details = { phone: '8 (999) 123-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' }
 
-/** Plan prices at 1000 ₽ a month, the year 33 % off. */
-const PRICES = { '1m': 1000, '3m': 3000, '6m': 6000, '12m': 8040 } as const
+/** Fake ЮKassa that accepts every payment at once. */
+function fakeYooKassa() {
+  const payments = new Map<string, Record<string, unknown>>()
+  let next = 1
+  const fetch = (async (url: string, init: RequestInit) => {
+    if (init.method === 'POST') {
+      const body = JSON.parse(String(init.body))
+      const id = `2d${String(next++).padStart(10, '0')}-000f-5000-9000-1b68e7b15f3f`
+      const payment = { id, status: 'succeeded', paid: true, amount: body.amount, metadata: body.metadata, confirmation: { confirmation_url: `https://yoomoney.ru/checkout?orderId=${id}` } }
+      payments.set(id, payment)
+      return new Response(JSON.stringify({ ...payment, status: 'pending', paid: false }), { status: 200 })
+    }
+    return new Response(JSON.stringify(payments.get(url.split('/').pop()!)), { status: 200 })
+  }) as unknown as typeof globalThis.fetch
+  return fetch
+}
 
 async function setup(percent = 10) {
   let clock = Date.parse('2026-10-01T10:00:00.000Z')
   const now = () => clock
   const db = openDatabase(':memory:')
   const accounts = new AccountStore({ db, now, ownerEmails: [] })
-  const payments = new PaymentStore(db, { streamerPercent: percent }, { now })
+  const fetch = fakeYooKassa()
+  const config: PaymentConfig = { shopId: '1', secretKey: 'test_x', monthPrice: 1000, receipts: false, streamerPercent: percent }
+  const payments = new PaymentStore(db, config, { now, fetch })
   accounts.attachSubscriptions(payments)
   const payouts = new PayoutStore(db, payments, { now })
   await accounts.register('streamer@example.com', password)
@@ -29,8 +44,11 @@ async function setup(percent = 10) {
   const { token } = await accounts.register('viewer@example.com', password, 'HUNTER')
   const viewerId = accounts.authenticate(token)!
   /** The viewer pays for `plan`; the streamer earns his share of it. */
-  const pay = async (plan: '1m' | '3m' | '6m' | '12m', store = payments) => { recordPayment(store, viewerId, plan, PRICES[plan], { now: now() }) }
-  return { db, accounts, payments, payouts, streamerId, viewerId, pay, now, advance: (ms: number) => { clock += ms } }
+  const pay = async (plan: '1m' | '3m' | '6m' | '12m', store = payments) => {
+    const created = await store.create(accounts.billingInfo(viewerId), plan, 'https://tarkov.example.com', { version: '2026-09-30' })
+    await store.sync(new URL(created.confirmationUrl).searchParams.get('orderId')!)
+  }
+  return { db, accounts, payments, payouts, streamerId, viewerId, pay, fetch, now, advance: (ms: number) => { clock += ms } }
 }
 
 test('phone numbers are normalized and masked; card numbers are refused', () => {
@@ -42,11 +60,11 @@ test('phone numbers are normalized and masked; card numbers are refused', () => 
 })
 
 test('the streamer share is fixed per payment: a later percent change never rewrites history', async () => {
-  const { db, accounts, payments, payouts, pay, now } = await setup(10)
+  const { db, accounts, payments, payouts, pay, now, fetch } = await setup(10)
   await pay('1m') // 1000 ₽ → 100 ₽ at 10 %
   assert.equal(payouts.balance('HUNTER').earned, 100_00)
   // The owner raises the share to 20 %: the next payment earns 20 %, the old one stays at 10 %.
-  const raised = new PaymentStore(db, { ...payments.config!, streamerPercent: 20 }, { now })
+  const raised = new PaymentStore(db, { ...payments.config!, streamerPercent: 20 }, { now, fetch })
   const ledger = new PayoutStore(db, raised, { now })
   await pay('1m', raised)
   assert.equal(ledger.balance('HUNTER').earned, 100_00 + 200_00)
@@ -133,7 +151,7 @@ test('auto-payout requests the whole balance every N days (3 by default); the st
   assert.deepEqual(payouts.runAuto(codeOf), [])
 })
 
-test('payout routes: streamer only for his own, owner only for the list', async () => {
+test('payout routes: streamer only for his own, owner only for the list; streamers never pay for a subscription', async () => {
   const { accounts, payments, payouts, pay } = await setup(10)
   await pay('1m')
   const db = payments.database
@@ -179,6 +197,10 @@ test('payout routes: streamer only for his own, owner only for the list', async 
     assert.equal((await call('POST', '/v1/accounts/me/admin/payouts/decide', owner, { id: item!.id, status: 'paid', comment: 'СБП' })).status, 200)
     assert.equal((await call('PUT', '/v1/accounts/me/admin/payout-limits', owner, { min: 2, max: 20 })).status, 200)
     assert.equal((await call('PUT', '/v1/accounts/me/admin/payout-limits', viewer, { min: 2, max: 20 })).status, 404)
+
+    // Streamers use the service for free: no payment can be started.
+    const refused = await call('POST', '/v1/payments', streamer, { plan: '1m', consent: { version: '2026-09-30' } })
+    assert.equal(refused.status, 409)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
