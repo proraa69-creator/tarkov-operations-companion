@@ -127,7 +127,7 @@ export async function startLocalServer() {
 }
 
 /**
- * TARKOV_PUBLIC_URL for the API (e.g. return links to the public site): the permanent address, else the free link while it is on,
+ * TARKOV_PUBLIC_URL for the API (e.g. ЮKassa's return page): the permanent address, else the free link while it is on,
  * else this PC's site. The API never takes the address from a request's Origin (server/src/routes/payments.ts).
  */
 export async function apiPublicUrl() {
@@ -139,7 +139,7 @@ export async function apiPublicUrl() {
 
 async function startApi() {
   const log = join(dataDir(), 'logs', 'api.log')
-  // Owner token, streamer share and the public address travel only in the process environment (electron/ownerAdmin.ts).
+  // Owner token, ЮKassa settings and the public address travel only in the process environment (electron/ownerAdmin.ts).
   const extra = { ...await apiEnvironment(await apiPublicUrl()), ...await entitlementKeyEnvironment(dataDir()).catch(() => ({})) }
   // Which app build runs this server: /health reports it, so a later build can recognise an old server on the port.
   const build = await runningBuild()

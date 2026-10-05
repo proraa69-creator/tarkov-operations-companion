@@ -4,7 +4,7 @@ import { uiText } from '../i18n/renderText'
 import type { SmsProvider, SmsServerStatus, SmsSettings } from '../electron'
 
 /**
- * «SMS: одноразовые коды» under «Сервер и сайт на этом компьютере», next to the streamer share: the SMS provider for
+ * «SMS: одноразовые коды» under «Сервер и сайт на этом компьютере», next to the Lava.top panel: the SMS provider for
  * phone binding, sign-in and password reset by phone (server/src/services/sms, docs/sms-login.md). The key is
  * encrypted with safeStorage in the main process and write-only here; the settings reach the API process only as
  * environment variables. The website's admin panel has no such settings on purpose: a stolen owner web session must

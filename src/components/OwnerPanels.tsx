@@ -1,44 +1,65 @@
 import { useEffect, useState } from 'react'
-import { Copy, ShieldCheck, UserPlus } from 'lucide-react'
+import { Copy, CreditCard, ShieldCheck, UserPlus } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import type { StreamerRow, StreamerShareSettings } from '../electron'
+import type { PaymentSettings, StreamerRow } from '../electron'
 
 /**
- * Owner controls under «Сервер и сайт на этом компьютере»: the global streamer share and secret invitation links for
- * streamers. Everything goes through the main process (electron/ownerAdmin.ts).
+ * Owner controls under «Сервер и сайт на этом компьютере»: ЮKassa settings for subscriptions and secret invitation
+ * links for streamers. Everything goes through the main process (electron/ownerAdmin.ts); the ЮKassa secret key is
+ * write-only here — the app never shows it again.
  */
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
-/** «Доля стримеров, %» (0–100): the share of every payment credited to the referring streamer (TARKOV_STREAMER_PERCENT). */
-export function StreamerSharePanel() {
+export function PaymentsPanel() {
   const api = window.tarkovDesktop?.owner
-  const [saved, setSaved] = useState<StreamerShareSettings | null>(null)
-  const [percent, setPercent] = useState('10')
+  const [saved, setSaved] = useState<PaymentSettings | null>(null)
+  const [form, setForm] = useState({ shopId: '', monthPrice: '', receipts: false, streamerPercent: '10', secretKey: '', autopay: false })
+  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   useEffect(() => {
-    void api?.streamerShare?.().then((value) => { setSaved(value); setPercent(String(value.streamerPercent)) }).catch(() => {})
+    void api?.payments().then((value) => {
+      setSaved(value)
+      setForm({ shopId: value.shopId, monthPrice: value.monthPrice ? String(value.monthPrice) : '', receipts: value.receipts, streamerPercent: String(value.streamerPercent ?? 10), secretKey: '', autopay: value.autopay === true })
+    }).catch(() => {})
   }, [api])
-  if (!api?.setStreamerShare || !saved) return null
-  const value = Number(percent.replace(',', '.'))
-  const valid = percent.trim() !== '' && Number.isFinite(value) && value >= 0 && value <= 100
-  const save = () => {
-    if (!valid || !api.setStreamerShare) { setMessage({ ok: false, text: 'Доля стримеров: от 0 до 100 %' }); return }
+  if (!api || !saved) return null
+  const on = Boolean(saved.shopId && saved.hasKey && saved.monthPrice)
+  const save = (clearKey = false) => {
     setBusy(true); setMessage(null)
-    void api.setStreamerShare({ streamerPercent: value })
-      .then((next) => { setSaved(next); setPercent(String(next.streamerPercent)); setMessage({ ok: true, text: 'Сохранено, сервер перезапущен' }) })
+    void api.setPayments({ shopId: form.shopId, monthPrice: Number(form.monthPrice || 0), receipts: form.receipts, streamerPercent: Number(form.streamerPercent || 0), autopay: form.autopay, ...(form.secretKey ? { secretKey: form.secretKey } : {}), ...(clearKey ? { clearKey } : {}) })
+      .then((value) => { setSaved(value); setForm((current) => ({ ...current, secretKey: '' })); setMessage({ ok: true, text: 'Сохранено, сервер перезапущен' }) })
       .catch((reason: unknown) => setMessage({ ok: false, text: errorText(reason) }))
       .finally(() => setBusy(false))
   }
   return (
     <div className="setting-row owner-panel">
-      <form className="owner-form" onSubmit={(event) => { event.preventDefault(); save() }}>
-        <label><span>{uiText('Доля стримеров, %')}</span><input className="input" inputMode="decimal" value={percent} onChange={(event) => setPercent(event.target.value)} aria-invalid={!valid} /></label>
-        {message && <small style={{ color: message.ok ? 'var(--green)' : 'var(--danger)' }}>{uiText(message.text)}</small>}
-        <span className="owner-actions">
-          <button className="button primary" type="submit" disabled={busy || !valid || value === saved.streamerPercent}>{uiText('Сохранить')}</button>
+      <div className="owner-panel-head">
+        <span>
+          <strong><CreditCard size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Оплата подписки (ЮKassa)')}</strong>
+          <small>{uiText(on ? `Включена: ${saved.monthPrice} ₽ в месяц` : 'Выключена: укажите магазин, ключ и цену')}</small>
         </span>
-      </form>
+        <button className="button ghost" onClick={() => setOpen(!open)}>{uiText(open ? 'Свернуть' : 'Настроить')}</button>
+      </div>
+      {open && (
+        <form className="owner-form" onSubmit={(event) => { event.preventDefault(); save() }}>
+          <small>{uiText('Данные берутся в личном кабинете ЮKassa → Интеграция → Ключи API. Ключ хранится на этом компьютере в зашифрованном виде и больше не показывается.')}</small>
+          <label><span>{uiText('shopId')}</span><input className="input" inputMode="numeric" value={form.shopId} onChange={(event) => setForm({ ...form, shopId: event.target.value })} placeholder="123456" autoComplete="off" /></label>
+          <label><span>{uiText('Секретный ключ')}</span><input className="input" type="password" value={form.secretKey} onChange={(event) => setForm({ ...form, secretKey: event.target.value })} placeholder={uiText(saved.hasKey ? 'Сохранён. Оставьте пустым, чтобы не менять' : 'live_… или test_…')} autoComplete="off" spellCheck={false} /></label>
+          <label><span>{uiText('Цена месяца, ₽')}</span><input className="input" inputMode="decimal" value={form.monthPrice} onChange={(event) => setForm({ ...form, monthPrice: event.target.value })} placeholder="299" /></label>
+          {Number(form.monthPrice) > 0 && <small>{uiText('Тарифы:')} 1 {uiText('мес')} — {fmt(Number(form.monthPrice))} ₽ · 3 {uiText('мес')} — {fmt(Number(form.monthPrice) * 3)} ₽ · 6 {uiText('мес')} — {fmt(Number(form.monthPrice) * 6)} ₽ · 12 {uiText('мес')} — {fmt(Number(form.monthPrice) * 12 * 0.67)} ₽ (−33%)</small>}
+          <label><span>{uiText('Доля стримера, %')}</span><input className="input" inputMode="decimal" value={form.streamerPercent} onChange={(event) => setForm({ ...form, streamerPercent: event.target.value })} /></label>
+          <label className="owner-check"><input type="checkbox" checked={form.receipts} onChange={(event) => setForm({ ...form, receipts: event.target.checked })} /><span>{uiText('Отправлять чеки 54-ФЗ через ЮKassa (если подключена онлайн-касса или «Мой налог»)')}</span></label>
+          <label className="owner-check"><input type="checkbox" checked={form.autopay} onChange={(event) => setForm({ ...form, autopay: event.target.checked })} /><span>{uiText('Автоплатежи ЮKassa включены')}</span></label>
+          <small>{uiText('Включайте только после того, как менеджер ЮKassa подключил автоплатежи для магазина. Тогда в кабинете появится отдельная галочка согласия на автоматическое списание; без неё платёж разовый. Списание — за сутки до конца оплаченного срока, до 3 попыток.')}</small>
+          <small>{uiText('Адрес для уведомлений в ЮKassa (Интеграция → HTTP-уведомления, событие payment.succeeded и payment.canceled):')} <code style={{ userSelect: 'text' }}>{'https://<ваш постоянный адрес>/v1/payments/yookassa/webhook'}</code></small>
+          {message && <small style={{ color: message.ok ? 'var(--green)' : 'var(--danger)' }}>{uiText(message.text)}</small>}
+          <span className="owner-actions">
+            {saved.hasKey && <button type="button" className="button ghost" disabled={busy} onClick={() => save(true)}>{uiText('Удалить ключ')}</button>}
+            <button className="button primary" type="submit" disabled={busy}>{uiText('Сохранить')}</button>
+          </span>
+        </form>
+      )}
     </div>
   )
 }

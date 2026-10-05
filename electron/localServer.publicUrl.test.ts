@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
 
-/** TARKOV_PUBLIC_URL for the API process (return links to the public site): always set by the app, never taken from a request. */
+/** TARKOV_PUBLIC_URL for the API process (ЮKassa's return page): always set by the app, never taken from a request. */
 const tunnel = vi.hoisted(() => ({ permanent: '', status: { state: 'off', autoStart: false } as { state: string; url?: string; autoStart: boolean } }))
 vi.mock('electron', () => ({ app: { getPath: () => '', getVersion: () => '0.0.0' }, utilityProcess: {}, safeStorage: { isEncryptionAvailable: () => false } }))
 vi.mock('./publicTunnel.js', () => ({ publicSiteUrl: async () => tunnel.permanent, tunnelStatus: async () => tunnel.status }))
