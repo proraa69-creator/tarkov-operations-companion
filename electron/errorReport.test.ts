@@ -13,13 +13,13 @@ const STACK = [
 describe('sanitize (no IP / e-mail / token leaks)', () => {
   const secrets = {
     ipv4: '203.0.113.77', ipv6: '2001:db8::8a2e:370:7334', ipv6full: '2001:0db8:85a3:0000:0000:8a2e:0370:7334', mapped: '::ffff:198.51.100.9',
-    email: 'player.one+tag@example.co.uk', resend: 're_AbCdEf123456_xyz', yookassa: 'live_9f8e7d6c5b4a3210', test: 'test_secretKEY12345',
+    email: 'player.one+tag@example.co.uk', resend: 're_AbCdEf123456_xyz', live: 'live_9f8e7d6c5b4a3210', test: 'test_secretKEY12345',
     jwt: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NSJ9.c2lnbmF0dXJl', bearer: 'Bearer abcdef0123456789session', pat: 'github_pat_11ABCDEFG0123456789_abcdefXYZ',
     hex: 'a3f1c9e2b7d4a3f1c9e2b7d4a3f1c9e2b7d4a3f1', longSecret: 'ZXlKaGJHY2lPaUpJVXpJMU5pSjkuZXlKemRXSWlPaUl4TWpNME5TSjk',
   }
   const text = [
     `login failed for ${secrets.email} from ${secrets.ipv4} and ${secrets.ipv6} / ${secrets.ipv6full} / ${secrets.mapped}`,
-    `keys ${secrets.resend} ${secrets.yookassa} ${secrets.test} ${secrets.pat}`,
+    `keys ${secrets.resend} ${secrets.live} ${secrets.test} ${secrets.pat}`,
     `authorization: ${secrets.bearer}; jwt=${secrets.jwt}; session ${secrets.hex}; blob ${secrets.longSecret}`,
     'GET https://raidos.app/v1/accounts/login-codes/redeem?code=123456&email=x%40y.z -> 500',
     'password=hunter2 api_key: "sk-local-123"',

@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
-import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
-import { LavaPaymentsPanel } from './OwnerLavaPanel'
+import { StreamerSharePanel, StreamersPanel } from './OwnerPanels'
 import { OwnerSmsPanel } from './OwnerSmsPanel'
 import { uiText } from '../i18n/renderText'
 import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
@@ -198,8 +197,7 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
         <small className="dim">{uiText('Это игровой компьютер, а сервер работает на ноутбуке (raidos.app)? Выключите этот переключатель — приложение подключится к raidos.app, и вход с вашим e-mail заработает.')}</small>
       )}
       {local.enabled && <TunnelRow />}
-      {local.enabled && <PaymentsPanel />}
-      {local.enabled && <LavaPaymentsPanel />}
+      {local.enabled && <StreamerSharePanel />}
       {local.enabled && <OwnerSmsPanel />}
       {local.enabled && <OwnerEmailPanel />}
       {local.enabled && <OwnerServerUpdatePanel />}

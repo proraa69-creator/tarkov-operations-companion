@@ -13,7 +13,7 @@ import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText }
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, lavaWebhookStatus, testLavaWebhook, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
+import { emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setSmsSettings, setStreamerShare, smsServerStatus, smsSettings, streamerShareSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
@@ -169,26 +169,6 @@ app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   // What the API process may ask this app (electron/apiChannel.ts): the «Обновление» tab and error reports.
   if (ownerBuild) {
-    handleApiRequest('payments:yookassa:get', async () => {
-      const saved = await paymentSettings()
-      return { shopId: saved.shopId, monthPrice: saved.monthPrice, receipts: saved.receipts, streamerPercent: saved.streamerPercent, autopay: saved.autopay, hasKey: saved.hasKey }
-    })
-    handleApiRequest('payments:yookassa:set', async (payload) => {
-      const input = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
-      const saved = await setPaymentSettings({ shopId: input.shopId, monthPrice: input.monthPrice, receipts: input.receipts, streamerPercent: input.streamerPercent, autopay: input.autopay })
-      const environment = await apiEnvironment('https://raidos.app')
-      return { settings: { shopId: saved.shopId, monthPrice: saved.monthPrice, receipts: saved.receipts, streamerPercent: saved.streamerPercent, autopay: saved.autopay, hasKey: saved.hasKey }, env: Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith('YOOKASSA_') || ['TARKOV_PRICE_MONTH_RUB', 'TARKOV_STREAMER_PERCENT', 'TARKOV_PUBLIC_URL'].includes(key))) }
-    })
-    handleApiRequest('payments:lava:get' , async () => (await paymentSettings()).lava)
-    handleApiRequest('payments:lava:set', async (payload) => {
-      const input = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
-      // Only these fields can cross the owner web control; no deletion or other providers' settings.
-      const saved = await setPaymentSettings({ section: 'lava', offerId: input.offerId, currency: input.currency, rubRate: input.rubRate, paymentMethod: input.paymentMethod })
-      const environment = await apiEnvironment('')
-      // These secrets go only to the trusted API utility process, never into the HTTP response.
-      return { settings: saved.lava, env: Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith('LAVA_'))) }
-    })
-    handleApiRequest('payments:lava:test', () => testLavaWebhook('https://raidos.app/v1/payments/lava/webhook'))
     handleApiRequest('self-update:status', () => selfUpdateStatus())
     handleApiRequest('self-update:check', () => checkSelfUpdateNow())
     handleApiRequest('self-update:install', (payload) => installSelfUpdateNow(payload))
@@ -232,9 +212,8 @@ app.on('window-all-closed', () => {
 const OWNER_CHANNELS = [
   'local-server:status', 'local-server:set-enabled', 'tunnel:status', 'tunnel:set', 'tunnel:set-named',
   'server-watchdog:status', 'server-watchdog:restart', 'server-watchdog:check',
-  'owner:payments', 'owner:set-payments', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
+  'owner:streamer-share', 'owner:set-streamer-share', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
   'owner:sms', 'owner:set-sms', 'owner:sms-status', 'owner:sms-test',
-  'owner:lava-webhook-status', 'owner:lava-webhook-test',
   'owner:email', 'owner:set-email', 'owner:email-status', 'owner:email-test',
   'owner:error-reports', 'owner:set-error-reports', 'owner:error-reports-test',
   'owner:server-update', 'owner:set-server-update', 'owner:server-update-check', 'owner:server-update-install', 'owner:server-update-rollback',
@@ -380,7 +359,7 @@ function registerIpc() {
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
   ipcMain.handle('tunnel:set-named', async (_event, hostname: unknown, token: unknown) => {
     const status = await setNamedTunnel(hostname, token)
-    await restartApi() // the API builds ЮKassa return links from the public address
+    await restartApi() // the API builds links to the public site from this address
     return status
   })
   ipcMain.handle('account:set-server-url', async (_event, url: unknown) => {
@@ -388,10 +367,11 @@ function registerIpc() {
     void checkForUpdate()
     return result
   })
-  // Owner: ЮKassa settings and streamer invitations for the server on this PC (electron/ownerAdmin.ts).
-  ipcMain.handle('owner:payments', () => paymentSettings())
-  ipcMain.handle('owner:set-payments', async (_event, settings: unknown) => {
-    const result = await setPaymentSettings(settings)
+  // Owner: «Доля стримеров, %» and streamer invitations for the server on this PC (electron/ownerAdmin.ts).
+  // The share reaches the API as TARKOV_STREAMER_PERCENT, so the API restarts to pick it up.
+  ipcMain.handle('owner:streamer-share', () => streamerShareSettings())
+  ipcMain.handle('owner:set-streamer-share', async (_event, settings: unknown) => {
+    const result = await setStreamerShare(settings)
     await restartApi()
     return result
   })
@@ -402,9 +382,6 @@ function registerIpc() {
     await restartApi()
     return result
   })
-  // «Оплата: другие страны (Lava.top)»: last webhook seen and the self-test (no payment is created).
-  ipcMain.handle('owner:lava-webhook-status', () => lavaWebhookStatus())
-  ipcMain.handle('owner:lava-webhook-test', () => testLavaWebhook('https://raidos.app/v1/payments/lava/webhook'))
   ipcMain.handle('owner:sms-status', () => smsServerStatus())
   ipcMain.handle('owner:sms-test', (_event, phone: unknown) => sendTestSms(phone))
   // «Почта: коды подтверждения»: the same rule — provider and key only from this app, never from the website.
