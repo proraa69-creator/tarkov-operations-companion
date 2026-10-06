@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
@@ -6,12 +6,15 @@ import { createPortal } from 'react-dom'
  * profile, drawn for this app — not the game's logos; «PMC» while the faction is unknown), a name tape with the
  * selected mode's nickname, a blood-type tab and a round morale patch (moon over a ridge line). Text follows the
  * interface language.
+ * They sit in the sidebar's foot (SidebarOperator) under the last menu items, so new menu items push them down (and the
+ * menu scrolls) instead of hiding behind them; without the foot they fall back to a fixed corner of the window.
  */
 export const GearPatches = memo(function GearPatches({ locale, callsign, faction = 'unknown' }: { locale: 'ru' | 'en'; callsign: string; faction?: 'usec' | 'bear' | 'unknown' }) {
   const en = locale === 'en'
   const blood = en ? 'O POS' : '0(I) RH+'
   const motto = en ? 'NIGHT SHIFT' : 'НОЧНАЯ СМЕНА'
   const name = callsign.trim().toUpperCase().slice(0, 14) || (en ? 'OPERATOR' : 'ОПЕРАТОР')
+  const host = useSidebarFoot()
   return createPortal(
     <div className="gear-patches" aria-hidden="true">
       <FactionPatch faction={faction} />
@@ -69,9 +72,26 @@ export const GearPatches = memo(function GearPatches({ locale, callsign, faction
         </svg>
       </div>
     </div>,
-    document.body,
+    host ?? document.body,
   )
 })
+
+/** The sidebar's foot (SidebarOperator), once it is in the page; re-checked while the sidebar re-mounts. */
+function useSidebarFoot() {
+  const [host, setHost] = useState<Element | null>(() => document.querySelector('.sidebar-operator'))
+  useEffect(() => {
+    const find = () => setHost((current) => {
+      const next = document.querySelector('.sidebar-operator')
+      return current && current.isConnected && current === next ? current : next
+    })
+    find()
+    const observer = new MutationObserver(find)
+    const sidebar = document.querySelector('.sidebar')
+    observer.observe(sidebar ?? document.body, { childList: true, subtree: !sidebar })
+    return () => observer.disconnect()
+  }, [])
+  return host
+}
 
 /** Sewn faction patch; uses the twill, lift and thread fills defined by the name tape above it. */
 function FactionPatch({ faction }: { faction: 'usec' | 'bear' | 'unknown' }) {

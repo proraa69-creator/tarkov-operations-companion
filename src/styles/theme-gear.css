@@ -459,7 +459,11 @@
 .gear-patch-moon { transform: rotate(-4deg); }
 .gear-patch-faction { transform: rotate(3deg); margin-left: 6px; }
 .gear-patch-text { font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; }
-@media (max-width: 1180px), (max-height: 640px) { .gear-patches { display: none; } }
+/* In the sidebar's foot: part of the menu's flow, above the app version — the menu items never slide under them. */
+.sidebar-operator .gear-patches { position: static; order: -1; width: auto; padding: 4px 6px 2px; z-index: auto; }
+:root[data-theme="gear"] .sidebar-operator { display: flex; flex-direction: column; }
+@media (max-width: 1180px) { .gear-patches { display: none; } }
+@media (max-height: 640px) { body > .gear-patches { display: none; } }
 @media (max-width: 1180px) { .gear-helmet { display: none; } }
 
 /* Goons card popovers: the same dark fabric */
