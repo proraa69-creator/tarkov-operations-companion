@@ -159,7 +159,11 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-layers-toggle.active { border-color: var(--brass); color: var(--brass-strong); }
 :root[data-layout="mobile"] .map-detail { border-left: 0; border-top: 1px solid var(--line); min-height: 0; max-height: none; }
 :root[data-layout="mobile"] .leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; }
-:root[data-layout="mobile"] .map-quest-sheet { right: 12px; width: auto; min-width: 0; }
+:root[data-layout="mobile"] .map-quest-sheet { right: 12px; width: auto; min-width: 0; max-height: calc(100% - 24px); }
+/* Phone: the strip is too narrow for columns — the card stacks again. */
+:root[data-layout="mobile"] .map-quest-sheet-copy { display: block; }
+:root[data-layout="mobile"] .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; }
+:root[data-layout="mobile"] .map-quest-sheet-body.has-visual { grid-template-columns: minmax(0, 1fr); }
 :root[data-layout="mobile"] .map-quest-sheet-body { max-height: 60dvh; overflow: auto; }
 
 /* ---------- live map banner (phone «Мини Карта») ---------- */

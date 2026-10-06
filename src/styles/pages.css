@@ -162,12 +162,10 @@
   /* a compact card in the bottom-left corner (about half the old full-width sheet each way), so the map centre stays clear */
   position: absolute;
   left: 12px;
+  right: 12px;
   bottom: 12px;
-  /* wide and low: most of the map's width, so the text runs in long lines instead of a tall narrow column */
-  width: min(720px, calc(100% - 24px));
-  min-width: min(300px, calc(100% - 24px));
-  /* the whole card fits: it grows with its content up to the map's height (a scroll only beyond that) */
-  max-height: calc(100% - 24px);
+  /* a horizontal strip along the bottom of the map: the whole width, low, laid out in columns (see .map-quest-sheet-copy) */
+  max-height: min(46%, 340px);
   display: flex;
   flex-direction: column;
   z-index: 500;
@@ -204,12 +202,28 @@
 .map-quest-sheet-meta .tag { font-size: 10px; }
 .map-quest-sheet-section h4 { margin: 0 0 4px; color: var(--text-dim); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .map-quest-sheet-section p { margin: 0 0 6px; }
-.map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); columns: 2 180px; column-gap: 20px; }
+.map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); columns: 3 200px; column-gap: 24px; }
 .map-quest-sheet-objectives li { break-inside: avoid; }
 .map-quest-sheet-objectives li { margin: 0 0 3px; }
 .map-quest-sheet-link { width: auto; min-width: 200px; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
-.map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; align-items: start; }
-.map-quest-sheet-copy { min-width: 0; }
+.map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px; align-items: start; }
+/* Quest card: title, tags and the button on the left, the stage / objectives across the rest of the strip. */
+.map-quest-sheet-copy {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+  grid-template-areas: "eyebrow section" "title section" "meta section" "link section";
+  grid-template-rows: auto auto auto 1fr;
+  column-gap: 20px;
+  align-items: start;
+}
+.map-quest-sheet-copy > .map-quest-sheet-eyebrow { grid-area: eyebrow; }
+.map-quest-sheet-copy > .map-quest-sheet-title { grid-area: title; }
+.map-quest-sheet-copy > .map-quest-sheet-meta { grid-area: meta; }
+.map-quest-sheet-copy > .map-quest-sheet-section { grid-area: section; min-width: 0; padding-left: 20px; border-left: 1px solid var(--line); }
+.map-quest-sheet-copy > .map-quest-sheet-link { grid-area: link; align-self: end; min-width: 0; width: 100%; }
+/* An ordinary marker keeps a compact card in the corner. */
+.map-quest-sheet:has(.map-marker-detail-card) { right: auto; width: min(560px, calc(100% - 24px)); max-height: calc(100% - 24px); }
 .map-quest-sheet-visual { margin: 0; display: grid; gap: 6px; }
 .map-quest-sheet-visual .mini-map { height: 120px; border-radius: 6px; }
 .map-quest-sheet-visual figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 6px; color: var(--text-dim); font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -219,6 +233,7 @@
 .map-floor-tag { display: inline-flex; align-items: center; gap: 4px; }
 .map-floor-tag.is-indoor { border-color: #7c6a3f; color: #efd9a3; }
 @media (max-width: 980px) { .map-quest-sheet-body.has-visual { grid-template-columns: minmax(0, 1fr); } .map-quest-sheet-visual { max-width: 180px; } }
+@media (max-width: 760px) { .map-quest-sheet-copy { display: block; } .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; } }
 .quest-scan-status .spin.is-paused { animation: none; opacity: .55; }
 .flea-item-link {
   display: grid;
