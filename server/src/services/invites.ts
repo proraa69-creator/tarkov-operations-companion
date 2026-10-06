@@ -43,7 +43,9 @@ export const RANKS: Array<{ id: RankId; title: string; friends: number; bonusDay
 ]
 
 export type RewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
-export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst'
+export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email'
+/** Milestones big enough to be worth faking friends for: granted only after the owner's review. */
+const REVIEWED_MILESTONES = new Set<RankId>(['raid-commander', 'legend'])
 export interface RewardView {
   id: number
   kind: 'friend' | RankId
@@ -83,6 +85,15 @@ const SCHEMA = `
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE = /^[A-Z0-9_-]{3,24}$/
 
+/** One mailbox under its aliases: case, Gmail dots and «+tags» (a.b+1@gmail.com = ab@gmail.com). */
+function normalizeEmail(email: string) {
+  const [rawName = '', rawDomain = ''] = email.trim().toLowerCase().split('@')
+  const domain = rawDomain === 'googlemail.com' ? 'gmail.com' : rawDomain
+  let name = rawName.split('+')[0] ?? ''
+  if (domain === 'gmail.com') name = name.replace(/\./g, '')
+  return name && domain ? `${name}@${domain}` : ''
+}
+
 const maskEmail = (email: string) => {
   const [name = '', domain = ''] = email.split('@')
   return `${name.slice(0, 1)}***@${domain}`
@@ -98,6 +109,7 @@ export class InviteProgram {
     this.now = options.now ?? Date.now
     this.db.exec(SCHEMA)
     payments.onSucceeded((payment) => this.paymentSucceeded(payment))
+    payments.onRefunded((payment) => this.paymentRefunded(payment.id))
   }
 
   /** The friend's discount on the first month, %, or 0. */
@@ -172,9 +184,23 @@ export class InviteProgram {
       .run(inviter, payment.accountId, payment.id, REWARD_DAYS, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, now + HOLD_MS)
   }
 
+  /**
+   * The friend's payment was refunded: a reward on hold / under review is dropped; one already granted is cancelled and
+   * its days are taken back from the inviter (never below now).
+   */
+  private paymentRefunded(paymentId: string) {
+    const row = this.db.prepare("SELECT * FROM invite_rewards WHERE payment_id = ? AND kind = 'friend' AND status != 'canceled'").get(paymentId) as Row | undefined
+    if (!row) return
+    this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, comment = 'платёж друга возвращён' WHERE id = ?").run(this.now(), Number(row.id))
+    if (row.status === 'granted') this.extend(String(row.inviter_id), -Number(row.days))
+  }
+
   private fraudFlags(inviter: string, payment: SucceededPayment): FraudFlag[] {
     const flags: FraudFlag[] = []
     const friend = payment.accountId
+    const emails = this.db.prepare('SELECT id, email FROM accounts WHERE id IN (?, ?)').all(inviter, friend) as Row[]
+    const email = (id: string) => normalizeEmail(String(emails.find((row) => row.id === id)?.email ?? ''))
+    if (email(friend) && email(friend) === email(inviter)) flags.push('same-email')
     const has = (table: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined
     if (has('account_devices') && this.db.prepare('SELECT 1 FROM account_devices a JOIN account_devices b ON a.device_id = b.device_id WHERE a.account_id = ? AND b.account_id = ?').get(inviter, friend)) flags.push('same-device')
     const addresses = this.db.prepare('SELECT id, signup_ip FROM accounts WHERE id IN (?, ?)').all(inviter, friend) as Row[]
@@ -213,15 +239,20 @@ export class InviteProgram {
   /** The owner's decision on a reward under review or on hold: «approve» grants it now, «cancel» drops it. */
   decide(actor: string, id: number, decision: 'approve' | 'cancel', comment?: string) {
     const row = this.db.prepare('SELECT * FROM invite_rewards WHERE id = ?').get(id) as Row | undefined
-    if (!row || row.kind !== 'friend') throw new AccountError(404, 'Начисление не найдено')
+    if (!row) throw new AccountError(404, 'Начисление не найдено')
     if (row.status !== 'pending' && row.status !== 'review') throw new AccountError(409, 'Решение по этому начислению уже принято')
     transaction(this.db, () => {
       if (decision === 'cancel') {
         this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, decided_by = ?, comment = ? WHERE id = ?").run(this.now(), actor, comment ?? null, id)
         return
       }
+      if (row.kind === 'legend') {
+        const changed = this.db.prepare("UPDATE invite_rewards SET status = 'granted', decided_at = ?, decided_by = ?, comment = COALESCE(?, comment) WHERE id = ? AND status IN ('pending', 'review')").run(this.now(), actor, comment ?? null, id)
+        if (Number(changed.changes)) this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = MAX(paid_until, excluded.paid_until)').run(String(row.inviter_id), LIFETIME_UNTIL)
+        return
+      }
       this.grant(id, String(row.inviter_id), Number(row.days), actor, comment)
-      this.grantMilestones(String(row.inviter_id))
+      if (row.kind === 'friend') this.grantMilestones(String(row.inviter_id))
     })
     return this.adminReward(id)
   }
@@ -283,6 +314,11 @@ export class InviteProgram {
       if (rank.bonusDays === 0 || confirmed < rank.friends) continue
       const lifetime = rank.bonusDays === 'lifetime'
       const days = lifetime ? 0 : Number(rank.bonusDays)
+      // A year and lifetime Premium wait for the owner (decide): 25–50 paid «friends» is what a farm of alts would buy.
+      if (REVIEWED_MILESTONES.has(rank.id)) {
+        this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, flags, created_at) VALUES (?, ?, ?, 'review', 'milestone', ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now())
+        continue
+      }
       const inserted = this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, created_at, decided_at) VALUES (?, ?, ?, 'granted', ?, ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now(), this.now())
       if (!Number(inserted.changes)) continue
       if (lifetime) this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = MAX(paid_until, excluded.paid_until)').run(inviter, LIFETIME_UNTIL)
@@ -290,8 +326,10 @@ export class InviteProgram {
     }
   }
 
+  /** Adds (or with negative `days` takes back, never below now) days of the paid period. */
   private extend(accountId: string, days: number) {
-    const until = Math.max(this.now(), this.payments.paidUntil(accountId) ?? 0) + days * DAY_MS
+    const current = this.payments.paidUntil(accountId) ?? 0
+    const until = days >= 0 ? Math.max(this.now(), current) + days * DAY_MS : Math.max(this.now(), current + days * DAY_MS)
     this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(accountId, Math.min(until, LIFETIME_UNTIL))
   }
 

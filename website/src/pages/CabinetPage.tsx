@@ -128,6 +128,7 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },
   canceled: { label: 'Отменён', tone: 'danger' },
+  refunded: { label: 'Возвращён', tone: 'danger' },
 }
 const PAYMENT_ID_PATTERN = /^[a-f0-9]{24}$/
 const PAYMENT_POLL_MS = 3_000

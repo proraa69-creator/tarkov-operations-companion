@@ -162,7 +162,9 @@ export function parseLavaEvent(body: unknown): LavaEvent | undefined {
   if (!root) return undefined
   const type = text(root.eventType) ?? text(root.event) ?? text(root.type) ?? ''
   const lower = type.toLowerCase()
-  const kind: LavaEventKind = /cancel/.test(lower) ? 'subscription.cancelled'
+  // Refunds and charge-backs are never a payment or a renewal, whatever else their name says.
+  const kind: LavaEventKind = /refund|chargeback|reversal|dispute/.test(lower) ? 'unknown'
+    : /cancel/.test(lower) ? 'subscription.cancelled'
     : /recurr/.test(lower) && /success|succeed|completed/.test(lower) ? 'recurring.success'
       : /recurr/.test(lower) && /fail/.test(lower) ? 'recurring.failed'
         : /payment/.test(lower) && /success|succeed|completed/.test(lower) ? 'payment.success'

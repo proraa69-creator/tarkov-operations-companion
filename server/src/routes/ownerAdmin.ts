@@ -44,7 +44,7 @@ const pageSchema = z.object({
 const paymentFilterSchema = z.object({
   from: z.string().regex(DAY).optional(),
   to: z.string().regex(DAY).optional(),
-  status: z.enum(['pending', 'succeeded', 'canceled']).optional(),
+  status: z.enum(['pending', 'succeeded', 'canceled', 'refunded']).optional(),
   provider: z.enum(['yookassa', 'lava']).optional(),
   plan: z.enum(['1m', '3m', '6m', '12m']).optional(),
   q: z.string().trim().max(254).optional(),
@@ -121,6 +121,9 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     res.json({ period, rows: admin.series(period) })
   }))
 
+  router.post('/me/admin/payments/:id/refunded', owner('write', (req, res, actor) => {
+    res.json(admin.markRefunded(actor, z.string().regex(/^[a-f0-9]{24}$/).parse(req.params.id)))
+  }))
   router.get('/me/admin/calendar', owner('read', (req, res) => {
     const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.query)
     res.json(admin.calendar(month))

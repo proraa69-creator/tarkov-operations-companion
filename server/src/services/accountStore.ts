@@ -617,7 +617,9 @@ export class AccountStore {
     const invite = this.streamerInvite(token)
     if (!invite) throw new AccountError(404, 'Приглашение не найдено, уже использовано или истекло')
     if (account.kind === 'streamer') throw new AccountError(409, 'Этот аккаунт уже стримерский')
-    const owner = this.holderOfCode(invite.code)
+    // The invitation's own reservation does not count: only another account holding the code blocks it.
+    const holder = this.db.prepare('SELECT id FROM accounts WHERE referral_code = ? OR invite_code = ?').get(invite.code, invite.code) as Row | undefined
+    const owner = holder ? String(holder.id) : undefined
     if (owner && owner !== account.id) throw new AccountError(409, `Код ${invite.code} уже занят`)
     this.db.prepare('UPDATE streamer_invites SET used_by = ?, used_at = ? WHERE digest = ? AND used_at IS NULL').run(account.id, this.now(), tokenDigest(token))
     this.db.prepare("UPDATE accounts SET kind = 'streamer', referral_code = ? WHERE id = ?").run(invite.code, account.id)
@@ -848,7 +850,10 @@ export class AccountStore {
   /** Any account holding the code, including a former streamer: the code stays reserved after the status is taken away. */
   holderOfCode(code: string) {
     const row = this.db.prepare('SELECT id FROM accounts WHERE referral_code = ? OR invite_code = ?').get(code, code) as Row | undefined
-    return row ? String(row.id) : undefined
+    if (row) return String(row.id)
+    // A code reserved by an open streamer invitation cannot be taken as a player's code meanwhile.
+    const invite = this.db.prepare('SELECT 1 FROM streamer_invites WHERE code = ? AND used_at IS NULL AND expires_at > ?').get(code, this.now())
+    return invite ? 'streamer-invite' : undefined
   }
 
   /** The streamer behind a code whose link the owner has not switched off (registrations, visits, «Код приглашения»). */

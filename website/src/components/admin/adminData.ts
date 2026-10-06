@@ -16,6 +16,7 @@ export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },
   canceled: { label: 'Отменён', tone: 'danger' },
+  refunded: { label: 'Возвращён', tone: 'danger' },
 }
 
 export type Failure = { message: string; offline: boolean }

@@ -95,7 +95,7 @@ export interface PlansResponse {
   /** Lava.top prices per plan (major units); `prices: null` — shown on the Lava.top page. */
   foreign?: { currency: 'USD' | 'EUR'; prices: Partial<Record<PlanId, number>> | null } | null
 }
-export type PaymentStatus = 'pending' | 'succeeded' | 'canceled'
+export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 export type PaymentProvider = 'yookassa' | 'lava'
 /** `discountPercent`: the friend's discount (−20 % on the first month by a friend's code). */
 export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
@@ -379,6 +379,7 @@ export const api = {
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
+  adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
   adminLavaEvents: (token: string) => request<AdminLavaEvents>('/me/admin/lava/events', { token }),
   adminLavaConfirm: (token: string, id: number) => request<AdminLavaEvents & { already: boolean; paymentId: string }>(`/me/admin/lava/events/${id}/confirm`, { method: 'POST', token, body: {} }),

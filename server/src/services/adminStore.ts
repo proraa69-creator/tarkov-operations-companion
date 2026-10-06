@@ -48,7 +48,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
-  | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status'
+  | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -56,7 +56,7 @@ export type UserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' |
 export interface PaymentFilter {
   from?: string
   to?: string
-  status?: 'pending' | 'succeeded' | 'canceled'
+  status?: 'pending' | 'succeeded' | 'canceled' | 'refunded'
   provider?: 'yookassa' | 'lava'
   plan?: PlanId
   q?: string
@@ -82,7 +82,7 @@ export interface AdminPayment {
   email: string
   plan: PlanId
   provider: 'yookassa' | 'lava'
-  status: 'pending' | 'succeeded' | 'canceled'
+  status: 'pending' | 'succeeded' | 'canceled' | 'refunded'
   /** Roubles (Lava.top at the owner's rate). */
   amount: number
   /** What the payer paid in his currency (Lava.top: USD/EUR). */
@@ -429,6 +429,18 @@ export class AdminStore {
       return done
     })
     return { already: result.already, paymentId: result.paymentId, ...this.lavaEvents() }
+  }
+
+  /**
+   * «Отметить возврат»: the owner refunded a payment outside the ЮKassa webhook (bank, Lava, by hand). The paid days,
+   * the streamer's share and friend rewards are taken back (PaymentStore.markRefunded). Audited as `payment.refund`.
+   */
+  markRefunded(actor: string, paymentId: string) {
+    const row = this.db.prepare('SELECT p.status, p.plan, a.email FROM payments p JOIN accounts a ON a.id = p.account_id WHERE p.id = ?').get(paymentId) as Row | undefined
+    if (!row) throw new AccountError(404, 'Платёж не найден')
+    if (row.status !== 'succeeded') throw new AccountError(409, 'Отметить возврат можно только у оплаченного платежа')
+    if (this.payments.markRefunded(paymentId)) this.audit(actor, 'payment.refund', String(row.email), { paymentId, plan: String(row.plan) })
+    return { ok: true }
   }
 
   /** «Выдать / продлить подписку на N дней»: from the end of the running paid period (or now), logged with the reason. */

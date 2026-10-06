@@ -189,6 +189,11 @@ test('50 confirmed friends make Premium lifelong (rank Legend)', async () => {
   for (const reward of t.invites.adminList('review', 500, 0).rewards) t.invites.decide('owner@example.com', reward.id, 'approve')
   t.advance(HOLD_MS)
   t.invites.release()
+  // A year (25) and lifetime (50) wait for the owner's review; then they are granted.
+  const milestones = t.invites.adminList('review', 500, 0).rewards.filter((reward) => reward.kind === 'raid-commander' || reward.kind === 'legend')
+  assert.deepEqual(milestones.map((reward) => reward.kind).sort(), ['legend', 'raid-commander'])
+  assert.notEqual(t.paidUntil(inviter), LIFETIME_UNTIL, 'not before the review')
+  for (const reward of milestones) t.invites.decide('owner@example.com', reward.id, 'approve')
   const program = t.invites.program(inviter)
   assert.deepEqual([program.confirmed, program.rank?.id, program.next], [50, 'legend', null])
   assert.equal(t.paidUntil(inviter), LIFETIME_UNTIL)
@@ -233,4 +238,33 @@ test('routes: the cabinet program, the friend discount in /v1/payments and the o
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
+})
+
+test('refunds take rewards back; the friend discount is for one payment; e-mail aliases are flagged', async () => {
+  const t = await setup()
+  const inviter = await t.register('me@gmail.com')
+  const code = t.invites.code(inviter)
+  const alias = await t.register('m.e+alt@gmail.com', code, '10.9.0.1')
+  await t.pay(alias)
+  assert.deepEqual(t.invites.adminList(undefined, 10, 0).rewards.map((reward) => [reward.status, reward.flags.join(',')]), [['review', 'same-email']])
+
+  const friend = await t.register('friend@example.com', code, '10.9.0.2')
+  // Two discounted invoices opened before paying: only the first one gets the discount.
+  const first = await t.payments.create(t.accounts.billingInfo(friend), '1m', 'https://raidos.example.com', { version: '2026-10-06' }, undefined, { percent: 20 })
+  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '240.00', currency: 'RUB' })
+  await t.payments.create(t.accounts.billingInfo(friend), '1m', 'https://raidos.example.com', { version: '2026-10-06' }, undefined, { percent: 20 })
+  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '300.00', currency: 'RUB' })
+  const providerId = new URL(first.confirmationUrl).searchParams.get('orderId')!
+  t.yoo.pay(providerId)
+  await t.payments.sync(providerId)
+  t.advance(HOLD_MS)
+  t.invites.release()
+  const before = t.paidUntil(inviter)
+  assert.equal(before, t.now() + 7 * DAY)
+  // The friend's payment is refunded: the reward is cancelled, its 7 days and the friend's month are taken back.
+  assert.equal(t.payments.markRefunded(first.paymentId), true)
+  assert.equal(t.payments.markRefunded(first.paymentId), false, 'once')
+  assert.equal(t.paidUntil(inviter), t.now())
+  assert.equal(t.payments.list(friend).find((item) => item.id === first.paymentId)?.status, 'refunded')
+  assert.equal(t.invites.adminList('canceled', 10, 0).rewards[0]?.friend, 'friend@example.com')
 })

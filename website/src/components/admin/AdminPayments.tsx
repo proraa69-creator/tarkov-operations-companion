@@ -44,6 +44,10 @@ export function AdminPayments() {
   const key = JSON.stringify(filter)
   const payments = useAdminData(useCallback((t: string) => api.adminPayments(t, JSON.parse(key) as AdminPaymentFilter, PAGE, page * PAGE), [key, page]))
   const data = payments.data
+  async function markRefunded(id: string, email: string) {
+    if (!token || !window.confirm(`Отметить платёж ${email} как возвращённый?\n\nОплаченные дни будут сняты, доля стримера и награда за друга отменятся.`)) return
+    try { await api.adminMarkRefunded(token, id); await payments.refresh() } catch (reason) { window.alert(failure(reason).message) }
+  }
 
   const change = <T,>(setter: (value: T) => void) => (value: T) => { setter(value); setPage(0) }
   const submitSearch = (event: FormEvent) => { event.preventDefault(); setQ(search.trim()); setPage(0) }
@@ -111,7 +115,7 @@ export function AdminPayments() {
                 <thead>
                   <tr>
                     <th scope="col">Создан</th><th scope="col">E-mail</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th>
-                    <th scope="col" className="num">Сумма, ₽</th><th scope="col">Стример</th><th scope="col">Оплачен</th>
+                    <th scope="col" className="num">Сумма, ₽</th><th scope="col">Стример</th><th scope="col">Оплачен</th><th scope="col" aria-label="Действия" />
                   </tr>
                 </thead>
                 <tbody>
@@ -125,6 +129,9 @@ export function AdminPayments() {
                       <td className="num mono">{formatRub(item.amount)}{item.original ? <span className="dim"> · {formatRub(item.original.amount)} {item.original.currency}</span> : null}</td>
                       <td className="mono">{item.referralCode ? <>{item.referralCode}{item.streamerEarning !== undefined ? <span className="dim"> · {formatRub(item.streamerEarning)} ₽</span> : null}</> : '—'}</td>
                       <td className="mono">{item.paidAt ? dateTime.format(new Date(item.paidAt)) : '—'}</td>
+                      <td>{item.status === 'succeeded' && (
+                        <button type="button" className="button small ghost" title="Деньги вернули мимо ЮKassa (банк, вручную): забрать оплаченные дни, долю стримера и награду за друга" onClick={() => void markRefunded(item.id, item.email)}>Отметить возврат</button>
+                      )}</td>
                     </tr>
                   ))}
                 </tbody>

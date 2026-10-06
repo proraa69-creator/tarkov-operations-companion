@@ -138,7 +138,8 @@ export function planPrice(monthPrice: number, plan: PlanId) {
 
 /** `price` in roubles, `null` when only foreign payments are on (the price is then shown by Lava.top). */
 export interface PlanView { id: PlanId; months: number; price: number | null; currency: 'RUB'; discountPercent: number }
-export type PaymentStatus = 'pending' | 'succeeded' | 'canceled'
+/** `refunded`: the money went back (ЮKassa refund, or marked by the owner); the paid days and shares are taken back. */
+export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 export type PaymentProvider = 'yookassa' | 'lava'
 export interface PaymentView {
   id: string
@@ -279,6 +280,7 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['list_amount', 'INTEGER'],
   ['discount_percent', 'REAL'],
   ['method_key', 'TEXT'],
+  ['refunded_at', 'INTEGER'],
 ]
 
 /** A payment that has just succeeded (PaymentStore.onSucceeded). */
@@ -302,6 +304,49 @@ export class PaymentStore {
   private readonly notify: (notice: AutopayNotice) => void
   private renewing = false
   private readonly succeededListeners: Array<(payment: SucceededPayment) => void> = []
+
+  private readonly refundedListeners: Array<(payment: { id: string; accountId: string }) => void> = []
+  /** Called once per payment when it is refunded, inside the same transaction (services/invites.ts). */
+  onRefunded(listener: (payment: { id: string; accountId: string }) => void) {
+    this.refundedListeners.push(listener)
+  }
+
+  /**
+   * The money of a succeeded payment went back: the payment becomes `refunded`, the plan's days are taken off the paid
+   * period (never below now), the streamer's share of it is dropped and listeners (friend rewards) are told. Once only.
+   */
+  markRefunded(paymentId: string) {
+    return transaction(this.db, () => {
+      const row = this.db.prepare("SELECT * FROM payments WHERE id = ? AND status = 'succeeded'").get(paymentId) as Row | undefined
+      if (!row) return false
+      this.db.prepare("UPDATE payments SET status = 'refunded', refunded_at = ?, streamer_earning = 0 WHERE id = ? AND status = 'succeeded'").run(this.now(), paymentId)
+      const accountId = String(row.account_id)
+      const paidUntil = this.paidUntil(accountId)
+      if (paidUntil !== undefined) {
+        const until = Math.max(this.now(), paidUntil - PLAN_MONTHS[row.plan as PlanId] * MONTH_MS)
+        this.db.prepare('UPDATE subscriptions SET paid_until = ? WHERE account_id = ?').run(until, accountId)
+      }
+      for (const listener of this.refundedListeners) {
+        try { listener({ id: paymentId, accountId }) } catch (error) { console.error('Refund listener failed', error instanceof Error ? error.message : 'unknown error') }
+      }
+      return true
+    })
+  }
+
+  /**
+   * ЮKassa `refund.succeeded` webhook: the refund is re-read from the API (the body is only a hint) and a FULL refund
+   * of one of our succeeded payments marks it refunded. A partial refund changes nothing and is logged for the owner.
+   */
+  async syncRefund(refundId: string) {
+    if (!this.config || !/^[A-Za-z0-9-]{10,64}$/.test(refundId)) return
+    const refund = await this.call('GET', `/refunds/${encodeURIComponent(refundId)}`)
+    if (refund.status !== 'succeeded' || typeof refund.payment_id !== 'string') return
+    const row = this.db.prepare("SELECT * FROM payments WHERE provider_id = ? AND (provider IS NULL OR provider = 'yookassa') AND status = 'succeeded'").get(refund.payment_id) as Row | undefined
+    if (!row) return
+    const amount = refund.amount as Row | undefined
+    if (amount?.currency === 'RUB' && amount.value === rub(Number(row.amount))) this.markRefunded(String(row.id))
+    else console.warn(`ЮKassa partial refund ${refundId.slice(-6)} for payment ${String(row.id)}: ${String(amount?.value)} ${String(amount?.currency)} — not applied, check it by hand.`)
+  }
 
   /** Called once per payment when it succeeds, inside the same transaction (services/invites.ts). */
   onSucceeded(listener: (payment: SucceededPayment) => void) {
@@ -454,7 +499,9 @@ export class PaymentStore {
     const id = randomBytes(12).toString('hex')
     const listAmount = planPrice(config.monthPrice, plan)
     // The friend's discount (services/invites.ts) is only for the first month.
-    const percent = discount && plan === '1m' && discount.percent > 0 && discount.percent < 100 ? discount.percent : undefined
+    // …and for one payment only: not while another discounted payment of this account is open or already paid.
+    const discountUsed = this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND discount_percent IS NOT NULL AND (status IN ('succeeded', 'refunded') OR (status = 'pending' AND created_at > ?))").get(account.id, this.now() - DAY_MS) !== undefined
+    const percent = discount && !discountUsed && plan === '1m' && discount.percent > 0 && discount.percent < 100 ? discount.percent : undefined
     const amount = percent === undefined ? listAmount : Math.round(listAmount * (100 - percent) / 100)
     const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}${percent === undefined ? '' : ` (скидка ${percent} % по коду друга)`}`
     const body: Record<string, unknown> = {

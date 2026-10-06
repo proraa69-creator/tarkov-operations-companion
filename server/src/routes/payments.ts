@@ -10,7 +10,7 @@
  *                                    for ЮKassa, required for Lava.top, whose subscriptions renew by themselves)
  *   POST /autopay/cancel             Bearer -> 200 { autopay } («Отменить автопродление», one click)
  *   GET  /:id                        Bearer -> 200 payment (re-checked with ЮKassa while pending)
- *   POST /yookassa/webhook           ЮKassa notification -> 200 (the body is only a hint: the payment is re-read)
+ *   POST /yookassa/webhook           ЮKassa notification -> 200 (the body is only a hint: the payment / refund is re-read)
  *   GET  /lava/webhook               plain-text «the address works» for a browser (nothing applied)
  *   POST /lava/webhook               Lava.top notification, X-Api-Key or Basic auth with the webhook key -> 200 / 401
  */
@@ -112,6 +112,8 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const parsed = webhookSchema.safeParse(req.body)
     res.status(200).json({ ok: true })
     if (parsed.success && parsed.data.event.startsWith('payment.')) void payments.sync(parsed.data.object.id).catch(() => {})
+    // A refund takes the paid days, the streamer's share and friend rewards back (re-read from the ЮKassa API).
+    if (parsed.success && parsed.data.event === 'refund.succeeded') void payments.syncRefund(parsed.data.object.id).catch(() => {})
   })
 
   // Opened in a browser (GET): say that the address is right and that Lava.top sends POST here. Nothing is read or applied.
