@@ -6,6 +6,8 @@
  *   GET  /me/admin/overview                          -> users, subscriptions, revenue (ЮKassa / Lava / total), payouts
  *   GET  /me/admin/series?period=day|month|year      -> { period, rows: [{ period, registrations, payments, revenue,
  *                                                         yookassa, lava, plans: { 1m: { count, revenue }, … } }] }
+ *   GET  /me/admin/calendar?month=YYYY-MM            -> { month, today, days: [{ date, registrations, payments, revenue, yookassa, lava, plans }] }
+ *   GET  /me/admin/day?date=YYYY-MM-DD               -> { date, totals, registrations, payments, grants, invites } (the calendar day window)
  *   GET  /me/admin/payments?from&to&status&provider&plan&q&limit&offset -> { payments, total, totals }
  *   GET  /me/admin/payments.csv?…same filters        -> text/csv (UTF-8 BOM, «;»)
  *   GET  /me/admin/users?q&filter&limit&offset       -> { users, total }
@@ -117,6 +119,16 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.get('/me/admin/series', owner('read', (req, res) => {
     const { period } = periodSchema.parse(req.query)
     res.json({ period, rows: admin.series(period) })
+  }))
+
+  router.get('/me/admin/calendar', owner('read', (req, res) => {
+    const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.query)
+    res.json(admin.calendar(month))
+  }))
+  router.get('/me/admin/day', owner('read', (req, res) => {
+    const { date } = z.object({ date: z.string().regex(DAY) }).parse(req.query)
+    if (Number.isNaN(Date.parse(`${date}T00:00:00Z`))) throw new AccountError(400, 'Некорректная дата')
+    res.json(admin.day(date))
   }))
 
   router.get('/me/admin/payments', owner('read', (req, res) => {

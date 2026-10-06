@@ -223,6 +223,75 @@ export class AdminStore {
     return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
   }
 
+  /**
+   * «Календарь» in «Сводка»: every Moscow day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
+   * (ЮKassa / Lava separately, per plan). Days after today are included with zeros.
+   */
+  calendar(month: string) {
+    const first = Date.parse(`${month}-01T00:00:00.000Z`)
+    const next = new Date(first)
+    next.setUTCMonth(next.getUTCMonth() + 1)
+    const daysInMonth = Math.round((next.getTime() - first) / DAY_MS)
+    const start = first - MSK_MS
+    const end = next.getTime() - MSK_MS
+    type Day = { date: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<PlanId, { count: number; revenue: number }> }
+    const days: Day[] = Array.from({ length: daysInMonth }, (_, index) => ({
+      date: `${month}-${String(index + 1).padStart(2, '0')}`, registrations: 0, payments: 0, revenue: 0, yookassa: 0, lava: 0,
+      plans: Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Day['plans'],
+    }))
+    const byDate = new Map(days.map((day) => [day.date, day]))
+    const key = periodKeySql('day')
+    for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE created_at >= ? AND created_at < ? GROUP BY k`).all(start, end) as Row[]) {
+      const day = byDate.get(String(item.k))
+      if (day) day.registrations = Number(item.n)
+    }
+    for (const item of this.db.prepare(`SELECT ${key('paid_at')} AS k, plan, CASE WHEN provider = 'lava' THEN 'lava' ELSE 'yookassa' END AS p, COUNT(*) AS n, SUM(amount) AS total FROM payments WHERE status = 'succeeded' AND paid_at >= ? AND paid_at < ? GROUP BY k, plan, p`).all(start, end) as Row[]) {
+      const day = byDate.get(String(item.k))
+      if (!day) continue
+      const total = rub(item.total)
+      day.payments += Number(item.n)
+      day.revenue = Math.round((day.revenue + total) * 100) / 100
+      if (item.p === 'lava') day.lava = Math.round((day.lava + total) * 100) / 100
+      else day.yookassa = Math.round((day.yookassa + total) * 100) / 100
+      const plan = day.plans[String(item.plan) as PlanId]
+      if (plan) { plan.count += Number(item.n); plan.revenue = Math.round((plan.revenue + total) * 100) / 100 }
+    }
+    return { month, today: mskKey(this.now()), days }
+  }
+
+  /**
+   * The window that opens on a calendar day (YYYY-MM-DD, Moscow): who registered, every payment started or paid that day,
+   * the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
+   */
+  day(date: string) {
+    const { start, end } = mskDayRange(date)
+    const summary = this.calendar(date.slice(0, 7)).days.find((day) => day.date === date)!
+    const hasInvites = this.tableExists('invite_rewards')
+    const registrations = (this.db.prepare(`SELECT id, email, kind, created_at, referred_by, ${hasInvites || this.hasColumn('accounts', 'invited_by') ? 'invited_by' : 'NULL AS invited_by'} FROM accounts WHERE created_at >= ? AND created_at < ? AND deleted_at IS NULL ORDER BY created_at, rowid LIMIT 200`).all(start, end) as Row[])
+      .map((row) => ({
+        id: String(row.id), email: String(row.email), kind: row.kind === 'streamer' ? 'streamer' as const : 'user' as const, createdAt: iso(row.created_at)!,
+        ...(row.referred_by == null ? {} : { referredBy: String(row.referred_by) }),
+        ...(row.invited_by == null ? {} : { invitedByFriend: true as const }),
+      }))
+    const payments = (this.db.prepare('SELECT p.*, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id WHERE (p.created_at >= ? AND p.created_at < ?) OR (p.paid_at >= ? AND p.paid_at < ?) ORDER BY p.created_at, p.rowid LIMIT 500').all(start, end, start, end) as Row[]).map(toPayment)
+    const earned = Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ? AND paid_at < ?").get(start, end) as Row).n)
+    const grants = (this.db.prepare('SELECT g.*, a.email AS email FROM owner_subscription_grants g JOIN accounts a ON a.id = g.account_id WHERE g.at >= ? AND g.at < ? ORDER BY g.at, g.id').all(start, end) as Row[])
+      .map((row) => ({ email: String(row.email), days: Number(row.days), reason: String(row.reason), actor: String(row.actor), at: iso(row.at)! }))
+    const invites = hasInvites
+      ? (this.db.prepare("SELECT r.kind, r.days, r.status, r.created_at, r.decided_at, i.email AS inviter FROM invite_rewards r JOIN accounts i ON i.id = r.inviter_id WHERE (r.created_at >= ? AND r.created_at < ?) OR (r.decided_at >= ? AND r.decided_at < ?) ORDER BY r.created_at, r.id LIMIT 200").all(start, end, start, end) as Row[])
+        .map((row) => ({ inviter: String(row.inviter), kind: String(row.kind), days: row.kind === 'legend' ? 'lifetime' as const : Number(row.days), status: String(row.status), createdAt: iso(row.created_at)!, ...(row.decided_at == null ? {} : { decidedAt: iso(row.decided_at) }) }))
+      : []
+    return {
+      date,
+      totals: { registrations: summary.registrations, payments: summary.payments, revenue: summary.revenue, yookassa: summary.yookassa, lava: summary.lava, streamerEarnings: rub(earned), plans: summary.plans },
+      registrations, payments, grants, invites,
+    }
+  }
+
+  private hasColumn(table: string, column: string) {
+    return (this.db.prepare(`PRAGMA table_info(${table})`).all() as Row[]).some((row) => row.name === column)
+  }
+
   // ------------------------------------------------------------------------------------------------------------
   // Payments
   // ------------------------------------------------------------------------------------------------------------

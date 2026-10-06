@@ -427,3 +427,44 @@ test('«Удалить аккаунт»: password required, personal data erased
     assert.equal(typeof (await t.register('player@example.com')), 'string')
   } finally { await t.close() }
 })
+
+test('calendar: every day of the month with revenue; a day opens with registrations, payments and grants', async () => {
+  const t = await setup()
+  try {
+    await t.register('streamer@example.com')
+    t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+    const a = await t.register('a@example.com', 'HUNTER')
+    await t.pay(a, '1m')
+    t.advance(DAY)
+    const b = await t.register('b@example.com')
+    await t.pay(b, '12m')
+    const owner = await t.login('owner@example.com')
+    const bId = t.accounts.authenticate(b)!
+    await t.call('POST', `/accounts/me/admin/users/${bId}/grant`, owner, { days: 5, reason: 'компенсация' })
+
+    const calendar = (await t.call('GET', '/accounts/me/admin/calendar?month=2026-10', owner)).json as unknown as { month: string; today: string; days: Array<{ date: string; registrations: number; payments: number; revenue: number; plans: Record<string, { count: number }> }> }
+    assert.equal(calendar.days.length, 31)
+    assert.equal(calendar.today, '2026-10-02')
+    const byDate = Object.fromEntries(calendar.days.map((day) => [day.date, day]))
+    assert.deepEqual([byDate['2026-10-01']!.registrations, byDate['2026-10-01']!.payments, byDate['2026-10-01']!.revenue], [3, 1, 300])
+    assert.deepEqual([byDate['2026-10-02']!.registrations, byDate['2026-10-02']!.payments, byDate['2026-10-02']!.revenue, byDate['2026-10-02']!.plans['12m']!.count], [1, 1, 2412, 1])
+    assert.equal(byDate['2026-10-31']!.payments, 0)
+    assert.equal(((await t.call('GET', '/accounts/me/admin/calendar?month=2026-02', owner)).json as unknown as { days: unknown[] }).days.length, 28)
+    assert.equal((await t.call('GET', '/accounts/me/admin/calendar?month=2026-13', owner)).status, 400)
+
+    const day = (await t.call('GET', '/accounts/me/admin/day?date=2026-10-02', owner)).json as unknown as {
+      totals: { registrations: number; payments: number; revenue: number }
+      registrations: Array<{ email: string; referredBy?: string }>
+      payments: Array<{ email: string; plan: string; status: string; amount: number }>
+      grants: Array<{ email: string; days: number; reason: string }>
+    }
+    assert.deepEqual([day.totals.registrations, day.totals.payments, day.totals.revenue], [1, 1, 2412])
+    assert.deepEqual(day.registrations.map((item) => item.email), ['b@example.com'])
+    assert.deepEqual(day.payments.map((item) => [item.email, item.plan, item.status, item.amount]), [['b@example.com', '12m', 'succeeded', 2412]])
+    assert.deepEqual(day.grants.map((item) => [item.email, item.days, item.reason]), [['b@example.com', 5, 'компенсация']])
+    const first = (await t.call('GET', '/accounts/me/admin/day?date=2026-10-01', owner)).json as unknown as { registrations: Array<{ email: string; referredBy?: string }> }
+    assert.deepEqual(first.registrations.find((item) => item.email === 'a@example.com')?.referredBy, 'HUNTER')
+    assert.equal((await t.call('GET', '/accounts/me/admin/day?date=2026-10-02', await t.login('a@example.com'))).status, 404)
+    assert.equal((await t.call('GET', '/accounts/me/admin/day?date=nope', owner)).status, 400)
+  } finally { await t.close() }
+})
