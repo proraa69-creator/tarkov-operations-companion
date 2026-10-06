@@ -132,7 +132,7 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
           {program.next && <span className="mono dim">{numberFormat.format(program.confirmed)} / {numberFormat.format(program.next.friends)}</span>}
         </div>
         <div className="invite-bar" role="progressbar" aria-label="Прогресс до следующего ранга" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}>
-          <span style={{ width: `${share * 100}%` }} />
+          <span style={{ transform: `scaleX(${share})` }} />
         </div>
         {waiting > 0 && <span className="field-hint">Ещё {waiting} {plural(waiting, 'оплата', 'оплаты', 'оплат')} на проверке — засчитаются после {program.holdDays} {plural(program.holdDays, 'дня', 'дней', 'дней')}.</span>}
       </div>

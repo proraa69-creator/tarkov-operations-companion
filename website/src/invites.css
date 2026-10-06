@@ -8,7 +8,7 @@
 .invite-progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 14px; }
 .invite-progress-text { color: var(--text); font-weight: 650; }
 .invite-bar { height: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; background: var(--surf-0); }
-.invite-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brass), var(--brass-strong)); transition: width .4s var(--ease-out); }
+.invite-bar span { display: block; width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brass), var(--brass-strong)); transform-origin: left center; transition: transform .4s var(--ease-out); }
 
 /* Ranks ladder */
 .rank-ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
