@@ -1,7 +1,7 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, ShieldCheck, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
+import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
@@ -16,6 +16,8 @@ import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
+import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
+import '../invites.css'
 
 const MODES: { id: AccountMode; label: string; color: string }[] = [
   { id: 'pvp', label: 'PvP', color: 'var(--brass)' },
@@ -106,6 +108,7 @@ export function CabinetPage() {
           <div className="cabinet-col">
             {account.kind === 'streamer' && account.referralCode && <ReferralProgramPanel account={account} />}
             <SubscriptionPanel account={account} />
+            {account.kind === 'user' && <InviteFriendsPanel />}
             <NicknamesPanel account={account} />
           </div>
           <div className="cabinet-col">
@@ -238,6 +241,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [historyVersion, setHistoryVersion] = useState(0)
   const [paying, setPaying] = useState<PlanId | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
+  const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
@@ -257,9 +261,10 @@ function SubscriptionPanel({ account }: { account: Account }) {
     if (!token) return
     let cancelled = false
     // The history is secondary: on errors the table simply stays hidden.
-    api.payments(token).then((next) => { if (!cancelled) { setHistory(next.payments); setAutopay(next.autopay ?? null) } }, () => undefined)
+    api.payments(token).then((next) => { if (!cancelled) { setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null) } }, () => undefined)
     return () => { cancelled = true }
-  }, [token, historyVersion])
+    // A friend's code entered below («Код приглашения») changes referredBy: reload for the friend's price.
+  }, [token, historyVersion, account.referredBy])
 
   // «Оплатить» goes straight to ЮKassa: a one-off payment, no checkboxes. Pressing it accepts the offer (the text under
   // the plans says so). Without the separate autopayment consent the law requires, nothing is ever charged again.
@@ -344,15 +349,27 @@ function SubscriptionPanel({ account }: { account: Account }) {
           <>
             <div className="plan-grid">
               {plans.plans.map((plan) => {
-                const best = plan.discountPercent > 0
+                const friend = friendDiscount && plan.id === friendDiscount.plan && plan.price !== null ? friendDiscount.percent : 0
+                const best = plan.discountPercent > 0 || friend > 0
+                // The same rounding as the server (kopecks): server/src/services/paymentStore.ts create().
+                const friendPrice = friend && plan.price !== null ? Math.round(plan.price * (100 - friend)) / 100 : null
                 return (
                   <div key={plan.id} className={`plan-card${best ? ' is-best' : ''}`}>
-                    {best && <span className="tag brass plan-badge">−{plan.discountPercent}%</span>}
+                    {best && <span className="tag brass plan-badge">−{friend || plan.discountPercent}%</span>}
                     <div className="plan-head">
                       <span className="stat-label">{PLAN_LABELS[plan.id] ?? `${plan.months} мес.`}</span>
                     </div>
-                    <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
-                    <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
+                    {friendPrice !== null && plan.price !== null ? (
+                      <>
+                        <div className="plan-price mono"><s className="plan-old" aria-label={`Без скидки ${formatMoney(plan.price, plan.currency)}`}>{formatMoney(plan.price, plan.currency)}</s> {formatMoney(friendPrice, plan.currency)}</div>
+                        <div className="plan-friend-note">−{friend} % по коду друга, только первый месяц</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
+                        <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
+                      </>
+                    )}
                     <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={locked} onClick={() => void pay(plan.id)}>
                       {paying === plan.id ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CreditCard aria-hidden="true" />}Оплатить
                     </button>
@@ -396,7 +413,7 @@ function PaymentHistory({ payments }: { payments: Payment[] }) {
               return (
                 <tr key={payment.id}>
                   <td className="mono">{shortDateFormat.format(new Date(payment.paidAt ?? payment.createdAt))}</td>
-                  <td>{PLAN_LABELS[payment.plan]?.replace(/ (месяц|месяца|месяцев)$/, ' мес.') ?? payment.plan}{payment.renewal ? ' · автопродление' : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}</td>
+                  <td>{PLAN_LABELS[payment.plan]?.replace(/ (месяц|месяца|месяцев)$/, ' мес.') ?? payment.plan}{payment.renewal ? ' · автопродление' : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}{payment.discountPercent ? <span className="tag brass tag-mini">скидка {payment.discountPercent} %</span> : null}</td>
                   <td className="num mono">{formatMoney(payment.amount, payment.currency)}</td>
                   <td><span className={`tag ${status.tone}`}>{status.label}</span></td>
                 </tr>
@@ -566,7 +583,7 @@ function InviteCodePanel({ account }: { account: Account }) {
           </dl>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Пришли от автора или стримера? Укажите его код — это можно сделать один раз.</p>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код стримера или друга? Укажите его — это можно сделать один раз. Код стримера — 3 дня бесплатно. Код друга — скидка 20 % на первый месяц, только до первой оплаты.</p>
             <div className="inline-form">
               <input className="input code" aria-label="Код приглашения" value={code} maxLength={24} spellCheck={false} autoComplete="off" placeholder="КОД" onChange={(e) => setCode(e.target.value)} />
               <button type="submit" className="button primary" disabled={busy || !code.trim()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}Применить</button>

@@ -76,20 +76,21 @@ const ACTION_LABEL: Record<string, string> = {
   'streamer.invite': 'Приглашение стримера',
   'payout.decide': 'Решение по выплате',
   'payout.limits': 'Интервал автовыплат',
+  'invite.decide': 'Решение по награде за друга',
   'payments.export': 'Выгрузка платежей CSV',
   'device.revoke': 'Отключено устройство',
   'server.update-check': 'Проверка обновления сервера',
   'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
-const DETAIL_LABEL: Record<string, string> = { days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
+const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
 
-const VALUE_LABEL: Record<string, string> = { paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён' }
+const VALUE_LABEL: Record<string, string> = { approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён' }
 
 function detailText(details: Record<string, unknown> | undefined) {
   if (!details) return ''
   return Object.entries(details).map(([key, value]) => {
-    const text = typeof value === 'boolean' ? (value ? 'да' : 'нет') : key === 'paidUntil' && typeof value === 'string' ? dateTime.format(new Date(value)) : key === 'status' ? VALUE_LABEL[String(value)] ?? String(value) : String(value)
+    const text = typeof value === 'boolean' ? (value ? 'да' : 'нет') : key === 'paidUntil' && typeof value === 'string' ? dateTime.format(new Date(value)) : key === 'status' || key === 'decision' ? VALUE_LABEL[String(value)] ?? String(value) : String(value)
     return `${DETAIL_LABEL[key] ?? key}: ${text}`
   }).join(' · ')
 }

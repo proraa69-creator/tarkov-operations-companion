@@ -97,7 +97,10 @@ export interface PlansResponse {
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled'
 export type PaymentProvider = 'yookassa' | 'lava'
-export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true }
+/** `discountPercent`: the friend's discount (−20 % on the first month by a friend's code). */
+export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
+/** GET /v1/payments → friendDiscount: the first payment by a friend's code is cheaper (plan 1m only). */
+export interface FriendDiscount { percent: number; plan: '1m' }
 export interface Autopay {
   provider: PaymentProvider
   plan: PlanId
@@ -250,6 +253,49 @@ export interface LavaEvent {
 }
 export interface LavaPendingInvoice { paymentId: string; email: string; plan: PlanId; createdAt: string; ageMinutes: number; contract?: string; expected?: { amount: number; currency: string } }
 export interface AdminLavaEvents { configured: boolean; events: LavaEvent[]; pending: LavaPendingInvoice[] }
+/** «Пригласи друга» (server/src/services/invites.ts, routes/invites.ts). Only for accounts of kind 'user'. */
+export type InviteRankId = 'scout' | 'operator' | 'squad-leader' | 'raid-commander' | 'legend'
+export type InviteRewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
+export interface InviteRank { id: InviteRankId; title: string; friends: number; bonusDays: number | 'lifetime' }
+export interface InviteReward {
+  id: number
+  kind: 'friend' | InviteRankId
+  days: number | 'lifetime'
+  status: InviteRewardStatus
+  createdAt: string
+  /** When a pending reward is granted at the earliest (after the 14-day check). */
+  releaseAt?: string
+  decidedAt?: string
+  /** The friend's e-mail, masked (a***@mail.ru) in the cabinet, full in the admin panel. */
+  friend?: string
+}
+export interface InviteProgram {
+  code: string
+  discountPercent: number
+  rewardDays: number
+  holdDays: number
+  /** Registered by the code. */
+  invited: number
+  /** Friends who paid (rewards pending, in review or granted). */
+  paid: number
+  /** Rewards granted after the check. */
+  confirmed: number
+  rank: { id: InviteRankId; title: string } | null
+  next: InviteRank | null
+  ranks: InviteRank[]
+  rewards: InviteReward[]
+}
+export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'payment-or-account'
+export interface AdminInviteReward extends InviteReward {
+  inviter: string
+  inviterCode?: string
+  payment?: { amount: number; status: string }
+  flags: string[]
+  decidedBy?: string
+  comment?: string
+}
+export interface AdminInviteRewards { rewards: AdminInviteReward[]; total: number; counts: Partial<Record<InviteRewardStatus, number>> }
+
 export interface AdminAuditEntry { id: number; at: string; actor: string; action: string; target?: string; details?: Record<string, unknown> }
 
 function adminQuery(params: Record<string, string | number | undefined>) {
@@ -305,7 +351,8 @@ export const api = {
   authConfig: () => request<AuthConfig>('/auth-config'),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   setNicknames: (token: string, nicknames: Partial<Record<AccountMode, string>>) => request<Account>('/me/nicknames', { method: 'PUT', token, body: nicknames }),
-  referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),
+  /** `kind`: whose code it is — a streamer's (3 days free) or a player's (friend: −20 % on the first month). Missing on older servers. */
+  referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string; kind?: 'streamer' | 'friend' }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),
   referralCampaigns: (token: string) => request<{ campaigns: CampaignStats[] }>('/me/referral-campaigns', { token }),
   /** Records that the signed-in user accepted the documents of `version` (website/src/legal/documents.ts). */
   recordConsent: (token: string, kind: 'registration' | 'payment', version: string) => request<unknown>('/me/consents', { method: 'POST', token, body: { kind, version } }),
@@ -338,6 +385,8 @@ export const api = {
   adminLavaSettings: (token: string) => request<LavaSettingsView>('/me/admin/payment-settings/lava', { token }),
   adminSaveLavaSettings: (token: string, body: LavaSettingsInput) => request<LavaSettingsView>('/me/admin/payment-settings/lava', { method: 'PUT', token, body }),
   adminTestLava: (token: string) => request<LavaTestResult>('/me/admin/payment-settings/lava/test', { method: 'POST', token, body: {}, timeoutMs: 30_000 }),
+  adminInviteRewards: (token: string, status: InviteRewardStatus | undefined, limit: number, offset: number) => request<AdminInviteRewards>(`/me/admin/invite-rewards${adminQuery({ status, limit, offset })}`, { token }),
+  adminDecideInviteReward: (token: string, id: number, decision: 'approve' | 'cancel', comment?: string) => request<AdminInviteReward>(`/me/admin/invite-rewards/${id}/decide`, { method: 'POST', token, body: { decision, ...(comment ? { comment } : {}) } }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
@@ -355,7 +404,10 @@ export const api = {
   /** «Отменить автопродление»: ЮKassa — the saved method is deleted; Lava.top — the subscription is cancelled. */
   cancelAutopay: (token: string) => request<{ autopay: Autopay | null }>('/autopay/cancel', { method: 'POST', token, root: '/v1/payments' }),
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
-  payments: (token: string) => request<{ payments: Payment[]; autopay?: Autopay | null }>('', { token, root: '/v1/payments' }),
+  payments: (token: string) => request<{ payments: Payment[]; autopay?: Autopay | null; friendDiscount?: FriendDiscount | null }>('', { token, root: '/v1/payments' }),
+  /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
+  invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
+  setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),
 }
 
 /** «Отряд» (server/src/routes/squads.ts): members are shown only by the nickname of the chosen mode. */

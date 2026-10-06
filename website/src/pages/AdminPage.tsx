@@ -1,6 +1,7 @@
-import { ArrowLeft, Banknote, Crown, DownloadCloud, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, Crown, DownloadCloud, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
+import { AdminInvites } from '../components/admin/AdminInvites'
 import { AdminPayments } from '../components/admin/AdminPayments'
 import { AdminAudit, AdminSales } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
@@ -18,6 +19,7 @@ const TABS = [
   { id: 'users', label: 'Пользователи', icon: Users },
   { id: 'streamers', label: 'Стримеры', icon: Radio },
   { id: 'payouts', label: 'Выплаты', icon: Banknote },
+  { id: 'invites', label: 'Друзья', icon: HeartHandshake },
   { id: 'sales', label: 'Настройки продаж', icon: Settings2 },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
@@ -81,6 +83,7 @@ export function AdminPage() {
               <div className="panel-body owner-body"><OwnerPayoutsList /></div>
             </section>
           )}
+          {tab === 'invites' && <AdminInvites />}
           {tab === 'sales' && <AdminSales />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}

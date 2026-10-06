@@ -1,0 +1,57 @@
+/* «Пригласи друга»: the cabinet panel (components/InviteFriendsPanel.tsx), the friend's price, the home page section. The site has one (dark) theme. */
+.invite-rules { margin: 0; color: var(--text-muted); font-size: 13.5px; line-height: 1.55; }
+.invite-change { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rank-badge { white-space: nowrap; }
+
+/* Progress to the next rank */
+.invite-progress { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #4e4630; border-radius: 11px; background: linear-gradient(160deg, rgb(117 99 60 / 18%), var(--surf-1) 70%); }
+.invite-progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+.invite-progress-text { color: var(--text); font-weight: 650; }
+.invite-bar { height: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; background: var(--surf-0); }
+.invite-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brass), var(--brass-strong)); transition: width .4s var(--ease-out); }
+
+/* Ranks ladder */
+.rank-ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.rank-step { position: relative; display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-1); min-width: 0; }
+.rank-step.is-reached { border-color: #625537; background: linear-gradient(160deg, rgb(117 99 60 / 24%), var(--surf-1) 72%); }
+.rank-friends { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #5f553a; border-radius: 8px; background: #1f2017; color: var(--brass-strong); font-size: 12px; font-weight: 850; }
+.rank-text { display: grid; gap: 2px; min-width: 0; }
+.rank-text strong { color: var(--text); font-size: 13.5px; line-height: 1.25; }
+.rank-text span { color: var(--text-muted); font-size: 12.5px; line-height: 1.35; }
+.rank-check { position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; color: var(--brass-strong); }
+.rank-legend .rank-friends { border-color: #7d6c45; background: linear-gradient(145deg, #3a301b, #1f2017); }
+
+/* Rewards list */
+.invite-rewards { display: grid; gap: 8px; }
+.reward-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.reward-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); }
+.reward-main { display: grid; gap: 2px; min-width: 0; font-size: 14px; }
+.reward-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.reward-main span { font-size: 12px; }
+.reward-item .tag { flex: 0 0 auto; white-space: nowrap; }
+
+/* The 1-month plan with the friend's discount */
+.plan-old { color: var(--text-dim); font-size: 14px; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.plan-friend-note { color: var(--brass-strong); font-size: 12.5px; font-weight: 650; line-height: 1.35; }
+
+/* Home page: «Raid OS выгоднее с отрядом» */
+.friends-promo { padding: 24px 0 72px; }
+.friends-card { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(24px, 4vw, 44px); border-color: #4e4630; background: radial-gradient(circle at 0% -20%, rgb(169 185 115 / 14%), transparent 55%), linear-gradient(160deg, rgb(117 99 60 / 18%), rgb(20 29 24 / 94%) 60%); }
+.friends-card .feature-title { margin-top: 12px; }
+.friends-card .hero-actions { margin-top: 22px; justify-content: flex-start; }
+.rank-ladder.is-compact { grid-template-columns: 1fr; gap: 6px; }
+.rank-ladder.is-compact .rank-step { grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 12px; padding: 9px 12px; }
+.rank-ladder.is-compact .rank-text { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 10px; }
+.rank-ladder.is-compact .rank-text span { text-align: right; }
+
+@media (max-width: 1020px) {
+  .rank-ladder:not(.is-compact) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .friends-card { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .rank-ladder:not(.is-compact) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reward-item { flex-wrap: wrap; }
+}
+.tag.tag-mini { min-height: 18px; margin-left: 6px; padding: 0 6px; font-size: 10px; vertical-align: 1px; }
