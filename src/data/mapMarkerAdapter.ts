@@ -186,6 +186,8 @@ interface BossGroup {
   key: string
   name: string
   spawnChance: number
+  /** Some listing of this boss needs a trigger (lever, extract switch): even a 100 % chance is not a certain spawn. */
+  triggered: boolean
   escorts: string[]
   info: ReturnType<typeof bossInfoFromMob>
   points: BossSpawnPoint[]
@@ -212,9 +214,10 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
     const name = isGoons ? 'Кочевники' : text(mob?.name, mobKey || 'Босс')
     const key = isGoons ? 'goons' : mobId || name
     if (explicitZero(boss.spawnChance) && !text(boss.spawnTrigger)) { zeroed.push({ key, name }); return }
-    const group = groups.get(key) ?? { key, name, spawnChance: 0, escorts: [], info: bossInfoFromMob(mob, name, items), points: [] }
+    const group = groups.get(key) ?? { key, name, spawnChance: 0, triggered: false, escorts: [], info: bossInfoFromMob(mob, name, items), points: [] }
     groups.set(key, group)
     group.spawnChance = Math.max(group.spawnChance, number(boss.spawnChance))
+    if (text(boss.spawnTrigger)) group.triggered = true
     if (!group.escorts.length) group.escorts = bossEscorts(boss, mobs, isGoons)
     const locations = [...asArray(boss.spawnLocations), ...(bossIndex === firstListingIndex(rawMap, mobs, mobId) ? EXTRA_BOSS_LOCATIONS[text(rawMap.normalizedName)]?.[mobId] ?? [] : [])]
     locations.forEach((location, locationIndex) => {
@@ -247,6 +250,8 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
       title: group.name,
       description: `Возможная зона появления: ${zones.join(', ') || 'неизвестная зона'}.`,
       meta: group.spawnChance ? `${Math.round(group.spawnChance * 100)}%` : undefined,
+      // Only the loaded mode's own feed says «100 %» (a PvP 100 % never marks the PvE map and vice versa).
+      ...(isCertain(group.spawnChance) && !group.triggered ? { guaranteedSpawn: true } : {}),
       boss: {
         ...group.info,
         spawnChance: group.spawnChance || undefined,
@@ -309,6 +314,11 @@ function adaptSupplementBosses(map: GameMap, mode: RaidMode, present: BossGroup[
 /** Our extra zones are added once per boss (to its first listing), not to every raider group. */
 function firstListingIndex(rawMap: JsonRecord, mobs: Map<string, JsonRecord>, mobId: string) {
   return asArray(rawMap.bosses).findIndex((boss) => text(mobs.get(text(boss.mob))?.normalizedName) === mobId)
+}
+
+/** A chance the data gives as 100 % (tarkov.dev sends 1). Rounding up from 99.6 % does not count. */
+export function isCertain(chance: unknown) {
+  return typeof chance === 'number' && Number.isFinite(chance) && chance >= 1
 }
 
 function explicitZero(value: unknown) {
@@ -433,6 +443,9 @@ function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
   })
 }
 
+/** Card text of a jewelry spot: the items are listed in `meta` (and the first one's icon); the data has no chance. */
+export const VALUABLE_SPOT_TEXT = 'Здесь может появиться драгоценность. Шанс появления в данных Tarkov.dev не указан.'
+
 function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   const containerMarkers: MapMarker[] = asArray(rawMap.lootContainers).flatMap((container, index) => {
     const base = baseMarker(map, `loot-container-${index}`, container.position, undefined, asRecord(container.position).y, asRecord(container.position).y)
@@ -452,18 +465,23 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     if (strings(loot.items).some((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.has(id))) return []
     const base = baseMarker(map, `loot-loose-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
-    const layerId = lootLayer(strings(loot.items), items)
+    const itemIds = strings(loot.items)
+    // Jewelry / valuables (by the items' categories) first: the spot is drawn on the «Драгоценности» layer and its card
+    // starts with them. tarkov.dev gives loose loot no spawn chance, so these spots never claim a certain spawn.
+    const valuables = itemIds.filter((id) => items.get(id)?.valuable)
+    const layerId = valuables.length ? 'loot.valuable' : lootLayer(itemIds, items)
     // The weapon layer holds only mounted weapons (adaptStationaryWeapons); loose guns and ammo are not shown.
     if (layerId === 'loot.weapon') return []
     const type: MarkerType = layerId === 'loot.medical' ? 'landmark' : 'cache'
+    const shown = [...valuables, ...itemIds.filter((id) => !valuables.includes(id))]
     return [{
       ...base,
       type,
       layerId,
-      title: lootTitle(layerId),
-      description: 'Точка свободного лута из данных Tarkov.dev.',
-      meta: strings(loot.items).slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
-      itemId: strings(loot.items)[0],
+      title: valuables.length ? 'Драгоценности' : lootTitle(layerId),
+      description: valuables.length ? VALUABLE_SPOT_TEXT : 'Точка свободного лута из данных Tarkov.dev.',
+      meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
+      itemId: shown[0],
       source: 'json.tarkov.dev/maps',
     }]
   })
@@ -606,7 +624,10 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
       })
       const itemObjective = objectiveLayer(objective) === 'quest.item' || asArray(objective.possibleLocations).length > 0
       const itemId = text(objective.questItem) || text(asRecord(objective.questItem).id) || undefined
-      for (const mapPoints of groupBy(uniquePoints(points), (point) => point.map.id).values()) {
+      const unique = uniquePoints(points)
+      // A quest item with one listed spawn position in the whole data (all maps) is always there: «Спавн 100 %».
+      const singleItemSpot = unique.filter((point) => point.kind === 'item').length === 1
+      for (const mapPoints of groupBy(unique, (point) => point.map.id).values()) {
         const possible = possibleSpots(mapPoints, itemObjective)
         mapPoints.forEach((point, index) => {
           const base = point.kind === 'zone'
@@ -626,6 +647,7 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
             questId: quest.id,
             objectiveId: objectiveId || undefined,
             possibleSpot: spot,
+            ...(isItem && singleItemSpot ? { guaranteedSpawn: true } : {}),
             itemId: isItem ? itemId : undefined,
             source: 'json.tarkov.dev/tasks',
           })
@@ -675,6 +697,9 @@ export function possibleSpots(points: Array<{ x: number; y?: number; z: number }
   candidates.forEach((pointIndex, order) => result.set(pointIndex, { kind: itemObjective ? 'item' : 'zone', index: order + 1, count: candidates.length }))
   return result
 }
+
+/** The tooltip / card line of a spawn the data gives as certain (MapMarker.guaranteedSpawn). */
+export const GUARANTEED_SPAWN_TEXT = 'Спавн 100 %'
 
 /** «Возможное место предмета · 2 из 4»: the tooltip / card line for a candidate point (also for the map card). */
 export function possibleSpotText(spot: PossibleSpot) {

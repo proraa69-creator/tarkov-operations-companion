@@ -17,6 +17,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor } from '../data/mapProjection'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
+import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { FloorSvgOverlay } from '../components/FloorSvgOverlay'
 import { LivePlayerMarker } from '../components/LivePlayerMarker'
@@ -699,6 +700,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                   <span className="tag">{uiText(activeMap.name)}</span>
                   {uiText(sheetFloor && <span className={`tag map-floor-tag${sheetFloor !== 'Основной' ? ' is-indoor' : ''}`}><Building2 size={11} /> {uiText(sheetFloor)}</span>)}
                   {uiText(relatedQuest.anyMap && <span className="tag">{uiText("Любая карта")}</span>)}
+                  {uiText(sheetPoint?.guaranteedSpawn && <span className="tag brass">{uiText(GUARANTEED_SPAWN_TEXT)}</span>)}
                 </div>
                 <div className="map-quest-sheet-section">
                   {uiText(relatedStage ? (

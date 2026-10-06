@@ -254,6 +254,11 @@ export interface MapMarker {
   possibleSpot?: PossibleSpot
   /** Locked door / keycard reader: which key opens it. */
   lock?: MarkerLock
+  /**
+   * The data says this spawn is certain («Спавн 100 %»): a boss with a 100 % spawn chance in the loaded mode, or a quest
+   * item with a single listed spawn position. Never set from guesses; loose loot has no chance in the data.
+   */
+  guaranteedSpawn?: boolean
   stageIndex?: number
   itemId?: string
   extractId?: string
@@ -386,6 +391,8 @@ export interface Item {
   fleaPrice?: number
   wikiLink?: string
   types?: string[]
+  /** Jewelry / valuables by the item's tarkov.dev categories (src/data/catalogSource.ts `isValuableItem`). */
+  valuable?: boolean
   /**
    * Weapons: picture of the whole gun — tarkov.dev's default preset (properties.defaultPreset), whose 512px image
    * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.

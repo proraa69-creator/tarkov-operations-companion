@@ -184,6 +184,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       fleaPrice: fleaPrice || undefined,
       wikiLink: text(entry.wikiLink) || undefined,
       types,
+      valuable: isValuableItem(entry) || undefined,
       caliber: text(properties.caliber) || text(properties.ammoType) || undefined,
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
@@ -212,7 +213,7 @@ function adaptTasks(
       ...strings(objective.items),
       text(objective.item),
       text(objective.markerItem),
-      ...(Array.isArray(objective.requiredKeys) ? objective.requiredKeys.flat(Infinity).filter((id): id is string => typeof id === 'string') : []),
+      ...objectiveKeyGroups(objective).flat(),
     ]).filter(Boolean)
     const keyGroups = asArray(entry.neededKeys)
     const requiredKeys = keyGroups.flatMap((group) => strings(group.keys))
@@ -236,6 +237,17 @@ function adaptTasks(
       }))
     })
     for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
+    // Keys of the objectives themselves (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list is needed).
+    // `neededKeys` is deprecated upstream; a new quest may list its keys only here.
+    for (const objective of objectives) {
+      const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
+      for (const group of objectiveKeyGroups(objective)) {
+        for (const itemId of group) {
+          if (raidRequirements.some((requirement) => requirement.purpose === 'key' && requirement.itemId === itemId)) continue
+          raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: [...new Set(objectiveMaps)], objectiveId: text(objective.id) || undefined, ...(group.length > 1 ? { alternatives: group.length } : {}) })
+        }
+      }
+    }
     const rewardItems = asArray(asRecord(entry.finishRewards).items)
     const rewards = [
       number(entry.experience) ? `${number(entry.experience).toLocaleString('ru-RU')} опыта` : '',
@@ -244,10 +256,7 @@ function adaptTasks(
         return `${item?.name ?? text(reward.item)} × ${number(reward.count) || 1}`
       }),
     ].filter(Boolean)
-    const objectiveMapIds = objectives.flatMap((objective) => {
-      const listed = strings(objective.maps)
-      return listed.length ? listed : asArray(objective.zones).map((zone) => text(zone.map)).filter(Boolean)
-    })
+    const objectiveMapIds = objectives.flatMap(objectivePlaceMaps)
     const rawMapId = text(entry.map) || objectiveMapIds[0]
     const mapIds = [...new Set([rawMapId, ...objectiveMapIds].map((id) => maps.get(id)).filter((id): id is string => Boolean(id)))]
     const name = text(entry.name, 'Неизвестное задание')
@@ -283,6 +292,40 @@ function adaptTasks(
       imageUrl: text(entry.taskImageLink) || undefined,
     } satisfies Quest
   }).filter((quest) => quest.id)
+}
+
+/** A reference given as `"id"` (json.tarkov.dev) or `{ id }` (GraphQL). */
+function refId(value: unknown) {
+  return text(value) || text(asRecord(value).id)
+}
+
+/**
+ * Upstream map ids of one objective: its listed maps, otherwise the maps of its zones and quest-item spots
+ * (a new «find the quest item» objective may list only `possibleLocations`).
+ */
+function objectivePlaceMaps(objective: JsonRecord): string[] {
+  const listed = (Array.isArray(objective.maps) ? objective.maps : []).map(refId).filter(Boolean)
+  if (listed.length) return listed
+  return [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => refId(place.map)).filter(Boolean)
+}
+
+/** `requiredKeys` of an objective as groups of alternatives (ids or `{ id }`); a flat list is one key per group. */
+function objectiveKeyGroups(objective: JsonRecord): string[][] {
+  if (!Array.isArray(objective.requiredKeys)) return []
+  return objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+}
+
+/**
+ * Jewelry / valuables (gold chains, Roler, skulls, horse figurines, bitcoins…), by the item's categories in the data:
+ * BSG category «Jewelry» (57864a3d24597754843f8721) or handbook category «Valuables» (5b47574386f77428ca22b2f1).
+ * Both ids (json.tarkov.dev `categories` / `handbookCategories` / `bsgCategoryId`) and GraphQL objects are accepted.
+ */
+export const VALUABLE_CATEGORY_IDS: ReadonlySet<string> = new Set(['57864a3d24597754843f8721', '5b47574386f77428ca22b2f1'])
+const VALUABLE_CATEGORY_NAMES = new Set(['jewelry', 'valuables'])
+
+export function isValuableItem(entry: JsonRecord): boolean {
+  const categories = [...(Array.isArray(entry.categories) ? entry.categories : []), ...(Array.isArray(entry.handbookCategories) ? entry.handbookCategories : []), entry.bsgCategoryId, entry.category, entry.bsgCategory]
+  return categories.some((category) => VALUABLE_CATEGORY_IDS.has(refId(category)) || VALUABLE_CATEGORY_NAMES.has(text(asRecord(category).normalizedName)))
 }
 
 function adaptMaps(root: JsonRecord, mapConfigs: Map<string, Partial<GameMap>>, locale: AppLocale): GameMap[] {

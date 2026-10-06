@@ -411,6 +411,7 @@
 .mmt-portrait { width: 58px; height: 58px; flex: 0 0 auto; object-fit: cover; object-position: top; border: 1px solid #7c3a30; border-radius: 9px; background: #1c0f0d; box-shadow: 0 0 12px rgb(214 72 56 / 30%); }
 .mmt-portrait.is-empty { display: block; }
 .mmt-chance { color: #f0a58f; font-size: 11px; font-weight: 700; }
+.mmt-guaranteed { color: #8fd18a; font-weight: 700; }
 .mmt-gear { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .mmt-gear-item { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 6px 2px 3px; border: 1px solid var(--line); border-radius: 6px; background: #151e19; color: #d7ddd8; font-size: 10.5px; }
 .mmt-gear-item img { width: 18px; height: 18px; object-fit: contain; }

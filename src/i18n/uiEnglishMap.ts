@@ -91,6 +91,11 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Точка перенесена вручную, её видят все игроки.', 'Moved by hand; every player sees this point.'],
   ['Исходная точка: перетащите её, скройте или добавьте новую — изменения сохраняются сразу и видны всем игрокам.', 'Original point: drag it, hide it or add a new one; changes are saved at once and every player sees them.'],
   ['Править точки квестов может только аккаунт владельца.', 'Only the owner account can fix quest points.'], ['Сначала выберите квест.', 'Pick a quest first.'],
+  ['Применить расстановку боссов PvP ко всем режимам?\n\nВсе боссы PvP на всех картах закрепятся там, где стоят сейчас, и PvE и Сезон будут показывать ту же расстановку. Дальше изменения, сделанные в одном режиме, меняют только этот режим.',
+    'Apply the PvP boss placement to every mode?\n\nEvery PvP boss on every map is pinned where it stands now, and PvE and Season will show the same placement. Changes made later in one mode change only that mode.'],
+  // Certain spawns and jewelry spots (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx).
+  ['Спавн 100 %', 'Spawn 100 %'],
+  ['Здесь может появиться драгоценность. Шанс появления в данных Tarkov.dev не указан.', 'Jewelry may spawn here. Tarkov.dev data gives no spawn chance.'],
 ]
 
 /** Patterns with a variable part, applied after the phrase table. */

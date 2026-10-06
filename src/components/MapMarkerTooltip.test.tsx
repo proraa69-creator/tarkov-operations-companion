@@ -30,4 +30,25 @@ describe('MapMarkerTooltip', () => {
     expect(uiText('Нужна ключ-карта «TerraGroup Labs keycard (Red)».')).toBe('Requires keycard “TerraGroup Labs keycard (Red)”.')
     expect(uiText('Ключ-карта: фиолетовая')).toBe('Keycard: violet')
   })
+
+  it('shows «Спавн 100 %» only for a marker the data marks as certain (RU and EN)', () => {
+    const { unmount } = render(<MapMarkerTooltip marker={{ ...base, layerId: 'quest.item', guaranteedSpawn: true }} typeLabel="Квест" color="#d5b76f" floor="Основной" />)
+    expect(screen.getByText('Спавн 100 %')).toBeTruthy()
+    unmount()
+    render(<MapMarkerTooltip marker={base} typeLabel="Квест" color="#d5b76f" floor="Основной" />)
+    expect(screen.queryByText('Спавн 100 %')).toBeNull()
+    setRenderLanguage('en')
+    expect(uiText('Спавн 100 %')).toBe('Spawn 100 %')
+  })
+
+  it('a boss with a certain spawn says «Спавн 100 %» instead of the chance; others keep their chance', () => {
+    const boss = { key: 'killa', name: 'Килла', spawnChance: 1 }
+    const marker: MapMarker = { ...base, type: 'boss', layerId: 'boss', title: 'Килла', description: '', boss }
+    const { unmount } = render(<MapMarkerTooltip marker={{ ...marker, guaranteedSpawn: true }} typeLabel="Босс" color="#d64838" floor="Основной" boss={boss} />)
+    expect(screen.getByText('Спавн 100 %')).toBeTruthy()
+    unmount()
+    render(<MapMarkerTooltip marker={marker} typeLabel="Босс" color="#d64838" floor="Основной" boss={{ ...boss, spawnChance: 0.35 }} />)
+    expect(screen.getByText('шанс 35%')).toBeTruthy()
+    expect(screen.queryByText('Спавн 100 %')).toBeNull()
+  })
 })

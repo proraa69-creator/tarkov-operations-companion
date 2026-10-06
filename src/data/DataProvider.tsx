@@ -53,15 +53,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const russian = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
-  // Bosses the owner placed by hand replace the automatic markers of that boss on that map (src/data/mapBossPlacements.ts).
+  // Bosses the owner placed by hand (in this mode, or for every mode) replace the automatic markers of that boss on that
+  // map (src/data/mapBossPlacements.ts).
   const placements = useMapBossPlacements(allowed)
   // Quest points the owner corrected by hand (bug reports) are moved / hidden / added on top (src/data/questPointOverrides.ts).
   const questPoints = useQuestPointOverrides(allowed)
   const data = useMemo(() => {
     if (!placements.length && !questPoints.length) return translated
-    const withBosses = placements.length ? withOwnerBosses(translated.markers, placements) : translated.markers
+    const withBosses = placements.length ? withOwnerBosses(translated.markers, placements, raidMode) : translated.markers
     return { ...translated, markers: withQuestPointOverrides(withBosses, questPoints, translated.quests) }
-  }, [translated, placements, questPoints])
+  }, [translated, placements, questPoints, raidMode])
   const value: DataContextValue = {
     data,
     source,

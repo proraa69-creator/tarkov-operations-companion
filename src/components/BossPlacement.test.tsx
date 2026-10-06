@@ -2,14 +2,15 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MapMarker } from '../domain/types'
 
-type Placed = { mapId?: string; bossKey: string; x: number; z: number; hidden?: boolean }
+type Placed = { mapId?: string; bossKey: string; x: number; z: number; hidden?: boolean; mode?: string }
 const editor = vi.hoisted(() => ({
   place: vi.fn<(placement: Placed) => Promise<void>>(async () => {}),
   remove: vi.fn<(id: string) => Promise<void>>(async () => {}),
   placeMany: vi.fn<(placements: Placed[]) => Promise<void>>(async () => {}),
 }))
 vi.mock('../app/buildEdition', () => ({ isOwnerApp: () => true }))
-vi.mock('../data/mapBossPlacements', async (importOriginal) => ({ ...(await importOriginal<typeof import('../data/mapBossPlacements')>()), useMapBossEditor: () => editor }))
+const stored = vi.hoisted(() => ({ placements: [] as Array<{ id: string; mapId: string; bossKey: string; bossName: string; x: number; z: number; mode?: 'pvp' | 'pve' | 'seasonal'; createdAt: string }> }))
+vi.mock('../data/mapBossPlacements', async (importOriginal) => ({ ...(await importOriginal<typeof import('../data/mapBossPlacements')>()), useMapBossEditor: () => editor, useMapBossPlacements: () => stored.placements }))
 
 const { useBossPlacement } = await import('./BossPlacement')
 
@@ -60,5 +61,18 @@ describe('«Расставить боссов»: drag, delete and replace save a
     await act(async () => { await result.current.copyToAllModes() })
     expect(editor.placeMany).not.toHaveBeenCalled()
     expect(result.current.error).toMatch(/PvP/)
+  })
+
+  it('saves every change for the mode that is open; a moved hand placement keeps its own mode', async () => {
+    const a = auto('a', 'reshala', [10, 20])
+    const { result } = renderHook(() => useBossPlacement('customs', 'Основной', 'Основной', [a], [a], 'pve'))
+    await act(async () => { result.current.place(1, 2) })
+    await act(async () => { await result.current.remove(a) })
+    expect(editor.place.mock.calls.map(([p]) => p.mode)).toEqual(['pve', 'pve'])
+    editor.place.mockClear()
+    stored.placements = [{ id: 'e'.repeat(24), mapId: 'customs', bossKey: 'killa', bossName: 'Килла', x: 5, z: 6, createdAt: '' }]
+    await act(async () => { await result.current.move(manual('e'.repeat(24), 'killa', [6, 5]), 7, 8) })
+    expect(editor.place).toHaveBeenCalledWith(expect.objectContaining({ bossKey: 'killa', x: 7, z: 8, mode: undefined }))
+    stored.placements = []
   })
 })

@@ -76,6 +76,12 @@ test('gateway cache: shared per query + variables (gameMode), price data 10 min,
   // Parallel identical requests share one upstream call.
   await Promise.all([gateway.json('pve/tasks'), gateway.json('pve/tasks'), gateway.json('pve/tasks')])
   assert.equal(upstream.calls.filter((call) => call.url.endsWith('/pve/tasks')).length, 1)
+  // Quests (and their translations) are refetched within PRICE_TTL_MS: a new quest does not wait STATIC_TTL_MS.
+  await gateway.json('pve/tasks_en')
+  now += PRICE_TTL_MS + 1
+  await Promise.all([gateway.json('pve/tasks'), gateway.json('pve/tasks_en')])
+  assert.equal(upstream.calls.filter((call) => call.url.endsWith('/pve/tasks')).length, 2)
+  assert.equal(upstream.calls.filter((call) => call.url.endsWith('/pve/tasks_en')).length, 2)
   await assert.rejects(gateway.json('pve/secrets'), (error: GatewayError) => error.status === 404)
   await assert.rejects(gateway.json('../etc/passwd'), (error: GatewayError) => error.status === 404)
 

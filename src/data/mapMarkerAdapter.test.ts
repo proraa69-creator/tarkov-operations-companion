@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { adaptLiveMapMarkers, BOSS_MERGE_METRES, mergeBossSpawnPoints } from './mapMarkerAdapter'
+import { adaptLiveMapMarkers, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
 import { maps } from './demo'
-import type { Quest } from '../domain/types'
+import type { Item, Quest } from '../domain/types'
 
 describe('live map catalog resilience', () => {
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
@@ -397,5 +397,65 @@ describe('battle pass documents', () => {
         expect(translateUiText(battlePassDocumentDescription(point))).not.toMatch(/[А-Яа-яЁё]/)
       }
     }
+  })
+})
+
+describe('boss data per game mode', () => {
+  const mobs = { bossKilla: { name: 'Килла', normalizedName: 'killa', imagePortraitLink: 'https://assets.tarkov.dev/killa.webp' } }
+  const feed = (spawnChance: number, x: number, extra: Record<string, unknown> = {}) => ({ mobs, maps: { interchange: { normalizedName: 'interchange', bosses: [
+    { mob: 'bossKilla', spawnChance, ...extra, spawnLocations: [{ name: 'ZoneCenter', chance: 1, positions: [{ x, y: 0, z: 50 }] }] },
+  ] } } })
+  const context = (mode: 'pvp' | 'pve') => ({ maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>(), mode })
+  const killa = (markers: ReturnType<typeof adaptLiveMapMarkers>) => markers.filter((marker) => marker.layerId === 'boss' && marker.boss?.key === 'killa')
+
+  it('shows each mode its own chance and points; «100 %» only in the mode whose data says so', () => {
+    const pvp = killa(adaptLiveMapMarkers(feed(0.35, 10), {}, context('pvp')))
+    const pve = killa(adaptLiveMapMarkers(feed(1, 400), {}, context('pve')))
+    expect(pvp.map((marker) => [marker.boss?.spawnChance, marker.position[1], marker.guaranteedSpawn])).toEqual([[0.35, 10, undefined]])
+    expect(pve.map((marker) => [marker.boss?.spawnChance, marker.position[1], marker.guaranteedSpawn])).toEqual([[1, 400, true]])
+  })
+
+  it('never calls a triggered boss or a rounded 99.6 % a certain spawn', () => {
+    expect(killa(adaptLiveMapMarkers(feed(1, 10, { spawnTrigger: 'Lever' }), {}, context('pve')))[0].guaranteedSpawn).toBeUndefined()
+    expect(killa(adaptLiveMapMarkers(feed(0.996, 10), {}, context('pve')))[0].guaranteedSpawn).toBeUndefined()
+    expect(isCertain(1)).toBe(true)
+    expect(isCertain(0.999)).toBe(false)
+  })
+})
+
+describe('jewelry spots and certain quest-item spawns', () => {
+  const item = (id: string, name: string, extra: Partial<Item> = {}): [string, Item] => [id, { id, name, shortName: name, category: 'Бартер', description: '', prices: [], types: ['barter'], ...extra }]
+  const items = new Map<string, Item>([item('chain', 'Золотая цепочка', { valuable: true }), item('bolts', 'Болты'), item('salewa', 'Salewa', { types: ['meds'] })])
+  const context = { maps, quests: [] as Quest[], items, mapNameByApiId: new Map<string, string>() }
+
+  it('puts a loose-loot spot that may hold jewelry on the «Драгоценности» layer, jewelry first, without a chance', () => {
+    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
+      { items: ['salewa', 'chain'], position: { x: 1, y: 0, z: 2 } },
+      { items: ['bolts'], position: { x: 5, y: 0, z: 6 } },
+    ] } } }, {}, context)
+    const jewelry = result.filter((marker) => marker.layerId === 'loot.valuable')
+    expect(jewelry).toHaveLength(1)
+    expect(jewelry[0]).toMatchObject({ title: 'Драгоценности', itemId: 'chain', meta: 'Золотая цепочка, Salewa', description: VALUABLE_SPOT_TEXT })
+    expect(jewelry[0].guaranteedSpawn).toBeUndefined()
+    expect(result.find((marker) => marker.itemId === 'bolts')?.layerId).toBe('loot.technical')
+    expect(translateUiText(VALUABLE_SPOT_TEXT)).not.toMatch(/[А-Яа-яЁё]/)
+  })
+
+  it('marks a quest item with a single listed spawn position as «Спавн 100 %», not one of several', () => {
+    const quests = [
+      { id: 'q1', name: 'Один тайник', trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [] },
+      { id: 'q2', name: 'Три тайника', trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [] },
+    ] as unknown as Quest[]
+    const tasks = { tasks: {
+      q1: { objectives: [{ id: 'o1', type: 'findQuestItem', questItem: 'doc', possibleLocations: [{ map: 'customs', positions: [{ x: 1, y: 0, z: 1 }] }] }] },
+      q2: { objectives: [{ id: 'o2', type: 'findQuestItem', questItem: 'doc2', possibleLocations: [{ map: 'customs', positions: [{ x: 1, y: 0, z: 1 }, { x: 200, y: 0, z: 1 }, { x: 400, y: 0, z: 1 }] }] }] },
+    } }
+    const result = adaptLiveMapMarkers({ maps: {} }, tasks, { ...context, quests, mapNameByApiId: new Map([['customs', 'customs']]) })
+    const single = result.filter((marker) => marker.questId === 'q1')
+    const several = result.filter((marker) => marker.questId === 'q2')
+    expect(single.map((marker) => marker.guaranteedSpawn)).toEqual([true])
+    expect(several).toHaveLength(3)
+    expect(several.every((marker) => !marker.guaranteedSpawn)).toBe(true)
+    expect(translateUiText(GUARANTEED_SPAWN_TEXT)).toBe('Spawn 100 %')
   })
 })

@@ -6,17 +6,21 @@ import { CopyCheck, LoaderCircle, Repeat, Skull, Trash2 } from 'lucide-react'
 import { isOwnerApp } from '../app/buildEdition'
 import { cleanIpcError } from '../sync/serverSync'
 import { MAIN_FLOOR } from '../data/mapProjection'
-import { bossKeyOf, MAP_LOCK_KEY, OWNER_BOSS_SOURCE, PLACEABLE_BOSSES, placementIdOf, useMapBossEditor, type NewMapBossPlacement } from '../data/mapBossPlacements'
-import type { MapMarker } from '../domain/types'
+import { bossKeyOf, MAP_LOCK_KEY, OWNER_BOSS_SOURCE, PLACEABLE_BOSSES, placementIdOf, useMapBossEditor, useMapBossPlacements, type NewMapBossPlacement } from '../data/mapBossPlacements'
+import type { MapMarker, RaidMode } from '../domain/types'
 
 /**
  * «Расставить боссов» (owner app only, server/src/routes/mapBosses.ts): pick a boss, click the map — the point is saved
  * on the server and every player's map shows it instead of the automatic markers of that boss on that map.
- * The selected floor goes with the point when it is not the main level.
+ * The selected floor goes with the point when it is not the main level. Every change is saved for the game mode that is
+ * open (PvP, PvE or Season): the other modes keep their own bosses. Only «PvP → все режимы» writes for every mode.
  */
-export function useBossPlacement(mapId: string, floor: string, baseFloor: string, bossMarkers: MapMarker[] = [], allBossMarkers: MapMarker[] = [], mode = 'pvp') {
+export function useBossPlacement(mapId: string, floor: string, baseFloor: string, bossMarkers: MapMarker[] = [], allBossMarkers: MapMarker[] = [], mode: RaidMode = 'pvp') {
   const enabled = isOwnerApp()
   const editor = useMapBossEditor()
+  const placements = useMapBossPlacements(enabled)
+  /** A moved / swapped hand placement keeps its own mode (one made for every mode stays for every mode). */
+  const modeOf = (id: string) => ({ mode: placements.find((entry) => entry.id === id)?.mode })
   const [active, setActive] = useState(false)
   const [bossKey, setBossKey] = useState(PLACEABLE_BOSSES[0].key)
   const [busy, setBusy] = useState(false)
@@ -29,7 +33,7 @@ export function useBossPlacement(mapId: string, floor: string, baseFloor: string
   }
   const place = (x: number, z: number) => {
     const boss = PLACEABLE_BOSSES.find((entry) => entry.key === bossKey) ?? PLACEABLE_BOSSES[0]
-    void run(() => editor.place({ mapId, bossKey: boss.key, bossName: boss.name, x: round(x), z: round(z), ...(floor !== baseFloor ? { floor } : {}) }))
+    void run(() => editor.place({ mapId, bossKey: boss.key, bossName: boss.name, x: round(x), z: round(z), ...(floor !== baseFloor ? { floor } : {}), mode }))
   }
   /** A catalog / placed boss marker as a new placement (optionally moved, swapped or hidden). */
   const asPlacement = (marker: MapMarker, over: Partial<NewMapBossPlacement> = {}): NewMapBossPlacement => ({
@@ -39,6 +43,7 @@ export function useBossPlacement(mapId: string, floor: string, baseFloor: string
     x: round(marker.position[1]),
     z: round(marker.position[0]),
     ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}),
+    mode,
     ...over,
   })
   /** The automatic markers of the same boss on this map (a placement of that boss hides all of them). */
@@ -58,7 +63,7 @@ export function useBossPlacement(mapId: string, floor: string, baseFloor: string
   /** Drag and drop: saved at once. */
   const move = (marker: MapMarker, x: number, z: number) => run(async () => {
     const id = placementIdOf(marker)
-    if (id) { await editor.place(asPlacement(marker, { x: round(x), z: round(z) })); await editor.remove(id) } else await rewriteAutomatic(marker, { x: round(x), z: round(z) })
+    if (id) { await editor.place(asPlacement(marker, { x: round(x), z: round(z), ...modeOf(id) })); await editor.remove(id) } else await rewriteAutomatic(marker, { x: round(x), z: round(z) })
   })
   const remove = (marker: MapMarker) => run(async () => {
     const id = placementIdOf(marker)
@@ -68,7 +73,7 @@ export function useBossPlacement(mapId: string, floor: string, baseFloor: string
     const boss = PLACEABLE_BOSSES.find((entry) => entry.key === key)
     if (!boss) return
     const id = placementIdOf(marker)
-    if (id) { await editor.place(asPlacement(marker, { bossKey: boss.key, bossName: boss.name })); await editor.remove(id) } else await rewriteAutomatic(marker, { bossKey: boss.key, bossName: boss.name })
+    if (id) { await editor.place(asPlacement(marker, { bossKey: boss.key, bossName: boss.name, ...modeOf(id) })); await editor.remove(id) } else await rewriteAutomatic(marker, { bossKey: boss.key, bossName: boss.name })
   })
   /**
    * «Применить расстановку PvP ко всем режимам»: every automatic PvP boss on every map becomes a placement where it stands,
@@ -130,7 +135,7 @@ export function BossPlacementControls({ state }: { state: BossPlacementState }) 
           </select>
           {state.mode === 'pvp' && (
             <button type="button" className="map-tool" disabled={state.busy} title={uiText('Закрепить текущую PvP-расстановку боссов на всех картах: PvE и Сезон покажут её же')}
-              onClick={() => { if (window.confirm(uiText('Применить расстановку боссов PvP ко всем режимам?\n\nВсе боссы PvP на всех картах закрепятся там, где стоят сейчас, и PvE и Сезон будут показывать ту же расстановку. Дальше любые изменения тоже будут общими для всех режимов.'))) void state.copyToAllModes() }}>
+              onClick={() => { if (window.confirm(uiText('Применить расстановку боссов PvP ко всем режимам?\n\nВсе боссы PvP на всех картах закрепятся там, где стоят сейчас, и PvE и Сезон будут показывать ту же расстановку. Дальше изменения, сделанные в одном режиме, меняют только этот режим.'))) void state.copyToAllModes() }}>
               <CopyCheck size={14} />{uiText('PvP → все режимы')}
             </button>
           )}

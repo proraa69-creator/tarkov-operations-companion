@@ -17,15 +17,20 @@ export interface MapBossPlacement {
   floor?: string
   /** «Удалить» on an automatic marker: the boss's automatic markers on this map are hidden, nothing is drawn. */
   hidden?: boolean
+  /** Game mode the placement belongs to; absent = every mode (older placements, «PvP → все режимы»). */
+  mode?: MapBossMode
   createdAt: string
 }
+
+export const MAP_BOSS_MODES = ['pvp', 'pve', 'seasonal'] as const
+export type MapBossMode = typeof MAP_BOSS_MODES[number]
 
 export type NewMapBossPlacement = Omit<MapBossPlacement, 'id' | 'createdAt'>
 
 /** Enough for every boss on every map several times over; protects the table from a runaway client. */
 export const MAX_MAP_BOSS_PLACEMENTS = 1000
 
-interface Row { id: string; map_id: string; boss_key: string; boss_name: string; x: number; z: number; floor: string | null; hidden?: number | null; created_at: string }
+interface Row { id: string; map_id: string; boss_key: string; boss_name: string; x: number; z: number; floor: string | null; hidden?: number | null; mode?: string | null; created_at: string }
 
 export class MapBossStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
@@ -43,6 +48,8 @@ export class MapBossStore {
     // Older databases: the «hidden» column came later.
     const columns = db.prepare('PRAGMA table_info(map_boss_placements)').all() as Array<{ name: string }>
     if (!columns.some((column) => column.name === 'hidden')) db.exec('ALTER TABLE map_boss_placements ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0')
+    // The game mode came later still: rows without one keep applying to every mode.
+    if (!columns.some((column) => column.name === 'mode')) db.exec('ALTER TABLE map_boss_placements ADD COLUMN mode TEXT')
   }
 
   list(): MapBossPlacement[] {
@@ -63,10 +70,11 @@ export class MapBossStore {
       z: placement.z,
       floor: placement.floor ?? null,
       hidden: placement.hidden ? 1 : 0,
+      mode: placement.mode ?? null,
       created_at: new Date(this.now()).toISOString(),
     }
-    this.db.prepare('INSERT INTO map_boss_placements (id, map_id, boss_key, boss_name, x, z, floor, hidden, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(row.id, row.map_id, row.boss_key, row.boss_name, row.x, row.z, row.floor, row.hidden ?? 0, row.created_at, actor)
+    this.db.prepare('INSERT INTO map_boss_placements (id, map_id, boss_key, boss_name, x, z, floor, hidden, mode, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(row.id, row.map_id, row.boss_key, row.boss_name, row.x, row.z, row.floor, row.hidden ?? 0, row.mode ?? null, row.created_at, actor)
     return toPlacement(row)
   }
 
@@ -89,6 +97,7 @@ function toPlacement(row: Row): MapBossPlacement {
     z: Number(row.z),
     ...(row.floor ? { floor: row.floor } : {}),
     ...(row.hidden ? { hidden: true } : {}),
+    ...(row.mode && (MAP_BOSS_MODES as readonly string[]).includes(row.mode) ? { mode: row.mode as MapBossMode } : {}),
     createdAt: row.created_at,
   }
 }

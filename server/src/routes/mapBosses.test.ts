@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
+import { DatabaseSync } from 'node:sqlite'
+import { MapBossStore } from '../services/mapBossStore.js'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
@@ -78,4 +80,33 @@ test('map bosses: the owner places and removes, everybody reads, players cannot 
   } finally {
     await close()
   }
+})
+
+test('map bosses: a placement keeps the game mode it was made for; one without a mode is for every mode', async () => {
+  const { call, login, close } = await setup()
+  try {
+    const owner = await login('owner@example.com')
+    assert.equal((await call('POST', '/accounts/me/admin/map-bosses', owner, { ...killa, mode: 'arena' })).status, 400)
+    const pve = await call<{ placement: { id: string; mode?: string } }>('POST', '/accounts/me/admin/map-bosses', owner, { ...killa, mode: 'pve' })
+    assert.equal(pve.status, 201)
+    assert.equal(pve.json.placement.mode, 'pve')
+    const shared = await call<{ placement: { id: string; mode?: string } }>('POST', '/accounts/me/admin/map-bosses', owner, { ...killa, bossKey: 'tagilla', bossName: 'Тагилла' })
+    assert.equal(shared.json.placement.mode, undefined)
+    const listed = await call<{ placements: Array<{ bossKey: string; mode?: string }> }>('GET', '/map-bosses')
+    assert.deepEqual(listed.json.placements.map((entry) => [entry.bossKey, entry.mode ?? 'all']), [['killa', 'pve'], ['tagilla', 'all']])
+  } finally {
+    await close()
+  }
+})
+
+test('map bosses: a database from before game modes keeps its placements for every mode', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`CREATE TABLE map_boss_placements (id TEXT PRIMARY KEY, map_id TEXT NOT NULL, boss_key TEXT NOT NULL, boss_name TEXT NOT NULL,
+    x REAL NOT NULL, z REAL NOT NULL, floor TEXT, created_at TEXT NOT NULL, created_by TEXT NOT NULL)`)
+  db.prepare('INSERT INTO map_boss_placements VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run('a'.repeat(24), 'interchange', 'killa', 'Килла', 1, 2, null, '2026-10-01T00:00:00.000Z', 'owner')
+  const store = new MapBossStore(db)
+  assert.deepEqual(store.list().map((entry) => [entry.bossKey, entry.mode]), [['killa', undefined]])
+  const added = store.add({ mapId: 'interchange', bossKey: 'killa', bossName: 'Килла', x: 3, z: 4, mode: 'seasonal' }, 'owner')
+  assert.equal(added?.mode, 'seasonal')
+  assert.deepEqual(store.list().map((entry) => entry.mode ?? 'all'), ['all', 'seasonal'])
 })

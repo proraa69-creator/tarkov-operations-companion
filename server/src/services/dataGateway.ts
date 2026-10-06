@@ -47,6 +47,8 @@ export const JSON_ENDPOINTS: ReadonlySet<string> = new Set(['tasks', 'items', 'm
 const JSON_PATH = /^(regular|pve|pvp-season)\/([a-z]+)(?:_([a-z]{2}))?$/
 /** Of the JSON endpoints, these change often (prices, goon reports): short cache. */
 const JSON_PRICE_ENDPOINTS = new Set(['items', 'maps', 'barters', 'crafts'])
+/** Quests and map markers (and their translations): new quests must reach the app within minutes, not hours. */
+const JSON_CONTENT_ENDPOINTS = new Set(['tasks', 'maps'])
 
 export const MAX_QUERY_LENGTH = 20_000
 export const MAX_VARIABLES_LENGTH = 4_000
@@ -245,7 +247,7 @@ export class DataGateway {
   async json(path: string): Promise<string> {
     const match = JSON_PATH.exec(path)
     if (!match || !JSON_ENDPOINTS.has(match[2]!)) throw new GatewayError(404, 'Неизвестный набор данных')
-    const ttl = !match[3] && JSON_PRICE_ENDPOINTS.has(match[2]!) ? PRICE_TTL_MS : STATIC_TTL_MS
+    const ttl = (!match[3] && JSON_PRICE_ENDPOINTS.has(match[2]!)) || JSON_CONTENT_ENDPOINTS.has(match[2]!) ? PRICE_TTL_MS : STATIC_TTL_MS
     return this.cached(`json:${path}`, ttl, async () => {
       const body = await this.upstream(`${JSON_UPSTREAM}/${path}`, { headers: { accept: 'application/json' } })
       if (!body.startsWith('{')) throw new GatewayError(502, 'Источник данных вернул некорректный ответ')

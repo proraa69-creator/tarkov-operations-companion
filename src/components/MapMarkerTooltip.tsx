@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
-import { possibleSpotText } from '../data/mapMarkerAdapter'
+import { GUARANTEED_SPAWN_TEXT, possibleSpotText } from '../data/mapMarkerAdapter'
 import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
 
 interface MapMarkerTooltipProps {
@@ -40,7 +40,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
 
       {shot && <ExtractShot key={shot} url={shot} alt={uiText(marker.title)} />}
 
-      {uiText(boss ? <BossBlock boss={boss} title={marker.title} /> : (
+      {uiText(boss ? <BossBlock boss={boss} title={marker.title} guaranteed={marker.guaranteedSpawn === true} /> : (
         <div className="mmt-title-row">
           {uiText(item?.iconUrl && <img className="mmt-item-icon" src={item.iconUrl} alt={uiText("")} loading="lazy" />)}
           <div className="mmt-title-copy">
@@ -50,6 +50,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
         </div>
       ))}
 
+      {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
       {uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
@@ -99,9 +100,10 @@ function BossPortrait({ boss, title }: { boss: BossInfo; title: string }) {
   return <img className="mmt-portrait" src={src} alt={uiText(boss.name)} loading="lazy" onError={remote ? () => setFailedUrl(remote) : undefined} />
 }
 
-function BossBlock({ boss, title }: { boss: BossInfo; title: string }) {
+function BossBlock({ boss, title, guaranteed }: { boss: BossInfo; title: string; guaranteed: boolean }) {
   const chances = [
-    boss.spawnChance != null ? `шанс ${percent(boss.spawnChance)}` : '',
+    // «Спавн 100 %» only when the marker says so (the loaded mode's data gives 100 % and no trigger is needed).
+    guaranteed ? GUARANTEED_SPAWN_TEXT : boss.spawnChance != null ? `шанс ${percent(boss.spawnChance)}` : '',
     boss.locationChance != null && boss.locationChance < 1 ? `зона ${percent(boss.locationChance)}` : '',
   ].filter(Boolean)
   return (
