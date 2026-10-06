@@ -51,6 +51,7 @@ export function StoryScreenScanner() {
 
     const loop = async () => {
       let previous = new Set<string>()
+      let previousStages = new Map<string, number | undefined>()
       let onStoryPane = false
       let lastContext = ''
       while (!cancelled) {
@@ -71,9 +72,13 @@ export function StoryScreenScanner() {
             if (frame.gameWindow && !inRaid && isStoryMenuText(frame.text)) {
               delay = STORY_PANE_MS
               const matches = matchStoryChapters(frame.text, questsRef.current)
-              // A chapter must be read on two frames in a row before it counts.
-              const confirmed = matches.filter((match) => previous.has(match.questId))
+              // A chapter must be read on two frames in a row before it counts, and so must its stage: one misread
+              // frame never moves the stage (up or down). An unconfirmed stage keeps the stored one.
+              const confirmed = matches
+                .filter((match) => previous.has(match.questId))
+                .map((match) => ({ questId: match.questId, stageIndex: match.stageIndex != null && previousStages.get(match.questId) === match.stageIndex ? match.stageIndex : undefined }))
               previous = new Set(matches.map((match) => match.questId))
+              previousStages = new Map(matches.map((match) => [match.questId, match.stageIndex]))
               if (confirmed.length) applyRef.current(mode, confirmed)
             } else if (frame.gameWindow && !inRaid && isTasksMenuText(frame.text)) {
               delay = STORY_PANE_MS

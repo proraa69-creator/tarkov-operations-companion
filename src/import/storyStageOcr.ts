@@ -43,9 +43,13 @@ export function inferStoryStageIndex(text: string, quest: Quest): number | undef
     return hits.sort((a, b) => b.score - a.score)[0]?.index
   }
 
-  // Prefer map/raid objectives over «поговорить с …» when both appear (UI lists prior talks).
-  const mapHits = incomplete.filter((hit) => !hit.talk)
-  const pool = mapHits.length ? mapHits : incomplete
+  // Only stages read about as well as the best one compete: a stage whose words were merely scattered over other
+  // lines («…отряде «Богатыри»» in several Batya stages) must never beat the objective written out in full.
+  const best = Math.max(...incomplete.map((hit) => hit.score))
+  const strong = incomplete.filter((hit) => hit.score >= best - 0.08)
+  // Among those, prefer map/raid objectives over «поговорить с …» (the UI lists prior talks).
+  const mapHits = strong.filter((hit) => !hit.talk)
+  const pool = mapHits.length ? mapHits : strong
   return pool.sort((a, b) => b.score - a.score || b.index - a.index)[0]?.index
 }
 
