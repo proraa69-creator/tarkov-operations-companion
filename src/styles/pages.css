@@ -1029,3 +1029,23 @@ a.quest-stage:hover { color: var(--text); }
 .boss-placement-hint { display: inline-flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 12px; }
 .boss-placement-remove { display: grid; gap: 8px; justify-items: start; margin-top: 10px; }
 .boss-placement-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* «Квесты: правка точек» (owner app, src/components/QuestPointEditor.tsx). */
+.quest-point-panel {
+  flex-basis: 100%; max-width: 360px; max-height: min(60vh, 520px); overflow: auto; pointer-events: auto;
+  display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 9px; background: rgb(10 16 12 / 92%); backdrop-filter: blur(10px); font-size: 12px;
+}
+.quest-point-search { position: relative; display: block; }
+.quest-point-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+.quest-point-search .input { width: 100%; padding-left: 28px; height: 30px; font-size: 12px; }
+.quest-point-results, .quest-point-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.quest-point-results button { width: 100%; display: grid; gap: 2px; padding: 6px 8px; border: 1px solid transparent; border-radius: 7px; background: rgb(255 255 255 / 3%); color: inherit; text-align: left; cursor: pointer; }
+.quest-point-results button:hover { border-color: #5f553a; }
+.quest-point-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.quest-point-select, .quest-point-note { width: 100%; height: 30px; padding: 2px 8px; font-size: 12px; }
+.quest-point-actions, .quest-point-maps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.quest-point-list li { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.quest-point-list li.is-hidden { opacity: .6; }
+.quest-point-name { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px; border: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+.quest-point-name small { margin-left: 4px; font-variant-numeric: tabular-nums; }
+.quest-point-row-actions { display: inline-flex; gap: 2px; }

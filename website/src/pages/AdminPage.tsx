@@ -10,6 +10,7 @@ import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
 import { AdminUpdate } from '../components/admin/AdminUpdate'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
+import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -87,7 +88,7 @@ export function AdminPage() {
           )}
           {tab === 'invites' && <AdminInvites />}
           {tab === 'sales' && <AdminSales />}
-          {tab === 'bugs' && <AdminBugReports />}
+          {tab === 'bugs' && <><AdminBugReports /><AdminQuestPoints /></>}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
           {tab === 'update' && <AdminUpdate />}

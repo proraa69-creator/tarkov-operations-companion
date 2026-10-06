@@ -40,6 +40,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
   // Bosses placed on the maps by the owner (server/src/routes/mapBosses.ts).
   { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
+  // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
+  { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Кабинет стримера» on the phone too.

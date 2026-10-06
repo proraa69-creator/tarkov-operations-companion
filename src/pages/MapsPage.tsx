@@ -22,6 +22,7 @@ import { FloorSvgOverlay } from '../components/FloorSvgOverlay'
 import { LivePlayerMarker } from '../components/LivePlayerMarker'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
+import { QuestPointCardActions, QuestPointControls, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
 import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
 import { mapViewSupport, planMapLayers, readMapView, saveMapView } from '../data/mapView'
@@ -323,6 +324,13 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const plottedMarkersForBosses = useMemo(() => data.markers.filter((marker) => marker.mapId === activeMap.id && marker.type === 'boss'), [activeMap.id, data.markers])
   const allBossMarkers = useMemo(() => data.markers.filter((marker) => marker.type === 'boss'), [data.markers])
   const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor, plottedMarkersForBosses, allBossMarkers, state.raidMode)
+  // «Квесты: правка точек» (owner app): one editing mode at a time with «Расставить боссов».
+  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers })
+  const editingQuest = questEditor.editingQuest
+  const questEditorShows = questEditor.shows
+  const setBossActive = bossPlacement.setActive
+  const setQuestEditorActive = questEditor.setActive
+  useEffect(() => { if (bossPlacement.active) setQuestEditorActive(false) }, [bossPlacement.active]) // eslint-disable-line react-hooks/exhaustive-deps
   const mapRef = useRef<LeafletMap | null>(null)
   const toolActive = tools.tool !== 'none'
   const [search, setSearch] = useState('')
@@ -366,6 +374,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     const layerId = markerLayerId(marker)
     const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId)
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
+    // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
+    if (editingQuest && isQuest && marker.questId) return marker.questId === editingQuest && questEditorShows(marker)
     const relevant = focused || !marker.questId || !isQuest || visibleQuestIds.has(marker.questId)
     const stageOk = markerMatchesStage(marker, focusedQuestId, focusedStage, progress, data.quests)
     return relevant
@@ -374,7 +384,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
       && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests, bossPlacement.active])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
@@ -519,7 +529,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         </div>
       </aside>
 
-      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active ? ' is-boss-placing' : ''}`}>
+      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           <span>{uiText(activeMap.name.toUpperCase())}</span>
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -528,6 +538,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
+          <QuestPointControls state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} onSelectMap={selectMap} onFocus={showMarker} onToggle={(on) => { if (on) setBossActive(false) }} />
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -599,15 +610,16 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           ))}
           <FocusOnMarker marker={flyTarget} />
           <MapRefCapture mapRef={mapRef} />
-          {!toolActive && !route.picking && !bossPlacement.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
+          {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
+          {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
           <MapToolLayer value={tools} onChange={setTools} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker mapId={activeMap.id} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
-            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId)
+            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest)
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
@@ -621,13 +633,15 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                 bubblingMouseEvents={false}
                 zIndexOffset={focused ? 800 : layerId === 'boss' ? 400 : 0}
                 riseOnHover
-                draggable={bossPlacement.active && layerId === 'boss' && !bossPlacement.busy}
+                draggable={(bossPlacement.active && layerId === 'boss' && !bossPlacement.busy) || questEditor.canDrag(marker)}
                 eventHandlers={{
                   add: (event) => event.target.getElement()?.setAttribute('data-marker-id', marker.id),
                   // «Расставить боссов»: a boss dragged to a new place is saved at once (components/BossPlacement.tsx).
+                  // «Квесты: правка точек»: a quest point dragged to the right place is saved at once (components/QuestPointEditor.tsx).
                   dragend: (event) => {
-                    if (!bossPlacement.active || layerId !== 'boss') return
                     const point = (event.target as LeafletMarker).getLatLng()
+                    if (questEditor.canDrag(marker)) { void questEditor.move(marker, point.lng, point.lat); return }
+                    if (!bossPlacement.active || layerId !== 'boss') return
                     void bossPlacement.move(marker, point.lng, point.lat)
                   },
                   click: (event) => {
@@ -712,6 +726,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                   to={`/quests?${isStoryQuest(relatedQuest) ? 'filter=story&' : ''}selected=${relatedQuest.id}`}
                 >{uiText(" Открыть задание ")}<ChevronRight size={14} />
                 </Link>
+                <QuestPointCardActions state={questEditor} marker={selectedMarker} onDone={() => setSelectedMarker(null)} />
               </div>
               {uiText(sheetVisual && sheetPoint && (
                 <figure className="map-quest-sheet-visual">

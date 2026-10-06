@@ -74,10 +74,29 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Метка поставлена вручную, её видят все игроки.', 'Placed by hand; every player sees this marker.'], ['Убрать с карты', 'Remove from the map'],
   ['Место появления отмечено вручную.', 'Spawn place marked by hand.'],
   ['Расставлять боссов может только аккаунт владельца.', 'Only the owner account can place bosses.'], ['Войдите в аккаунт владельца на сервере.', 'Sign in to the owner account on the server.'],
+  // «Квесты: правка точек» (owner app, src/components/QuestPointEditor.tsx).
+  ['Квесты: правка точек', 'Quests: fix points'],
+  ['Исправить точку квеста вручную (например, по баг-репорту): исправление увидят все игроки', 'Fix a quest point by hand (e.g. after a bug report): every player will see the fix'],
+  ['Найти квест по названию (RU / EN)…', 'Find a quest by name (RU / EN)…'], ['Найти квест', 'Find a quest'], ['Квест не найден', 'No quest found'],
+  ['Другой квест', 'Another quest'], ['Цель / этап', 'Objective / stage'], ['Все цели и этапы', 'All objectives and stages'],
+  ['Заметка (например, «по баг-репорту»)', 'Note (e.g. “bug report”)'], ['Заметка', 'Note'],
+  ['Добавить точку', 'Add a point'], ['Клик по карте — поставить новую точку квеста на выбранный этаж', 'Click the map to place a new quest point on the selected floor'],
+  ['Точку можно перетащить мышью — сохраняется сразу. Новая и перенесённая точка встают на выбранный этаж.', 'Drag a point with the mouse; it is saved at once. New and moved points go on the selected floor.'],
+  ['Добавлена', 'Added'], ['Перемещена', 'Moved'], ['Исходная', 'Original'], ['Скрыта', 'Hidden'], ['Скрыть', 'Hide'],
+  ['Показать на карте', 'Show on the map'], ['Вернуть исходную точку', 'Restore the original point'],
+  ['Удалить добавленную точку', 'Delete the added point'], ['Скрыть неверную точку', 'Hide the wrong point'],
+  ['На этой карте у квеста нет точек — нажмите «Добавить точку» и кликните по карте.', 'The quest has no points on this map: press “Add a point” and click the map.'],
+  ['Точки на других картах:', 'Points on other maps:'], ['Скрытая точка — клик, чтобы вернуть', 'Hidden point: click to restore'],
+  ['Точка добавлена вручную, её видят все игроки.', 'Added by hand; every player sees this point.'],
+  ['Точка перенесена вручную, её видят все игроки.', 'Moved by hand; every player sees this point.'],
+  ['Исходная точка: перетащите её, скройте или добавьте новую — изменения сохраняются сразу и видны всем игрокам.', 'Original point: drag it, hide it or add a new one; changes are saved at once and every player sees them.'],
+  ['Править точки квестов может только аккаунт владельца.', 'Only the owner account can fix quest points.'], ['Сначала выберите квест.', 'Pick a quest first.'],
 ]
 
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
+  [/Точек на этой карте:\s*/g, 'Points on this map: '],
+  [/^Этап (\d+):\s*/g, 'Stage $1: '],
   [/Переход на карту\s+/g, 'Transit to '],
   [/Иконки на карте:\s*/g, 'Map icons: '],
   [/Вид карты:\s*/g, 'Map view: '],

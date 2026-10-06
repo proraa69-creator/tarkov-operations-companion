@@ -12,6 +12,7 @@ import { useEnglishOverlay } from '../i18n/englishDataset'
 import { catalogRefetchDelay, createFailureCounter, isInitialCatalogLoad } from './catalogRefresh'
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useMapBossPlacements, withOwnerBosses } from './mapBossPlacements'
+import { useQuestPointOverrides, withQuestPointOverrides } from './questPointOverrides'
 
 interface DataContextValue {
   data: AppDataset
@@ -54,7 +55,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
   // Bosses the owner placed by hand replace the automatic markers of that boss on that map (src/data/mapBossPlacements.ts).
   const placements = useMapBossPlacements(allowed)
-  const data = useMemo(() => placements.length ? { ...translated, markers: withOwnerBosses(translated.markers, placements) } : translated, [translated, placements])
+  // Quest points the owner corrected by hand (bug reports) are moved / hidden / added on top (src/data/questPointOverrides.ts).
+  const questPoints = useQuestPointOverrides(allowed)
+  const data = useMemo(() => {
+    if (!placements.length && !questPoints.length) return translated
+    const withBosses = placements.length ? withOwnerBosses(translated.markers, placements) : translated.markers
+    return { ...translated, markers: withQuestPointOverrides(withBosses, questPoints, translated.quests) }
+  }, [translated, placements, questPoints])
   const value: DataContextValue = {
     data,
     source,
