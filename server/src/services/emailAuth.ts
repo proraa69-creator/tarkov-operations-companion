@@ -28,7 +28,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
-import { AccountError, bearer, BLOCKED_MESSAGE, FixedWindowRateLimiter, newPasswordHash, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
+import { AccountError, bearer, BLOCKED_MESSAGE, FixedWindowRateLimiter, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
 import { DEFAULT_EMAIL_LIMITS, EmailSendError, type EmailLimits, type EmailSender } from './email/index.js'
 import { renderEmail, type EmailTemplate } from './email/templates.js'
 import { CODE_LENGTH, codeHash, codeMatches, DAY_MS, newChallengeId, newCode, newSalt, sha256 } from './oneTimeCode.js'
@@ -88,7 +88,8 @@ const REGISTRATION_EXPIRED_MESSAGE = 'Срок подтверждения ист
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Слишком много неверных попыток. Запросите новый код.'
 const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с этого адреса. Попробуйте завтра.'
 
-interface Payload { salt: string; hash: string; referral?: string }
+/** `ip`: digest of the address the registration was started from (accountStore signupDigest), never the address. */
+interface Payload { salt: string; hash: string; referral?: string; ip?: string }
 
 export interface EmailAuthOptions {
   sender?: EmailSender
@@ -251,7 +252,7 @@ export class EmailAuthService implements PendingRegistrations {
       this.record(email, 'register', false)
       return this.answer(challenge)
     }
-    const payload: Payload = { salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}) }
+    const payload: Payload = { salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}), ...(ip !== undefined ? { ip: signupDigest(ip) } : {}) }
     const challenge = this.createChallenge('register', email, undefined, payload)
     this.record(email, 'register', true)
     this.sendInBackground(sender, 'register', email, challenge.code)
@@ -286,7 +287,7 @@ export class EmailAuthService implements PendingRegistrations {
     const row = this.consume('register', challengeId, code)
     const payload = JSON.parse(String(row.payload)) as Payload
     try {
-      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral)
+      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined)
     } catch (error) {
       // The address got an account meanwhile (another tab, a parallel registration).
       if (error instanceof AccountError && error.status === 409) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)

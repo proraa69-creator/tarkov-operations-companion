@@ -6,6 +6,7 @@ import { UserDataStore } from './services/userDataStore.js'
 import { openDatabase, resolveDbPath } from './services/database.js'
 import { PaymentStore, paymentConfigFromEnv } from './services/paymentStore.js'
 import { PayoutStore } from './services/payoutStore.js'
+import { InviteProgram } from './services/invites.js'
 import { LavaClient, lavaConfigFromEnv } from './services/lavaTop.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { createSmsSender, smsConfigFromEnv, smsLimitsFromEnv } from './services/sms/index.js'
@@ -27,6 +28,11 @@ const lavaConfig = lavaConfigFromEnv()
 const payments = new PaymentStore(db, paymentConfigFromEnv(), lavaConfig ? { lava: new LavaClient(lavaConfig) } : {})
 accounts.attachSubscriptions(payments)
 const payouts = new PayoutStore(db, payments)
+// «Пригласи друга»: every hour, grant the rewards whose 14-day check is over (services/invites.ts).
+const invites = new InviteProgram(accounts, payments)
+const releaseInvites = () => { try { invites.release() } catch (error) { console.error('Invite rewards failed', error instanceof Error ? error.message : 'unknown error') } }
+releaseInvites()
+setInterval(releaseInvites, 60 * 60 * 1000).unref()
 // Streamer auto-payouts: every hour, request the balance of each streamer whose N-day cycle is over.
 const runAutoPayouts = () => { try { payouts.runAuto((id) => accounts.streamerCode(id)) } catch (error) { console.error('Auto-payout failed', error) } }
 runAutoPayouts()
@@ -45,7 +51,7 @@ const emails = new EmailAuthService(accounts, { sender: emailConfig ? createEmai
 // Signed entitlements: the private key comes from TARKOV_ENTITLEMENT_PRIVATE_KEY (the owner's app keeps it encrypted) or
 // lives next to the database (entitlement-ed25519.pem, created on the first start). Never in the repository.
 const entitlements = new EntitlementService(accounts, { keyDir: dbPath === ':memory:' ? undefined : dirname(dbPath) })
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, phones, emails, entitlements })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

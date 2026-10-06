@@ -156,6 +156,11 @@ function visitorDigest(code: string, visitorKey: string) {
   return createHash('sha256').update(`${code}\u0000${visitorKey}`).digest('hex')
 }
 
+/** The registration address is kept only as this digest: enough to see two accounts made from one address. */
+export function signupDigest(ip: string) {
+  return createHash('sha256').update(`signup\u0000${ip}`).digest('hex')
+}
+
 export function normalizeReferralCode(code: string) {
   return code.trim().toUpperCase()
 }
@@ -260,6 +265,12 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['email_verified_at', 'INTEGER'],
   // 1 for every account that already existed when e-mail confirmation was introduced (see the constructor).
   ['email_grandfathered', 'INTEGER NOT NULL DEFAULT 0'],
+  // «Пригласи друга» (services/invites.ts): the player's own code, who invited this account (account id) and when,
+  // and a digest of the address the account was registered from (anti-abuse; never the address itself).
+  ['invite_code', 'TEXT'],
+  ['invited_by', 'TEXT'],
+  ['invited_at', 'INTEGER'],
+  ['signup_ip', 'TEXT'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -297,6 +308,8 @@ export class AccountStore {
     if (!columns.has('email_grandfathered')) this.db.exec('UPDATE accounts SET email_grandfathered = 1')
     // A verified number belongs to one account only.
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
+    this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_invite_code ON accounts(invite_code) WHERE invite_code IS NOT NULL')
+    this.db.exec('CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)')
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -330,14 +343,14 @@ export class AccountStore {
    * unconfirmed e-mail. With e-mail codes on, registration goes through services/emailAuth.ts instead and the account
    * is created by createVerifiedAccount() only after the code is confirmed.
    */
-  async register(email: string, password: string, referralCode?: string) {
+  async register(email: string, password: string, referralCode?: string, ip?: string) {
     const key = email.trim().toLowerCase()
     // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
     // here at all (and even if it were, isOwner() would refuse an unconfirmed account). A taken address and an owner
     // address get the same answer, so the reply does not show which e-mail is the owner's.
     if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
-    return this.insertAccount(key, salt, hash, referralCode, null)
+    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip))
   }
 
   /**
@@ -345,10 +358,10 @@ export class AccountStore {
    * confirmed — this is also how a listed owner e-mail can be registered once e-mail codes are on. Throws 409 when the
    * address got an account meanwhile.
    */
-  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string) {
+  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string) {
     const key = email.trim().toLowerCase()
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
-    return this.insertAccount(key, salt, passwordHash, referralCode, this.now())
+    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp)
   }
 
   /** Same scrypt cost as hashing a real password (registration of an address that already has an account). */
@@ -356,24 +369,28 @@ export class AccountStore {
     await hashPassword(password, this.dummySalt)
   }
 
-  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null) {
+  /** `signupIp`: digest of the registration address (signupDigest), kept only to spot invitation abuse. */
+  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string) {
     const id = randomBytes(12).toString('hex')
     const createdAt = this.now()
     let referredBy: string | null = null
+    let invitedBy: string | null = null
     if (referralCode) {
       const code = normalizeReferralCode(referralCode)
-      // An unknown or invalid code must not block registration; it is simply not applied.
+      // An unknown or invalid code must not block registration; it is simply not applied. A streamer's code gives the
+      // trial; a player's code («Пригласи друга») gives the discount on the first month (services/invites.ts).
       if (this.activeOwnerOfCode(code)) referredBy = code
+      else invitedBy = this.playerOfCode(code) ?? null
     }
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt)
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
       throw error
     }
-    return { token: this.createSession(id), referralApplied: referredBy !== null }
+    return { token: this.createSession(id), referralApplied: referredBy !== null || invitedBy !== null }
   }
 
   async login(email: string, password: string) {
@@ -485,14 +502,48 @@ export class AccountStore {
       .map((row) => ({ kind: String(row.kind) as ConsentKind, version: String(row.version), acceptedAt: new Date(Number(row.accepted_at)).toISOString() }))
   }
 
-  /** Attach a streamer referral code to an ordinary user. Allowed once; a streamer cannot refer anyone to himself. */
+  /**
+   * Attach a streamer's code or a friend's code to an ordinary user. Allowed once (either kind); a streamer cannot refer
+   * anyone to himself. A friend's code is for new players only: not one's own and not after a payment.
+   */
   applyReferral(accountId: string, rawCode: string) {
     const account = this.mustGet(accountId)
     if (account.kind !== 'user') throw new AccountError(403, 'Код приглашения можно указать только в аккаунте пользователя')
-    if (account.referredBy) throw new AccountError(409, 'Код приглашения уже указан')
+    if (account.referredBy || this.invitedBy(accountId)) throw new AccountError(409, 'Код приглашения уже указан')
     const code = normalizeReferralCode(rawCode)
-    if (!this.activeOwnerOfCode(code)) throw new AccountError(404, 'Код приглашения не найден')
-    this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL').run(code, this.now(), account.id)
+    if (this.activeOwnerOfCode(code)) {
+      this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(code, this.now(), account.id)
+      return
+    }
+    const inviter = this.playerOfCode(code)
+    if (!inviter) throw new AccountError(404, 'Код приглашения не найден')
+    if (inviter === account.id) throw new AccountError(409, 'Свой код указать нельзя')
+    if (this.hasPaid(account.id)) throw new AccountError(409, 'Код друга действует только для новых игроков — до первой оплаты')
+    this.db.prepare('UPDATE accounts SET invited_by = ?, invited_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(inviter, this.now(), account.id)
+  }
+
+  /** The account that invited this one with a player's code («Пригласи друга»), if any. */
+  invitedBy(accountId: string) {
+    const row = this.db.prepare('SELECT invited_by FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.invited_by == null ? undefined : String(row.invited_by)
+  }
+
+  /** The player holding an invitation code, if the account is an ordinary, working one. */
+  playerOfCode(code: string) {
+    const row = this.db.prepare("SELECT id FROM accounts WHERE invite_code = ? AND kind = 'user' AND blocked_at IS NULL AND deleted_at IS NULL").get(code) as Row | undefined
+    return row ? String(row.id) : undefined
+  }
+
+  /** «streamer» / «friend» for a working code, undefined otherwise (landing page `/r/<code>`). */
+  codeKind(rawCode: string): 'streamer' | 'friend' | undefined {
+    const code = normalizeReferralCode(rawCode)
+    if (this.activeOwnerOfCode(code)) return 'streamer'
+    return this.playerOfCode(code) ? 'friend' : undefined
+  }
+
+  private hasPaid(accountId: string) {
+    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'payments'").get()) return false
+    return this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND status = 'succeeded'").get(accountId) !== undefined
   }
 
   setNicknames(accountId: string, nicknames: Partial<Record<AccountMode, string | null>>) {
@@ -510,7 +561,7 @@ export class AccountStore {
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
   recordReferralVisit(rawCode: string, visitorKey: string, campaign?: string) {
     const code = normalizeReferralCode(rawCode)
-    if (!this.activeOwnerOfCode(code)) return false
+    if (!this.activeOwnerOfCode(code)) return this.playerOfCode(code) !== undefined
     const now = this.now()
     this.sweep(now)
     const visitor = visitorDigest(code, visitorKey)
@@ -702,7 +753,7 @@ export class AccountStore {
       }
       // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
       this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', phone = NULL, phone_verified_at = NULL,
-        email_verified_at = NULL, email_grandfathered = 0, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
+        email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
         .run(`deleted-${account.id}@deleted.invalid`, randomBytes(16), randomBytes(64), this.now(), this.now(), this.now(), account.id)
       this.db.exec('COMMIT')
     } catch (error) {
@@ -793,8 +844,8 @@ export class AccountStore {
   }
 
   /** Any account holding the code, including a former streamer: the code stays reserved after the status is taken away. */
-  private holderOfCode(code: string) {
-    const row = this.db.prepare('SELECT id FROM accounts WHERE referral_code = ?').get(code) as Row | undefined
+  holderOfCode(code: string) {
+    const row = this.db.prepare('SELECT id FROM accounts WHERE referral_code = ? OR invite_code = ?').get(code, code) as Row | undefined
     return row ? String(row.id) : undefined
   }
 
@@ -944,7 +995,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
         const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown')
         return { status: 202, body: { pending: true, message: REGISTRATION_PENDING_MESSAGE, ...challenge } }
       }
-      const result = await store.register(email, password, referralCode || undefined)
+      const result = await store.register(email, password, referralCode || undefined, req.ip)
       return { status: 201, body: { token: result.token, referralApplied: result.referralApplied, account: store.view(store.authenticate(result.token)!) } }
     }),
 
@@ -1030,7 +1081,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (!parsed.success) return invalid('Некорректный код приглашения')
       // An unusable campaign label is ignored: the visit itself still counts.
       const known = store.recordReferralVisit(parsed.data.code, req.ip ?? 'unknown', parsed.data.campaign)
-      return known ? { status: 200, body: { ok: true, code: normalizeReferralCode(parsed.data.code) } } : { status: 404, body: { error: 'Код приглашения не найден' } }
+      return known ? { status: 200, body: { ok: true, code: normalizeReferralCode(parsed.data.code), kind: store.codeKind(parsed.data.code) } } : { status: 404, body: { error: 'Код приглашения не найден' } }
     }),
 
     /** Streamer cabinet: visits per campaign label of the audience links. */

@@ -19,6 +19,8 @@ import { mountSocial, type SocialLimits } from './routes/social.js'
 import { createPaymentsRouter } from './routes/payments.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
+import { InviteProgram } from './services/invites.js'
+import { createInvitesRouter } from './routes/invites.js'
 import { createPayoutsRouter } from './routes/payouts.js'
 import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
@@ -53,6 +55,8 @@ export interface ApiOptions {
   catalog?: CatalogPeek
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
+  /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
+  invites?: InviteProgram
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -136,8 +140,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.
   const payments = options.payments ?? new PaymentStore(accounts.database, undefined)
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
-  app.use('/v1/payments', createPaymentsRouter(accounts, payments))
   const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
+  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
+  if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
   // «Серверная версия» (owner only): a one-time 15-minute link to this laptop's exe (routes/serverDownload.ts).

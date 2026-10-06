@@ -2,7 +2,7 @@
  * Subscription payments, mounted at `/v1/payments` (services/paymentStore.ts).
  *
  *   GET  /plans                      -> 200 { enabled, plans, providers, foreign: { currency, prices } | null }
- *   GET  /                           Bearer -> 200 { payments, autopay }
+ *   GET  /                           Bearer -> 200 { payments, autopay, friendDiscount: { percent, plan: '1m' } | null }
  *   POST /                           Bearer { plan, consent: { version }, region?: 'ru' | 'intl', autopay?: { version },
  *                                    language?: 'ru' | 'en' } -> 201 { paymentId, confirmationUrl }
  *                                    (400 without the offer / personal data consent; its version and time are stored.
@@ -19,6 +19,7 @@ import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
+import type { InviteProgram } from '../services/invites.js'
 
 const planSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']) })
 /** The payer ticked «Я принимаю условия оферты…» for this version of the documents (website/src/legal). */
@@ -44,7 +45,8 @@ function siteUrl(req: Request, payments: PaymentStore) {
   throw new PaymentError(400, 'Не задан адрес сайта для возврата после оплаты')
 }
 
-export function createPaymentsRouter(accounts: AccountStore, payments: PaymentStore) {
+/** `invites`: «Пригласи друга» — a friend's code gives a discount on the first month (services/invites.ts). */
+export function createPaymentsRouter(accounts: AccountStore, payments: PaymentStore, invites?: InviteProgram) {
   const router = express.Router()
   const createLimiter = new FixedWindowRateLimiter(10, 15 * 60 * 1000)
 
@@ -73,7 +75,8 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
 
   router.get('/', handle((req, res) => {
     const id = account(req)
-    res.json({ payments: payments.list(id), autopay: payments.autopay(id) })
+    const percent = invites?.discountPercent(id) ?? 0
+    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null })
   }))
 
   router.post('/', handle(async (req, res) => {
@@ -89,7 +92,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const billing = accounts.billingInfo(id)
     const created = options.region === 'intl'
       ? await payments.createLava(billing, plan, { version }, options.autopay, options.language === 'en' ? 'EN' : 'RU')
-      : await payments.create(billing, plan, siteUrl(req, payments), { version }, options.autopay)
+      : await payments.create(billing, plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined)
     accounts.recordConsent(id, 'payment', version)
     res.status(201).json(created)
   }))

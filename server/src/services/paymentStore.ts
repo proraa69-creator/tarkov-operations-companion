@@ -25,7 +25,7 @@
  * TARKOV_PUBLIC_URL (the site address for the return link); LAVA_* for Lava.top (lavaTop.ts). Without a shop id, key
  * and price ЮKassa is switched off. Secret keys are never logged, stored in the database or sent to a client.
  */
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
 import { LavaClient, LavaError, lavaAuthSeen, lavaWebhookAuth, parseLavaEvent, type LavaConfig, type LavaEvent, type LavaPrices } from './lavaTop.js'
@@ -152,6 +152,8 @@ export interface PaymentView {
   provider: PaymentProvider
   /** An automatic renewal (ЮKassa autopayment or a Lava.top recurring charge). */
   renewal?: true
+  /** «Пригласи друга»: the first month was paid with this discount, %. */
+  discountPercent?: number
 }
 export type AutopayStatus = 'active' | 'canceled' | 'failed'
 export interface AutopayView {
@@ -272,7 +274,15 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['autopay_consent_at', 'INTEGER'],
   ['recurring_id', 'TEXT'],
   ['period_end', 'INTEGER'],
+  // «Пригласи друга»: the plan price before the friend's discount and the discount itself (services/invites.ts), and a
+  // digest of the card the payment was made with (first 6 + last 4 digits and expiry; never the number) for abuse checks.
+  ['list_amount', 'INTEGER'],
+  ['discount_percent', 'REAL'],
+  ['method_key', 'TEXT'],
 ]
+
+/** A payment that has just succeeded (PaymentStore.onSucceeded). */
+export interface SucceededPayment { id: string; accountId: string; plan: PlanId; amount: number; methodKey?: string }
 
 const nullableText = (value: unknown) => (value == null ? null : String(value))
 const rub = (kopecks: number) => (kopecks / 100).toFixed(2)
@@ -291,6 +301,17 @@ export class PaymentStore {
   configureLava(config: LavaConfig | undefined) { this.lavaClient = config ? new LavaClient(config) : undefined }
   private readonly notify: (notice: AutopayNotice) => void
   private renewing = false
+  private readonly succeededListeners: Array<(payment: SucceededPayment) => void> = []
+
+  /** Called once per payment when it succeeds, inside the same transaction (services/invites.ts). */
+  onSucceeded(listener: (payment: SucceededPayment) => void) {
+    this.succeededListeners.push(listener)
+  }
+
+  /** Whether the account has paid at least once. */
+  hasSucceeded(accountId: string) {
+    return this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND status = 'succeeded'").get(accountId) !== undefined
+  }
 
   /**
    * `notify`: called for autopayment notices (upcoming charge 3 days ahead, charged, failed, stopped).
@@ -425,14 +446,17 @@ export class PaymentStore {
    * the offer / personal data documents the payer accepted with the checkbox; it is stored with the payment. `autopay`
    * is the separate autopayment consent: only with it ЮKassa is asked to save the payment method.
    */
-  async create(account: { id: string; email: string; referredBy?: string }, plan: PlanId, siteUrl: string, consent?: { version: string }, autopay?: { version: string }) {
+  async create(account: { id: string; email: string; referredBy?: string }, plan: PlanId, siteUrl: string, consent?: { version: string }, autopay?: { version: string }, discount?: { percent: number }) {
     const config = this.config
     if (!config) throw new PaymentError(503, 'Оплата пока не подключена')
     if (autopay && !config.autopay) throw new PaymentError(409, 'Автоплатежи пока не подключены — оплатите без автопродления')
     if (autopay) this.assertNoActiveAutopay(account.id)
     const id = randomBytes(12).toString('hex')
-    const amount = planPrice(config.monthPrice, plan)
-    const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}`
+    const listAmount = planPrice(config.monthPrice, plan)
+    // The friend's discount (services/invites.ts) is only for the first month.
+    const percent = discount && plan === '1m' && discount.percent > 0 && discount.percent < 100 ? discount.percent : undefined
+    const amount = percent === undefined ? listAmount : Math.round(listAmount * (100 - percent) / 100)
+    const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}${percent === undefined ? '' : ` (скидка ${percent} % по коду друга)`}`
     const body: Record<string, unknown> = {
       amount: { value: rub(amount), currency: 'RUB' },
       capture: true,
@@ -443,8 +467,8 @@ export class PaymentStore {
     }
     if (config.receipts) body.receipt = receipt(account.email, description, amount)
     const now = this.now()
-    this.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, referral_code, created_at, consent_version, consent_at, provider, currency, amount_original, autopay_consent_version, autopay_consent_at) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, 'yookassa', 'RUB', ?, ?, ?)")
-      .run(id, account.id, plan, amount, account.referredBy ?? null, now, consent?.version ?? null, consent ? now : null, amount, autopay?.version ?? null, autopay ? now : null)
+    this.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, referral_code, created_at, consent_version, consent_at, provider, currency, amount_original, autopay_consent_version, autopay_consent_at, list_amount, discount_percent) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, 'yookassa', 'RUB', ?, ?, ?, ?, ?)")
+      .run(id, account.id, plan, amount, account.referredBy ?? null, now, consent?.version ?? null, consent ? now : null, amount, autopay?.version ?? null, autopay ? now : null, listAmount, percent ?? null)
     const answer = await this.call('POST', '/payments', body, randomUUID())
     const providerId = typeof answer.id === 'string' ? answer.id : ''
     const confirmation = answer.confirmation as Row | undefined
@@ -520,7 +544,9 @@ export class PaymentStore {
     if (amount?.currency !== 'RUB' || amount.value !== rub(Number(row.amount))) return
     const method = remote.payment_method as Row | undefined
     transaction(this.db, () => {
-      if (!this.markSucceeded(row, Number(row.amount))) return
+      const key = method ? methodKey(method) : undefined
+      if (key) this.db.prepare("UPDATE payments SET method_key = ? WHERE id = ? AND status = 'pending'").run(key, String(row.id))
+      if (!this.markSucceeded(row, Number(row.amount), undefined, key)) return
       const accountId = String(row.account_id)
       this.extend(accountId, row.plan as PlanId)
       if (recurringId) {
@@ -531,18 +557,23 @@ export class PaymentStore {
       if (row.autopay_consent_version != null && method?.saved === true && typeof method.id === 'string' && method.id) {
         this.db.prepare("UPDATE recurring_subscriptions SET status = 'canceled', canceled_at = ?, method_id = NULL WHERE account_id = ? AND status = 'active'").run(this.now(), accountId)
         this.db.prepare("INSERT INTO recurring_subscriptions (id, account_id, provider, plan, amount, currency, method_id, method_title, referral_code, status, consent_version, consent_at, created_at) VALUES (?, ?, 'yookassa', ?, ?, 'RUB', ?, ?, ?, 'active', ?, ?, ?)")
-          .run(randomBytes(12).toString('hex'), accountId, String(row.plan), Number(row.amount), method.id.slice(0, 64), methodTitle(method), nullableText(row.referral_code), String(row.autopay_consent_version), Number(row.autopay_consent_at), this.now())
+          .run(randomBytes(12).toString('hex'), accountId, String(row.plan), Number(row.list_amount ?? row.amount), method.id.slice(0, 64), methodTitle(method), nullableText(row.referral_code), String(row.autopay_consent_version), Number(row.autopay_consent_at), this.now())
       }
     })
   }
 
   /** pending → succeeded with the streamer's share fixed now; false if the row was already applied. */
-  private markSucceeded(row: Row, rubKopecks: number, original?: { amount: number; currency: string }) {
+  private markSucceeded(row: Row, rubKopecks: number, original?: { amount: number; currency: string }, methodKey?: string) {
     const percent = row.referral_code == null ? null : this.percentFor(String(row.referral_code))
     const earning = percent === null ? null : Math.floor(rubKopecks * percent / 100)
     const changed = this.db.prepare("UPDATE payments SET status = 'succeeded', paid_at = ?, amount = ?, streamer_percent = ?, streamer_earning = ?, amount_original = COALESCE(?, amount_original, ?), currency = COALESCE(?, currency, 'RUB') WHERE id = ? AND status = 'pending'")
       .run(this.now(), rubKopecks, percent, earning, original?.amount ?? null, rubKopecks, original?.currency ?? null, String(row.id))
-    return Number(changed.changes) > 0
+    if (!Number(changed.changes)) return false
+    const done: SucceededPayment = { id: String(row.id), accountId: String(row.account_id), plan: row.plan as PlanId, amount: rubKopecks, ...(methodKey ? { methodKey } : {}) }
+    for (const listener of this.succeededListeners) {
+      try { listener(done) } catch (error) { console.error('Payment listener failed', error instanceof Error ? error.message : 'unknown error') }
+    }
+    return true
   }
 
   /**
@@ -1004,6 +1035,18 @@ function receipt(email: string, description: string, amount: number) {
   }
 }
 
+/**
+ * A digest that is the same for one card across accounts (first 6 + last 4 digits and expiry, as ЮKassa reports them),
+ * or for one saved payment method; undefined when ЮKassa tells nothing that identifies the payer's method.
+ */
+function methodKey(method: Row) {
+  const card = method.card as Row | undefined
+  const parts = card && typeof card.first6 === 'string' && typeof card.last4 === 'string'
+    ? ['card', card.first6, card.last4, String(card.expiry_year ?? ''), String(card.expiry_month ?? '')]
+    : method.saved === true && typeof method.id === 'string' && method.id ? ['method', method.id] : undefined
+  return parts ? createHash('sha256').update(parts.join('|')).digest('hex') : undefined
+}
+
 /** «Карта *4444», «СБП», «SberPay», «ЮMoney» — what the cabinet shows next to the autopayment. */
 function methodTitle(method: Row) {
   const type = typeof method.type === 'string' ? method.type : ''
@@ -1026,5 +1069,6 @@ function toView(row: Row): PaymentView {
     ...(row.paid_at == null ? {} : { paidAt: new Date(Number(row.paid_at)).toISOString() }),
     provider,
     ...(row.recurring_id == null ? {} : { renewal: true as const }),
+    ...(row.discount_percent == null ? {} : { discountPercent: Number(row.discount_percent) }),
   }
 }
