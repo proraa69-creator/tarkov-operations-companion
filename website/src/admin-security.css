@@ -4,7 +4,7 @@
 .guard-strip.is-red { border-color: #5a3732; background: linear-gradient(160deg, rgb(189 109 96 / 16%), var(--surf-1) 70%); }
 .guard-strip-text { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text-muted); }
 .guard-strip-text strong { color: var(--text); font-size: 15px; }
-.guard-lamp { flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgb(122 140 166 / 18%); }
+.guard-lamp { flex: 0 0 auto; width: 14px; height: 14px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgb(127 161 131 / 18%); }
 .guard-lamp.is-amber { background: var(--amber); box-shadow: 0 0 0 4px rgb(210 155 88 / 18%); }
 .guard-lamp.is-red { background: var(--danger); box-shadow: 0 0 0 4px rgb(189 109 96 / 22%); }
 .guard-chart .admin-chart-bar.guard-bar { background: var(--danger); }

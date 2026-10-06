@@ -4,7 +4,7 @@
 .rank-badge { white-space: nowrap; }
 
 /* Progress to the next rank */
-.invite-progress { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #2d3d51; border-radius: 11px; background: linear-gradient(160deg, rgb(54 84 123 / 18%), var(--surf-1) 70%); }
+.invite-progress { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid #4e4630; border-radius: 11px; background: linear-gradient(160deg, rgb(117 99 60 / 18%), var(--surf-1) 70%); }
 .invite-progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 14px; }
 .invite-progress-text { color: var(--text); font-weight: 650; }
 .invite-bar { height: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; background: var(--surf-0); }
@@ -13,13 +13,13 @@
 /* Ranks ladder */
 .rank-ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .rank-step { position: relative; display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-1); min-width: 0; }
-.rank-step.is-reached { border-color: #334966; background: linear-gradient(160deg, rgb(54 84 123 / 24%), var(--surf-1) 72%); }
-.rank-friends { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #364a63; border-radius: 8px; background: #161b21; color: var(--brass-strong); font-size: 12px; font-weight: 850; }
+.rank-step.is-reached { border-color: #625537; background: linear-gradient(160deg, rgb(117 99 60 / 24%), var(--surf-1) 72%); }
+.rank-friends { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #5f553a; border-radius: 8px; background: #1f2017; color: var(--brass-strong); font-size: 12px; font-weight: 850; }
 .rank-text { display: grid; gap: 2px; min-width: 0; }
 .rank-text strong { color: var(--text); font-size: 13.5px; line-height: 1.25; }
 .rank-text span { color: var(--text-muted); font-size: 12.5px; line-height: 1.35; }
 .rank-check { position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; color: var(--brass-strong); }
-.rank-legend .rank-friends { border-color: #3f5d83; background: linear-gradient(145deg, #18283d, #161b21); }
+.rank-legend .rank-friends { border-color: #7d6c45; background: linear-gradient(145deg, #3a301b, #1f2017); }
 
 /* Rewards list */
 .invite-rewards { display: grid; gap: 8px; }
@@ -36,7 +36,7 @@
 
 /* Home page: «Raid OS выгоднее с отрядом» */
 .friends-promo { padding: 24px 0 72px; }
-.friends-card { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(24px, 4vw, 44px); border-color: #2d3d51; background: radial-gradient(circle at 0% -20%, rgb(119 144 181 / 14%), transparent 55%), linear-gradient(160deg, rgb(54 84 123 / 18%), rgb(16 23 33 / 94%) 60%); }
+.friends-card { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(24px, 4vw, 44px); border-color: #4e4630; background: radial-gradient(circle at 0% -20%, rgb(169 185 115 / 14%), transparent 55%), linear-gradient(160deg, rgb(117 99 60 / 18%), rgb(20 29 24 / 94%) 60%); }
 .friends-card .feature-title { margin-top: 12px; }
 .friends-card .hero-actions { margin-top: 22px; justify-content: flex-start; }
 .rank-ladder.is-compact { grid-template-columns: 1fr; gap: 6px; }
