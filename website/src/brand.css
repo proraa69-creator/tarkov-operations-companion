@@ -1,7 +1,7 @@
 /* «Raid OS» logo on the site: the approved artwork from build/brand (copied to public/brand by scripts/brand-icons.mjs). */
 .brand .brand-logo-tile { width: 42px; height: 42px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; display: block; }
 .brand .brand-logo-name { display: block; height: 17px; width: auto; }
-.brand .brand-sub { margin-top: 5px; color: #a4b07a; letter-spacing: .24em; }
+.brand .brand-sub { margin-top: 5px; color: #758fb5; letter-spacing: .24em; }
 .hero-title.hero-wordmark { margin: 18px auto 16px; line-height: 0; letter-spacing: 0; }
 .hero-wordmark img { display: block; width: min(560px, 86vw); height: auto; margin: 0 auto; }
 @media (max-width: 720px) {

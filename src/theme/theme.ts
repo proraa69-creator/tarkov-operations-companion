@@ -2,14 +2,13 @@ export interface ThemeOption { id: string; label: string; swatch: [string, strin
 
 export const THEMES: ThemeOption[] = [
   { id: 'tarkov', label: 'Тарков', swatch: ['#0a0f0c', '#19241e', '#c4a665'] },
-  { id: 'crimson', label: 'Багровый', swatch: ['#12060a', '#3a0f1b', '#e6a35c'] },
   // Material themes: procedural textures from scripts/textures, styles in src/styles/themes.css
   { id: 'blackmc', label: 'Чёрный мультикам', swatch: ['#060607', '#1b1b1d', '#a9b973'] },
-  { id: 'rust', label: 'Ржавая сталь', swatch: ['#62717d', '#7c8d99', '#a4582a'] },
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
-  // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026 (their CSS stays; a saved choice falls back to the default)
+  // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026, «Багровый» and «Ржавая сталь» on
+  // 06.10.2026 (their CSS stays; a saved choice falls back to the default)
 ]
 
 /** «Алькантара»: the thread colour of the seams (Settings → «Цветовая схема» → «Строчка»). */

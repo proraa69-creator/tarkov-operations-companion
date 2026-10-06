@@ -7,7 +7,7 @@
 //   android/app/src/main/res/mipmap-*        launcher icons: legacy squircle + round, adaptive foreground + background
 //   android/app/src/main/res/drawable*/splash.png, ios/.../Splash.imageset   dark splash with the monogram
 //   ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png      1024 px, no transparency (iOS masks it)
-import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import sharp from 'sharp'
 
@@ -65,9 +65,12 @@ await writeFile('build/icon.ico', icoFile)
 await writeFile('public/app-icon.ico', icoFile)
 await writeFile('build/icon.png', await png(iconSvg, 1024))
 await writeFile('public/favicon.png', await png(iconSvg, 64))
-await writeFile('website/public/favicon.svg', smallTile(56))
+// The site is blue (06.10.2026): its copies of the artwork swap the olive accent for the site's blue.
+const SITE_COLOURS = { '#a9b973': '#6fb0ec', '#b3c07c': '#86bdf0', '#d6e1a8': '#b9daf7', '#5f6b43': '#2f5f8f', '#434b2c': '#22476e', '#8a8d83': '#8e9aad', 'rgb(212 224 166': 'rgb(150 196 240', 'rgb(176 184 150': 'rgb(150 180 214' }
+const siteColours = (svg) => Object.entries(SITE_COLOURS).reduce((text, [from, to]) => text.replaceAll(new RegExp(from.replace('(', '\\('), 'gi'), to), svg)
+await writeFile('website/public/favicon.svg', siteColours(smallTile(56)))
 await mkdir('website/public/brand', { recursive: true })
-for (const name of ['icon.svg', 'wordmark.svg', 'name.svg']) await copyFile(join(BRAND, name), join('website/public/brand', name))
+for (const name of ['icon.svg', 'wordmark.svg', 'name.svg']) await writeFile(join('website/public/brand', name), siteColours(await src(name)))
 
 // Android: sizes of the existing files (mdpi 48/108 … xxxhdpi 192/432).
 const res = 'android/app/src/main/res'

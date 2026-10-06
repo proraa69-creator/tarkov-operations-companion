@@ -1,15 +1,15 @@
 /* QR sign-in: «Войти по QR-коду» on /login and the /app-login page. */
 .qr-login { display: grid; justify-items: center; gap: 12px; text-align: center; }
-.qr-login-frame { padding: 10px; border: 1px solid var(--line-strong, #3a463d); border-radius: 14px; background: #fff; line-height: 0; }
+.qr-login-frame { padding: 10px; border: 1px solid var(--line-strong, #2a3c56); border-radius: 14px; background: #fff; line-height: 0; }
 .qr-login-frame.is-expired { opacity: .25; filter: blur(2px); }
 .qr-login-code { font-size: 26px; font-weight: 850; letter-spacing: .16em; font-variant-numeric: tabular-nums; user-select: all; }
 .qr-login-timer { color: var(--text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .qr-login-steps { margin: 0; padding: 0 0 0 18px; color: var(--text-muted); font-size: 14px; line-height: 1.55; text-align: left; }
 .qr-login-steps li + li { margin-top: 6px; }
-.auth-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--text-dim, #7d877f); font-size: 12px; text-transform: uppercase; letter-spacing: .14em; }
-.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line, #2b352e); }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--text-dim, #6e7e96); font-size: 12px; text-transform: uppercase; letter-spacing: .14em; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line, #202d40); }
 .app-login-actions { display: grid; gap: 10px; }
-.app-login-info { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line, #2b352e); border-radius: 10px; text-align: left; }
+.app-login-info { display: grid; gap: 4px; padding: 12px 14px; border: 1px solid var(--line, #202d40); border-radius: 10px; text-align: left; }
 .app-login-info small { color: var(--text-muted); overflow-wrap: anywhere; }
 .auth-card .app-login-actions .button, .auth-card .button.app-login-approve { white-space: normal; text-align: center; height: auto; min-height: 50px; padding-block: 10px; overflow-wrap: anywhere; }
 .qr-login, .app-login-actions, .app-login-info { min-width: 0; }
