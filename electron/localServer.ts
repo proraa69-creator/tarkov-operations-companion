@@ -7,6 +7,7 @@ import { basename, dirname, extname, join, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { apiEnvironment, entitlementKeyEnvironment } from './ownerAdmin.js'
+import { apiChildEnv } from './apiEnv.js'
 import { dispatchApiMessage } from './apiChannel.js'
 import { buildEdition, type BuildEdition } from './buildEdition.js'
 import { publicSiteUrl, tunnelStatus } from './publicTunnel.js'
@@ -149,7 +150,8 @@ async function startApi() {
   const child = utilityProcess.fork(serverScript(), [], {
     serviceName: 'Raid OS API',
     stdio: 'pipe',
-    env: { ...process.env, HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...buildEnv, ...serverExe, ...extra },
+    // Only the variables the server reads (electron/apiEnv.ts): never the app's own secrets such as RAIDOS_UPDATE_SIGNING_KEY*.
+    env: apiChildEnv(process.env, { HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, ...buildEnv, ...serverExe, ...extra }),
   })
   const write = (chunk: Buffer) => void appendFile(log, chunk).catch(() => {})
   child.stdout?.on('data', write)

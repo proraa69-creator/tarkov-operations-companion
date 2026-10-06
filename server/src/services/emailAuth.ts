@@ -19,9 +19,14 @@
  *
  * Security model (same as SMS codes)
  * - 6 digits from crypto.randomInt, stored only as SHA-256(salt, purpose, e-mail, code), 10 minutes, 5 wrong attempts,
- *   timing-safe comparison; a new code for the same address and purpose replaces the old one.
- * - 60-second resend cooldown and a daily cap per address, per-IP limits (req.ip, trust proxy = loopback), a global
- *   daily budget (TARKOV_EMAIL_DAILY_LIMIT). Sign-in / reset requests answer the same for unknown addresses.
+ *   timing-safe comparison. Every challenge stands alone: a new code request never cancels another open challenge of
+ *   the same address (somebody else asking for codes cannot void the owner's code). Wrong codes per address per day
+ *   are capped across all its challenges (MAX_WRONG_CODES_PER_DAY).
+ * - 60-second resend cooldown and a daily cap per address — both counted per address AND requesting IP, so one
+ *   attacker cannot use up the owner's codes — plus an overall per-address cap (ADDRESS_CAP_FACTOR × that), per-IP
+ *   limits (req.ip, trust proxy = loopback) and a global daily budget (TARKOV_EMAIL_DAILY_LIMIT) of which registration
+ *   may use at most REGISTRATION_BUDGET_SHARE, keeping the rest for sign-in, reset and confirmation codes.
+ *   Sign-in / reset requests answer the same for unknown addresses.
  * - Owners: e-mail is the owner's primary factor, so owner accounts MAY sign in and reset the password by e-mail code
  *   (unlike SMS, services/phoneAuth.ts). Owner rights themselves need a confirmed e-mail (AccountStore.isOwner).
  * - Nothing here logs an address, a code or a key; provider failures are logged as provider + status only.
@@ -44,6 +49,12 @@ export const MAX_EMAIL_CODE_ATTEMPTS = 5
 export const NOTICE_INTERVAL_MS = DAY_MS
 /** Code requests per IP address per 24 h (registration, sign-in, reset, confirmation together). */
 export const DEFAULT_IP_DAILY_LIMIT = 30
+/** Registration e-mails (codes and «someone tried» notices) may use at most this share of the daily budget. */
+export const REGISTRATION_BUDGET_SHARE = 0.6
+/** Codes per address per day from all IPs together: this many times the per-(address, IP) cap. */
+export const ADDRESS_CAP_FACTOR = 3
+/** Wrong codes per address per 24 h across all its challenges; then every code check for it is refused until later. */
+export const MAX_WRONG_CODES_PER_DAY = 10
 
 type Row = Record<string, unknown>
 
@@ -68,10 +79,16 @@ const SCHEMA = `
     sent INTEGER NOT NULL);
   CREATE INDEX IF NOT EXISTS email_requests_email ON email_requests(email_digest, at);
   CREATE INDEX IF NOT EXISTS email_requests_at ON email_requests(at);
+  CREATE TABLE IF NOT EXISTS email_code_failures (
+    email_digest TEXT NOT NULL,
+    at INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS email_code_failures_email ON email_code_failures(email_digest, at);
 `
 
 /** Request counters keep only a digest of the address. */
 const emailDigest = (email: string) => sha256(`email\u0000${email}`)
+/** The requesting IP of a code request, as a digest only. */
+const ipDigest = (ip: string | undefined) => sha256(`ip\u0000${ip ?? 'unknown'}`)
 const normalize = (email: string) => email.trim().toLowerCase()
 
 export class EmailAuthError extends AccountError {
@@ -120,6 +137,8 @@ export class EmailAuthService implements PendingRegistrations {
     this.log = options.log ?? ((message) => console.error(message))
     this.ipLimiter = new FixedWindowRateLimiter(this.limits.ipDailyLimit, DAY_MS, this.now)
     this.db.exec(SCHEMA)
+    const columns = new Set((this.db.prepare('PRAGMA table_info(email_requests)').all() as Row[]).map((row) => String(row.name)))
+    if (!columns.has('ip_digest')) this.db.exec('ALTER TABLE email_requests ADD COLUMN ip_digest TEXT')
   }
 
   get enabled() {
@@ -161,6 +180,7 @@ export class EmailAuthService implements PendingRegistrations {
     this.lastSweep = now
     this.db.prepare('DELETE FROM email_challenges WHERE MAX(expires_at, COALESCE(pending_until, 0)) <= ?').run(now)
     this.db.prepare('DELETE FROM email_requests WHERE at <= ?').run(now - 2 * DAY_MS)
+    this.db.prepare('DELETE FROM email_code_failures WHERE at <= ?').run(now - 2 * DAY_MS)
   }
 
   /** E-mails actually sent in the last 24 hours (the owner's daily budget). */
@@ -168,32 +188,51 @@ export class EmailAuthService implements PendingRegistrations {
     return Number((this.db.prepare('SELECT COUNT(*) AS n FROM email_requests WHERE sent = 1 AND at > ?').get(this.now() - DAY_MS) as Row).n)
   }
 
+  /** Registration e-mails (codes and notices) actually sent in the last 24 hours. */
+  private registrationSentToday() {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM email_requests WHERE sent = 1 AND at > ? AND purpose IN ('register', 'notice')").get(this.now() - DAY_MS) as Row).n)
+  }
+
+  /** The part of the daily budget registration may use; the rest stays for sign-in, reset and confirmation. */
+  private get registrationBudget() {
+    return Math.ceil(this.limits.dailyLimit * REGISTRATION_BUDGET_SHARE)
+  }
+
   /**
    * Budget, cooldown and per-address cap — checked the same way whether or not the address has an account. Notices
    * and test e-mails are not code requests: they never trigger the cooldown or count towards the per-address cap.
+   * Cooldown and cap count per address AND requesting IP (somebody else's requests do not lock the owner out), with
+   * an overall per-address cap on top against e-mail bombing from many addresses.
    */
-  private checkQuota(email: string) {
+  private checkQuota(email: string, ip: string | undefined, purpose: EmailPurpose) {
     const now = this.now()
     if (this.sentToday() >= this.limits.dailyLimit) throw new EmailAuthError(503, BUDGET_MESSAGE)
-    const recent = this.db.prepare("SELECT COUNT(*) AS n, MAX(at) AS last FROM email_requests WHERE email_digest = ? AND at > ? AND purpose NOT IN ('notice', 'test')").get(emailDigest(email), now - DAY_MS) as Row
+    if (purpose === 'register' && this.registrationSentToday() >= this.registrationBudget) throw new EmailAuthError(503, BUDGET_MESSAGE)
+    const recent = this.db.prepare("SELECT COUNT(*) AS n, MAX(at) AS last FROM email_requests WHERE email_digest = ? AND ip_digest = ? AND at > ? AND purpose NOT IN ('notice', 'test')").get(emailDigest(email), ipDigest(ip), now - DAY_MS) as Row
     const last = recent.last == null ? 0 : Number(recent.last)
     if (last && now - last < EMAIL_RESEND_COOLDOWN_MS) {
       const wait = Math.ceil((EMAIL_RESEND_COOLDOWN_MS - (now - last)) / 1000)
       throw new EmailAuthError(429, `Новый код можно запросить через ${wait} с.`, wait)
     }
-    if (Number(recent.n) >= this.limits.addressDailyLimit) throw new EmailAuthError(429, 'Для этого адреса исчерпан лимит кодов на сутки. Попробуйте завтра.', 3600)
+    const capped = 'Для этого адреса исчерпан лимит кодов на сутки. Попробуйте завтра.'
+    if (Number(recent.n) >= this.limits.addressDailyLimit) throw new EmailAuthError(429, capped, 3600)
+    const overall = this.db.prepare("SELECT COUNT(*) AS n FROM email_requests WHERE email_digest = ? AND at > ? AND purpose NOT IN ('notice', 'test')").get(emailDigest(email), now - DAY_MS) as Row
+    if (Number(overall.n) >= this.limits.addressDailyLimit * ADDRESS_CAP_FACTOR) throw new EmailAuthError(429, capped, 3600)
   }
 
-  private record(email: string, purpose: EmailPurpose | 'notice' | 'test', sent: boolean) {
-    this.db.prepare('INSERT INTO email_requests (email_digest, purpose, at, sent) VALUES (?, ?, ?, ?)').run(emailDigest(email), purpose, this.now(), sent ? 1 : 0)
+  private record(email: string, purpose: EmailPurpose | 'notice' | 'test', sent: boolean, ip?: string) {
+    this.db.prepare('INSERT INTO email_requests (email_digest, purpose, at, sent, ip_digest) VALUES (?, ?, ?, ?, ?)').run(emailDigest(email), purpose, this.now(), sent ? 1 : 0, ipDigest(ip))
   }
 
-  /** A new challenge for (purpose, e-mail[, account]); the previous one for the same target is dropped. */
+  /**
+   * A new challenge for (purpose, e-mail[, account]). Other open challenges of the address stay valid: each challengeId
+   * stands alone, so a stranger asking for codes for this address cannot cancel the owner's one. Only the account's own
+   * earlier confirmation code (purpose 'verify', signed in) is replaced.
+   */
   private createChallenge(purpose: EmailPurpose, email: string, accountId: string | undefined, payload?: Payload | null) {
     const now = this.now()
     this.sweep(now)
     if (purpose === 'verify') this.db.prepare('DELETE FROM email_challenges WHERE purpose = ? AND account_id = ?').run(purpose, accountId ?? '')
-    else this.db.prepare('DELETE FROM email_challenges WHERE purpose = ? AND email = ?').run(purpose, email)
     const code = newCode()
     const challengeId = newChallengeId()
     const salt = newSalt()
@@ -236,25 +275,25 @@ export class EmailAuthService implements PendingRegistrations {
     const sender = this.requireEnabled()
     const email = normalize(rawEmail)
     if (ip !== undefined) this.hitIp(ip)
-    this.checkQuota(email)
-    const existing = this.accounts.accountByEmail(email)
-    if (existing) {
+    this.checkQuota(email, ip, 'register')
+    // «Existing» also covers the canonical form of a working account (name+x@…, n.a.m.e@gmail.com): same decoy path.
+    if (this.accounts.emailTaken(email)) {
       await this.accounts.dummyPasswordHash(password)
       const challenge = this.createChallenge('register', email, undefined, null)
-      this.record(email, 'register', false)
+      this.record(email, 'register', false, ip)
       this.notifyExisting(sender, email)
       return this.answer(challenge)
     }
     const { salt, hash } = await newPasswordHash(password)
     // Another registration of the same address may have finished during the scrypt work: then it is «existing» too.
-    if (this.accounts.accountByEmail(email)) {
+    if (this.accounts.emailTaken(email)) {
       const challenge = this.createChallenge('register', email, undefined, null)
-      this.record(email, 'register', false)
+      this.record(email, 'register', false, ip)
       return this.answer(challenge)
     }
     const payload: Payload = { salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}), ...(ip !== undefined ? { ip: signupDigest(ip) } : {}) }
     const challenge = this.createChallenge('register', email, undefined, payload)
-    this.record(email, 'register', true)
+    this.record(email, 'register', true, ip)
     this.sendInBackground(sender, 'register', email, challenge.code)
     return this.answer(challenge)
   }
@@ -271,13 +310,13 @@ export class EmailAuthService implements PendingRegistrations {
     }
     if (ip !== undefined) this.hitIp(ip)
     const email = String(row.email)
-    this.checkQuota(email)
+    this.checkQuota(email, ip, 'register')
     const code = newCode()
     const salt = newSalt()
     const expiresAt = Math.min(now + EMAIL_CODE_TTL_MS, Number(row.pending_until))
     this.db.prepare('UPDATE email_challenges SET salt = ?, code_hash = ?, attempts = 0, expires_at = ? WHERE digest = ?').run(salt, codeHash(salt, 'register', email, code), expiresAt, digest)
     const real = row.payload != null
-    this.record(email, 'register', real)
+    this.record(email, 'register', real, ip)
     if (real) this.sendInBackground(sender, 'register', email, code)
     return this.answer({ challengeId, expiresAt })
   }
@@ -305,17 +344,17 @@ export class EmailAuthService implements PendingRegistrations {
     if (!email) throw new EmailAuthError(401, 'Сессия недействительна')
     if (this.accounts.isEmailVerified(accountId)) throw new EmailAuthError(409, 'E-mail уже подтверждён')
     if (ip !== undefined) this.hitIp(ip)
-    this.checkQuota(email)
+    this.checkQuota(email, ip, 'verify')
     const challenge = this.createChallenge('verify', email, accountId)
     try {
       await sender.send(renderEmail('verify', email, { code: challenge.code, ttlMinutes: EMAIL_CODE_TTL_MS / 60_000 }))
     } catch (error) {
       this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(sha256(challenge.challengeId))
-      this.record(email, 'verify', false)
+      this.record(email, 'verify', false, ip)
       this.log(this.failure(sender, error))
       throw new EmailAuthError(502, 'Не удалось отправить письмо. Попробуйте позже.')
     }
-    this.record(email, 'verify', true)
+    this.record(email, 'verify', true, ip)
     return this.answer(challenge)
   }
 
@@ -335,11 +374,11 @@ export class EmailAuthService implements PendingRegistrations {
     const sender = this.requireEnabled()
     const email = normalize(rawEmail)
     if (ip !== undefined) this.hitIp(ip)
-    this.checkQuota(email)
+    this.checkQuota(email, ip, purpose)
     const account = this.accounts.accountByEmail(email)
     const eligible = account !== undefined && !account.blocked
     const challenge = this.createChallenge(purpose, email, eligible ? account.id : undefined)
-    this.record(email, purpose, eligible)
+    this.record(email, purpose, eligible, ip)
     if (eligible) this.sendInBackground(sender, purpose, email, challenge.code)
     return this.answer(challenge)
   }
@@ -358,9 +397,16 @@ export class EmailAuthService implements PendingRegistrations {
       if (row && !keepPending(row)) this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(digest)
       throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
     }
+    // Wrong codes per address per day, across all its challenges (new challenges do not reset the count).
+    const failures = this.db.prepare('SELECT COUNT(*) AS n, MIN(at) AS first FROM email_code_failures WHERE email_digest = ? AND at > ?').get(emailDigest(String(row.email)), now - DAY_MS) as Row
+    if (Number(failures.n) >= MAX_WRONG_CODES_PER_DAY) {
+      const wait = Math.max(60, Math.ceil((Number(failures.first) + DAY_MS - now) / 1000))
+      throw new EmailAuthError(429, 'Слишком много неверных кодов для этого адреса. Попробуйте завтра или войдите по паролю.', wait)
+    }
     const attempts = Number(row.attempts) + 1
     const target = purpose === 'register' ? row.payload != null : row.account_id != null
     const match = codeMatches(row.code_hash as Uint8Array, row.salt as Uint8Array, purpose, String(row.email), rawCode) && target
+    if (!match) this.db.prepare('INSERT INTO email_code_failures (email_digest, at) VALUES (?, ?)').run(emailDigest(String(row.email)), now)
     if (match) this.db.prepare('DELETE FROM email_challenges WHERE digest = ?').run(digest)
     else if (attempts >= MAX_EMAIL_CODE_ATTEMPTS) {
       if (keepPending(row)) this.db.prepare('UPDATE email_challenges SET attempts = ?, expires_at = 0 WHERE digest = ?').run(attempts, digest)
@@ -453,6 +499,11 @@ export function createEmailHandlers(accounts: AccountStore, emails: EmailAuthSer
     return run(accountId)
   })
   const off = (): AccountsResponse | undefined => (emails.enabled ? undefined : { status: 503, body: { error: EMAIL_OFF_MESSAGE, emailEnabled: false } })
+  /**
+   * /email/login and /email/reset: a wrong code is a failed sign-in, answered 401 (same message) so the security guard
+   * counts it like a wrong password (services/securityGuard.ts, isLoginPath).
+   */
+  const asLoginFailure = (response: AccountsResponse): AccountsResponse => (response.status === 400 ? { ...response, status: 401 } : response)
 
   const start = (purpose: 'login' | 'reset') => (req: AccountsRequest) => guard(() => {
     const stop = off() ?? hit(startLimiter, ip(req))
@@ -470,18 +521,23 @@ export function createEmailHandlers(accounts: AccountStore, emails: EmailAuthSer
       const stop = off() ?? hit(verifyLimiter, ip(req))
       if (stop) return stop
       const parsed = verifySchema.safeParse(req.body)
-      if (!parsed.success) return { status: 400, body: { error: WRONG_CODE_MESSAGE } }
+      if (!parsed.success) return { status: 401, body: { error: WRONG_CODE_MESSAGE } }
       const { accountId, token } = emails.login(parsed.data.challengeId, parsed.data.code)
       return { status: 200, body: { token, account: accounts.view(accountId) } }
-    }),
+    }).then(asLoginFailure),
 
     reset: (req: AccountsRequest) => guard(async () => {
       const stop = off() ?? hit(verifyLimiter, ip(req))
       if (stop) return stop
       const parsed = resetSchema.safeParse(req.body)
-      if (!parsed.success) return { status: 400, body: { error: verifySchema.safeParse(req.body).success ? 'Новый пароль: от 8 до 128 символов' : WRONG_CODE_MESSAGE } }
-      const { accountId, token } = await emails.reset(parsed.data.challengeId, parsed.data.code, parsed.data.password)
-      return { status: 200, body: { token, account: accounts.view(accountId) } }
+      if (!parsed.success) return verifySchema.safeParse(req.body).success ? { status: 400, body: { error: 'Новый пароль: от 8 до 128 символов' } } : { status: 401, body: { error: WRONG_CODE_MESSAGE } }
+      try {
+        const { accountId, token } = await emails.reset(parsed.data.challengeId, parsed.data.code, parsed.data.password)
+        return { status: 200, body: { token, account: accounts.view(accountId) } }
+      } catch (error) {
+        if (error instanceof EmailAuthError && error.status === 400) return { status: 401, body: { error: error.message } }
+        throw error
+      }
     }),
 
     registerConfirm: (req: AccountsRequest) => guard(() => {

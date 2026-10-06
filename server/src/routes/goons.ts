@@ -1,6 +1,7 @@
 import express from 'express'
 import { createHash, randomBytes } from 'node:crypto'
 import { z } from 'zod'
+import { ipRateKey } from '../services/securityGuard.js'
 import { GOON_MAP_IDS, GOON_MODES, GOON_RETENTION_MS, MemoryGoonStore, summarizeGoons, type GoonStore } from '../services/goonStore.js'
 
 /** One accepted report per client address per minute. */
@@ -23,7 +24,8 @@ export interface GoonsRouterOptions { now?: () => number }
 export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), options: GoonsRouterOptions = {}) {
   const now = options.now ?? Date.now
   const salt = randomBytes(16).toString('hex')
-  const reporterOf = (req: express.Request) => createHash('sha256').update(`${salt}:${req.ip ?? req.socket.remoteAddress ?? 'unknown'}`).digest('hex').slice(0, 32)
+  // Per IPv4 address (/32) or IPv6 /64 prefix: one subscriber gets a whole /64 and could otherwise rotate addresses.
+  const reporterOf = (req: express.Request) => createHash('sha256').update(`${salt}:${ipRateKey(req.ip ?? req.socket.remoteAddress)}`).digest('hex').slice(0, 32)
   const router = express.Router()
   router.use(express.json({ limit: '4kb' }))
 

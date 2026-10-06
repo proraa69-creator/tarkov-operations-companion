@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { AccountStore, createAccountsHandlers, type AccountView } from '../services/accountStore.js'
-import { createEmailHandlers, EmailAuthService, EMAIL_CODE_TTL_MS, EMAIL_RESEND_COOLDOWN_MS, REGISTRATION_TTL_MS } from '../services/emailAuth.js'
+import { createEmailHandlers, EmailAuthService, EMAIL_CODE_TTL_MS, EMAIL_RESEND_COOLDOWN_MS, MAX_WRONG_CODES_PER_DAY, REGISTRATION_TTL_MS } from '../services/emailAuth.js'
 import { createEmailSender, DEFAULT_EMAIL_FROM, emailConfigFromEnv, FakeEmailSender, validFrom, type FetchLike } from '../services/email/index.js'
 import { renderEmail } from '../services/email/templates.js'
 import { openDatabase } from '../services/database.js'
@@ -228,7 +228,8 @@ test('sign-in by e-mail code: the same answer for unknown addresses, owners allo
   assert.deepEqual(Object.keys(known.body as object).sort(), Object.keys(unknown.body as object).sort())
   await emails.settled()
   assert.equal(sender.sent.length, sent + 1)
-  assert.equal((await email.login({ ip: '1', body: { challengeId: challenge(unknown.body), code: '123456' } })).status, 400)
+  // A wrong code is a failed sign-in: 401 (the security guard counts it like a wrong password), same message.
+  assert.equal((await email.login({ ip: '1', body: { challengeId: challenge(unknown.body), code: '123456' } })).status, 401)
   const signedIn = await email.login({ ip: '1', body: { challengeId: challenge(known.body), code: sender.lastCode('player@example.com') } })
   assert.equal(signedIn.status, 200)
   assert.equal((signedIn.body as { account: AccountView }).account.email, 'player@example.com')
@@ -266,7 +267,7 @@ test('password reset by e-mail code revokes every session; owners may reset by e
   assert.equal((await api.login({ ip: '1', body: { email: 'boss@example.com', password } })).status, 401)
   assert.equal((await api.login({ ip: '1', body: { email: 'boss@example.com', password: 'brand new password' } })).status, 200)
   // A reset code does not sign in, and a sign-in code does not reset.
-  assert.equal((await email.login({ ip: '1', body: { challengeId: challenge(started.body), code } })).status, 400)
+  assert.equal((await email.login({ ip: '1', body: { challengeId: challenge(started.body), code } })).status, 401)
 })
 
 test('limits: cooldown, per-address daily cap, global daily budget and per-IP caps', async () => {
@@ -281,16 +282,19 @@ test('limits: cooldown, per-address daily cap, global daily budget and per-IP ca
   t.advance(EMAIL_RESEND_COOLDOWN_MS)
   assert.equal((await t.email.resetStart({ ip: '1', body: { email: 'a@example.com' } })).status, 200)
   t.advance(EMAIL_RESEND_COOLDOWN_MS)
+  // The registration code came from another IP: the cap counts per address AND requesting IP.
+  assert.equal((await t.email.loginStart({ ip: '1', body: { email: 'a@example.com' } })).status, 200)
+  t.advance(EMAIL_RESEND_COOLDOWN_MS)
   const capped = await t.email.loginStart({ ip: '1', body: { email: 'a@example.com' } })
   assert.equal(capped.status, 429)
   assert.match((capped.body as { error: string }).error, /лимит кодов на сутки/)
   // Unknown addresses are capped the same way.
   for (let i = 0; i < 3; i++) { assert.equal((await t.email.loginStart({ ip: '1', body: { email: 'ghost@example.com' } })).status, 200); t.advance(EMAIL_RESEND_COOLDOWN_MS) }
   assert.equal((await t.email.loginStart({ ip: '1', body: { email: 'ghost@example.com' } })).status, 429)
-  // Global budget: 5 e-mails per 24 h (the registration code + two codes = 3 so far).
+  // Global budget: 5 e-mails per 24 h (the registration code + three codes = 4 so far).
   await t.emails.settled()
-  assert.equal(t.emails.sentToday(), 3)
-  for (const address of ['b@example.com', 'c@example.com']) assert.equal((await t.api.register({ ip: '1', body: { email: address, password } })).status, 202)
+  assert.equal(t.emails.sentToday(), 4)
+  assert.equal((await t.api.register({ ip: '1', body: { email: 'b@example.com', password } })).status, 202)
   const over = await t.api.register({ ip: '1', body: { email: 'd@example.com', password } })
   assert.equal(over.status, 503)
   assert.equal((await t.email.loginStart({ ip: '1', body: { email: 'e@example.com' } })).status, 503)
@@ -401,4 +405,98 @@ test('HTTP: /auth-config reports emailEnabled, registration answers 202, routes 
   } finally {
     off.close()
   }
+})
+
+test('code requests by somebody else neither cancel the owner\'s code nor use up his cap; overall cap per address', async () => {
+  const t = setup({ addressDailyLimit: 2 })
+  await t.signUp('victim@example.com')
+  const mine = await t.email.loginStart({ ip: 'victim', body: { email: 'victim@example.com' } })
+  await t.emails.settled()
+  const code = t.sender.lastCode('victim@example.com')!
+  // An attacker asks for sign-in codes for the same address from his IP: capped per (address, IP).
+  assert.equal((await t.email.loginStart({ ip: 'evil', body: { email: 'victim@example.com' } })).status, 200)
+  t.advance(EMAIL_RESEND_COOLDOWN_MS)
+  assert.equal((await t.email.loginStart({ ip: 'evil', body: { email: 'victim@example.com' } })).status, 200)
+  t.advance(EMAIL_RESEND_COOLDOWN_MS)
+  assert.equal((await t.email.loginStart({ ip: 'evil', body: { email: 'victim@example.com' } })).status, 429)
+  // The victim still gets codes from his own IP, and his first challenge was not cancelled by the newer ones.
+  assert.equal((await t.email.loginStart({ ip: 'victim', body: { email: 'victim@example.com' } })).status, 200)
+  assert.equal((await t.email.login({ ip: 'victim', body: { challengeId: challenge(mine.body), code } })).status, 200)
+  // Overall cap per address (3 × 2 = 6: registration + 2 victim + 2 attacker = 5 so far) against bombing from many IPs.
+  assert.equal((await t.email.loginStart({ ip: 'evil-2', body: { email: 'victim@example.com' } })).status, 200)
+  assert.equal((await t.email.loginStart({ ip: 'evil-3', body: { email: 'victim@example.com' } })).status, 429)
+})
+
+test('registration may use only part of the daily e-mail budget; sign-in codes keep the rest', async () => {
+  const t = setup({ dailyLimit: 5 })
+  // ceil(5 × 60 %) = 3 registration e-mails.
+  for (const address of ['r1@example.com', 'r2@example.com', 'r3@example.com']) assert.equal((await t.api.register({ ip: '1', body: { email: address, password } })).status, 202)
+  await t.emails.settled()
+  const refused = await t.api.register({ ip: '1', body: { email: 'r4@example.com', password } })
+  assert.equal(refused.status, 503)
+  const confirmed = await t.email.registerConfirm({ ip: '1', body: { challengeId: challenge((await t.api.register({ ip: '2', body: { email: 'r5@example.com', password } })).body), code: '000000' } })
+  assert.equal(confirmed.status, 400, 'the refused registration made no challenge')
+  // The reserved part: sign-in codes still go out.
+  const r1 = await t.api.register({ ip: '9', body: { email: 'r1@example.com', password } })
+  assert.equal(r1.status, 503, 'whatever the address')
+  assert.equal((await t.email.loginStart({ ip: '2', body: { email: 'r1@example.com' } })).status, 200)
+})
+
+test('wrong codes are capped per address per day across all its challenges', async () => {
+  const t = setup()
+  await t.signUp('guess@example.com')
+  const wrong = (code: string) => (code === '000000' ? '111111' : '000000')
+  let last: { status: number; body: unknown } | undefined
+  for (let n = 0; n < MAX_WRONG_CODES_PER_DAY; n += 1) {
+    // A new challenge every few tries: the per-challenge limit (5) never triggers, the daily one does.
+    const started = await t.email.loginStart({ ip: `ip-${n}`, body: { email: 'guess@example.com' } })
+    await t.emails.settled()
+    last = await t.email.login({ ip: 'attacker', body: { challengeId: challenge(started.body), code: wrong(t.sender.lastCode('guess@example.com')!) } })
+    assert.equal(last.status, 401)
+  }
+  const started = await t.email.loginStart({ ip: 'owner', body: { email: 'guess@example.com' } })
+  await t.emails.settled()
+  const right = await t.email.login({ ip: 'owner', body: { challengeId: challenge(started.body), code: t.sender.lastCode('guess@example.com') } })
+  assert.equal(right.status, 429, 'even the right code waits once the address is under attack')
+  assert.ok(Number(right.headers?.['Retry-After']) > 0)
+  t.advance(24 * 60 * 60 * 1000)
+  const fresh = await t.email.loginStart({ ip: 'owner', body: { email: 'guess@example.com' } })
+  await t.emails.settled()
+  assert.equal((await t.email.login({ ip: 'owner', body: { challengeId: challenge(fresh.body), code: t.sender.lastCode('guess@example.com') } })).status, 200)
+})
+
+test('wrong e-mail codes on /email/login and /email/reset are failed sign-ins (401) for the security guard', async () => {
+  const accounts = new AccountStore({ ownerEmails: [] })
+  const sender = new FakeEmailSender()
+  const emails = new EmailAuthService(accounts, { sender })
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
+  const post = (path: string, body: unknown) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  try {
+    const { challengeId } = await (await post('/email/login/start', { email: 'nobody@example.com' })).json() as Challenge
+    const login = await post('/email/login', { challengeId, code: '123456' })
+    assert.equal(login.status, 401)
+    assert.match((await login.json() as { error: string }).error, /код/i)
+    const reset = await post('/email/reset', { challengeId, code: '123456', password: 'brand new password' })
+    assert.equal(reset.status, 401)
+    assert.equal((await post('/email/reset', { challengeId, code: '123456', password: 'short' })).status, 400, 'a bad new password is not a failed sign-in')
+  } finally {
+    server.close()
+  }
+})
+
+test('registration of a canonical alias of a working account takes the decoy path (same answer, no code)', async () => {
+  const t = setup()
+  await t.signUp('jane.doe@gmail.com')
+  await t.emails.settled()
+  const before = t.sender.sent.length
+  const started = await t.api.register({ ip: 'alias', body: { email: 'Jane.Doe+farm@googlemail.com', password } })
+  assert.equal(started.status, 202)
+  assert.deepEqual(Object.keys(started.body as object).sort(), ['challengeId', 'expiresAt', 'message', 'pending', 'resendSeconds'])
+  await t.emails.settled()
+  assert.ok(t.sender.sent.length <= before + 1, 'at most the «someone tried to register» notice')
+  assert.equal(t.sender.lastCode('jane.doe+farm@googlemail.com'), undefined, 'no registration code')
+  assert.equal((await t.email.registerConfirm({ ip: 'alias', body: { challengeId: challenge(started.body), code: '123456' } })).status, 400)
+  assert.equal(t.accounts.hasAccount('jane.doe+farm@googlemail.com'), false)
 })

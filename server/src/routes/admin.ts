@@ -1,7 +1,8 @@
 /**
  * Owner-only API, mounted at `/v1/admin`: used by the owner's desktop app (Server → «Стримеры»), never by the website.
- * Requires `Authorization: Bearer <TARKOV_ADMIN_TOKEN>`; without that variable the whole router answers 404. The
- * desktop app's site server also refuses to forward /v1/admin from the public link (electron/localServer.ts).
+ * Requires `Authorization: Bearer <TARKOV_ADMIN_TOKEN>` AND a direct request on this PC (loopback socket, no forwarding
+ * header — services/securityGuard.ts directLocal, the same check as app.ts directLocalRequest); otherwise the whole
+ * router answers 404. The desktop app's site server also refuses to forward /v1/admin (electron/siteProxy.ts).
  *
  *   GET  /streamers          -> { streamers: [{ email, code, stats }], invites: [{ code, expiresAt }] }
  *   POST /streamer-invites   { code } -> 201 { token, code, expiresAt }  (the site link is /streamer/<token>)
@@ -22,11 +23,15 @@ import { AccountError, type AccountStore } from '../services/accountStore.js'
 import type { PhoneAuthService } from '../services/phoneAuth.js'
 import type { EmailAuthService } from '../services/emailAuth.js'
 import type { PaymentStore } from '../services/paymentStore.js'
+import { directLocal } from '../services/securityGuard.js'
 
 export function createAdminRouter(accounts: AccountStore, adminToken = process.env.TARKOV_ADMIN_TOKEN, phones?: PhoneAuthService, emails?: EmailAuthService, payments?: PaymentStore) {
   const router = express.Router()
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store')
+    // This PC's owner app only (a direct request to the API port): through the site server or the public link the
+    // router does not exist, whatever token comes with the request.
+    if (!directLocal(req)) { req.resume(); res.status(404).json({ error: 'Not found' }); return }
     const supplied = req.get('authorization')?.replace(/^Bearer /, '') ?? ''
     if (!adminToken || adminToken.length < 32 || Buffer.byteLength(supplied) !== Buffer.byteLength(adminToken) || !timingSafeEqual(Buffer.from(supplied), Buffer.from(adminToken))) {
       res.status(404).json({ error: 'Not found' }); return

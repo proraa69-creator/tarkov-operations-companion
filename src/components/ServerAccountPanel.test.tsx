@@ -54,6 +54,19 @@ describe('ServerAccountPanel', () => {
     expect(JSON.stringify(localStorage)).not.toContain('correct horse')
   })
 
+  it('only the owner\'s app can change the server address (the players\' app trusts only its built-in server)', async () => {
+    const account = mockDesktop({ ...offline, online: true, serverUrl: 'https://raidos.app' }, { edition: 'client' })
+    Object.assign(account, { setServerUrl: vi.fn() })
+    const { unmount } = render(<ServerAccountPanel />)
+    expect(await screen.findByText('Сервер доступен')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Адрес сервера')).not.toBeInTheDocument()
+    unmount()
+    const owner = mockDesktop({ ...offline, online: true, serverUrl: 'https://raidos.app' }, { edition: 'owner' })
+    Object.assign(owner, { setServerUrl: vi.fn() })
+    render(<ServerAccountPanel />)
+    expect(await screen.findByLabelText('Адрес сервера')).toBeInTheDocument()
+  })
+
   it('shows the main-process error without the IPC prefix', async () => {
     const account = mockDesktop({ ...offline, online: true })
     account.login.mockRejectedValue(new Error("Error invoking remote method 'account:login': Error: Неверный e-mail или пароль"))

@@ -57,6 +57,13 @@ export const SIGNAL_RULES: Record<GuardReason, { points: number; free: number }>
 /** Different e-mails with failed sign-ins from one address within CREDENTIAL_WINDOW_MS = credential stuffing. */
 export const CREDENTIAL_EMAILS = 6
 export const CREDENTIAL_WINDOW_MS = 15 * MINUTE
+/**
+ * Scanner points count only once one address asked for at least SCANNER_DISTINCT_PATHS different scanner paths within
+ * SCANNER_DISTINCT_WINDOW_MS (then the earlier ones count as well). A single stray /favicon.php or one /.env a page
+ * pointed at is never enough; a real scanner always walks a list.
+ */
+export const SCANNER_DISTINCT_PATHS = 2
+export const SCANNER_DISTINCT_WINDOW_MS = 5 * MINUTE
 
 // ---------------------------------------------------------------------------------------------------------------
 // Heuristics (pure, unit-tested against every real API path in serverGuard.test.ts)
@@ -157,6 +164,19 @@ export function maskIp(raw: string) {
   return `${expanded.slice(0, 3).join(':')}:*`
 }
 
+/**
+ * The key per-address rate limits should count on: the IPv4 address itself (/32), the /64 prefix of an IPv6 address
+ * (one subscriber usually gets a whole /64, so per-address limits would let them rotate through 2^64 addresses).
+ * Unparseable input is returned trimmed (it still forms its own bucket).
+ */
+export function ipRateKey(raw: string | undefined) {
+  const ip = normalizeIp(raw)
+  if (!ip) return (raw ?? '').trim().slice(0, 64) || 'unknown'
+  if (isIP(ip) === 4) return ip
+  const groups = (ip.includes('::') ? expandV6(ip) : ip.split(':')).slice(0, 4).map((group) => (Number.parseInt(group, 16) || 0).toString(16))
+  return `${groups.join(':')}::/64`
+}
+
 function expandV6(ip: string) {
   const [head, tail] = ip.split('::')
   const left = head ? head.split(':') : []
@@ -168,6 +188,25 @@ function expandV6(ip: string) {
 export function directLocal(req: Request) {
   if (req.get('x-forwarded-for') !== undefined || req.get('forwarded') !== undefined || req.get('cf-connecting-ip') !== undefined) return false
   return isLoopbackIp(req.socket.remoteAddress ?? '')
+}
+
+/** Sec-Fetch-Dest values of a fetch()/XHR call and of a page navigation; anything else is a subresource load. */
+const OWN_DESTINATIONS = new Set(['', 'empty', 'document'])
+
+/**
+ * Whether the browser says this request was made for another site's page: an <img>/<script>/<link>/<iframe> load, a
+ * no-cors request or anything from a cross-site (or sibling-subdomain) page. Any web page can make its visitors'
+ * browsers request https://<this site>/.env or /wp-admin, so such requests are answered (404 / 400) but never scored:
+ * otherwise a hostile page would get its visitors banned (with everybody behind the same carrier NAT). Scanners and
+ * scripts do not send Sec-Fetch-* at all, so they are still scored; a script that adds the header only avoids the ban.
+ */
+export function crossSiteBrowserLoad(req: Pick<Request, 'get'>) {
+  const site = (req.get('sec-fetch-site') ?? '').trim().toLowerCase()
+  const mode = (req.get('sec-fetch-mode') ?? '').trim().toLowerCase()
+  const dest = (req.get('sec-fetch-dest') ?? '').trim().toLowerCase()
+  if (site === 'cross-site' || site === 'same-site') return true
+  if (mode === 'no-cors') return true
+  return !OWN_DESTINATIONS.has(dest)
 }
 
 function cleanPath(path: string) {
@@ -231,8 +270,8 @@ export interface SecuritySummary {
   lastBanAt?: string
 }
 
-interface Hit { at: number; reason: GuardReason; points: number }
-interface IpState { hits: Hit[]; emails: Map<string, number>; stuffingAt: number }
+interface Hit { at: number; reason: GuardReason; points: number; path?: string; detail?: string }
+interface IpState { hits: Hit[]; emails: Map<string, number>; stuffingAt: number; scannerPaths: Map<string, number> }
 interface ActiveBan { id: number; until: number }
 
 export interface SecurityGuardOptions {
@@ -310,8 +349,29 @@ export class SecurityGuard {
     const state = this.state(normal, now)
     const rule = SIGNAL_RULES[reason]
     const sameKind = state.hits.filter((hit) => hit.reason === reason).length
-    const points = sameKind >= rule.free ? rule.points : 0
-    state.hits.push({ at: now, reason, points })
+    let points = sameKind >= rule.free ? rule.points : 0
+    if (reason === 'scanner') {
+      for (const [seen, at] of state.scannerPaths) if (at <= now - SCANNER_DISTINCT_WINDOW_MS) state.scannerPaths.delete(seen)
+      const key = cleanPath(path)
+      state.scannerPaths.delete(key)
+      state.scannerPaths.set(key, now)
+      if (state.scannerPaths.size > 50) state.scannerPaths.delete(state.scannerPaths.keys().next().value!)
+      if (state.scannerPaths.size < SCANNER_DISTINCT_PATHS) {
+        points = 0
+      } else {
+        // The pattern is confirmed: the earlier scanner hits of the window (held back at 0 points) count now as well.
+        const credited = new Set<string>()
+        for (const hit of state.hits) {
+          if (hit.reason !== 'scanner' || hit.points > 0 || hit.at <= now - SCANNER_DISTINCT_WINDOW_MS) continue
+          const hitPath = cleanPath(hit.path ?? '/')
+          if (credited.has(hitPath) || hitPath === key) continue
+          credited.add(hitPath)
+          hit.points = rule.points
+          this.persist(normal, 'scanner', hit.path ?? '/', hit.detail, rule.points, hit.at)
+        }
+      }
+    }
+    state.hits.push({ at: now, reason, points, ...(reason === 'scanner' ? { path, ...(detail ? { detail } : {}) } : {}) })
     if (state.hits.length > 400) state.hits.splice(0, state.hits.length - 400)
     if (points > 0) this.persist(normal, reason, path, detail, points, now)
     const score = state.hits.reduce((sum, hit) => sum + hit.points, 0)
@@ -355,7 +415,7 @@ export class SecurityGuard {
         for (const [key, value] of this.states) if (!value.hits.length || value.hits[value.hits.length - 1]!.at < now - WINDOW_MS) this.states.delete(key)
         while (this.states.size >= 5000) this.states.delete(this.states.keys().next().value!)
       }
-      state = { hits: [], emails: new Map(), stuffingAt: -Infinity }
+      state = { hits: [], emails: new Map(), stuffingAt: -Infinity, scannerPaths: new Map() }
       this.states.set(ip, state)
     }
     const since = now - WINDOW_MS
@@ -523,25 +583,27 @@ export class SecurityGuard {
         return
       }
       const path = req.path
+      // Another site's page made the visitor's browser send this: answered the same, never scored (see crossSiteBrowserLoad).
+      const scored = !crossSiteBrowserLoad(req)
       if (scannerPath(path)) {
-        this.signal(ip, 'scanner', path)
+        if (scored) this.signal(ip, 'scanner', path)
         res.status(404).json({ error: 'Не найдено' })
         return
       }
       if (traversalUrl(req.originalUrl ?? req.url)) {
-        this.signal(ip, 'traversal', path)
+        if (scored) this.signal(ip, 'traversal', path)
         res.status(400).json({ error: 'Некорректный адрес' })
         return
       }
       const query = (req.originalUrl ?? '').split('?')[1]
       if (query && injectionMarker(query.slice(0, 4096))) {
-        this.signal(ip, 'injection', path, 'query')
+        if (scored) this.signal(ip, 'injection', path, 'query')
         res.status(400).json({ error: 'Некорректные данные запроса' })
         return
       }
       // The path now: routers strip their mount path from req.url while they handle the request.
       res.on('finish', () => {
-        try { this.afterResponse(ip, req, path, res.statusCode) } catch { /* never breaks a request */ }
+        try { this.afterResponse(ip, req, path, res.statusCode, scored) } catch { /* never breaks a request */ }
       })
       next()
     }
@@ -552,14 +614,19 @@ export class SecurityGuard {
     try { return this.opts.ownerRequest(req) } catch { return false }
   }
 
-  private afterResponse(ip: string, req: Request, path: string, status: number) {
-    if (req.body && typeof req.body === 'object' && !UNSCANNED_PATHS.test(path) && bodyInjection(req.body)) this.signal(ip, 'injection', path, 'body')
+  /**
+   * `scored` false (another site's page made the browser send it): only failed sign-ins and webhook keys count — they
+   * need a real JSON body, which a cross-site <img> / <form> cannot send — never 404 / 401 / 413 bursts or markers.
+   */
+  private afterResponse(ip: string, req: Request, path: string, status: number, scored = true) {
+    if (scored && req.body && typeof req.body === 'object' && !UNSCANNED_PATHS.test(path) && bodyInjection(req.body)) this.signal(ip, 'injection', path, 'body')
     if (status === 401 && req.method === 'POST' && isLoginPath(path)) {
       const email = typeof (req.body as { email?: unknown } | undefined)?.email === 'string' ? String((req.body as { email: string }).email).trim().toLowerCase() : ''
       this.failedLogin(ip, path, email ? createHash('sha256').update(`${this.salt}|${email}`).digest('hex').slice(0, 16) : undefined)
       return
     }
     if (status === 401 && /^\/v1\/payments\/lava\/webhook\/?$/.test(path)) { this.signal(ip, 'webhook-signature', path); return }
+    if (!scored) return
     if (status === 413) { this.signal(ip, 'oversized', path); return }
     if (status === 401 || status === 403) { this.signal(ip, 'auth-fail', path); return }
     if (status === 404 || status === 405) { this.signal(ip, 'not-found', path); return }

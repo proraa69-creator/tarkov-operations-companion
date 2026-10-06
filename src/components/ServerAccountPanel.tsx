@@ -82,7 +82,8 @@ export function ServerAccountPanel() {
         {!available && <p className="dim" style={{ margin: 0 }}>{uiText('Вход в аккаунт сервера доступен в приложении для Windows.')}</p>}
         {available && isOwnerApp() && <ServerStatusBlock />}
         {available && isOwnerApp() && <LocalServerRow onChange={() => void refresh()} />}
-        {available && status && <ServerAddressRow current={status.serverUrl} onChange={() => void refresh()} />}
+        {/* Only the owner's app picks another server; the players' app always uses the server built into it. */}
+        {available && status && isOwnerApp() && <ServerAddressRow current={status.serverUrl} onChange={() => void refresh()} />}
 
         {available && status?.signedIn && (
           <>
@@ -296,7 +297,7 @@ function NamedTunnelRow({ hostname, onChange }: { hostname?: string; onChange: (
   )
 }
 
-/** For a friend's copy of the app: the owner's public link as the server address; empty = this PC. */
+/** The owner's app: another server address (e.g. the public link of the server laptop); empty = the default. */
 function ServerAddressRow({ current, onChange }: { current: string; onChange: () => void }) {
   const api = window.tarkovDesktop?.account
   const isDefault = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(current)

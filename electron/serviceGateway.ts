@@ -13,9 +13,9 @@
 import { app, safeStorage } from 'electron'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
+import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './buildEdition.js'
 import { localServerEnabled } from './localServer.js'
-import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EntitlementStatus } from './entitlement.js'
+import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EntitlementStatus } from './entitlement.js'
 import { clearGameCache, type CacheAccess } from './gameDataCache.js'
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
@@ -129,6 +129,16 @@ export function forgetLocalPreference() {
   localCheckedAt = 0
 }
 
+/**
+ * Which saved server addresses this app accepts. The owner's app: any (HTTPS or this PC). The players' app: only the
+ * default ('') or a server whose entitlement key is built into the exe — a self-made server could never unlock it anyway
+ * (electron/entitlement.ts), and the address cannot be changed from the players' interface.
+ */
+export function serverUrlAllowed(url: string) {
+  if (!url || isOwnerBuild()) return true
+  try { return new URL(url).origin === url && url in buildEntitlementKeys() } catch { return false }
+}
+
 export async function loadServerUrl() {
   await refreshLocalPreference()
   if (serverUrlLoaded) return savedServerUrl
@@ -136,6 +146,8 @@ export async function loadServerUrl() {
   try {
     const value = (JSON.parse(await readFile(serverUrlFile(), 'utf8')) as { url?: unknown }).url
     savedServerUrl = typeof value === 'string' ? checkServerUrl(value.trim().replace(/\/+$/, '')) : ''
+    // An address saved by an older version of the players' app (any server, trusted on first use) is not used any more.
+    if (!serverUrlAllowed(savedServerUrl)) savedServerUrl = ''
   } catch {
     savedServerUrl = ''
   }
@@ -146,6 +158,7 @@ export async function loadServerUrl() {
 export async function setServerUrl(raw: unknown) {
   const value = typeof raw === 'string' ? raw.trim().replace(/\/+$/, '') : ''
   const next = value ? checkServerUrl(value.includes('://') ? value : `https://${value}`) : ''
+  if (!serverUrlAllowed(next)) throw new Error('В приложении для игроков адрес сервера не меняется')
   if (next !== savedServerUrl) await clearSession().catch(() => {})
   savedServerUrl = next
   serverUrlLoaded = true
@@ -328,8 +341,10 @@ async function doRefreshEntitlement(force: boolean): Promise<EntitlementStatus> 
   try { server = apiBaseUrl() } catch { return { valid: false, reason: 'unavailable' } }
   if (!force && !(await needsRefresh(server))) return entitlementFor(server)
   try {
-    // A server without a built-in or pinned key: pin the one it serves (trust on first use).
+    // A server without a built-in or pinned key: the owner's app pins the one it serves (trust on first use).
     if (!(await trustedKey(server))) {
+      // The players' app trusts only keys built into it: nothing to ask this server for.
+      if (!mayPinServerKeys(server)) return { valid: false, reason: 'no-key' }
       const served = await send('GET', '/v1/entitlement/public-key', { timeoutMs: 8000 })
       const pinned = await pinServerKey(server, (served.result as { publicKey?: unknown } | null)?.publicKey)
       if (!pinned.ok) return { valid: false, reason: pinned.reason }

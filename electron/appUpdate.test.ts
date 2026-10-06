@@ -95,3 +95,18 @@ describe('auto-update: signed manifests only (electron/appUpdate.ts)', () => {
     await vi.waitFor(() => expect(updateStatus()).toMatchObject({ state: 'available', ready: true }))
   })
 })
+
+describe('the downloaded exe is checked again right before the swap (L2)', () => {
+  it('fileMatches: exact size and SHA-256 only', async () => {
+    const { writeFileSync } = await import('node:fs')
+    const { fileMatches } = await import('./appUpdate')
+    const file = join(dir, 'check.update')
+    writeFileSync(file, exe)
+    expect(fileMatches(file, fields.size, fields.sha256)).toBe(true)
+    writeFileSync(file, Buffer.from('MZ swapped by something else'))
+    expect(fileMatches(file, fields.size, fields.sha256)).toBe(false)
+    writeFileSync(file, Buffer.concat([exe, Buffer.from('x')]))
+    expect(fileMatches(file, fields.size, fields.sha256)).toBe(false)
+    expect(fileMatches(join(dir, 'missing.update'), fields.size, fields.sha256)).toBe(false)
+  })
+})

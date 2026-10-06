@@ -1,3 +1,5 @@
+// First: the desktop app's Content-Security-Policy is in place before any other module of the app runs.
+import './app/contentSecurityPolicy'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'

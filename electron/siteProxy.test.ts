@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createApi } from '../server/src/app'
 import { ProgressStore } from '../server/src/services/progressStore'
-import { proxyToApi, siteRoute, visitorAddress } from './siteProxy'
+import { forwardedPath, proxyToApi, siteRoute, visitorAddress } from './siteProxy'
 
 /**
  * The real API (server/src/app.ts) behind the website server's proxy (electron/localServer.ts), as on the server
@@ -78,6 +78,24 @@ describe('site proxy → API: QR sign-in through the website address', () => {
     expect(odd.headers.get('content-type')).toContain('text/html')
   })
 
+  it('forwards the decided (decoded) path, so %-encoding cannot sneak /v1/admin past the block', async () => {
+    // The test site decides on the raw pathname here; the proxy decodes it as localServer.ts does and refuses.
+    expect((await fetch(`${base}/v1/%61dmin/streamers`)).status).toBe(404)
+    // Real paths and their query strings arrive unchanged.
+    expect((await fetch(`${base}/v1/accounts/auth-config?x=1%262`)).status).toBe(200)
+  })
+
+  it('passes Sec-Fetch-* on: <img src=/.env> from another site is answered 404 and the visitor is not banned', async () => {
+    const img = { 'cf-connecting-ip': '203.0.113.80', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'image' }
+    for (let round = 0; round < 4; round += 1) {
+      for (const path of ['/.env', '/x.php', '/wp-admin/', '/.git/config']) expect((await fetch(`${base}${path}`, { headers: img })).status).toBe(404)
+    }
+    expect((await fetch(`${base}/v1/accounts/auth-config`, { headers: { 'cf-connecting-ip': '203.0.113.80' } })).status).toBe(200)
+    // Without them (a scanner) the same walk bans the address.
+    for (const path of ['/.env', '/x.php', '/wp-admin/']) await fetch(`${base}${path}`, { headers: { 'cf-connecting-ip': '203.0.113.81' } })
+    expect((await fetch(`${base}/v1/accounts/auth-config`, { headers: { 'cf-connecting-ip': '203.0.113.81' } })).status).toBe(403)
+  })
+
   it('a stopped API answers 502 with a readable error, not a hang', async () => {
     const dead = createServer((request, response) => proxyToApi(request, response, 1)).listen(0, '127.0.0.1')
     await new Promise((resolve) => dead.once('listening', resolve))
@@ -85,6 +103,18 @@ describe('site proxy → API: QR sign-in through the website address', () => {
     expect(answer.status).toBe(502)
     expect((await answer.json() as { error: string }).error).toContain('502')
     await new Promise((resolve) => dead.close(resolve))
+  })
+})
+
+describe('forwardedPath', () => {
+  it('re-encodes the decided path segment by segment and keeps the query', () => {
+    expect(forwardedPath('/v1/accounts/me?x=1')).toEqual({ path: '/v1/accounts/me', url: '/v1/accounts/me?x=1' })
+    expect(forwardedPath('/v1/%61ccounts/me')).toEqual({ path: '/v1/accounts/me', url: '/v1/accounts/me' })
+    expect(forwardedPath('/v1%2Fadmin')).toEqual({ path: '/v1/admin', url: '/v1/admin' })
+    // A decoded ? or # stays part of the path, never becomes a query.
+    expect(forwardedPath('/v1/a%3Fb%23c')!.url).toBe('/v1/a%3Fb%23c')
+    expect(forwardedPath('/v1/%E0%A4%A')).toBeUndefined()
+    expect(forwardedPath('/x', '/v1/given')!.url).toBe('/v1/given')
   })
 })
 

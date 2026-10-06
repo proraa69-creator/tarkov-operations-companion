@@ -12,6 +12,7 @@ import { StreamerPayouts } from '../components/StreamerPayouts'
 import { LEGAL_VERSION } from '../legal/documents'
 import { Notice } from '../components/Notice'
 import { PasswordPanel } from '../components/PasswordPanel'
+import { SignOutEverywherePanel } from '../components/SignOutEverywherePanel'
 import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
@@ -115,6 +116,7 @@ export function CabinetPage() {
             <AppPanel />
             {account.kind === 'user' && <InviteCodePanel account={account} />}
             <PasswordPanel />
+            <SignOutEverywherePanel />
             <DeleteAccountPanel />
           </div>
         </div>

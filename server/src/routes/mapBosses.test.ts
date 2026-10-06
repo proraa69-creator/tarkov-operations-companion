@@ -110,3 +110,22 @@ test('map bosses: a database from before game modes keeps its placements for eve
   assert.equal(added?.mode, 'seasonal')
   assert.deepEqual(store.list().map((entry) => entry.mode ?? 'all'), ['all', 'seasonal'])
 })
+
+test('map bosses: a batch is saved in one transaction — a failure half-way leaves nothing behind', () => {
+  const db = openDatabase(':memory:')
+  const store = new MapBossStore(db)
+  store.add({ ...killa }, 'owner@example.com')
+  // The database refuses the third row of the batch (as a full disk or a broken row would).
+  db.exec(`CREATE TRIGGER map_boss_fail BEFORE INSERT ON map_boss_placements WHEN NEW.boss_key = 'broken'
+    BEGIN SELECT RAISE(ABORT, 'disk full'); END`)
+  const batch = [{ ...killa, mapId: 'customs' }, { ...killa, mapId: 'woods' }, { ...killa, bossKey: 'broken' }, { ...killa, mapId: 'shoreline' }]
+  assert.throws(() => store.addMany(batch, 'owner@example.com'), /disk full/)
+  assert.equal(store.list().length, 1, 'only the placement from before the batch')
+  db.exec('DROP TRIGGER map_boss_fail')
+  // Too many for the table: undefined, nothing written; a fitting batch: every placement.
+  assert.equal(store.addMany(Array.from({ length: 1000 }, () => ({ ...killa })), 'owner@example.com'), undefined)
+  assert.equal(store.list().length, 1)
+  const added = store.addMany(batch.filter((entry) => entry.bossKey !== 'broken'), 'owner@example.com')
+  assert.equal(added?.length, 3)
+  assert.equal(store.list().length, 4)
+})

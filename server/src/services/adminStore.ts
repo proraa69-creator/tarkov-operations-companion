@@ -163,7 +163,7 @@ export class AdminStore {
     }
     const subscriptions = {
       active: count("SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND s.paid_until > ?", now),
-      trials: count("SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.kind = 'user' AND a.referred_at IS NOT NULL AND a.referred_at + ? > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)", REFERRAL_TRIAL_MS, now, now),
+      trials: count("SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.kind = 'user' AND a.referred_at IS NOT NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.referred_at + ? > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)", REFERRAL_TRIAL_MS, now, now),
       autopay: count("SELECT COUNT(*) AS n FROM recurring_subscriptions WHERE status = 'active'"),
       streamers: count("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'streamer'"),
     }
@@ -341,7 +341,7 @@ export class AdminStore {
   // ------------------------------------------------------------------------------------------------------------
 
   private static readonly USER_SELECT = `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.blocked_at, a.last_seen_at, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_denied, a.blocked_at, a.last_seen_at, s.paid_until,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
       (SELECT r.provider || '|' || r.status || '|' || r.plan FROM recurring_subscriptions r WHERE r.account_id = a.id ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1) AS autopay
@@ -354,10 +354,10 @@ export class AdminStore {
     const args: Array<string | number> = []
     if (q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(q.toLowerCase())) }
     const active = "(a.kind = 'user' AND s.paid_until > ?)"
-    const trial = "(a.kind = 'user' AND (s.paid_until IS NULL OR s.paid_until <= ?) AND a.referred_at IS NOT NULL AND a.referred_at + ? > ?)"
+    const trial = "(a.kind = 'user' AND (s.paid_until IS NULL OR s.paid_until <= ?) AND a.referred_at IS NOT NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.referred_at + ? > ?)"
     if (filter === 'active') { where.push(active); args.push(now) }
     if (filter === 'trial') { where.push(trial); args.push(now, REFERRAL_TRIAL_MS, now) }
-    if (filter === 'inactive') { where.push("(a.kind = 'user' AND COALESCE(s.paid_until, 0) <= ? AND NOT (a.referred_at IS NOT NULL AND a.referred_at + ? > ?))"); args.push(now, REFERRAL_TRIAL_MS, now) }
+    if (filter === 'inactive') { where.push("(a.kind = 'user' AND COALESCE(s.paid_until, 0) <= ? AND NOT (a.referred_at IS NOT NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.referred_at + ? > ?))"); args.push(now, REFERRAL_TRIAL_MS, now) }
     if (filter === 'streamers') where.push("a.kind = 'streamer'")
     if (filter === 'blocked') where.push('a.blocked_at IS NOT NULL')
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
@@ -380,7 +380,7 @@ export class AdminStore {
     const now = this.now()
     const kind = row.kind === 'streamer' ? 'streamer' : 'user'
     const paidUntil = row.paid_until == null ? undefined : Number(row.paid_until)
-    const trialEnds = row.referred_at == null ? undefined : Number(row.referred_at) + REFERRAL_TRIAL_MS
+    const trialEnds = row.referred_at == null || Number(row.trial_denied ?? 0) ? undefined : Number(row.referred_at) + REFERRAL_TRIAL_MS
     let subscription: AdminUser['subscription'] = { status: 'inactive', ...(paidUntil ? { paidUntil: iso(paidUntil) } : {}) }
     if (trialEnds !== undefined && trialEnds > now) subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }

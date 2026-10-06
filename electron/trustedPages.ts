@@ -44,7 +44,11 @@ export function isAppPageUrl(raw: string, pages: AppPages): boolean {
   return windows ? page.toLowerCase() === index.toLowerCase() : page === index
 }
 
-/** Links opened in the system browser: any HTTPS page, or the local website / API on this computer (exact host). */
+/**
+ * Addresses the main process itself builds (the website of the configured server, «Личный кабинет»): any HTTPS page,
+ * or the local website / API on this computer (exact host). Links coming from a page go through
+ * electron/externalLinks.ts instead (known sites only, anything else after a confirmation dialog).
+ */
 export function isExternalAllowed(url: string) {
   try {
     const parsed = new URL(url)

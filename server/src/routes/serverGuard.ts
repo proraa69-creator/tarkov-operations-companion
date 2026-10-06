@@ -3,7 +3,8 @@
  * (services/serverHealth.ts) and backups (services/serverBackups.ts) wired into the API. app.ts mounts
  * `middleware` first (bans, scanner paths, counting every answer) and `router` after the JSON parser:
  *
- * This PC only (a direct request to 127.0.0.1:8787 — the owner app's watchdog; 404 through the site / public link):
+ * This PC only (a direct request to 127.0.0.1:8787 — the owner app's watchdog; 404 through the site / public link, and
+ * for a browser page: Host must be 127.0.0.1 / localhost, no Origin header — see localAppRequest):
  *   GET  /health/detail                         -> error rates, event loop, memory, database check, backups, security
  *   POST /health/backup  { kind }               -> { backup } | 500 { error }   (daily / before-restart / manual)
  *
@@ -41,6 +42,21 @@ const pageSchema = z.object({
 })
 const backupSchema = z.object({ kind: z.enum(['daily', 'before-restart', 'manual']).default('manual') })
 
+/** Host names a request made on this PC to the API port carries (anything else is DNS rebinding). */
+const LOCAL_HOST = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d{1,5})?$/i
+
+/**
+ * Besides the loopback socket: the owner app's own call (Node fetch from the main process) — Host 127.0.0.1 /
+ * localhost, no Origin and no cross-site Sec-Fetch-Site. A web page open in a browser on this PC can reach
+ * 127.0.0.1:8787 too (a «simple» POST needs no preflight), or point a rebinding DNS name at it; both are refused.
+ */
+export function localAppRequest(req: Request) {
+  if (!LOCAL_HOST.test(req.get('host') ?? '')) return false
+  if (req.get('origin') !== undefined) return false
+  const site = (req.get('sec-fetch-site') ?? 'none').toLowerCase()
+  return site === 'none' || site === 'same-origin'
+}
+
 export function createServerGuard(accounts: AccountStore, options: ServerGuardOptions = {}) {
   const db = accounts.database
   const ownerOf = (req: Request) => {
@@ -74,7 +90,7 @@ export function createServerGuard(accounts: AccountStore, options: ServerGuardOp
   const router = express.Router()
   const localOnly = (run: (req: Request, res: Response) => void) => (req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store')
-    if (!directLocal(req)) { res.status(404).json({ error: 'Не найдено' }); return }
+    if (!directLocal(req) || !localAppRequest(req)) { res.status(404).json({ error: 'Не найдено' }); return }
     run(req, res)
   }
   router.get('/health/detail', localOnly((_req, res) => { res.json(detail(true)) }))

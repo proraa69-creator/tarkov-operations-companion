@@ -2,8 +2,9 @@
  * Paid game data (docs/subscription-protection.md). Every route here needs:
  *   1. a signed-in session (401 «Требуется вход в аккаунт»),
  *   2. access: owner / streamer / paid period / referral trial (402 «Нужна подписка»),
- *   3. an active device of the account in `X-Raid-Device` (403, code device_inactive / device_revoked); the owner's
- *      own account is exempt (website, scripts),
+ *   3. an active device of the account in `X-Raid-Device`, bound to this very session (403, code device_inactive /
+ *      device_revoked); the owner's own account is exempt (website, scripts). Website sessions register no device, so
+ *      for everybody but the owner they get 403 device_inactive here, as before,
  * plus per-IP (counted first, before anything else) and per-account rate limits.
  *
  *   POST /v1/data/graphql            {query, variables?} -> tarkov.dev GraphQL answer (services/dataGateway.ts)
@@ -13,7 +14,7 @@
  */
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
-import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
+import { bearer, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
 import { GatewayError, type DataGateway } from '../services/dataGateway.js'
 import { SUBSCRIPTION_REQUIRED, type EntitlementService } from '../services/entitlement.js'
 
@@ -29,13 +30,15 @@ export function requireDataAccess(accounts: AccountStore, entitlements: Entitlem
     res.set('Cache-Control', 'no-store')
     const ipRetry = ipLimiter.hit(`data:${req.ip ?? 'unknown'}`)
     if (ipRetry) { tooMany(res, ipRetry); return }
-    const accountId = accounts.authenticate(bearer(req.get('authorization')))
-    if (!accountId) { res.status(401).json({ error: 'Требуется вход в аккаунт', code: 'auth_required' }); return }
+    const token = bearer(req.get('authorization'))
+    const accountId = accounts.authenticate(token)
+    if (!accountId || !token) { res.status(401).json({ error: 'Требуется вход в аккаунт', code: 'auth_required' }); return }
     const access = entitlements.access(accountId)
     if (!access) { res.status(402).json({ error: SUBSCRIPTION_REQUIRED, code: 'subscription_required' }); return }
     if (access.plan !== 'owner') {
       const device = req.get(DEVICE_HEADER)
-      if (!entitlements.isActiveDevice(accountId, device)) {
+      // The device must be the one this session registered (POST /v1/entitlement), not just any active device id.
+      if (!entitlements.isActiveDevice(accountId, device, tokenDigest(token))) {
         const reason = entitlements.revokedReason(accountId, device)
         res.status(403).json(reason
           ? { error: reason === 'limit' ? 'Это устройство отключено: в аккаунт вошли на другом устройстве (не больше трёх).' : 'Это устройство отключено владельцем аккаунта или сервиса.', code: 'device_revoked' }
@@ -55,18 +58,22 @@ export function createDataRouter(gateway: DataGateway, guard: express.RequestHan
   router.use(guard)
   const send = (res: Response, body: string) => res.type('application/json').send(body)
   const fail = (res: Response, error: unknown) => {
-    if (error instanceof GatewayError) { res.status(error.status).json({ error: error.message }); return true }
+    if (error instanceof GatewayError) {
+      if (error.retryAfter) res.set('Retry-After', String(error.retryAfter))
+      res.status(error.status).json({ error: error.message })
+      return true
+    }
     return false
   }
   router.post('/graphql', async (req, res, next) => {
     try {
       const body = req.body && typeof req.body === 'object' ? req.body as { query?: unknown; variables?: unknown } : {}
-      send(res, await gateway.graphql(body.query, body.variables))
+      send(res, await gateway.graphql(body.query, body.variables, { accountId: String(res.locals.accountId) }))
     } catch (error) { if (!fail(res, error)) next(error) }
   })
   router.get('/json/:mode/:name', async (req, res, next) => {
     try {
-      send(res, await gateway.json(`${String(req.params.mode)}/${String(req.params.name)}`))
+      send(res, await gateway.json(`${String(req.params.mode)}/${String(req.params.name)}`, { accountId: String(res.locals.accountId) }))
     } catch (error) { if (!fail(res, error)) next(error) }
   })
   return router

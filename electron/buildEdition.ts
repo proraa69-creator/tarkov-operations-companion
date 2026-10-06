@@ -31,12 +31,19 @@ function buildInfo(): BuildInfo | null {
   return cached
 }
 
-export function buildEdition(): BuildEdition {
-  const info = buildInfo()
+/**
+ * The edition from build-info.json (`info`, null when there is none) and, only without that file (a development run),
+ * `OWNER_BUILD` in the environment. A build-info.json without a valid `edition` is a players' copy: the owner's
+ * controls are never switched on by a missing or damaged field (scripts/write-build-info.mjs always writes it).
+ */
+export function editionFromInfo(info: { edition?: unknown } | null, env: NodeJS.ProcessEnv = process.env): BuildEdition {
   if (info?.edition === 'owner' || info?.edition === 'client') return info.edition
-  if (!info) return process.env.OWNER_BUILD === '1' ? 'owner' : 'client'
-  // An exe built before editions existed was the owner's own app.
-  return 'owner'
+  if (!info) return env.OWNER_BUILD === '1' ? 'owner' : 'client'
+  return 'client'
+}
+
+export function buildEdition(): BuildEdition {
+  return editionFromInfo(buildInfo())
 }
 
 export const isOwnerBuild = () => buildEdition() === 'owner'

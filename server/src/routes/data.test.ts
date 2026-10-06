@@ -5,7 +5,7 @@ import { createApi } from '../app.js'
 import { AccountStore, newPasswordHash, type SubscriptionSource } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { EntitlementService } from '../services/entitlement.js'
-import { ALLOWED_OPERATIONS, checkQueryAllowed, DataGateway, GatewayError, inspectQuery, PRICE_TTL_MS, STATIC_TTL_MS } from '../services/dataGateway.js'
+import { ALLOWED_OPERATIONS, canonicalQuery, checkQueryAllowed, DataGateway, GatewayError, inspectQuery, PRICE_TTL_MS, STATIC_TTL_MS } from '../services/dataGateway.js'
 
 const DEVICE = 'device-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const DAY = 24 * 60 * 60 * 1000
@@ -29,9 +29,88 @@ test('query check: one read-only operation, allowlisted name or safe top-level f
   assert.equal(status('{ ...on Query { items { id } } }'), 403, 'top-level spreads')
   assert.equal(status('{ items { id }'), 400)
   assert.equal(status('x'.repeat(30_000)), 413)
-  // The single extendable list.
+  // A name alone opens nothing: named operations, allowlisted ones too, may use only the safe top-level fields.
   ALLOWED_OPERATIONS.push('RaidOsTestOnly')
-  try { assert.equal(status('query RaidOsTestOnly { lootContainers { id } }'), 200) } finally { ALLOWED_OPERATIONS.pop() }
+  try {
+    assert.equal(status('query RaidOsTestOnly { lootContainers { id } }'), 403)
+    assert.equal(status('query RaidOsGuns { items { id } secretAdminField { id } }'), 403)
+    assert.equal(status('query RaidOsTestOnly { items { id } }'), 200)
+  } finally { ALLOWED_OPERATIONS.pop() }
+  // The same field twice (under aliases) is refused: no multiplying the upstream work.
+  assert.equal(status('{ a: items { id } b: items { id } }'), 400)
+})
+
+test('query check: every query the app really sends passes (src/data/bosses.ts, src/arsenal/gunQueries.ts)', async () => {
+  // The app's own module (outside the server's TypeScript project, hence the computed specifier).
+  const appQueries = new URL('../../../src/arsenal/gunQueries.ts', import.meta.url).href
+  const { GUNS_QUERY, MODS_QUERY, AMMO_QUERY } = await import(appQueries) as Record<string, string>
+  const bosses = 'query RaidOsBosses {\n  bosses(lang: ru) {\n    name\n    health { max }\n    equipment { item { id properties { ... on ItemPropertiesWeapon { defaultPreset { iconLink } } } } attributes { name value } }\n  }\n}'
+  for (const query of [GUNS_QUERY!, MODS_QUERY!, AMMO_QUERY!, bosses]) {
+    assert.ok(ALLOWED_OPERATIONS.includes(checkQueryAllowed(query).operationName ?? ''), query.slice(0, 40))
+    // No aliases in them: what goes upstream is the same query.
+    assert.equal(canonicalQuery(query), canonicalQuery(canonicalQuery(query)))
+    assert.doesNotMatch(canonicalQuery(query), /\b\w+\s*:\s*items\b/)
+  }
+})
+
+test('gateway: aliases are not part of the cache key nor of the upstream query; arguments keep their colons', async () => {
+  assert.equal(canonicalQuery('query RaidOsGuns($lang: LanguageCode = ru) { guns: items(type: gun, lang: $lang, filter: { a: 1 }) { n: name id } }'),
+    'query RaidOsGuns ( $ lang : LanguageCode = ru ) { items ( type : gun lang : $ lang filter : { a : 1 } ) { name id } }')
+  assert.equal(canonicalQuery('{ item(id: "a: b  c") { x: id } }'), '{ item ( id : "a: b  c" ) { id } }')
+  const upstream = fakeUpstream()
+  const gateway = new DataGateway({ fetch: upstream.fetcher })
+  await gateway.graphql('{ items(lang: ru) { id name } }', undefined)
+  await gateway.graphql('{ x1: items(lang: ru) { id nm: name } }', undefined)
+  await gateway.graphql('{ x2: items(lang: ru) { y: id name } }', undefined)
+  assert.equal(upstream.calls.length, 1, 'one cache entry whatever the aliases')
+  assert.doesNotMatch(String(JSON.parse(upstream.calls[0]!.body!).query), /x1|nm:/)
+})
+
+test('gateway: upstream calls in flight are capped globally (503) and per account (429) with Retry-After; a stale copy is served instead', async () => {
+  let now = 0
+  const waiting: Array<() => void> = []
+  let calls = 0
+  const fetcher = (async (input: string | URL | Request) => {
+    calls += 1
+    await new Promise<void>((resolve) => waiting.push(resolve))
+    return new Response(JSON.stringify({ data: { url: String(input) } }), { status: 200 })
+  }) as typeof fetch
+  const gateway = new DataGateway({ fetch: fetcher, now: () => now, maxInFlight: 3, maxInFlightPerAccount: 2 })
+  const release = async () => { while (waiting.length) waiting.shift()!(); await new Promise((resolve) => setTimeout(resolve, 5)) }
+  const a1 = gateway.json('regular/tasks', { accountId: 'a' })
+  const a2 = gateway.json('regular/maps', { accountId: 'a' })
+  await assert.rejects(gateway.json('regular/items', { accountId: 'a' }), (error: GatewayError) => error.status === 429 && error.retryAfter! > 0)
+  // An identical request in flight is shared, not counted again.
+  const shared = gateway.json('regular/tasks', { accountId: 'a' })
+  const b1 = gateway.json('regular/traders', { accountId: 'b' })
+  assert.equal(gateway.upstreamInFlight, 3)
+  await assert.rejects(gateway.json('pve/tasks', { accountId: 'c' }), (error: GatewayError) => error.status === 503 && error.retryAfter! > 0)
+  await assert.rejects(gateway.graphql('{ items { id } }', undefined), (error: GatewayError) => error.status === 503)
+  await release()
+  await Promise.all([a1, a2, shared, b1])
+  assert.equal(calls, 3)
+  assert.equal(gateway.upstreamInFlight, 0, 'slots are given back')
+  // Full again, but the expired copy of tasks exists: served instead of an error.
+  now += 7 * 60 * 60 * 1000
+  const hold = [gateway.json('pve/items'), gateway.json('pve/maps'), gateway.json('pve/traders')]
+  assert.match(await gateway.json('regular/tasks'), /regular\/tasks/)
+  await release()
+  await Promise.all(hold)
+  // A failed upstream call frees its slot too.
+  const failing = new DataGateway({ fetch: (async () => { throw new Error('down') }) as typeof fetch, maxInFlight: 1 })
+  await assert.rejects(failing.json('regular/tasks'), (error: GatewayError) => error.status === 502)
+  await assert.rejects(failing.json('regular/tasks'), (error: GatewayError) => error.status === 502)
+  assert.equal(failing.upstreamInFlight, 0)
+})
+
+test('gateway: the size cap still applies to a streamed answer (multi-byte text decoded across chunks)', async () => {
+  const text = JSON.stringify({ data: { name: 'Тарков'.repeat(50) } })
+  const bytes = Buffer.from(text)
+  const chunked = () => new ReadableStream<Uint8Array>({ start(controller) { for (let index = 0; index < bytes.length; index += 7) controller.enqueue(bytes.subarray(index, index + 7)); controller.close() } })
+  const ok = new DataGateway({ fetch: (async () => new Response(chunked())) as typeof fetch })
+  assert.equal(await ok.graphql('{ items { name } }', undefined), text)
+  const small = new DataGateway({ fetch: (async () => new Response(chunked())) as typeof fetch, maxResponseBytes: bytes.length - 1 })
+  await assert.rejects(small.graphql('{ items { name } }', undefined), (error: GatewayError) => error.status === 502)
 })
 
 function fakeUpstream() {

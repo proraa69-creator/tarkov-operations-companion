@@ -98,3 +98,18 @@ test('goons store: summary ignores other modes and prunes old entries', () => {
   assert.equal(store.list('pvp', 0).length, 1)
   assert.equal(store.lastByReporter('b')?.mapId, 'shoreline')
 })
+
+test('goons: the rate limit counts an IPv6 /64 prefix as one client (IPv4 stays per address)', async () => {
+  await withApi(async ({ post }) => {
+    assert.equal((await post('pvp', { mapId: 'woods' }, '2001:db8:1:2::1')).status, 201)
+    // Another address of the same /64 (also written differently) is the same client: 429.
+    const rotated = await post('pvp', { mapId: 'customs' }, '2001:0db8:0001:0002:ffff:eeee:dddd:cccc')
+    assert.equal(rotated.status, 429)
+    assert.ok(Number(rotated.headers.get('retry-after')) > 0)
+    // A different /64 is another client.
+    assert.equal((await post('pvp', { mapId: 'customs' }, '2001:db8:1:3::1')).status, 201)
+    // IPv4: neighbours are separate clients.
+    assert.equal((await post('pvp', { mapId: 'woods' }, '198.51.100.1')).status, 201)
+    assert.equal((await post('pvp', { mapId: 'customs' }, '198.51.100.2')).status, 201)
+  })
+})

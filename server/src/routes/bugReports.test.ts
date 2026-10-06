@@ -3,7 +3,10 @@ import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
-import { sniffImage } from '../services/bugReportStore.js'
+import { BUG_REPORT_STORAGE, BugReportError, BugReportStore, sniffImage } from '../services/bugReportStore.js'
+import { request as httpRequest } from 'node:http'
+import express from 'express'
+import { createBugReportsRouter } from './bugReports.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
@@ -158,6 +161,129 @@ test('bug reports: rate limit per account, and a deleted account leaves no e-mai
     const rows = t.db.prepare('SELECT account_id, email FROM bug_reports').all() as Array<{ account_id: unknown; email: unknown }>
     assert.equal(rows.length, 2)
     assert.ok(rows.every((row) => row.account_id === null && row.email === null))
+  } finally {
+    await t.close()
+  }
+})
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+test('bug report storage: a global quota for screenshots (507), text-only reports still accepted', () => {
+  const store = new BugReportStore(openDatabase(':memory:'), { maxStoredBytes: 300 })
+  const shot100 = Buffer.concat([PNG, Buffer.alloc(100 - PNG.length)])
+  const input = (files: Buffer[]) => ({ topic: 't', description: 'd', appVersion: '', platform: '', files })
+  store.create('a', undefined, input([shot100, shot100]))
+  assert.equal(store.storedBytes(), 200)
+  assert.equal(store.screenshotsFull(), false)
+  assert.throws(() => store.create('a', undefined, input([shot100, shot100])), (error: BugReportError) => error.status === 507 && /без скриншотов/.test(error.message))
+  assert.equal(store.list(undefined, 10, 0).total, 1, 'the refused report is not saved at all')
+  assert.ok(store.create('a', undefined, input([])).id > 0)
+  store.create('a', undefined, input([shot100]))
+  assert.equal(store.screenshotsFull(), true)
+  assert.equal(store.create('a', undefined, input([])).id > 0, true, 'text only: still fine')
+})
+
+test('bug report retention: screenshots of closed reports go after 30 days, of every report after 90; the text stays', () => {
+  let clock = Date.parse('2026-01-01T00:00:00Z')
+  const db = openDatabase(':memory:')
+  const store = new BugReportStore(db, { now: () => clock })
+  const input = { topic: 't', description: 'd', appVersion: '', platform: '', files: [PNG] }
+  const open = store.create('a', undefined, input).id
+  const closed = store.create('a', undefined, input).id
+  clock += 10 * DAY_MS
+  store.setStatus(closed, 'closed')
+  clock += 29 * DAY_MS
+  assert.equal(store.pruneScreenshots(), 0)
+  clock += 2 * DAY_MS
+  assert.equal(store.pruneScreenshots(), 1, 'closed 31 days ago')
+  assert.equal(store.get(closed)!.files.length, 0)
+  assert.equal(store.get(open)!.files.length, 1)
+  clock += 50 * DAY_MS
+  // On open (and at most hourly on new reports) the retention runs by itself.
+  const reopened = new BugReportStore(db, { now: () => clock })
+  assert.equal(reopened.get(open)!.files.length, 0, 'older than 90 days')
+  assert.equal(reopened.get(open)!.description, 'd')
+  const fresh = reopened.create('a', undefined, input).id
+  clock += 91 * DAY_MS
+  reopened.create('a', undefined, { ...input, files: [] })
+  assert.equal(reopened.get(fresh)!.files.length, 0, 'pruned on a new report after an hour')
+  assert.equal(BUG_REPORT_STORAGE.closedRetentionMs, 30 * DAY_MS)
+})
+
+async function uploadApp(options: { maxConcurrentUploads?: number; maxStoredBytes?: number; perIp?: number } = {}) {
+  const db = openDatabase(':memory:')
+  const accounts = new AccountStore({ db, ownerEmails: [] })
+  const tokens = await Promise.all(['a@example.com', 'b@example.com', 'c@example.com'].map(async (email) => (await accounts.register(email, password)).token))
+  const store = new BugReportStore(db, { maxStoredBytes: options.maxStoredBytes })
+  const app = express()
+  app.set('trust proxy', 'loopback')
+  app.use(createBugReportsRouter(accounts, store, { maxConcurrentUploads: options.maxConcurrentUploads, limits: { perIp: options.perIp ?? 100, perAccount: 100 } }))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const port = (server.address() as AddressInfo).port
+  /** Starts an upload; `finish()` sends the rest of the body. */
+  const start = (token: string, body: string, headers: Record<string, string> = {}) => {
+    const started = { answer: undefined as unknown as Promise<{ status: number; retryAfter?: string; text: string }>, finish: () => {} }
+    started.answer = new Promise<{ status: number; retryAfter?: string; text: string }>((resolve, reject) => {
+      const request = httpRequest({ host: '127.0.0.1', port, method: 'POST', path: '/v1/bug-reports', headers: { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(body)), authorization: `Bearer ${token}`, ...headers } }, (response) => {
+        let text = ''
+        response.setEncoding('utf8')
+        response.on('data', (chunk: string) => { text += chunk })
+        response.on('end', () => resolve({ status: response.statusCode ?? 0, retryAfter: response.headers['retry-after'] as string | undefined, text }))
+      })
+      request.on('error', reject)
+      request.write(body.slice(0, 10))
+      started.finish = () => { request.end(body.slice(10)) }
+    })
+    return started
+  }
+  const send = async (token: string, body: unknown, headers: Record<string, string> = {}) => { const upload = start(token, JSON.stringify(body), headers); upload.finish(); return upload.answer }
+  return { tokens, start, send, store, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+}
+
+test('bug reports: at most N upload bodies are read at a time (503 + Retry-After), the slot comes back', async () => {
+  const t = await uploadApp({ maxConcurrentUploads: 1 })
+  try {
+    const slow = t.start(t.tokens[0]!, JSON.stringify(report))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const busy = await t.send(t.tokens[1]!, report)
+    assert.equal(busy.status, 503)
+    assert.ok(Number(busy.retryAfter) > 0)
+    slow.finish()
+    assert.equal((await slow.answer).status, 201)
+    assert.equal((await t.send(t.tokens[1]!, report)).status, 201, 'free again')
+    // A refused body (bad JSON) gives the slot back as well.
+    const broken = t.start(t.tokens[2]!, '{"topic": broken')
+    broken.finish()
+    assert.equal((await broken.answer).status, 400)
+    assert.equal((await t.send(t.tokens[2]!, report)).status, 201)
+  } finally {
+    await t.close()
+  }
+})
+
+test('bug reports: the per-IP limit counts an IPv6 /64 as one address', async () => {
+  const t = await uploadApp({ perIp: 1 })
+  try {
+    assert.equal((await t.send(t.tokens[0]!, report, { 'x-forwarded-for': '2001:db8:aa:bb::1' })).status, 201)
+    assert.equal((await t.send(t.tokens[1]!, report, { 'x-forwarded-for': '2001:db8:aa:bb:ffff::2' })).status, 429)
+    assert.equal((await t.send(t.tokens[1]!, report, { 'x-forwarded-for': '2001:db8:aa:cc::1' })).status, 201)
+  } finally {
+    await t.close()
+  }
+})
+
+test('bug reports: with the screenshot storage full, a large upload is refused unread (507), a text report goes through', async () => {
+  const t = await uploadApp({ maxStoredBytes: PNG.length })
+  try {
+    t.store.create('x', undefined, { topic: 't', description: 'd', appVersion: '', platform: '', files: [PNG] })
+    const big = Buffer.concat([PNG, Buffer.alloc(200 * 1024, 3)])
+    const refused = await t.send(t.tokens[0]!, { ...report, screenshots: [shot(big)] })
+    assert.equal(refused.status, 507)
+    assert.match(refused.text, /без скриншотов/)
+    const small = await t.send(t.tokens[0]!, { ...report, screenshots: [shot(PNG)] })
+    assert.equal(small.status, 507, 'small screenshot: refused by the store')
+    assert.equal((await t.send(t.tokens[0]!, report)).status, 201)
   } finally {
     await t.close()
   }

@@ -17,11 +17,20 @@ export function visitorAddress(socketAddress: string | undefined, headers: Incom
  * API on 127.0.0.1:<apiPort>, so the site keeps working when opened through the public link. Kept free of Electron
  * imports so the whole path (site → proxy → real API, e.g. QR sign-in) is tested in siteProxy.test.ts.
  */
-export function proxyToApi(request: IncomingMessage, response: ServerResponse, apiPort: number) {
+export function proxyToApi(request: IncomingMessage, response: ServerResponse, apiPort: number, decidedPath?: string) {
+  const target = forwardedPath(request.url, decidedPath)
+  if (!target || siteRoute(target.path) !== 'api') {
+    request.resume()
+    response.writeHead(target ? 404 : 400, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+    response.end(JSON.stringify({ error: target ? 'Не найдено' : 'Некорректный адрес' }))
+    return
+  }
+  // Everything else (Sec-Fetch-Site / -Mode / -Dest included: the API's guard does not score what another site's page
+  // made a visitor's browser load) goes on as the browser sent it.
   const { 'x-forwarded-for': _forwarded, ...headers } = request.headers
   void _forwarded
   const forwardedFor = visitorAddress(request.socket.remoteAddress, request.headers)
-  const upstream = httpRequest({ host: '127.0.0.1', port: apiPort, method: request.method, path: request.url, headers: { ...headers, host: `127.0.0.1:${apiPort}`, 'x-forwarded-for': forwardedFor } }, (answer) => {
+  const upstream = httpRequest({ host: '127.0.0.1', port: apiPort, method: request.method, path: target.url, headers: { ...headers, host: `127.0.0.1:${apiPort}`, 'x-forwarded-for': forwardedFor } }, (answer) => {
     response.writeHead(answer.statusCode ?? 502, answer.headers)
     answer.pipe(response)
   })
@@ -30,6 +39,24 @@ export function proxyToApi(request: IncomingMessage, response: ServerResponse, a
     response.end(JSON.stringify({ error: 'Сервер аккаунтов не запущен (HTTP 502). Владельцу: проверьте лампы в приложении-сервере.' }))
   })
   request.pipe(upstream)
+}
+
+/**
+ * The path the site server decided on (localServer.ts: `decodeURIComponent(new URL(url).pathname)`, passed in as
+ * `decidedPath` or computed the same way here) and the URL that goes to the API: exactly that path, each segment
+ * encoded again, plus the original query. The API therefore never sees a different path than the one siteRoute()
+ * allowed (no %2F / %2e tricks around the /v1/admin block). Undefined for an undecodable path.
+ */
+export function forwardedPath(rawUrl: string | undefined, decidedPath?: string): { path: string; url: string } | undefined {
+  let parsed: URL
+  try { parsed = new URL(rawUrl ?? '/', 'http://site.invalid') } catch { return undefined }
+  let path = decidedPath
+  if (path === undefined) {
+    try { path = decodeURIComponent(parsed.pathname) } catch { return undefined }
+  }
+  if (!path.startsWith('/')) return undefined
+  const encoded = path.split('/').map((segment) => encodeURIComponent(segment)).join('/')
+  return { path, url: encoded + parsed.search }
 }
 
 /**

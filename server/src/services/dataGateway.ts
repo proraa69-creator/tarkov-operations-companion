@@ -3,9 +3,13 @@
  * through this server, and only with an active subscription / trial / streamer / owner account (routes/data.ts).
  *
  * - GraphQL: POST /v1/data/graphql {query, variables?} is forwarded to https://api.tarkov.dev/graphql when the query
- *   is a single read-only operation (no mutation / subscription / introspection) and EITHER its operation name is in
- *   ALLOWED_OPERATIONS OR every top-level field is in SAFE_TOP_LEVEL_FIELDS. New app queries: name them and add the name
- *   to ALLOWED_OPERATIONS (or keep to the safe fields).
+ *   is a single read-only operation (no mutation / subscription / introspection) and every top-level field is in
+ *   SAFE_TOP_LEVEL_FIELDS, each at most once — named operations too (a name alone opens nothing). Aliases are removed
+ *   before the query goes upstream and into the cache key (the app's queries use none), so `a1: items … a50: items`
+ *   can neither multiply the upstream work nor dodge the cache.
+ * - Upstream calls in flight are capped: MAX_UPSTREAM_IN_FLIGHT for the whole server (503) and
+ *   MAX_UPSTREAM_PER_ACCOUNT per account when the caller names it (429); both carry `retryAfter` (seconds) and an
+ *   expired cached copy is served instead when there is one.
  * - JSON: GET /v1/data/json/<regular|pve|pvp-season>/<endpoint> is forwarded to https://json.tarkov.dev for the
  *   endpoints in JSON_ENDPOINTS (and their `_<lang>` translation dictionaries).
  * - One shared cache for all players, keyed by the query text + variables (gameMode included): trader restock times
@@ -28,7 +32,7 @@ export const ALLOWED_OPERATIONS: string[] = [
   'RaidOsBallistics', 'RaidOsRaidPrep',
 ]
 
-/** Read-only public game data: a query using only these top-level fields is allowed whatever its name. */
+/** Read-only public game data: the only top-level fields a query (named or not) may use. */
 export const SAFE_TOP_LEVEL_FIELDS: ReadonlySet<string> = new Set([
   'items', 'item', 'tasks', 'task', 'traders', 'maps', 'barters', 'crafts', 'hideoutStations', 'ammo',
   'historicalItemPrices', 'bosses', 'playerLevels', 'itemPrices', 'fleaMarket',
@@ -55,12 +59,18 @@ export const MAX_VARIABLES_LENGTH = 4_000
 export const DEFAULT_MAX_RESPONSE_BYTES = 48 * 1024 * 1024
 /** The answer cache is held in memory (Cyrillic text takes about 2 bytes per character there): 384 MB filled the laptop's RAM up to 800 MB and made the guardian restart the server (auto-report #4). */
 export const DEFAULT_MAX_CACHE_BYTES = 96 * 1024 * 1024
+/** tarkov.dev calls running at the same time: for the whole server and for one account. */
+export const MAX_UPSTREAM_IN_FLIGHT = 4
+export const MAX_UPSTREAM_PER_ACCOUNT = 2
 
 export class GatewayError extends Error {
   readonly status: number
-  constructor(status: number, message: string) {
+  /** Seconds for a Retry-After header (429 / 503). */
+  readonly retryAfter?: number
+  constructor(status: number, message: string, retryAfter?: number) {
     super(message)
     this.status = status
+    if (retryAfter !== undefined) this.retryAfter = retryAfter
   }
 }
 
@@ -68,7 +78,7 @@ export class GatewayError extends Error {
 // GraphQL document check (no full parser: enough to find operations, top-level fields and forbidden parts)
 // ---------------------------------------------------------------------------------------------------------------
 
-type Token = { kind: 'name' | 'punct' | 'spread'; value: string }
+type Token = { kind: 'name' | 'punct' | 'spread'; value: string; start: number; end: number }
 
 function tokenize(query: string): Token[] {
   const tokens: Token[] = []
@@ -77,11 +87,12 @@ function tokenize(query: string): Token[] {
     const char = query[index]!
     if (char === '#') { while (index < query.length && query[index] !== '\n') index += 1; continue }
     if (char === ',' || char === '﻿' || /\s/.test(char)) { index += 1; continue }
+    const start = index
     if (query.startsWith('"""', index)) {
       const end = query.indexOf('"""', index + 3)
       if (end < 0) throw new GatewayError(400, 'Некорректный запрос')
       index = end + 3
-      tokens.push({ kind: 'punct', value: 'str' })
+      tokens.push({ kind: 'punct', value: 'str', start, end: index })
       continue
     }
     if (char === '"') {
@@ -89,15 +100,15 @@ function tokenize(query: string): Token[] {
       while (index < query.length && query[index] !== '"') { if (query[index] === '\\') index += 1; if (query[index] === '\n') break; index += 1 }
       if (query[index] !== '"') throw new GatewayError(400, 'Некорректный запрос')
       index += 1
-      tokens.push({ kind: 'punct', value: 'str' })
+      tokens.push({ kind: 'punct', value: 'str', start, end: index })
       continue
     }
-    if (query.startsWith('...', index)) { tokens.push({ kind: 'spread', value: '...' }); index += 3; continue }
+    if (query.startsWith('...', index)) { index += 3; tokens.push({ kind: 'spread', value: '...', start, end: index }); continue }
     const name = /^[_A-Za-z][_0-9A-Za-z]*/.exec(query.slice(index, index + 200))
-    if (name) { tokens.push({ kind: 'name', value: name[0] }); index += name[0].length; continue }
+    if (name) { index += name[0].length; tokens.push({ kind: 'name', value: name[0], start, end: index }); continue }
     const number = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(query.slice(index, index + 50))
-    if (number) { tokens.push({ kind: 'punct', value: 'num' }); index += number[0].length; continue }
-    if ('{}()[]:=@$!|&'.includes(char)) { tokens.push({ kind: 'punct', value: char }); index += 1; continue }
+    if (number) { index += number[0].length; tokens.push({ kind: 'punct', value: 'num', start, end: index }); continue }
+    if ('{}()[]:=@$!|&'.includes(char)) { index += 1; tokens.push({ kind: 'punct', value: char, start, end: index }); continue }
     throw new GatewayError(400, 'Некорректный запрос')
   }
   return tokens
@@ -176,13 +187,39 @@ export function inspectQuery(query: string): QueryShape {
   }
 }
 
-/** Throws unless the query may go upstream; returns its shape (for the cache lifetime). */
-export function checkQueryAllowed(query: string, allowedOperations: readonly string[] = ALLOWED_OPERATIONS): QueryShape {
+/**
+ * Throws unless the query may go upstream; returns its shape (for the cache lifetime). Every top-level field must be
+ * in SAFE_TOP_LEVEL_FIELDS — for named operations as well (ALLOWED_OPERATIONS lists the app's own query names; a name
+ * alone does not open a field) — and appear only once (aliases cannot ask for the same data many times).
+ */
+export function checkQueryAllowed(query: string, _allowedOperations: readonly string[] = ALLOWED_OPERATIONS): QueryShape {
+  void _allowedOperations
   const shape = inspectQuery(query)
-  const named = shape.operationName !== undefined && allowedOperations.includes(shape.operationName)
   const safe = shape.fields.length > 0 && shape.fields.every((field) => field === '__typename' || SAFE_TOP_LEVEL_FIELDS.has(field))
-  if (!named && !safe) throw new GatewayError(403, 'Этот запрос данных не разрешён')
+  if (!safe) throw new GatewayError(403, 'Этот запрос данных не разрешён')
+  if (new Set(shape.fields).size !== shape.fields.length) throw new GatewayError(400, 'Один раздел данных можно запросить только один раз')
   return shape
+}
+
+/**
+ * The query without field aliases (`guns: items(…)` → `items(…)`), whitespace collapsed outside strings. Only colons in
+ * selection sets are aliases; those inside parentheses are arguments, variable definitions or object values.
+ */
+export function canonicalQuery(query: string) {
+  const tokens = tokenize(query)
+  const parts: string[] = []
+  let parens = 0
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]!
+    if (token.value === '(') parens += 1
+    else if (token.value === ')') parens = Math.max(0, parens - 1)
+    if (parens === 0 && token.kind === 'name' && tokens[index + 1]?.value === ':' && tokens[index + 2]?.kind === 'name') {
+      index += 1 // alias and its colon are dropped
+      continue
+    }
+    parts.push(query.slice(token.start, token.end))
+  }
+  return parts.join(' ')
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -195,7 +232,14 @@ export interface DataGatewayOptions {
   maxResponseBytes?: number
   maxCacheBytes?: number
   timeoutMs?: number
+  /** Upstream calls at the same time, whole server (default MAX_UPSTREAM_IN_FLIGHT). */
+  maxInFlight?: number
+  /** Upstream calls at the same time started for one account (default MAX_UPSTREAM_PER_ACCOUNT). */
+  maxInFlightPerAccount?: number
 }
+
+/** Who asks (routes/data.ts passes the signed-in account): counted against the per-account in-flight cap. */
+export interface GatewayCaller { accountId?: string }
 
 interface Entry { body: string; expires: number; bytes: number }
 
@@ -208,6 +252,10 @@ export class DataGateway {
   private readonly cache = new Map<string, Entry>()
   private readonly pending = new Map<string, Promise<string>>()
   private cacheBytes = 0
+  private readonly maxInFlight: number
+  private readonly maxInFlightPerAccount: number
+  private inFlight = 0
+  private readonly inFlightByAccount = new Map<string, number>()
   /** Upstream calls made (tests and the owner's statistics). */
   upstreamCalls = 0
 
@@ -217,10 +265,15 @@ export class DataGateway {
     this.maxResponseBytes = options.maxResponseBytes ?? (Number(process.env.TARKOV_DATA_MAX_BYTES) || DEFAULT_MAX_RESPONSE_BYTES)
     this.maxCacheBytes = options.maxCacheBytes ?? DEFAULT_MAX_CACHE_BYTES
     this.timeoutMs = options.timeoutMs ?? 60_000
+    this.maxInFlight = Math.max(1, options.maxInFlight ?? MAX_UPSTREAM_IN_FLIGHT)
+    this.maxInFlightPerAccount = Math.max(1, options.maxInFlightPerAccount ?? MAX_UPSTREAM_PER_ACCOUNT)
   }
 
+  /** Upstream calls running now (tests, diagnostics). */
+  get upstreamInFlight() { return this.inFlight }
+
   /** JSON text of the GraphQL answer (cached). */
-  async graphql(query: unknown, variables: unknown): Promise<string> {
+  async graphql(query: unknown, variables: unknown, caller: GatewayCaller = {}): Promise<string> {
     if (typeof query !== 'string') throw new GatewayError(400, 'Пустой запрос')
     const shape = checkQueryAllowed(query)
     if (variables !== undefined && variables !== null && (typeof variables !== 'object' || Array.isArray(variables))) throw new GatewayError(400, 'Некорректные переменные запроса')
@@ -230,21 +283,25 @@ export class DataGateway {
     }
     const varsText = JSON.stringify(Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b))))
     if (varsText.length > MAX_VARIABLES_LENGTH) throw new GatewayError(413, 'Слишком много переменных запроса')
-    const normalized = query.replace(/\s+/g, ' ').trim()
+    // Without aliases: the same data asked under other names is one cache entry and one upstream call.
+    const canonical = canonicalQuery(query)
     // gameMode is part of the variables or of the query text itself: both are in the key.
-    const key = `gql:${createHash('sha256').update(normalized).update('\u0000').update(varsText).digest('hex')}`
+    const key = `gql:${createHash('sha256').update(canonical).update('\u0000').update(varsText).digest('hex')}`
     const ttl = shape.fields.some((field) => SHORT_FIELDS.has(field)) ? SHORT_TTL_MS : shape.fields.some((field) => PRICE_FIELDS.has(field)) ? PRICE_TTL_MS : STATIC_TTL_MS
     return this.cached(key, ttl, async () => {
-      const body = await this.upstream(GRAPHQL_UPSTREAM, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query, ...(Object.keys(vars).length ? { variables: vars } : {}) }) })
+      const body = await this.upstream(GRAPHQL_UPSTREAM, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query: canonical, ...(Object.keys(vars).length ? { variables: vars } : {}) }) })
+      // The usual answer {"data":{…}} is passed on as text: parsing tens of megabytes only to look at one key would
+      // hold the whole object tree in memory as well. Anything else (errors, odd shapes) is parsed and checked.
+      if (/^\s*\{\s*"data"\s*:\s*[{[]/.test(body.slice(0, 64)) && /[}\]]\s*\}\s*$/.test(body.slice(-64))) return body
       let parsed: { data?: unknown; errors?: unknown }
       try { parsed = JSON.parse(body) as typeof parsed } catch { throw new GatewayError(502, 'Источник данных вернул некорректный ответ') }
       if (!parsed || typeof parsed !== 'object' || parsed.data == null) throw new GatewayError(502, 'Источник данных временно недоступен')
       return body
-    })
+    }, caller)
   }
 
   /** JSON text of a json.tarkov.dev endpoint (cached). */
-  async json(path: string): Promise<string> {
+  async json(path: string, caller: GatewayCaller = {}): Promise<string> {
     const match = JSON_PATH.exec(path)
     if (!match || !JSON_ENDPOINTS.has(match[2]!)) throw new GatewayError(404, 'Неизвестный набор данных')
     const ttl = (!match[3] && JSON_PRICE_ENDPOINTS.has(match[2]!)) || JSON_CONTENT_ENDPOINTS.has(match[2]!) ? PRICE_TTL_MS : STATIC_TTL_MS
@@ -252,15 +309,36 @@ export class DataGateway {
       const body = await this.upstream(`${JSON_UPSTREAM}/${path}`, { headers: { accept: 'application/json' } })
       if (!body.startsWith('{')) throw new GatewayError(502, 'Источник данных вернул некорректный ответ')
       return body
-    })
+    }, caller)
   }
 
-  private async cached(key: string, ttl: number, load: () => Promise<string>) {
+  private async cached(key: string, ttl: number, load: () => Promise<string>, caller: GatewayCaller = {}) {
     const entry = this.cache.get(key)
     if (entry && entry.expires > this.now()) return entry.body
     const running = this.pending.get(key)
     if (running) return running
-    const request = load().then((body) => {
+    // A new upstream call: within the caps, or the expired copy, or 503 / 429 with Retry-After.
+    const account = caller.accountId
+    if (this.inFlight >= this.maxInFlight) {
+      if (entry) return entry.body
+      throw new GatewayError(503, 'Источник данных сейчас занят. Повторите через несколько секунд.', 5)
+    }
+    if (account && (this.inFlightByAccount.get(account) ?? 0) >= this.maxInFlightPerAccount) {
+      if (entry) return entry.body
+      throw new GatewayError(429, 'Слишком много одновременных запросов данных. Повторите через несколько секунд.', 2)
+    }
+    this.inFlight += 1
+    if (account) this.inFlightByAccount.set(account, (this.inFlightByAccount.get(account) ?? 0) + 1)
+    const done = () => {
+      this.inFlight -= 1
+      if (!account) return
+      const left = (this.inFlightByAccount.get(account) ?? 1) - 1
+      if (left > 0) this.inFlightByAccount.set(account, left)
+      else this.inFlightByAccount.delete(account)
+    }
+    let started: Promise<string>
+    try { started = load() } catch (error) { started = Promise.reject(error) }
+    const request = started.finally(done).then((body) => {
       this.store(key, body, ttl)
       return body
     }).catch((error: unknown) => {
@@ -306,8 +384,10 @@ export class DataGateway {
     const declared = Number(response.headers.get('content-length'))
     if (declared > this.maxResponseBytes) throw new GatewayError(502, 'Ответ источника данных слишком большой')
     if (!response.body) return ''
+    // Decoded chunk by chunk: the raw bytes are dropped as they arrive (no list of chunks plus one concatenated copy).
     const reader = response.body.getReader()
-    const chunks: Uint8Array[] = []
+    const decoder = new TextDecoder('utf-8')
+    const parts: string[] = []
     let total = 0
     for (;;) {
       const { done, value } = await reader.read()
@@ -317,8 +397,9 @@ export class DataGateway {
         await reader.cancel().catch(() => undefined)
         throw new GatewayError(502, 'Ответ источника данных слишком большой')
       }
-      chunks.push(value)
+      parts.push(decoder.decode(value, { stream: true }))
     }
-    return Buffer.concat(chunks).toString('utf8')
+    parts.push(decoder.decode())
+    return parts.join('')
   }
 }

@@ -3,7 +3,9 @@
  *
  *   POST /v1/bug-reports  { topic, description, appVersion?, platform?, screenshots?: [{ data: base64 }] }  -> 201 { id, createdAt }
  *        Signed-in accounts only (Bearer). Up to 5 screenshots, PNG / JPEG / WEBP by magic bytes, ≤ 5 MB each,
- *        ≤ 25 MB together. 5 reports per hour per account and per IP.
+ *        ≤ 25 MB together. 5 reports per hour per account and per IP (an IPv6 /64 counts as one address). At most
+ *        MAX_CONCURRENT_UPLOADS bodies are read at a time (503 + Retry-After past that). Screenshots past the global
+ *        storage quota: 507 (text-only reports still go through); see services/bugReportStore.ts for retention.
  *
  * Owner only (TARKOV_OWNER_EMAILS with a confirmed e-mail): 401 without a session, 404 for everybody else.
  *   GET  /v1/accounts/me/admin/bug-reports?status=open|closed&limit&offset -> { reports, total, counts: { open, closed } }
@@ -18,7 +20,8 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
-import { BUG_REPORT_LIMITS, BugReportError, type BugReportStore } from '../services/bugReportStore.js'
+import { BUG_REPORT_LIMITS, BugReportError, STORAGE_FULL_MESSAGE, type BugReportStore } from '../services/bugReportStore.js'
+import { ipRateKey } from '../services/securityGuard.js'
 
 /** Base64 of 25 MB is ~33.4 MB; the topic, description and JSON around it fit in the rest. */
 export const BUG_REPORT_BODY_LIMIT = '36mb'
@@ -44,6 +47,14 @@ const statusSchema = z.object({ status: z.enum(['open', 'closed']) })
 export type BugReportAudit = (actor: string, action: 'bug.status', target: string, details: Record<string, unknown>) => void
 export interface BugReportLimits { perAccount: number; perIp: number; windowMs: number }
 export const BUG_REPORT_RATE_LIMITS: BugReportLimits = { perAccount: 5, perIp: 5, windowMs: 60 * 60 * 1000 }
+/** Upload bodies read at the same time (each may be ~36 MB of JSON in memory while it is parsed). */
+export const MAX_CONCURRENT_UPLOADS = 2
+/** A report without screenshots is a few kilobytes; a bigger body while the screenshot storage is full is refused unread. */
+const TEXT_ONLY_BODY_BYTES = 64 * 1024
+
+function safeFull(store: BugReportStore) {
+  try { return store.screenshotsFull() } catch { return false }
+}
 
 function decodeScreenshot(raw: string) {
   const data = raw.replace(DATA_URL_PREFIX, '').replace(/\s+/g, '')
@@ -51,8 +62,10 @@ function decodeScreenshot(raw: string) {
   return Buffer.from(data, 'base64')
 }
 
-export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits> } = {}) {
+export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number } = {}) {
   const router = express.Router()
+  const maxUploads = options.maxConcurrentUploads ?? MAX_CONCURRENT_UPLOADS
+  let uploads = 0
   const limits = { ...BUG_REPORT_RATE_LIMITS, ...options.limits }
   const accountLimiter = new FixedWindowRateLimiter(limits.perAccount, limits.windowMs)
   const ipLimiter = new FixedWindowRateLimiter(limits.perIp, limits.windowMs)
@@ -66,8 +79,16 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     res.set('Cache-Control', 'no-store')
     const accountId = accounts.authenticate(bearer(req.get('authorization')))
     if (!accountId) { req.resume(); res.status(401).set('Connection', 'close').json({ error: 'Войдите в аккаунт, чтобы отправить отчёт об ошибке' }); return }
-    const retry = attemptLimiter.hit(`account:${accountId}`) || attemptLimiter.hit(`ip:${req.ip ?? 'unknown'}`)
+    // A global cap on bodies being read: a few accounts cannot make the server hold many large uploads at once.
+    if (uploads >= maxUploads) { req.resume(); res.set('Retry-After', '10').set('Connection', 'close').status(503).json({ error: 'Сервер сейчас принимает другие отчёты. Повторите через несколько секунд.' }); return }
+    const retry = attemptLimiter.hit(`account:${accountId}`) || attemptLimiter.hit(`ip:${ipRateKey(req.ip)}`)
     if (retry) { req.resume(); res.set('Retry-After', String(retry)).set('Connection', 'close').status(429).json({ error: 'Слишком много отчётов. Попробуйте через час.' }); return }
+    if (Number(req.get('content-length') ?? 0) > TEXT_ONLY_BODY_BYTES && safeFull(store)) { req.resume(); res.set('Connection', 'close').status(507).json({ error: STORAGE_FULL_MESSAGE }); return }
+    uploads += 1
+    let released = false
+    const release = () => { if (!released) { released = true; uploads -= 1 } }
+    res.once('finish', release)
+    res.once('close', release)
     res.locals.accountId = accountId
     next()
   }
@@ -79,7 +100,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     try {
       if (body.data.screenshots.length > BUG_REPORT_LIMITS.files) throw new BugReportError(400, `Не больше ${BUG_REPORT_LIMITS.files} скриншотов`)
       const files = body.data.screenshots.map((shot) => decodeScreenshot(shot.data))
-      const retry = accountLimiter.hit(accountId) || ipLimiter.hit(req.ip ?? 'unknown')
+      const retry = accountLimiter.hit(accountId) || ipLimiter.hit(ipRateKey(req.ip))
       if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много отчётов. Попробуйте через час.' }); return }
       const created = store.create(accountId, accounts.emailOf(accountId), { topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files })
       res.status(201).json(created)

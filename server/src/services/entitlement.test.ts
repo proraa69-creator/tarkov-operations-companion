@@ -10,6 +10,7 @@ import { ENTITLEMENT_GRACE_MS, ENTITLEMENT_KEY_FILE, ENTITLEMENT_TTL_MS, Entitle
 import { checkEntitlementClaims, parseEntitlementToken } from '../../../src/shared/entitlementToken'
 import { createApi } from '../app.js'
 import { ProgressStore } from './progressStore.js'
+import { DataGateway } from './dataGateway.js'
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -95,11 +96,11 @@ test('devices: at most 3 active, the least recently used one is switched off and
   }
   // Device 0 is used again later, so device 1 is now the least recently used one.
   clock.now += 10 * 60_000
-  assert.equal(entitlements.isActiveDevice(id, device(0)), true)
+  assert.equal(entitlements.isActiveDevice(id, device(0), tokenDigest(sessions[0]!)), true)
   clock.now += 60_000
   const fourth = entitlements.registerDevice(id, device(3), 'Laptop', tokenDigest(sessions[3]!))
   assert.deepEqual(fourth.revoked.map((entry) => entry.name), ['PC 1'])
-  assert.equal(entitlements.isActiveDevice(id, device(1)), false)
+  assert.equal(entitlements.isActiveDevice(id, device(1), tokenDigest(sessions[1]!)), false)
   assert.equal(entitlements.revokedReason(id, device(1)), 'limit')
   assert.equal(accounts.authenticate(sessions[1]), undefined, 'the switched-off device is signed out')
   assert.ok(accounts.authenticate(sessions[0]))
@@ -185,6 +186,84 @@ test('HTTP: public key, issue with device registration, 402 without a subscripti
     assert.equal(revoked.status, 200)
     assert.equal(((await revoked.json()) as { devices: Array<{ active: boolean; revokedReason?: string }> }).devices[0]!.revokedReason, 'owner')
     assert.equal(accounts.authenticate(user), undefined)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    store.close()
+  }
+})
+
+test('one session per device: the gateway checks device AND session, a new session on the device signs the old one out', async () => {
+  const { accounts, entitlements, paid, clock } = setup()
+  const { tokenDigest } = await import('./accountStore.js')
+  const first = (await accounts.register('user@example.com', 'correct horse battery')).token
+  const second = (await accounts.login('user@example.com', 'correct horse battery')).token
+  const id = accounts.authenticate(first)!
+  paid.set(id, clock.now + 30 * DAY)
+  entitlements.registerDevice(id, device(1), 'PC', tokenDigest(first))
+  assert.equal(entitlements.isActiveDevice(id, device(1), tokenDigest(first)), true)
+  // Another session sending the same device id is not that device.
+  assert.equal(entitlements.isActiveDevice(id, device(1), tokenDigest(second)), false)
+  assert.equal(entitlements.isActiveDevice(id, device(1), undefined), false)
+  assert.equal(entitlements.revokedReason(id, device(1)), undefined, 'answered as device_inactive')
+  // Registering the device with the second session takes it over: the first session ends.
+  assert.deepEqual(entitlements.registerDevice(id, device(1), 'PC', tokenDigest(second)).revoked, [])
+  assert.equal(accounts.authenticate(first), undefined)
+  assert.equal(entitlements.isActiveDevice(id, device(1), tokenDigest(second)), true)
+  // Refreshing with the same session changes nothing.
+  entitlements.registerDevice(id, device(1), 'PC', tokenDigest(second))
+  assert.ok(accounts.authenticate(second))
+})
+
+test('streamer-code trial: a device that already served another account\'s trial gives none to the next account', async () => {
+  const { accounts, entitlements } = setup()
+  await accounts.register('tv@example.com', 'correct horse battery')
+  accounts.promoteToStreamer('tv@example.com', 'hunter_tv')
+  const { tokenDigest } = await import('./accountStore.js')
+  const a = (await accounts.register('first@example.com', 'correct horse battery', 'HUNTER_TV')).token
+  const b = (await accounts.register('second@example.com', 'correct horse battery', 'HUNTER_TV')).token
+  const c = (await accounts.register('third@example.com', 'correct horse battery', 'HUNTER_TV')).token
+  const [idA, idB, idC] = [a, b, c].map((token) => accounts.authenticate(token)!)
+  entitlements.registerDevice(idA, device(1), 'PC', tokenDigest(a))
+  assert.equal(entitlements.issue(idA, device(1))?.claims.plan, 'trial')
+  // Same PC, another account: the trial is gone (status inactive → 402), the referral still counts.
+  entitlements.registerDevice(idB, device(1), 'PC', tokenDigest(b))
+  assert.equal(entitlements.issue(idB, device(1)), undefined)
+  assert.deepEqual(accounts.view(idB).subscription, { status: 'inactive' })
+  assert.equal(accounts.view(idB).referredBy, 'HUNTER_TV')
+  entitlements.registerDevice(idB, device(4), 'Laptop B', tokenDigest(b))
+  assert.equal(accounts.view(idB).subscription.status, 'inactive', 'also on a fresh device afterwards')
+  // The first account keeps its trial (also on its other devices), another PC gives the third account its own.
+  entitlements.registerDevice(idA, device(2), 'Laptop', tokenDigest((await accounts.login('first@example.com', 'correct horse battery')).token))
+  assert.equal(accounts.view(idA).subscription.status, 'trial')
+  entitlements.registerDevice(idC, device(3), 'PC 3', tokenDigest(c))
+  assert.equal(accounts.view(idC).subscription.status, 'trial')
+  const tv = accounts.authenticate((await accounts.login('tv@example.com', 'correct horse battery')).token)!
+  assert.equal(accounts.view(tv).stats?.registrations, 3)
+})
+
+test('HTTP data gate: a session that did not register the device gets 403 device_inactive; re-registering signs the other PC out', async () => {
+  const { accounts, entitlements, paid, clock } = setup()
+  const fetcher = (async () => new Response(JSON.stringify({ data: { items: [] } }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch
+  const store = new ProgressStore(':memory:')
+  const server = createApi(store, undefined, accounts, { entitlements, data: new DataGateway({ fetch: fetcher }) }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  const call = (path: string, token: string, body: unknown, deviceId?: string) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...(deviceId ? { 'x-raid-device': deviceId } : {}) }, body: JSON.stringify(body) })
+  try {
+    const pcA = (await accounts.register('user@example.com', 'correct horse battery')).token
+    const pcB = (await accounts.login('user@example.com', 'correct horse battery')).token
+    paid.set(accounts.authenticate(pcA)!, clock.now + 30 * DAY)
+    const query = { query: '{ items { id } }' }
+    assert.equal((await call('/v1/entitlement', pcA, { deviceId: device(1) })).status, 200)
+    assert.equal((await call('/v1/data/graphql', pcA, query, device(1))).status, 200)
+    // PC B copies the device id but has its own session: refused.
+    const copied = await call('/v1/data/graphql', pcB, query, device(1))
+    assert.equal(copied.status, 403)
+    assert.equal((await copied.json() as { code: string }).code, 'device_inactive')
+    // PC B registers the device for itself: PC A's session ends (401), PC B works.
+    assert.equal((await call('/v1/entitlement', pcB, { deviceId: device(1) })).status, 200)
+    assert.equal((await call('/v1/data/graphql', pcA, query, device(1))).status, 401)
+    assert.equal((await call('/v1/data/graphql', pcB, query, device(1))).status, 200)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
     store.close()

@@ -10,6 +10,7 @@ import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
 import { TOOLTIP_CAPTURE } from '../../src/overlay/tooltipDetect.js'
 import { readGameTooltip } from '../../src/overlay/tooltipLookup.js'
 import { relaunchAsAdmin } from './elevation.js'
+import { isTrustedAppPage } from '../ipcGuard.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
@@ -516,8 +517,11 @@ function overlayWindow(route: 'item' | 'minimap', size: { width: number; height:
     skipTaskbar: true,
     hasShadow: false,
     alwaysOnTop: true,
-    webPreferences: { preload: options.preload, contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false },
+    webPreferences: { preload: options.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   })
+  // The overlays show only the app's own page: no new windows, no navigation away from it.
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  window.webContents.on('will-navigate', (event, url) => { if (!isTrustedAppPage(url)) event.preventDefault() })
   window.setAlwaysOnTop(true, 'screen-saver')
   window.setIgnoreMouseEvents(true, { forward: true })
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })

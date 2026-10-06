@@ -28,6 +28,10 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
+export const MAX_SESSIONS_PER_ACCOUNT = 10
+/** Failed password sign-ins per e-mail per hour, whatever the IP (credential stuffing from many addresses). */
+export const LOGIN_FAILURES_PER_EMAIL = 10
 const VISIT_DEDUPE_MS = 24 * 60 * 60 * 1000
 
 const SCRYPT_KEYLEN = 64
@@ -46,6 +50,8 @@ interface Account {
   referredBy?: string
   referredAt?: number
   nicknames: Partial<Record<AccountMode, string>>
+  /** The streamer-code trial was refused: this e-mail (canonical form) or device already had one (trial_claims). */
+  trialDenied: boolean
 }
 
 export interface ReferralStats {
@@ -161,6 +167,28 @@ export function signupDigest(ip: string) {
   return createHash('sha256').update(`signup\u0000${ip}`).digest('hex')
 }
 
+/**
+ * The canonical form of an e-mail for anti-abuse checks (never for sign-in): lowercase, «+tag» dropped, and for
+ * Gmail (gmail.com / googlemail.com) the dots of the local part dropped too — all of these reach the same mailbox.
+ */
+export function canonicalEmail(email: string) {
+  const key = email.trim().toLowerCase()
+  const at = key.lastIndexOf('@')
+  if (at <= 0) return key
+  let local = key.slice(0, at)
+  let domain = key.slice(at + 1)
+  const plus = local.indexOf('+')
+  if (plus > 0) local = local.slice(0, plus)
+  if (domain === 'googlemail.com') domain = 'gmail.com'
+  if (domain === 'gmail.com') local = local.replace(/\./g, '')
+  return `${local}@${domain}`
+}
+
+/** What `trial_claims` keeps of an e-mail: a digest of its canonical form (survives «Удалить аккаунт»). */
+export function trialEmailDigest(email: string) {
+  return createHash('sha256').update(`trial\u0000${canonicalEmail(email)}`).digest('hex')
+}
+
 export function normalizeReferralCode(code: string) {
   return code.trim().toUpperCase()
 }
@@ -194,6 +222,7 @@ function toAccount(row: Row | undefined): Account | undefined {
     referredBy: row.referred_by == null ? undefined : String(row.referred_by),
     referredAt: row.referred_at == null ? undefined : Number(row.referred_at),
     nicknames: parseNicknames(row.nicknames),
+    trialDenied: row.trial_denied != null,
   }
 }
 
@@ -245,6 +274,16 @@ const SCHEMA = `
     version TEXT NOT NULL,
     accepted_at INTEGER NOT NULL,
     PRIMARY KEY (account_id, kind, version));
+  -- Who already had the streamer-code trial: by canonical e-mail digest and by app device. No foreign key and never
+  -- purged by deleteAccount(), so deleting the account and registering again does not give a second trial.
+  CREATE TABLE IF NOT EXISTS trial_claims (
+    email_canon_hash TEXT NOT NULL,
+    device_id TEXT,
+    account_id TEXT NOT NULL,
+    at INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS trial_claims_email ON trial_claims(email_canon_hash);
+  CREATE INDEX IF NOT EXISTS trial_claims_device ON trial_claims(device_id);
+  CREATE INDEX IF NOT EXISTS trial_claims_account ON trial_claims(account_id);
 `
 
 /**
@@ -271,6 +310,11 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['invited_by', 'TEXT'],
   ['invited_at', 'INTEGER'],
   ['signup_ip', 'TEXT'],
+  // Canonical e-mail (canonicalEmail) of a working account: one person cannot hold several accounts through
+  // «name+1@», «n.a.m.e@gmail.com»… NULL once the account is deleted.
+  ['email_canon', 'TEXT'],
+  // Set when the streamer-code trial was refused (trial_claims): the referral still counts for the streamer.
+  ['trial_denied', 'INTEGER'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -310,6 +354,14 @@ export class AccountStore {
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_invite_code ON accounts(invite_code) WHERE invite_code IS NOT NULL')
     this.db.exec('CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS accounts_email_canon ON accounts(email_canon)')
+    // Accounts from before the canonical e-mail / trial claims: filled in once (only rows still missing them).
+    for (const row of this.db.prepare('SELECT id, email FROM accounts WHERE email_canon IS NULL AND deleted_at IS NULL').all() as Row[]) {
+      this.db.prepare('UPDATE accounts SET email_canon = ? WHERE id = ?').run(canonicalEmail(String(row.email)), String(row.id))
+    }
+    for (const row of this.db.prepare("SELECT id, email, referred_at FROM accounts WHERE referred_at IS NOT NULL AND trial_denied IS NULL AND deleted_at IS NULL AND kind = 'user' AND NOT EXISTS (SELECT 1 FROM trial_claims c WHERE c.account_id = accounts.id)").all() as Row[]) {
+      this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, NULL, ?, ?)').run(trialEmailDigest(String(row.email)), String(row.id), Number(row.referred_at))
+    }
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -348,7 +400,8 @@ export class AccountStore {
     // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
     // here at all (and even if it were, isOwner() would refuse an unconfirmed account). A taken address and an owner
     // address get the same answer, so the reply does not show which e-mail is the owner's.
-    if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
+    // The canonical form counts too (name+x@, n.a.m.e@gmail.com): same answer, so nothing about the account leaks.
+    if (this.findByEmail(key) || this.ownerEmails.has(key) || this.canonicalTaken(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
     return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip))
   }
@@ -360,8 +413,52 @@ export class AccountStore {
    */
   createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string) {
     const key = email.trim().toLowerCase()
-    if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
+    if (this.findByEmail(key) || this.canonicalTaken(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
     return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp)
+  }
+
+  /**
+   * An address that cannot get a new account: it has one, or its canonical form (canonicalEmail) belongs to a working
+   * account. Registration answers exactly as for a taken address (anti-enumeration).
+   */
+  emailTaken(email: string) {
+    const key = email.trim().toLowerCase()
+    return this.findByEmail(key) !== undefined || this.canonicalTaken(key)
+  }
+
+  private canonicalTaken(email: string) {
+    return this.db.prepare('SELECT 1 FROM accounts WHERE email_canon = ? AND deleted_at IS NULL').get(canonicalEmail(email)) !== undefined
+  }
+
+  /**
+   * The streamer-code trial goes to the first account of a canonical e-mail only. A later account (another «+tag», a
+   * re-registration after «Удалить аккаунт») keeps the referral — it counts for the streamer — but gets no trial.
+   */
+  private claimTrialByEmail(accountId: string, email: string) {
+    const digest = trialEmailDigest(email)
+    if (this.db.prepare('SELECT 1 FROM trial_claims WHERE email_canon_hash = ? AND account_id <> ?').get(digest, accountId)) {
+      this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
+      return
+    }
+    if (!this.db.prepare('SELECT 1 FROM trial_claims WHERE account_id = ? AND device_id IS NULL').get(accountId)) {
+      this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, NULL, ?, ?)').run(digest, accountId, this.now())
+    }
+  }
+
+  /**
+   * Called when the app registers a device (services/entitlement.ts): an account with a streamer-code trial loses the
+   * trial when that device already served another account's trial; otherwise the device is noted for this one.
+   */
+  claimTrialDevice(accountId: string, deviceId: string) {
+    const row = this.db.prepare("SELECT email, referred_at, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
+    if (!row || row.referred_at == null || row.trial_denied != null) return
+    if (this.db.prepare('SELECT 1 FROM trial_claims WHERE device_id = ? AND account_id <> ?').get(deviceId, accountId)) {
+      this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ?').run(this.now(), accountId)
+      return
+    }
+    if (!this.db.prepare('SELECT 1 FROM trial_claims WHERE device_id = ? AND account_id = ?').get(deviceId, accountId)) {
+      this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, ?, ?, ?)').run(trialEmailDigest(String(row.email)), deviceId, accountId, this.now())
+    }
   }
 
   /** Same scrypt cost as hashing a real password (registration of an address that already has an account). */
@@ -383,13 +480,14 @@ export class AccountStore {
       else invitedBy = this.playerOfCode(code) ?? null
     }
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null)
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key))
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
       throw error
     }
+    if (referredBy) this.claimTrialByEmail(id, key)
     return { token: this.createSession(id), referralApplied: referredBy !== null || invitedBy !== null }
   }
 
@@ -426,7 +524,7 @@ export class AccountStore {
       kind: account.kind,
       createdAt: new Date(account.createdAt).toISOString(),
       nicknames: { ...account.nicknames },
-      subscription: trialEndsAt !== undefined && trialEndsAt > this.now() ? { status: 'trial', trialEndsAt: new Date(trialEndsAt).toISOString() } : { status: 'inactive' },
+      subscription: trialEndsAt !== undefined && !account.trialDenied && trialEndsAt > this.now() ? { status: 'trial', trialEndsAt: new Date(trialEndsAt).toISOString() } : { status: 'inactive' },
     }
     const paidUntil = this.subscriptions?.paidUntil(account.id)
     if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
@@ -512,7 +610,8 @@ export class AccountStore {
     if (account.referredBy || this.invitedBy(accountId)) throw new AccountError(409, 'Код приглашения уже указан')
     const code = normalizeReferralCode(rawCode)
     if (this.activeOwnerOfCode(code)) {
-      this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(code, this.now(), account.id)
+      const applied = this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(code, this.now(), account.id)
+      if (Number(applied.changes) > 0) this.claimTrialByEmail(account.id, account.email)
       return
     }
     const inviter = this.playerOfCode(code)
@@ -757,7 +856,7 @@ export class AccountStore {
       if (has('bug_reports')) this.db.prepare('UPDATE bug_reports SET account_id = NULL, email = NULL WHERE account_id = ?').run(account.id)
       // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
       this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', phone = NULL, phone_verified_at = NULL,
-        email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
+        email_canon = NULL, email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
         .run(`deleted-${account.id}@deleted.invalid`, randomBytes(16), randomBytes(64), this.now(), this.now(), this.now(), account.id)
       this.db.exec('COMMIT')
     } catch (error) {
@@ -786,8 +885,9 @@ export class AccountStore {
     return this.createSession(accountId)
   }
 
+  /** Signs every session of the account out; returns how many there were. */
   revokeSessions(accountId: string) {
-    this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId)
+    return Number(this.db.prepare('DELETE FROM sessions WHERE account_id = ?').run(accountId).changes)
   }
 
   /** Signs out one session (by its stored digest): a device that was switched off (services/entitlement.ts). */
@@ -831,6 +931,9 @@ export class AccountStore {
     const token = randomBytes(32).toString('base64url')
     this.sweep(this.now())
     this.db.prepare('INSERT INTO sessions (digest, account_id, expires_at) VALUES (?, ?, ?)').run(tokenDigest(token), accountId, this.now() + SESSION_TTL_MS)
+    // At most MAX_SESSIONS_PER_ACCOUNT open sessions: the oldest ones end (rowid breaks ties of equal expiry).
+    this.db.prepare('DELETE FROM sessions WHERE account_id = ? AND digest NOT IN (SELECT digest FROM sessions WHERE account_id = ? ORDER BY expires_at DESC, rowid DESC LIMIT ?)')
+      .run(accountId, accountId, MAX_SESSIONS_PER_ACCOUNT)
     return token
   }
 
@@ -898,6 +1001,14 @@ export class FixedWindowRateLimiter {
     entry.count += 1
     return entry.count > this.max ? Math.ceil((entry.resetAt - now) / 1000) : 0
   }
+
+  /** Like hit() but without counting: seconds until the window resets when the key is already at its limit, else 0. */
+  peek(key: string) {
+    const now = this.now()
+    const entry = this.hits.get(key)
+    if (!entry || entry.resetAt <= now) return 0
+    return entry.count >= this.max ? Math.ceil((entry.resetAt - now) / 1000) : 0
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -909,6 +1020,8 @@ export interface AccountsResponse { status: number; body: unknown; headers?: Rec
 export interface AccountsHandlerOptions {
   /** Max login/register attempts per IP per window. Default 10 per 15 minutes. */
   authRateLimit?: { max: number; windowMs: number }
+  /** Failed password sign-ins per e-mail per hour, from any IP (default LOGIN_FAILURES_PER_EMAIL). */
+  loginFailuresPerEmail?: number
   now?: () => number
   /**
    * E-mail codes (services/emailAuth.ts). While `enabled`, POST /register creates no account: it answers 202 with a
@@ -954,6 +1067,9 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
   const limit = options.authRateLimit ?? { max: 10, windowMs: 15 * 60 * 1000 }
   const authLimiter = new FixedWindowRateLimiter(limit.max, limit.windowMs, options.now)
   const visitLimiter = new FixedWindowRateLimiter(60, 60 * 60 * 1000, options.now)
+  const loginFailures = new FixedWindowRateLimiter(options.loginFailuresPerEmail ?? LOGIN_FAILURES_PER_EMAIL, 60 * 60 * 1000, options.now)
+  /** The per-e-mail failure counter keeps only a digest of the (canonical) address. */
+  const loginKey = (email: string) => createHash('sha256').update(`login\u0000${canonicalEmail(email)}`).digest('hex')
 
   const limited = (limiter: FixedWindowRateLimiter, key: string): AccountsResponse | undefined => {
     const retryAfter = limiter.hit(key)
@@ -1011,7 +1127,17 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (blocked) return blocked
       const parsed = credentialsSchema.safeParse(req.body)
       if (!parsed.success) return { status: 401, body: { error: 'Неверный e-mail или пароль' } }
-      const { token } = await store.login(parsed.data.email, parsed.data.password)
+      // Failed sign-ins per e-mail, whatever the IP: checked before the password, counted only on a failure.
+      const key = loginKey(parsed.data.email)
+      const retry = loginFailures.peek(key)
+      if (retry) return { status: 429, body: { error: 'Слишком много неудачных попыток входа. Попробуйте позже или войдите по коду из письма.' }, headers: { 'Retry-After': String(retry) } }
+      let token: string
+      try {
+        token = (await store.login(parsed.data.email, parsed.data.password)).token
+      } catch (error) {
+        if (error instanceof AccountError && error.status === 401) loginFailures.hit(key)
+        throw error
+      }
       return { status: 200, body: { token, account: store.view(store.authenticate(token)!) } }
     }),
 
@@ -1022,6 +1148,9 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     }),
 
     me: (req: AccountsRequest) => authed(req, (accountId) => ({ status: 200, body: store.view(accountId) })),
+
+    /** «Выйти на всех устройствах»: every session of the account ends, this one included. */
+    revokeAllSessions: (req: AccountsRequest) => authed(req, (accountId) => ({ status: 200, body: { revoked: store.revokeSessions(accountId) } })),
 
     /** «Сменить пароль»: needs the current one; every other session is signed out, this device gets a new one. */
     changePassword: (req: AccountsRequest) => authedAsync(req, async (accountId) => {

@@ -5,9 +5,11 @@
  * - Device id: 32 random bytes, kept encrypted with Electron safeStorage (DPAPI on Windows) in userData. The server
  *   allows three active devices per account (server/src/services/entitlement.ts).
  * - Server key: Ed25519 public key per server address. A key built into the exe (build-info.json `entitlementKeys`,
- *   RAIDOS_ENTITLEMENT_PUBLIC_KEY at build time) is used as is; otherwise the key served at /v1/entitlement/public-key
- *   is pinned on the first sign-in to that server (trust on first use) and never silently replaced: a different key
- *   later is refused («ключ сервера изменился»). Signing out forgets the pin of that server.
+ *   RAIDOS_ENTITLEMENT_PUBLIC_KEY at build time) is used as is. The players' app (client edition) trusts ONLY built-in
+ *   keys: a server without one never gets a valid entitlement, so pointing the app at a self-made server cannot unlock
+ *   the paid sections. The owner's app may also pin the key served at /v1/entitlement/public-key on the first sign-in
+ *   to another server (trust on first use); a different key later is refused («ключ сервера изменился»). Signing out
+ *   forgets the pin of that server.
  * - Token: kept encrypted (safeStorage) with the latest time this app has seen; valid only for this device, before
  *   `exp` (at most 72 h after the server issued it) and while the clock was not turned back.
  *
@@ -20,7 +22,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import { checkEntitlementClaims, DEVICE_ID, parseEntitlementToken, PUBLIC_KEY, type EntitlementClaims, type EntitlementPlan } from '../src/shared/entitlementToken.js'
-import { buildEntitlementKeys } from './buildEdition.js'
+import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './buildEdition.js'
 
 export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
 
@@ -110,19 +112,35 @@ async function savePins(next: Record<string, string>) {
   if (!(await writeSecret(KEYS_FILE, text).catch(() => false))) await writeFile(userFile(KEYS_PLAIN_FILE), text, 'utf8').catch(() => {})
 }
 
-/** The key this app trusts for `server`: built into the exe, else pinned earlier, else none yet. */
+/**
+ * Trust on first use is for the owner's app only. The players' app accepts only keys built into the exe, otherwise
+ * anybody could run their own «server» with the same API, point the app at it and sign their own entitlement.
+ */
+/**
+ * Trust on first use: the owner's app for any server; the players' app only for the official server baked into the
+ * build (players cannot switch servers, so a self-made server can never be pinned). Without a built-in key the
+ * official server's key is pinned on first sign-in and a different key is refused afterwards.
+ */
+export const mayPinServerKeys = (server: string) => isOwnerBuild() || (Boolean(buildDefaultServerUrl()) && server === buildDefaultServerUrl())
+
+/** The key this app trusts for `server`: built into the exe, else (owner's app only) pinned earlier, else none. */
 export async function trustedKey(server: string) {
   const builtIn = buildEntitlementKeys()[server]
   if (builtIn) return { key: builtIn, builtIn: true }
+  if (!mayPinServerKeys(server)) return undefined
   const pinned = (await loadPins())[server]
   return pinned ? { key: pinned, builtIn: false } : undefined
 }
 
-/** First sign-in to a server without a built-in key: pin what it serves. A different key than the pinned one is refused. */
+/**
+ * First sign-in to a server without a built-in key: the owner's app pins what it serves (a different key than the
+ * pinned one is refused). The players' app never pins: without a built-in key the answer is 'no-key'.
+ */
 export async function pinServerKey(server: string, served: unknown): Promise<{ ok: true; key: string } | { ok: false; reason: 'key-mismatch' | 'no-key' }> {
   const known = await trustedKey(server)
   if (typeof served !== 'string' || !PUBLIC_KEY.test(served)) return known ? { ok: true, key: known.key } : { ok: false, reason: 'no-key' }
   if (known) return known.key === served ? { ok: true, key: known.key } : { ok: false, reason: 'key-mismatch' }
+  if (!mayPinServerKeys(server)) return { ok: false, reason: 'no-key' }
   await savePins({ ...(await loadPins()), [server]: served })
   return { ok: true, key: served }
 }

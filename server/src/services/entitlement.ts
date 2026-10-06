@@ -12,6 +12,11 @@
  * - Devices: every app keeps a random device id; at most MAX_ACTIVE_DEVICES are active per account. A new device
  *   switches the least recently used one off (its session is signed out, the app shows why). The owner sees and
  *   switches off devices in the admin panel. The owner's own account has no device limit.
+ * - One session per device: a device is bound to the session that registered it, the data gateway checks the pair
+ *   (device id AND session digest), and a device that registers with a new session signs the previous one out. So one
+ *   device slot cannot be shared by many PCs that send the same device id with their own sessions.
+ * - Streamer-code trial: a device that already served another account's trial ends this account's trial
+ *   (AccountStore.claimTrialDevice).
  */
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, type KeyObject } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -154,7 +159,7 @@ export class EntitlementService {
     if (!DEVICE_ID.test(deviceId)) throw new AccountError(400, 'Некорректный идентификатор устройства')
     const label = cleanName(name)
     const now = this.now()
-    const existing = this.db.prepare('SELECT revoked_at FROM account_devices WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
+    const existing = this.db.prepare('SELECT revoked_at, session_digest FROM account_devices WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
     if (!existing || existing.revoked_at != null) {
       const retry = this.activations.hit(accountId)
       if (retry) throw Object.assign(new AccountError(429, 'Слишком много новых устройств за сутки. Попробуйте завтра или напишите в поддержку.'), { retryAfter: retry })
@@ -165,17 +170,24 @@ export class EntitlementService {
       this.db.prepare('UPDATE account_devices SET name = ?, last_seen_at = ?, session_digest = COALESCE(?, session_digest), revoked_at = NULL, revoked_reason = NULL WHERE account_id = ? AND device_id = ?').run(label, now, sessionDigest ?? null, accountId, deviceId)
     }
     if (this.accounts.isOwner(accountId)) return { revoked: [] }
+    // One session per device: the session that used this device before is signed out.
+    const previous = existing?.session_digest == null ? undefined : String(existing.session_digest)
+    if (sessionDigest && previous && previous !== sessionDigest) this.accounts.revokeSessionDigest(previous)
+    this.accounts.claimTrialDevice(accountId, deviceId)
     const active = this.db.prepare('SELECT device_id FROM account_devices WHERE account_id = ? AND revoked_at IS NULL AND device_id <> ? ORDER BY last_seen_at DESC, created_at DESC').all(accountId, deviceId) as Row[]
     const excess = active.slice(Math.max(0, this.maxDevices - 1)).map((row) => String(row.device_id))
     for (const id of excess) this.revoke(accountId, id, 'limit')
     return { revoked: excess.map((id) => this.device(accountId, id)!).filter(Boolean) }
   }
 
-  /** The data gateway's check: the device is active for this account (and its last use is noted). */
-  isActiveDevice(accountId: string, deviceId: string | undefined) {
-    if (!deviceId || !DEVICE_ID.test(deviceId)) return false
-    const row = this.db.prepare('SELECT revoked_at, last_seen_at FROM account_devices WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
-    if (!row || row.revoked_at != null) return false
+  /**
+   * The data gateway's check: the device is active for this account AND bound to this very session (`sessionDigest`,
+   * tokenDigest of the bearer token); its last use is noted.
+   */
+  isActiveDevice(accountId: string, deviceId: string | undefined, sessionDigest: string | undefined) {
+    if (!deviceId || !DEVICE_ID.test(deviceId) || !sessionDigest) return false
+    const row = this.db.prepare('SELECT revoked_at, last_seen_at, session_digest FROM account_devices WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
+    if (!row || row.revoked_at != null || row.session_digest == null || String(row.session_digest) !== sessionDigest) return false
     const now = this.now()
     if (now - Number(row.last_seen_at) >= SEEN_STEP_MS) this.db.prepare('UPDATE account_devices SET last_seen_at = ? WHERE account_id = ? AND device_id = ?').run(now, accountId, deviceId)
     return true

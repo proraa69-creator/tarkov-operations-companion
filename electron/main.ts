@@ -1,6 +1,6 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -29,6 +29,9 @@ import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDE
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
+import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
+import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
+import { ownerChangePrompt, type OwnerChange } from './ownerConfirm.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
 
@@ -47,6 +50,13 @@ let scanInterval: NodeJS.Timeout | null = null
 let scanning = false
 let lastPublished = ''
 let raidState: RaidState = { inRaid: false }
+/** Log folders the page may ask to watch (electron/logFolders.ts): found by discovery or picked in the folder dialog. */
+const logFolderGrants = new LogFolderGrants()
+const pickedLogsFolderFile = () => join(app.getPath('userData'), 'logs-folder.json')
+async function rememberedLogsFolder() {
+  const value = (JSON.parse(await readFile(pickedLogsFolderFile(), 'utf8')) as { folder?: unknown }).folder
+  return typeof value === 'string' ? value : ''
+}
 
 
 // UI hover ticks must play before the first click in the window.
@@ -86,7 +96,8 @@ function createWindow() {
       preload: join(appDir, '../../electron/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      // preload.cjs only needs contextBridge + ipcRenderer from 'electron', which a sandboxed preload may require.
+      sandbox: true,
       webviewTag: true,
       // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
@@ -99,7 +110,7 @@ function createWindow() {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isExternalAllowed(url)) void shell.openExternal(url)
+    void openExternalLink(url, mainWindow)
     return { action: 'deny' }
   })
   // Only the app's own page (dist/index.html, or exactly the dev server's origin): not http://127.0.0.1.evil.com.
@@ -214,15 +225,58 @@ app.on('will-quit', () => { stopServerSelfUpdate(); stopServerMonitor(); stopTun
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
   contents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    void openExternalLink(url, mainWindow)
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
     if (url.startsWith('https://tarkov.dev/') || isWikiMapHost(url)) return
     event.preventDefault()
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    void openExternalLink(url, mainWindow)
   })
 })
+
+let linkDialogOpen = false
+/**
+ * Opens a link from a page in the system browser (electron/externalLinks.ts): known sites at once, any other HTTPS page
+ * only after a native dialog with the full address, everything else never. One dialog at a time: a page that opens
+ * links in a loop cannot pile them up.
+ */
+async function openExternalLink(url: string, parent: BrowserWindow | null) {
+  const policy = externalLinkPolicy(url)
+  if (policy === 'refuse') return false
+  if (policy === 'confirm') {
+    if (linkDialogOpen) return false
+    linkDialogOpen = true
+    try {
+      const options: MessageBoxOptions = { type: 'warning', buttons: ['Открыть', 'Отмена'], defaultId: 1, cancelId: 1, noLink: true, title: 'Внешняя ссылка', ...externalLinkPrompt(url) }
+      const window = parent && !parent.isDestroyed() ? parent : null
+      const { response } = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      if (response !== 0) return false
+    } finally {
+      linkDialogOpen = false
+    }
+  }
+  await shell.openExternal(url).catch(() => undefined)
+  return true
+}
+
+let ownerDialogOpen = false
+/**
+ * Owner settings that decide where money, one-time codes, reports or server code go change only after the owner
+ * confirms in a native dialog of this process (electron/ownerConfirm.ts): a compromised page cannot change them silently.
+ */
+async function confirmOwnerChange(event: IpcMainInvokeEvent, change: OwnerChange, payload: unknown) {
+  if (ownerDialogOpen) throw new Error('Сначала ответьте на открытый запрос подтверждения')
+  ownerDialogOpen = true
+  try {
+    const parent = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    const options: MessageBoxOptions = { type: 'warning', buttons: ['Сохранить', 'Отмена'], defaultId: 1, cancelId: 1, noLink: true, title: 'Raid OS — подтверждение', ...ownerChangePrompt(change, payload) }
+    const { response } = parent && !parent.isDestroyed() ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options)
+    if (response !== 0) throw new Error('Изменение отменено')
+  } finally {
+    ownerDialogOpen = false
+  }
+}
 
 app.on('window-all-closed', () => {
   stopWatchingLogs()
@@ -238,6 +292,8 @@ const OWNER_CHANNELS = [
   'owner:email', 'owner:set-email', 'owner:email-status', 'owner:email-test',
   'owner:error-reports', 'owner:set-error-reports', 'owner:error-reports-test',
   'owner:server-update', 'owner:set-server-update', 'owner:server-update-check', 'owner:server-update-install', 'owner:server-update-rollback',
+  // The players' app never changes its server: it trusts only the entitlement key built into it (electron/entitlement.ts).
+  'account:set-server-url',
 ]
 
 function registerIpc() {
@@ -256,13 +312,15 @@ function registerIpc() {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: 'wiki-maps' } })
     wikiWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     wikiWindow.webContents.setWindowOpenHandler(({ url: target }) => {
-      if (target.startsWith('https://')) void shell.openExternal(target)
+      void openExternalLink(target, wikiWindow)
       return { action: 'deny' }
     })
     wikiWindow.webContents.on('will-navigate', (event, target) => {
-      if (new URL(target).origin !== 'https://escapefromtarkov.fandom.com') {
+      let origin = ''
+      try { origin = new URL(target).origin } catch { /* refused below */ }
+      if (origin !== 'https://escapefromtarkov.fandom.com') {
         event.preventDefault()
-        if (target.startsWith('https://')) void shell.openExternal(target)
+        void openExternalLink(target, wikiWindow)
       }
     })
     await wikiWindow.loadURL(url)
@@ -304,6 +362,7 @@ function registerIpc() {
   ipcMain.handle('logs:auto-find-and-scan', async () => {
     const discovered = await discoverEftLogs(app.getPath('appData'))
     if (!discovered.logsFolder) return null
+    logFolderGrants.grant(discovered.logsFolder)
     const parsed = await scanLogFolderBySession(discovered.logsFolder)
     return { ...parsed, folder: discovered.logsFolder }
   })
@@ -318,12 +377,20 @@ function registerIpc() {
     })
     if (result.canceled || !result.filePaths[0]) return null
     const folder = await normalizeSelectedLogsFolder(result.filePaths[0])
+    // Picked by the player in the dialog: may be watched now and after a restart (remembered here, not by the page).
+    logFolderGrants.grant(folder)
+    await writeFile(pickedLogsFolderFile(), JSON.stringify({ folder }), 'utf8').catch(() => {})
     const parsed = await scanLogFolderBySession(folder)
     return { ...parsed, folder }
   })
 
   ipcMain.handle('logs:start-watching', async (_event, folder: unknown) => {
-    if (typeof folder !== 'string' || !folder) return false
+    // Only the game's Logs folder found by discovery or a folder picked in the dialog, never any path from the page.
+    if (typeof folder !== 'string' || !(await mayWatchLogFolder(folder, {
+      grants: logFolderGrants,
+      remembered: rememberedLogsFolder,
+      discover: async () => (await discoverEftLogs(app.getPath('appData'))).logsFolder,
+    }))) return false
     const info = await stat(folder).catch(() => null)
     if (!info?.isDirectory()) return false
     startLogWatcher(folder)
@@ -378,7 +445,8 @@ function registerIpc() {
   ipcMain.handle('server-watchdog:restart', (_event, service: unknown) => restartServiceNow(service))
   ipcMain.handle('server-watchdog:check', () => checkServicesNow())
   ipcMain.handle('tunnel:set', (_event, enabled: unknown) => setTunnel(enabled === true))
-  ipcMain.handle('tunnel:set-named', async (_event, hostname: unknown, token: unknown) => {
+  ipcMain.handle('tunnel:set-named', async (event, hostname: unknown, token: unknown) => {
+    await confirmOwnerChange(event, 'tunnel', { hostname, token })
     const status = await setNamedTunnel(hostname, token)
     await restartApi() // the API builds ЮKassa return links from the public address
     return status
@@ -390,14 +458,16 @@ function registerIpc() {
   })
   // Owner: ЮKassa settings and streamer invitations for the server on this PC (electron/ownerAdmin.ts).
   ipcMain.handle('owner:payments', () => paymentSettings())
-  ipcMain.handle('owner:set-payments', async (_event, settings: unknown) => {
+  ipcMain.handle('owner:set-payments', async (event, settings: unknown) => {
+    await confirmOwnerChange(event, 'payments', settings)
     const result = await setPaymentSettings(settings)
     await restartApi()
     return result
   })
   // «SMS: одноразовые коды»: provider and key only from this app (never the website); the API restarts to pick them up.
   ipcMain.handle('owner:sms', () => smsSettings())
-  ipcMain.handle('owner:set-sms', async (_event, settings: unknown) => {
+  ipcMain.handle('owner:set-sms', async (event, settings: unknown) => {
+    await confirmOwnerChange(event, 'sms', settings)
     const result = await setSmsSettings(settings)
     await restartApi()
     return result
@@ -409,7 +479,8 @@ function registerIpc() {
   ipcMain.handle('owner:sms-test', (_event, phone: unknown) => sendTestSms(phone))
   // «Почта: коды подтверждения»: the same rule — provider and key only from this app, never from the website.
   ipcMain.handle('owner:email', () => emailSettings())
-  ipcMain.handle('owner:set-email', async (_event, settings: unknown) => {
+  ipcMain.handle('owner:set-email', async (event, settings: unknown) => {
+    await confirmOwnerChange(event, 'email', settings)
     const result = await setEmailSettings(settings)
     await restartApi()
     return result
@@ -418,17 +489,25 @@ function registerIpc() {
   ipcMain.handle('owner:email-test', (_event, to: unknown) => sendTestEmail(to))
   // «Отчёты об ошибках (GitHub)»: repository, write-only token (safeStorage), on/off, test (electron/errorReporter.ts).
   ipcMain.handle('owner:error-reports', () => errorReportSettings())
-  ipcMain.handle('owner:set-error-reports', (_event, settings: unknown) => setErrorReportSettings(settings))
+  ipcMain.handle('owner:set-error-reports', async (event, settings: unknown) => {
+    await confirmOwnerChange(event, 'error-reports', settings)
+    return setErrorReportSettings(settings)
+  })
   ipcMain.handle('owner:error-reports-test', () => testErrorReports())
   // «Автообновление сервера» on the server laptop (electron/selfUpdate.ts).
   ipcMain.handle('owner:server-update', () => selfUpdateStatus())
-  ipcMain.handle('owner:set-server-update', async (_event, settings: unknown) => { await setSelfUpdateSettings(settings); return selfUpdateStatus() })
+  ipcMain.handle('owner:set-server-update', async (event, settings: unknown) => {
+    await confirmOwnerChange(event, 'server-update', settings)
+    await setSelfUpdateSettings(settings)
+    return selfUpdateStatus()
+  })
   ipcMain.handle('owner:server-update-check', () => checkSelfUpdateNow())
   ipcMain.handle('owner:server-update-install', () => installSelfUpdateNow({ confirm: true }))
   ipcMain.handle('owner:server-update-rollback', () => rollbackToPrevious({ confirm: true }))
   ipcMain.handle('owner:streamers', () => listStreamers())
   ipcMain.handle('owner:emails', () => ownerEmails())
-  ipcMain.handle('owner:set-emails', async (_event, emails: unknown) => {
+  ipcMain.handle('owner:set-emails', async (event, emails: unknown) => {
+    await confirmOwnerChange(event, 'owner-emails', emails)
     const result = await setOwnerEmails(emails)
     await restartApi() // the API reads TARKOV_OWNER_EMAILS on start
     return result

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { transaction } from './database.js'
 
 /**
  * Bosses the owner placed on the maps by hand (owner app → «Карты» → «Расставить боссов»). Shared by every player:
@@ -76,6 +77,24 @@ export class MapBossStore {
     this.db.prepare('INSERT INTO map_boss_placements (id, map_id, boss_key, boss_name, x, z, floor, hidden, mode, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(row.id, row.map_id, row.boss_key, row.boss_name, row.x, row.z, row.floor, row.hidden ?? 0, row.mode ?? null, row.created_at, actor)
     return toPlacement(row)
+  }
+
+  /**
+   * Many placements at once, all or nothing (one transaction): undefined — and nothing written — when they do not all
+   * fit under MAX_MAP_BOSS_PLACEMENTS; a failing insert rolls the whole batch back.
+   */
+  addMany(placements: NewMapBossPlacement[], actor: string): MapBossPlacement[] | undefined {
+    return transaction(this.db, () => {
+      const count = Number((this.db.prepare('SELECT COUNT(*) AS n FROM map_boss_placements').get() as { n: number }).n)
+      if (count + placements.length > MAX_MAP_BOSS_PLACEMENTS) return undefined
+      const added: MapBossPlacement[] = []
+      for (const placement of placements) {
+        const row = this.add(placement, actor)
+        if (!row) throw new Error('map_boss_placements is full')
+        added.push(row)
+      }
+      return added
+    })
   }
 
   /** The removed placement, or undefined when there was none. */

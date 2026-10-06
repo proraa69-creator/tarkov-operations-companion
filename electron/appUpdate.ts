@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, createWriteStream, existsSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -56,7 +56,7 @@ let enabled = false
 let inRaid: () => boolean = () => false
 let settings: UpdateSettings | null = null
 /** The downloaded and checked exe waiting to be swapped in (auto-install on close). */
-let downloaded: { file: string; build: number } | null = null
+let downloaded: { file: string; build: number; size: number; sha256: string } | null = null
 let swapStarted = false
 
 function set(next: UpdateStatus) {
@@ -164,7 +164,7 @@ async function autoInstall(startup: boolean) {
   const target = remote
   try {
     const file = await download(target, true)
-    downloaded = { file, build: target.build }
+    downloaded = { file, build: target.build, size: target.size, sha256: target.sha256 }
     set({ state: 'available', version: target.version, commit: target.commit, ready: true })
   } catch (error) {
     set({ state: 'error', version: target.version, commit: target.commit, error: failure(error), background: true })
@@ -186,6 +186,8 @@ export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, opti
   app.on('will-quit', () => {
     const exe = process.env.PORTABLE_EXECUTABLE_FILE
     if (swapStarted || !exe || !downloaded || !updateSettings().autoInstall || !existsSync(downloaded.file)) return
+    // Checked again right before the swap: the file next to the exe may have been replaced since it was downloaded.
+    if (!fileMatches(downloaded.file, downloaded.size, downloaded.sha256)) { void rm(downloaded.file, { force: true }).catch(() => {}); downloaded = null; return }
     swapStarted = true
     try { startSwapHelper(exe, downloaded.file, false) } catch { /* the next start offers the update again */ }
   })
@@ -207,6 +209,12 @@ export async function installUpdate() {
   const base = { version: target.version, commit: target.commit }
   try {
     const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : await download(target)
+    // The signed size and SHA-256 once more, right before the helper swaps the file in (it may have changed on disk).
+    if (!fileMatches(file, target.size, target.sha256)) {
+      await rm(file, { force: true }).catch(() => {})
+      if (downloaded?.file === file) downloaded = null
+      throw new Error('Файл обновления изменился после проверки, скачайте обновление ещё раз')
+    }
     set({ state: 'installing', ...base, progress: 100 })
     swapStarted = true
     startSwapHelper(exe, file, true)
@@ -249,6 +257,29 @@ async function download(target: Remote, background = false) {
     await rm(partial, { force: true }).catch(() => {})
     if (downloaded?.file === partial) downloaded = null
     throw error
+  }
+}
+
+/** True when `file` has exactly `size` bytes and this SHA-256 (synchronous: also used from the quit handler). */
+export function fileMatches(file: string, size: number, sha256: string) {
+  let fd: number | null = null
+  try {
+    fd = openSync(file, 'r')
+    const hash = createHash('sha256')
+    const buffer = Buffer.allocUnsafe(1024 * 1024)
+    let total = 0
+    for (;;) {
+      const read = readSync(fd, buffer, 0, buffer.length, null)
+      if (!read) break
+      total += read
+      if (total > size) return false
+      hash.update(buffer.subarray(0, read))
+    }
+    return total === size && hash.digest('hex') === sha256
+  } catch {
+    return false
+  } finally {
+    if (fd !== null) try { closeSync(fd) } catch { /* already closed */ }
   }
 }
 

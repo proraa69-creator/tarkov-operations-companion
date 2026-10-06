@@ -9,14 +9,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 /**
  * The players' desktop app against a real API server (server/src/app.ts on a random port): sign-in, the paywall state
- * from POST /v1/entitlement, the key pinned on first use, and paid data through the gateway with this device's id.
+ * from POST /v1/entitlement, the key built into the exe, and paid data through the gateway with this device's id.
  */
-const state = vi.hoisted(() => ({ dir: '', remote: '' }))
+const state = vi.hoisted(() => ({ dir: '', remote: '', keys: {} as Record<string, string> }))
 vi.mock('electron', () => ({
   app: { getPath: () => state.dir, getVersion: () => '0.5.4' },
   safeStorage: { isEncryptionAvailable: () => false, getSelectedStorageBackend: () => 'basic_text', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() },
 }))
-vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => false, buildDefaultServerUrl: () => state.remote, buildEntitlementKeys: () => ({}) }))
+// The players' app trusts only the key built into it (never trust on first use): the test server's key is "built in".
+vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => false, buildDefaultServerUrl: () => state.remote, buildEntitlementKeys: () => state.keys }))
 vi.mock('./localServer.js', () => ({ localServerEnabled: async () => false }))
 
 const { accountLogin, accountStatus, serviceRequest } = await import('./serviceGateway')
@@ -39,6 +40,7 @@ beforeAll(async () => {
   server = createApi(new ProgressStore(':memory:'), undefined, accounts, { data: new DataGateway({ fetch: upstream as unknown as typeof fetch }) }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   state.remote = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  state.keys = { [state.remote]: ((await (await fetch(`${state.remote}/v1/entitlement/public-key`)).json()) as { publicKey: string }).publicKey }
   expect((await fetch(`${state.remote}/v1/accounts/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'player@example.com', password }) })).status).toBe(201)
 })
 

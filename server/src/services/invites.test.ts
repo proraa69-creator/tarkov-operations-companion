@@ -244,6 +244,8 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   const t = await setup()
   const inviter = await t.register('me@gmail.com')
   const code = t.invites.code(inviter)
+  // New aliases of a working mailbox are refused at registration now; a pair made before that is still flagged.
+  t.db.prepare("UPDATE accounts SET email_canon = 'legacy' WHERE id = ?").run(inviter)
   const alias = await t.register('m.e+alt@gmail.com', code, '10.9.0.1')
   await t.pay(alias)
   assert.deepEqual(t.invites.adminList(undefined, 10, 0).rewards.map((reward) => [reward.status, reward.flags.join(',')]), [['review', 'same-email']])

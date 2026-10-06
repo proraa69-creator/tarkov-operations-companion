@@ -8,6 +8,11 @@
  *
  * Deleting an account (AccountStore.deleteAccount) clears `account_id` and `email` of its reports: the report itself
  * stays for the owner to handle, without the personal link.
+ *
+ * Storage: screenshots of all reports together are kept under BUG_REPORT_STORAGE.maxStoredBytes (a new report with
+ * screenshots past it is refused with 507; text-only reports are still accepted). Retention: screenshots of a closed
+ * report are deleted 30 days after it was closed, of any report 90 days after it was sent (the text stays). It runs when
+ * the store opens and at most hourly on new reports.
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
@@ -21,6 +26,18 @@ export const BUG_REPORT_LIMITS = {
   fileBytes: 5 * 1024 * 1024,
   totalBytes: 25 * 1024 * 1024,
 }
+
+const DAY = 24 * 60 * 60 * 1000
+
+export const BUG_REPORT_STORAGE = {
+  /** All stored screenshots together. */
+  maxStoredBytes: 500 * 1024 * 1024,
+  closedRetentionMs: 30 * DAY,
+  retentionMs: 90 * DAY,
+  pruneEveryMs: 60 * 60 * 1000,
+}
+
+export const STORAGE_FULL_MESSAGE = 'Хранилище скриншотов сейчас заполнено. Отправьте отчёт без скриншотов — опишите проблему словами.'
 
 export type BugReportStatus = 'open' | 'closed'
 export type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp'
@@ -104,20 +121,58 @@ export function checkScreenshots(files: Buffer[]): ImageMime[] {
   })
 }
 
+export interface BugReportStoreOptions {
+  now?: () => number
+  /** Overrides BUG_REPORT_STORAGE.maxStoredBytes (tests). */
+  maxStoredBytes?: number
+}
+
 export class BugReportStore {
   private readonly db: DatabaseSync
   private readonly now: () => number
+  private readonly maxStoredBytes: number
+  private lastPrune = -Infinity
 
-  constructor(db: DatabaseSync, options: { now?: () => number } = {}) {
+  constructor(db: DatabaseSync, options: BugReportStoreOptions = {}) {
     this.db = db
     this.now = options.now ?? Date.now
+    this.maxStoredBytes = options.maxStoredBytes ?? BUG_REPORT_STORAGE.maxStoredBytes
     this.db.exec(SCHEMA)
+    this.pruneScreenshots()
+  }
+
+  /** Bytes of all stored screenshots. */
+  storedBytes() {
+    return Number((this.db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM bug_report_files').get() as { n: number }).n)
+  }
+
+  /** Whether no more screenshots are accepted (checked before an upload is read, too). */
+  screenshotsFull() {
+    return this.storedBytes() >= this.maxStoredBytes
+  }
+
+  /**
+   * Retention: deletes the screenshots of reports closed more than 30 days ago and of every report older than 90 days.
+   * Reports themselves (text) stay. Returns the number of files deleted.
+   */
+  pruneScreenshots() {
+    const now = this.now()
+    this.lastPrune = now
+    const result = this.db.prepare(`DELETE FROM bug_report_files WHERE report_id IN (
+      SELECT id FROM bug_reports WHERE (status = 'closed' AND COALESCE(closed_at, created_at) < ?) OR created_at < ?)`)
+      .run(now - BUG_REPORT_STORAGE.closedRetentionMs, now - BUG_REPORT_STORAGE.retentionMs)
+    return Number(result.changes)
   }
 
   create(accountId: string, email: string | undefined, input: BugReportInput): { id: number; createdAt: string } {
     const mimes = checkScreenshots(input.files)
     const at = this.now()
+    if (at - this.lastPrune >= BUG_REPORT_STORAGE.pruneEveryMs) {
+      try { this.pruneScreenshots() } catch { /* the report is still saved */ }
+    }
+    const incoming = input.files.reduce((sum, file) => sum + file.length, 0)
     return transaction(this.db, () => {
+      if (incoming > 0 && this.storedBytes() + incoming > this.maxStoredBytes) throw new BugReportError(507, STORAGE_FULL_MESSAGE)
       const result = this.db.prepare('INSERT INTO bug_reports (account_id, email, topic, description, app_version, platform, status, created_at) VALUES (?, ?, ?, ?, ?, ?, \'open\', ?)')
         .run(accountId, email ?? null, input.topic, input.description, input.appVersion, input.platform, at)
       const id = Number(result.lastInsertRowid)

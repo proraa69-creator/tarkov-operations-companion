@@ -9,8 +9,11 @@ import { AccountStore } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 import { ProgressStore } from '../services/progressStore.js'
 import {
-  BAN_SCORE, bodyInjection, injectionMarker, isLoopbackIp, maskIp, RETENTION_MS, scannerPath, SecurityGuard, traversalUrl,
+  BAN_SCORE, bodyInjection, crossSiteBrowserLoad, injectionMarker, ipRateKey, isLoopbackIp, maskIp, RETENTION_MS, SCANNER_DISTINCT_WINDOW_MS, scannerPath, SecurityGuard, traversalUrl,
 } from '../services/securityGuard.js'
+import { request as httpRequest } from 'node:http'
+import express from 'express'
+import { createAdminRouter } from './admin.js'
 import { BackupService, backupName, backupsToRemove, parseBackupName } from '../services/serverBackups.js'
 import { ServerHealth, noteUnhandled, resetUnhandled } from '../services/serverHealth.js'
 
@@ -184,14 +187,17 @@ test('retention: events and finished bans older than 30 days are removed', () =>
   let clock = Date.parse('2026-08-01T10:00:00Z')
   const db = openDatabase(':memory:')
   const guard = new SecurityGuard(db, { now: () => clock })
+  // Two different scanner paths each (one alone scores nothing, see SCANNER_DISTINCT_PATHS).
   guard.signal('203.0.113.40', 'scanner', '/.env')
+  guard.signal('203.0.113.40', 'scanner', '/.aws/credentials')
   guard.ban('203.0.113.41', { reason: 'scanner', source: 'auto' })
   clock += 10 * DAY
   guard.signal('203.0.113.42', 'scanner', '/.git/config')
+  guard.signal('203.0.113.42', 'scanner', '/.git/HEAD')
   clock += RETENTION_MS - 5 * DAY
-  assert.deepEqual(guard.prune(), { events: 1, bans: 1 })
-  assert.equal(guard.listEvents().total, 1)
-  assert.equal(guard.listEvents().events[0]!.path, '/.git/config')
+  assert.deepEqual(guard.prune(), { events: 2, bans: 1 })
+  assert.equal(guard.listEvents().total, 2)
+  assert.deepEqual(guard.listEvents().events.map((event) => event.path).sort(), ['/.git/HEAD', '/.git/config'])
   // Re-opening the database keeps the active ban and the salt (keys match).
   guard.ban('203.0.113.43', { reason: 'scanner', source: 'manual', minutes: 60 })
   const again = new SecurityGuard(db, { now: () => clock })
@@ -405,4 +411,126 @@ test('the ban threshold needs more than one scanner hit', () => {
   guard.signal('203.0.113.90', 'scanner', '/.env')
   assert.ok(guard.score('203.0.113.90') < BAN_SCORE)
   assert.equal(guard.activeBan('203.0.113.90'), undefined)
+})
+
+/** A raw HTTP request (fetch cannot choose Host); `headers` exactly as given. */
+function rawRequest(port: number, method: string, path: string, headers: Record<string, string>, body?: string) {
+  return new Promise<{ status: number; text: string }>((resolve, reject) => {
+    const request = httpRequest({ host: '127.0.0.1', port, method, path, headers: { ...headers, ...(body ? { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(body)) } : {}) } }, (response) => {
+      let text = ''
+      response.setEncoding('utf8')
+      response.on('data', (chunk: string) => { text += chunk })
+      response.on('end', () => resolve({ status: response.statusCode ?? 0, text }))
+    })
+    request.on('error', reject)
+    request.end(body)
+  })
+}
+
+test('IPv6 rate-limit keys: one /64 is one client, IPv4 stays per address', () => {
+  assert.equal(ipRateKey('2001:db8:1:2::1'), '2001:db8:1:2::/64')
+  assert.equal(ipRateKey('2001:0DB8:0001:0002:ffff:eeee:dddd:cccc'), '2001:db8:1:2::/64')
+  assert.notEqual(ipRateKey('2001:db8:1:3::1'), ipRateKey('2001:db8:1:2::1'))
+  assert.equal(ipRateKey('::ffff:198.51.100.7'), '198.51.100.7')
+  assert.equal(ipRateKey('198.51.100.7'), '198.51.100.7')
+  assert.notEqual(ipRateKey('198.51.100.8'), ipRateKey('198.51.100.7'))
+  assert.equal(ipRateKey('::1'), '0:0:0:0::/64')
+  assert.equal(ipRateKey(undefined), 'unknown')
+})
+
+test('scanner points need two different scanner paths within a few minutes', () => {
+  let clock = Date.parse('2026-10-01T10:00:00Z')
+  const guard = new SecurityGuard(openDatabase(':memory:'), { now: () => clock })
+  const ip = '203.0.113.91'
+  // The same path again and again (a page pointing at it, a reload): nothing.
+  for (let i = 0; i < 10; i += 1) guard.signal(ip, 'scanner', '/.env')
+  assert.equal(guard.score(ip), 0)
+  assert.equal(guard.listEvents().total, 0)
+  // Two different paths too far apart: still nothing.
+  clock += SCANNER_DISTINCT_WINDOW_MS + 1
+  guard.signal(ip, 'scanner', '/wp-login.php')
+  assert.equal(guard.score(ip), 0)
+  // A second distinct path within the window: both count (the held-back one once), a third bans.
+  clock += 1000
+  guard.signal(ip, 'scanner', '/.git/config')
+  assert.equal(guard.score(ip), 70)
+  assert.deepEqual(guard.listEvents().events.map((event) => event.path).sort(), ['/.git/config', '/wp-login.php'])
+  guard.signal(ip, 'scanner', '/phpmyadmin/')
+  assert.ok(guard.activeBan(ip))
+})
+
+test('cross-site browser loads are recognised by Sec-Fetch-*', () => {
+  const req = (headers: Record<string, string>) => ({ get: (name: string) => headers[name.toLowerCase()] }) as unknown as Parameters<typeof crossSiteBrowserLoad>[0]
+  assert.equal(crossSiteBrowserLoad(req({})), false, 'scripts and scanners send no Sec-Fetch-*')
+  assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-mode': 'cors' })), false, 'Node fetch')
+  assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' })), false, 'the site itself')
+  assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' })), false, 'typed into the address bar')
+  assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' })), true)
+  assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' })), true)
+  assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'empty' })), true)
+  for (const dest of ['image', 'script', 'style', 'font', 'iframe', 'video', 'object']) assert.equal(crossSiteBrowserLoad(req({ 'sec-fetch-dest': dest })), true, dest)
+})
+
+test('API: another site cannot get its visitors banned with <img src=/.env> (answered, never scored)', async () => {
+  const { server, events } = await startApi()
+  const port = (server.address() as AddressInfo).port
+  try {
+    const ip = '203.0.113.120'
+    const img = { 'x-forwarded-for': ip, 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'image' }
+    const paths = ['/.env', '/x.php', '/wp-admin/', '/.git/config', '/cgi-bin/x', '/v1/catalog/pvp?f=../../etc/passwd', '/v1/catalog/pvp?q=%27%20or%20%271%27%3D%271', '/v1/no-such-route']
+    for (let round = 0; round < 6; round += 1) {
+      for (const path of paths) {
+        const answer = await rawRequest(port, 'GET', path, img)
+        assert.ok([400, 404].includes(answer.status), `${path}: ${answer.status}`)
+      }
+    }
+    assert.deepEqual(events(), [], 'nothing scored')
+    assert.equal((await rawRequest(port, 'GET', '/v1/accounts/auth-config', { 'x-forwarded-for': ip })).status, 200, 'not banned')
+    // The same paths without Sec-Fetch-* (a real scanner): banned.
+    const scanner = '203.0.113.121'
+    for (const path of ['/.env', '/x.php', '/wp-admin/']) assert.equal((await rawRequest(port, 'GET', path, { 'x-forwarded-for': scanner })).status, 404)
+    assert.equal((await rawRequest(port, 'GET', '/v1/accounts/auth-config', { 'x-forwarded-for': scanner })).status, 403)
+  } finally {
+    server.close()
+  }
+})
+
+test('API: /health/backup and /health/detail refuse a browser page on this PC (Origin) and DNS rebinding (Host)', async () => {
+  const { server } = await startApi()
+  const port = (server.address() as AddressInfo).port
+  try {
+    const body = JSON.stringify({ kind: 'manual' })
+    // The owner app's own call (Node fetch from the main process): Host 127.0.0.1, no Origin.
+    assert.equal((await rawRequest(port, 'POST', '/health/backup', { host: `127.0.0.1:${port}` }, body)).status, 500, 'reaches the backup (in-memory database: a clear error)')
+    assert.equal((await rawRequest(port, 'GET', '/health/detail', { host: `localhost:${port}` })).status, 200)
+    // A web page posting from the browser on this PC.
+    assert.equal((await rawRequest(port, 'POST', '/health/backup', { host: `127.0.0.1:${port}`, origin: 'https://evil.example' }, body)).status, 404)
+    assert.equal((await rawRequest(port, 'POST', '/health/backup', { host: `127.0.0.1:${port}`, 'sec-fetch-site': 'cross-site' }, body)).status, 404)
+    // DNS rebinding: a hostile name resolved to 127.0.0.1.
+    assert.equal((await rawRequest(port, 'POST', '/health/backup', { host: `rebind.evil.example:${port}` }, body)).status, 404)
+    assert.equal((await rawRequest(port, 'GET', '/health/detail', { host: `rebind.evil.example:${port}` })).status, 404)
+  } finally {
+    server.close()
+  }
+})
+
+test('owner token API (/v1/admin): direct requests on this PC only, whatever token comes through a proxy', async () => {
+  const token = 'a'.repeat(48)
+  const app = express()
+  app.set('trust proxy', 'loopback')
+  app.use(express.json())
+  app.use('/v1/admin', createAdminRouter(new AccountStore({ ownerEmails: [] }), token))
+  const server = app.listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const port = (server.address() as AddressInfo).port
+  try {
+    const auth = { authorization: `Bearer ${token}` }
+    assert.equal((await rawRequest(port, 'GET', '/v1/admin/streamers', auth)).status, 200)
+    assert.equal((await rawRequest(port, 'GET', '/v1/admin/streamers', {})).status, 404, 'no token')
+    for (const forwarded of [{ 'x-forwarded-for': '127.0.0.1' } as Record<string, string>, { 'x-forwarded-for': '203.0.113.5' }, { 'cf-connecting-ip': '203.0.113.5' }, { forwarded: 'for=127.0.0.1' }]) {
+      assert.equal((await rawRequest(port, 'GET', '/v1/admin/streamers', { ...auth, ...forwarded })).status, 404, JSON.stringify(forwarded))
+    }
+  } finally {
+    server.close()
+  }
 })
