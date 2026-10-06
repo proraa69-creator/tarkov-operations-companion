@@ -38,6 +38,8 @@ import { createServerGuard, type ServerGuardOptions } from './routes/serverGuard
 import { createSelfUpdateRouter } from './routes/selfUpdate.js'
 import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
+import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
+import { BugReportStore } from './services/bugReportStore.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
@@ -80,6 +82,8 @@ export interface ApiOptions {
   friendLimits?: SocialLimits['friendLimits']
   /** The owner app's main process (services/ownerApp.ts): «Обновление» tab, error reports. Default: process.parentPort. */
   ownerApp?: OwnerAppLink
+  /** «Сообщить об ошибке» (routes/bugReports.ts): per-account / per-IP limits for tests. */
+  bugReportLimits?: Partial<BugReportLimits>
 }
 
 /**
@@ -134,6 +138,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/accounts', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
   // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
   app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
+  // «Сообщить об ошибке»: before the global JSON parser, because the upload (screenshots in base64, up to 25 MB) has its
+  // own larger limit; everything else keeps the 1 MB limit below. The audit log is read lazily (created further down).
+  app.use(createBugReportsRouter(accounts, new BugReportStore(accounts.database, { now: accounts.clock }), {
+    limits: options.bugReportLimits,
+    audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
+  }))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
   app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore()))

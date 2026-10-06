@@ -52,9 +52,14 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/streamers/SHELL/percent', '/v1/accounts/me/admin/streamers/WP-ADMIN/link', '/v1/accounts/me/admin/streamers/CGI_BIN/link',
   '/v1/accounts/me/admin/sales-settings', '/v1/accounts/me/admin/audit?limit=100&offset=0',
   '/v1/accounts/me/admin/security', '/v1/accounts/me/admin/security/events?limit=50&reason=scanner', '/v1/accounts/me/admin/security/bans/12/unban',
+  '/v1/bug-reports', '/v1/accounts/me/admin/bug-reports?status=open&limit=50&offset=0', '/v1/accounts/me/admin/bug-reports/12',
+  '/v1/accounts/me/admin/bug-reports/12/files/0', '/v1/accounts/me/admin/bug-reports/12/status',
   '/v1/admin/streamers', '/v1/admin/streamer-invites', '/v1/admin/accounts', '/v1/admin/sms', '/v1/admin/email',
   '/v1/me/progress/pvp', '/v1/me/progress/pve/events', '/v1/me/collector/seasonal', '/v1/me/position/pvp', '/v1/me/settings', '/v1/me/summary',
 ]
+
+/** A 1×1 PNG (base64) for the bug report upload. */
+const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 /** Bodies real clients send (passwords and notes may contain anything). */
 const REAL_BODIES: unknown[] = [
@@ -234,6 +239,8 @@ test('API: a normal visitor session through the site proxy never scores', async 
       assert.equal((await call('GET', '/v1/goons/pvp', { ip })).status, 200)
       assert.equal((await call('PUT', '/v1/accounts/me/nicknames', { ip, token, body: { nicknames: { pvp: 'Select_Union' } } })).status < 500, true)
       assert.equal((await call('GET', '/v1/payments/plans', { ip })).status, 200)
+      // «Сообщить об ошибке»: a description may quote code or SQL; screenshots are base64.
+      assert.equal((await call('POST', '/v1/bug-reports', { ip, token, body: { topic: 'Карта <script>', description: "union select ' or '1'='1 падает при открытии", screenshots: [{ data: TINY_PNG }] } })).status, 201)
       // An expired session, an unknown streamer code, a mistyped password: everyday mistakes.
       assert.equal((await call('GET', '/v1/accounts/me', { ip, token: 'x'.repeat(43) })).status, 401)
       assert.equal((await call('POST', '/v1/accounts/referral-visits', { ip, body: { code: 'NOSUCHCODE' } })).status, 404)

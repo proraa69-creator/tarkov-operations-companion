@@ -751,6 +751,8 @@ export class AccountStore {
       for (const [table, column] of remove) {
         if (has(table)) this.db.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(column === 'owner' ? progressOwner : account.id)
       }
+      // Bug reports (services/bugReportStore.ts) stay for the owner to handle, without the e-mail and the account link.
+      if (has('bug_reports')) this.db.prepare('UPDATE bug_reports SET account_id = NULL, email = NULL WHERE account_id = ?').run(account.id)
       // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
       this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', phone = NULL, phone_verified_at = NULL,
         email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)

@@ -604,6 +604,7 @@ export function TradersPage() {
 
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
+import { SupportButtons } from "../components/SupportButtons";
 
 export function SettingsPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -667,6 +668,20 @@ export function SettingsPage() {
               </span>
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-header">
+            <div className="panel-title">{uiText("Поддержка")}</div>
+          </div>
+          <div className="panel-body">
+            <div className="setting-row">
+              <span>
+                <strong>{uiText("Нашли ошибку или есть вопрос?")}</strong>
+                <small>{uiText("Напишите нам в Telegram или отправьте отчёт об ошибке со скриншотами.")}</small>
+              </span>
+            </div>
+            <div className="support-row"><SupportButtons variant="panel" /></div>
           </div>
         </section>
         <section className="panel">

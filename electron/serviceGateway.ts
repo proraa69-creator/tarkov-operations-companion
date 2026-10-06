@@ -68,6 +68,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
   // The accepted version of the legal documents after registration (152-ФЗ: the consent must be provable).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
+  // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only, screenshots in base64 (≤ 25 MB).
+  { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
   // «Кабинет стримера» (server/src/routes/accounts.ts, payouts.ts): statistics, audience links, payouts.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
@@ -275,13 +277,13 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
   if (!route || !route.methods.includes(method as Method)) throw new Error('Неизвестный запрос сервиса')
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   await loadSessionForServer()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
-  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

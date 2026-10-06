@@ -77,6 +77,7 @@ const ACTION_LABEL: Record<string, string> = {
   'payout.decide': 'Решение по выплате',
   'payout.limits': 'Интервал автовыплат',
   'invite.decide': 'Решение по награде за друга',
+  'bug.status': 'Статус баг-репорта',
   'payments.export': 'Выгрузка платежей CSV',
   'device.revoke': 'Отключено устройство',
   'server.update-check': 'Проверка обновления сервера',
@@ -85,7 +86,7 @@ const ACTION_LABEL: Record<string, string> = {
 }
 const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
 
-const VALUE_LABEL: Record<string, string> = { approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён' }
+const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён' }
 
 function detailText(details: Record<string, unknown> | undefined) {
   if (!details) return ''

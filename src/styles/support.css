@@ -1,0 +1,27 @@
+/* «Связаться» / «Сообщить об ошибке» (src/components/SupportButtons.tsx). The dialog reuses .registration-overlay /
+   .registration-dialog (pages.css) so every theme styles it like the other dialogs. */
+.support-nav-link { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.support-overlay { overflow-y: auto; }
+.bug-report-dialog { width: min(600px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.bug-report-dialog h2 { margin-top: 0; }
+.bug-report-form { display: grid; gap: 12px; }
+.bug-report-form .field-label { display: grid; gap: 6px; }
+.bug-report-text { min-height: 120px; resize: vertical; font: inherit; line-height: 1.45; padding-block: 9px; }
+.bug-report-count { justify-self: end; color: var(--text-dim); font-size: 11px; }
+.bug-report-drop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border: 1px dashed var(--line-strong, var(--border)); border-radius: 10px; color: var(--text-dim); font-size: 13px; transition: border-color .2s, background-color .2s; }
+.bug-report-drop.dragging { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 8%, transparent); }
+.bug-report-drop small { flex-basis: 100%; font-size: 11px; }
+.bug-report-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.bug-report-shots li { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surf-1, #0c100e); }
+.bug-report-shots img { display: block; width: 100%; height: 72px; object-fit: cover; }
+.bug-report-shots small { display: block; padding: 3px 6px; color: var(--text-dim); font-size: 10px; }
+.bug-report-shots button { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 6px; background: rgb(0 0 0 / 70%); color: #fff; cursor: pointer; }
+.bug-report-shots button:hover { border-color: var(--danger, #d27b7b); color: var(--danger, #d27b7b); }
+.bug-report-meta { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
+.bug-report-meta strong { color: var(--text); font-size: 12px; }
+.bug-report-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.bug-report-done { display: grid; justify-items: center; gap: 8px; text-align: center; color: var(--green); }
+.bug-report-done strong { color: var(--text); font-size: 18px; }
+.bug-report-done .bug-report-actions { justify-content: center; }
+.bug-report-signin .bug-report-actions { justify-content: flex-start; }
+.support-row { display: flex; flex-wrap: wrap; gap: 8px; }

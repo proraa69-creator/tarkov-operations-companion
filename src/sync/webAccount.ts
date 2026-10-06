@@ -74,6 +74,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // session: webAccountRegister / webAccountRegisterConfirm keep it, like the sign-in.
   { methods: ['POST'], path: /^\/v1\/accounts\/register\/resend$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
+  // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only.
+  { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -164,11 +166,11 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   const gated = GATED.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

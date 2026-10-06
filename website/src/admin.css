@@ -131,3 +131,14 @@
 .lava-settings-fields { display: grid; gap: 12px; border: 0; padding: 0; margin: 16px 0; max-width: 720px; }
 .lava-settings-fields label { display: grid; gap: 6px; }
 .lava-settings-fields input, .lava-settings-fields select { width: 100%; min-width: 0; }
+/* «Баг-репорты» (components/admin/AdminBugReports.tsx). */
+.admin-bug-detail { display: grid; gap: 12px; }
+.admin-bug-text { margin: 6px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); color: var(--text); font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto; }
+.admin-bug-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; }
+.admin-bug-shots li { display: grid; gap: 4px; min-width: 0; }
+.admin-bug-shots a { display: block; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surf-0); }
+.admin-bug-shots a:hover, .admin-bug-shots a:focus-visible { border-color: var(--brass); }
+.admin-bug-shots img { display: block; width: 100%; height: 110px; object-fit: cover; }
+.admin-bug-shot-placeholder { display: grid; place-items: center; height: 110px; border: 1px dashed var(--line); border-radius: 9px; color: var(--text-dim); }
+.admin-bug-shots small { font-size: 11px; }
+.admin-bug-actions { display: flex; gap: 8px; flex-wrap: wrap; }

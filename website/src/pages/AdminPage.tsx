@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, Crown, DownloadCloud, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, Bug, Crown, DownloadCloud, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminInvites } from '../components/admin/AdminInvites'
@@ -9,6 +9,7 @@ import { AdminSummary } from '../components/admin/AdminSummary'
 import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
 import { AdminUpdate } from '../components/admin/AdminUpdate'
+import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -21,6 +22,7 @@ const TABS = [
   { id: 'payouts', label: 'Выплаты', icon: Banknote },
   { id: 'invites', label: 'Друзья', icon: HeartHandshake },
   { id: 'sales', label: 'Настройки продаж', icon: Settings2 },
+  { id: 'bugs', label: 'Баг-репорты', icon: Bug },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
   { id: 'update', label: 'Обновление', icon: DownloadCloud },
@@ -85,6 +87,7 @@ export function AdminPage() {
           )}
           {tab === 'invites' && <AdminInvites />}
           {tab === 'sales' && <AdminSales />}
+          {tab === 'bugs' && <AdminBugReports />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
           {tab === 'update' && <AdminUpdate />}
