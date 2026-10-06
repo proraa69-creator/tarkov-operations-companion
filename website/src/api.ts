@@ -214,6 +214,19 @@ export interface AdminOverview {
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
 }
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<PlanId, { count: number; revenue: number }> }
+export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<PlanId, { count: number; revenue: number }> }
+export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
+export interface AdminDayRegistration { id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true }
+export interface AdminDayGrant { email: string; days: number; reason: string; actor: string; at: string }
+export interface AdminDayInvite { inviter: string; kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string }
+export interface AdminDay {
+  date: string
+  totals: { registrations: number; payments: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number; plans: Record<PlanId, { count: number; revenue: number }> }
+  registrations: AdminDayRegistration[]
+  payments: AdminPayment[]
+  grants: AdminDayGrant[]
+  invites: AdminDayInvite[]
+}
 export interface AdminPayment {
   id: string; email: string; plan: PlanId; provider: PaymentProvider; status: PaymentStatus; amount: number
   original?: { amount: number; currency: string }; createdAt: string; paidAt?: string; renewal?: true; referralCode?: string; streamerEarning?: number
@@ -363,6 +376,8 @@ export const api = {
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
+  adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
+  adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
   adminLavaEvents: (token: string) => request<AdminLavaEvents>('/me/admin/lava/events', { token }),

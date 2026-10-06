@@ -3,10 +3,12 @@ import { useCallback, useState } from 'react'
 import { api, type AdminRevenue, type StatsPeriod } from '../../api'
 import { Notice } from '../Notice'
 import { ColumnChart, Loading } from './adminShared'
+import { AdminCalendar } from './AdminCalendar'
 import { formatPeriodKey, formatRub, numberFormat, PLAN_IDS, PLAN_LABEL, useAdminData } from './adminData'
 
-const PERIODS: Array<{ id: StatsPeriod; label: string }> = [
-  { id: 'day', label: '31 день' },
+type View = 'calendar' | Exclude<StatsPeriod, 'day'>
+const PERIODS: Array<{ id: View; label: string }> = [
+  { id: 'calendar', label: 'Календарь' },
   { id: 'month', label: '12 месяцев' },
   { id: 'year', label: 'По годам' },
 ]
@@ -74,7 +76,9 @@ function RevenueCard({ title, revenue, extra }: { title: string; revenue: AdminR
 }
 
 function SeriesSection() {
-  const [period, setPeriod] = useState<StatsPeriod>('day')
+  const [view, setView] = useState<View>('calendar')
+  // The calendar loads its own month; the tables need the series of 12 months or of the years.
+  const period: StatsPeriod = view === 'calendar' ? 'month' : view
   const series = useAdminData(useCallback((token: string) => api.adminSeries(token, period), [period]))
   const rows = series.data?.period === period ? series.data.rows : null
   const total = rows?.reduce((sum, row) => ({
@@ -87,11 +91,12 @@ function SeriesSection() {
         <h2 className="field-label" id="admin-series-title">Регистрации и оплаты</h2>
         <div role="tablist" aria-label="Период" className="admin-chips">
           {PERIODS.map(({ id, label }) => (
-            <button key={id} type="button" role="tab" aria-selected={period === id} className={`button small ${period === id ? 'primary' : 'ghost'}`} onClick={() => setPeriod(id)}>{label}</button>
+            <button key={id} type="button" role="tab" aria-selected={view === id} className={`button small ${view === id ? 'primary' : 'ghost'}`} onClick={() => setView(id)}>{label}</button>
           ))}
-          <button type="button" className="button small ghost" onClick={() => void series.refresh()} disabled={series.loading} aria-label="Обновить"><RefreshCw aria-hidden="true" className={series.loading ? 'spinner' : undefined} /></button>
+          {view !== 'calendar' && <button type="button" className="button small ghost" onClick={() => void series.refresh()} disabled={series.loading} aria-label="Обновить"><RefreshCw aria-hidden="true" className={series.loading ? 'spinner' : undefined} /></button>}
         </div>
       </div>
+      {view === 'calendar' ? <AdminCalendar /> : <>
       {series.error && <Notice tone={series.error.offline ? 'offline' : 'error'}>{series.error.message}</Notice>}
       {!rows && !series.error && <Loading text="Загружаем статистику…" />}
       {rows && rows.length > 0 && total && (
@@ -139,6 +144,7 @@ function SeriesSection() {
           </div>
         </>
       )}
+      </>}
     </section>
   )
 }
