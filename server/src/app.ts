@@ -26,6 +26,7 @@ import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
+import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -167,9 +168,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
   if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
-  app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
+  // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one (routes/mapUpdates.ts).
+  const mapUpdates = new MapUpdates()
+  app.use(createMapUpdatesRouter(mapUpdates))
+  app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
-  app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
+  app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))

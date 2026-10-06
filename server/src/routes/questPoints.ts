@@ -47,7 +47,8 @@ function publicView(entry: QuestPointOverride): Omit<QuestPointOverride, 'update
   return view as Omit<QuestPointOverride, 'updatedBy' | 'note'>
 }
 
-export function createQuestPointsRouter(accounts: AccountStore, store: QuestPointStore, audit?: QuestPointAudit) {
+/** `changed`: told after every saved write, so every running app re-reads the corrections at once (routes/mapUpdates.ts). */
+export function createQuestPointsRouter(accounts: AccountStore, store: QuestPointStore, audit?: QuestPointAudit, changed?: () => void) {
   const router = express.Router()
   const writeLimiter = new FixedWindowRateLimiter(120, 60 * 1000)
 
@@ -81,6 +82,7 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
     if (saved === 'invalid') { res.status(400).json({ error: 'Не указана исходная точка' }); return }
     if (saved === 'missing') { res.status(404).json({ error: 'Правка не найдена' }); return }
     if (saved === 'full') { res.status(409).json({ error: 'Слишком много правок точек. Удалите лишние.' }); return }
+    changed?.()
     try {
       audit?.(actor, 'map.quest-point', saved.id, {
         op: saved.kind, quest: saved.questId, mapId: saved.mapId, x: Math.round(saved.x), z: Math.round(saved.z),
@@ -96,6 +98,7 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
     const id = idSchema.safeParse(req.params.id)
     const removed = id.success ? store.remove(id.data) : undefined
     if (!removed) { res.status(404).json({ error: 'Правка не найдена' }); return }
+    changed?.()
     try { audit?.(actor, 'map.quest-point', removed.id, { op: 'reset', was: removed.kind, quest: removed.questId, mapId: removed.mapId, ...(removed.markerId ? { marker: removed.markerId } : {}) }) } catch { /* removed anyway */ }
     res.json({ overrides: store.list() })
   })

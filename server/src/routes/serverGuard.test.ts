@@ -55,6 +55,7 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/streamers/SHELL/percent', '/v1/accounts/me/admin/streamers/WP-ADMIN/link', '/v1/accounts/me/admin/streamers/CGI_BIN/link',
   '/v1/accounts/me/admin/sales-settings', '/v1/accounts/me/admin/audit?limit=100&offset=0',
   '/v1/accounts/me/admin/security', '/v1/accounts/me/admin/security/events?limit=50&reason=scanner', '/v1/accounts/me/admin/security/bans/12/unban',
+  '/v1/map-bosses', '/v1/quest-points', '/v1/map-updates', '/v1/map-updates?since=1791283908575',
   '/v1/bug-reports', '/v1/accounts/me/admin/bug-reports?status=open&limit=50&offset=0', '/v1/accounts/me/admin/bug-reports/12',
   '/v1/accounts/me/admin/bug-reports/12/files/0', '/v1/accounts/me/admin/bug-reports/12/status',
   '/v1/admin/streamers', '/v1/admin/streamer-invites', '/v1/admin/accounts', '/v1/admin/sms', '/v1/admin/email',

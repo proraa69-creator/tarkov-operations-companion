@@ -42,7 +42,7 @@ export const OWNER_BOSS_SOURCE = 'owner-placed'
  * placements are shown (set by «Применить расстановку PvP ко всем режимам» together with the PvP bosses as placements).
  */
 export const MAP_LOCK_KEY = 'map-lock'
-const PLACEMENTS_KEY = ['map-boss-placements'] as const
+export const PLACEMENTS_KEY = ['map-boss-placements'] as const
 /** One shared empty list, so the dataset keeps its identity while nothing is placed. */
 const NONE: MapBossPlacement[] = []
 

@@ -33,7 +33,8 @@ const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
 export type MapBossAudit = (actor: string, action: 'map.boss-place' | 'map.boss-remove', target: string, details: Record<string, unknown>) => void
 
-export function createMapBossesRouter(accounts: AccountStore, store: MapBossStore, audit?: MapBossAudit) {
+/** `changed`: told after every saved write, so every running app re-reads the placements at once (routes/mapUpdates.ts). */
+export function createMapBossesRouter(accounts: AccountStore, store: MapBossStore, audit?: MapBossAudit, changed?: () => void) {
   const router = express.Router()
   const writeLimiter = new FixedWindowRateLimiter(60, 60 * 1000)
 
@@ -60,6 +61,7 @@ export function createMapBossesRouter(accounts: AccountStore, store: MapBossStor
     const placement = store.add(body.data, actor)
     if (!placement) { res.status(409).json({ error: 'Слишком много меток боссов. Удалите лишние.' }); return }
     try { audit?.(actor, 'map.boss-place', placement.id, { mapId: placement.mapId, boss: placement.bossKey, x: Math.round(placement.x), z: Math.round(placement.z), ...(placement.hidden ? { hidden: true } : {}), mode: placement.mode ?? 'all' }) } catch { /* placed anyway */ }
+    changed?.()
     res.status(201).json({ placement, placements: store.list() })
   })
 
@@ -73,6 +75,7 @@ export function createMapBossesRouter(accounts: AccountStore, store: MapBossStor
     const added = store.addMany(body.data.placements, actor)
     if (!added) { res.status(409).json({ error: 'Слишком много меток боссов. Удалите лишние.' }); return }
     try { audit?.(actor, 'map.boss-place', `batch:${added.length}`, { batch: added.length, maps: [...new Set(body.data.placements.map((entry) => entry.mapId))] }) } catch { /* placed anyway */ }
+    changed?.()
     res.status(201).json({ placements: store.list() })
   })
 
@@ -82,6 +85,7 @@ export function createMapBossesRouter(accounts: AccountStore, store: MapBossStor
     const id = idSchema.safeParse(req.params.id)
     const removed = id.success ? store.remove(id.data) : undefined
     if (!removed) { res.status(404).json({ error: 'Метка не найдена' }); return }
+    changed?.()
     try { audit?.(actor, 'map.boss-remove', removed.id, { mapId: removed.mapId, boss: removed.bossKey }) } catch { /* removed anyway */ }
     res.json({ placements: store.list() })
   })

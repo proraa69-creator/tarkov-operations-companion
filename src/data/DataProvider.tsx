@@ -13,6 +13,7 @@ import { catalogRefetchDelay, createFailureCounter, isInitialCatalogLoad } from 
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useMapBossPlacements, withOwnerBosses } from './mapBossPlacements'
 import { useQuestPointOverrides, withQuestPointOverrides } from './questPointOverrides'
+import { useLiveMapUpdates } from './mapUpdates'
 
 interface DataContextValue {
   data: AppDataset
@@ -58,6 +59,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const placements = useMapBossPlacements(allowed)
   // Quest points the owner corrected by hand (bug reports) are moved / hidden / added on top (src/data/questPointOverrides.ts).
   const questPoints = useQuestPointOverrides(allowed)
+  // The owner's map corrections reach this app as soon as they are saved on the server (data/mapUpdates.ts).
+  useLiveMapUpdates(allowed)
   const data = useMemo(() => {
     if (!placements.length && !questPoints.length) return translated
     const withBosses = placements.length ? withOwnerBosses(translated.markers, placements, raidMode) : translated.markers

@@ -37,7 +37,7 @@ export type QuestPointInput = Omit<QuestPointOverride, 'id' | 'updatedBy' | 'upd
 
 export const OWNER_QUEST_POINT_SOURCE = 'owner-quest-point'
 const ADDED_PREFIX = 'owner-quest-'
-const OVERRIDES_KEY = ['quest-point-overrides'] as const
+export const OVERRIDES_KEY = ['quest-point-overrides'] as const
 /** One shared empty list, so the dataset keeps its identity while nothing is corrected. */
 const NONE: QuestPointOverride[] = []
 
