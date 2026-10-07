@@ -9,6 +9,7 @@ This repository contains the current Tarkov APP / Tarkov Operator desktop client
 - App type: Electron desktop shell with React/Vite renderer and local/server preparation code.
 - Product name in package config: `Tarkov Operator`
 - Windows portable build output: `release/Tarkov Operator 0.5.4.exe`
+- Linux VPS server (Ubuntu, Timeweb): `docs/linux-server.md` (bundle: `node scripts/build-linux-server.mjs <out>` after `npm run build`)
 - Product/business roadmap and streamer referral context: `docs/product-roadmap-and-business-model.md`
 
 ## Useful commands

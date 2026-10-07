@@ -54,6 +54,15 @@ fi
 mkdir -p "$TARGET"
 cp "$PARTS/RaidOS-update.json" "$TARGET/"
 for name in $FILES; do cp "$PARTS/$name" "$TARGET/"; done
+# The Linux server (scripts/build-linux-server.mjs → <parts>/linux): its signed bundle goes next to the Windows parts,
+# its installer to linux/install.sh of the repository (docs/linux-server.md). Only a bundle of this very build.
+if [ -f "$PARTS/linux/RaidOS-linux.json" ] && [ -f "$PARTS/linux/raidos-server-$BUILD.tar.gz" ]; then
+  cp "$PARTS/linux/RaidOS-linux.json" "$PARTS/linux/raidos-server-$BUILD.tar.gz" "$TARGET/"
+  mkdir -p "$REPO/linux" && cp "$PARTS/linux/install.sh" "$REPO/linux/install.sh"
+  git -C "$REPO" add linux/install.sh
+elif [ -d "$PARTS/linux" ]; then
+  echo "warning: $PARTS/linux has no signed bundle of build $BUILD — the Linux server is not updated by this release" >&2
+fi
 printf '{"build":%s,"path":"releases/%s"}\n' "$BUILD" "$BUILD" > "$REPO/latest.json"
 git -C "$REPO" add "releases/$BUILD" latest.json
 
