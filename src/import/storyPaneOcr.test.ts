@@ -97,3 +97,17 @@ describe('where the story pane parts are cut', () => {
     expect(isStoryPaneOcr('ЗАДАНИЯ\nПОБОЧНЫЕ\nПрапор Посылка из прошлого АКТИВНО')).toBe(false)
   })
 })
+
+describe('objectives saved by an older version', () => {
+  it('are shown clean at once: junk text, the look-alike total and the stage it hid', () => {
+    const progress = createModeProgress()
+    progress.taskProgress['story-tour'] = { taskId: 'story-tour', status: 'active', source: 'screen-scan', currentStageIndex: 12, updatedAt: '', storyObjectives: [
+      { id: 'main:x', text: '= [1] Поговорить с Лыжником', optional: false, completed: false, stageIndex: 12 },
+      { id: 'optional:y', text: 'Посетить Лес №8', optional: true, completed: false, current: 1, total: 5 },
+    ] }
+    expect(visibleStoryObjectives(tour, progress)).toMatchObject([
+      { text: 'Поговорить с Лыжником', stageIndex: 12 },
+      { text: 'Посетить Лес', stageIndex: 14, current: 1, total: 3, completed: false },
+    ])
+  })
+})

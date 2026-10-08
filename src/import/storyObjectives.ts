@@ -104,6 +104,24 @@ export function objectiveStageCandidates(label: string, quest: Quest) {
 }
 
 /**
+ * An objective saved by an older version: the same clean-up as a fresh reading — junk around the text, a look-alike
+ * denominator, and the stage when only the junk hid it. Shown at once, without waiting for the chapter to be opened again.
+ */
+export function cleanSavedStoryObjective(objective: StoryObjectiveReading, quest: Quest): StoryObjectiveReading {
+  const text = stripProgressBar(stripCheckbox(objective.text.trim()))
+  if (ocrKey(text).length < 8) return objective
+  const stageIndex = objective.stageIndex ?? objectiveStageCandidates(text, quest)[0]?.index
+  const expected = stageIndex != null ? quest.stages?.[stageIndex]?.progressTotal : undefined
+  const total = objective.total != null ? catalogTotal(objective.total, expected) : undefined
+  const counter = objective.current != null && total != null && total > 0 && objective.current <= total
+  const cleaned: StoryObjectiveReading = { ...objective, text, completed: objective.completed || (counter && objective.current === total) }
+  if (stageIndex != null) cleaned.stageIndex = stageIndex
+  if (counter) cleaned.total = total
+  else { delete cleaned.current; delete cleaned.total }
+  return cleaned
+}
+
+/**
  * Read the objectives pane only. Unknown objectives remain readable, but get no invented map point. The grey line under
  * an objective («Для ремонта понадобится набор инструментов») is its hint, not part of its title.
  */
