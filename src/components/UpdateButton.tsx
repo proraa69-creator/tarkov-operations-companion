@@ -74,6 +74,7 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
   const stepIndex = STEPS.findIndex((entry) => entry.id === step)
   const progress = Math.max(0, Math.min(100, status.state === 'installing' ? 100 : status.progress ?? 0))
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [raidNoteHidden, setRaidNoteHidden] = useState(false)
   useEffect(() => { if (failed) closeRef.current?.focus() }, [failed])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) onClose() }
@@ -117,7 +118,10 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
         </ol>
 
         {failed && <p className="update-overlay-error">{uiText(status.error ?? 'Ошибка обновления')}</p>}
-        {status.blockedByRaid && <p className="update-overlay-error">{uiText('Обновление отложено: сначала завершите рейд.')}</p>}
+        {status.blockedByRaid && !raidNoteHidden && <p className="update-overlay-error update-overlay-note-closable">
+          <span>{uiText('Автоматически обновление не ставится во время рейда. Нажмите «Обновить», чтобы установить сейчас.')}</span>
+          <button type="button" className="update-overlay-note-close" aria-label={uiText('Скрыть')} onClick={() => setRaidNoteHidden(true)}><X size={14} /></button>
+        </p>}
         {!busy && <div className="update-overlay-actions">
           {failed
             ? <button type="button" className="button primary" onClick={onRetry}><RotateCcw size={15} />{uiText(' Повторить')}</button>

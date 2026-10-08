@@ -26,6 +26,7 @@ import { errorReportSettings, reportApiError, reportError, setErrorReportSetting
 import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdateStatus, setSelfUpdateSettings, startServerSelfUpdate, stopServerSelfUpdate } from './selfUpdate.js'
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
+import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
@@ -170,6 +171,8 @@ app.whenReady().then(async () => {
   if (serverMode) mainWindow?.minimize()
   // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
   else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
+    // No game running = no raid, whatever the last log says (a game closed or crashed mid-raid never logs the end).
+    if (await isTarkovRunning() === false) return false
     if (raidState.inRaid) return true
     const folder = watchedFolder || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
     return folder ? (await readRaidState(folder)).inRaid : false
@@ -518,7 +521,7 @@ function registerIpc() {
   })
   ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
-  ipcMain.handle('update:install', () => installUpdate())
+  ipcMain.handle('update:install', () => installUpdate({ manual: true }))
   // Settings → «Проверить обновление приложения», «Автообновление», «Автоустановка»
   ipcMain.handle('update:check', () => checkForUpdateNow())
   ipcMain.handle('update:settings', () => updateSettings())

@@ -41,3 +41,7 @@
 @media (prefers-reduced-motion: reduce) { .update-overlay, .update-overlay-progress i.is-running { animation: none; } }
 @media (max-width: 560px) { .update-overlay-steps { grid-template-columns: minmax(0, 1fr); } }
 .locked-update { position: fixed; top: 16px; right: 16px; z-index: 1000; }
+.update-overlay-note-closable { display: flex; align-items: flex-start; gap: 10px; }
+.update-overlay-note-closable > span { flex: 1; }
+.update-overlay-note-close { display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin: -2px -4px 0 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; opacity: .75; }
+.update-overlay-note-close:hover, .update-overlay-note-close:focus-visible { opacity: 1; background: color-mix(in srgb, var(--danger) 22%, transparent); }

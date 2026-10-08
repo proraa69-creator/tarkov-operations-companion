@@ -115,13 +115,22 @@ describe('desktop update policy', () => {
     expect(env.spawn).toHaveBeenCalledOnce()
     expect(downloads()).toBe(1)
   })
-  it('manual installation is also blocked in a raid', async () => {
+  it('an installation the player did not press waits in a raid', async () => {
     const updater = await launch(true, false)
     env.raid = true
     await updater.installUpdate()
     expect(updater.updateStatus().blockedByRaid).toBe(true)
     expect(downloads()).toBe(0)
     expect(env.quit).not.toHaveBeenCalled()
+  })
+  it('«Обновить» pressed by the player installs even when the logs say a raid is on', async () => {
+    const updater = await launch(true, false)
+    env.raid = true
+    await updater.installUpdate({ manual: true })
+    expect(updater.updateStatus().blockedByRaid).toBeUndefined()
+    expect(downloads()).toBe(1)
+    expect(env.spawn).toHaveBeenCalledOnce()
+    expect(env.quit).toHaveBeenCalled()
   })
   it('an interrupted download leaves no partial file or restart and can be retried', async () => {
     const updater = await launch(true, false)

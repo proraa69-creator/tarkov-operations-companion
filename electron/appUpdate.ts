@@ -176,8 +176,13 @@ function failure(error: unknown) {
   return /EPERM|EACCES/.test(message) ? 'Нет доступа к папке с приложением: переместите exe, например, на рабочий стол' : message
 }
 
-/** Downloads the new exe (unless «Автоустановка» already did), checks it and hands over to the helper that swaps the files; the app then quits. */
-export async function installUpdate() {
+/**
+ * Downloads the new exe (unless «Автоустановка» already did), checks it and hands over to the helper that swaps the files;
+ * the app then quits. An automatic installation waits while a raid is on; «Обновить» pressed by the player (`manual`)
+ * installs at once — his choice, even if the logs say a raid is on (a game closed mid-raid leaves the logs «in raid»).
+ */
+export async function installUpdate(options: { manual?: boolean } = {}) {
+  const raidBlocks = async () => !options.manual && await raidBlocksInstall()
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe || !remote || swapStarted || status.state === 'downloading' || status.state === 'installing') return status
   const target = remote
@@ -185,7 +190,7 @@ export async function installUpdate() {
   // Reserve the operation before awaiting the live raid check (prevents concurrent IPC clicks).
   set({ state: 'downloading', ...base, progress: 0 })
   try {
-    if (await raidBlocksInstall()) { set({ state: 'available', ...base, ready: downloaded?.build === target.build, blockedByRaid: true }); return status }
+    if (await raidBlocks()) { set({ state: 'available', ...base, ready: downloaded?.build === target.build, blockedByRaid: true }); return status }
     const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : await download(target)
     // The signed size and SHA-256 once more, right before the helper swaps the file in (it may have changed on disk).
     if (!fileMatches(file, target.size, target.sha256)) {
@@ -194,7 +199,7 @@ export async function installUpdate() {
       throw new Error('Файл обновления изменился после проверки, скачайте обновление ещё раз')
     }
     downloaded = { file, build: target.build, size: target.size, sha256: target.sha256 }
-    if (await raidBlocksInstall()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
+    if (await raidBlocks()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
     set({ state: 'installing', ...base, progress: 100 })
     swapStarted = true
     startSwapHelper(exe, file, true)
