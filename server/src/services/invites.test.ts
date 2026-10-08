@@ -39,7 +39,13 @@ async function setup() {
   const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_x', monthPrice: 300, receipts: false, streamerPercent: 10, publicUrl: 'https://raidos.example.com' }, { now, fetch: yoo.fetch })
   accounts.attachSubscriptions(payments)
   const invites = new InviteProgram(accounts, payments, { now })
-  const register = async (email: string, code?: string, ip?: string) => accounts.authenticate((await accounts.register(email, password, code, ip)).token)!
+  let eftId = 1000000
+  /** Every test player has his own game account, bound by the desktop app (bindEft: false — never opened the app). */
+  const register = async (email: string, code?: string, ip?: string, bindEft = true) => {
+    const id = accounts.authenticate((await accounts.register(email, password, code, ip)).token)!
+    if (bindEft) accounts.bindEftAccount(id, String(eftId++))
+    return id
+  }
   /** The account pays for `plan` with a card ending in `last4` (a new card each time by default). */
   const pay = async (accountId: string, plan: '1m' | '3m' | '6m' | '12m' = '1m', last4?: string) => {
     const created = await payments.create(accounts.billingInfo(accountId), plan, 'https://raidos.example.com', { version: '2026-10-06' }, undefined, invites.discountPercent(accountId) ? { percent: invites.discountPercent(accountId) } : undefined)
@@ -269,4 +275,69 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   assert.equal(t.paidUntil(inviter), t.now())
   assert.equal(t.payments.list(friend).find((item) => item.id === first.paymentId)?.status, 'refunded')
   assert.equal(t.invites.adminList('canceled', 10, 0).rewards[0]?.friend, 'friend@example.com')
+})
+
+test('a friend counts once per Escape from Tarkov account: no app, no reward; one game account, one Raid OS account', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  // A batch of accounts made on the site, never signed in to the desktop app: they pay, nothing is granted.
+  const lazy = await t.register('lazy@example.com', code, undefined, false)
+  await t.pay(lazy)
+  t.advance(HOLD_MS + DAY)
+  assert.deepEqual(t.invites.release(), { granted: 0 })
+  assert.equal(t.invites.program(inviter).rewards[0]!.waitingEft, true)
+  assert.equal(t.paidUntil(inviter), 0)
+
+  // The friend opens the app: his game account is bound, the next release grants the reward.
+  t.accounts.bindEftAccount(lazy, '5550001')
+  assert.deepEqual(t.invites.release(), { granted: 1 })
+  assert.equal(t.invites.program(inviter).rewards[0]!.waitingEft, undefined)
+
+  // The same game account cannot be bound to a second Raid OS account.
+  const twin = await t.register('twin@example.com', code, undefined, false)
+  assert.throws(() => t.accounts.bindEftAccount(twin, '5550001'), /уже используется/)
+  // Deleting the first account frees the game account, but it never counts as a friend again.
+  t.accounts.deleteAccount(lazy)
+  t.accounts.bindEftAccount(twin, '5550001')
+  await t.pay(twin)
+  t.advance(HOLD_MS + DAY)
+  t.invites.release()
+  const reward = t.invites.adminList(undefined, 10, 0).rewards.find((item) => item.status === 'review')
+  assert.deepEqual(reward?.flags, ['eft-counted'])
+})
+
+test('any refund, full or partial, cancels the reward and the rank it no longer reaches; the owner cannot shorten the hold', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  const payments: string[] = []
+  for (const n of [1, 2, 3]) {
+    const friend = await t.register(`friend${n}@example.com`, code)
+    payments.push(await t.pay(friend))
+  }
+  t.advance(HOLD_MS + DAY)
+  t.invites.release()
+  assert.equal(t.invites.program(inviter).rank?.id, 'operator')
+  const withRank = t.paidUntil(inviter)
+  assert.equal(withRank, t.now() + (3 * 7 + 30) * DAY)
+
+  // A partial refund of one friend: his 7 days and the Operator bonus (3 friends) go back.
+  assert.equal(t.payments.partiallyRefunded(payments[0]!), true)
+  assert.equal(t.paidUntil(inviter), withRank - (7 + 30) * DAY)
+  assert.equal(t.invites.program(inviter).rank?.id, 'scout')
+  assert.equal(t.invites.program(inviter).rewards.find((item) => item.kind === 'operator')?.status, 'canceled')
+
+  // A new friend makes 3 again: the rank comes back on the same row.
+  const fourth = await t.register('friend4@example.com', code)
+  await t.pay(fourth)
+  // The owner approves at once: it still waits for the 14 days.
+  const pending = t.invites.adminList('pending', 10, 0).rewards[0]!
+  t.invites.decide('owner@example.com', pending.id, 'approve')
+  assert.equal(t.invites.adminList('pending', 10, 0).rewards[0]?.id, pending.id)
+  t.advance(HOLD_MS + DAY)
+  t.invites.release()
+  assert.equal(t.invites.program(inviter).rank?.id, 'operator')
+  assert.equal(t.invites.program(inviter).rewards.filter((item) => item.kind === 'operator').length, 1)
+  assert.equal(t.invites.program(inviter).rewards.find((item) => item.kind === 'operator')?.status, 'granted')
 })

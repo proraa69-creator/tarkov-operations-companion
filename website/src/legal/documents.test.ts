@@ -12,7 +12,7 @@ describe('published seller details', () => {
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Номер в реестре операторов персональных данных']).toContain('не указан')
     expect(details['Адрес для корреспонденции']).toMatch(/^\[/)
-    expect(LEGAL_VERSION).toBe('2026-10-08.1')
+    expect(LEGAL_VERSION).toBe('2026-10-08.2')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {

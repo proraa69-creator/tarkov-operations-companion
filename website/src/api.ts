@@ -30,6 +30,8 @@ export interface Account {
   owner?: true
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
   emailVerifiedAt?: string
+  /** The Escape from Tarkov account the desktop app found in the game logs, masked («••••289»). */
+  eftAccount?: { masked: string; boundAt: string }
 }
 
 /**
@@ -281,6 +283,8 @@ export interface InviteReward {
   decidedAt?: string
   /** The friend's e-mail, masked (a***@mail.ru) in the cabinet, full in the admin panel. */
   friend?: string
+  /** On hold until the friend's desktop app binds his Escape from Tarkov account. */
+  waitingEft?: true
 }
 export interface InviteProgram {
   code: string

@@ -306,9 +306,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const title = active && paidUntil ? `Активна до ${dateFormat.format(new Date(paidUntil))}`
     : trial && trialEndsAt ? `Пробный период до ${dateFormat.format(new Date(trialEndsAt))}`
       : 'Не активна'
-  const hint = active ? 'Ваша подписка продолжает действовать. Новые оплаты временно недоступны.'
-    : trial ? 'Бесплатный доступ по приглашению. Оплата временно недоступна.'
-      : 'Оплата временно недоступна.'
+  const hint = active ? 'Ваша подписка продолжает действовать.' : trial ? 'Бесплатный доступ по приглашению.' : ''
   const visiblePlans = SUBSCRIPTION_PREVIEW.map((fallback) => {
     const configured = plans?.plans.find((plan) => plan.id === fallback.id)
     return configured?.price != null ? configured : fallback
@@ -327,7 +325,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
           <CalendarClock aria-hidden="true" size={28} style={{ color: active ? 'var(--success)' : trial ? 'var(--brass)' : 'var(--text-dim)', flex: '0 0 auto' }} />
           <div style={{ minWidth: 0 }}>
             <div className="big">{title}</div>
-            <div className="muted" style={{ fontSize: 14 }}>{hint}</div>
+            {hint && <div className="muted" style={{ fontSize: 14 }}>{hint}</div>}
           </div>
         </div>
 
@@ -355,16 +353,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
                         <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
                       </>
                     )}
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled title="Оплата временно недоступна" aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
                       <CreditCard aria-hidden="true" />Оплатить
                     </button>
                   </div>
                 )
               })}
             </div>
-            <p className="dim" style={{ margin: 0, fontSize: 13 }}>
-              Оплата временно недоступна. <Link to="/legal/offer" target="_blank" rel="noopener" style={{ color: 'var(--brass-strong)' }}>Условия подписки</Link>.
-            </p>
           </>
 
         {history.length > 0 && <PaymentHistory payments={history} />}
@@ -492,6 +487,10 @@ function NicknamesPanel({ account }: { account: Account }) {
       </div>
       <form className="panel-body form" onSubmit={save}>
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>У каждого режима свой профиль и прогресс — укажите ник для каждого режима, в котором играете.</p>
+        {/* «Пригласи друга»: the game account the desktop app found in the logs (one game account — one Raid OS account). */}
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+          Аккаунт Escape from Tarkov: {account.eftAccount ? <strong className="mono">{account.eftAccount.masked}</strong> : 'не привязан — откройте приложение Raid OS на ПК с игрой, оно найдёт аккаунт в логах игры'}.
+        </p>
         <div className="nick-grid">
           {MODES.map(({ id, label, color }) => (
             <label key={id} className="field">
