@@ -12,7 +12,10 @@ interface MapPriorityProps {
   limit?: number
 }
 
-/** Compact "Приоритет карт": top maps by current tasks as small tiles with a count badge and a thin bar. */
+/**
+ * Compact "Приоритет карт": top maps by current tasks as one-line tiles (rank · map · count) over a thin bar,
+ * low enough to leave the left column room for «Требования рейда» below.
+ */
 export function MapPriority({ maps, countFor, onOpen, limit = 5 }: MapPriorityProps) {
   const { locale } = useLocale()
   const rows = maps.map((map) => ({ map, count: countFor(map.id) })).sort((a, b) => b.count - a.count).slice(0, limit)
@@ -31,11 +34,9 @@ export function MapPriority({ maps, countFor, onOpen, limit = 5 }: MapPriorityPr
       {rows.map(({ map, count }, index) => {
         const label = `${uiText(map.name)} · ${taskLabel(count)}`
         return <button type="button" key={map.id} className={`map-priority-tile ${index === 0 && count > 0 ? 'is-top' : ''} ${count === 0 ? 'is-empty' : ''}`} title={label} aria-label={label} onClick={() => onOpen(map.id)}>
-          <span className="map-priority-top">
-            <span className="map-priority-rank mono">{String(index + 1).padStart(2, '0')}</span>
-            <span className="map-priority-count">{count}</span>
-          </span>
-          <strong className="map-priority-name"><span className="map-priority-dot" style={{ background: map.accent }} aria-hidden="true" />{uiText(map.name)}</strong>
+          <span className="map-priority-rank mono">{String(index + 1).padStart(2, '0')}</span>
+          <strong className="map-priority-name"><span className="map-priority-dot" style={{ background: map.accent }} aria-hidden="true" /><span className="map-priority-label">{uiText(map.name)}</span></strong>
+          <span className="map-priority-count">{count}</span>
           <span className="map-priority-bar" aria-hidden="true"><span style={{ width: `${count / max * 100}%` }} /></span>
         </button>
       })}
