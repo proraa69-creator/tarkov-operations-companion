@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { applyPlayerSnapshot, createLocalProfile, migrateProfile, registerModeProfile, setTaskProgress } from './progress'
 
 describe('local profile model', () => {
+  it('preserves the saved character and progress when the server returns no snapshot', () => {
+    const profile = applyPlayerSnapshot(createLocalProfile('Operator'), 'pvp', {
+      accountId: 1, nickname: 'Operator', experience: 1000, level: 10, faction: 'usec', prestige: 0,
+      fetchedAt: '2026-09-26T02:00:00.000Z',
+    })
+    expect(applyPlayerSnapshot(profile, 'pvp', null)).toBe(profile)
+    expect(applyPlayerSnapshot(profile, 'pvp', undefined)).toBe(profile)
+  })
   it('preserves confirmed PvE trader-task scans after restart', () => {
     const profile = setTaskProgress(createLocalProfile('Operator'), 'pve', { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-28T00:00:00Z' })
     expect(migrateProfile(profile)?.modes.pve.taskProgress.debut).toEqual(profile.modes.pve.taskProgress.debut)

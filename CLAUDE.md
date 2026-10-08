@@ -1,14 +1,26 @@
-# Tarkov Operator — Claude working notes
+# Raid OS — Claude working notes
 
-This repository contains the current Tarkov APP / Tarkov Operator desktop client.
+This repository contains the Raid OS desktop client, website and centralized VPS API.
+
+## Shared Codex / Claude Context
+
+Before working, read `docs/coordination/LATEST.json`, `PROJECT_STATE.md`, `WORK_QUEUE.md`, `COORDINATION.md` and `WORK_LOG.md`.
+This `sync/codex-claude-context` branch captures deployed source changes that were not committed in the VPS checkout.
+It is not main and is not an automatic production deployment. Use separate feature branches and declare owned files before editing.
+Preserve other agents' changes; one release integrator at a time. Never expose credentials or copy the live account database into Git.
+Startup-only application auto-update and metadata notifications are separate. Do not install during a raid or on app close.
+Do not re-enable the disabled 15-minute server deploy agent, activate disabled checkout buttons, or publish the Overview preview without the owner's direction.
+After each task update the shared work log with commit, files, tests, deployment state and remaining risks.
+The hourly context monitor only refreshes information/snapshots; it does not deploy application code.
 
 ## Project facts
 
 - Main GitHub repository: `https://github.com/proraa69-creator/tarkov-operations-companion`
 - Current package version: `0.5.4`
 - App type: Electron desktop shell with React/Vite renderer and local/server preparation code.
-- Product name in package config: `Tarkov Operator`
-- Windows portable build output: `release/Tarkov Operator 0.5.4.exe`
+- Product name in package config: `Raid OS`
+- Windows portable build output: `release/Raid OS 0.5.4.exe` (separate release directories for client/owner builds)
+- Public Windows download: `https://raidos.app/download/windows`; signed manifest: `/download/version.json`
 - Linux VPS server (Ubuntu, Timeweb): `docs/linux-server.md` (bundle: `node scripts/build-linux-server.mjs <out>` after `npm run build`)
 - Product/business roadmap and streamer referral context: `docs/product-roadmap-and-business-model.md`
 

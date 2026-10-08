@@ -90,19 +90,17 @@ export function AppUpdateSettings() {
       </div>
       <div className="setting-row">
         <span>
-          <strong>{uiText('Автообновление')}</strong>
-          <small>{uiText('Проверять новую версию при запуске и каждые 6 часов')}</small>
+          <strong>{uiText('Уведомлять о наличии нового обновления')}</strong>
         </span>
-        <button type="button" role="switch" aria-checked={autoCheck} aria-label={uiText('Автообновление')} className={`toggle ${autoCheck ? 'on' : ''}`} disabled={noSwitches} onClick={() => change({ autoCheck: !autoCheck })}>
+        <button type="button" role="switch" aria-checked={autoCheck} aria-label={uiText('Уведомлять о наличии нового обновления')} className={`toggle ${autoCheck ? 'on' : ''}`} disabled={noSwitches} onClick={() => change({ autoCheck: !autoCheck })}>
           <span />
         </button>
       </div>
       <div className="setting-row">
         <span>
-          <strong>{uiText('Автоустановка')}</strong>
-          <small>{uiText('Ставить найденную версию самому: сразу после запуска (не во время рейда) или при закрытии приложения')}</small>
+          <strong>{uiText('Автообновление')}</strong>
         </span>
-        <button type="button" role="switch" aria-checked={autoInstall} aria-label={uiText('Автоустановка')} className={`toggle ${autoInstall ? 'on' : ''}`} disabled={noSwitches || !autoCheck} onClick={() => change({ autoInstall: !autoInstall })}>
+        <button type="button" role="switch" aria-checked={autoInstall} aria-label={uiText('Автообновление')} className={`toggle ${autoInstall ? 'on' : ''}`} disabled={noSwitches} onClick={() => change({ autoInstall: !autoInstall })}>
           <span />
         </button>
       </div>

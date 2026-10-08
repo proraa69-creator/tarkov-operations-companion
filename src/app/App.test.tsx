@@ -1,4 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
+import { expect } from 'vitest'
+import * as domMatchers from '@testing-library/jest-dom/matchers'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -9,6 +11,8 @@ import { demoDataset } from '../data/demo'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { installCatalogTranslations } from '../i18n/renderText'
+
+expect.extend(domMatchers)
 
 function renderApp(route = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -65,14 +69,27 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /Отметить выполненным:/ })).not.toBeInTheDocument()
   })
 
-  it('lists story chapters without a manual stage picker', async () => {
+  it('lists only confirmed account story chapters, separately from current tasks', async () => {
     const user = userEvent.setup()
+    let profile = createLocalProfile('TEST', 'story-sections')
+    profile = setTaskProgress(profile, 'pvp', { taskId: 'story-tour', status: 'active', source: 'screen-scan', updatedAt: '2026-09-28T00:00:00Z', currentStageIndex: 0 })
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
     renderApp('/quests')
+    expect(screen.queryByRole('heading', { name: 'Тур' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Сюжетные' }))
     expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
-    expect(screen.getByText(/откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест/i)).toBeInTheDocument()
+    expect(screen.getAllByText('Ожидаем актуальные задачи из игры.').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Актуальный этап/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Этапы главы' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Тур' }).length).toBeGreaterThan(0)
     expect(screen.queryByText('Где вы в этой главе')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Батя' })).not.toBeInTheDocument()
+  })
+
+  it('does not open an untracked chapter via a stale selected query parameter', () => {
+    renderApp('/quests?filter=story&selected=story-tour')
+    expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Тур' })).not.toBeInTheDocument()
   })
 
   it('puts the rest of the catalog on the All tab', async () => {

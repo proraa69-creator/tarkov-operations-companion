@@ -167,7 +167,7 @@ describe('quest OCR matching', () => {
         { id: 's1', title: 'Терминал', description: '', mapIds: ['shoreline'] },
       ],
     }])
-    const matches = matchQuestsFromOcr('ЗАДАЧИ\nТур\nВыбраться из Эпицентра', story)
+    const matches = matchQuestsFromOcr('ЗАДАЧИ\nТур\nГлавные задачи\nВыбраться из Эпицентра', story)
     expect(matches).toHaveLength(1)
     expect(matches[0]?.questId).toBe('story-tour')
     expect(matches[0]?.stageIndex).toBe(0)

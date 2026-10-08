@@ -139,6 +139,8 @@ html.overlay-root #root {
 .eft-card-body.is-loading { gap: 8px; color: #8c8c84; font-size: 12px; }
 .eft-card-icon { flex: none; width: 50px; height: 50px; display: grid; place-items: center; background: #141515; border: 1px solid #3a3c3a; background-image: linear-gradient(rgb(255 255 255 / 3%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px); background-size: 8px 8px; }
 .eft-card-icon img { max-width: 46px; max-height: 46px; object-fit: contain; }
+.eft-card-icon.is-weapon { width: 88px; }
+.eft-card-icon.is-weapon img { max-width: 84px; }
 .eft-prices { flex: 1; min-width: 0; display: grid; gap: 4px; margin: 0; }
 .eft-prices div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 3px; border-bottom: 1px solid #262827; }
 .eft-prices div:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -177,10 +179,14 @@ html.overlay-root #root {
   color: #8e8c80;
   font-size: 11px;
 }
-.ov-minimap-head strong { color: #e6e4d6; font-size: 12px; letter-spacing: .03em; text-transform: uppercase; }
+.ov-minimap-head strong { min-width: 0; overflow: hidden; color: #e6e4d6; font-size: 12px; letter-spacing: 0; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
+.ov-minimap-head > span:not(.ov-drag-grip) { flex: none; white-space: nowrap; }
 .ov-minimap-map { flex: none; opacity: var(--ov-opacity, .9); background: transparent; }
-.ov-opacity { display: inline-flex; align-items: center; gap: 4px; color: #8e8c80; cursor: pointer; }
+.ov-opacity { display: inline-flex; flex: none; align-items: center; gap: 4px; color: #8e8c80; cursor: pointer; }
 .ov-opacity input { width: 70px; height: 12px; accent-color: #c9b26a; cursor: pointer; }
+.ov-minimap-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; background: rgba(20, 22, 18, var(--ov-opacity)); }
+.ov-icon-button { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 1px solid #3a3b37; border-radius: 4px; background: #1c1d1a; color: #c9c7b7; cursor: pointer; }
+.ov-drag { touch-action: none; }
 .ov-marker.is-selected img { filter: drop-shadow(0 0 4px #f2d27a) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }
 .ov-quest-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px; max-height: 64px; overflow-y: auto; margin: 0; padding: 5px 6px; list-style: none; border-top: 1px solid #4b4c47; background: rgb(9 10 10 / 92%); }
 .ov-quest-list button { max-width: 200px; overflow: hidden; padding: 2px 7px; border: 1px solid #3a3b37; background: #1c1d1a; color: #c9c7b7; font: inherit; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

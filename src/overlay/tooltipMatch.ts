@@ -14,7 +14,7 @@ interface Entry {
   /** The numbers with look-alike digits merged — they must match the tooltip's. */
   looseNumbers: string
   short: boolean
-  /** The item's full name (folded), to tell different items from the same item under two names. */
+  /** Stable item identity; different items can have identical display names. */
   key: string
 }
 
@@ -139,7 +139,7 @@ export function createTooltipMatcher(items: Item[], alternates?: ReadonlyMap<str
   const exact = new Map<string, number[]>()
   const index = new Map<string, number[]>()
   for (const item of items) {
-    const key = foldName(item.name ?? '')
+    const key = item.id
     const seen = new Set<string>()
     for (const variant of [{ name: item.name, shortName: item.shortName }, ...(alternates?.get(item.id) ?? [])]) {
       for (const [raw, short] of [[variant.name, false], [variant.shortName, true]] as const) {

@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, ShieldCheck, UserPlus, WifiOff } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
@@ -9,7 +9,6 @@ import { AutopayCard } from '../components/PaymentRegionDialog'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
-import { LEGAL_VERSION } from '../legal/documents'
 import { Notice } from '../components/Notice'
 import { PasswordPanel } from '../components/PasswordPanel'
 import { SignOutEverywherePanel } from '../components/SignOutEverywherePanel'
@@ -126,6 +125,12 @@ export function CabinetPage() {
 }
 
 const PLAN_LABELS: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
+const SUBSCRIPTION_PREVIEW: PlansResponse['plans'] = [
+  { id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 },
+  { id: '3m', months: 3, price: 900, currency: 'RUB', discountPercent: 0 },
+  { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
+  { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
+]
 const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },
@@ -239,23 +244,20 @@ function SubscriptionPanel({ account }: { account: Account }) {
     return null
   })
   const [plans, setPlans] = useState<PlansResponse | null>(null)
-  const [plansError, setPlansError] = useState<{ message: string; offline: boolean } | null>(null)
   const [history, setHistory] = useState<Payment[]>([])
   const [historyVersion, setHistoryVersion] = useState(0)
-  const [paying, setPaying] = useState<PlanId | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
-  const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
   const reloadHistory = useCallback(() => setHistoryVersion((n) => n + 1), [])
   const check = usePaymentCheck(paymentId, reloadHistory)
 
   useEffect(() => {
     let cancelled = false
     api.plans().then(
-      (next) => { if (!cancelled) { setPlans(next); setPlansError(null) } },
-      (reason: unknown) => { if (!cancelled) setPlansError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network }) },
+      (next) => { if (!cancelled) setPlans(next) },
+      () => undefined,
     )
     return () => { cancelled = true }
   }, [])
@@ -268,22 +270,6 @@ function SubscriptionPanel({ account }: { account: Account }) {
     return () => { cancelled = true }
     // A friend's code entered below («Код приглашения») changes referredBy: reload for the friend's price.
   }, [token, historyVersion, account.referredBy])
-
-  // «Оплатить» goes straight to ЮKassa: a one-off payment, no checkboxes. Pressing it accepts the offer (the text under
-  // the plans says so). Without the separate autopayment consent the law requires, nothing is ever charged again.
-  async function pay(plan: PlanId) {
-    if (!token) return
-    setPaying(plan)
-    setPayError(null)
-    try {
-      const language = navigator.language?.toLowerCase().startsWith('ru') ? 'ru' : 'en'
-      const { confirmationUrl } = await api.createPayment(token, plan, LEGAL_VERSION, { region: 'ru', language })
-      window.location.assign(confirmationUrl) // ЮKassa payment page; buttons stay disabled while the browser leaves
-    } catch (reason) {
-      setPayError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
-      setPaying(null)
-    }
-  }
 
   async function cancelAutopay() {
     if (!token) return
@@ -320,11 +306,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const title = active && paidUntil ? `Активна до ${dateFormat.format(new Date(paidUntil))}`
     : trial && trialEndsAt ? `Пробный период до ${dateFormat.format(new Date(trialEndsAt))}`
       : 'Не активна'
-  const hint = active ? 'Оплата нового тарифа продлит подписку от текущей даты окончания.'
-    : trial ? 'Бесплатный доступ по приглашению. Чтобы не потерять доступ, оформите подписку заранее — дни сложатся.'
-      : 'Выберите тариф — доступ откроется сразу после оплаты.'
-  const busy = paying !== null || check?.phase === 'checking'
-  const locked = busy
+  const hint = active ? 'Ваша подписка продолжает действовать. Новые оплаты временно недоступны.'
+    : trial ? 'Бесплатный доступ по приглашению. Оплата временно недоступна.'
+      : 'Оплата временно недоступна.'
+  const visiblePlans = SUBSCRIPTION_PREVIEW.map((fallback) => {
+    const configured = plans?.plans.find((plan) => plan.id === fallback.id)
+    return configured?.price != null ? configured : fallback
+  })
 
   return (
     <section className="panel" aria-labelledby="sub-title">
@@ -343,15 +331,9 @@ function SubscriptionPanel({ account }: { account: Account }) {
           </div>
         </div>
 
-        {plansError && <Notice tone={plansError.offline ? 'offline' : 'error'} title="Не удалось загрузить тарифы">{plansError.message}</Notice>}
-        {!plans && !plansError && <div className="muted" style={{ fontSize: 14 }}>Загружаем тарифы…</div>}
-        {plans && (!plans.enabled || plans.plans.length === 0) && (
-          <Notice tone="info" title="Оплата скоро появится">Тарифы на 1, 3, 6 и 12 месяцев можно будет оплатить прямо здесь. Статус подписки проверяется только на сервере.</Notice>
-        )}
-        {plans?.enabled && plans.plans.length > 0 && (
-          <>
+        <>
             <div className="plan-grid">
-              {plans.plans.map((plan) => {
+              {visiblePlans.map((plan) => {
                 const friend = friendDiscount && plan.id === friendDiscount.plan && plan.price !== null ? friendDiscount.percent : 0
                 const best = plan.discountPercent > 0 || friend > 0
                 // The same rounding as the server (kopecks): server/src/services/paymentStore.ts create().
@@ -373,27 +355,17 @@ function SubscriptionPanel({ account }: { account: Account }) {
                         <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
                       </>
                     )}
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={locked} onClick={() => void pay(plan.id)}>
-                      {paying === plan.id ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CreditCard aria-hidden="true" />}Оплатить
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled title="Оплата временно недоступна" aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
+                      <CreditCard aria-hidden="true" />Оплатить
                     </button>
                   </div>
                 )
               })}
             </div>
             <p className="dim" style={{ margin: 0, fontSize: 13 }}>
-              Подписку можно отменить в любое время. Нажимая «Оплатить», вы принимаете условия <Link to="/legal/offer" target="_blank" rel="noopener" style={{ color: 'var(--brass-strong)' }}>оферты</Link>.
-            </p>
-            {payError && <Notice tone={payError.offline ? 'offline' : 'error'} title="Оплата не началась">{payError.message}</Notice>}
-            <p className="receipt-note">
-              <Receipt aria-hidden="true" />
-              <span>Чек об оплате придёт на e-mail аккаунта: <strong style={{ color: 'var(--text-muted)' }}>{account.email}</strong>.</span>
-            </p>
-            <p className="dim" style={{ margin: 0, fontSize: 13 }}>
-              <ShieldCheck size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 5 }} />
-              Оплата на защищённой странице ЮKassa: карта, СБП, SberPay, ЮMoney. <Link to="/legal" style={{ color: 'var(--brass-strong)' }}>Реквизиты и возврат</Link>
+              Оплата временно недоступна. <Link to="/legal/offer" target="_blank" rel="noopener" style={{ color: 'var(--brass-strong)' }}>Условия подписки</Link>.
             </p>
           </>
-        )}
 
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>

@@ -40,3 +40,4 @@
 @keyframes update-overlay-stripes { to { background-position: 22px 0, 0 0; } }
 @media (prefers-reduced-motion: reduce) { .update-overlay, .update-overlay-progress i.is-running { animation: none; } }
 @media (max-width: 560px) { .update-overlay-steps { grid-template-columns: minmax(0, 1fr); } }
+.locked-update { position: fixed; top: 16px; right: 16px; z-index: 1000; }

@@ -2,13 +2,14 @@ import type { AppDataset, RaidMode } from '../../../src/domain/types'
 import { fetchLiveCatalog } from '../../../src/data/catalogSource'
 import { fetchPlayerProfile, resolveAccountIdsByNickname } from '../../../electron/playerProfileService'
 import { createCatalogCache, type CatalogLocale } from './catalogCache.js'
+import { withCachedItemImages } from './itemImageCache.js'
 
 /** Refresh period, last-good fallback and back-off: services/catalogCache.ts. */
 const catalogCache = createCatalogCache(fetchLiveCatalog)
 
 /** The catalog of one mode, Russian (with the wiki details) or English (tarkov.dev's own English text). */
-export function getCatalogSnapshot(mode: RaidMode, locale: CatalogLocale = 'ru'): Promise<AppDataset> {
-  return catalogCache.get(mode, locale)
+export async function getCatalogSnapshot(mode: RaidMode, locale: CatalogLocale = 'ru'): Promise<AppDataset> {
+  return withCachedItemImages(await catalogCache.get(mode, locale))
 }
 /**
  * Non-blocking read for summaries: the last snapshot (even if older than the cache window), or undefined.

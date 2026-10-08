@@ -148,8 +148,18 @@ export function presetImageFor(entry: JsonRecord, rawItems: JsonRecord): string 
   if (!presetId || presetId === text(entry.id)) return undefined
   const presetEntry = asRecord(rawItems[presetId])
   const inline = asRecord(preset)
-  return text(presetEntry.image512pxLink) || text(inline.image512pxLink) || text(presetEntry.gridImageLink) || text(inline.gridImageLink)
-    || text(presetEntry.iconLink) || text(inline.iconLink) || `https://assets.tarkov.dev/${presetId}-512.webp`
+  const images = [presetEntry.image512pxLink, inline.image512pxLink, presetEntry.gridImageLink, inline.gridImageLink, presetEntry.iconLink, inline.iconLink]
+    .map(value => text(value)).filter(value => value && !/\/unknown-item-/i.test(value))
+  if (images.length) return images[0]
+  // Cosmetic editions whose upstream preset still has only a placeholder. Same model's
+  // standard assembly is illustrative: neither its skin nor the player's attachments are inferred.
+  const standardModels: Record<string, string> = {
+    '6a15ae2ae5267ba21c07f98f': '5bb2475ed4351e00853264e3', // HK 416A5 RAL 8000 -> HK 416A5
+    '6a78b7f8c2016eb33e0027cd': '5cc82d76e24e8d00134b4b83', // FN P90 Scourge -> FN P90
+  }
+  const standard = standardModels[text(entry.id)]
+  if (standard && rawItems[standard]) return presetImageFor(asRecord(rawItems[standard]), rawItems)
+  return `https://assets.tarkov.dev/${presetId}-512.webp`
 }
 
 function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMode): Item[] {

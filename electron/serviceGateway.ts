@@ -288,6 +288,9 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
   } catch {
     throw new ServiceUnavailableError()
   }
+  if (response.status !== 204 && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+    throw new ServiceUnavailableError()
+  }
   const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
 }

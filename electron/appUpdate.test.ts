@@ -20,9 +20,10 @@ vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => build.owner, buildDefa
 vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.3', build: 100, commit: 'old', trialLaunches: 0, edition: build.owner ? 'owner' : 'client' }) }))
 // The address typed in the app: a player's copy must never update from it.
 vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => 'https://typed-in.example', apiBaseUrl: () => 'https://typed-in.example' }))
+vi.mock('node:child_process', () => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
-const { checkForUpdateNow, setUpdateSettings, startUpdateChecks, updateStatus } = await import('./appUpdate')
+const { checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateStatus } = await import('./appUpdate')
 
 const dir = mkdtempSync(join(tmpdir(), 'raidos-update-'))
 build.userData = dir
@@ -35,7 +36,7 @@ const signedBy = (key: typeof keys.privateKey, manifest: typeof fields | { editi
   ({ ...manifest, signature: sign(null, Buffer.from(canonicalUpdatePayload(manifest), 'utf8'), key).toString('base64') })
 
 let served: { manifest: unknown; exe: Buffer }
-const fetchMock = vi.fn(async (url: string) => url.endsWith('/download/version.json')
+const fetchMock = vi.fn(async (url: string) => new URL(url).pathname === '/download/version.json'
   ? new Response(JSON.stringify(served.manifest), { headers: { 'content-type': 'application/json' } })
   : new Response(new Uint8Array(served.exe)))
 vi.stubGlobal('fetch', fetchMock)
@@ -47,7 +48,7 @@ describe('auto-update: signed manifests only (electron/appUpdate.ts)', () => {
   it('a player copy asks only the server built into it, never the address typed in the app', async () => {
     served = { manifest: signedBy(keys.privateKey), exe }
     expect((await checkForUpdateNow()).outcome).toBe('available')
-    expect(fetchMock).toHaveBeenCalledWith('https://raidos.app/download/version.json', expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/raidos\.app\/download\/version\.json\?ts=\d+$/), expect.anything())
     expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('typed-in.example'))).toBe(true)
     expect(updateStatus()).toMatchObject({ state: 'available', version: '0.5.4', commit: 'abc1234' })
   })
@@ -78,21 +79,23 @@ describe('auto-update: signed manifests only (electron/appUpdate.ts)', () => {
     build.owner = true
     served = { manifest: signedBy(keys.privateKey), exe }
     expect((await checkForUpdateNow()).outcome).toBe('latest') // the players' build is never installed on it
-    expect(fetchMock).toHaveBeenCalledWith('https://typed-in.example/download/version.json', expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/typed-in\.example\/download\/version\.json\?ts=\d+$/), expect.anything())
   })
 
   it('the downloaded exe must match the signed SHA-256', async () => {
     served = { manifest: signedBy(keys.privateKey), exe: Buffer.from('MZ swapped exe!!!!!!') } // same size, other bytes
     expect((await checkForUpdateNow()).outcome).toBe('available')
-    setUpdateSettings({ autoCheck: true, autoInstall: true }) // downloads in the background
-    await vi.waitFor(() => expect(updateStatus().state).toBe('error'))
+    setUpdateSettings({ autoCheck: true, autoInstall: true })
+    expect(updateStatus().state).toBe('available') // Changing a preference never starts a download.
+    await installUpdate()
     expect(updateStatus().error).toBe('Файл обновления повреждён, попробуйте ещё раз')
 
     served = { manifest: signedBy(keys.privateKey), exe }
     setUpdateSettings({ autoInstall: false })
     expect((await checkForUpdateNow()).outcome).toBe('available')
     setUpdateSettings({ autoInstall: true })
-    await vi.waitFor(() => expect(updateStatus()).toMatchObject({ state: 'available', ready: true }))
+    await installUpdate()
+    expect(updateStatus()).toMatchObject({ state: 'installing', progress: 100 })
   })
 })
 

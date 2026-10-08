@@ -65,7 +65,7 @@ export function screenshotsFolder() {
 
 /**
  * Follows the EFT screenshots folder: every new screenshot carries the player position in its name.
- * Position screenshots taken while the tracker runs are pruned to the newest three.
+ * Reading does not delete files; separately verified app screenshots have their own retention policy.
  */
 export class PositionTracker {
   private watcher: FSWatcher | null = null
@@ -73,7 +73,7 @@ export class PositionTracker {
   private startedAt = 0
   private lastFile = ''
   /** Newest image in the folder (with or without coordinates), for the diagnostics in the Mini Map page. */
-  lastSeen: { name: string; withCoordinates: boolean; at: number } | null = null
+  lastSeen: { folder: string; name: string; withCoordinates: boolean; at: number } | null = null
   private folder = ''
   private lastFolderCheck = 0
   private busy = false
@@ -83,7 +83,7 @@ export class PositionTracker {
   constructor(
     private readonly onPosition: (position: PlayerPosition) => void,
     /** Every new image in the folder, after its position (if any) was reported. */
-    private readonly onFile?: (file: { name: string; withCoordinates: boolean; at: number }) => void,
+    private readonly onFile?: (file: { folder: string; name: string; withCoordinates: boolean; at: number }) => void,
   ) {}
 
   get running() {
@@ -137,7 +137,7 @@ export class PositionTracker {
         const stats = await Promise.all(fresh.map(async (name) => ({ name, time: (await stat(join(folder, name)).catch(() => null))?.mtimeMs ?? 0 })))
         const newest = stats.sort((a, b) => b.time - a.time)[0]
         if (newest && newest.name !== this.lastSeen?.name) {
-          this.lastSeen = { name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
+          this.lastSeen = { folder, name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
           newFile = this.lastSeen
         }
       }

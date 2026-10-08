@@ -176,7 +176,7 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
           <div className="field-label">Последние платежи</div>
           {data.payments.length === 0 ? <span className="field-hint">Платежей нет.</span> : (
             <ul className="admin-list">
-              {data.payments.map((item) => <li key={item.id}><span className="mono">{dateTime.format(new Date(item.createdAt))}</span> · {PLAN_LABEL[item.plan]} · {PROVIDER_LABEL[item.provider]} · <span className="mono">{formatRub(item.amount)} ₽</span> · <span className={`tag admin-mini ${PAYMENT_STATUS[item.status].tone}`}>{PAYMENT_STATUS[item.status].label}</span></li>)}
+              {data.payments.map((item) => <li key={item.id}><span className="mono">{dateTime.format(new Date(item.createdAt))}</span> · {PLAN_LABEL[item.plan] ?? item.plan} · {PROVIDER_LABEL[item.provider] ?? item.provider} · <span className="mono">{formatRub(item.amount)} ₽</span> · <span className={`tag admin-mini ${PAYMENT_STATUS[item.status]?.tone ?? ''}`}>{PAYMENT_STATUS[item.status]?.label ?? item.status}</span></li>)}
             </ul>
           )}
         </div>

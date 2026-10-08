@@ -31,6 +31,7 @@ import '../styles/mapView.css'
 import { useAppState } from '../state/AppState'
 import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { calculateAvailability, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
@@ -705,7 +706,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                 <div className="map-quest-sheet-section">
                   {uiText(relatedStage ? (
                     <>
-                      <h4>{uiText(relatedQuest && relatedStageIndex !== currentStoryStageIndex(relatedQuest, progress) ? `Этап ${relatedStageIndex + 1}` : 'Текущий этап')}</h4>
+                      <h4>{uiText('Задача')}</h4>
                       <p><strong>{uiText(relatedStage.title)}</strong></p>
                       {uiText(relatedStage.description && <p className="dim">{uiText(relatedStage.description)}</p>)}
                     </>
@@ -971,6 +972,9 @@ function markerMatchesStage(
   if (focusedQuestId && marker.questId === focusedQuestId) {
     const requested = focusedStage == null || focusedStage === '' ? current : Number(focusedStage)
     return marker.stageIndex === requested
+  }
+  if (quest?.kind === 'story' && progress.taskProgress[quest.id]?.storyObjectives) {
+    return visibleStoryObjectives(quest, progress).some(objective => !objective.completed && objective.stageIndex === marker.stageIndex)
   }
   return marker.stageIndex === current
 }

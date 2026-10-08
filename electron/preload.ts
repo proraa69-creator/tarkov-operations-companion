@@ -97,7 +97,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')) as Promise<boolean>,
   resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number }>,
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number }>,
+  captureQuestScreenshot: (after: number) => ipcRenderer.invoke('quests:read-screenshot', after) as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number } | null>,
   recognizeQuestPng: (image: string) => ipcRenderer.invoke('quests:recognize-png', image) as Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>,
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
@@ -114,8 +115,13 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     onQuery: (callback: (payload: unknown) => void) => subscribe('experimental:query', callback),
     onPosition: (callback: (payload: unknown) => void) => subscribe('experimental:position', callback),
   },
+  overlaySetInteractive: (value: boolean) => ipcRenderer.send('overlay:interactive', Boolean(value)),
+  overlayResize: (width: number, height: number) => ipcRenderer.send('overlay:resize', Number(width), Number(height)),
+  overlayDrag: (active: boolean) => ipcRenderer.send('overlay:drag', Boolean(active)),
+  overlayHold: (held: boolean) => ipcRenderer.send('overlay:hold', Boolean(held)),
+  overlayZones: (zones: unknown) => ipcRenderer.send('overlay:zones', zones),
   onOverlay: (channel: string, callback: (payload: unknown) => void) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position'].includes(channel)) return () => {}
+    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)
     ipcRenderer.send('overlay:subscribe', channel)
     return unsubscribe

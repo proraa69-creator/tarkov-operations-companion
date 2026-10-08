@@ -1,0 +1,13 @@
+{
+  "automationId": "raidos-context-sync",
+  "status": "ACTIVE",
+  "kind": "thread heartbeat",
+  "intervalMinutes": 60,
+  "timezone": "Asia/Bangkok",
+  "creationConfirmedByApp": true,
+  "firstScheduledRunObserved": false,
+  "scope": "Project context and evidence only; no production deployment",
+  "quietWhileUnchanged": true,
+  "old15MinuteDeployAgentReenabled": false,
+  "requiresLocalHostAvailability": true
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findTooltip, ocrVariants, tooltipForOcr, type Bitmap } from './tooltipDetect'
+import { findTooltip, findTooltipAtScales, ocrVariants, tooltipForOcr, type Bitmap } from './tooltipDetect'
 
 function canvas(width: number, height: number, grey = 24): Bitmap {
   const data = new Uint8Array(width * height * 4)
@@ -48,6 +48,18 @@ function arrow(image: Bitmap, x: number, y: number) {
 }
 
 describe('game item tooltip', () => {
+  it('detects a normal-size UI on a 4K monitor independently of the item dimensions', () => {
+    const image = canvas(900, 500)
+    tooltip(image, 180, 120, 230, 25)
+    const found = findTooltipAtScales(image, { x: 250, y: 220 }, 2)
+    expect(found).not.toBeNull()
+    expect(found!.unit).toBeLessThan(2)
+    expect(ocrVariants(image, found!.rect, { x: 250, y: 220 }, found!.unit)[0]!.height).toBeGreaterThan(40)
+  })
+
+  it('rejects invalid DPI inputs', () => {
+    for (const unit of [0, -1, NaN, Infinity]) expect(findTooltipAtScales(canvas(50, 50), { x: 1, y: 1 }, unit)).toBeNull()
+  })
   it('finds the name box next to the cursor among inventory cells', () => {
     const image = canvas(600, 300)
     for (let x = 20; x < 580; x += 64) for (let y = 20; y < 280; y += 64) cell(image, x, y, 63)

@@ -85,8 +85,8 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
 
   const remember = (match: OcrQuestMatch) => {
     const previous = found.get(match.questId)
-    // For story chapters prefer the highest-confidence stage; when equal, keep the more advanced stage.
-    const betterStage = match.stageIndex != null && previous?.stageIndex != null && match.stageIndex > previous.stageIndex
+    // Equal confidence cannot justify skipping an earlier stage.
+    const betterStage = match.stageIndex != null && previous?.stageIndex != null && match.stageIndex < previous.stageIndex
       && Math.abs(match.score - previous.score) <= 0.05
     if (!previous || match.score > previous.score || betterStage || (match.stageIndex != null && previous.stageIndex == null)) {
       found.set(match.questId, {
@@ -121,7 +121,7 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
       .filter((hit) => hit.stageIndex != null)
     if (evidence.length === 1) {
       const { entry } = evidence[0]!
-      remember({ questId: entry.quest.id, name: entry.quest.name, score: 0.95, line: entry.quest.name, stageIndex: inferStoryStageIndex(text, entry.quest) ?? evidence[0]!.stageIndex })
+      remember({ questId: entry.quest.id, name: entry.quest.name, score: 0.95, line: entry.quest.name, stageIndex: inferStoryStageIndex(text, entry.quest) })
     }
   }
 

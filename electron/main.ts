@@ -9,7 +9,7 @@ import type { RaidMode } from '../src/domain/types.js'
 import { discoverEftLogs, normalizeSelectedLogsFolder } from './logDiscovery.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
 import { fetchPlayerProfile, resolveAccountIdsByNickname, clearPlayerSnapshotCache, humanizeNetworkError } from './playerProfileService.js'
-import { captureQuestFrame, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
+import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
@@ -103,7 +103,7 @@ function createWindow() {
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
       // overlays' questions (experimental:query) and log sync keep working. With `false` a minimized window kept
       // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
-      backgroundThrottling: true,
+      backgroundThrottling: false,
       // The players' exe: no DevTools at all (lockDevTools also covers the overlay windows and webviews).
       devTools: !releaseClient,
     },
@@ -169,7 +169,11 @@ app.whenReady().then(async () => {
   // The server laptop: no game features, the window waits minimized (closing it stops the server).
   if (serverMode) mainWindow?.minimize()
   // A friend's (or the owner's gaming) copy updates itself from the server laptop's site.
-  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: () => raidState.inRaid })
+  else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
+    if (raidState.inRaid) return true
+    const folder = watchedFolder || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
+    return folder ? (await readRaidState(folder)).inRaid : false
+  } })
   if (!serverMode) startExperimental({
     preload: join(appDir, '../../electron/preload.cjs'),
     load: loadRenderer,
@@ -599,6 +603,7 @@ function registerIpc() {
   ipcMain.handle('game:get-raid-state', () => raidState)
   ipcMain.handle('collector:scan-screen', () => scanScreenText())
   ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail)))
+  ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   ipcMain.handle('quests:recognize-png', async (_event, raw: unknown) => {
     if (typeof raw !== 'string' || raw.length > 18_000_000) throw new Error('Скриншот слишком большой')
     const payload = raw.replace(/^data:image\/\w+;base64,/, '')

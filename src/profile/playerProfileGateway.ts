@@ -43,7 +43,15 @@ export function desktopPlayerProfileGateway(): PlayerProfileGateway {
   if (!window.tarkovDesktop && usesWebAccount()) return serverPlayerProfileGateway()
   if (!window.tarkovDesktop) throw new Error('Профили Tarkov.dev доступны в desktop-приложении')
   return {
-    resolveByNickname: (mode, nickname) => window.tarkovDesktop!.resolvePlayerProfile(mode, nickname),
-    fetchByAccountId: (mode, accountId) => window.tarkovDesktop!.refreshPlayerProfile(mode, accountId),
+    resolveByNickname: async (mode, nickname) => {
+      const candidate = await window.tarkovDesktop!.resolvePlayerProfile(mode, nickname)
+      if (!candidate?.snapshot) throw new Error('Сервер не вернул профиль персонажа. Повторите позже.')
+      return candidate
+    },
+    fetchByAccountId: async (mode, accountId) => {
+      const snapshot = await window.tarkovDesktop!.refreshPlayerProfile(mode, accountId)
+      if (!snapshot) throw new Error('Сервер не вернул профиль персонажа. Повторите позже.')
+      return snapshot
+    },
   }
 }

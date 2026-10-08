@@ -5,8 +5,12 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
+import { runOcrJob } from './ocrQueue.js'
 import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
+import { screenshotsFolder } from './experimental/positionTracker.js'
+import { readFreshQuestScreenshot } from './questScreenshot.js'
+import { reuseQuestReading } from '../src/import/storyScanTiming.js'
 
 const require = createRequire(import.meta.url)
 interface OcrLine { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
@@ -43,9 +47,8 @@ let preparing: Promise<OcrWorker> | null = null
 const PROBE_SIZE = { width: 160, height: 90 }
 /** Mean per-channel difference (0–255) below which two probes count as the same picture. */
 const SAME_FRAME_DIFF = 3
-let lastWatch: { fingerprint: Buffer; text: string; sourceName: string; at: number } | null = null
-/** An unchanged picture is read again only this often (story pane / other menus). */
-const REREAD_SAME_MS = { detail: 6000, menu: 20_000 }
+let lastWatch: { fingerprint: Buffer; text: string; sourceName: string; at: number; detail: boolean } | null = null
+let lastScreenshot: { key: string; text: string; sourceName: string; observedAt: number } | null = null
 
 /**
  * The game's screen while it is in front: one GDI copy of its display (a few ms) instead of desktopCapturer,
@@ -71,13 +74,13 @@ export async function captureQuestFrame(watch = false, detail = false) {
     const image = grabGameDisplay()
     if (image) {
       const fingerprint = frameFingerprint(image)
-      const reuseFor = detail ? REREAD_SAME_MS.detail : REREAD_SAME_MS.menu
-      if (lastWatch && Date.now() - lastWatch.at < reuseFor && sameFrame(fingerprint, lastWatch.fingerprint)) {
-        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true }
+      const capturedAt = Date.now()
+      if (lastWatch && reuseQuestReading(lastWatch, capturedAt, detail, sameFrame(fingerprint, lastWatch.fingerprint))) {
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at }
       }
-      const result = await recognizeQuestImage(prepareImage(image, detail ? 1500 : 1100), 'EscapeFromTarkov')
-      lastWatch = { fingerprint, ...result, at: Date.now() }
-      return { ...result, gameWindow: true }
+      const result = await recognizeQuestImage(prepareImage(image, detail ? 1920 : 1100, !detail), 'EscapeFromTarkov')
+      lastWatch = { fingerprint, ...result, at: capturedAt, detail }
+      return { ...result, gameWindow: true, observedAt: lastWatch.at }
     }
   }
   if (watch) {
@@ -94,15 +97,16 @@ export async function captureQuestFrame(watch = false, detail = false) {
     }
     const fingerprint = probe.thumbnail.isEmpty() ? null : frameFingerprint(probe.thumbnail)
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
-    if (!detail && fingerprint && lastWatch && sameFrame(fingerprint, lastWatch.fingerprint)) {
-      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true }
+    if (fingerprint && lastWatch && reuseQuestReading(lastWatch, Date.now(), detail, sameFrame(fingerprint, lastWatch.fingerprint))) {
+      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
     const game = sources.find((source) => isTarkovWindow(source.name))
     if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game) }
-    const result = await recognizeQuestImage(prepareImage(game.thumbnail, detail ? 1500 : 1100), game.name)
-    lastWatch = fingerprint ? { fingerprint, ...result, at: Date.now() } : null
-    return { ...result, gameWindow: true }
+    const capturedAt = Date.now()
+    const result = await recognizeQuestImage(prepareImage(game.thumbnail, detail ? 1920 : 1100, !detail), game.name)
+    lastWatch = fingerprint ? { fingerprint, ...result, at: capturedAt, detail } : null
+    return { ...result, gameWindow: true, observedAt: capturedAt }
   }
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
@@ -115,7 +119,20 @@ export async function captureQuestFrame(watch = false, detail = false) {
   const prepared = prepareImage(preferred.thumbnail)
   const result = await recognizeQuestImage(prepared, preferred.name)
   const storedFrames = await persistFrame(prepared)
-  return { ...result, gameWindow, storedFrames }
+  return { ...result, gameWindow, storedFrames, observedAt: Date.now() }
+}
+
+/** Fallback for capture failures: a screenshot taken after this profile/mode watch started. */
+export async function captureQuestScreenshot(after: number) {
+  const file = await readFreshQuestScreenshot(screenshotsFolder(), after)
+  if (!file) return null
+  const key = `${file.file}:${file.modifiedAt}:${file.size}`
+  if (lastScreenshot?.key === key) return { ...lastScreenshot, gameWindow: true }
+  const image = nativeImage.createFromBuffer(file.data)
+  if (image.isEmpty()) return null
+  const result = await recognizeQuestImage(prepareImage(image, 1920, false), 'EFT screenshot')
+  lastScreenshot = { key, ...result, observedAt: file.modifiedAt }
+  return { ...lastScreenshot, gameWindow: true }
 }
 
 export async function recognizeQuestPng(png: Buffer, sourceName = 'screenshot') {
@@ -157,7 +174,7 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
   const image = nativeImage.createFromBitmap(Buffer.from(pixels.data.buffer, pixels.data.byteOffset, pixels.data.byteLength), { width: pixels.width, height: pixels.height })
   const ocr = await tooltipOcr()
   try {
-    const result = await ocr.recognize(image.toPNG())
+    const result = await runOcrJob(ocr, () => ocr.recognize(image.toPNG()))
     return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
   } finally {
     touchTooltip()
@@ -228,7 +245,10 @@ export async function scanScreenText() {
       tiles.push(h < 900 ? tile.resize({ width: Math.round(w * 1.8), quality: 'best' }) : tile)
     }
   }
-  const texts = await Promise.all(tiles.map((tile, index) => workers[index % workers.length]!.recognize(tile.toPNG()).then((result) => result.data.text ?? '').catch(() => '')))
+  const texts = await Promise.all(tiles.map((tile, index) => {
+    const worker = workers[index % workers.length]!
+    return runOcrJob(worker, () => worker.recognize(tile.toPNG())).then((result) => result.data.text ?? '')
+  }))
   touchStash()
   return { text: texts.join('\n'), gameWindow: Boolean(game) }
 }
@@ -254,7 +274,7 @@ async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: stri
   const ocr = await getWorker()
   try {
     const payload = Buffer.isBuffer(image) ? image : image.toPNG()
-    const result = await ocr.recognize(payload)
+    const result = await runOcrJob(ocr, () => ocr.recognize(payload))
     return { text: result.data.text ?? '', sourceName }
   } finally {
     touchQuestWorker()
@@ -286,13 +306,13 @@ function sameFrame(a: Buffer, b: Buffer) {
   return total / ((a.length / 4) * 3) < SAME_FRAME_DIFF
 }
 
-function prepareImage(image: NativeImage, maxWidth = 1500) {
+function prepareImage(image: NativeImage, maxWidth = 1500, cropTable = true) {
   const size = image.getSize()
   if (!size.width || !size.height) return image
   const widescreen = size.width / size.height >= 1.3 && size.width >= 700
   // The Tasks table and the story pane start at the very left edge (tabs, chapter title,
   // «Главные задачи»); only the right-hand «Предметы» panel is dropped.
-  const cropped = widescreen
+  const cropped = widescreen && cropTable
     ? image.crop({
         x: 0,
         y: 0,

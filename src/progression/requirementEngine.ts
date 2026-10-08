@@ -89,8 +89,8 @@ export function completedQuestStats(quests: Quest[], availability: Map<string, T
   return { completed: done.length, total: live.length, kappaCompleted: kappaDone.length, kappaTotal: kappa.length }
 }
 
-export function isLiveGameQuest(quest: { id: string; kind?: string }) {
-  return Boolean(quest.id) && !quest.id.startsWith('wiki:') && quest.kind !== 'story'
+export function isLiveGameQuest(quest: { id: string; kind?: string; storyChapterId?: string }) {
+  return Boolean(quest.id) && !quest.id.startsWith('wiki:') && quest.kind !== 'story' && !quest.storyChapterId
 }
 
 export function isStoryQuest(quest: { kind?: string }) {

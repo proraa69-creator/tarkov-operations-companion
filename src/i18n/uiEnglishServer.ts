@@ -58,6 +58,8 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   // Auto-update (UpdateButton, electron/appUpdate.ts)
   ['Обновить приложение', 'Update the app'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
   ['Ошибка обновления', 'Update failed'], ['Доступна новая версия', 'A new version is available'],
+  ['Уведомлять о наличии нового обновления', 'Notify when an update is available'],
+  ['Обновление отложено: сначала завершите рейд.', 'Update postponed: finish the raid first.'],
   ['Приложение перезапустится, настройки и прогресс сохранятся.', 'The app restarts; settings and progress are kept.'],
   ['Сервер не отдал файл: HTTP', 'The server did not send the file: HTTP'], ['Файл обновления повреждён, попробуйте ещё раз', 'The update file is damaged, try again'],
   ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],

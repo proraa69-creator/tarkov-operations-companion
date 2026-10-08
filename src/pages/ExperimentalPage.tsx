@@ -40,11 +40,17 @@ export function ExperimentalPage() {
   const [settings, setSettings] = useState<ExperimentalSettings | null>(null)
   const [status, setStatus] = useState<ExperimentalStatus | null>(null)
   const [adminRefused, setAdminRefused] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const perform = async <T,>(action: () => Promise<T>, done?: (value: T) => void) => {
+    setActionError('')
+    try { const value = await action(); done?.(value) }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'Не удалось выполнить действие.') }
+  }
 
   useEffect(() => {
     if (!api) return
-    void api.getSettings().then(setSettings)
-    const refresh = () => void api.getStatus().then(setStatus)
+    void api.getSettings().then(setSettings).catch((error: unknown) => setActionError(error instanceof Error ? error.message : 'Не удалось загрузить настройки.'))
+    const refresh = () => void api.getStatus().then(setStatus).catch((error: unknown) => setActionError(error instanceof Error ? error.message : 'Не удалось проверить функции мини-карты.'))
     refresh()
     const timer = window.setInterval(refresh, 2000)
     return () => window.clearInterval(timer)
@@ -53,12 +59,12 @@ export function ExperimentalPage() {
   const update = (patch: Partial<ExperimentalSettings>) => {
     if (!api || !settings) return
     setSettings({ ...settings, ...patch })
-    void api.updateSettings(patch).then(setSettings)
+    void perform(() => api.updateSettings(patch), setSettings)
   }
 
   const restartAsAdmin = () => {
     setAdminRefused(false)
-    void api?.relaunchAsAdmin().then((started) => setAdminRefused(!started))
+    if (api) void perform(() => api.relaunchAsAdmin(), (started) => setAdminRefused(!started))
   }
 
   const snippingConflict = Boolean(status && isPrintScreen(status.screenshotKey.keys) && status.snipping === 'on')
@@ -79,6 +85,8 @@ export function ExperimentalPage() {
         <section className="panel"><div className="panel-body">{uiText('Эти функции работают только в приложении для Windows.')}</div></section>
       ) : (
         <>
+          {actionError && <p className="notice error" role="alert">{actionError}</p>}
+          {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
           <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
             <div className="panel-body">
               <AlertTriangle size={18} />
@@ -142,6 +150,10 @@ export function ExperimentalPage() {
                   taken={[settings?.itemKey, settings?.collectorKey]}
                   onChange={(minimapKey) => update({ minimapKey })}
                 />
+                <div className="setting-row">
+                  <span><strong>{uiText('Размер мини-карты')}</strong><small>{settings?.minimapWidth ?? 420} px</small></span>
+                  <input type="range" min={280} max={720} step={20} value={settings?.minimapWidth ?? 420} aria-label={uiText('Размер мини-карты')} onChange={(event) => update({ minimapWidth: Number(event.target.value) })} />
+                </div>
                 <HotkeyRow
                   label="Клавиша сканирования предметов для коллекционера"
                   hint="Поместите все предметы для квеста «Коллекционер» в один контейнер."
@@ -163,7 +175,7 @@ export function ExperimentalPage() {
                 {snippingConflict && (
                   <div className="exp-note is-alert">
                     <p>{uiText(SNIPPING_NOTE)}</p>
-                    <button className="button ghost small" onClick={() => void api.openKeyboardSettings()}>{uiText('Открыть настройки клавиатуры Windows')}</button>
+                    <button className="button ghost small" onClick={() => void perform(() => api.openKeyboardSettings())}>{uiText('Открыть настройки клавиатуры Windows')}</button>
                   </div>
                 )}
                 <Toggle
@@ -182,12 +194,12 @@ export function ExperimentalPage() {
                 <div className="exp-folder">
                   <span className="muted">{status?.screenshotsFolder ?? '…'}{uiText(folderNote)}</span>
                   <span className="exp-folder-actions">
-                    <button className="button ghost small" onClick={() => void api.pickScreenshotsFolder().then(setSettings)}>{uiText('Выбрать папку со скриншотами')}</button>
+                    <button className="button ghost small" onClick={() => void perform(() => api.pickScreenshotsFolder(), setSettings)}>{uiText('Выбрать папку со скриншотами')}</button>
                     <button className="button ghost small" onClick={() => update({ screenshotsDir: '' })}>{uiText('Определить автоматически')}</button>
                   </span>
                 </div>
                 <div className="exp-actions exp-minimap-action">
-                  <button className="button ghost" onClick={() => void api.toggleMinimap()}>{uiText('Показать / скрыть мини-карту')}</button>
+                  <button className="button ghost" onClick={() => void perform(() => api.toggleMinimap())}>{uiText('Показать / скрыть мини-карту')}</button>
                 </div>
               </div>
             </section>

@@ -33,7 +33,10 @@ export function UpdateButton() {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     if (!api) return
-    void api.status().then(setStatus).catch(() => {})
+    void api.status().then((next) => {
+      setStatus(next)
+      if (next.state === 'downloading' || next.state === 'installing') setOpen(true)
+    }).catch(() => {})
     return api.onStatus((next) => {
       setStatus(next)
       // a download / restart the player did not start in the background (start-up auto-install) shows itself
@@ -42,6 +45,7 @@ export function UpdateButton() {
   }, [api])
   if (!api || status.state === 'idle') return null
   const busy = status.state === 'downloading' || status.state === 'installing'
+  if (!busy && !open && status.notify === false) return null
   const start = () => {
     setOpen(true)
     if (!busy) void api.install().then(setStatus).catch(() => {})
@@ -113,6 +117,7 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
         </ol>
 
         {failed && <p className="update-overlay-error">{uiText(status.error ?? 'Ошибка обновления')}</p>}
+        {status.blockedByRaid && <p className="update-overlay-error">{uiText('Обновление отложено: сначала завершите рейд.')}</p>}
         {!busy && <div className="update-overlay-actions">
           {failed
             ? <button type="button" className="button primary" onClick={onRetry}><RotateCcw size={15} />{uiText(' Повторить')}</button>

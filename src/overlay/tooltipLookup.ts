@@ -1,4 +1,4 @@
-import { findTooltip, ocrVariants, type Bitmap, type Rect } from './tooltipDetect.js'
+import { findTooltipAtScales, ocrVariants, type Bitmap, type Rect } from './tooltipDetect.js'
 
 /** A grab of the screen around the cursor (see TOOLTIP_CAPTURE). */
 export interface TooltipShot {
@@ -20,6 +20,8 @@ export interface TooltipReading<Answer, Shot extends TooltipShot> {
 
 export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
   grab: () => Promise<Shot | null>
+  /** A large item may place its tooltip outside the first crop. No game input is generated. */
+  grabWide?: () => Promise<Shot | null>
   recognize: (bitmap: Bitmap) => Promise<string>
   /** The item for an OCR line, or null. */
   match: (text: string) => Promise<Answer | null>
@@ -51,16 +53,18 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
   const read = new Set<string>()
   const tries: string[] = []
   let last: { shot: Shot; rect: Rect } | null = null
+  let wide = false
   for (;;) {
-    const shot = await steps.grab().catch(() => null)
-    const rect = shot ? findTooltip(shot.image, shot.cursor, shot.unit) : null
+    const shot = await (wide && steps.grabWide ? steps.grabWide() : steps.grab()).catch(() => null)
+    const found = shot ? findTooltipAtScales(shot.image, shot.cursor, shot.unit) : null
+    const rect = found?.rect ?? null
     if (shot && rect) {
       const key = tooltipKey(shot.image, rect)
       if (!last) steps.onTooltip?.(shot, rect)
       last = { shot, rect }
       if (!read.has(key)) {
         read.add(key)
-        for (const bitmap of ocrVariants(shot.image, rect, shot.cursor, shot.unit)) {
+        for (const bitmap of ocrVariants(shot.image, rect, shot.cursor, found!.unit)) {
           const text = await steps.recognize(bitmap).catch(() => '')
           tries.push(text)
           if (!text) continue
@@ -70,6 +74,7 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
       }
     }
     const elapsed = now() - started
+    if (!last && steps.grabWide && elapsed >= timing.intervalMs) wide = true
     if (elapsed >= (last ? timing.totalMs : timing.appearMs)) break
     await sleep(timing.intervalMs)
   }

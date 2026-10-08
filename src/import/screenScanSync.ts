@@ -1,6 +1,7 @@
 import type { ModeProgress, Quest, TaskRequirement } from '../domain/types'
 import { ocrKey, type QuestRowStatus } from './questOcr'
 import { reconcileWithSession, type QuestScanSession } from './questSession'
+import { applyStoryScan, type StoryScanMatch } from './storyScan'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
@@ -51,7 +52,7 @@ export interface ScreenScanOptions {
   now?: number
 }
 
-export type ScreenScanMatch = { questId: string; stageIndex?: number; status?: QuestRowStatus }
+export type ScreenScanMatch = StoryScanMatch & { status?: QuestRowStatus }
 
 export function applyScreenScanProgress(
   progress: ModeProgress,
@@ -62,8 +63,9 @@ export function applyScreenScanProgress(
   if (!matches.length) return progress
   const nowMs = options?.now ?? Date.now()
   const now = new Date(nowMs).toISOString()
-  const taskProgress = { ...progress.taskProgress }
   const byId = new Map(quests.map((quest) => [quest.id, quest]))
+  const storyMatches = matches.filter((match) => byId.get(match.questId)?.kind === 'story' && isCurrentRow(match.status))
+  const taskProgress = { ...applyStoryScan(progress, storyMatches, now).taskProgress }
   const previous = new Set((options?.previousSeenIds ?? []).filter(Boolean))
   const current = matches.filter((match) => match.questId && isCurrentRow(match.status))
   const seen = new Set(current.map((match) => match.questId))
@@ -77,6 +79,7 @@ export function applyScreenScanProgress(
   for (const match of current) {
     const taskId = match.questId
     if (taskId.startsWith('wiki:')) continue
+    if (byId.get(taskId)?.kind === 'story') continue
     const current = taskProgress[taskId]
     // Messages / reward screens repeat finished quest names, so only a table row with an explicit
     // «активно!» / «выполнено!» status can bring back a quest the scanner itself moved to completed.
@@ -103,7 +106,6 @@ export function applyScreenScanProgress(
   const prerequisites = new Set<string>()
   for (const taskId of confirmed) collectCompletePrerequisites(taskId, byId, confirmed, prerequisites, new Set())
 
-  const seenStoryCount = [...confirmed].filter((taskId) => byId.get(taskId)?.kind === 'story').length
   const traderSeen = [...confirmed].some((taskId) => byId.get(taskId)?.kind !== 'story')
 
   // Unseen quests stay current: switching trader tabs, scrolling or closing the menu must not drop them.
@@ -112,8 +114,7 @@ export function applyScreenScanProgress(
     if (seen.has(taskId)) continue
     const quest = byId.get(taskId)
     if (quest?.kind === 'story') {
-      // The story tab lists every active chapter; a chapter missing from it is not active.
-      if (seenStoryCount >= 1) delete taskProgress[taskId]
+      // A cropped detail pane is not the complete chapter list.
       continue
     }
     if (traderSeen && prerequisites.has(taskId)) {

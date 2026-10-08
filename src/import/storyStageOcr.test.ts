@@ -139,4 +139,30 @@ describe('story stage OCR', () => {
 `
     expect(inferStoryStageIndex(text, tour)).toBe(5)
   })
+
+  it('does not invent the next stage from a completed counter alone', () => {
+    expect(inferStoryStageIndex('Тур\nГлавные задачи\nВыжить на локации Развязка и выйти или посетить Развязку 3 раза\nПосетить Развязку\n3/3', tour)).toBeUndefined()
+  })
+
+  it('ignores later optional tasks when stage one is still active', () => {
+    expect(inferStoryStageIndex('Тур\nГлавные задачи\nВыбраться из Эпицентра\nОпциональные задачи\nПоговорить с Механиком\nВыжить на локации Завод', tour)).toBe(0)
+  })
+
+  it('keeps the earliest unfinished mandatory objective', () => {
+    expect(inferStoryStageIndex('Тур\nГлавные задачи\nВыбраться из Эпицентра\nПоговорить с Механиком', tour)).toBe(0)
+  })
+
+  it('does not mistake another objective counter for a completed visit', () => {
+    const text = 'Тур\nГлавные задачи\nВыжить на локации Таможня и выйти или посетить Таможню 3 раза\nПередать Лыжнику предметы из категории Стройматериалы 5/5'
+    expect(inferStoryStageIndex(text, tour)).toBe(7)
+  })
+
+  it('does not advance on an impossible OCR counter', () => {
+    expect(inferStoryStageIndex('Тур\nГлавные задачи\nПосетить Развязку\n8/3', tour)).toBe(4)
+  })
+
+  it('does not use quest description or an optional-only crop as stage evidence', () => {
+    expect(inferStoryStageIndex('Тур\nИстория\nЛыжник предложил поговорить с Механиком', tour)).toBeUndefined()
+    expect(inferStoryStageIndex('Тур\nОпциональные задачи\nПосетить Развязку', tour)).toBeUndefined()
+  })
 })

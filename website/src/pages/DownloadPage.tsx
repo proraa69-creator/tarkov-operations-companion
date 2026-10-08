@@ -12,6 +12,7 @@ export function DownloadButton({ large = true }: { large?: boolean }) {
       aria-disabled={!DOWNLOAD_AVAILABLE}
       onClick={(event) => { if (!DOWNLOAD_AVAILABLE) event.preventDefault() }}
       rel="noopener"
+      download="RaidOSClient.exe"
     >
       <Download aria-hidden="true" />
       Скачать для Windows

@@ -6,7 +6,7 @@ import { ChevronRight, Clock3, KeyRound, LockKeyhole, Map, PackageCheck, Route, 
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
-import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
@@ -27,7 +27,7 @@ export function DashboardPage() {
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
-  const currentQuests = data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress))
+  const currentQuests = data.quests.filter((quest) => isLiveGameQuest(quest) && isCurrentTrackedQuest(quest, progress))
   const onMap = (quest: typeof currentQuests[number], id: string) => {
     const stageIndex = currentStoryStageIndex(quest, progress)
     return questAppliesToMap(quest, id, stageIndex) && !quest.anyMap

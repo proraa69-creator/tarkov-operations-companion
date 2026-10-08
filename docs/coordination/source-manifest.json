@@ -1,0 +1,665 @@
+{
+  "format": 1,
+  "capturedAt": "2026-10-08T12:54:04.682Z",
+  "capturedAtBangkok": "Thursday, 8 October 2026 at 19:54:04 GMT+7",
+  "source": {
+    "repository": "https://github.com/proraa69-creator/tarkov-operations-companion",
+    "baseCommit": "ec0af4fdf3390fe3789a2c6e8af630ea7011240d",
+    "branch": "deploy-latest",
+    "remoteRefs": "b571855f9994e4569dbbc9120b3e4aaa2b05b5b3\trefs/heads/claude/default-mode-yfidwt\ndd50e16103717e75efc0c3efe9758fce260fe523\trefs/heads/claude/fervent-hawking-ygmwvd\nff47728373a9c33ba862d14f072bf32bbd0131a1\trefs/heads/claude/gallant-galileo-25trmy\nfba8b9a5733b9b3f20691958e3e4dfa74035cb02\trefs/heads/claude/intelligent-archimedes-sfaqbf\n5c6d1c17c33f40f5f433887e004aaa13c0d5669b\trefs/heads/claude/interface-russian-translation-fmvmog\nec0af4fdf3390fe3789a2c6e8af630ea7011240d\trefs/heads/claude/vibrant-ritchie-vy7uh2\n31416bcc414e1c44064597075c43ee745c93e23d\trefs/heads/codex/lava-web-settings\nc6500a2ed5f9232e04ead221241de1c55946823d\trefs/heads/main"
+  },
+  "release": {
+    "version": "0.5.4",
+    "build": 1791457737377,
+    "commit": "ec0af4f-overlay-story-update-complete",
+    "edition": "client",
+    "size": 203537167,
+    "sha256": "f9b126f7159336169bcbabc330786cbb11c7756913826fe24999adb6efcd0eef",
+    "signature": "/YmfU3gJGIDSQLORabk1Xzqu7L1gUtpkkxVUinzwauM155hLPS+QJCLqmH4LArRo7Gyrz5g9vvRwTtSnj2eWCg=="
+  },
+  "health": {
+    "ok": true,
+    "database": true
+  },
+  "service": "EnvironmentFiles=/etc/raidos/raidos-api.env (ignore_errors=no)\nWorkingDirectory=/opt/tarkov-operations-companion/server\nUser=raidos-api\nActiveState=active\nSubState=running",
+  "sourceFileCount": 104,
+  "caseCollisions": [],
+  "privateDataIncluded": false,
+  "credentialContentsRead": false,
+  "secretScreening": "Private-key blocks, GitHub token shapes and AWS access-key shapes; not a proof of absence of every secret",
+  "excluded": [
+    "Account databases/WAL/SHM",
+    "Environment files",
+    "Logs",
+    "Private keys",
+    "Built EXEs/ASAR/node_modules",
+    "Item screenshots and personal accounts"
+  ],
+  "files": [
+    {
+      "path": "electron/apiEnv.ts",
+      "action": "replace",
+      "size": 3001,
+      "sha256": "1e689758049f41efd315bde14ff18934cbd96684df42f444a46692b1d197a57b"
+    },
+    {
+      "path": "electron/appUpdate.test.ts",
+      "action": "replace",
+      "size": 6939,
+      "sha256": "5da8502ed8fb3edd35c4e1e06b995963034447b6da53755dabbd05fadef3658c"
+    },
+    {
+      "path": "electron/appUpdate.ts",
+      "action": "replace",
+      "size": 14384,
+      "sha256": "1a4fd1da02e296aecc2a4b80ee9ca4bdc13f9c46642cad33bcdcec3e26442767"
+    },
+    {
+      "path": "electron/appUpdatePolicy.test.ts",
+      "action": "add",
+      "size": 6440,
+      "sha256": "a00c62d674c83040add2b98969bdeeed855cf126d066d165ded478328e5bd1b5"
+    },
+    {
+      "path": "electron/experimental/index.ts",
+      "action": "replace",
+      "size": 44271,
+      "sha256": "bde744a30f5ff13ece71a2d013c8b33e8930166de6f6b6332660e9b9a6f32939"
+    },
+    {
+      "path": "electron/experimental/mapScreenshotRetention.ts",
+      "action": "add",
+      "size": 2710,
+      "sha256": "6f7a26fbfc6cfb2c18caf1836aa39e43a18806d1e0f5432d34264571b4f523fd"
+    },
+    {
+      "path": "electron/experimental/positionTracker.ts",
+      "action": "replace",
+      "size": 6860,
+      "sha256": "6a2cb4b7ba0f76b4bd1f9a9367a7b8ab4d3389d1270751e847a25229c52d077c"
+    },
+    {
+      "path": "electron/experimental/settings.ts",
+      "action": "replace",
+      "size": 5115,
+      "sha256": "e49d9b1d69b360ab4c06e964aa72b5bd97b1edfad77490a0380c39548f7ea058"
+    },
+    {
+      "path": "electron/main.ts",
+      "action": "replace",
+      "size": 40668,
+      "sha256": "4f2306d158915014d1ebaea74525b7c4a9a7ef9a123a1f23ce5056656ede5360"
+    },
+    {
+      "path": "electron/ocrQueue.test.ts",
+      "action": "add",
+      "size": 1186,
+      "sha256": "3476b968a5413f93db673a7325aa66c21883aa3d123dc710e4a15f26c062a224"
+    },
+    {
+      "path": "electron/ocrQueue.ts",
+      "action": "add",
+      "size": 482,
+      "sha256": "3f281fc09de30508224ede4d17e31c8647bad4e2f2dd8f07942a53bef39e37d8"
+    },
+    {
+      "path": "electron/preload.cjs",
+      "action": "replace",
+      "size": 9712,
+      "sha256": "c348c1a18da826b2587df7237e19ab4fb9887bfa8c713cb048b457231cb84549"
+    },
+    {
+      "path": "electron/preload.ts",
+      "action": "replace",
+      "size": 10810,
+      "sha256": "6a030b5e5cb587c55e9652f81aabda3d0798c0fd1623ec6f12a8098e67e8cc09"
+    },
+    {
+      "path": "electron/questScreenshot.test.ts",
+      "action": "add",
+      "size": 2008,
+      "sha256": "bbcbf5719a3316e065222dcfab93a2c7d04770fe69c1cb4dedcb869895a4ff92"
+    },
+    {
+      "path": "electron/questScreenshot.ts",
+      "action": "add",
+      "size": 1377,
+      "sha256": "5774f0071ffde8915ab22d54c4a3e5982e94089bcbdf9370c9c641ac02c57eed"
+    },
+    {
+      "path": "electron/screenOcr.ts",
+      "action": "replace",
+      "size": 16864,
+      "sha256": "4f0e9000bd475b0eb7df9b62650b49924d673d5b96c90bbe8b009d4d05864f1e"
+    },
+    {
+      "path": "electron/serviceGateway.ts",
+      "action": "replace",
+      "size": 38361,
+      "sha256": "42e281a378d6b83893a3e133712dbe9a0b4c54942af1c6682f9d321616ff344c"
+    },
+    {
+      "path": "electron/updateSigningKey.ts",
+      "action": "replace",
+      "size": 657,
+      "sha256": "7bf1ce2fda09f6a5ee478c5cd02324c139641b3b2661f42b45a3c4630c256262"
+    },
+    {
+      "path": "package.json",
+      "action": "replace",
+      "size": 3929,
+      "sha256": "cd8dc7ccca8d848d64aef5b35d0c16399e2ba6518019dd0504bf2d66545e3c4d"
+    },
+    {
+      "path": "scripts/cache-item-images.mjs",
+      "action": "add",
+      "size": 6960,
+      "sha256": "73b469310f09765dc736c8477e58cf74cb9bef2c16fed5c9ca0e20232f34c00b"
+    },
+    {
+      "path": "scripts/cache-item-images.test.mjs",
+      "action": "add",
+      "size": 1646,
+      "sha256": "23d85fd1ac6a06c822be5152aba7b09e2a7e8a760442e203dc242c54a29042f5"
+    },
+    {
+      "path": "scripts/pack-windows-native.cjs",
+      "action": "add",
+      "size": 2192,
+      "sha256": "48dc2e1f3e31d6da3e124622fc32e9ed26f8f74aa099896b00fa8524923109d5"
+    },
+    {
+      "path": "scripts/update-story-index.mjs",
+      "action": "add",
+      "size": 1400,
+      "sha256": "624dad75c998cd31c220dd9d73bcaf43f6a25b5164db37f2234b86a258bad7bc"
+    },
+    {
+      "path": "server/package-lock.json",
+      "action": "replace",
+      "size": 52792,
+      "sha256": "60f7d21973c30900a8e39139e4752e85a48a3761404b3ad07065175d607cd808"
+    },
+    {
+      "path": "server/src/services/catalogService.ts",
+      "action": "replace",
+      "size": 2071,
+      "sha256": "271317c350c6d131da616f42fee787c38338abefe5053a069e28c4b209d1ed75"
+    },
+    {
+      "path": "server/src/services/itemImageCache.test.ts",
+      "action": "add",
+      "size": 2833,
+      "sha256": "714b703312ae224df4559bdb15daf9855a4cc69d2a4c6c34c77b5b8cefc70638"
+    },
+    {
+      "path": "server/src/services/itemImageCache.ts",
+      "action": "add",
+      "size": 2268,
+      "sha256": "e5ad4dc1fbc4f6ed5dc5be34ba3e14c3b33910e49883d0d2ed5eed3cbe7262cd"
+    },
+    {
+      "path": "src/account/authFeatures.ts",
+      "action": "replace",
+      "size": 1148,
+      "sha256": "be892c6924dc1348109b56e88a759b5d1fef3c8717e27f395df817342c185d94"
+    },
+    {
+      "path": "src/app/App.test.tsx",
+      "action": "replace",
+      "size": 8067,
+      "sha256": "a703f3e2bf54d7509616fbcb6c1ee73908f1e29e8c8f6d54f144dc8e9420b6d8"
+    },
+    {
+      "path": "src/app/App.tsx",
+      "action": "replace",
+      "size": 6613,
+      "sha256": "294cdf48c98b65d536ba8d1ad5461396dabd5ac96306e9a5067d1e1cf7803e68"
+    },
+    {
+      "path": "src/components/AppUpdateSettings.tsx",
+      "action": "replace",
+      "size": 6026,
+      "sha256": "e1b52cf0a5f0fe34fb90142fb98c017714ae80d8b997b4e4122b749286c30288"
+    },
+    {
+      "path": "src/components/ExperimentalBridge.tsx",
+      "action": "replace",
+      "size": 8519,
+      "sha256": "371a32800dc36c59fb9cedf462f5c4d2e8b26cadfec08e74dc79635508f7bde9"
+    },
+    {
+      "path": "src/components/StoryObjectivesPanel.test.tsx",
+      "action": "add",
+      "size": 2019,
+      "sha256": "afcda6e791b63a4ec9bbe986315a18ff7c96592a7d50eb475636abf5501e035a"
+    },
+    {
+      "path": "src/components/StoryObjectivesPanel.tsx",
+      "action": "add",
+      "size": 1907,
+      "sha256": "6970c72265c4541719475328f8cae971152814ba6ae147c825dc740059ca4295"
+    },
+    {
+      "path": "src/components/StoryScreenScanner.tsx",
+      "action": "replace",
+      "size": 6726,
+      "sha256": "87d6a6f5b198eb3a3a96d604f0684b5adfe84083aa6fe0425d46d8b2a5560a9f"
+    },
+    {
+      "path": "src/components/UpdateButton.test.tsx",
+      "action": "add",
+      "size": 2644,
+      "sha256": "970df672c40d3e0a3ef11c6395153bb0d81e7f05398a32cf6b3f5aa4e3698727"
+    },
+    {
+      "path": "src/components/UpdateButton.tsx",
+      "action": "replace",
+      "size": 8161,
+      "sha256": "5085b242868a96c432d2c0204a62027f22b6bc267b597800dd0c2787adbf6500"
+    },
+    {
+      "path": "src/data/catalogSource.ts",
+      "action": "replace",
+      "size": 26234,
+      "sha256": "494df12662c3713a581b62fbe27d7b73f7b33454636976cdfc2d0662b9d3b481"
+    },
+    {
+      "path": "src/data/presetImage.test.ts",
+      "action": "replace",
+      "size": 2075,
+      "sha256": "47e23eb00a8ec8d022a51ea94c09e7e7019b8e810fe7767bf52bd2908778e1f8"
+    },
+    {
+      "path": "src/data/storyChapterSeeds.ts",
+      "action": "replace",
+      "size": 110671,
+      "sha256": "6d58247bacabfdcc60772b73d46ec93e7fcbdcd207903b95d57f1f607ff1a0f5"
+    },
+    {
+      "path": "src/data/storyChapters.test.ts",
+      "action": "replace",
+      "size": 5724,
+      "sha256": "97446ba8a4eaed1cbd8db2ba2df5ceb9ee0f24d8b480309a4aca6844ea004b8b"
+    },
+    {
+      "path": "src/data/storyChapters.ts",
+      "action": "replace",
+      "size": 16523,
+      "sha256": "f396832f73945414e656906155b23106697714d1e04909aad1519ef84484c6f0"
+    },
+    {
+      "path": "src/data/storyQuestIndex.ts",
+      "action": "add",
+      "size": 6942,
+      "sha256": "c0194efecc5c614f1350cac80eea3cb5b9e258ae9b76e135885d1fdc0bcaeaab"
+    },
+    {
+      "path": "src/domain/progress.test.ts",
+      "action": "replace",
+      "size": 5698,
+      "sha256": "0f62ab6aa083e9b4d551b18a264d484d0d515a41dd69e66907f51b8c82bd4422"
+    },
+    {
+      "path": "src/domain/progress.ts",
+      "action": "replace",
+      "size": 10630,
+      "sha256": "e5f421222595b9d6094f1024f06cb7b260aa8de2f0858e8adcfcf0625bb1f6cc"
+    },
+    {
+      "path": "src/domain/types.ts",
+      "action": "replace",
+      "size": 14059,
+      "sha256": "f297f223984d0d33904890541ca7193544fdbd76e155ceee7f62286305db9f19"
+    },
+    {
+      "path": "src/electron.d.ts",
+      "action": "replace",
+      "size": 19503,
+      "sha256": "f50891c1f50ec4a8ae151eaa8e478dc13068dfd443c0f0b85cbcee2ca4a810cc"
+    },
+    {
+      "path": "src/i18n/uiEnglishServer.ts",
+      "action": "replace",
+      "size": 14437,
+      "sha256": "e663edbe7b5e39c94c5743197862f31e4de5405126952774569735773bdd3c2a"
+    },
+    {
+      "path": "src/import/questOcr.test.ts",
+      "action": "replace",
+      "size": 9812,
+      "sha256": "232d0093bafb9a5756e0225240f0ebd842f557c59803f837f57a178b641f7029"
+    },
+    {
+      "path": "src/import/questOcr.ts",
+      "action": "replace",
+      "size": 17714,
+      "sha256": "09553b6dece0c9a111e7a52afc7001eabc5f345de4b7757b54a7196f3a1deea0"
+    },
+    {
+      "path": "src/import/screenScanSync.test.ts",
+      "action": "replace",
+      "size": 9249,
+      "sha256": "f8254d731d68ef1715e8d64d0fb660ccb5723babf6244bcf1a0b39026a283775"
+    },
+    {
+      "path": "src/import/screenScanSync.ts",
+      "action": "replace",
+      "size": 7882,
+      "sha256": "2f3b391077648bde7f6167e17a8c9589fbe637bd96da84262cb6e958654fe679"
+    },
+    {
+      "path": "src/import/storyObjectives.test.ts",
+      "action": "add",
+      "size": 4274,
+      "sha256": "f0eec863cc5683faf97141f9766f27e9121e4d767731c2e5b4246977b192ab02"
+    },
+    {
+      "path": "src/import/storyObjectives.ts",
+      "action": "add",
+      "size": 4041,
+      "sha256": "4e52c7574e5e1eada1b2cac1d22a686715398896af3e081e0769164230acb207"
+    },
+    {
+      "path": "src/import/storyScan.test.ts",
+      "action": "replace",
+      "size": 7948,
+      "sha256": "8bc43b278fe2e541ebe7fc17c692b42c088d1837d402550b41b54aba7c75b454"
+    },
+    {
+      "path": "src/import/storyScan.ts",
+      "action": "replace",
+      "size": 5412,
+      "sha256": "30507480c01f497eeba72aacbc39bb285997d966728421b15b522aa03fe9b128"
+    },
+    {
+      "path": "src/import/storyScanTiming.test.ts",
+      "action": "add",
+      "size": 1143,
+      "sha256": "8799f573cdb4b8b671ca01278d6517b101336f4194df80776278b55a7c63db96"
+    },
+    {
+      "path": "src/import/storyScanTiming.ts",
+      "action": "add",
+      "size": 570,
+      "sha256": "1707fc1071af1be58874bd098a96dab58e935c87945d9a732143ab5f9ea53bf8"
+    },
+    {
+      "path": "src/import/storyStageBatya.test.ts",
+      "action": "replace",
+      "size": 3861,
+      "sha256": "40dc888008352f17865e772aac67866c2ea7c2862a3761b3f4460f5771b02263"
+    },
+    {
+      "path": "src/import/storyStageOcr.test.ts",
+      "action": "replace",
+      "size": 7452,
+      "sha256": "6b5bc5e68918b96dce8075bb8e20878192b2e70fecfa1b8a5c8cebde03dedb86"
+    },
+    {
+      "path": "src/import/storyStageOcr.ts",
+      "action": "replace",
+      "size": 9657,
+      "sha256": "9797e857d7523419f01c66476e7ebcd99ccb696e5b9d949e3565520842e05f9e"
+    },
+    {
+      "path": "src/main.tsx",
+      "action": "replace",
+      "size": 3560,
+      "sha256": "1632d663ba1c0c9b961afe0ecc05641e7f2e7a3b0e2bbf68935a9ee4ed27d695"
+    },
+    {
+      "path": "src/overlay/OverlayApp.test.tsx",
+      "action": "add",
+      "size": 3660,
+      "sha256": "8c25561228c1fe8a733eea44a6d0bf9bb740c04885710619837c7bf321936176"
+    },
+    {
+      "path": "src/overlay/OverlayApp.tsx",
+      "action": "replace",
+      "size": 20647,
+      "sha256": "27657e209808b4ffd26bcc3e5dec9d675a2a3f8dbcecf7aec69bdce22f7049ae"
+    },
+    {
+      "path": "src/overlay/itemCardPlacement.test.ts",
+      "action": "add",
+      "size": 1868,
+      "sha256": "78be7e50aa4f1385e857797c3478aac3be1ad554d4dca9a9807739f1ba863cfd"
+    },
+    {
+      "path": "src/overlay/itemCardPlacement.ts",
+      "action": "add",
+      "size": 949,
+      "sha256": "b5135de4bc1e3eed06e51aa0f86bf7e04755a641f68d2dbaa4ac5055d783a4e7"
+    },
+    {
+      "path": "src/overlay/itemInfo.test.ts",
+      "action": "add",
+      "size": 1272,
+      "sha256": "212b5eb322db223e380e0e7b5148e40f9943a03e0abdca7ba89fc0428087e69d"
+    },
+    {
+      "path": "src/overlay/itemInfo.ts",
+      "action": "replace",
+      "size": 2444,
+      "sha256": "c36d65e713bb29342aeeb657b6b569c76d1313cc156dcdbd0187f4a8c016033f"
+    },
+    {
+      "path": "src/overlay/mapScreenshotRetention.test.ts",
+      "action": "add",
+      "size": 3690,
+      "sha256": "f17aedb5b603538d5ae2bd68a6851b57520f8a826f68aa5faa5610f41527582e"
+    },
+    {
+      "path": "src/overlay/minimapSize.test.ts",
+      "action": "add",
+      "size": 373,
+      "sha256": "705dc2893a9a6eab2d55b21bc167a5290d28d09f594d26c5a28dfd6d10c270b3"
+    },
+    {
+      "path": "src/overlay/minimapSize.ts",
+      "action": "add",
+      "size": 292,
+      "sha256": "25e7e8f75b5f8c24837475a3efc9837663a2764391d5bcbcc88d78b171a28eed"
+    },
+    {
+      "path": "src/overlay/overlay.css",
+      "action": "replace",
+      "size": 13983,
+      "sha256": "ad6b675800711e6d3aa3d185e681e7be05fdebfbd2d19a4f514b342f9de39d74"
+    },
+    {
+      "path": "src/overlay/tooltipDetect.test.ts",
+      "action": "replace",
+      "size": 6299,
+      "sha256": "018092df82cda5c1e238329a28c6532ad7643a4b4990c232332512f783dcabbb"
+    },
+    {
+      "path": "src/overlay/tooltipDetect.ts",
+      "action": "replace",
+      "size": 17100,
+      "sha256": "6a998a0dba8452c4a2077cdbc8f4400376871fbfa1f9740f24b6310eb71cf006"
+    },
+    {
+      "path": "src/overlay/tooltipLookup.test.ts",
+      "action": "replace",
+      "size": 4846,
+      "sha256": "3466331e720f9d5d00422f8a90d8e667c8243a105009e941a40e417558a8a4b9"
+    },
+    {
+      "path": "src/overlay/tooltipLookup.ts",
+      "action": "replace",
+      "size": 4701,
+      "sha256": "28befa4d0a7955ee7c1c50af8c1fbf6e1e7c4b8dbca43a7494db377d688b774d"
+    },
+    {
+      "path": "src/overlay/tooltipMatch.test.ts",
+      "action": "replace",
+      "size": 6619,
+      "sha256": "9664ae51e806c9e05ba5ad24eb8b5a6dd41235bc08bc30e58712903a8a3eea4d"
+    },
+    {
+      "path": "src/overlay/tooltipMatch.ts",
+      "action": "replace",
+      "size": 11831,
+      "sha256": "cede97c81db4a2835f0c88b01b50c88d38ae6183055a85bc60f7d537bc4bf363"
+    },
+    {
+      "path": "src/overlay/types.ts",
+      "action": "replace",
+      "size": 4518,
+      "sha256": "9aaa0f871d368a4ad1f928a5531870d647c779ffcc604191fb6b8c03782a94b8"
+    },
+    {
+      "path": "src/pages/DashboardPage.tsx",
+      "action": "replace",
+      "size": 12304,
+      "sha256": "21686ac895ebd70357f8c039f8d15f096df1cb423c60e6f54a676d6fb7a1a0fa"
+    },
+    {
+      "path": "src/pages/ExperimentalPage.test.tsx",
+      "action": "add",
+      "size": 2077,
+      "sha256": "c630365542b142223708f1bd07d9dc3689e77e7e87fa0a5ffb414564a2e74cec"
+    },
+    {
+      "path": "src/pages/ExperimentalPage.tsx",
+      "action": "replace",
+      "size": 17053,
+      "sha256": "5a57a9a7f66ef70464087aa364290b0f0d8d9031f6169cdbf1d6bd7079c403cf"
+    },
+    {
+      "path": "src/pages/MapsPage.tsx",
+      "action": "replace",
+      "size": 55190,
+      "sha256": "763aa6e997a4bf53cd3396df143dddc2b73ac769adb65c4dab9d7f665770f93a"
+    },
+    {
+      "path": "src/pages/QuestsPage.tsx",
+      "action": "replace",
+      "size": 12361,
+      "sha256": "593ebe35cc91e078ecb5cdf5583729dedeac04e3779a807fe88d71572538d70f"
+    },
+    {
+      "path": "src/pages/storyObjectives.css",
+      "action": "add",
+      "size": 711,
+      "sha256": "a5f3e20d00624959234cc2e67879943887e61fd817e10580ffe860b38ed345e6"
+    },
+    {
+      "path": "src/profile/playerProfileGateway.test.ts",
+      "action": "add",
+      "size": 995,
+      "sha256": "513b17ebe10e62c0ea075dfbf6c07c8c585b02433fd4984f7e41f984a6b99a30"
+    },
+    {
+      "path": "src/profile/playerProfileGateway.ts",
+      "action": "replace",
+      "size": 2485,
+      "sha256": "9a6b9f83ffd2c752dd661e0d84415c1c3af960c3abba3bc8b0d3468b41ba5c31"
+    },
+    {
+      "path": "src/progression/questSections.test.ts",
+      "action": "add",
+      "size": 2254,
+      "sha256": "12a4f79896d3e9867280b512fafd82665f52e539eb8761c53b7216117f05c98c"
+    },
+    {
+      "path": "src/progression/questSections.ts",
+      "action": "add",
+      "size": 808,
+      "sha256": "6e4331c9ee3072efaf35f89aa0478d52e38fbefcd59bf1731f10ada117d0d51a"
+    },
+    {
+      "path": "src/progression/requirementEngine.ts",
+      "action": "replace",
+      "size": 6014,
+      "sha256": "6a60c61cdd3a3ece748ae496f52556a49b24835c60fc1d83c49143cae308e29e"
+    },
+    {
+      "path": "src/progression/storyObjectives.ts",
+      "action": "add",
+      "size": 1193,
+      "sha256": "adda01041557dc7a900946fe3b30e4393716727a3575b2b7bc90bc1bdcede6a1"
+    },
+    {
+      "path": "src/styles/global.css",
+      "action": "replace",
+      "size": 13986,
+      "sha256": "c28f1e7c949d57accf265e3c2a8986fb2b9076c6508ce823e7d19931ab80ae91"
+    },
+    {
+      "path": "src/styles/updateOverlay.css",
+      "action": "replace",
+      "size": 4421,
+      "sha256": "b918b026741defece3c0902d58989ecaf9de1fc8729f8dc22031d548b5e17ea4"
+    },
+    {
+      "path": "website/src/components/admin/AdminUpdate.tsx",
+      "action": "replace",
+      "size": 22669,
+      "sha256": "d6b5b0f930f29b4d1d7254c7fc3472d011e6b1049b382dd4e64ccb2c0fe98088"
+    },
+    {
+      "path": "website/src/components/admin/AdminUsers.tsx",
+      "action": "replace",
+      "size": 16362,
+      "sha256": "f1ec7a7b9710fb169d76e4fcc08c2e0b478c1e423f4ac3efdf54a924fa193bb5"
+    },
+    {
+      "path": "website/src/components/admin/serverExeDownload.test.tsx",
+      "action": "add",
+      "size": 1900,
+      "sha256": "81aa57745422141fc85f4739e108b7ef490b4ba745af408fc07c3d6f200a9683"
+    },
+    {
+      "path": "website/src/config.ts",
+      "action": "replace",
+      "size": 525,
+      "sha256": "091e294aa4303680b972ef5feb29c6018055fa06e8ccf0597197ae4b5869d621"
+    },
+    {
+      "path": "website/src/legal/documents.test.ts",
+      "action": "add",
+      "size": 1695,
+      "sha256": "c4aa0fa97c28d7779bba9a66b30da2cb9430cb09d3c0f03b6b1b49edd0e4c5a0"
+    },
+    {
+      "path": "website/src/legal/documents.ts",
+      "action": "replace",
+      "size": 45052,
+      "sha256": "2690a7ee630936d14f5f73519af0daa7253cff57ed134bce4b1a5d9628a6c9f7"
+    },
+    {
+      "path": "website/src/pages/AdminPage.tsx",
+      "action": "replace",
+      "size": 5643,
+      "sha256": "abbeb3a5d37bcc8d9d0ade035c81c7ccfb05f796bc1eefb506bec2b95c328bdf"
+    },
+    {
+      "path": "website/src/pages/CabinetPage.tsx",
+      "action": "replace",
+      "size": 31745,
+      "sha256": "93fbdc8983fd48ec4a9490e13b2bd69e87901e67a10322d5e0dbc0f24eee218e"
+    },
+    {
+      "path": "website/src/pages/DownloadPage.tsx",
+      "action": "replace",
+      "size": 1920,
+      "sha256": "ba8498bc78be7d9e45578d8ccd859cdbef2a8744685600660cd8e6a5d56433dd"
+    },
+    {
+      "path": "website/src/pages/LegalPage.tsx",
+      "action": "replace",
+      "size": 5754,
+      "sha256": "034bedb4dcff47ca31d4275dd37cdf5ac9ca85f3f19b0fb8b1f56a842875aa2b"
+    },
+    {
+      "path": "website/src/pages/subscriptionPreview.test.tsx",
+      "action": "add",
+      "size": 2565,
+      "sha256": "5670cc4c1c4f658a640782efbf28ff1db6af7313d00c7324f151821924c85cc4"
+    }
+  ],
+  "fingerprint": "92f6c0413be7da55cef79b639ba19c52c515fccce802338e032eac05c1bb7a09"
+}

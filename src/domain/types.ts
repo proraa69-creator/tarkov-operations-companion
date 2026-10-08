@@ -36,6 +36,19 @@ export interface TaskProgressRecord {
   updatedAt: string
   inferredFromTaskId?: string
   currentStageIndex?: number
+  /** Latest visible objectives, not a prediction from the chapter's sequence. */
+  storyObjectives?: StoryObjectiveReading[]
+}
+
+export interface StoryObjectiveReading {
+  id: string
+  text: string
+  optional: boolean
+  completed: boolean
+  /** Catalogue reference for map points only; never a displayed stage number. */
+  stageIndex?: number
+  current?: number
+  total?: number
 }
 
 /** Where an objective value came from. `sync` = another device / the server copy whose origin is unknown. */
@@ -324,6 +337,8 @@ export interface Quest {
   kappa: boolean
   kind?: 'trader' | 'story'
   storyOrder?: number
+  /** An internal story objective quest belongs to its chapter, not the trader task list. */
+  storyChapterId?: string
   description: string
   objectives: string[]
   stages?: QuestStage[]

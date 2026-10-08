@@ -63,7 +63,7 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
 /** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean }
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
@@ -208,7 +208,8 @@ interface TarkovDesktopApi {
   notify?: (title: string, body: string) => Promise<boolean>
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number }>
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number }>
+  captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number } | null>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   scanScreenText?: () => Promise<{ text: string; gameWindow: boolean }>
   recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
@@ -247,6 +248,7 @@ interface TarkovDesktopApi {
     (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
     (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
+    (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
   }
 }
 

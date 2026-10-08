@@ -9,6 +9,8 @@ import { readScreenshotBinding } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
 import { TOOLTIP_CAPTURE } from '../../src/overlay/tooltipDetect.js'
 import { readGameTooltip } from '../../src/overlay/tooltipLookup.js'
+import { itemCardBounds } from '../../src/overlay/itemCardPlacement.js'
+import { MapScreenshotRetention } from './mapScreenshotRetention.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { isTrustedAppPage } from '../ipcGuard.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
@@ -48,6 +50,7 @@ let options: Options
 let hook: UiohookModule | null = null
 let hookError = ''
 let itemWindow: BrowserWindow | null = null
+let itemCardAnchor: { window: BrowserWindow; point: Point; display: Display } | null = null
 let minimapWindow: BrowserWindow | null = null
 let keyTimer: NodeJS.Timeout | null = null
 let watchTimer: NodeJS.Timeout | null = null
@@ -121,6 +124,7 @@ const pending = new Map<number, (payload: unknown) => void>()
 const overlayPayloads = new WeakMap<BrowserWindow, Map<string, unknown>>()
 /** Overlay windows currently catching the mouse (pointer over a slider or the quest list). */
 const interactive = new WeakSet<BrowserWindow>()
+const mapScreenshotRetention = new MapScreenshotRetention()
 function sendOverlay(window: BrowserWindow | null, channel: string, payload: unknown) {
   if (!window || window.isDestroyed()) return
   let messages = overlayPayloads.get(window)
@@ -189,7 +193,7 @@ export function stopExperimental() {
 
 function registerIpc() {
   ipcMain.on('overlay:subscribe', (event, channel: unknown) => {
-    if (typeof channel !== 'string' || !['overlay:item', 'overlay:minimap', 'overlay:position'].includes(channel)) return
+    if (typeof channel !== 'string' || !['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || (window !== itemWindow && window !== minimapWindow)) return
     const messages = overlayPayloads.get(window)
@@ -254,9 +258,13 @@ function registerIpc() {
     const nextHeight = Math.min(h, area.height - 16)
     if (nextWidth === bounds.width && nextHeight === bounds.height) return
     if (window === itemWindow) {
-      // The item card keeps its top-left corner (next to the game's tooltip) and stays on screen.
+      if (itemCardAnchor?.window === window) {
+        placeItemCard(window, itemCardAnchor.point, itemCardAnchor.display, { width: nextWidth, height: nextHeight })
+        return
+      }
       const x = Math.max(area.x + 4, Math.min(bounds.x, area.x + area.width - nextWidth - 4))
-      window.setBounds({ x, y: bounds.y, width: nextWidth, height: nextHeight })
+      const y = Math.max(area.y + 4, Math.min(bounds.y, area.y + area.height - nextHeight - 4))
+      window.setBounds({ x, y, width: nextWidth, height: nextHeight })
       return
     }
     // Keep the top-right corner where it is.
@@ -320,6 +328,10 @@ function applySettings(settings: ExperimentalSettings) {
   if (appliedScreenshotsDir !== null && appliedScreenshotsDir !== settings.screenshotsDir) tracker.stop()
   appliedScreenshotsDir = settings.screenshotsDir
   setScreenshotsOverride(settings.screenshotsDir)
+  const map = minimapWindow && overlayPayloads.get(minimapWindow)?.get('overlay:minimap')
+  if (map && typeof map === 'object' && (map as { state?: string }).state === 'ready') {
+    sendOverlay(minimapWindow, 'overlay:minimap', { ...map, opacity: settings.minimapOpacity, minimapWidth: settings.minimapWidth, playerMarker: settings.playerMarker })
+  }
   if (settings.tracking) void tracker.start()
   else tracker.stop()
   // No automatic screenshots any more (the game's «screenshot taken» notice distracted the player): the app
@@ -337,7 +349,7 @@ function startHook() {
     const item = isVirtualKeyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
     const collectorVk = HOTKEYS[settings.collectorKey]?.vk
     const collector = collectorVk ? isVirtualKeyDown(collectorVk) : false
-    if (collector && !previousCollector && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+    if (collector && !previousCollector && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       options.mainWindow()?.webContents.send('experimental:collector-scan')
     }
@@ -367,6 +379,7 @@ function startHook() {
       const isMapKey = event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
       const collectorHook = HOTKEYS[settings.collectorKey]?.hook
       if (collectorHook && event.keycode === UiohookKey[collectorHook]) {
+        if (!isTarkovForeground()) return
         const stamp = Date.now()
         if (stamp - lastKeyAt >= KEY_REPEAT_MS) {
           lastKeyAt = stamp
@@ -418,7 +431,10 @@ async function takeScreenshot() {
   const key = await resolveScreenshotKey()
   if (!key.sendable) return false
   if (isPrintScreen(key.keys) && await snippingState() === 'on') return false
-  return pressScreenshotKeys(key)
+  const request = await mapScreenshotRetention.prepare(screenshotsFolder())
+  const successful = await pressScreenshotKeys(key)
+  mapScreenshotRetention.sent(request, successful, now)
+  return successful
 }
 
 async function pressScreenshotKeys(key: ScreenshotKeyInfo) {
@@ -444,7 +460,8 @@ const pressedBefore = (at: number) => recentPresses.some((press) => at >= press 
 const autoScreenshotsWork = () => filesAfterPress > 0 && pressesSinceFile < MISSES_BEFORE_BACKOFF && Date.now() - (recentPresses.at(-1) ?? 0) < 10_000
 
 /** Every new screenshot: counts the ones that followed the app's presses; the player's own may open the minimap. */
-function noteScreenshotFile(file: { name: string; withCoordinates: boolean; at: number }) {
+function noteScreenshotFile(file: { folder: string; name: string; withCoordinates: boolean; at: number }) {
+  void mapScreenshotRetention.observe(file)
   if (pressedBefore(file.at)) {
     filesAfterPress += 1
     pressesSinceFile = 0
@@ -535,7 +552,8 @@ function reassertOverlay(window: BrowserWindow) {
   // minimize/restore cycle. Re-apply the native flags before every display.
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  if (!interactive.has(window)) window.setIgnoreMouseEvents(true, { forward: true })
+  // Reasserting the native topmost styles can reset hit testing after hide/show.
+  window.setIgnoreMouseEvents(!interactive.has(window), { forward: true })
   window.moveTop()
 }
 
@@ -550,7 +568,7 @@ function showOverlay(window: BrowserWindow) {
 }
 
 function ensureItemWindow() {
-  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), 5 * 60_000, () => { itemWindow = null })
+  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), 5 * 60_000, () => { itemWindow = null; itemCardAnchor = null })
   return itemWindow
 }
 
@@ -574,6 +592,12 @@ function ensureMinimapWindow() {
     // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again.
     window.on('show', resyncMinimapClicks)
     window.on('restore', resyncMinimapClicks)
+    window.on('hide', () => {
+      if (dragTimer) clearInterval(dragTimer)
+      dragTimer = null
+      noteHold(minimapClicks, false, Date.now())
+      sendOverlay(window, 'overlay:visibility', false)
+    })
     minimapWindow = window
   }
   return minimapWindow
@@ -595,7 +619,7 @@ async function lookupItem(test: boolean) {
       const window = ensureItemWindow()
       await whenLoaded(window)
       const answer = await askRenderer('item', { text: '', test: true })
-      showItemCard(window, point, display, null, answer && typeof answer === 'object' ? answer : { state: 'not-found' })
+      showItemCard(window, point, display, answer && typeof answer === 'object' ? answer : { state: 'not-found' })
       return answer
     }
     // The card window may need a moment to open; the screen is watched for the tooltip meanwhile.
@@ -608,16 +632,17 @@ async function lookupItem(test: boolean) {
     // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
     const reading = await readGameTooltip({
       grab: () => grabAroundCursor(point, display),
+      grabWide: () => grabAroundCursor(point, display, true),
       recognize: (bitmap) => recognizeTooltip(bitmap),
       match: async (text) => {
         const reply = await askRenderer('item', { text, tooltip: true })
         return reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found' ? reply : null
       },
-      onTooltip: (shot, rect) => { void windowReady.then((window) => showItemCard(window, point, display, shot.toScreen(rect), { state: 'loading' })) },
+      onTooltip: () => { void windowReady.then((window) => showItemCard(window, point, display, { state: 'loading' })) },
     })
     const window = await windowReady
     if (!reading.shot || !reading.rect) {
-      showItemCard(window, point, display, null, { state: 'not-found' })
+      showItemCard(window, point, display, { state: 'not-found' })
       return null
     }
     if (!reading.answer) void logFailedLookup(reading.shot.image, reading.rect, reading.tries)
@@ -649,8 +674,9 @@ async function logFailedLookup(image: { width: number; height: number; data: Uin
   } catch { /* diagnostics only */ }
 }
 
-function showItemCard(window: BrowserWindow, point: Point, display: Display, tooltip: Rectangle | null, payload: unknown) {
-  placeItemCard(window, point, display, tooltip)
+function showItemCard(window: BrowserWindow, point: Point, display: Display, payload: unknown) {
+  itemCardAnchor = { window, point: { ...point }, display }
+  placeItemCard(window, point, display)
   sendOverlay(window, 'overlay:item', payload)
   showOverlay(window)
   followCursor(window, point)
@@ -671,33 +697,24 @@ function followCursor(window: BrowserWindow, origin: Point) {
   }, 80)
 }
 
-/**
- * Right under the game's tooltip, aligned with it — like a part of it — or, without a tooltip, just below
- * and to the right of the cursor. The card sizes itself to its content (overlay:resize) and stays on screen.
- */
-function placeItemCard(window: BrowserWindow, point: Point, display: Display, tooltip: Rectangle | null) {
-  const area = display.workArea
-  const { width, height } = window.getBounds()
-  let x = tooltip ? tooltip.x - 1 : point.x + 16
-  let y = tooltip ? tooltip.y + tooltip.height + 3 : point.y + 22
-  if (y + height > area.y + area.height - 4) y = tooltip ? tooltip.y - height - 3 : point.y - height - 12
-  if (x + width > area.x + area.width - 4) x = area.x + area.width - width - 4
-  window.setBounds({ x: Math.round(Math.max(area.x + 4, x)), y: Math.round(Math.max(area.y + 4, y)), width: width || ITEM_OVERLAY.width, height: height || ITEM_OVERLAY.height })
+/** Re-anchor every content resize to the hotkey's cursor, not a previous tooltip or window position. */
+function placeItemCard(window: BrowserWindow, point: Point, display: Display, size: { width: number; height: number } = window.getBounds()) {
+  window.setBounds(itemCardBounds(point, display.workArea, size))
 }
 
 /**
  * The screen around the cursor in physical pixels (BGRA) with the cursor position in it: a GDI copy of just
  * that area when possible (milliseconds), otherwise a crop of a full desktopCapturer grab.
  */
-async function grabAroundCursor(point: Point, display: Display) {
+async function grabAroundCursor(point: Point, display: Display, wide = false) {
   const physicalDisplay = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
   const unit = physicalDisplay.height / 1080
   const cursor = process.platform === 'win32' ? screen.dipToScreenPoint(point) : point
   // Generous around the cursor: over a big item the tooltip may sit at the item's corner (TOOLTIP_CAPTURE).
-  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
-  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
-  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
-  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
+  const left = wide ? physicalDisplay.x : Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
+  const top = wide ? physicalDisplay.y : Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
+  const right = wide ? physicalDisplay.x + physicalDisplay.width : Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
+  const bottom = wide ? physicalDisplay.y + physicalDisplay.height : Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
   if (right - left < 40 || bottom - top < 20) return null
   const toScreen = (rect: Rectangle) => {
     const physical = { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height }
@@ -767,7 +784,7 @@ async function openMinimap(window: BrowserWindow, fromApp: boolean) {
   const settings = readSettings()
   const payload = await askRenderer('minimap', { location: raid.location, fromApp })
   const ready = payload && typeof payload === 'object' && (payload as { state?: string }).state === 'ready'
-  sendOverlay(window, 'overlay:minimap', ready ? { ...payload, opacity: settings.minimapOpacity, playerMarker: settings.playerMarker } : payload ?? { state: 'no-data' })
+  sendOverlay(window, 'overlay:minimap', ready ? { ...payload, opacity: settings.minimapOpacity, minimapWidth: settings.minimapWidth, playerMarker: settings.playerMarker } : payload ?? { state: 'no-data' })
   sendOverlay(window, 'overlay:position', freshPosition())
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const area = display.workArea
@@ -780,6 +797,7 @@ async function openMinimap(window: BrowserWindow, fromApp: boolean) {
   window.setBounds(onScreen && saved ? { x: saved.x, y: saved.y, width, height } : { x: area.x + area.width - width - 24, y: area.y + 24, width, height })
   showOverlay(window)
   watchMinimapHits(window)
+  sendOverlay(window, 'overlay:visibility', true)
   return true
 }
 

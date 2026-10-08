@@ -8,23 +8,20 @@ import { foldOcrGlyphs, ocrKey } from './questOcr'
 export function inferStoryStageIndex(text: string, quest: Quest): number | undefined {
   if (quest.kind !== 'story' || !quest.stages?.length) return undefined
   const objectives = objectivesSection(text)
+  if (!objectives) return undefined
   const haystack = ocrKey(objectives)
   const folded = foldOcrGlyphs(objectives.toLowerCase())
   // Keep digits intact for counters like 0/3 (foldOcrGlyphs turns 3→з).
-  const plain = objectives.toLowerCase().replace(/ё/g, 'е')
-
-  // Live Tasks UI: Interchange survive/visit is Tour stage 5 (index 4). Only the objectives
-  // block counts — the quest list beside it also shows «Развязка» and «Любая локация».
-  const interchangeIndex = quest.stages.findIndex((stage) => stage.mapIds.includes('interchange'))
-  const interchangeVisible = interchangeIndex >= 0 && /развязк/.test(folded) && /(выжи[тл]|вый[тд]|посетит)/.test(folded)
-  if (interchangeVisible) {
-    const stage = quest.stages[interchangeIndex]!
-    if (!stageLooksComplete(stage, plain, folded, haystack)) return interchangeIndex
-  }
+  const plain = objectivesSection(text, true).toLowerCase().replace(/ё/g, 'е')
 
   const hits: Array<{ index: number; score: number; done: boolean; talk: boolean }> = []
   quest.stages.forEach((stage, index) => {
-    const score = stageMatchScore(stage, haystack, folded)
+    // Words from separate objectives must not combine into a fictional later stage.
+    const lines = objectives.split(/\r?\n/).filter((line) => line.trim())
+    const score = Math.max(0, ...lines.map((line, position) => {
+      const wrapped = `${line} ${lines[position + 1] ?? ''}`
+      return Math.max(stageMatchScore(stage, ocrKey(line), foldOcrGlyphs(line.toLowerCase())), exactStageScore(stage, wrapped))
+    }))
     if (score < 0.55) return
     hits.push({
       index,
@@ -37,28 +34,23 @@ export function inferStoryStageIndex(text: string, quest: Quest): number | undef
   dropAmbiguousRepeats(hits, quest.stages)
 
   const incomplete = hits.filter((hit) => !hit.done)
-  if (!incomplete.length) {
-    const lastDone = Math.max(...hits.filter((hit) => hit.done).map((hit) => hit.index), -1)
-    if (lastDone >= 0) return Math.min(lastDone + 1, quest.stages.length - 1)
-    return hits.sort((a, b) => b.score - a.score)[0]?.index
-  }
+  // A finished counter is not evidence that the next objective is open.
+  if (!incomplete.length) return undefined
 
   // Only stages read about as well as the best one compete: a stage whose words were merely scattered over other
   // lines («…отряде «Богатыри»» in several Batya stages) must never beat the objective written out in full.
   const best = Math.max(...incomplete.map((hit) => hit.score))
   const strong = incomplete.filter((hit) => hit.score >= best - 0.08)
-  // Among those, prefer map/raid objectives over «поговорить с …» (the UI lists prior talks).
-  const mapHits = strong.filter((hit) => !hit.talk)
-  const pool = mapHits.length ? mapHits : strong
-  return pool.sort((a, b) => b.score - a.score || b.index - a.index)[0]?.index
+  // Several mandatory objectives may be visible together. Never skip an earlier unfinished one.
+  return strong.sort((a, b) => a.index - b.index)[0]?.index
 }
 
 /**
  * Repeated titles («Поговорить с Лыжником» twice in Tour): a later copy only counts when the
  * stage before it is visible too; otherwise keep the earliest copy.
  */
-function dropAmbiguousRepeats(hits: Array<{ index: number }>, stages: QuestStage[]) {
-  const hitIndexes = new Set(hits.map((hit) => hit.index))
+function dropAmbiguousRepeats(hits: Array<{ index: number; done: boolean }>, stages: QuestStage[]) {
+  const hitIndexes = new Set(hits.filter((hit) => hit.done).map((hit) => hit.index))
   const byTitle = new Map<string, number[]>()
   for (const hit of hits) {
     const key = ocrKey(stages[hit.index]?.title ?? '')
@@ -91,14 +83,37 @@ export function storyStageEvidence(text: string, quest: Quest): number | undefin
   return found
 }
 
+export function hasExactStoryStageEvidence(text: string, quest: Quest, index: number) {
+  const stage = quest.stages?.[index]
+  return Boolean(stage && exactStageScore(stage, objectivesSection(text)))
+}
+
 /** Prefer the «Главные задачи» block so trader chrome / chapter list do not steal the stage. */
-function objectivesSection(text: string) {
+function objectivesSection(text: string, includeOptional = false) {
   // The left edge of the pane can be cut: «вные задачи» / «ные задачи» still mark the block.
-  const match = text.match(/(?:главн(?:ые|ая)|(?<![а-яё])[а-яё]{0,4}ные)\s*задач[\s\S]{0,1200}/i)
-  if (match) return match[0]
-  const optional = text.match(/опциональн[\s\S]{0,800}/i)
-  if (optional) return optional[0]
-  return text
+  const match = text.match(/(?:главн(?:ые|ая)|(?<![а-яё])[а-яё]{0,4}ные)\s*задач[^\r\n]*|main\s+(?:tasks|objectives)/i)
+  if (!match || match.index == null) return ''
+  const block = text.slice(match.index + match[0].length, match.index + 4000)
+    .split(/(?:связанные\s*предметы|стартовое\s*снаряжение|награды|related\s*items|rewards)/i)[0]!
+  return includeOptional ? block : block.split(/(?:опциональн|(?<![а-яё])[а-яё]{0,4}иональн)[а-яё]*\s*задач[^\r\n]*|optional\s+(?:tasks|objectives)/i)[0]!
+}
+
+function exactStageScore(stage: QuestStage, text: string) {
+  const key = ocrKey(text)
+  return [stage.title, ...(stage.ocrAliases ?? [])].some((alias) => {
+    const needle = ocrKey(alias)
+    return needle.length >= 14 && key.includes(needle)
+  }) ? 1 : 0
+}
+
+/** Completed stages only count when their own objective and matching completion evidence are visible. */
+export function completedStoryStageIndexes(text: string, quest: Quest): number[] {
+  const main = objectivesSection(text)
+  const all = objectivesSection(text, true)
+  if (!main) return []
+  return (quest.stages ?? []).flatMap((stage, index) => (
+    exactStageScore(stage, main) && stageLooksComplete(stage, all.toLowerCase().replace(/ё/g, 'е'), '', ocrKey(all)) ? [index] : []
+  ))
 }
 
 function stageMatchScore(stage: QuestStage, haystack: string, folded: string) {
@@ -139,11 +154,15 @@ function stageLooksComplete(stage: QuestStage, plain: string, _folded: string, h
   const total = stage.progressTotal
   if (total && total > 1) {
     const progress = findProgress(plain, stage)
-    if (progress && progress.current >= progress.total) return true
-    if (progress && progress.current < progress.total) return false
+    if (progress && progress.total === total && progress.current === total) return true
+    if (progress && progress.total === total && progress.current < total) return false
   }
-  const titleKey = ocrKey(stage.title)
-  if (titleKey.length >= 8 && new RegExp(`${titleKey}.{0,24}(выполн|готово|completed)`, 'i').test(haystack)) return true
+  const lines = plain.split(/\r?\n/).filter((line) => line.trim())
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!exactStageScore(stage, lines[index]!)) continue
+    if (/(?:выполнено|готово|completed)\s*[.!]?\s*$/i.test(lines[index]!)
+      || /^\s*(?:выполнено|готово|completed)\s*[.!]?\s*$/i.test(lines[index + 1] ?? '')) return true
+  }
   return false
 }
 
@@ -154,7 +173,7 @@ function findProgress(plain: string, stage: QuestStage) {
       const matches = [...plain.matchAll(new RegExp(`${mapWord}[\\s\\S]{0,96}?(\\d{1,2})\\s*/\\s*(\\d{1,2})`, 'g'))]
       if (matches.length) {
         const last = matches[matches.length - 1]!
-        return { current: Number(last[1]), total: Number(last[2]) }
+        if (Number(last[2]) === stage.progressTotal) return { current: Number(last[1]), total: Number(last[2]) }
       }
     }
   }

@@ -4,36 +4,19 @@ import { closeSync, createWriteStream, existsSync, mkdirSync, openSync, readFile
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { app } from 'electron'
 import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
 import { runningBuild } from './localServer.js'
 import { apiBaseUrl, loadServerUrl } from './serviceGateway.js'
 import { verifiedUpdateManifest } from './updateManifest.js'
 
-/**
- * Auto-update from the owner's server: the server laptop's site hands out the players' (client) exe the owner
- * published next to it (/download/windows) and says which build that is (/download/version.json with `edition`,
- * electron/localServer.ts). Only an app of the same edition updates from it, and only when the manifest's Ed25519
- * signature (scripts/sign-client-release.mjs) verifies with the key built into the app (electron/updateManifest.ts).
- * A newer build is offered in the top bar; «Обновить» downloads it next to this exe, checks size and SHA-256 against the
- * signed values, then a small helper replaces the exe once this copy has quit and starts the new one. Only for the
- * portable exe: a player's copy updates from the server built into it (https://raidos.app), the owner's copy from the
- * other computer's server it uses (Profile → «Адрес сервера»); the server laptop itself is updated by
- * Server-Laptop-Setup.cmd.
- *
- * Settings → «Проверить обновление приложения» checks by hand (checkForUpdateNow). Two switches, kept in userData
- * (update-settings.json): «Автообновление» — look for a new build on start and every few hours; «Автоустановка» —
- * put it in by itself at a safe moment: right after the start-up check (the app restarts at once, never while a raid
- * is on), otherwise it is downloaded in the background and swapped in when the app is closed.
- */
+// Automatic installation has exactly one opportunity per launch. Later checks only offer a manual update.
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
-/**
- * ready: the new exe is already downloaded and checked (installed on close when «Автоустановка» is on).
- * phase: while downloading, 'verifying' once all bytes are in and the size / SHA-256 are being checked.
- * background: a download «Автоустановка» started by itself (the renderer keeps it in the top bar, no full-screen window).
- */
-export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean }
+/** ready: verified download retained when a raid blocked installation. */
+export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean }
+// Preserve the existing persisted keys: autoCheck now controls notifications, autoInstall is startup-only.
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Result of a check by hand: what the settings line says. unsigned: the server's build has no valid signature (not offered). */
 export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'
@@ -41,8 +24,8 @@ export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: Update
 
 interface Remote { version: string; build: number; commit: string; size: number; sha256: string }
 
-const CHECK_DELAY_MS = 20_000
-const CHECK_EVERY_MS = 6 * 60 * 60_000
+const CHECK_DELAY_MS = 3_000
+const CHECK_EVERY_MS = 5 * 60_000
 const DEFAULT_SETTINGS: UpdateSettings = { autoCheck: true, autoInstall: false }
 
 let status: UpdateStatus = { state: 'idle' }
@@ -53,14 +36,16 @@ let timer: NodeJS.Timeout | null = null
 let firstCheck: NodeJS.Timeout | null = null
 /** startUpdateChecks was called: a normal (not server, not test) copy of the app. */
 let enabled = false
-let inRaid: () => boolean = () => false
+let inRaid: () => boolean | Promise<boolean> = () => false
 let settings: UpdateSettings | null = null
-/** The downloaded and checked exe waiting to be swapped in (auto-install on close). */
+/** A verified file retained for a later manual retry, never installed on close. */
 let downloaded: { file: string; build: number; size: number; sha256: string } | null = null
 let swapStarted = false
+let startupConsumed = false
+let checking: Promise<UpdateCheckOutcome> | null = null
 
 function set(next: UpdateStatus) {
-  status = next
+  status = { ...next, notify: updateSettings().autoCheck }
   notify(status)
 }
 
@@ -87,6 +72,12 @@ async function updateSource() {
 }
 
 async function probe(): Promise<UpdateCheckOutcome> {
+  if (checking) return checking
+  checking = probeOnce()
+  try { return await checking } finally { checking = null }
+}
+
+async function probeOnce(): Promise<UpdateCheckOutcome> {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (status.state === 'downloading' || status.state === 'installing') return 'busy'
   if (!exe) return 'not-portable'
@@ -95,7 +86,7 @@ async function probe(): Promise<UpdateCheckOutcome> {
   if (!base) return 'no-server'
   if (!local.build) return 'not-portable'
   try {
-    const response = await fetch(`${base}/download/version.json`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' } })
+    const response = await fetch(`${base}/download/version.json?ts=${Date.now()}`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' }, cache: 'no-store' })
     if (!response.ok) return 'offline'
     // Only the copy whose signature verified is used from here on (its size and SHA-256 check the download).
     const signed = verifiedUpdateManifest(await response.json())
@@ -146,29 +137,22 @@ export function setUpdateSettings(patch: unknown): UpdateSettings {
     writeFileSync(settingsFile(), JSON.stringify(next))
   } catch { /* kept for this session */ }
   schedule()
-  if (next.autoInstall && status.state === 'available') void autoInstall(false)
+  set(status)
   return next
 }
 
-/** A check made by the timer; with «Автоустановка» on, a found build is installed at a safe moment. */
 async function automaticCheck(startup: boolean) {
-  if (!updateSettings().autoCheck) return
-  if (await probe() === 'available' && updateSettings().autoInstall) await autoInstall(startup)
+  if (startup && startupConsumed) return
+  if (startup) startupConsumed = true
+  const preferences = updateSettings()
+  if (!preferences.autoCheck && !(startup && preferences.autoInstall)) return
+  // A launch inside a raid never queues an automatic installation for when that raid ends.
+  const startupSafe = startup && !(await raidBlocksInstall())
+  if (await probe() === 'available' && startupSafe && preferences.autoInstall && updateSettings().autoInstall) await installUpdate()
 }
 
-async function autoInstall(startup: boolean) {
-  if (!remote || status.state === 'downloading' || status.state === 'installing') return
-  // just started and not in a raid: restart on the new version right away; otherwise download now, swap on close
-  if (startup && !inRaid()) { await installUpdate(); return }
-  if (downloaded?.build === remote.build && existsSync(downloaded.file)) return
-  const target = remote
-  try {
-    const file = await download(target, true)
-    downloaded = { file, build: target.build, size: target.size, sha256: target.sha256 }
-    set({ state: 'available', version: target.version, commit: target.commit, ready: true })
-  } catch (error) {
-    set({ state: 'error', version: target.version, commit: target.commit, error: failure(error), background: true })
-  }
+async function raidBlocksInstall() {
+  try { return await inRaid() } catch { return true }
 }
 
 function schedule() {
@@ -177,22 +161,13 @@ function schedule() {
   timer = setInterval(() => void automaticCheck(false), CHECK_EVERY_MS)
 }
 
-export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean } = {}) {
+export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean | Promise<boolean> } = {}) {
   notify = onStatus
   if (options.inRaid) inRaid = options.inRaid
   if (enabled) return
   enabled = true
-  // «Автоустановка»: a build downloaded earlier in this session is swapped in once the app has quit (no restart).
-  app.on('will-quit', () => {
-    const exe = process.env.PORTABLE_EXECUTABLE_FILE
-    if (swapStarted || !exe || !downloaded || !updateSettings().autoInstall || !existsSync(downloaded.file)) return
-    // Checked again right before the swap: the file next to the exe may have been replaced since it was downloaded.
-    if (!fileMatches(downloaded.file, downloaded.size, downloaded.sha256)) { void rm(downloaded.file, { force: true }).catch(() => {}); downloaded = null; return }
-    swapStarted = true
-    try { startSwapHelper(exe, downloaded.file, false) } catch { /* the next start offers the update again */ }
-  })
   if (!app.isPackaged) return
-  if (updateSettings().autoCheck) firstCheck = setTimeout(() => { firstCheck = null; void automaticCheck(true) }, CHECK_DELAY_MS)
+  firstCheck = setTimeout(() => { firstCheck = null; void automaticCheck(true) }, CHECK_DELAY_MS)
   schedule()
 }
 
@@ -204,10 +179,13 @@ function failure(error: unknown) {
 /** Downloads the new exe (unless «Автоустановка» already did), checks it and hands over to the helper that swaps the files; the app then quits. */
 export async function installUpdate() {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
-  if (!exe || !remote || status.state === 'downloading' || status.state === 'installing') return status
+  if (!exe || !remote || swapStarted || status.state === 'downloading' || status.state === 'installing') return status
   const target = remote
   const base = { version: target.version, commit: target.commit }
+  // Reserve the operation before awaiting the live raid check (prevents concurrent IPC clicks).
+  set({ state: 'downloading', ...base, progress: 0 })
   try {
+    if (await raidBlocksInstall()) { set({ state: 'available', ...base, ready: downloaded?.build === target.build, blockedByRaid: true }); return status }
     const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : await download(target)
     // The signed size and SHA-256 once more, right before the helper swaps the file in (it may have changed on disk).
     if (!fileMatches(file, target.size, target.sha256)) {
@@ -215,10 +193,12 @@ export async function installUpdate() {
       if (downloaded?.file === file) downloaded = null
       throw new Error('Файл обновления изменился после проверки, скачайте обновление ещё раз')
     }
+    downloaded = { file, build: target.build, size: target.size, sha256: target.sha256 }
+    if (await raidBlocksInstall()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
     set({ state: 'installing', ...base, progress: 100 })
     swapStarted = true
     startSwapHelper(exe, file, true)
-    setTimeout(() => app.quit(), 300)
+    app.quit()
   } catch (error) {
     swapStarted = false
     set({ state: 'error', ...base, error: failure(error) })
@@ -227,11 +207,11 @@ export async function installUpdate() {
 }
 
 /** Downloads the new exe next to this one and checks its size and SHA-256 (the signed values, see probe); returns the file. */
-async function download(target: Remote, background = false) {
+async function download(target: Remote) {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe) throw new Error('Обновление доступно только для portable-версии')
   const partial = `${exe}.update`
-  const base = { version: target.version, commit: target.commit, ...(background ? { background } : {}) }
+  const base = { version: target.version, commit: target.commit }
   if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   set({ state: 'downloading', ...base, progress: 0 })
   try {
@@ -239,17 +219,19 @@ async function download(target: Remote, background = false) {
     if (!response.ok || !response.body) throw new Error(`Сервер не отдал файл: HTTP ${response.status}`)
     const hash = createHash('sha256')
     let received = 0, lastShown = 0
-    const out = createWriteStream(partial)
-    const failed = new Promise<never>((_, reject) => out.once('error', reject))
-    for await (const chunk of Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>)) {
-      const buffer = chunk as Buffer
-      hash.update(buffer)
-      received += buffer.length
-      if (!out.write(buffer)) await Promise.race([new Promise((resolve) => out.once('drain', resolve)), failed])
-      const progress = Math.min(99, Math.floor(received / target.size * 100))
-      if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
-    }
-    await Promise.race([new Promise<void>((resolve) => out.end(resolve)), failed])
+    // pipeline closes the writer even if the connection fails, allowing a clean retry on Windows.
+    await pipeline(
+      Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>),
+      new Transform({ transform(chunk: Buffer, _encoding, callback) {
+        received += chunk.length
+        if (received > target.size) { callback(new Error('Файл обновления повреждён, попробуйте ещё раз')); return }
+        hash.update(chunk)
+        const progress = Math.min(99, Math.floor(received / target.size * 100))
+        if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
+        callback(null, chunk)
+      } }),
+      createWriteStream(partial, { mode: 0o600 }),
+    )
     set({ state: 'downloading', ...base, progress: 100, phase: 'verifying' })
     if (received !== target.size || hash.digest('hex') !== target.sha256) throw new Error('Файл обновления повреждён, попробуйте ещё раз')
     return partial

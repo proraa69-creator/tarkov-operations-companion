@@ -28,6 +28,7 @@
     "build:local-server": "node scripts/build-local-server.mjs"
   },
   "build": {
+    "afterPack": "scripts/pack-windows-native.cjs",
     "appId": "local.tarkov.operations.companion",
     "productName": "Raid OS",
     "directories": {

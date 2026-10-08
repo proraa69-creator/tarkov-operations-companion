@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "snapshotPath": "docs/coordination",
+  "capturedAt": "2026-10-08T12:54:04.682Z",
+  "capturedAtBangkok": "Thursday, 8 October 2026 at 19:54:04 GMT+7",
+  "fingerprint": "92f6c0413be7da55cef79b639ba19c52c515fccce802338e032eac05c1bb7a09",
+  "baseCommit": "ec0af4fdf3390fe3789a2c6e8af630ea7011240d",
+  "publishedBuild": 1791457737377,
+  "codeFileCount": 104,
+  "archiveSha256": "c6c476fb5d39b59398880dd85b25f629c2f7cec8f6c205d4f0cd31be9eccfa31",
+  "sharedBranch": "sync/codex-claude-context",
+  "sharedDocumentationPath": "docs/coordination",
+  "automaticDeployment": false
+}

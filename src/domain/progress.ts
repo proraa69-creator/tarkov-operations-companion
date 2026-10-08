@@ -74,7 +74,8 @@ export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): Lo
   })
 }
 
-export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snapshot: PlayerProfileSnapshot): LocalProfile {
+export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snapshot: PlayerProfileSnapshot | null | undefined): LocalProfile {
+  if (!snapshot) return profile
   const current = profile.modes[mode].playerSnapshot
   if (current?.upstreamUpdatedAt && snapshot.upstreamUpdatedAt && snapshot.upstreamUpdatedAt < current.upstreamUpdatedAt) return profile
   if (!snapshot.upstreamUpdatedAt && current && snapshot.fetchedAt < current.fetchedAt) return profile

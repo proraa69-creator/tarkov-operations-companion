@@ -31,9 +31,13 @@ export function ExperimentalBridge() {
   useEffect(() => {
     if (!window.tarkovDesktop?.experimental) return
     let active = true
-    const timer = setTimeout(() => {
-      void loadItemNameVariants().then((names) => { if (active) setNameVariants(names) }).catch(() => {})
-    }, 3000)
+    let timer: ReturnType<typeof setTimeout>
+    const load = () => {
+      void loadItemNameVariants().then((names) => { if (active) setNameVariants(names) }).catch(() => {
+        if (active) timer = setTimeout(load, 30_000)
+      })
+    }
+    timer = setTimeout(load, 3000)
     return () => { active = false; clearTimeout(timer) }
   }, [])
   const tooltipMatcher = useMemo(() => createTooltipMatcher(data.items, nameVariants ?? undefined), [data.items, nameVariants])
@@ -106,9 +110,21 @@ export function ExperimentalBridge() {
   useEffect(() => {
     const api = window.tarkovDesktop?.experimental
     if (!api) return
+    let scanning = false
     return api.onCollectorScan(() => {
+      if (scanning) return
       const { data, state } = latest.current
-      void scanForCollectorItems(state.raidMode, collectorEntries(data.quests, data.items)).catch(() => {})
+      const notify = (message: string) => { void window.tarkovDesktop?.notify?.('Коллекционер', message).catch(() => {}) }
+      const entries = collectorEntries(data.quests, data.items)
+      if (!entries.length) { notify('Список предметов не загружен. Обновите каталог в приложении.'); return }
+      scanning = true
+      notify('Распознавание предметов началось.')
+      void scanForCollectorItems(state.raidMode, entries).then((result) => {
+        notify(result.ok
+          ? result.gameWindow ? `Найдено предметов: ${result.found}. Добавлено новых: ${result.added.length}.` : 'Окно игры не найдено. Откройте схрон и повторите сканирование.'
+          : 'Сканирование работает только в приложении для Windows.')
+      }).catch((error: unknown) => notify(error instanceof Error ? error.message : 'Не удалось распознать предметы.'))
+        .finally(() => { scanning = false })
     })
   }, [])
 

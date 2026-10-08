@@ -1,17 +1,18 @@
 import { useEffect, useRef } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { isStoryMenuText, matchStoryChapters } from '../import/storyScan'
+import { confirmStoryFrame, isStoryMenuText, matchStoryChapters, type StoryConfirmation } from '../import/storyScan'
 import { isTasksMenuText } from '../import/screenScanSync'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
+import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
 
 /** Game open, but not on the story pane: look again every few seconds. */
-const MENU_CHECK_MS = 4000
+const MENU_CHECK_MS = STORY_SCAN_TIMING.menuMs
 /** Story pane open: follow stage changes closely. */
-const STORY_PANE_MS = 1500
+const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
 /** Game closed or in a raid. */
-const IDLE_MS = 5000
+const IDLE_MS = STORY_SCAN_TIMING.idleMs
 
 /**
  * Background reader for story chapters — the game does not log them. Runs only outside raids,
@@ -51,36 +52,54 @@ export function StoryScreenScanner() {
 
     const loop = async () => {
       let previous = new Set<string>()
-      let previousStages = new Map<string, number | undefined>()
-      let onStoryPane = false
+      let confirmation: StoryConfirmation | null = null
       let lastContext = ''
+      let contextStartedAt = Date.now()
       while (!cancelled) {
-        let delay = IDLE_MS
+        let delay: number = IDLE_MS
         if (!inRaid) {
           try {
             const mode = modeRef.current
             const context = `${profileRef.current}:${mode}`
-            if (context !== lastContext) { previous = new Set(); lastContext = context }
-            const frame = await desktop.captureQuestFrame(true, onStoryPane)
+            if (context !== lastContext) {
+              previous = new Set(); confirmation = null
+              contextStartedAt = Date.now(); lastContext = context
+            }
+            // Capture failure must not skip the independent screenshot fallback.
+            // The first observation must retain small objective text too: a menu-quality probe
+            // would require a third OCR pass before an exact stage can be confirmed.
+            let frame = await desktop.captureQuestFrame(true, true).catch(() => null)
+            let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current) : []
+            if (!matches.some((match) => match.stageIndex != null) && desktop.captureQuestScreenshot) {
+              const screenshot = await desktop.captureQuestScreenshot(contextStartedAt)
+              const fresh = screenshot && Date.now() - screenshot.observedAt <= STORY_SCAN_TIMING.screenshotMaxAgeMs
+              const snapshotMatches = fresh ? matchStoryChapters(screenshot.text, questsRef.current) : []
+              if (snapshotMatches.some((match) => match.stageIndex != null)) { frame = screenshot; matches = snapshotMatches }
+            }
             if (cancelled) return
             if (context !== `${profileRef.current}:${modeRef.current}` || (detectedMode() && detectedMode() !== mode)) {
               previous = new Set()
+              confirmation = null
               await wait(IDLE_MS)
               continue
             }
-            if (frame.gameWindow) delay = MENU_CHECK_MS
-            if (frame.gameWindow && !inRaid && isStoryMenuText(frame.text)) {
+            if (frame?.gameWindow) delay = MENU_CHECK_MS
+            if (frame?.gameWindow && !inRaid && isStoryMenuText(frame.text)) {
               delay = STORY_PANE_MS
-              const matches = matchStoryChapters(frame.text, questsRef.current)
-              // A chapter must be read on two frames in a row before it counts, and so must its stage: one misread
-              // frame never moves the stage (up or down). An unconfirmed stage keeps the stored one.
-              const confirmed = matches
-                .filter((match) => previous.has(match.questId))
-                .map((match) => ({ questId: match.questId, stageIndex: match.stageIndex != null && previousStages.get(match.questId) === match.stageIndex ? match.stageIndex : undefined }))
+              const screenshot = frame.sourceName === 'EFT screenshot'
+              const checked = confirmStoryFrame(screenshot ? null : confirmation, context, frame.observedAt ?? 0, matches)
+              confirmation = screenshot ? null : checked.state
               previous = new Set(matches.map((match) => match.questId))
-              previousStages = new Map(matches.map((match) => [match.questId, match.stageIndex]))
-              if (confirmed.length) applyRef.current(mode, confirmed)
-            } else if (frame.gameWindow && !inRaid && isTasksMenuText(frame.text)) {
+              // One screenshot is one observation, even if the same file is read twice.
+              // Exact evidence can correct an old stage, but cannot authorize an unproven forward step.
+              if (screenshot) applyRef.current(mode, matches.filter(match => match.stageIndex != null))
+              else {
+                // Publish visible tasks on the first exact reading; sequence advancement still needs confirmation.
+                applyRef.current(mode, matches.filter(match => match.objectives?.length))
+                if (checked.confirmed.length) applyRef.current(mode, checked.confirmed)
+              }
+            } else if (frame?.gameWindow && !inRaid && isTasksMenuText(frame.text)) {
+              confirmation = null
               delay = STORY_PANE_MS
               const matches = matchQuestsFromOcr(frame.text, questsRef.current).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
               const currentIds = matches.map((match) => match.questId)
@@ -88,12 +107,15 @@ export function StoryScreenScanner() {
               previous = new Set(currentIds)
             } else {
               previous = new Set()
+              confirmation = null
             }
           } catch {
             previous = new Set()
+            confirmation = null
           }
+        } else {
+          previous = new Set(); confirmation = null
         }
-        onStoryPane = delay === STORY_PANE_MS
         await new Promise<void>((resolve) => {
           const timer = window.setTimeout(done, delay)
           function done() { window.clearTimeout(timer); wakeUp = null; resolve() }

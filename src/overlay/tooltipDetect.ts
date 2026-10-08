@@ -38,7 +38,7 @@ const MIN_HEIGHT = 17
 const MAX_HEIGHT = 56
 const MIN_WIDTH = 26
 /** Farthest a tooltip may be from the cursor (1080p px): over a big item it sits at the item's corner. */
-const MAX_DISTANCE = 560
+const MAX_DISTANCE = 760
 /** The mouse arrow drawn over the scene (when the capture includes it): about 13×21 px from the hotspot. */
 const CURSOR_BOX = { width: 15, height: 23 }
 
@@ -63,9 +63,13 @@ interface Candidate { rect: Rect; score: number }
  * `cursor` is where the mouse points in the image; the arrow drawn there (if captured) may cover part of the box.
  */
 export function findTooltip(image: Bitmap, cursor: { x: number; y: number }, unit = 1): Rect | null {
+  return findTooltipPrepared(image, cursor, unit, unit, luminanceMap(image))
+}
+
+function findTooltipPrepared(image: Bitmap, cursor: { x: number; y: number }, unit: number, distanceUnit: number, maps: ReturnType<typeof luminanceMap>): Rect | null {
   const { width, height } = image
   if (width < 20 || height < 20) return null
-  const { light, grey } = luminanceMap(image)
+  const { light, grey } = maps
   const minWidth = Math.round(MIN_WIDTH * unit)
   const minHeight = Math.round(MIN_HEIGHT * unit)
   const maxHeight = Math.round(MAX_HEIGHT * unit)
@@ -141,7 +145,19 @@ export function findTooltip(image: Bitmap, cursor: { x: number; y: number }, uni
       }
     }
   }
-  return best && best.score <= MAX_DISTANCE * unit ? best.rect : null
+  return best && best.score <= MAX_DISTANCE * distanceUnit ? best.rect : null
+}
+
+/** Game UI scaling is independent of the monitor's pixel density. */
+export function findTooltipAtScales(image: Bitmap, cursor: { x: number; y: number }, unit = 1) {
+  if (!Number.isFinite(unit) || unit <= 0) return null
+  const maps = luminanceMap(image)
+  for (const factor of [1, 0.75, 1.25, 0.5, 1.5, 2]) {
+    const scale = unit * factor
+    const rect = findTooltipPrepared(image, cursor, scale, unit, maps)
+    if (rect) return { rect, unit: scale }
+  }
+  return null
 }
 
 function inMask(mask: Rect, x: number, y: number) {

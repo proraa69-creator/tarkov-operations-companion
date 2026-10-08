@@ -5,6 +5,6 @@
  * only installs a build whose manifest this key verifies, so a changed exe on the laptop or a fake server cannot update it.
  */
 export const UPDATE_SIGNING_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAftYz8I2p4LRKazNh5xV9lKxpJXC9VJK7mdOa6qAQ9Zs=
+MCowBQYDK2VwAyEAKZvHCzEoTHopZz6UUs0JSWI3BRWiw951a58g3Fwos0U=
 -----END PUBLIC KEY-----
 `

@@ -19,6 +19,8 @@ export interface ItemOverlayInfo {
   name: string
   shortName: string
   iconUrl?: string
+  /** Standard assembled weapon, not a reconstruction of the player's attachments. */
+  weaponPreset?: boolean
   fleaPrice?: number
   bestTrader?: { name: string; price: number }
   quests: QuestNeed[]
@@ -46,7 +48,7 @@ export interface MinimapMarker {
 
 export type MinimapPayload =
   | { state: 'no-data'; reason?: string }
-  | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; playerMarker?: 'arrow' | 'chevron' | 'dot' }
+  | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; minimapWidth?: number; playerMarker?: 'arrow' | 'chevron' | 'dot' }
 
 /** A current quest that has at least one point on this map. */
 export interface MinimapQuest {
@@ -69,6 +71,7 @@ export interface ExperimentalSettings {
   minimapKey: string
   collectorKey: string
   minimapOpacity: number
+  minimapWidth?: number
   playerMarker: 'arrow' | 'chevron' | 'dot'
   screenshotsDir: string
   /** Where the player dragged the minimap; null = top-right corner. */

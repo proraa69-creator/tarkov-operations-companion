@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import { DEFAULT_ITEM_KEY, DEFAULT_MINIMAP_KEY, isKnownHotkey } from '../../src/overlay/hotkeys.js'
 import { SCREENSHOT_KEY_CHOICES } from '../../src/overlay/gameKeys.js'
+import { minimapWidth } from '../../src/overlay/minimapSize.js'
 
 export interface ExperimentalSettings {
   version: 3
@@ -21,6 +22,7 @@ export interface ExperimentalSettings {
   /** Empty string = no hotkey for the Collector item scan. */
   collectorKey: string
   minimapOpacity: number
+  minimapWidth: number
   playerMarker: 'arrow' | 'chevron' | 'dot'
   /** EFT screenshots folder chosen by hand; empty = auto-detect. */
   screenshotsDir: string
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   minimapKey: DEFAULT_MINIMAP_KEY,
   collectorKey: '',
   minimapOpacity: 0.9,
+  minimapWidth: 420,
   playerMarker: 'arrow',
   screenshotsDir: '',
   minimapPosition: null,
@@ -94,6 +97,7 @@ function sanitize(raw: unknown): ExperimentalSettings {
     minimapKey: isKnownHotkey(value.minimapKey) ? value.minimapKey : DEFAULT_MINIMAP_KEY,
     collectorKey: isKnownHotkey(value.collectorKey) ? value.collectorKey : '',
     minimapOpacity: Number.isFinite(Number(value.minimapOpacity)) ? Math.min(1, Math.max(0.3, Number(value.minimapOpacity))) : DEFAULT_SETTINGS.minimapOpacity,
+    minimapWidth: minimapWidth(value.minimapWidth),
     playerMarker: value.playerMarker === 'chevron' || value.playerMarker === 'dot' ? value.playerMarker : 'arrow',
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
     minimapPosition: readPoint(value.minimapPosition),

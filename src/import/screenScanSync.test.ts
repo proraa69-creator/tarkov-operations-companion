@@ -37,7 +37,7 @@ describe('screen scan sync after turn-in', () => {
     expect(next.taskProgress.checking?.status).toBe('active')
   })
 
-  it('drops phantom story chapters that are not in this scan', () => {
+  it('keeps other story chapters when only one detail pane is visible', () => {
     const tour: Quest = { id: 'story-tour', kind: 'story', name: 'Тур', trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [] }
     const maze: Quest = { id: 'story-labyrinth', kind: 'story', name: 'Лабиринт', trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [] }
     const progress = createModeProgress()
@@ -45,7 +45,7 @@ describe('screen scan sync after turn-in', () => {
     const next = applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [tour, maze])
     expect(next.taskProgress['story-tour']?.status).toBe('active')
     expect(next.taskProgress['story-tour']?.currentStageIndex).toBe(4)
-    expect(next.taskProgress['story-labyrinth']).toBeUndefined()
+    expect(next.taskProgress['story-labyrinth']).toBe(progress.taskProgress['story-labyrinth'])
   })
 
   it('does not wipe trader currents when only a story chapter is scanned', () => {

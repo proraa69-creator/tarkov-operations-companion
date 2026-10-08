@@ -39,6 +39,19 @@ function run(screens: Array<TooltipShot>, read: (index: number) => string, known
 }
 
 describe('reading the game tooltip after the key press', () => {
+  it('widens capture when a large item places the tooltip outside the initial crop', async () => {
+    let time = 0, wideGrabs = 0
+    const result = await readGameTooltip({
+      grab: async () => screen(null),
+      grabWide: async () => { wideGrabs++; return screen(0) },
+      recognize: async () => 'Большой рюкзак',
+      match: async text => text === 'Большой рюкзак' ? 'backpack' : null,
+      now: () => time,
+      sleep: async ms => { time += ms },
+    })
+    expect(result.answer).toBe('backpack')
+    expect(wideGrabs).toBe(1)
+  })
   it('waits for the tooltip the game shows a moment after pointing, reading only once it is there', async () => {
     const screens = [screen(null), screen(null), screen(null), screen(null), screen(0)]
     const result = await run(screens, () => 'Бинт', { 'Бинт': 'bandage' })

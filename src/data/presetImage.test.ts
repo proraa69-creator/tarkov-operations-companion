@@ -15,4 +15,14 @@ describe('presetImageFor', () => {
   it('gives nothing for items without a preset', () => {
     expect(presetImageFor({ id: 'ledx', properties: {} }, {})).toBeUndefined()
   })
+  it('uses the same model standard assembly for cosmetic editions with upstream placeholders', () => {
+    for (const [variant, standard] of [['6a15ae2ae5267ba21c07f98f', '5bb2475ed4351e00853264e3'], ['6a78b7f8c2016eb33e0027cd', '5cc82d76e24e8d00134b4b83']]) {
+      const weapon = { id: variant, properties: { defaultPreset: 'cosmetic-preset' } }
+      const raw = { [variant]: weapon, 'cosmetic-preset': { image512pxLink: 'https://assets.tarkov.dev/unknown-item-512.webp' }, [standard]: { id: standard, properties: { defaultPreset: 'standard-preset' } }, 'standard-preset': { image512pxLink: 'assembled.webp' } }
+      expect(presetImageFor(weapon, raw)).toBe('assembled.webp')
+    }
+  })
+  it('skips a placeholder before a valid grid image', () => {
+    expect(presetImageFor({ id: 'gun', properties: { defaultPreset: 'p' } }, { p: { image512pxLink: 'https://assets.tarkov.dev/unknown-item-512.webp', gridImageLink: 'assembled.webp' } })).toBe('assembled.webp')
+  })
 })

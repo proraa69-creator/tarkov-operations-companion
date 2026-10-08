@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { STORY_CHAPTER_SEEDS } from './storyChapterSeeds'
+import { STORY_QUEST_INDEX } from './storyQuestIndex'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { maps } from './demo'
 import { translateUiText } from '../i18n/uiEnglish'
@@ -9,6 +10,18 @@ import { translateUiText } from '../i18n/uiEnglish'
 const CYRILLIC = /[А-Яа-яЁё]/
 
 describe('curated story chapters', () => {
+  it('classifies every reference chapter and hides internal objectives from trader sections without duplicate chapters', () => {
+    const input = STORY_QUEST_INDEX.flatMap(row => [
+      { id: row.questId, normalizedName: row.id, name: row.name, trader: 'Narrator', level: 1, kappa: false, description: '', objectives: [], rewards: [] },
+      ...row.objectiveQuestIds.map(id => ({ id, name: 'Internal objective', trader: 'Narrator', level: 1, kappa: false, description: '', objectives: [], rewards: [] })),
+    ])
+    const classified = addMissingStoryChapters(input)
+    expect(classified.filter(quest => quest.kind === 'story')).toHaveLength(10)
+    for (const row of STORY_QUEST_INDEX) {
+      expect(classified.find(quest => quest.id === row.questId)).toMatchObject({ kind: 'story', storyOrder: row.order })
+      for (const id of row.objectiveQuestIds) expect(classified.find(quest => quest.id === id)?.storyChapterId).toBeTruthy()
+    }
+  })
   it('adds all ten chapters when the wiki gave none, in story order, with stages', () => {
     const quests = applyCuratedStoryStages(addMissingStoryChapters([]))
     expect(quests.map((quest) => quest.id)).toEqual([

@@ -103,6 +103,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   resolvePlayerProfile: (mode, nickname) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),
+  captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
   recognizeQuestPng: (image) => ipcRenderer.invoke('quests:recognize-png', image),
   scanScreenText: () => ipcRenderer.invoke('collector:scan-screen'),
   experimental: {
@@ -128,7 +129,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   overlayHold: (held) => ipcRenderer.send('overlay:hold', Boolean(held)),
   overlayZones: (zones) => ipcRenderer.send('overlay:zones', zones),
   onOverlay: (channel, callback) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position'].includes(channel)) return () => {}
+    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)
     ipcRenderer.send('overlay:subscribe', channel)
     return unsubscribe

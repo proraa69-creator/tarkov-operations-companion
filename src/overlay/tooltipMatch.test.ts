@@ -34,6 +34,11 @@ const ENGLISH = new Map<string, ItemNameVariant[]>([
 describe('item from the game tooltip', () => {
   const match = createTooltipMatcher(ITEMS, ENGLISH)
 
+  it('does not confuse different IDs with identical names', () => {
+    const duplicate = createTooltipMatcher([item('one', 'Одинаковый предмет', 'Один'), item('two', 'Одинаковый предмет', 'Два')])
+    expect(duplicate('Одинаковый предмет')).toBeNull()
+  })
+
   it('matches the whole name the tooltip shows, despite OCR slips', () => {
     expect(match('Шоколад "Аленка"')?.id).toBe('alenka')
     expect(match('Шоколaд «Алeнкa»')?.id).toBe('alenka')

@@ -11,6 +11,8 @@ import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
 import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
 import { MateBadge } from './MateBadge'
+import { minimapWidth } from './minimapSize'
+import { Grip, X, Scaling, Contrast } from 'lucide-react'
 
 export type OverlayKind = 'item' | 'minimap'
 
@@ -61,7 +63,7 @@ function ItemOverlay() {
       </div>
       {payload.keep && <KeepBadgeLine keep={payload.keep} />}
       <div className="eft-card-body">
-        {payload.iconUrl && <div className="eft-card-icon"><img src={payload.iconUrl} alt="" /></div>}
+        {payload.iconUrl && <div className={`eft-card-icon${payload.weaponPreset ? ' is-weapon' : ''}`}><img src={payload.iconUrl} alt={payload.weaponPreset ? uiText('Стандартная сборка оружия') : ''} title={payload.weaponPreset ? uiText('Стандартная сборка: обвесы и цвет могут отличаться') : undefined} /></div>}
         <dl className="eft-prices">
           <div><dt>{uiText('Барахолка')}</dt><dd>{uiText(payload.fleaPrice ? rub(payload.fleaPrice) : '—')}</dd></div>
           <div><dt>{uiText(trader ? trader.name : 'Торговец')}</dt><dd>{uiText(trader ? rub(trader.price) : '—')}</dd></div>
@@ -88,24 +90,29 @@ function MinimapOverlay() {
   const [position, setPosition] = useState<PlayerPosition | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [opacity, setOpacity] = useState(0.9)
+  const [width, setWidth] = useState(420)
   const [selectedQuest, setSelectedQuest] = useState<string | null>(null)
+  const [visibilityRevision, setVisibilityRevision] = useState(0)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const offMap = window.tarkovDesktop?.onOverlay?.('overlay:minimap', (next) => {
       setPayload(next)
-      setSelectedQuest(null)
       if (next.state === 'ready' && typeof next.opacity === 'number') setOpacity(next.opacity)
+      if (next.state === 'ready') setWidth(minimapWidth(next.minimapWidth))
     })
     const offPosition = window.tarkovDesktop?.onOverlay?.('overlay:position', setPosition)
+    const offVisibility = window.tarkovDesktop?.onOverlay?.('overlay:visibility', visible => {
+      if (visible) setVisibilityRevision(value => value + 1)
+    })
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => { offMap?.(); offPosition?.(); window.clearInterval(timer) }
+    return () => { offMap?.(); offPosition?.(); offVisibility?.(); window.clearInterval(timer) }
   }, [])
 
   // The overlay is click-through except over its controls.
-  useInteractiveZones(rootRef)
+  useInteractiveZones(rootRef, visibilityRevision, payload?.state)
   // The window follows the content: no empty frame around a wide or tall map.
-  useFitWindow(rootRef)
+  useFitWindow(rootRef, visibilityRevision)
 
   if (!payload) return <div ref={rootRef} className="ov-card ov-minimap-empty"><span className="ov-spinner" />{uiText("Загрузка карты…")}</div>
   if (payload.state === 'no-data') {
@@ -124,27 +131,39 @@ function MinimapOverlay() {
     void window.tarkovDesktop?.experimental?.updateSettings({ minimapOpacity: value })
   }
   return (
-    <div ref={rootRef} className="ov-minimap" style={{ '--ov-opacity': opacity } as CSSProperties}>
+    <div ref={rootRef} className="ov-minimap" style={{ '--ov-opacity': opacity, width } as CSSProperties}>
       <div
         className="ov-minimap-head ov-interactive ov-drag"
         title={uiText('Перетащите, чтобы передвинуть мини-карту')}
-        onMouseDown={(event) => {
+        onPointerDown={(event) => {
+          if (event.button !== 0) return
           if ((event.target as HTMLElement).closest('input, button, label')) return
           event.preventDefault()
+          event.currentTarget.setPointerCapture(event.pointerId)
           window.tarkovDesktop?.overlayDrag?.(true)
-          const end = () => { window.tarkovDesktop?.overlayDrag?.(false); window.removeEventListener('mouseup', end) }
-          window.addEventListener('mouseup', end)
         }}
+        onPointerUp={() => window.tarkovDesktop?.overlayDrag?.(false)}
+        onPointerCancel={() => window.tarkovDesktop?.overlayDrag?.(false)}
+        onLostPointerCapture={() => window.tarkovDesktop?.overlayDrag?.(false)}
       >
-        <span className="ov-drag-grip" aria-hidden="true">⠿</span>
-        <strong>{uiText(payload.map.name)}</strong>
+        <Grip className="ov-drag-grip" size={14} aria-hidden="true" />
+        <strong title={uiText(payload.map.name)}>{uiText(payload.map.name)}</strong>
         <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
-        <label className="ov-opacity ov-interactive" title={uiText('Прозрачность')}>
-          <span aria-hidden="true">◐</span>
-          <input type="range" min={30} max={100} step={5} value={Math.round(opacity * 100)} onChange={(event) => changeOpacity(Number(event.target.value) / 100)} />
+        <button className="ov-icon-button" type="button" title={uiText('Скрыть мини-карту')} aria-label={uiText('Скрыть мини-карту')} onClick={() => void window.tarkovDesktop?.experimental?.toggleMinimap()}><X size={14} /></button>
+      </div>
+      <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} selectedQuest={selectedQuest} />
+      <div className="ov-minimap-controls ov-interactive">
+        <label className="ov-opacity" title={uiText('Прозрачность')}><Contrast size={14} aria-hidden="true" />
+          <input aria-label={uiText('Прозрачность')} type="range" min={30} max={100} step={5} value={Math.round(opacity * 100)} onChange={(event) => changeOpacity(Number(event.target.value) / 100)} />
+        </label>
+        <label className="ov-opacity" title={uiText('Размер мини-карты')}><Scaling size={14} aria-hidden="true" />
+          <input aria-label={uiText('Размер мини-карты')} type="range" min={280} max={720} step={20} value={width} onChange={(event) => {
+            const value = minimapWidth(Number(event.target.value))
+            setWidth(value)
+            void window.tarkovDesktop?.experimental?.updateSettings({ minimapWidth: value })
+          }} />
         </label>
       </div>
-      <MinimapMap map={payload.map} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} selectedQuest={selectedQuest} />
       {quests.length > 0 && (
         <ul className="ov-quest-list ov-interactive">
           {quests.map((quest) => (
@@ -170,7 +189,7 @@ function formatAge(seconds: number) {
   return seconds < 90 ? `${seconds} с` : `${Math.round(seconds / 60)} мин`
 }
 
-function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>) {
+function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>, visibilityRevision: number, state: string | undefined) {
   useEffect(() => {
     const report = window.tarkovDesktop?.overlayZones
     if (!report) return
@@ -209,21 +228,23 @@ function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>) {
       window.removeEventListener('blur', up)
       hold?.(false)
     }
-  }, [rootRef])
+  }, [rootRef, visibilityRevision, state])
 }
 
-function useFitWindow(rootRef: RefObject<HTMLDivElement | null>) {
+function useFitWindow(rootRef: RefObject<HTMLDivElement | null>, visibilityRevision = 0) {
   useEffect(() => {
     const resize = window.tarkovDesktop?.overlayResize
     const element = rootRef.current
     if (!resize || !element) return
-    const observer = new ResizeObserver(() => resize(Math.ceil(element.offsetWidth + 8), Math.ceil(element.offsetHeight + 8)))
+    const fit = () => resize(Math.ceil(element.offsetWidth + 8), Math.ceil(element.offsetHeight + 8))
+    // A hidden window may reopen with unchanged content, so ResizeObserver alone is not enough.
+    const frame = requestAnimationFrame(fit)
+    const observer = new ResizeObserver(fit)
     observer.observe(element)
-    return () => observer.disconnect()
-  })
+    return () => { cancelAnimationFrame(frame); observer.disconnect() }
+  }, [rootRef, visibilityRevision])
 }
 
-const MINIMAP_WIDTH = 420
 
 /** Height the map needs at this width, from the projected map bounds (rotation included). */
 function mapAspect(map: GameMap) {
@@ -236,12 +257,12 @@ function mapAspect(map: GameMap) {
   return width > 0 && height > 0 ? height / width : 1
 }
 
-function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { map: GameMap; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; selectedQuest: string | null }) {
+function MinimapMap({ width, visibilityRevision, map, markers, position, playerMarker, selectedQuest }: { width: number; visibilityRevision: number; map: GameMap; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; selectedQuest: string | null }) {
   const crs = useMemo(() => createMapCrs(map), [map])
   // Stable between renders: the overlay re-renders every second (the «live» age), and a new bounds object
   // used to re-run the fit below — the map jumped back to the whole map and lost the player's zoom.
   const bounds = useMemo(() => toLeafletBounds(map), [map])
-  const height = Math.round(Math.min(560, Math.max(180, MINIMAP_WIDTH * mapAspect(map))))
+  const height = Math.round(Math.min(560, Math.max(180, width * mapAspect(map))))
   const base = map.layers?.find((layer) => layer.name === mainFloor(map))
   const tileUrl = base?.tileUrl ?? map.tileUrl
   const imageUrl = base?.imageUrl ?? map.imageUrl
@@ -249,7 +270,7 @@ function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { m
     <MapContainer
       key={map.id}
       className="ov-minimap-map ov-interactive"
-      style={{ width: MINIMAP_WIDTH, height }}
+      style={{ width, height }}
       crs={crs}
       bounds={bounds}
       boundsOptions={{ padding: [0, 0] }}
@@ -271,10 +292,23 @@ function MinimapMap({ map, markers, position, playerMarker, selectedQuest }: { m
       {markers.map((marker) => (
         <Marker key={marker.id} position={marker.position} icon={minimapIcon(marker.layerId, Boolean(selectedQuest && marker.questId === selectedQuest))} interactive={false} zIndexOffset={marker.questId === selectedQuest ? 500 : 0} />
       ))}
+      <MapSize width={width} height={height} visibilityRevision={visibilityRevision} />
       <FocusQuest markers={markers} questId={selectedQuest} bounds={bounds} />
       <PlayerMarker position={position} style={playerMarker} followDisabled={Boolean(selectedQuest)} />
     </MapContainer>
   )
+}
+
+function MapSize({ width, height, visibilityRevision }: { width: number; height: number; visibilityRevision: number }) {
+  const map = useMap()
+  useEffect(() => {
+    // MapContainer only applies its style prop on mount.
+    const container = map.getContainer()
+    container.style.width = `${width}px`
+    container.style.height = `${height}px`
+    map.invalidateSize({ animate: false })
+  }, [map, width, height, visibilityRevision])
+  return null
 }
 
 function FocusQuest({ markers, questId, bounds }: { markers: MinimapMarker[]; questId: string | null; bounds: LatLngBoundsExpression }) {

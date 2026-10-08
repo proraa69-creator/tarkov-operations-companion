@@ -8,7 +8,7 @@ import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
 import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
-import { AdminUpdate } from '../components/admin/AdminUpdate'
+import { AdminUpdate, ServerExeSection } from '../components/admin/AdminUpdate'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
@@ -67,6 +67,7 @@ export function AdminPage() {
           </div>
           <Link to="/cabinet" className="button ghost"><ArrowLeft aria-hidden="true" />Личный кабинет</Link>
         </div>
+        {auth.token && <ServerExeSection token={auth.token} />}
         <nav className="admin-tabs" role="tablist" aria-label="Разделы админ-панели">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" role="tab" id={`admin-tab-${id}`} aria-selected={tab === id} aria-controls="admin-tabpanel" className={`admin-tab${tab === id ? ' is-active' : ''}`} onClick={() => setParams(id === 'summary' ? {} : { tab: id }, { replace: true })}>

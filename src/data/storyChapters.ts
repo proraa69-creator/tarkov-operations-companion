@@ -1,5 +1,6 @@
 import type { Quest, QuestStage } from '../domain/types'
 import { STORY_BRANCHES, STORY_CHAPTER_SEEDS, STORY_NEEDS, TOUR_STAGE_POINTS, type StoryChapterSeed, type StoryStagePointSeed, type StoryStageSeed } from './storyChapterSeeds'
+import { STORY_QUEST_INDEX } from './storyQuestIndex'
 
 const talk = (id: string, title: string, description: string, aliases: string[]): QuestStage => ({
   id, title, description, mapIds: [], ocrAliases: aliases,
@@ -164,7 +165,7 @@ function seedStage(chapter: StoryChapterSeed, seed: StoryStageSeed, index: numbe
     optional: seed.optional,
     points: seed.points ? distinctPoints(seed.points) : undefined,
     // The Tasks → Story pane lists sub-objectives under the stage; any of them identifies it.
-    ocrAliases: [seed.ru.toLowerCase(), ...(seed.steps ?? []).map((step) => step.ru.toLowerCase())],
+    ocrAliases: [seed.ru.toLowerCase(), ...(seed.aliases ?? []).map((alias) => alias.toLowerCase()), ...(seed.steps ?? []).map((step) => step.ru.toLowerCase())],
   }
 }
 
@@ -205,6 +206,16 @@ export function applyCuratedStoryStages(quests: Quest[]): Quest[] {
  * does not load it). Chapters already present (matched by id, name or alias) are left to applyCuratedStoryStages.
  */
 export function addMissingStoryChapters(quests: Quest[], locale: 'ru' | 'en' = 'ru'): Quest[] {
+  quests = quests.map(quest => {
+    const chapter = STORY_QUEST_INDEX.find(row => row.questId === quest.id || `story-${row.id}` === quest.id || row.id === quest.normalizedName)
+    const curated = curatedFor(quest)
+    if (chapter || curated) {
+      const order = chapter?.order ?? [{ id: 'tour', order: 1 }, ...STORY_CHAPTER_SEEDS].find(row => CURATED[`story-${row.id}`] === curated)?.order
+      return { ...quest, normalizedName: quest.normalizedName ?? chapter?.id, kind: 'story' as const, storyOrder: order ?? quest.storyOrder }
+    }
+    const parent = STORY_QUEST_INDEX.find(row => (row.objectiveQuestIds as readonly string[]).includes(quest.id))
+    return parent ? { ...quest, storyChapterId: parent.id } : quest
+  })
   const missing = [{ id: 'tour', order: 1, en: 'Tour', ru: 'Тур', aliases: ['Tour'] }, ...STORY_CHAPTER_SEEDS]
     .filter((chapter) => !quests.some((quest) => quest.kind === 'story' && curatedFor(quest) === CURATED[`story-${chapter.id}`]))
   return [...quests, ...missing.map((chapter): Quest => {
