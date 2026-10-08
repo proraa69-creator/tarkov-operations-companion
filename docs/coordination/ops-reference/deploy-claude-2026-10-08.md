@@ -9,8 +9,13 @@ API при старте один раз добавляет в `goon_sightings` �
 Владелец разрешил выпуск этих правок 08.10.2026. Правку «Legend» со скриншота владелец отменил — она НЕ входит,
 тарифы и кабинет не меняются.
 
-- Код: ветка `sync/codex-claude-context` = снимок `de80c83` + коммиты Claude `7b49bc6`, `53de28e`, `2abe1d7`
-  (плюс записи work log и этот файл).
+- Код: ветка `sync/codex-claude-context` = снимок `de80c83` + коммиты Claude:
+  - `7b49bc6` — сюжет;
+  - `53de28e` — «Кочевники»;
+  - `2abe1d7` — тема;
+  - `cb817ea` — только тест: ошибочный высокий этап исправляется вниз.
+
+  Плюс записи work log, слияние часовой синхронизации Codex `4100af3` и этот файл.
 - Файлы: `claude-2026-10-08-files.json` — 28 путей. `before` = sha256 в снимке `de80c83` (`null` = новый файл),
   `after` = sha256 после правок.
 - Что меняется:
@@ -26,7 +31,8 @@ API при старте один раз добавляет в `goon_sightings` �
 ```bash
 # 0. Исходники ветки в отдельную папку (репозиторий публичный).
 git clone --depth 50 --branch sync/codex-claude-context https://github.com/proraa69-creator/tarkov-operations-companion /tmp/claude-src
-cd /tmp/claude-src && git log --oneline -1          # ожидается коммит не старше 2abe1d7 с этими правками
+git -C /tmp/claude-src log --oneline -1   # коммит с этим файлом; последняя правка кода — cb817ea
+OPS=/tmp/claude-src/docs/coordination/ops-reference   # или ваши копии этих же скриптов на VPS (пути внутри абсолютные)
 
 # 1. Production не правили после снимка: каждый файл = before (или отсутствует, если before = null). Иначе СТОП.
 node -e '
@@ -40,17 +46,22 @@ console.log(bad?"STOP":"OK");process.exit(bad?1:0)'
 node -e 'console.log(JSON.stringify(require("/tmp/claude-src/docs/coordination/ops-reference/claude-2026-10-08-files.json").map(r=>r.file)))' > /tmp/claude-files.json
 node -e 'for(const f of require("/tmp/claude-files.json"))console.log(f)' | while read -r f; do install -D -m 644 "/tmp/claude-src/$f" "/opt/raidos-repair-20261008/$f"; done
 
+# 2a. Review (P0 из WORK_QUEUE): тесты приложения в staging, не в live checkout. tsc и server-тесты запустит шаг 4.
+(cd /opt/raidos-repair-20261008 && npx vitest run --maxWorkers=2)
+#   У Claude (cloud): 865/865 тестов, 157 из 158 файлов. Один файл падает при сборе — scripts/cache-item-images.test.mjs:
+#   это node:test, а не vitest; так было и до правок. Шаг 4 запускает его через node --test (2/2).
+
 # 3. Снимок хэшей production для этих путей (защита от параллельной правки).
-PATCH_LIST=/tmp/claude-files.json PATCH_BASELINE=/tmp/claude-baseline.json node deploy-weapon-story.mjs --snapshot
+PATCH_LIST=/tmp/claude-files.json PATCH_BASELINE=/tmp/claude-baseline.json node "$OPS/deploy-weapon-story.mjs" --snapshot
 
 # 4. Проверки и сборка обеих редакций в staging (tsc, server tests, client+owner EXE, подписанный release.json).
-REPAIR_RELEASE_SUFFIX=story-goons-olive node build-repair-release.mjs
+REPAIR_RELEASE_SUFFIX=story-goons-olive node "$OPS/build-repair-release.mjs"
 
 # 5. Исходники в production: VACUUM INTO-бэкап базы, атомарная замена, restart raidos-api, health, откат при ошибке.
-PATCH_LIST=/tmp/claude-files.json PATCH_BASELINE=/tmp/claude-baseline.json node deploy-weapon-story.mjs
+PATCH_LIST=/tmp/claude-files.json PATCH_BASELINE=/tmp/claude-baseline.json node "$OPS/deploy-weapon-story.mjs"
 
 # 6. Публикация EXE (подпись, размер/SHA-256, 200 + attachment, 206/MZ, owner EXE приватно, откат при ошибке).
-REPAIR_RELEASE_SUFFIX=story-goons-olive node publish-recognition-release.mjs
+REPAIR_RELEASE_SUFFIX=story-goons-olive node "$OPS/publish-recognition-release.mjs"
 ```
 
 ## Проверки после выпуска
