@@ -1,0 +1,22 @@
+{
+  "capturedAt": "2026-10-08T19:28:22.781Z",
+  "release": {
+    "sourceCommit": "466c246376ad9c9d2981165416eac0308b0d9ffa",
+    "build": 1791486430113,
+    "size": 203582154,
+    "sha256": "6315a9bfa3de8cc8cec104e257367296d92a3ffbf7100e41636889973e462990",
+    "signatureVerified": true
+  },
+  "gates": [
+    {"runId": 37826769579, "headSha": "cb617c98c2082cd2494f97ebc0f67bed7d46b9e3", "conclusion": "success"},
+    {"runId": 37828480619, "headSha": "466c246376ad9c9d2981165416eac0308b0d9ffa", "conclusion": "success"}
+  ],
+  "production": {
+    "sourceFilesVerified": 188,
+    "apiHealthy": true,
+    "databaseHealthy": true,
+    "serviceActive": true
+  },
+  "manualDeploymentByMonitor": false,
+  "secretsOrUserDataExported": false
+}
