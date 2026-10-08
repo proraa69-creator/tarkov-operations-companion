@@ -1,6 +1,6 @@
 import { normalizeQuestKey } from '../data/wikiQuestCatalog'
 import type { Quest } from '../domain/types'
-import { inferStoryStageIndex, storyStageEvidence } from './storyStageOcr'
+import { inferStoryStageIndex, storyStageEvidence, storyStageHits } from './storyStageOcr'
 
 const SKIP_LINE = /^(задачи|задания|задание|текущие|выполненные|недоступные|сюжетные|побочные|оперативные|завершенные|заблокированные|завершить|уровень лояльности|уровень лояльности \d+|найти|поиск|фильтр|торговцы|торговец|торговля|услуги|карта|уровень|награда|награды|цели|цель|описание|kappa|капа|pmc|scav|чат|персонаж|сводка|опыт|глава истории|история|локация|статус|прогресс|класс|тип|назад|общее|вещи|здоровье|умения|достижения|престиж|убежище|барахолка|сборки|справочник|сообщения|опрос|расширения|любая локация|активно!?|на персонаже|в схроне|pvp zone|берег|таможня|завод|развязка|резерв|маяк|лаборатория|эпицентр|терминал|улицы|лабиринт|лес|улицы таркова|главные задачи|опциональные задачи|связанные предметы|стартовое снаряжение)$/i
 
@@ -119,8 +119,10 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
       .filter((entry) => entry.quest.kind === 'story')
       .map((entry) => ({ entry, stageIndex: storyStageEvidence(text, entry.quest) }))
       .filter((hit) => hit.stageIndex != null)
-    if (evidence.length === 1) {
-      const { entry } = evidence[0]!
+    // Shared wording names several chapters: the one more of whose objectives are on screen, if that is clear.
+    const ranked = evidence.map((hit) => ({ ...hit, hits: storyStageHits(text, hit.entry.quest) })).sort((a, b) => b.hits - a.hits)
+    if (evidence.length === 1 || (ranked.length > 1 && ranked[0]!.hits > ranked[1]!.hits)) {
+      const { entry } = evidence.length === 1 ? evidence[0]! : ranked[0]!
       remember({ questId: entry.quest.id, name: entry.quest.name, score: 0.95, line: entry.quest.name, stageIndex: inferStoryStageIndex(text, entry.quest) })
     }
   }

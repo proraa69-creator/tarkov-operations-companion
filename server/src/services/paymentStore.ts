@@ -305,9 +305,9 @@ export class PaymentStore {
   private renewing = false
   private readonly succeededListeners: Array<(payment: SucceededPayment) => void> = []
 
-  private readonly refundedListeners: Array<(payment: { id: string; accountId: string }) => void> = []
+  private readonly refundedListeners: Array<(payment: { id: string; accountId: string; partial?: boolean }) => void> = []
   /** Called once per payment when it is refunded, inside the same transaction (services/invites.ts). */
-  onRefunded(listener: (payment: { id: string; accountId: string }) => void) {
+  onRefunded(listener: (payment: { id: string; accountId: string; partial?: boolean }) => void) {
     this.refundedListeners.push(listener)
   }
 
@@ -335,7 +335,8 @@ export class PaymentStore {
 
   /**
    * ЮKassa `refund.succeeded` webhook: the refund is re-read from the API (the body is only a hint) and a FULL refund
-   * of one of our succeeded payments marks it refunded. A partial refund changes nothing and is logged for the owner.
+   * of one of our succeeded payments marks it refunded. A partial refund leaves the payment and the paid days to the owner
+   * (logged), but listeners are told: a friend reward is cancelled by any refund (services/invites.ts).
    */
   async syncRefund(refundId: string) {
     if (!this.config || !/^[A-Za-z0-9-]{10,64}$/.test(refundId)) return
@@ -345,7 +346,22 @@ export class PaymentStore {
     if (!row) return
     const amount = refund.amount as Row | undefined
     if (amount?.currency === 'RUB' && amount.value === rub(Number(row.amount))) this.markRefunded(String(row.id))
-    else console.warn(`ЮKassa partial refund ${refundId.slice(-6)} for payment ${String(row.id)}: ${String(amount?.value)} ${String(amount?.currency)} — not applied, check it by hand.`)
+    else {
+      console.warn(`ЮKassa partial refund ${refundId.slice(-6)} for payment ${String(row.id)}: ${String(amount?.value)} ${String(amount?.currency)} — not applied, check it by hand.`)
+      this.partiallyRefunded(String(row.id))
+    }
+  }
+
+  /** Part of a succeeded payment went back: the payment stays succeeded (the owner adjusts the days); listeners hear it. */
+  partiallyRefunded(paymentId: string) {
+    const row = this.db.prepare("SELECT account_id FROM payments WHERE id = ? AND status = 'succeeded'").get(paymentId) as Row | undefined
+    if (!row) return false
+    transaction(this.db, () => {
+      for (const listener of this.refundedListeners) {
+        try { listener({ id: paymentId, accountId: String(row.account_id), partial: true }) } catch (error) { console.error('Refund listener failed', error instanceof Error ? error.message : 'unknown error') }
+      }
+    })
+    return true
   }
 
   /** Called once per payment when it succeeds, inside the same transaction (services/invites.ts). */

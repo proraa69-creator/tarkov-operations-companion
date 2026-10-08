@@ -1,6 +1,7 @@
-import type { GameMap, MarkerLayerId } from '../domain/types'
+import type { GameMap, MapView, MarkerLayerId } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
 import type { ScreenshotKeyInfo } from './screenshotCheck'
+import type { PictureQuery } from './iconMatch'
 
 export type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from './screenshotCheck'
 
@@ -30,6 +31,9 @@ export interface ItemOverlayInfo {
   keep?: import('../raidprep/keepList').KeepBadge
   /** A friend or squad mate needs this item for a current quest (squad/mateNeeds.ts): only a bare «MATE» badge. */
   mate?: boolean
+  /** How the tooltip lookup found it when not by the name at once (diagnostics): a remembered reading, the second
+   * attempt's other OCR readings, or the picture check. */
+  source?: 'memory' | 'retry' | 'picture'
 }
 
 export type ItemOverlayPayload =
@@ -44,11 +48,17 @@ export interface MinimapMarker {
   title: string
   subtitle?: string
   questId?: string
+  /** Game-space height of a quest point, to tell apart rooms on different floors (minimapView.ts). */
+  height?: number
 }
 
 export type MinimapPayload =
   | { state: 'no-data'; reason?: string }
-  | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; minimapWidth?: number; playerMarker?: 'arrow' | 'chevron' | 'dot' }
+  | {
+    state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; minimapWidth?: number; playerMarker?: 'arrow' | 'chevron' | 'dot'
+    /** The drawing shown, as on the Maps page («Спутник» / «Схема»); the minimap draws the chosen floor in it. */
+    view?: MapView
+  }
 
 /** A current quest that has at least one point on this map. */
 export interface MinimapQuest {
@@ -114,7 +124,18 @@ export interface ExperimentalStatus {
 }
 
 export type ExperimentalQuery =
-  | { id: number; kind: 'item'; input: { text: string; test?: boolean; lines?: NearbyLine[]; /** The text is the game's name tooltip (one full name). */ tooltip?: boolean } }
+  | { id: number; kind: 'item'; input: {
+    text: string
+    test?: boolean
+    lines?: NearbyLine[]
+    /** The text is the game's name tooltip (one full name). */
+    tooltip?: boolean
+    /** Second attempt: when this text names an item, remember these first readings as that item (see lookupMemory). */
+    remember?: string[]
+  } }
+  /** Second attempt, picture check: the items the readings could name (src/overlay/iconMatch.ts). */
+  | { id: number; kind: 'item-candidates'; input: { texts: string[] } }
+  | { id: number; kind: 'item-picture'; input: PictureQuery }
   | { id: number; kind: 'minimap'; input: { location?: string; fromApp?: boolean } }
 
 /** An OCR line around the cursor and its distance from the cursor in screen pixels. */

@@ -45,6 +45,7 @@ export const REWARD_STATUS: Record<InviteRewardStatus, { label: string; tone: st
 }
 
 export function rewardStatusText(reward: InviteReward) {
+  if (reward.status === 'pending' && reward.waitingEft) return 'Ожидает привязку'
   if (reward.status === 'pending' && reward.releaseAt) return `На проверке до ${releaseFormat.format(new Date(reward.releaseAt))}`
   return REWARD_STATUS[reward.status]?.label ?? reward.status
 }

@@ -1,15 +1,16 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, Clock3, KeyRound, LockKeyhole, Map, PackageCheck, Route, Users } from 'lucide-react'
+import { ChevronRight, Clock3, LockKeyhole, Map as MapIcon, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
 import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
-import { aggregateRaidNeeds, formatItemCountLabel } from '../shared/raidNeeds'
+import { aggregateRaidNeeds, ammoPackGroupLabel, groupAmmoPackAlternatives } from '../shared/raidNeeds'
+import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapSlideshow } from '../components/MapSlideshow'
 import { GoonCard } from '../components/GoonCard'
 import { MapPriority } from '../components/MapPriority'
@@ -17,12 +18,18 @@ import { SquadRaidCard } from '../squad/RaidPlanner'
 import { BossFigures } from '../components/BossFigures'
 import { RaidSmoke } from '../components/RaidSmoke'
 import { useLocale } from '../i18n/LocaleProvider'
+import { CurrentTasksPanel } from '../components/CurrentTasksPanel'
+import { RaidRequirementsPanel, type RaidNeedRow } from '../components/RaidRequirementsPanel'
+import { KappaBreakdownPanel, KappaStatCard } from '../components/KappaProgress'
+import { collectorKeyTasks } from '../components/collectorKeyTasks'
 
 export function DashboardPage() {
   const { data } = useTarkovData()
   const state = useAppState()
   const navigate = useNavigate()
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
+  const [kappaOpen, setKappaOpen] = useState(false)
+  const kappaListId = useId()
   const { locale } = useLocale()
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
@@ -34,14 +41,31 @@ export function DashboardPage() {
   }
   const planQuests = currentQuests.filter((quest) => onMap(quest, selectedMap.id))
   const anyMapCurrent = currentQuests.filter((quest) => quest.anyMap)
-  const mapQuests = planQuests
+  // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
+  const mapQuests = sortQuestsChronologically(planQuests, data.quests)
+  const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const raidPrepPurposes = new Set(['place', 'mark', 'key', 'bring'])
   const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })))
-  const neededRows = aggregateRaidNeeds(requirements, state.raidItemIds)
-    .map((row) => ({ ...row, item: data.items.find((entry) => entry.id === row.itemId) }))
-    .filter((row) => row.item)
+  // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
+  const grouped = groupAmmoPackAlternatives(requirements, (id) => itemById.get(id))
+  const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
+    const group = grouped.groups.get(row.itemId)
+    if (group) {
+      const packs = group.itemIds.flatMap((id) => itemById.get(id) ?? [])
+      // The card opens on the cheapest accepted pack: any of them will do.
+      const cheapest = [...packs].sort((a, b) => (a.fleaPrice || Infinity) - (b.fleaPrice || Infinity))[0]
+      if (!cheapest) return []
+      return [{ ...row, key: row.itemId, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: `/flea?selected=${cheapest.id}`, title: [locale === 'en' ? 'Any of:' : 'Подходит любая:', ...packs.map((pack) => uiText(pack.name))].join('\n') }]
+    }
+    const item = itemById.get(row.itemId)
+    return item ? [{ ...row, key: item.id, name: item.name, iconUrl: item.iconUrl, href: `/flea?selected=${item.id}` }] : []
+  })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const stats = completedQuestStats(data.quests, availability)
+  // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
+  const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
+  const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
+  const openKappa = () => setKappaOpen(true)
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
@@ -54,15 +78,17 @@ export function DashboardPage() {
   return <div className="page">
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1></div>
-      <button className="button primary" onClick={openMap}><Map size={16} />{uiText(" Открыть карту")}</button>
+      <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
     </header>
 
     <section className="stat-grid">
       <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
-      <div className="stat-card kappa-card"><Link className="button small kappa-items-button" to="/kappa-items">{uiText("Предметы")}</Link><div className="stat-label">{uiText("Капа")}</div><div className="stat-value">{uiText(stats.kappaCompleted)}</div><div className="stat-meta">{uiText("Выполнено ")}{uiText(stats.kappaCompleted)}{uiText(" из ")}{uiText(stats.kappaTotal)}</div></div>
+      <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
       <GoonCard mode={state.raidMode} mapName={mapName} />
     </section>
+    <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
+    <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
 
     <div className="dashboard-layout">
       <div className="dashboard-column">
@@ -86,52 +112,18 @@ export function DashboardPage() {
                 }))}
               </div>
             </div>
-              <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><Map size={16} />{uiText(" Выбрать карту")}</button></div>
+              <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button></div>
           </div>
         </section>
 
         <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} />
-        <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
+        <RaidRequirementsPanel rows={neededRows} />
       </div>
 
       <div className="dashboard-column">
-        <section className="panel">
-          <div className="panel-header"><div className="panel-title">{uiText("Текущие задания")}</div><Link to={`/maps/${selectedMap.id}`} className="tag brass">{uiText(mapQuests.length)}{uiText(" на ")}{uiText(selectedMap.name)}</Link></div>
-          <div className="panel-body">
-            {uiText(mapQuests.slice(0, 10).map((quest, index) => <div className="quest-row" key={quest.id}><div className="quest-index">{uiText(String(index + 1).padStart(2, '0'))}</div><Link to={questOnMap(quest)} title={uiText("Показать на карте")}><strong>{uiText(quest.name)}</strong><small>{uiText(quest.trader)}{uiText(" · ур. ")}{uiText(quest.level)}{uiText(quest.kappa ? ' · капа' : '')}</small></Link></div>))}
-            {uiText(!mapQuests.length && <p className="muted">{uiText("На карте «")}{uiText(selectedMap.name)}{uiText("» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.")}</p>)}
-            {uiText(anyMapCurrent.length > 0 && <div style={{ marginTop: 14 }}><div className="stat-label" style={{ marginBottom: 8 }}>{uiText("Любая карта · ")}{uiText(anyMapCurrent.length)}</div>{uiText(anyMapCurrent.slice(0, 4).map((quest) => <div className="quest-row" key={quest.id}><div className="quest-index">∞</div><Link to={questOnMap(quest)} title={uiText("Показать на карте")}><strong>{uiText(quest.name)}</strong><small>{uiText(quest.trader)}{uiText(quest.kappa ? ' · капа' : '')}</small></Link></div>))}</div>)}
-          </div>
-        </section>
+        <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} />
 
-        <section className="panel">
-          <div className="panel-header"><div className="panel-title">{uiText("Требования рейда")}</div><span className="tag"><PackageCheck size={11} /> {uiText(neededRows.length)}</span></div>
-          <div className="panel-body">
-            {uiText(neededRows.map((row) => {
-              if (!row.item) return null
-              const purposes = { place: 'Взять и заложить', mark: 'Взять для маркировки', key: 'Взять ключ', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде' }
-              return <Link to={`/flea?selected=${row.item.id}`} className="item-row" key={row.item.id}>
-                <img className="item-thumb" src={row.item.iconUrl} alt={uiText("")} />
-                <span>
-                  <strong>{uiText(formatItemCountLabel(row.item.name, row.count))}</strong>
-                  {uiText(row.fromRaidListOnly
-                    ? <small className="dim" style={{ display: 'block' }}>{uiText("Добавлено с барахолки")}</small>
-                    : row.lines.map((line) => (
-                      <small className="dim" style={{ display: 'block' }} key={line.purpose}>
-                        {uiText(purposes[line.purpose as keyof typeof purposes] ?? line.purpose)}
-                        {uiText(line.questNames.length ? ` · ${line.questNames.join(', ')}` : '')}
-                      </small>
-                    )))}
-                </span>
-                <KeyRound size={15} className="dim" />
-              </Link>
-            }))}
-            {uiText(neededRows.length === 0 && <p className="muted">{uiText("Для текущих заданий на этой карте нет предметов, которые нужно взять с собой или заложить.")}</p>)}
-            {uiText(neededRows.length > 0 && <p className="muted" style={{ marginTop: 12 }}>{uiText("Только то, что нужно взять в рейд: заложить, пометить или открыть дверь. Предметы «найти и вынести» сюда не входят.")}</p>)}
-          </div>
-        </section>
-
-        <section className="panel">
+        <section className="panel market-favorites">
           <div className="panel-header"><div className="panel-title">{uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>
           <div className="panel-body">
             {uiText(favorites.map((item) => item && <div className="item-row" key={item.id}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText("лучшее предложение")}</small></span><strong className="mono price-up">{uiText(formatPrice(Math.max(...item.prices.filter((p) => p.mode === state.raidMode).map((p) => p.price), 0)))}</strong></div>))}

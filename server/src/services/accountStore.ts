@@ -107,6 +107,8 @@ export interface AccountView {
   phone?: { masked: string; verifiedAt: string }
   /** When the e-mail was confirmed with a one-time code (services/emailAuth.ts); absent = not confirmed yet. */
   emailVerifiedAt?: string
+  /** The Escape from Tarkov account found in this player's game logs (desktop app), masked («••••289»). */
+  eftAccount?: { masked: string; boundAt: string }
 }
 
 /** «+7 ••• •••-45-67»: enough for the owner of the number to recognise it. */
@@ -166,6 +168,14 @@ function visitorDigest(code: string, visitorKey: string) {
 export function signupDigest(ip: string) {
   return createHash('sha256').update(`signup\u0000${ip}`).digest('hex')
 }
+
+/** An Escape from Tarkov AccountId (digits from the game logs) is kept only as this digest. */
+export function eftDigest(eftAccountId: string) {
+  return createHash('sha256').update(`eft\u0000${eftAccountId}`).digest('hex')
+}
+
+/** The answer when the game account already belongs to another Raid OS account. */
+export const EFT_IN_USE_MESSAGE = 'Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.'
 
 /**
  * The canonical form of an e-mail for anti-abuse checks (never for sign-in): lowercase, «+tag» dropped, and for
@@ -284,6 +294,14 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS trial_claims_email ON trial_claims(email_canon_hash);
   CREATE INDEX IF NOT EXISTS trial_claims_device ON trial_claims(device_id);
   CREATE INDEX IF NOT EXISTS trial_claims_account ON trial_claims(account_id);
+  -- The Escape from Tarkov account of a Raid OS account: the AccountId the desktop app reads from the game logs, kept as
+  -- a digest (eftDigest) and its last digits. One game account belongs to one Raid OS account at a time («Пригласи
+  -- друга» counts one friend per game account, services/invites.ts). Deleted with the account.
+  CREATE TABLE IF NOT EXISTS eft_accounts (
+    account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    eft_digest TEXT NOT NULL UNIQUE,
+    eft_hint TEXT NOT NULL,
+    bound_at INTEGER NOT NULL);
 `
 
 /**
@@ -542,7 +560,40 @@ export class AccountStore {
     if (this.ownerRights(account.email, extra)) view.owner = true
     if (extra?.phone != null) view.phone = { masked: maskPhone(String(extra.phone)), verifiedAt: new Date(Number(extra.phone_verified_at)).toISOString() }
     if (extra?.email_verified_at != null) view.emailVerifiedAt = new Date(Number(extra.email_verified_at)).toISOString()
+    const eft = this.eftAccountOf(account.id)
+    if (eft) view.eftAccount = eft
     return view
+  }
+
+  /**
+   * The game account found in this player's Escape from Tarkov logs (sent by the desktop app): bound to this account.
+   * Another game account later replaces it. A game account another working Raid OS account already holds is refused
+   * (409, EFT_IN_USE_MESSAGE): one game account — one Raid OS account, so a second registration cannot reuse it.
+   * The logs are the player's own; this keeps honest players apart, it is not proof against a forged request.
+   */
+  bindEftAccount(accountId: string, eftAccountId: string) {
+    const account = this.mustGet(accountId)
+    if (!/^\d{3,12}$/.test(eftAccountId)) throw new AccountError(400, 'Неверный идентификатор аккаунта Escape from Tarkov')
+    const digest = eftDigest(eftAccountId)
+    const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
+    if (holder && String(holder.account_id) !== account.id) throw new AccountError(409, EFT_IN_USE_MESSAGE)
+    if (!holder) {
+      this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET eft_digest = excluded.eft_digest, eft_hint = excluded.eft_hint, bound_at = excluded.bound_at')
+        .run(account.id, digest, eftAccountId.slice(-3), this.now())
+    }
+    return this.eftAccountOf(account.id)!
+  }
+
+  /** The bound game account, masked, or undefined. */
+  eftAccountOf(accountId: string) {
+    const row = this.db.prepare('SELECT eft_hint, bound_at FROM eft_accounts WHERE account_id = ?').get(accountId) as Row | undefined
+    return row ? { masked: `••••${String(row.eft_hint)}`, boundAt: new Date(Number(row.bound_at)).toISOString() } : undefined
+  }
+
+  /** The digest of the bound game account (services/invites.ts), or undefined. */
+  eftDigestOf(accountId: string) {
+    const row = this.db.prepare('SELECT eft_digest FROM eft_accounts WHERE account_id = ?').get(accountId) as Row | undefined
+    return row ? String(row.eft_digest) : undefined
   }
 
   /**
@@ -843,7 +894,7 @@ export class AccountStore {
       ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
       ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
-      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'],
+      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['eft_accounts', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
     ]
     const progressOwner = `user:${account.id}`
@@ -1053,6 +1104,7 @@ const ownerInviteSchema = z.object({ code: z.string().trim().max(24) })
 const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema })
 const deleteAccountSchema = z.object({ password: z.string().min(1).max(128) })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
+const eftAccountSchema = z.object({ accountId: z.union([z.string(), z.number()]).transform((value) => String(value).trim()).pipe(z.string().regex(/^\d{3,12}$/)) })
 const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
 const invalid = (message: string): AccountsResponse => ({ status: 400, body: { error: message } })
@@ -1067,6 +1119,8 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
   const limit = options.authRateLimit ?? { max: 10, windowMs: 15 * 60 * 1000 }
   const authLimiter = new FixedWindowRateLimiter(limit.max, limit.windowMs, options.now)
   const visitLimiter = new FixedWindowRateLimiter(60, 60 * 60 * 1000, options.now)
+  // The desktop app sends the game account once per sign-in / log scan: 30 a day is plenty, more is probing.
+  const eftLimiter = new FixedWindowRateLimiter(30, 24 * 60 * 60 * 1000, options.now)
   const loginFailures = new FixedWindowRateLimiter(options.loginFailuresPerEmail ?? LOGIN_FAILURES_PER_EMAIL, 60 * 60 * 1000, options.now)
   /** The per-e-mail failure counter keeps only a digest of the (canonical) address. */
   const loginKey = (email: string) => createHash('sha256').update(`login\u0000${canonicalEmail(email)}`).digest('hex')
@@ -1179,6 +1233,20 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (!parsed.success) return invalid('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-»')
       store.applyReferral(accountId, parsed.data.code)
       return { status: 200, body: store.view(accountId) }
+    }),
+
+    /** The desktop app found the player's Escape from Tarkov AccountId in the game logs (see AccountStore.bindEftAccount). */
+    bindEftAccount: (req: AccountsRequest) => authed(req, (accountId) => {
+      const blocked = limited(eftLimiter, `eft:${accountId}`)
+      if (blocked) return blocked
+      const parsed = eftAccountSchema.safeParse(req.body)
+      if (!parsed.success) return invalid('Неверный идентификатор аккаунта Escape from Tarkov')
+      try {
+        return { status: 200, body: { eftAccount: store.bindEftAccount(accountId, parsed.data.accountId), account: store.view(accountId) } }
+      } catch (error) {
+        if (error instanceof AccountError && error.status === 409) return { status: 409, body: { error: error.message, code: 'eft-in-use' } }
+        throw error
+      }
     }),
 
     setNicknames: (req: AccountsRequest) => authed(req, (accountId) => {

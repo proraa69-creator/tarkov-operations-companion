@@ -1,7 +1,7 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod } from '../api'
+import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
@@ -17,6 +17,7 @@ import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
 import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
+import { formatMoney, PLAN_LABELS, visiblePlans } from '../plans'
 import '../invites.css'
 
 const MODES: { id: AccountMode; label: string; color: string }[] = [
@@ -27,11 +28,6 @@ const MODES: { id: AccountMode; label: string; color: string }[] = [
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
 const numberFormat = new Intl.NumberFormat('ru-RU')
-
-function formatMoney(amount: number, currency: string) {
-  const digits = Number.isInteger(amount) ? 0 : 2
-  try { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(amount) } catch { return `${amount} ${currency}` }
-}
 
 export function CabinetPage() {
   const auth = useAuth()
@@ -124,13 +120,6 @@ export function CabinetPage() {
   )
 }
 
-const PLAN_LABELS: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
-const SUBSCRIPTION_PREVIEW: PlansResponse['plans'] = [
-  { id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 },
-  { id: '3m', months: 3, price: 900, currency: 'RUB', discountPercent: 0 },
-  { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
-  { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
-]
 const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },
@@ -287,7 +276,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const { status, paidUntil, trialEndsAt, lifetime } = account.subscription
   if (lifetime) {
     return (
-      <section className="panel" aria-labelledby="sub-title">
+      <section className="panel" id="subscription" aria-labelledby="sub-title">
         <div className="panel-header">
           <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />Подписка</div>
           <span className="tag green">Активна</span>
@@ -306,16 +295,11 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const title = active && paidUntil ? `Активна до ${dateFormat.format(new Date(paidUntil))}`
     : trial && trialEndsAt ? `Пробный период до ${dateFormat.format(new Date(trialEndsAt))}`
       : 'Не активна'
-  const hint = active ? 'Ваша подписка продолжает действовать. Новые оплаты временно недоступны.'
-    : trial ? 'Бесплатный доступ по приглашению. Оплата временно недоступна.'
-      : 'Оплата временно недоступна.'
-  const visiblePlans = SUBSCRIPTION_PREVIEW.map((fallback) => {
-    const configured = plans?.plans.find((plan) => plan.id === fallback.id)
-    return configured?.price != null ? configured : fallback
-  })
+  const hint = active ? 'Ваша подписка продолжает действовать.' : trial ? 'Бесплатный доступ по приглашению.' : ''
+  const shownPlans = visiblePlans(plans)
 
   return (
-    <section className="panel" aria-labelledby="sub-title">
+    <section className="panel" id="subscription" aria-labelledby="sub-title">
       <div className="panel-header">
         <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />Подписка</div>
         {active ? <span className="tag green">Активна</span> : trial ? <span className="tag brass">Пробный период</span> : <span className="tag">Не активна</span>}
@@ -327,13 +311,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
           <CalendarClock aria-hidden="true" size={28} style={{ color: active ? 'var(--success)' : trial ? 'var(--brass)' : 'var(--text-dim)', flex: '0 0 auto' }} />
           <div style={{ minWidth: 0 }}>
             <div className="big">{title}</div>
-            <div className="muted" style={{ fontSize: 14 }}>{hint}</div>
+            {hint && <div className="muted" style={{ fontSize: 14 }}>{hint}</div>}
           </div>
         </div>
 
         <>
             <div className="plan-grid">
-              {visiblePlans.map((plan) => {
+              {shownPlans.map((plan) => {
                 const friend = friendDiscount && plan.id === friendDiscount.plan && plan.price !== null ? friendDiscount.percent : 0
                 const best = plan.discountPercent > 0 || friend > 0
                 // The same rounding as the server (kopecks): server/src/services/paymentStore.ts create().
@@ -355,16 +339,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
                         <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
                       </>
                     )}
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled title="Оплата временно недоступна" aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
                       <CreditCard aria-hidden="true" />Оплатить
                     </button>
                   </div>
                 )
               })}
             </div>
-            <p className="dim" style={{ margin: 0, fontSize: 13 }}>
-              Оплата временно недоступна. <Link to="/legal/offer" target="_blank" rel="noopener" style={{ color: 'var(--brass-strong)' }}>Условия подписки</Link>.
-            </p>
           </>
 
         {history.length > 0 && <PaymentHistory payments={history} />}
@@ -449,7 +430,7 @@ function ReferralProgramPanel({ account }: { account: Account }) {
           <div className="field-label">Как это работает</div>
           <ol className="steps">
             <li><span><strong>Поделитесь ссылкой или QR-кодом.</strong> Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат 3 дня бесплатного доступа.</span></li>
-            <li><span><strong>Приглашённые оформляют подписку.</strong> С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только платежи, подтверждённые ЮKassa.</span></li>
+            <li><span><strong>Приглашённые оформляют подписку.</strong> С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только подтверждённые платежи.</span></li>
             <li><span><strong>Выплаты.</strong> Запросите выплату любой суммы от минимальной до доступной или включите автовыплату — раз в несколько дней заявка создастся сама.</span></li>
           </ol>
         </div>
@@ -492,6 +473,10 @@ function NicknamesPanel({ account }: { account: Account }) {
       </div>
       <form className="panel-body form" onSubmit={save}>
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>У каждого режима свой профиль и прогресс — укажите ник для каждого режима, в котором играете.</p>
+        {/* «Пригласи друга»: the game account the desktop app found in the logs (one game account — one Raid OS account). */}
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+          Аккаунт Escape from Tarkov: {account.eftAccount ? <strong className="mono">{account.eftAccount.masked}</strong> : 'не привязан — откройте приложение Raid OS на ПК с игрой, оно найдёт аккаунт в логах игры'}.
+        </p>
         <div className="nick-grid">
           {MODES.map(({ id, label, color }) => (
             <label key={id} className="field">

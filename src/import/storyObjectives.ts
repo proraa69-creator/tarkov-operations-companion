@@ -45,6 +45,54 @@ function capsOnly(line: string) {
   return /[A-ZА-ЯЁ]{2}/.test(line) && !/[a-zа-яё]/.test(line)
 }
 
+/**
+ * What OCR makes of the checkbox in front of an objective (real readings of one frame: «= [1]», «[С]», «Г]», «[_]», «CD»,
+ * «ГО»): leading words without letters, short bracketed words, and one- or two-letter capitals before a capitalised word.
+ */
+function stripCheckbox(line: string) {
+  const words = line.split(/\s+/)
+  let start = 0
+  while (start < words.length - 1) {
+    const word = words[start]!
+    const noLetters = !/\p{L}/u.test(word)
+    const bracketed = word.length <= 4 && /[[\]{}()|<>]/.test(word)
+    const capitals = word.length <= 2 && /^\p{Lu}+$/u.test(word) && /^\p{Lu}/u.test(words[start + 1]!) && words.length - start >= 3
+    if (!noLetters && !bracketed && !capitals) break
+    start += 1
+  }
+  return words.slice(start).join(' ')
+}
+
+/**
+ * The progress bar between an objective and its counter («№8», «[i», «18%», «|8»): trailing symbol junk. A plain number
+ * stays — it can be the end of a title («Изделия 1156», «выше 4.0»).
+ */
+function stripProgressBar(label: string) {
+  const words = label.split(/\s+/)
+  while (words.length > 1) {
+    const word = words.at(-1)!
+    const junk = word.length <= 4 && /[[\]{}()|<>%№#]/.test(word)
+    if (!junk && (/\p{L}/u.test(word) || /^\d+(?:[.,]\d+)?$/.test(word))) break
+    words.pop()
+  }
+  return words.join(' ')
+}
+
+/** Digits the game font turns into each other on a small counter («1/3» read as «1/5» next to the progress bar). */
+const LOOK_ALIKE: Record<string, string> = { 0: '86', 1: '7', 3: '582', 5: '36', 6: '580', 7: '1', 8: '3650', 2: '3' }
+
+/**
+ * The denominator of a counter: the catalog's when OCR read a look-alike of it, otherwise what the game shows (a count
+ * the game changed is read as it is, not replaced).
+ */
+function catalogTotal(read: number, expected: number | undefined) {
+  if (!expected || read === expected) return read
+  const a = String(read)
+  const b = String(expected)
+  if (a.length !== b.length) return read
+  return [...a].every((digit, index) => digit === b[index] || LOOK_ALIKE[b[index]!]?.includes(digit)) ? expected : read
+}
+
 /** Stage indexes whose title / alias this objective text shows (longest match first). */
 export function objectiveStageCandidates(label: string, quest: Quest) {
   const key = ocrKey(label)
@@ -53,6 +101,24 @@ export function objectiveStageCandidates(label: string, quest: Quest) {
       .filter(alias => (alias.length >= 14 && key.includes(alias)) || (alias.length >= 8 && key === alias)).map(alias => alias.length))
     return length ? [{ index, length }] : []
   }).sort((a, b) => b.length - a.length || a.index - b.index)
+}
+
+/**
+ * An objective saved by an older version: the same clean-up as a fresh reading — junk around the text, a look-alike
+ * denominator, and the stage when only the junk hid it. Shown at once, without waiting for the chapter to be opened again.
+ */
+export function cleanSavedStoryObjective(objective: StoryObjectiveReading, quest: Quest): StoryObjectiveReading {
+  const text = stripProgressBar(stripCheckbox(objective.text.trim()))
+  if (ocrKey(text).length < 8) return objective
+  const stageIndex = objective.stageIndex ?? objectiveStageCandidates(text, quest)[0]?.index
+  const expected = stageIndex != null ? quest.stages?.[stageIndex]?.progressTotal : undefined
+  const total = objective.total != null ? catalogTotal(objective.total, expected) : undefined
+  const counter = objective.current != null && total != null && total > 0 && objective.current <= total
+  const cleaned: StoryObjectiveReading = { ...objective, text, completed: objective.completed || (counter && objective.current === total) }
+  if (stageIndex != null) cleaned.stageIndex = stageIndex
+  if (counter) cleaned.total = total
+  else { delete cleaned.current; delete cleaned.total }
+  return cleaned
 }
 
 /**
@@ -65,7 +131,7 @@ export function readStoryObjectives(text: string, quest: Quest): StoryObjectiveR
   let active = false
   let optional = false
   for (const raw of text.slice(0, 20000).split(/\r?\n/)) {
-    let line = raw.trim().replace(/^(?:\[[^\]]{0,3}\]|[•●○✓✔☑\-*]+|(?:CJ|СJ|CП|□))\s*/, '').trim()
+    let line = stripCheckbox(raw.trim().replace(/^(?:\[[^\]]{0,3}\]|[•●○✓✔☑\-*]+|(?:CJ|СJ|CП|□))\s*/, '').trim())
     const checkbox = line.match(/^.{1,3}\s+(.+)$/)
     if (checkbox && startsObjective(checkbox[1]!, openings)) line = checkbox[1]!
     if (MAIN.test(line)) { active = true; optional = false; continue }
@@ -73,6 +139,8 @@ export function readStoryObjectives(text: string, quest: Quest): StoryObjectiveR
     if (OPTIONAL.test(line)) { optional = true; continue }
     if (END.test(line)) break
     if (!line || line.length > 600 || NOISE.test(line) || capsOnly(line)) continue
+    // A stray letter of the art or the menu («ы», «|») is not a wrapped piece of the objective above.
+    if (!COUNTER_ONLY.test(line) && !/\p{L}[^\n]*\p{L}/u.test(line)) continue
     const last = rows.at(-1)
     const same = last && last.optional === optional ? last : undefined
     if (same && (COUNTER_ONLY.test(line) || JOINER.test(same.text) || (/^[a-zа-яё]/.test(line) && !startsObjective(line, openings)))) {
@@ -90,22 +158,22 @@ export function readStoryObjectives(text: string, quest: Quest): StoryObjectiveR
   return rows.flatMap(({ text: row, optional, hint }) => {
     const counter = row.match(/(?:^|\s)(\d{1,7})\s*\/\s*(\d{1,7})(?:\s|$)/)
     const current = counter ? Number(counter[1]) : undefined
-    const total = counter ? Number(counter[2]) : undefined
-    const validCounter = current != null && total != null && total > 0 && current <= total
     // OCR sometimes appends isolated digits / checkbox fragments after the counter.
     const withoutTail = counter && /^[\s\d|.,:;-]*$/.test(row.slice(counter.index! + counter[0].length)) ? row.slice(0, counter.index) : row
-    const counterless = withoutTail.replace(/(?:^|\s)\d{1,7}\s*\/\s*\d{1,7}(?=\s|$)/g, '').trim()
+    const counterless = stripProgressBar(withoutTail.replace(/(?:^|\s)\d{1,7}\s*\/\s*\d{1,7}(?=\s|$)/g, '').trim())
     // «Сообщить Скупщику, что поручение выполнено» ends with the status word as part of its own title: only a second
     // one after it is the status.
     const ownWord = endsWithTitleStatus(counterless, quest)
     const status = ownWord ? /(?:выполнено|готово|completed)\s*[.!]?\s+(?:выполнено|готово|completed)\s*[.!]?\s*$/i : /(?:выполнено|готово|completed)\s*[.!]?\s*$/i
-    const completed = status.test(counterless) || (validCounter && current === total)
-    const label = (status.test(counterless) ? counterless.replace(/\s*(?:выполнено|готово|completed)\s*[.!]?\s*$/i, '') : counterless).trim()
+    const label = stripProgressBar((status.test(counterless) ? counterless.replace(/\s*(?:выполнено|готово|completed)\s*[.!]?\s*$/i, '') : counterless).trim())
     const key = ocrKey(label)
     if (key.length < 8 || seen.has(`${optional}:${key}`)) return []
     seen.add(`${optional}:${key}`)
     // Repeated instructions: the first copy here; storyScan.ts moves it to the copy of the stage being played.
     const stageIndex = objectiveStageCandidates(label, quest)[0]?.index
+    const total = counter ? catalogTotal(Number(counter[2]), stageIndex != null ? quest.stages?.[stageIndex]?.progressTotal : undefined) : undefined
+    const validCounter = current != null && total != null && total > 0 && current <= total
+    const completed = status.test(counterless) || (validCounter && current === total)
     return [{ id: `${optional ? 'optional' : 'main'}:${key}`, text: label, optional, completed,
       ...(stageIndex != null ? { stageIndex } : {}), ...(validCounter ? { current, total } : {}), ...(hint ? { hint: hint.slice(0, 300) } : {}) }]
   })

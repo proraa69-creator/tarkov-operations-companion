@@ -61,3 +61,21 @@
 /* «Удалить аккаунт» (DeleteAccountPanel). */
 .button.account-delete { color: #d48b80; border-color: #5a3732; }
 .button.account-delete:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+
+/* «Подписка» in the site header (components/SubscriptionDialog.tsx): what it gives, the prices, payment and refund in short. */
+.subscription-dialog { width: min(760px, 100%); }
+.subscription-included { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 6px 16px; font-size: 13.5px; color: var(--text-muted); }
+.subscription-included li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; }
+.subscription-included svg { width: 16px; height: 16px; margin-top: 1px; color: var(--success); }
+.subscription-plans { margin-top: 8px; }
+.subscription-plans .plan-card { padding: 14px; }
+.subscription-plans .plan-price { font-size: 21px; }
+.subscription-terms { margin: 0; padding-left: 18px; display: grid; gap: 5px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.subscription-terms strong { color: var(--text); }
+@media (max-width: 720px) { .subscription-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* the header button; on a phone it lives in the menu, so the header keeps «Скачать» and «Кабинет» */
+.mobile-nav-button { min-height: 44px; display: flex; align-items: center; padding: 0 12px; border: 0; border-radius: 9px; background: none; color: #b4bfb6; font: inherit; font-weight: 650; text-align: left; cursor: pointer; }
+.mobile-nav-button:hover { background: var(--surf-1); }
+@media (max-width: 560px) { .header-actions .header-subscription { display: none; } }
+/* anchors under the sticky header: /cabinet#subscription, /legal#refund */
+#subscription, .legal-doc section[id] { scroll-margin-top: calc(var(--header) + 16px); }

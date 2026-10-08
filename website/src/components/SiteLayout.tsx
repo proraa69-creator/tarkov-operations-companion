@@ -1,10 +1,12 @@
-import { Download, Menu, UserRound, X } from 'lucide-react'
+import { Crown, Download, Menu, UserRound, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { APP_VERSION, PRODUCT_NAME } from '../config'
+import { useHashScroll } from '../hooks/hashScroll'
 import { useRipple } from '../hooks/motion'
 import { CookieNotice } from './CookieNotice'
+import { SubscriptionDialog } from './SubscriptionDialog'
 import '../brand.css'
 
 const NAV = [
@@ -30,7 +32,9 @@ export function SiteLayout() {
   // The mobile menu is tied to the page it was opened on, so navigating closes it.
   const [menuOpenOn, setMenuOpenOn] = useState<string | null>(null)
   const menuOpen = menuOpenOn === pathname
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false)
   useRipple()
+  useHashScroll()
 
   return (
     <div className="site">
@@ -41,6 +45,11 @@ export function SiteLayout() {
             {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>)}
           </nav>
           <div className="header-actions">
+            <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
+              <Crown aria-hidden="true" />
+              <span className="label-long">Подписка</span>
+              <span className="label-short">Подписка</span>
+            </button>
             <Link to="/download" className="button primary">
               <Download aria-hidden="true" />
               <span className="label-long">Скачать приложение</span>
@@ -61,6 +70,7 @@ export function SiteLayout() {
         </div>
         <nav id="mobile-nav" className={`mobile-nav${menuOpen ? ' is-open' : ''}`} inert={!menuOpen} aria-hidden={!menuOpen} aria-label="Мобильная навигация">
           {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>)}
+          <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>Подписка</button>
           <NavLink to="/download">Скачать приложение</NavLink>
           <NavLink to="/cabinet">Личный кабинет</NavLink>
         </nav>
@@ -90,10 +100,11 @@ export function SiteLayout() {
             <Link to="/legal/privacy">Политика конфиденциальности</Link>
             <Link to="/legal/consent">Согласие на обработку ПД</Link>
             <Link to="/legal/cookies">Cookie</Link>
-            <Link to="/legal">Реквизиты, оплата и возврат</Link>
+            <Link to="/legal">Тарифы, оплата и возврат</Link>
           </nav>
         </div>
       </footer>
+      {subscriptionOpen && <SubscriptionDialog onClose={() => setSubscriptionOpen(false)} />}
       <CookieNotice />
     </div>
   )

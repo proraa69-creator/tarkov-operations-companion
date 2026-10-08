@@ -4,7 +4,7 @@ import { DocumentGlyph } from '../components/DocumentGlyph'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
-import { MapContainer, Marker, Pane, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
@@ -19,14 +19,15 @@ import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
-import { FloorSvgOverlay } from '../components/FloorSvgOverlay'
-import { LivePlayerMarker } from '../components/LivePlayerMarker'
+import { MapFloorLayers } from '../components/MapFloorLayers'
+import { LivePlayerMarker, useLivePlayer } from '../components/LivePlayerMarker'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
 import { QuestPointCardActions, QuestPointControls, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
 import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
 import { mapViewSupport, planMapLayers, readMapView, saveMapView } from '../data/mapView'
+import { PLAYER_FLOOR_HINT, useAutoFloor } from '../data/useAutoFloor'
 import '../styles/mapView.css'
 import { useAppState } from '../state/AppState'
 import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
@@ -39,6 +40,9 @@ import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
 import { useRaidRoute } from '../raidprep/useRaidPrep'
 import { useSquadSharedQuests } from '../squad/useSquad'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
+import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
+import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
+import { isDesktopShell } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -341,14 +345,15 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
-  const { tileUrl, imageUrl, floorTileUrl } = plan
-  const imageBounds = plan.imageBounds ? toLeafletBounds({ ...activeMap, bounds: plan.imageBounds }) : activeBounds
-  const baseOpacity = plan.dimBase ? 0.45 : 1
 
   useEffect(() => {
     setFloor(baseFloor)
     setTools((current) => ({ ...current, rulerPoints: [], sniperCenter: null }))
   }, [activeMap.id, baseFloor])
+  // «Этаж по скриншоту»: the floor the player is on. Declared after the reset above — effects run in order, so on
+  // opening the map (or a new screenshot) the player's floor wins; a floor picked by hand stays until the next one.
+  const player = useLivePlayer(activeMap.id)
+  const playerOnFloor = useAutoFloor(activeMap, player.onThisMap ? player.position : null, setFloor, !bossPlacement.active && !questEditor.active)
 
   const itemsById = useMemo(() => new Map<string, Item>(data.items.map((item) => [item.id, item])), [data.items])
 
@@ -408,15 +413,21 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     })
   }, [activeMap.id, currentQuests, plottedMarkers, progress])
 
+  // «Сделал в этом рейде»: the player's own checks (this profile and mode, not progress); checked quests go last.
+  const profileId = state.activeProfile.id
+  const raidMode = state.raidMode
+  const questChecks = useQuestChecks(profileId, raidMode)
+
   const localMapQuests = useMemo(
-    () => mapQuestEntries.filter(({ quest }) => !quest.anyMap),
-    [mapQuestEntries],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), questChecks),
+    [mapQuestEntries, questChecks],
   )
 
   const anyMapQuests = useMemo(
-    () => mapQuestEntries.filter(({ quest }) => quest.anyMap),
-    [mapQuestEntries],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), questChecks),
+    [mapQuestEntries, questChecks],
   )
+  const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
   const squadShared = useSquadSharedQuests(state.raidMode)
 
@@ -564,52 +575,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           attributionControl={false}
         >
           <ZoomControl position="topright" />
-          {/* Digital: the SVG scheme with the ground level (or the selected SVG floor) shown. */}
-          {plan.view === 'digital' && imageUrl && (
-            <FloorSvgOverlay key={`base:${imageUrl}`} base url={imageUrl} layers={activeMap.layers ?? []} selected={plan.floorSvg ? floor : baseFloor} bounds={imageBounds} opacity={baseOpacity} />
-          )}
-          {/* Satellite: the scheme under the render tiles, so a gap in a tile shows the plan instead of black. */}
-          {plan.view === 'satellite' && imageUrl && plan.underlay && (
-            <Pane name="satellite-underlay" style={{ zIndex: 150 }}>
-              <FloorSvgOverlay key={`under:${imageUrl}`} base url={imageUrl} layers={activeMap.layers ?? []} selected={baseFloor} bounds={imageBounds} opacity={baseOpacity} />
-            </Pane>
-          )}
-          {/* Satellite, main level: the buildings' ground-floor rooms from the scheme (the render leaves them black). */}
-          {plan.view === 'satellite' && imageUrl && plan.groundInteriors && (
-            <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={activeMap.layers ?? []} selected={baseFloor} bounds={imageBounds} interiors />
-          )}
-          {/* Satellite: a floor that only exists in the SVG is drawn as a plan over the render. */}
-          {plan.view === 'satellite' && imageUrl && plan.floorSvg === 'floor-only' && (
-            <FloorSvgOverlay key={`floor:${imageUrl}`} url={imageUrl} layers={activeMap.layers ?? []} selected={floor} bounds={imageBounds} terrain={false} />
-          )}
-          {uiText(plan.view === 'satellite' && tileUrl && (
-            <TileLayer
-              key={tileUrl}
-              url={tileUrl}
-              opacity={baseOpacity}
-              bounds={activeBounds}
-              tileSize={activeMap.tileSize ?? 256}
-              minZoom={-5}
-              minNativeZoom={activeMap.minZoom}
-              maxZoom={Math.max(7, activeMap.maxZoom ?? 3)}
-              maxNativeZoom={activeMap.maxZoom}
-              noWrap
-            />
-          ))}
-          {uiText(floorTileUrl && (
-            <TileLayer
-              key={floorTileUrl}
-              url={floorTileUrl}
-              bounds={activeBounds}
-              tileSize={activeMap.tileSize ?? 256}
-              minZoom={-5}
-              minNativeZoom={activeMap.minZoom}
-              maxZoom={Math.max(7, activeMap.maxZoom ?? 3)}
-              maxNativeZoom={activeMap.maxZoom}
-              zIndex={2}
-              noWrap
-            />
-          ))}
+          <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <FocusOnMarker marker={flyTarget} />
           <MapRefCapture mapRef={mapRef} />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
@@ -617,7 +583,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
           <MapToolLayer value={tools} onChange={setTools} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
-          <LivePlayerMarker mapId={activeMap.id} />
+          <LivePlayerMarker player={player} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
@@ -779,7 +745,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         {uiText(activeMap.floors && activeMap.floors.length > 1 && (
           <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>
             {uiText(activeMap.floors.map((entry) => (
-              <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)}>
+              <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
+                {entry === playerOnFloor && <Crosshair size={12} aria-hidden="true" />}
                 {uiText(entry)}
               </button>
             )))}
@@ -798,6 +765,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     selected={selectedMarker?.questId === quest.id}
                     onSelect={() => showQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
+                    checked={questChecks.has(quest.id)}
+                    onToggleCheck={() => toggleQuestCheck(profileId, raidMode, quest.id)}
                   />
                 )))}
               </>
@@ -812,10 +781,13 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     selected={selectedMarker?.questId === quest.id}
                     onSelect={() => showQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
+                    checked={questChecks.has(quest.id)}
+                    onToggleCheck={() => toggleQuestCheck(profileId, raidMode, quest.id)}
                   />
                 )))}
               </>
             ))}
+            {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
           </div>
         ) : (
           <div className="map-detail-empty">
@@ -901,15 +873,16 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-function QuestMapRow({ quest, selected, onSelect, squad }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number }) {
+function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void }) {
   return (
-    <div className={`catalog-card quest-catalog-card quest-map-row ${selected ? 'selected' : ''}`}>
+    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}`}>
       <button type="button" className="quest-map-row-main" onClick={onSelect}>
         <span className="quest-card-copy">
           <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
         </span>
       </button>
+      <QuestRaidCheck questName={quest.name} checked={checked} onToggle={onToggleCheck} />
     </div>
   )
 }

@@ -32,6 +32,7 @@ const INVITE_FLAG_LABEL: Record<string, string> = {
   'card-reused': 'Карта уже была у другого друга',
   burst: 'Слишком много за сутки',
   'payment-or-account': 'Платёж отменён или аккаунт пригласившего заблокирован',
+  'eft-counted': 'Аккаунт игры уже засчитывался или совпадает с пригласившим',
 }
 
 const KIND_LABEL: Record<string, string> = { operator: 'Ранг Operator', 'squad-leader': 'Ранг Squad Leader', 'raid-commander': 'Ранг Raid Commander', legend: 'Ранг Legend' }

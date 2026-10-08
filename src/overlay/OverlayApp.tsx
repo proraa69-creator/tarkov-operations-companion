@@ -1,18 +1,22 @@
 import { uiText } from '../i18n/renderText'
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { divIcon, latLng, type LatLngBoundsExpression, type LatLngExpression } from 'leaflet'
-import { ImageOverlay, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, useMap } from 'react-leaflet'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
+import { MapFloorLayers } from '../components/MapFloorLayers'
 import { mainFloor } from '../data/mapProjection'
-import type { GameMap } from '../domain/types'
+import { planMapLayers, resolveMapView } from '../data/mapView'
+import { PLAYER_FLOOR_HINT, useAutoFloor } from '../data/useAutoFloor'
+import type { GameMap, MapView } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
 import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
 import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
 import { MateBadge } from './MateBadge'
 import { minimapWidth } from './minimapSize'
-import { Grip, X, Scaling, Contrast } from 'lucide-react'
+import { NO_QUEST, clearQuest, pressQuest, questClusters, questTarget, readMinimapView, saveMinimapView, type QuestCycle } from './minimapView'
+import { Grip, X, Scaling, Contrast, Crosshair } from 'lucide-react'
 
 export type OverlayKind = 'item' | 'minimap'
 
@@ -91,8 +95,11 @@ function MinimapOverlay() {
   const [now, setNow] = useState(() => Date.now())
   const [opacity, setOpacity] = useState(0.9)
   const [width, setWidth] = useState(420)
-  const [selectedQuest, setSelectedQuest] = useState<string | null>(null)
+  /** The chosen quest and which of its rooms (or the whole map) its button showed last. */
+  const [questCycle, setQuestCycle] = useState<QuestCycle>(NO_QUEST)
   const [visibilityRevision, setVisibilityRevision] = useState(0)
+  /** The floor shown, for the map it was chosen on: the next raid's map starts on its main level. */
+  const [floorChoice, setFloorChoice] = useState<{ mapId: string; floor: string } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -108,6 +115,13 @@ function MinimapOverlay() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => { offMap?.(); offPosition?.(); offVisibility?.(); window.clearInterval(timer) }
   }, [])
+
+  // «Этаж по скриншоту»: each new screenshot shows the player's floor; a floor clicked here stays until the next one
+  // (opening the minimap again re-sends the same position, which changes nothing).
+  const readyMap = payload?.state === 'ready' ? payload.map : undefined
+  const readyMapId = readyMap?.id
+  const chooseFloor = useCallback((floor: string) => { if (readyMapId) setFloorChoice({ mapId: readyMapId, floor }) }, [readyMapId])
+  const playerOnFloor = useAutoFloor(readyMap, position, chooseFloor)
 
   // The overlay is click-through except over its controls.
   useInteractiveZones(rootRef, visibilityRevision, payload?.state)
@@ -125,7 +139,15 @@ function MinimapOverlay() {
   }
   const age = position ? Math.max(0, Math.round((now - position.at) / 1000)) : null
   const quests = payload.quests ?? []
+  const selectedQuest = questCycle.questId
   const selected = quests.find((quest) => quest.questId === selectedQuest)
+  const roomCount = selected ? questClusters(payload.markers, selected.questId).length : 0
+  // «Точка 2 из 3» while stepping through the rooms of a quest, «Вся карта» after the last one.
+  const stepLabel = !selected || !roomCount ? '' : questCycle.step >= roomCount ? 'Вся карта' : roomCount > 1 ? `Точка ${questCycle.step + 1} из ${roomCount}` : ''
+  const floors = payload.map.floors ?? []
+  const floor = floorChoice?.mapId === payload.map.id ? floorChoice.floor : mainFloor(payload.map)
+  // The map comes with only the drawing chosen on the Maps page left in it (mapForView): tiles when it has them.
+  const view = payload.view ?? resolveMapView(payload.map, 'satellite')
   const changeOpacity = (value: number) => {
     setOpacity(value)
     void window.tarkovDesktop?.experimental?.updateSettings({ minimapOpacity: value })
@@ -151,7 +173,17 @@ function MinimapOverlay() {
         <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
         <button className="ov-icon-button" type="button" title={uiText('Скрыть мини-карту')} aria-label={uiText('Скрыть мини-карту')} onClick={() => void window.tarkovDesktop?.experimental?.toggleMinimap()}><X size={14} /></button>
       </div>
-      <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} selectedQuest={selectedQuest} />
+      <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} view={view} floor={floor} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} questCycle={questCycle} />
+      {floors.length > 1 && (
+        <div className="ov-floor-list ov-interactive" role="group" aria-label={uiText('Этаж карты')}>
+          {floors.map((entry) => (
+            <button key={entry} type="button" className={entry === floor ? 'active' : ''} aria-pressed={entry === floor} onClick={() => chooseFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
+              {entry === playerOnFloor && <Crosshair size={11} aria-hidden="true" />}
+              {uiText(entry)}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ov-minimap-controls ov-interactive">
         <label className="ov-opacity" title={uiText('Прозрачность')}><Contrast size={14} aria-hidden="true" />
           <input aria-label={uiText('Прозрачность')} type="range" min={30} max={100} step={5} value={Math.round(opacity * 100)} onChange={(event) => changeOpacity(Number(event.target.value) / 100)} />
@@ -168,7 +200,8 @@ function MinimapOverlay() {
         <ul className="ov-quest-list ov-interactive">
           {quests.map((quest) => (
             <li key={quest.questId}>
-              <button type="button" className={selectedQuest === quest.questId ? 'active' : ''} onClick={() => setSelectedQuest((current) => current === quest.questId ? null : quest.questId)} title={uiText(`${quest.name} · ${quest.trader}`)}>
+              {/* Each press moves to the quest's next room; after the last one the whole map, then the first again. */}
+              <button type="button" className={selectedQuest === quest.questId ? 'active' : ''} aria-pressed={selectedQuest === quest.questId} onClick={() => setQuestCycle((current) => pressQuest(current, quest.questId, questClusters(payload.markers, quest.questId).length))} title={uiText(`${quest.name} · ${quest.trader}`)}>
                 {uiText(quest.name)}
               </button>
             </li>
@@ -177,7 +210,12 @@ function MinimapOverlay() {
       )}
       {selected && (
         <div className="ov-quest-task ov-interactive">
-          <div className="ov-quest-task-head"><strong>{uiText(selected.name)}</strong><span>{uiText(selected.trader)}</span></div>
+          <div className="ov-quest-task-head">
+            <strong>{uiText(selected.name)}</strong><span>{uiText(selected.trader)}</span>
+            {stepLabel && <em className="ov-quest-step">{uiText(stepLabel)}</em>}
+            {/* The quest button now cycles, so taking the quest off the map (and following the player again) is here. */}
+            <button className="ov-icon-button" type="button" title={uiText('Снять выбор задания')} aria-label={uiText('Снять выбор задания')} onClick={() => setQuestCycle(clearQuest)}><X size={12} /></button>
+          </div>
           <ul>{selected.objectives.map((objective) => <li key={objective}>{uiText(objective)}</li>)}</ul>
         </div>
       )}
@@ -257,23 +295,25 @@ function mapAspect(map: GameMap) {
   return width > 0 && height > 0 ? height / width : 1
 }
 
-function MinimapMap({ width, visibilityRevision, map, markers, position, playerMarker, selectedQuest }: { width: number; visibilityRevision: number; map: GameMap; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; selectedQuest: string | null }) {
+function MinimapMap({ width, visibilityRevision, map, view, floor, markers, position, playerMarker, questCycle }: { width: number; visibilityRevision: number; map: GameMap; view: MapView; floor: string; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; questCycle: QuestCycle }) {
+  const selectedQuest = questCycle.questId
   const crs = useMemo(() => createMapCrs(map), [map])
   // Stable between renders: the overlay re-renders every second (the «live» age), and a new bounds object
   // used to re-run the fit below — the map jumped back to the whole map and lost the player's zoom.
   const bounds = useMemo(() => toLeafletBounds(map), [map])
   const height = Math.round(Math.min(560, Math.max(180, width * mapAspect(map))))
-  const base = map.layers?.find((layer) => layer.name === mainFloor(map))
-  const tileUrl = base?.tileUrl ?? map.tileUrl
-  const imageUrl = base?.imageUrl ?? map.imageUrl
+  // The chosen floor is drawn as on the Maps page: its own render tiles or its plan from the scheme.
+  const plan = useMemo(() => planMapLayers(map, view, floor), [map, view, floor])
+  const clusters = useMemo(() => questClusters(markers, selectedQuest), [markers, selectedQuest])
+  // The view the player left by hand on this map, read once when the map is created (it is keyed by map id).
+  const savedView = useMemo(() => readMinimapView(map.id), [map.id])
   return (
     <MapContainer
       key={map.id}
       className="ov-minimap-map ov-interactive"
       style={{ width, height }}
       crs={crs}
-      bounds={bounds}
-      boundsOptions={{ padding: [0, 0] }}
+      {...(savedView ? { center: savedView.center, zoom: savedView.zoom } : { bounds, boundsOptions: { padding: [0, 0] } })}
       zoomSnap={0}
       minZoom={Math.min(-5, map.minZoom ?? -1)}
       maxZoom={Math.max(7, map.maxZoom ?? 3)}
@@ -285,16 +325,14 @@ function MinimapMap({ width, visibilityRevision, map, markers, position, playerM
       doubleClickZoom
       keyboard={false}
     >
-      {imageUrl && !tileUrl ? <ImageOverlay url={imageUrl} bounds={bounds} /> : null}
-      {tileUrl ? (
-        <TileLayer url={tileUrl} bounds={bounds} tileSize={map.tileSize ?? 256} minZoom={-5} minNativeZoom={map.minZoom} maxZoom={Math.max(7, map.maxZoom ?? 3)} maxNativeZoom={map.maxZoom} noWrap />
-      ) : null}
+      <MapFloorLayers map={map} plan={plan} floor={floor} />
       {markers.map((marker) => (
         <Marker key={marker.id} position={marker.position} icon={minimapIcon(marker.layerId, Boolean(selectedQuest && marker.questId === selectedQuest))} interactive={false} zIndexOffset={marker.questId === selectedQuest ? 500 : 0} />
       ))}
       <MapSize width={width} height={height} visibilityRevision={visibilityRevision} />
-      <FocusQuest markers={markers} questId={selectedQuest} bounds={bounds} />
-      <PlayerMarker position={position} style={playerMarker} followDisabled={Boolean(selectedQuest)} />
+      <FocusQuest clusters={clusters} cycle={questCycle} bounds={bounds} />
+      <ViewMemory mapId={map.id} />
+      <PlayerMarker position={position} style={playerMarker} followDisabled={Boolean(selectedQuest)} keepZoom={Boolean(savedView)} />
     </MapContainer>
   )
 }
@@ -311,20 +349,50 @@ function MapSize({ width, height, visibilityRevision }: { width: number; height:
   return null
 }
 
-function FocusQuest({ markers, questId, bounds }: { markers: MinimapMarker[]; questId: string | null; bounds: LatLngBoundsExpression }) {
+function FocusQuest({ clusters, cycle, bounds }: { clusters: MinimapMarker[][]; cycle: QuestCycle; bounds: LatLngBoundsExpression }) {
   const map = useMap()
-  const shownQuest = useRef<string | null | undefined>(undefined)
+  const shownSeq = useRef(cycle.seq)
   useEffect(() => {
-    // Only when the selected quest changes (or on first show) — never on an ordinary re-render.
-    if (shownQuest.current === questId) return
-    const first = shownQuest.current === undefined
-    shownQuest.current = questId
-    if (!questId) { if (!first) map.fitBounds(bounds, { padding: [0, 0], animate: true }); return }
-    const points = markers.filter((marker) => marker.questId === questId).map((marker) => marker.position)
-    if (!points.length) return
+    // Only on a press of a quest button (or the clear button) — never on an ordinary re-render or a new payload.
+    if (shownSeq.current === cycle.seq) return
+    shownSeq.current = cycle.seq
+    const target = cycle.questId ? questTarget(clusters, cycle.step) : { kind: 'map' as const }
+    if (!target) return
+    if (target.kind === 'map') { map.fitBounds(bounds, { padding: [0, 0], animate: true }); return }
+    const points = target.points
     if (points.length === 1) map.flyTo(points[0]!, Math.max(map.getZoom(), map.getMaxZoom() - 3), { duration: 0.5 })
     else map.flyToBounds(points, { padding: [40, 40], maxZoom: map.getMaxZoom() - 3, duration: 0.5 })
-  }, [map, markers, questId, bounds])
+  }, [map, clusters, cycle, bounds])
+  return null
+}
+
+/**
+ * Remembers the centre and zoom the player set by hand (drag, wheel, double click) for this map, so the
+ * minimap opens the same way next time. Moves made by the app (following the player, quest buttons) are not saved.
+ */
+function ViewMemory({ mapId }: { mapId: string }) {
+  const map = useMap()
+  useEffect(() => {
+    let manual = false
+    const touch = () => { manual = true }
+    const save = () => {
+      if (!manual) return
+      manual = false
+      const center = map.getCenter()
+      saveMinimapView(mapId, { center: [center.lat, center.lng], zoom: map.getZoom() })
+    }
+    const container = map.getContainer()
+    map.on('dragstart', touch)
+    map.on('dblclick', touch)
+    map.on('moveend', save)
+    container.addEventListener('wheel', touch, { passive: true })
+    return () => {
+      map.off('dragstart', touch)
+      map.off('dblclick', touch)
+      map.off('moveend', save)
+      container.removeEventListener('wheel', touch)
+    }
+  }, [map, mapId])
   return null
 }
 
@@ -341,7 +409,7 @@ function minimapIcon(layerId: MinimapMarker['layerId'], selected: boolean) {
   return icon
 }
 
-function PlayerMarker({ position, style, followDisabled }: { position: PlayerPosition | null; style: PlayerMarkerStyle; followDisabled: boolean }) {
+function PlayerMarker({ position, style, followDisabled, keepZoom }: { position: PlayerPosition | null; style: PlayerMarkerStyle; followDisabled: boolean; keepZoom: boolean }) {
   const map = useMap()
   const [angle, setAngle] = useState(0)
   const latLngValue: LatLngExpression | null = position ? [position.z, position.x] : null
@@ -356,7 +424,8 @@ function PlayerMarker({ position, style, followDisabled }: { position: PlayerPos
     return () => { map.off('dragstart', touch); container.removeEventListener('wheel', touch) }
   }, [map])
 
-  const zoomedIn = useRef(false)
+  // A view restored from the last time keeps its zoom: following then only pans, as after a reopen.
+  const zoomedIn = useRef(keepZoom)
   useEffect(() => {
     // Follow the player without jumping: the zoom is set once (then it stays as the player leaves it), and the
     // map pans smoothly only when the marker comes near the edge of the window.

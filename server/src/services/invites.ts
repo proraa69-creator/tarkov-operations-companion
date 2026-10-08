@@ -7,7 +7,12 @@
  * registration itself — only for a REAL paying friend:
  *
  *   - the friend's first successful payment creates a reward of REWARD_DAYS days, «на проверке» for HOLD_MS (refunds
- *     and charge-backs surface in that time, and the owner can cancel it);
+ *     and charge-backs surface in that time, and the owner can cancel it); the owner's approval does not shorten it;
+ *   - a friend counts once per Escape from Tarkov account: the reward waits until the friend's desktop app has bound
+ *     his game account (AccountStore.bindEftAccount), and a game account counted once never counts again (eft_counted
+ *     survives account deletion);
+ *   - ANY refund of the friend's payment, full or partial, cancels the reward — taking the days back if already granted —
+ *     and the rank bonuses the inviter no longer has enough confirmed friends for (owner's decision 08.10.2026, «А»);
  *   - suspicious rewards (same device, same registration address, same card as the inviter or as another friend, too
  *     many in a day) go to the owner's review instead and are never granted automatically;
  *   - after the hold `release()` (hourly, index.ts) grants the days — only while the friend's payment is still
@@ -43,7 +48,7 @@ export const RANKS: Array<{ id: RankId; title: string; friends: number; bonusDay
 ]
 
 export type RewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
-export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email'
+export type FraudFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted'
 /** Milestones big enough to be worth faking friends for: granted only after the owner's review. */
 const REVIEWED_MILESTONES = new Set<RankId>(['raid-commander', 'legend'])
 export interface RewardView {
@@ -58,6 +63,8 @@ export interface RewardView {
   decidedAt?: string
   /** The friend's e-mail, masked (a***@mail.ru); absent for milestones. */
   friend?: string
+  /** On hold and the friend has not bound his Escape from Tarkov account yet (the reward waits for it). */
+  waitingEft?: true
 }
 
 type Row = Record<string, unknown>
@@ -81,6 +88,11 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS invite_rewards_status ON invite_rewards(status, release_at);
   CREATE UNIQUE INDEX IF NOT EXISTS invite_rewards_friend ON invite_rewards(friend_id) WHERE kind = 'friend' AND friend_id IS NOT NULL;
   CREATE UNIQUE INDEX IF NOT EXISTS invite_rewards_milestone ON invite_rewards(inviter_id, kind) WHERE kind != 'friend';
+  -- Game accounts (AccountStore eft digest) already counted as a friend once: kept after account deletion.
+  CREATE TABLE IF NOT EXISTS invite_eft_counted (
+    eft_digest TEXT PRIMARY KEY,
+    reward_id INTEGER,
+    counted_at INTEGER NOT NULL);
 `
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const CODE = /^[A-Z0-9_-]{3,24}$/
@@ -108,8 +120,11 @@ export class InviteProgram {
     this.db = accounts.database
     this.now = options.now ?? Date.now
     this.db.exec(SCHEMA)
+    // The paid period before «навсегда» (rank Legend), to give it back if the rank is lost. Added to older databases.
+    const columns = new Set((this.db.prepare('PRAGMA table_info(invite_rewards)').all() as Row[]).map((row) => String(row.name)))
+    if (!columns.has('previous_until')) this.db.exec('ALTER TABLE invite_rewards ADD COLUMN previous_until INTEGER')
     payments.onSucceeded((payment) => this.paymentSucceeded(payment))
-    payments.onRefunded((payment) => this.paymentRefunded(payment.id))
+    payments.onRefunded((payment) => this.paymentRefunded(payment.id, payment.partial === true))
   }
 
   /** The friend's discount on the first month, %, or 0. */
@@ -156,7 +171,11 @@ export class InviteProgram {
     const next = RANKS.find((item) => confirmed < item.friends)
     const count = (sql: string) => Number((this.db.prepare(sql).get(accountId) as Row).n)
     const rewards = (this.db.prepare('SELECT r.*, a.email AS friend_email FROM invite_rewards r LEFT JOIN accounts a ON a.id = r.friend_id WHERE r.inviter_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 100').all(accountId) as Row[])
-      .map((row) => this.toView(row))
+      .map((row) => {
+        const view = this.toView(row)
+        if (row.kind === 'friend' && row.status === 'pending' && (row.friend_id == null || !this.accounts.eftDigestOf(String(row.friend_id)))) view.waitingEft = true
+        return view
+      })
     return {
       code,
       discountPercent: FRIEND_DISCOUNT_PERCENT,
@@ -185,14 +204,34 @@ export class InviteProgram {
   }
 
   /**
-   * The friend's payment was refunded: a reward on hold / under review is dropped; one already granted is cancelled and
-   * its days are taken back from the inviter (never below now).
+   * Any refund of the friend's payment, full or partial: a reward on hold / under review is dropped; one already granted
+   * is cancelled and its days are taken back from the inviter (never below now), with the rank bonuses he no longer has
+   * enough confirmed friends for.
    */
-  private paymentRefunded(paymentId: string) {
+  private paymentRefunded(paymentId: string, partial = false) {
     const row = this.db.prepare("SELECT * FROM invite_rewards WHERE payment_id = ? AND kind = 'friend' AND status != 'canceled'").get(paymentId) as Row | undefined
     if (!row) return
-    this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, comment = 'платёж друга возвращён' WHERE id = ?").run(this.now(), Number(row.id))
-    if (row.status === 'granted') this.extend(String(row.inviter_id), -Number(row.days))
+    this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, comment = ? WHERE id = ?")
+      .run(this.now(), partial ? 'платёж друга частично возвращён' : 'платёж друга возвращён', Number(row.id))
+    if (row.status !== 'granted') return
+    this.extend(String(row.inviter_id), -Number(row.days))
+    this.revokeLostMilestones(String(row.inviter_id))
+  }
+
+  /** Rank bonuses above the inviter's confirmed friends now: cancelled, their days taken back (never below now). */
+  private revokeLostMilestones(inviter: string) {
+    const confirmed = this.confirmedCount(inviter)
+    for (const rank of RANKS) {
+      if (rank.bonusDays === 0 || confirmed >= rank.friends) continue
+      const row = this.db.prepare("SELECT * FROM invite_rewards WHERE inviter_id = ? AND kind = ? AND status != 'canceled'").get(inviter, rank.id) as Row | undefined
+      if (!row) continue
+      this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, comment = 'ранг потерян: платёж друга возвращён' WHERE id = ?").run(this.now(), Number(row.id))
+      if (row.status !== 'granted') continue
+      if (rank.bonusDays === 'lifetime') {
+        // Back to the end the paid period had before «навсегда» (previous_until, stored at grant), never below now.
+        this.db.prepare('UPDATE subscriptions SET paid_until = ? WHERE account_id = ?').run(Math.max(this.now(), Number(row.previous_until ?? 0)), inviter)
+      } else this.extend(inviter, -Number(row.days))
+    }
   }
 
   private fraudFlags(inviter: string, payment: SucceededPayment): FraudFlag[] {
@@ -229,14 +268,28 @@ export class InviteProgram {
           this.db.prepare("UPDATE invite_rewards SET status = 'review', flags = COALESCE(flags || ',', '') || 'payment-or-account' WHERE id = ? AND status = 'pending'").run(Number(row.id))
           return
         }
-        if (this.grant(Number(row.id), String(row.inviter_id), Number(row.days))) granted++
+        if (row.kind === 'friend') {
+          const eft = row.friend_id == null ? undefined : this.accounts.eftDigestOf(String(row.friend_id))
+          // No game account bound yet: the reward waits (it is granted at the first release after the binding).
+          if (!eft) return
+          if (eft === this.accounts.eftDigestOf(String(row.inviter_id)) || this.db.prepare('SELECT 1 FROM invite_eft_counted WHERE eft_digest = ?').get(eft)) {
+            this.db.prepare("UPDATE invite_rewards SET status = 'review', flags = COALESCE(flags || ',', '') || 'eft-counted' WHERE id = ? AND status = 'pending'").run(Number(row.id))
+            return
+          }
+          if (!this.grant(Number(row.id), String(row.inviter_id), Number(row.days))) return
+          this.db.prepare('INSERT OR IGNORE INTO invite_eft_counted (eft_digest, reward_id, counted_at) VALUES (?, ?, ?)').run(eft, Number(row.id), this.now())
+          granted++
+        } else if (this.grant(Number(row.id), String(row.inviter_id), Number(row.days))) granted++
         this.grantMilestones(String(row.inviter_id))
       })
     }
     return { granted }
   }
 
-  /** The owner's decision on a reward under review or on hold: «approve» grants it now, «cancel» drops it. */
+  /**
+   * The owner's decision on a reward under review or on hold: «cancel» drops it; «approve» grants a milestone now and
+   * clears a friend's reward for the hourly release — never before its 14 days are over (refunds come in that time).
+   */
   decide(actor: string, id: number, decision: 'approve' | 'cancel', comment?: string) {
     const row = this.db.prepare('SELECT * FROM invite_rewards WHERE id = ?').get(id) as Row | undefined
     if (!row) throw new AccountError(404, 'Начисление не найдено')
@@ -246,14 +299,22 @@ export class InviteProgram {
         this.db.prepare("UPDATE invite_rewards SET status = 'canceled', decided_at = ?, decided_by = ?, comment = ? WHERE id = ?").run(this.now(), actor, comment ?? null, id)
         return
       }
+      if (row.kind === 'friend') {
+        // Approved: back on hold without the suspicion flags; release() grants it when the hold is over (and the friend's
+        // game account is bound and new).
+        this.db.prepare("UPDATE invite_rewards SET status = 'pending', flags = NULL, decided_by = ?, comment = COALESCE(?, comment), release_at = MAX(COALESCE(release_at, 0), ?) WHERE id = ?")
+          .run(actor, comment ?? null, Number(row.created_at) + HOLD_MS, id)
+        return
+      }
       if (row.kind === 'legend') {
-        const changed = this.db.prepare("UPDATE invite_rewards SET status = 'granted', decided_at = ?, decided_by = ?, comment = COALESCE(?, comment) WHERE id = ? AND status IN ('pending', 'review')").run(this.now(), actor, comment ?? null, id)
+        const changed = this.db.prepare("UPDATE invite_rewards SET status = 'granted', decided_at = ?, decided_by = ?, comment = COALESCE(?, comment), previous_until = ? WHERE id = ? AND status IN ('pending', 'review')").run(this.now(), actor, comment ?? null, this.payments.paidUntil(String(row.inviter_id)) ?? null, id)
         if (Number(changed.changes)) this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = MAX(paid_until, excluded.paid_until)').run(String(row.inviter_id), LIFETIME_UNTIL)
         return
       }
       this.grant(id, String(row.inviter_id), Number(row.days), actor, comment)
-      if (row.kind === 'friend') this.grantMilestones(String(row.inviter_id))
     })
+    // An approved friend whose hold is already over is granted right away (outside the decision's transaction).
+    if (decision === 'approve' && row.kind === 'friend') this.release()
     return this.adminReward(id)
   }
 
@@ -314,13 +375,20 @@ export class InviteProgram {
       if (rank.bonusDays === 0 || confirmed < rank.friends) continue
       const lifetime = rank.bonusDays === 'lifetime'
       const days = lifetime ? 0 : Number(rank.bonusDays)
+      const reviewed = REVIEWED_MILESTONES.has(rank.id)
+      // A rank lost after a refund and reached again: the same row comes back (one row per rank and inviter).
+      const lost = this.db.prepare("SELECT id FROM invite_rewards WHERE inviter_id = ? AND kind = ? AND status = 'canceled'").get(inviter, rank.id) as Row | undefined
       // A year and lifetime Premium wait for the owner (decide): 25–50 paid «friends» is what a farm of alts would buy.
-      if (REVIEWED_MILESTONES.has(rank.id)) {
-        this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, flags, created_at) VALUES (?, ?, ?, 'review', 'milestone', ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now())
+      if (reviewed) {
+        if (lost) this.db.prepare("UPDATE invite_rewards SET status = 'review', flags = 'milestone', decided_at = NULL, decided_by = NULL, created_at = ? WHERE id = ?").run(this.now(), Number(lost.id))
+        else this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, flags, created_at) VALUES (?, ?, ?, 'review', 'milestone', ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now())
         continue
       }
-      const inserted = this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, created_at, decided_at) VALUES (?, ?, ?, 'granted', ?, ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now(), this.now())
-      if (!Number(inserted.changes)) continue
+      const previous = this.payments.paidUntil(inviter) ?? null
+      const changed = lost
+        ? this.db.prepare("UPDATE invite_rewards SET status = 'granted', decided_at = ?, comment = 'ранг получен снова', previous_until = ? WHERE id = ?").run(this.now(), previous, Number(lost.id))
+        : this.db.prepare("INSERT INTO invite_rewards (inviter_id, kind, days, status, created_at, decided_at, previous_until) VALUES (?, ?, ?, 'granted', ?, ?, ?) ON CONFLICT DO NOTHING").run(inviter, rank.id, days, this.now(), this.now(), previous)
+      if (!Number(changed.changes)) continue
       if (lifetime) this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = MAX(paid_until, excluded.paid_until)').run(inviter, LIFETIME_UNTIL)
       else this.extend(inviter, days)
     }

@@ -1,4 +1,4 @@
-import type { GameMap, MapFloorLayer, MapMarker } from '../domain/types'
+import type { GameMap, MapFloorExtent, MapFloorLayer, MapMarker } from '../domain/types'
 
 export const MAIN_FLOOR = 'Основной'
 
@@ -78,6 +78,25 @@ export function markerFloor(
 }
 
 /**
+ * The floor the player stands on, from the screenshot position (Unity is Y-up: `y` is the height). Picked the way
+ * tarkov.dev picks its player marker's floor: the first floor whose height extent holds `y` — the top excluded, so a
+ * point exactly at the border belongs to the floor above — and, for an extent limited to buildings, whose box holds
+ * the x/z point; otherwise the main level. Undefined when the map has no floor heights (the offline catalog): then
+ * the shown floor is left alone.
+ */
+export function playerFloor(map: Pick<GameMap, 'floors' | 'layers'>, position: { x: number; y: number; z: number }): string | undefined {
+  const { x, y, z } = position
+  if (![x, y, z].every(Number.isFinite)) return undefined
+  const floors = (map.layers ?? []).filter((layer) => !isMainLayer(layer) && floorExtents(layer).length)
+  if (!floors.length) return undefined
+  const point: [number, number] = [z, x]
+  const floor = floors.find((layer) => floorExtents(layer).some((extent) => (
+    belowTop(y, extent.height) && (!extent.bounds?.length || extent.bounds.some((box) => insideBox(point, box)))
+  )))
+  return floor?.name ?? mainFloor(map)
+}
+
+/**
  * Markers stay on the general map (labelled with their floor). Selecting a specific floor narrows the view
  * to that floor's points; quest points are always kept.
  */
@@ -142,6 +161,17 @@ function insideBox(position: [number, number], box: [[number, number], [number, 
 
 function between(value: number, range: [number, number]) {
   return value >= Math.min(range[0], range[1]) && value <= Math.max(range[0], range[1])
+}
+
+/** Like `between`, without the top: tarkov.dev's `y >= height[0] && y < height[1]`. */
+function belowTop(value: number, range: [number, number]) {
+  return value >= Math.min(range[0], range[1]) && value < Math.max(range[0], range[1])
+}
+
+/** A floor's height extents; a floor with only a height range counts as one extent over the whole map. */
+function floorExtents(layer: MapFloorLayer): MapFloorExtent[] {
+  if (layer.extents?.length) return layer.extents
+  return layer.heightRange ? [{ height: layer.heightRange }] : []
 }
 
 function polygonCenter(points: Array<[number, number]> | undefined): [number, number] | undefined {

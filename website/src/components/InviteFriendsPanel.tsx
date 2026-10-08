@@ -83,7 +83,7 @@ export function InviteFriendsPanel() {
         <div className="how-it-works">
           <div className="field-label">Правила</div>
           <p className="invite-rules">
-            Друг получает скидку {program?.discountPercent ?? 20} % на первый месяц. Вы — {bonusText(program?.rewardDays ?? 7)} Premium за каждого друга, который оплатил подписку; дни начисляются после проверки ({program?.holdDays ?? 14} {plural(program?.holdDays ?? 14, 'день', 'дня', 'дней')}). Засчитываются только новые игроки. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.
+            Друг получает скидку {program?.discountPercent ?? 20} % на первый месяц. Вы — {bonusText(program?.rewardDays ?? 7)} Premium за каждого друга, который оплатил подписку; дни начисляются после проверки ({program?.holdDays ?? 14} {plural(program?.holdDays ?? 14, 'день', 'дня', 'дней')}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.
           </p>
         </div>
       </div>

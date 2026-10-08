@@ -2,6 +2,7 @@ import type { ModeProgress, Quest, TaskRequirement } from '../domain/types'
 import { ocrKey, type QuestRowStatus } from './questOcr'
 import { reconcileWithSession, type QuestScanSession } from './questSession'
 import { applyStoryScan, type StoryScanMatch } from './storyScan'
+import { questRequirements } from '../progression/requirementEngine'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
@@ -177,10 +178,7 @@ function collectCompletePrerequisites(
 }
 
 function completeOnlyRequirements(quest: Quest): TaskRequirement[] {
-  const requirements = quest.requirements?.length
-    ? quest.requirements
-    : (quest.previous ?? []).map((taskId) => ({ taskId, allowedStatuses: ['complete' as const], group: undefined as string | undefined }))
-  return requirements.filter((requirement) => (
+  return questRequirements(quest).filter((requirement) => (
     !requirement.group
     && requirement.allowedStatuses.length === 1
     && requirement.allowedStatuses[0] === 'complete'
