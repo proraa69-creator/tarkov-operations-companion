@@ -514,6 +514,18 @@ a.quest-stage:hover { color: var(--text); }
 .segmented-filter button.active { color: var(--text); background: #29392e; }
 .quest-catalog-card { min-height: 58px; padding: 11px 14px; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; overflow: hidden; }
 .quest-catalog-card.quest-map-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+/* «Квесты на карте»: «Сделал в этом рейде» — the player's own note for the raid, not quest progress (QuestRaidCheck). */
+.quest-catalog-card.quest-map-row.has-raid-check { grid-template-columns: minmax(0, 1fr) auto; }
+.quest-raid-check { width: 32px; height: 32px; flex: 0 0 auto; padding: 0; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: transparent; color: var(--green); cursor: pointer; transition: background-color .18s var(--ease-soft), border-color .18s var(--ease-soft), color .18s var(--ease-soft); }
+/* The unchecked box hides its tick with opacity: forced colours (Windows high contrast) would override a transparent colour. */
+.quest-raid-check svg { opacity: 0; transition: opacity .18s var(--ease-soft); }
+@media (hover: hover) { .quest-raid-check:hover { border-color: var(--green); } .quest-raid-check:hover svg { opacity: .6; } }
+.quest-raid-check:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.quest-raid-check[aria-pressed="true"] { border-color: var(--green); background: var(--green); color: var(--surf-1); }
+.quest-raid-check[aria-pressed="true"] svg { opacity: 1; }
+.quest-map-row.is-raid-checked .quest-map-row-main { opacity: .5; }
+.quest-raid-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-top: 12px; color: var(--text-dim); font-size: 11.5px; line-height: 1.35; }
+:root[data-layout="mobile"] .quest-raid-check { width: 40px; height: 40px; }
 .quest-catalog-card > .tag { justify-self: end; white-space: nowrap; pointer-events: none; flex: 0 0 auto; }
 .quest-card-copy { min-width: 0; display: block; pointer-events: none; }
 .quest-card-copy h3 { margin: 0 0 4px; font-size: 14px; line-height: 1.3; font-weight: 600; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; overflow-wrap: normal; }
