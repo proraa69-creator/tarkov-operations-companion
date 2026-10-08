@@ -251,12 +251,12 @@ export function parsePriceHistory(data: unknown): PricePoint[] {
 /** Through the server's data gateway in the players' app (src/data/tarkovApi.ts, docs/subscription-protection.md). */
 async function graphql(query: string): Promise<unknown> {
   const body = await tarkovGraphql(query)
-  if (!body.data) throw new Error(body.errors?.[0]?.message ?? 'tarkov.dev: пустой ответ')
+  if (!body.data) throw new Error(body.errors?.[0]?.message ?? 'Сервер данных: пустой ответ')
   return body.data
 }
 
 export class SeasonPricesUnavailable extends Error {
-  constructor() { super('Для Сезона tarkov.dev не публикует отдельные цены бартеров и крафтов') }
+  constructor() { super('Для Сезона нет отдельных цен бартеров и крафтов') }
 }
 
 export async function fetchEconomySnapshot(mode: RaidMode, locale: AppLocale): Promise<EconomySnapshot> {
@@ -271,7 +271,7 @@ export async function fetchEconomySnapshot(mode: RaidMode, locale: AppLocale): P
     if (barters.status === 'rejected' && crafts.status === 'rejected') throw barters.reason
     const data = { ...asRecord(prices.value), ...(barters.status === 'fulfilled' ? asRecord(barters.value) : {}), ...(crafts.status === 'fulfilled' ? asRecord(crafts.value) : {}) }
     const snapshot = parseEconomyResponse(data, mode)
-    if (!snapshot.barters.length && !snapshot.crafts.length) throw new Error('tarkov.dev: нет бартеров и крафтов')
+    if (!snapshot.barters.length && !snapshot.crafts.length) throw new Error('Сервер данных: нет бартеров и крафтов')
     await writeGameCache(cacheKey, snapshot, ECONOMY_CACHE_MS)
     return { ...snapshot, source: 'live' }
   } catch (error) {

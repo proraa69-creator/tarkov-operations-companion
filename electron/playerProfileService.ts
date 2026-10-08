@@ -160,7 +160,7 @@ export async function resolvePlayerByNickname(mode: RaidMode, rawNickname: strin
   if (unpublished) return pending(unpublished)
   if (hint) return pending(hint)
   if (lastError) throw lastError
-  throw Object.assign(new Error(`Ник «${nickname}» пока не найден на Tarkov.dev. Запустите игру этим персонажем: приложение возьмёт аккаунт из логов игры и привяжет ник сразу.`), { status: 404 })
+  throw Object.assign(new Error(`Ник «${nickname}» пока не найден. Запустите игру этим персонажем: приложение возьмёт аккаунт из логов игры и привяжет ник сразу.`), { status: 404 })
 }
 
 export function clearPlayerProfileCache(mode?: RaidMode) {
@@ -277,9 +277,9 @@ async function fetchJson(url: string, timeoutMs: number): Promise<unknown> {
       signal: AbortSignal.timeout(timeoutMs),
       headers: { accept: 'application/json', 'user-agent': USER_AGENT },
     })
-    if (response.status === 404) throw Object.assign(new Error('Tarkov.dev пока не опубликовал профиль этого режима. Повторите позже или закройте окно крестиком и выберите другой режим.'), { status: 404 })
-    if (response.status === 429) throw new Error('Tarkov.dev временно ограничил запросы. Повторите через минуту.')
-    if (!response.ok) throw new Error(`Tarkov.dev недоступен: HTTP ${response.status}`)
+    if (response.status === 404) throw Object.assign(new Error('Профиль этого режима пока не опубликован. Повторите позже или закройте окно крестиком и выберите другой режим.'), { status: 404 })
+    if (response.status === 429) throw new Error('Сервер профилей временно ограничил запросы. Повторите через минуту.')
+    if (!response.ok) throw new Error(`Сервер профилей недоступен: HTTP ${response.status}`)
     return response.json()
   } catch (error) {
     throw humanizeNetworkError(error)
@@ -292,9 +292,9 @@ async function fetchText(url: string, timeoutMs: number): Promise<string> {
       signal: AbortSignal.timeout(timeoutMs),
       headers: { accept: 'application/json', 'user-agent': USER_AGENT },
     })
-    if (response.status === 404) throw new Error('Tarkov.dev пока не опубликовал индекс этого режима. Повторите позже.')
-    if (response.status === 429) throw new Error('Tarkov.dev временно ограничил запросы. Повторите через минуту.')
-    if (!response.ok) throw new Error(`Tarkov.dev недоступен: HTTP ${response.status}`)
+    if (response.status === 404) throw new Error('Индекс профилей этого режима пока не опубликован. Повторите позже.')
+    if (response.status === 429) throw new Error('Сервер профилей временно ограничил запросы. Повторите через минуту.')
+    if (!response.ok) throw new Error(`Сервер профилей недоступен: HTTP ${response.status}`)
     return response.text()
   } catch (error) {
     throw humanizeNetworkError(error)
@@ -302,14 +302,14 @@ async function fetchText(url: string, timeoutMs: number): Promise<string> {
 }
 
 export function humanizeNetworkError(error: unknown): Error {
-  if (!(error instanceof Error)) return new Error('Не удалось связаться с Tarkov.dev')
+  if (!(error instanceof Error)) return new Error('Не удалось связаться с сервером профилей')
   const name = error.name
   const message = error.message
   if (name === 'TimeoutError' || /aborted due to timeout|The operation was aborted/i.test(message)) {
-    return new Error('Tarkov.dev отвечает слишком долго (индекс профилей большой). Проверьте интернет и нажмите «Найти профиль» ещё раз.')
+    return new Error('Сервер профилей отвечает слишком долго. Проверьте интернет и нажмите «Найти профиль» ещё раз.')
   }
   if (name === 'AbortError') {
-    return new Error('Запрос к Tarkov.dev прерван. Повторите поиск профиля.')
+    return new Error('Запрос профиля прерван. Повторите поиск профиля.')
   }
   return error
 }

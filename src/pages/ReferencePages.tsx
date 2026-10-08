@@ -90,7 +90,7 @@ export function EconomyPage() {
           <AlertTriangle
             size={16}
             style={{ verticalAlign: "middle", marginRight: 8 }}
-          />{uiText(" Tarkov.dev временно недоступен. Показаны встроенные демонстрационные значения — не используйте их для точного расчёта сделки. ")}</div>
+          />{uiText(" Источник данных временно недоступен. Показаны встроенные демонстрационные значения — не используйте их для точного расчёта сделки. ")}</div>
       ))}
       <section className="panel">
         <div className="panel-header">
@@ -291,7 +291,7 @@ export function AmmoPage() {
         </div>
         <span className={`tag ${isLive ? "green" : "danger"}`}>
           <Crosshair size={12} />{" "}
-          {uiText(isLive ? "tarkov.dev · живые данные" : live.isLoading ? "Загрузка tarkov.dev…" : "Каталог: только урон и пробитие")}
+          {uiText(isLive ? "Живые данные" : live.isLoading ? "Загрузка данных…" : "Каталог: только урон и пробитие")}
         </span>
       </header>
       <div className="filter-row">
@@ -570,7 +570,7 @@ export function TradersPage() {
           <div className="eyebrow">{uiText("Контакты")}</div>
           <h1 className="page-title">{uiText("Торговцы")}</h1>
           <p className="page-subtitle">{uiText("Выберите торговца: его задания идут по порядку выдачи в игре. Выполненные зачёркнуты, доступное задание открывается с полным описанием.")}</p>
-          <p className="page-subtitle">{uiText("Время рестока — tarkov.dev для выбранного режима. Сезон использует время PvP.")}</p>
+          <p className="page-subtitle">{uiText("Время рестока — для выбранного режима. Сезон использует время PvP.")}</p>
         </div>
       </header>
       <div className="trader-grid">

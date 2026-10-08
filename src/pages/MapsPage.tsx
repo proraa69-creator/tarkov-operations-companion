@@ -805,8 +805,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
 }
 
 const mapViewOptions: Array<{ id: MapView; label: string; title: string; missing: string }> = [
-  { id: 'satellite', label: 'Спутник', title: 'Спутник: объёмный рендер местности сверху', missing: 'Для этой карты у tarkov.dev есть только схема' },
-  { id: 'digital', label: 'Схема', title: 'Схема: цифровая векторная карта', missing: 'Для этой карты у tarkov.dev нет схемы, только спутник' },
+  { id: 'satellite', label: 'Спутник', title: 'Спутник: объёмный рендер местности сверху', missing: 'Для этой карты есть только схема' },
+  { id: 'digital', label: 'Схема', title: 'Схема: цифровая векторная карта', missing: 'Для этой карты нет схемы, только спутник' },
 ]
 
 /**

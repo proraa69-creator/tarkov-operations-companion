@@ -41,10 +41,10 @@ export function GunBuilderPage() {
         <h1 className="page-title">{uiText('Сборщик оружия')}</h1>
         <p className="page-subtitle">{uiText('Соберите оружие из совместимых модулей: отдача, эргономика, вес и цена считаются сразу и сравниваются с заводской сборкой.')}</p>
       </div>
-      {catalog && <span className={`tag ${catalog.source === 'cache' ? 'brass' : 'green'}`}><Database size={12} /> {uiText(catalog.source === 'cache' ? 'кэш tarkov.dev' : 'tarkov.dev онлайн')} · {catalog.weapons.length} {uiText('оружия')} · {catalog.mods.size} {uiText('модулей')}</span>}
+      {catalog && <span className={`tag ${catalog.source === 'cache' ? 'brass' : 'green'}`}><Database size={12} /> {uiText(catalog.source === 'cache' ? 'кэш данных' : 'данные онлайн')} · {catalog.weapons.length} {uiText('оружия')} · {catalog.mods.size} {uiText('модулей')}</span>}
     </header>
     {query.isLoading && <div className="empty-state" role="status"><div><RefreshCw className="spin" size={26} /><h2>{uiText('Загружаем оружие и модули')}</h2><p>{uiText('Каталог модулей большой — он загружается только при открытии сборщика и кэшируется.')}</p></div></div>}
-    {!catalog && query.isError && <div className="empty-state" role="alert"><div><AlertTriangle size={26} /><h2>{uiText('Tarkov.dev недоступен')}</h2><p>{uiText('Не удалось загрузить оружие и модули, а сохранённой копии ещё нет.')}</p><button className="button" onClick={() => void query.refetch()}><RefreshCw size={14} />{uiText('Повторить')}</button></div></div>}
+    {!catalog && query.isError && <div className="empty-state" role="alert"><div><AlertTriangle size={26} /><h2>{uiText('Источник данных недоступен')}</h2><p>{uiText('Не удалось загрузить оружие и модули, а сохранённой копии ещё нет.')}</p><button className="button" onClick={() => void query.refetch()}><RefreshCw size={14} />{uiText('Повторить')}</button></div></div>}
     {catalog && <Builder catalog={catalog} />}
   </div>
 }

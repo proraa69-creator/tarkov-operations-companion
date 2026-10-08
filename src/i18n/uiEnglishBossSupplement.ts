@@ -1,6 +1,6 @@
 /** English for the research-list boss markers (src/data/bossSpawnSupplement.ts) and the raid-card boss names. */
 export const BOSS_SUPPLEMENT_PHRASES: Array<[string, string]> = [
-  ['Tarkov.dev пока не отмечает этого босса здесь — зона по списку боссов, точка приблизительная.', 'Tarkov.dev does not mark this boss here yet: area from the boss list, the point is approximate.'],
+  ['Точное место босса здесь не отмечено — зона по списку боссов, точка приблизительная.', 'The exact boss spot is not marked here: area from the boss list, the point is approximate.'],
   ['Шанс по данным сообщества (30.09.2026):', 'Community-reported chance (30 Sep 2026):'],
   ['Бродит по карте, постоянной точки нет.', 'Roams the map, no fixed spawn point.'],
   ['Только ночные рейды.', 'Night raids only.'], ['Патруль из 4 человек.', 'Patrol of 4.'],

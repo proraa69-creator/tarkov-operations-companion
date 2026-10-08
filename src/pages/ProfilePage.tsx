@@ -31,7 +31,7 @@ export function ProfilePage() {
 
   return <div className="page">
     <header className="page-header">
-      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Данные персонажа обновляются из Tarkov.dev каждую минуту.")}</p></div>
+      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Данные персонажа обновляются каждую минуту.")}</p></div>
       <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
     </header>
     <div className="profile-operator-layout">

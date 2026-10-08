@@ -33,7 +33,7 @@ export async function fetchTraderResets(mode: RaidMode, locale: AppLocale, fetch
     body: JSON.stringify({ query: tradersQuery(mode, locale) }),
     signal: AbortSignal.timeout(20_000),
   })
-  if (!response.ok) throw new Error(`tarkov.dev: HTTP ${response.status}`)
+  if (!response.ok) throw new Error(`Сервер данных: HTTP ${response.status}`)
   return adaptTradersResponse(await response.json())
 }
 

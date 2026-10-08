@@ -97,7 +97,7 @@ export async function tarkovGraphql<T = unknown>(query: string, variables?: Reco
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   })
-  if (!response.ok) throw new Error(`tarkov.dev GraphQL: HTTP ${response.status}`)
+  if (!response.ok) throw new Error(`Сервер данных: HTTP ${response.status}`)
   return await response.json() as GraphqlPayload<T>
 }
 

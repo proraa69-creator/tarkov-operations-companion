@@ -4,13 +4,13 @@
  * with another English word would override the first one everywhere.
  */
 export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
-  ['Сборщик оружия', 'Gun Builder'], ['Арсенал ·', 'Arsenal ·'], ['Арсенал', 'Arsenal'], ['tarkov.dev онлайн', 'tarkov.dev online'],
+  ['Сборщик оружия', 'Gun Builder'], ['Арсенал ·', 'Arsenal ·'], ['Арсенал', 'Arsenal'], ['данные онлайн', 'data online'],
   ['Пусто', 'Empty'], ['Вес', 'Weight'], ['Стоимость', 'Cost'], ['Загрузить', 'Load'], ['Отдача', 'Recoil'],
   ['Соберите оружие из совместимых модулей: отдача, эргономика, вес и цена считаются сразу и сравниваются с заводской сборкой.', 'Build a weapon from compatible mods: recoil, ergonomics, weight and cost update instantly and are compared with the default preset.'],
-  ['кэш tarkov.dev', 'tarkov.dev cache'], ['оружия', 'weapons'],
+  ['кэш данных', 'data cache'], ['оружия', 'weapons'],
   ['Загружаем оружие и модули', 'Loading weapons and mods'],
   ['Каталог модулей большой — он загружается только при открытии сборщика и кэшируется.', 'The mod catalogue is large: it loads only when the builder opens and is cached.'],
-  ['Tarkov.dev недоступен', 'Tarkov.dev is unavailable'], ['Не удалось загрузить оружие и модули, а сохранённой копии ещё нет.', 'Weapons and mods could not be loaded and there is no saved copy yet.'],
+  ['Источник данных недоступен', 'The data source is unavailable'], ['Не удалось загрузить оружие и модули, а сохранённой копии ещё нет.', 'Weapons and mods could not be loaded and there is no saved copy yet.'],
   ['Изображение заводской сборки', 'Default preset image'], ['выстр/мин', 'rpm'], ['Заводская сборка', 'Default preset'], ['Пустая', 'Empty'],
   ['Не установлены обязательные модули', 'Required mods missing'], ['У этого оружия нет слотов для модулей.', 'This weapon has no mod slots.'],
   ['Название или калибр…', 'Name or caliber…'], ['Поиск оружия', 'Search weapons'], ['Все классы', 'All classes'], ['Оружие не найдено.', 'No weapons found.'],

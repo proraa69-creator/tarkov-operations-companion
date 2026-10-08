@@ -45,9 +45,9 @@ export function ProfitCell({ profit, percent, perHour }: { profit: number | null
 
 /** Loading / error / Season states shared by the barter and craft pages. */
 export function EconomyStatus({ supported, isLoading, error }: { supported: boolean; isLoading: boolean; error: unknown }) {
-  if (!supported) return <div className="panel import-warning"><AlertTriangle size={17} />{uiText('Для Сезона tarkov.dev не публикует отдельные цены бартеров и крафтов. Цены PvP здесь не подставляются, чтобы не смешивать режимы — переключитесь на PvP или PvE.')}</div>
-  if (isLoading) return <div className="panel economy-loading"><LoaderCircle size={17} className="spin" />{uiText('Загружаем цены, бартеры и крафты с tarkov.dev…')}</div>
-  if (error) return <div className="panel import-warning"><AlertTriangle size={17} /><span>{uiText('tarkov.dev сейчас недоступен, а сохранённых данных для этого режима нет. Попробуйте обновить позже.')}{errorText(error) && <small className="dim economy-error-detail">{uiText('Причина')}: {errorText(error)}</small>}</span></div>
+  if (!supported) return <div className="panel import-warning"><AlertTriangle size={17} />{uiText('Для Сезона нет отдельных цен бартеров и крафтов. Цены PvP здесь не подставляются, чтобы не смешивать режимы — переключитесь на PvP или PvE.')}</div>
+  if (isLoading) return <div className="panel economy-loading"><LoaderCircle size={17} className="spin" />{uiText('Загружаем цены, бартеры и крафты…')}</div>
+  if (error) return <div className="panel import-warning"><AlertTriangle size={17} /><span>{uiText('Источник цен сейчас недоступен, а сохранённых данных для этого режима нет. Попробуйте обновить позже.')}{errorText(error) && <small className="dim economy-error-detail">{uiText('Причина')}: {errorText(error)}</small>}</span></div>
   return null
 }
 

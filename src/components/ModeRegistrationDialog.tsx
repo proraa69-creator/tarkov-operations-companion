@@ -63,7 +63,7 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
       <div className="registration-icon"><UserRound size={28} /></div>
       <div className="eyebrow">{uiText('Режим · ')}{uiText(label)}</div>
       <h2>{uiText('Привязать ник')}</h2>
-      <p className="muted">{uiText(`Для режима ${label} ник ещё не привязан. Введите ник, который у вас в этом режиме игры: программа найдёт профиль на Tarkov.dev и закрепит его за режимом.`)}</p>
+      <p className="muted">{uiText(`Для режима ${label} ник ещё не привязан. Введите ник, который у вас в этом режиме игры: программа найдёт профиль игрока и закрепит его за режимом.`)}</p>
       <label className="field-label">{uiText('Ник Escape from Tarkov')}<input
           ref={inputRef}
           className="input"
@@ -80,7 +80,7 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
       {error && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
       {bound && <div className="profile-candidate account-bound" role="status">
         <span className="profile-avatar small"><UserRound size={20} /></span>
-        <span><strong>{bound.nickname}</strong><small>{bound.pending ? <>{bound.mode.toUpperCase()}{uiText(' · уровень появится, когда Tarkov.dev обновит профиль')}</> : <>{bound.mode.toUpperCase()}{uiText(' · уровень ')}{bound.level} · {bound.faction.toUpperCase()}</>}</small></span>
+        <span><strong>{bound.nickname}</strong><small>{bound.pending ? <>{bound.mode.toUpperCase()}{uiText(' · уровень появится, когда обновится профиль игрока')}</> : <>{bound.mode.toUpperCase()}{uiText(' · уровень ')}{bound.level} · {bound.faction.toUpperCase()}</>}</small></span>
         <span className="tag green"><Check size={12} />{uiText('Привязан')}</span>
       </div>}
       <div className="import-note"><ShieldCheck size={14} />{uiText('Ник закрепляется отдельно за этим режимом и сохраняется в вашем аккаунте. Изменить его можно позже в профиле.')}</div>

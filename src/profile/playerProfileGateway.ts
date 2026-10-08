@@ -47,7 +47,7 @@ export function canResolvePlayerProfiles() {
 
 export function desktopPlayerProfileGateway(): PlayerProfileGateway {
   if (!window.tarkovDesktop && usesWebAccount()) return serverPlayerProfileGateway()
-  if (!window.tarkovDesktop) throw new Error('Профили Tarkov.dev доступны в desktop-приложении')
+  if (!window.tarkovDesktop) throw new Error('Профили игроков доступны в desktop-приложении')
   return {
     resolveByNickname: async (mode, nickname) => {
       const candidate = await window.tarkovDesktop!.resolvePlayerProfile(mode, nickname)

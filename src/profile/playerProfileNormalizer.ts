@@ -13,7 +13,7 @@ export function normalizePlayerProfile(value: unknown, levels: PlayerLevelRow[],
   const accountId = finiteNumber(root.aid)
   const nickname = string(info.nickname ?? info.Nickname).trim()
   const experience = Math.max(0, finiteNumber(info.experience ?? info.Experience))
-  if (!Number.isSafeInteger(accountId) || accountId <= 0 || !nickname) throw new Error('Некорректный профиль Tarkov.dev')
+  if (!Number.isSafeInteger(accountId) || accountId <= 0 || !nickname) throw new Error('Некорректный профиль игрока')
   const updated = finiteNumber(root.updated)
   const equipmentRoot = record(root.equipment)
   const equipmentId = string(equipmentRoot.Id ?? equipmentRoot.id)

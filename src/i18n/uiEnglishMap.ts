@@ -6,7 +6,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'], ['Контейнер или ящик с добычей.', 'Loot container or crate.'],
-  ['Точка свободного лута из данных Tarkov.dev.', 'Loose loot spot from Tarkov.dev data.'],
+  ['Точка свободного лута.', 'Loose loot spot.'],
   ['Запертая дверь', 'Locked door'], ['Двери', 'Doors'], ['У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».', 'This floor has no scheme of its own: the general scheme and the floor markers are shown. The floor plan is in «Satellite».'], ['Станковое оружие', 'Mounted weapons'], ['Требуется ключ.', 'Key required.'], ['Также необходимо питание.', 'Power is also required.'],
   ['Стационарное оружие', 'Stationary weapon'], ['Стационарное вооружение на локации.', 'Stationary weapon on the location.'],
   ['Зона выполнения задания.', 'Task objective zone.'], ['Квестовый предмет.', 'Quest item.'], ['место предмета', 'item location'],
@@ -60,8 +60,8 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Вид карты', 'Map view'], ['ВИД', 'VIEW'], ['Спутник', 'Satellite'], ['Схема', 'Schematic'],
   ['Спутник: объёмный рендер местности сверху', 'Satellite: a top-down render of the terrain'],
   ['Схема: цифровая векторная карта', 'Schematic: the digital vector map'],
-  ['Для этой карты у tarkov.dev есть только схема', 'tarkov.dev only has a schematic for this map'],
-  ['Для этой карты у tarkov.dev нет схемы, только спутник', 'tarkov.dev has no schematic for this map, only satellite'],
+  ['Для этой карты есть только схема', 'This map only has a schematic'],
+  ['Для этой карты нет схемы, только спутник', 'This map has no schematic, only satellite'],
   ['Выбранного вида нет у этой карты — показан этот', 'This map lacks the chosen view, so this one is shown'],
   ['только схема', 'schematic only'], ['только спутник', 'satellite only'],
   // «Этаж по скриншоту»: the player's floor from the screenshot position (src/data/useAutoFloor.ts).
@@ -103,7 +103,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
     'Apply the PvP boss placement to every mode?\n\nEvery PvP boss on every map is pinned where it stands now, and PvE and Season will show the same placement. Changes made later in one mode change only that mode.'],
   // Certain spawns and jewelry spots (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx).
   ['Спавн 100 %', 'Spawn 100 %'],
-  ['Здесь может появиться драгоценность. Шанс появления в данных Tarkov.dev не указан.', 'Jewelry may spawn here. Tarkov.dev data gives no spawn chance.'],
+  ['Здесь может появиться драгоценность. Шанс появления не указан.', 'Jewelry may spawn here. No spawn chance is given.'],
 ]
 
 /** Patterns with a variable part, applied after the phrase table. */

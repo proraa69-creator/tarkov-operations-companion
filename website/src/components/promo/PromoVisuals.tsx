@@ -124,7 +124,7 @@ export function BallisticsVisual() {
   return (
     <figure className="promo-figure">
       <Shot src={ballisticsShot} width={1200} height={1229} title="Арсенал · Баллистика" className="is-narrow" alt="Баллистика в Raid OS: график пробития и урона патронов по калибрам и таблица «Против брони» для 7.62×39 BP — шанс пробить броню 1–6 класса и число выстрелов" />
-      <Caption>7.62×39 BP против брони 1–6 класса. На картинке — часть патронов, в приложении — все патроны с tarkov.dev.</Caption>
+      <Caption>7.62×39 BP против брони 1–6 класса. На картинке — часть патронов, в приложении — все патроны игры.</Caption>
     </figure>
   )
 }

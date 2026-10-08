@@ -31,7 +31,7 @@ export function PriceHistoryChart({ itemId, mode }: { itemId: string; mode: Raid
   }
 
   let body: React.ReactNode
-  if (!supported) body = <p className="muted price-chart-note">{uiText('Для Сезона tarkov.dev не публикует отдельную историю цен.')}</p>
+  if (!supported) body = <p className="muted price-chart-note">{uiText('Для Сезона нет отдельной истории цен.')}</p>
   else if (isLoading) body = <div className="price-chart-skeleton" aria-busy="true" />
   else if (isError) body = <p className="muted price-chart-note">{uiText('История цены сейчас недоступна.')}</p>
   else if (!geometry) body = <p className="muted price-chart-note">{uiText('Недостаточно данных за период.')}</p>

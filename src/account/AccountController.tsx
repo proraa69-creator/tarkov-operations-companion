@@ -202,7 +202,7 @@ function NicknameStep({ onDone }: { onDone: () => void }) {
       {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
       {bound && <div className="profile-candidate account-bound" role="status">
         <span className="profile-avatar small"><UserRound size={20} /></span>
-        <span><strong>{bound.nickname}</strong><small>{bound.mode.toUpperCase()}{bound.pending ? uiText(' · уровень появится, когда Tarkov.dev обновит профиль') : <>{uiText(' · уровень ')}{bound.level}{uiText(' · обновляем данные…')}</>}</small></span>
+        <span><strong>{bound.nickname}</strong><small>{bound.mode.toUpperCase()}{bound.pending ? uiText(' · уровень появится, когда обновится профиль игрока') : <>{uiText(' · уровень ')}{bound.level}{uiText(' · обновляем данные…')}</>}</small></span>
         <span className="tag green"><Check size={12} />{uiText('Привязан')}</span>
       </div>}
       {!bound && <button className="button primary account-gate-submit" type="submit" disabled={loading || nickname.trim().length < 3}>

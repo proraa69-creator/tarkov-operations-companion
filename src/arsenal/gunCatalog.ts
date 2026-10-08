@@ -39,7 +39,7 @@ export async function fetchLiveGunCatalog(mode: RaidMode, locale: AppLocale): Pr
     graphql(AMMO_QUERY, variables).catch(() => ({ data: { ammo: [] } })),
   ])
   const weapons = adaptWeapons(guns)
-  if (!weapons.length) throw new Error('tarkov.dev: no weapons in the answer')
+  if (!weapons.length) throw new Error('Сервер данных: нет оружия в ответе')
   return { weapons, mods: adaptMods(mods), ammo: adaptAmmo(ammo), loadedAt: new Date().toISOString(), source: 'live' }
 }
 

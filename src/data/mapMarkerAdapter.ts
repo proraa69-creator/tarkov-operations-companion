@@ -293,7 +293,7 @@ function adaptSupplementBosses(map: GameMap, mode: RaidMode, present: BossGroup[
           `Возможная зона появления: ${zones.join(', ')}.`,
           boss.note,
           supplementChanceText(boss),
-          'Tarkov.dev пока не отмечает этого босса здесь — зона по списку боссов, точка приблизительная.',
+          'Точное место босса здесь не отмечено — зона по списку боссов, точка приблизительная.',
         ].filter(Boolean).join(' '),
         meta: chance ? `${Math.round(chance * 100)}%` : undefined,
         approximate: true,
@@ -444,7 +444,7 @@ function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 }
 
 /** Card text of a jewelry spot: the items are listed in `meta` (and the first one's icon); the data has no chance. */
-export const VALUABLE_SPOT_TEXT = 'Здесь может появиться драгоценность. Шанс появления в данных Tarkov.dev не указан.'
+export const VALUABLE_SPOT_TEXT = 'Здесь может появиться драгоценность. Шанс появления не указан.'
 
 function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
   const containerMarkers: MapMarker[] = asArray(rawMap.lootContainers).flatMap((container, index) => {
@@ -479,7 +479,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       type,
       layerId,
       title: valuables.length ? 'Драгоценности' : lootTitle(layerId),
-      description: valuables.length ? VALUABLE_SPOT_TEXT : 'Точка свободного лута из данных Tarkov.dev.',
+      description: valuables.length ? VALUABLE_SPOT_TEXT : 'Точка свободного лута.',
       meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
       itemId: shown[0],
       source: 'json.tarkov.dev/maps',

@@ -82,7 +82,7 @@ describe('player profile service', () => {
       })
       vi.stubGlobal('fetch', fetchMock)
       await expect(resolvePlayerByNickname('pvp', 'indexed')).resolves.toMatchObject({ accountId: 5, nickname: 'Indexed' })
-      await expect(resolvePlayerByNickname('pvp', 'Nobody')).rejects.toThrow(/пока не найден на Tarkov\.dev.*из логов игры/)
+      await expect(resolvePlayerByNickname('pvp', 'Nobody')).rejects.toThrow(/пока не найден\..*из логов игры/)
       // the ~70 MB index is not downloaded again for the second nickname right after the first
       expect(fetchMock.mock.calls.filter((call) => String(call[0]).includes('index.json'))).toHaveLength(1)
     })

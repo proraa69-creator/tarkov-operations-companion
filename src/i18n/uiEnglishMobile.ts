@@ -35,7 +35,7 @@ export const MOBILE_PHRASES: Array<[string, string]> = [
   ['Отметьте собранные предметы — список общий с приложением для ПК через аккаунт сервера.', 'Mark the items you have collected — the list is shared with the PC app through the server account.'],
   ['Откройте карточку и вращайте модель пальцем; щипок — приблизить.', 'Open a card and turn the model with your finger; pinch to zoom.'],
   ['Проведите пальцем — повернуть · щипок — масштаб · двойное касание — сброс', 'Swipe to turn · pinch to zoom · double-tap to reset'],
-  ['Профили Tarkov.dev доступны в desktop-приложении', 'Tarkov.dev profiles are available in the desktop app'],
+  ['Профили игроков доступны в desktop-приложении', 'Player profiles are available in the desktop app'],
   // The server account panel sentence is split on «, » by uiText; its pieces:
   ['позиция и настройки сохраняются на сервере отдельно для PvP', 'position and settings are saved on the server separately for PvP'],
   ['PvE и Сезона.', 'PvE and Season.'],

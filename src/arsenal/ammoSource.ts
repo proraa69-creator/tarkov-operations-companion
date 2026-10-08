@@ -144,9 +144,9 @@ export async function fetchAmmoStats(mode: RaidMode, locale: AppLocale, fetcher:
     body: JSON.stringify({ query: ammoQuery(mode, locale) }),
     signal: AbortSignal.timeout(30_000),
   })
-  if (!response.ok) throw new Error(`tarkov.dev: HTTP ${response.status}`)
+  if (!response.ok) throw new Error(`Сервер данных: HTTP ${response.status}`)
   const rows = adaptAmmoResponse(await response.json())
-  if (!rows.length) throw new Error('tarkov.dev: no ammo')
+  if (!rows.length) throw new Error('Сервер данных: нет патронов')
   return rows
 }
 
