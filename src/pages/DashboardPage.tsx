@@ -65,8 +65,8 @@ export function DashboardPage() {
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const stats = completedQuestStats(data.quests, availability)
   const kappaRows = useMemo(() => kappaSeen ? kappaBreakdown(data.quests, availability, progress) : [], [kappaSeen, data.quests, availability, progress])
-  const toggleKappa = () => {
-    setKappaOpen((value) => !value)
+  const openKappa = () => {
+    setKappaOpen(true)
     setKappaSeen(true)
   }
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
@@ -87,7 +87,7 @@ export function DashboardPage() {
     <section className="stat-grid">
       <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
-      <KappaStatCard completed={stats.kappaCompleted} total={stats.kappaTotal} open={kappaOpen} onToggle={toggleKappa} controlsId={kappaListId} />
+      <KappaStatCard completed={stats.kappaCompleted} total={stats.kappaTotal} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
       <GoonCard mode={state.raidMode} mapName={mapName} />
     </section>
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={stats.kappaCompleted} total={stats.kappaTotal} onClose={() => setKappaOpen(false)} />

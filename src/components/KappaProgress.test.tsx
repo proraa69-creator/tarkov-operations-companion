@@ -23,7 +23,7 @@ const rows: KappaQuestRow[] = [
 function KappaHarness() {
   const [open, setOpen] = useState(false)
   return <LocaleProvider><MemoryRouter>
-    <div className="stat-grid"><KappaStatCard completed={4} total={6} open={open} onToggle={() => setOpen((value) => !value)} controlsId="kappa-list" /></div>
+    <div className="stat-grid"><KappaStatCard completed={4} total={6} open={open} onOpen={() => setOpen(true)} controlsId="kappa-list" /></div>
     <KappaBreakdownPanel id="kappa-list" open={open} rows={rows} completed={4} total={6} onClose={() => setOpen(false)} />
   </MemoryRouter></LocaleProvider>
 }
@@ -35,34 +35,52 @@ afterEach(() => {
 })
 
 describe('Kappa card', () => {
-  it('says it counts Kappa tasks and opens the list of counted ones with their sources', async () => {
+  it('keeps the card plain and opens the counted tasks with their sources from «Квесты»', async () => {
     const user = userEvent.setup()
     const { container } = render(<KappaHarness />)
     expect(screen.getByText('Задания для Капы', { selector: '.stat-label' })).toBeInTheDocument()
-    const toggle = screen.getByRole('button', { name: /Выполнено 4 из 6/ })
-    const list = container.querySelector('#kappa-list')!
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(toggle).toHaveAttribute('aria-controls', 'kappa-list')
-    expect(list).toHaveAttribute('inert')
+    expect(screen.getByText('Выполнено 4 из 6', { selector: '.stat-meta' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Предметы' })).toHaveAttribute('href', '/kappa-items')
+    const quests = screen.getByRole('button', { name: 'Квесты' })
+    expect(quests).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(quests).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('dialog')).toBeNull()
 
-    await user.click(toggle)
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    expect(list).toHaveClass('is-open')
-    expect(list).not.toHaveAttribute('inert')
+    await user.click(quests)
+    const dialog = screen.getByRole('dialog', { name: 'Задания для Капы' })
+    expect(quests).toHaveAttribute('aria-expanded', 'true')
+    expect(quests).toHaveAttribute('aria-controls', 'kappa-list')
+    expect(dialog).toHaveAttribute('id', 'kappa-list')
+    // the dialog sits over the page: the card grid keeps its layout
+    expect(container.querySelector('#kappa-list')).toBeNull()
+    expect(within(dialog).getByRole('button', { name: 'Закрыть' })).toHaveFocus()
 
-    const counted = container.querySelectorAll('.kappa-breakdown-grid')[0] as HTMLElement
+    const counted = dialog.querySelectorAll('.kappa-breakdown-grid')[0] as HTMLElement
     const entries = within(counted).getAllByRole('link')
     expect(entries.map((entry) => entry.querySelector('strong')?.textContent)).toEqual(['Дефицит', 'Секта', 'Ищейка', 'Дебют'])
     expect(entries.map((entry) => entry.querySelector('.kappa-quest-state')?.textContent)).toEqual(['по логам', 'по экрану', 'вручную', 'по цепочке'])
     expect(entries[3]).toHaveTextContent('взято «Охота на крыс»')
     expect(entries[0]).toHaveAttribute('href', '/quests?filter=kappa&selected=shortage')
-    expect(screen.getByText('Засчитаны · 4')).toBeInTheDocument()
-    expect(screen.getByText('Не выполнены · 2')).toBeInTheDocument()
-    expect(screen.getByText('провалено')).toBeInTheDocument()
+    expect(within(dialog).getByText('Засчитаны · 4')).toBeInTheDocument()
+    expect(within(dialog).getByText('Не выполнены · 2')).toBeInTheDocument()
+    expect(within(dialog).getByText('провалено')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Свернуть' }))
-    expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(list).toHaveAttribute('inert')
+    await user.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(quests).toHaveAttribute('aria-expanded', 'false')
+    expect(quests).toHaveFocus()
+  })
+
+  it('closes on Esc and on a click outside the list', async () => {
+    const user = userEvent.setup()
+    render(<KappaHarness />)
+    await user.click(screen.getByRole('button', { name: 'Квесты' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Квесты' }))
+    await user.pointer({ keys: '[MouseLeft]', target: document.querySelector('.kappa-breakdown-overlay')! })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('speaks English', async () => {
@@ -72,7 +90,8 @@ describe('Kappa card', () => {
     const user = userEvent.setup()
     render(<KappaHarness />)
     expect(screen.getByText('Kappa-required tasks', { selector: '.stat-label' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Completed 4 of 6/ }))
+    expect(screen.getByText('Completed 4 of 6', { selector: '.stat-meta' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Tasks' }))
     expect(screen.getByText('from logs')).toBeInTheDocument()
     expect(screen.getByText('from screen')).toBeInTheDocument()
     expect(screen.getByText('manual')).toBeInTheDocument()

@@ -746,7 +746,10 @@ a.quest-stage:hover { color: var(--text); }
 
 /* Kappa · Collector items */
 .kappa-card { position: relative; }
-.kappa-items-button { position: absolute; top: 12px; right: 12px; }
+.kappa-card-actions { position: absolute; top: 12px; right: 12px; display: grid; gap: 6px; }
+.kappa-card-actions .button { justify-content: center; }
+/* the label wraps beside the two buttons instead of running under them on a narrow card */
+.kappa-card .stat-label { padding-right: 104px; line-height: 1.35; }
 .kappa-items-actions { display: flex; gap: 8px; align-items: center; }
 .kappa-items-message { margin: 0 0 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); }
 .kappa-items-progress { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
@@ -1123,24 +1126,14 @@ a.quest-stage:hover { color: var(--text); }
 /* «Рынок · избранное»: the «лучшее предложение» caption sat on the item name's line («GPUлучшее предложение») */
 .market-favorites .item-row small { display: block; margin-top: 2px; }
 
-/* Kappa card: «Выполнено N из M · Список» opens the list of the counted tasks below the cards */
-.kappa-card-toggle {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; width: 100%; padding: 0; border: 0; background: none;
-  font-family: inherit; line-height: inherit; text-align: left; cursor: pointer;
-}
-.kappa-card-toggle-hint { display: inline-flex; align-items: center; gap: 3px; color: var(--brass); font-weight: 750; }
-.kappa-card-toggle:hover .kappa-card-toggle-hint { color: var(--brass-strong); text-decoration: underline; text-underline-offset: 3px; }
-.kappa-card-toggle:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 3px; }
-.kappa-card-toggle svg { transition: rotate .5s var(--ease-soft); }
-.kappa-card-toggle[aria-expanded="true"] svg { rotate: 180deg; }
-.kappa-breakdown {
-  display: grid; grid-template-rows: 0fr; opacity: 0;
-  transition: grid-template-rows .6s cubic-bezier(.4, 0, .2, 1), opacity .35s ease;
-}
-.kappa-breakdown.is-open { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .75s var(--ease-soft), opacity .5s ease .1s; }
-.kappa-breakdown-inner { min-height: 0; overflow: hidden; }
-.kappa-breakdown-panel { margin-top: 12px; }
-.kappa-breakdown-panel .panel-body { max-height: min(56vh, 520px); overflow: auto; }
+/* Kappa card: «Квесты» opens the list of the counted tasks in a dialog over the Overview */
+.kappa-breakdown-overlay { animation: kappa-dialog-fade .45s var(--ease-soft) both; }
+.kappa-breakdown-panel { width: min(1080px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; box-shadow: 0 28px 90px rgba(0, 0, 0, .55); animation: kappa-dialog-rise .6s var(--ease-soft) both; }
+.kappa-breakdown-panel .panel-body { min-height: 0; overflow: auto; }
+.kappa-breakdown-close { width: 30px; height: 30px; }
+@keyframes kappa-dialog-fade { from { opacity: 0; } }
+@keyframes kappa-dialog-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+@media (prefers-reduced-motion: reduce) { .kappa-breakdown-overlay, .kappa-breakdown-panel { animation: none; } }
 .kappa-breakdown-actions { display: flex; align-items: center; gap: 8px; }
 .kappa-breakdown-note { margin: 0 0 4px; max-width: 980px; font-size: 12px; line-height: 1.5; }
 .kappa-breakdown-group { margin: 14px 0 8px; }
