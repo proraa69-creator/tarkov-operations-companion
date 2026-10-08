@@ -188,6 +188,14 @@ test('goons through the real API: the account nickname is attached and every app
     const goons = (await call('GET', '/goons/pvp')).json as { latest: { mapId: string; nickname: string } }
     assert.deepEqual([goons.latest.mapId, goons.latest.nickname], ['woods', 'SHAURMA'])
     assert.ok(((await call('GET', '/map-updates')).json.version as number) > before)
+    // Renamed in the game: the earlier sighting shows the new nickname at once; other modes keep their own.
+    assert.equal((await call('PUT', '/accounts/me/nicknames', token, { pvp: 'raid_os' })).status, 200)
+    const renamed = (await call('GET', '/goons/pvp')).json as { latest: { nickname: string }; recent: Array<{ nickname: string }> }
+    assert.deepEqual([renamed.latest.nickname, renamed.recent[0].nickname], ['raid_os', 'raid_os'])
+    assert.equal(((await call('GET', '/goons/pve')).json as { latest: unknown }).latest, null)
+    // Unbound: no nickname under his sightings any more.
+    assert.equal((await call('PUT', '/accounts/me/nicknames', token, { pvp: null })).status, 200)
+    assert.equal(((await call('GET', '/goons/pvp')).json as { latest: { nickname?: string } }).latest.nickname, undefined)
   } finally {
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))

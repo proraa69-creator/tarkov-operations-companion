@@ -160,6 +160,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
       const nickname = accounts.view(id).nicknames[mode]
       return { account: id, ...(nickname ? { nickname } : {}) }
     },
+    nicknameOf: (account, mode) => {
+      try { return accounts.view(account).nicknames[mode] ?? null } catch { return undefined }
+    },
     onSighting: () => mapUpdates.changed(),
   }))
   // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.

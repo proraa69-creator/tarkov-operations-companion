@@ -2,7 +2,7 @@ import express from 'express'
 import { createHash, randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { ipRateKey } from '../services/securityGuard.js'
-import { GOON_MAP_IDS, GOON_MODES, GOON_RETENTION_MS, MemoryGoonStore, summarizeGoons, type GoonMode, type GoonStore } from '../services/goonStore.js'
+import { GOON_MAP_IDS, GOON_MODES, GOON_RETENTION_MS, MemoryGoonStore, summarizeGoons, type GoonMode, type GoonNicknameOf, type GoonStore } from '../services/goonStore.js'
 
 /** One accepted report per client address per minute. */
 export const GOON_RATE_LIMIT_MS = 60_000
@@ -26,6 +26,8 @@ export interface GoonsRouterOptions {
    * his account (not one the request names) is shown to everybody. Without it (tests): anonymous reports.
    */
   identify?: (req: express.Request, mode: GoonMode) => GoonReporter
+  /** The account's current nickname for the mode: a renamed player shows under his new nickname everywhere at once. */
+  nicknameOf?: GoonNicknameOf
   /** Told after every accepted sighting, so every running app refreshes at once (routes/mapUpdates.ts). */
   onSighting?: () => void
 }
@@ -35,7 +37,8 @@ export interface GoonsRouterOptions {
  *   GET  /v1/goons/:mode            → { latest, last5h, recent: [{ mapId, reportedAt, nickname? }] }
  *   POST /v1/goons/:mode/sightings  { mapId } (Bearer) → { accepted, reason?, snapshot }
  *        reason: 'duplicate' (same map within 2 minutes), 'signin' (no session), 'nickname' (no nickname for the mode)
- * Accounts and client addresses are only kept as salted hashes for rate limiting and dedupe.
+ * Client addresses are only kept as salted hashes for rate limiting and dedupe; the reporting account id is stored with
+ * the sighting (never returned) so the nickname shown is always his current one.
  * Behind a reverse proxy the app must set `trust proxy`, otherwise every client shares the proxy address.
  */
 export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), options: GoonsRouterOptions = {}) {
@@ -53,6 +56,7 @@ export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), opti
     if (addressHits.size > 10_000) for (const [key, hits] of addressHits) if (!hits.some((at) => time - at < GOON_ADDRESS_WINDOW_MS)) addressHits.delete(key)
     return false
   }
+  const snapshot = (mode: GoonMode, time: number) => summarizeGoons(store, mode, time, options.nicknameOf)
   const router = express.Router()
   router.use(express.json({ limit: '4kb' }))
 
@@ -61,7 +65,7 @@ export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), opti
     if (!mode.success) { res.status(400).json({ error: 'Некорректный режим' }); return }
     const time = now()
     store.prune(time - GOON_RETENTION_MS)
-    res.set('cache-control', 'no-store').json(summarizeGoons(store, mode.data, time))
+    res.set('cache-control', 'no-store').json(snapshot(mode.data, time))
   })
 
   router.post('/:mode/sightings', (req, res) => {
@@ -72,16 +76,18 @@ export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), opti
     store.prune(time - GOON_RETENTION_MS)
     let reporter = hash(`ip:${addressOf(req)}`)
     let nickname: string | undefined
+    let account: string | undefined
     if (options.identify) {
       const who = options.identify(req, mode.data)
-      if (!who) { res.json({ accepted: false, reason: 'signin', snapshot: summarizeGoons(store, mode.data, time) }); return }
-      if (!who.nickname) { res.json({ accepted: false, reason: 'nickname', snapshot: summarizeGoons(store, mode.data, time) }); return }
+      if (!who) { res.json({ accepted: false, reason: 'signin', snapshot: snapshot(mode.data, time) }); return }
+      if (!who.nickname) { res.json({ accepted: false, reason: 'nickname', snapshot: snapshot(mode.data, time) }); return }
       reporter = hash(`account:${who.account}`)
       nickname = who.nickname
+      account = who.account
     }
     const repeated = store.lastByReporterOnMap(reporter, mode.data, body.data.mapId)
     if (repeated && time - Date.parse(repeated.reportedAt) < GOON_DEDUPE_MS) {
-      res.json({ accepted: false, reason: 'duplicate', snapshot: summarizeGoons(store, mode.data, time) }); return
+      res.json({ accepted: false, reason: 'duplicate', snapshot: snapshot(mode.data, time) }); return
     }
     const previous = store.lastByReporter(reporter)
     if (previous && time - Date.parse(previous.reportedAt) < GOON_RATE_LIMIT_MS) {
@@ -91,9 +97,9 @@ export function createGoonsRouter(store: GoonStore = new MemoryGoonStore(), opti
     if (options.identify && addressLimited(addressOf(req), time)) {
       res.status(429).set('retry-after', String(Math.ceil(GOON_ADDRESS_WINDOW_MS / 1000))).json({ error: 'Слишком много отметок с этого адреса. Повторите позже.' }); return
     }
-    store.add({ mapId: body.data.mapId, mode: mode.data, reportedAt: new Date(time).toISOString(), reporter, ...(nickname ? { nickname } : {}) })
+    store.add({ mapId: body.data.mapId, mode: mode.data, reportedAt: new Date(time).toISOString(), reporter, ...(nickname ? { nickname } : {}), ...(account ? { account } : {}) })
     try { options.onSighting?.() } catch { /* the sighting is saved anyway */ }
-    res.status(201).json({ accepted: true, snapshot: summarizeGoons(store, mode.data, time) })
+    res.status(201).json({ accepted: true, snapshot: snapshot(mode.data, time) })
   })
 
   return router

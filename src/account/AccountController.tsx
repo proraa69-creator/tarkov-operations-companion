@@ -25,7 +25,7 @@ const SKIP_KEY = 'tarkov-account-gate-skipped'
  * - first launch without a session (accountGateEnabled): the account window right away — «Вход» / «Регистрация»
  *   inside the app (AccountSignIn.tsx), then «choose a mode and bind the nickname», then Overview;
  * - nicknames per mode on the server account: missing local bindings are restored from it, local ones it lacks are
- *   saved to it (explicit «Привязать ник» always saves);
+ *   saved to it (explicit «Привязать ник» always saves), and a character renamed in the game replaces the old nickname;
  * - switching to a mode without a bound nickname (top bar, profile, or the game mode read from the EFT logs by
  *   AppShell) opens «Привязать ник».
  */
@@ -102,6 +102,10 @@ function useNicknameAccountSync(status: Status) {
       const local = state.activeProfile.modes[mode].registration
       const remote = server[mode]
       if (local.status === 'registered' && local.nickname && !remote) missingOnServer[mode] = local.nickname
+      // Renamed in the game: the bound character (refreshed by its account id) has a new nickname — the account gets it
+      // at once, so friends, squads and «Кочевники» show the new one.
+      if (local.status === 'registered' && local.nickname && remote && local.nickname.toLowerCase() !== remote.toLowerCase()
+        && state.activeProfile.modes[mode].playerSnapshot?.nickname === local.nickname) missingOnServer[mode] = local.nickname
       if (local.status === 'registered' || !remote) continue
       const attempt = `${state.activeProfile.id}:${mode}:${remote.toLowerCase()}`
       if (attempted.current.has(attempt)) continue

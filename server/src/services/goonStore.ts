@@ -12,9 +12,17 @@ export interface GoonSighting {
   reportedAt: string
   /** Opaque reporter key (hashed account id, or hashed client address for anonymous reports). Never returned by the API. */
   reporter: string
-  /** The reporter's Escape from Tarkov nickname for this mode, from his account (shown to everybody). */
+  /** The reporter's Escape from Tarkov nickname for this mode when he reported (shown when the account is unknown). */
   nickname?: string
+  /** The reporting account (never returned): the nickname shown is the account's current one for the mode. */
+  account?: string
 }
+
+/**
+ * The account's current nickname for the mode: a string, null when the account has none now (or was deleted), undefined
+ * when it is not known (anonymous report, no resolver) — then the nickname saved with the sighting is shown.
+ */
+export type GoonNicknameOf = (account: string, mode: GoonMode) => string | null | undefined
 
 /** A sighting as everybody sees it: where, when, who saw it. */
 export interface GoonSightingView { mapId: GoonMapId; reportedAt: string; nickname?: string }
@@ -77,7 +85,8 @@ export class MemoryGoonStore implements GoonStore {
 type Row = Record<string, unknown>
 const toSighting = (row: Row | undefined): GoonSighting | undefined => row
   ? { mapId: row.map_id as GoonMapId, mode: row.mode as GoonMode, reportedAt: String(row.reported_at), reporter: String(row.reporter),
-    ...(typeof row.nickname === 'string' && row.nickname ? { nickname: row.nickname } : {}) }
+    ...(typeof row.nickname === 'string' && row.nickname ? { nickname: row.nickname } : {}),
+    ...(typeof row.account_id === 'string' && row.account_id ? { account: row.account_id } : {}) }
   : undefined
 
 /**
@@ -97,11 +106,13 @@ export class SqliteGoonStore implements GoonStore {
     // Older databases: the nickname of the reporter (the column is added once, existing rows stay anonymous).
     const columns = db.prepare('PRAGMA table_info(goon_sightings)').all() as Array<{ name?: unknown }>
     if (!columns.some((column) => column.name === 'nickname')) db.exec('ALTER TABLE goon_sightings ADD COLUMN nickname TEXT')
+    // The reporting account, so a renamed or rebound nickname shows at once on his earlier sightings too.
+    if (!columns.some((column) => column.name === 'account_id')) db.exec('ALTER TABLE goon_sightings ADD COLUMN account_id TEXT')
   }
 
   add(sighting: GoonSighting) {
-    this.db.prepare('INSERT INTO goon_sightings (mode, map_id, reported_at, reporter, nickname) VALUES (?, ?, ?, ?, ?)')
-      .run(sighting.mode, sighting.mapId, sighting.reportedAt, sighting.reporter, sighting.nickname ?? null)
+    this.db.prepare('INSERT INTO goon_sightings (mode, map_id, reported_at, reporter, nickname, account_id) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(sighting.mode, sighting.mapId, sighting.reportedAt, sighting.reporter, sighting.nickname ?? null, sighting.account ?? null)
   }
 
   list(mode: GoonMode, sinceMs: number) {
@@ -123,13 +134,16 @@ export class SqliteGoonStore implements GoonStore {
   }
 }
 
-const viewOf = (entry: GoonSighting): GoonSightingView => ({ mapId: entry.mapId, reportedAt: entry.reportedAt, ...(entry.nickname ? { nickname: entry.nickname } : {}) })
-
 /**
  * Latest sighting ever kept (24 h), per-map counts for the last 5 hours (most reported first) and the newest sightings
- * of those 5 hours with the nickname of who saw them.
+ * of those 5 hours with the nickname of who saw them — his account's current one for the mode when `nicknameOf` knows it.
  */
-export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number): GoonSnapshot {
+export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number, nicknameOf?: GoonNicknameOf): GoonSnapshot {
+  const viewOf = (entry: GoonSighting): GoonSightingView => {
+    const current = entry.account && nicknameOf ? nicknameOf(entry.account, mode) : undefined
+    const nickname = current === undefined ? entry.nickname : current ?? undefined
+    return { mapId: entry.mapId, reportedAt: entry.reportedAt, ...(nickname ? { nickname } : {}) }
+  }
   const day = store.list(mode, nowMs - GOON_RETENTION_MS)
   const latest = day[0] ? viewOf(day[0]) : null
   const recent = day.filter((entry) => Date.parse(entry.reportedAt) >= nowMs - GOON_STATS_WINDOW_MS).slice(0, GOON_RECENT_LIMIT).map(viewOf)
