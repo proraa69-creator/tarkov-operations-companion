@@ -66,6 +66,8 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['только схема', 'schematic only'], ['только спутник', 'satellite only'],
   // «Этаж по скриншоту»: the player's floor from the screenshot position (src/data/useAutoFloor.ts).
   ['Вы на этом этаже — по последнему скриншоту', 'You are on this floor (from the last screenshot)'], ['Этаж карты', 'Map floor'],
+  // In-game minimap: the quest button steps through the quest's rooms, then the whole map (src/overlay/minimapView.ts).
+  ['Вся карта', 'Whole map'], ['Снять выбор задания', 'Clear quest selection'],
   // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
   ['Возможное место предмета', 'Possible item location'], ['Возможная точка задания', 'Possible objective point'],
   ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],
@@ -108,6 +110,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/^Этап (\d+):\s*/g, 'Stage $1: '],
+  [/^Точка (\d+) из (\d+)$/g, 'Point $1 of $2'],
   [/Переход на карту\s+/g, 'Transit to '],
   [/Иконки на карте:\s*/g, 'Map icons: '],
   [/Вид карты:\s*/g, 'Map view: '],

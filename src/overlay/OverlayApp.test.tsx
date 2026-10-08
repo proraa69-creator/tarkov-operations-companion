@@ -8,9 +8,13 @@ const map = vi.hoisted(() => ({
   invalidateSize: vi.fn(), fitBounds: vi.fn(), on: vi.fn(), off: vi.fn(), getContainer: () => document.createElement('div'),
   // The player marker follows the position: zoom once, pan near the edge, turn the arrow.
   setView: vi.fn(), panTo: vi.fn(), getZoom: () => 2, getMaxZoom: () => 6, getSize: () => ({ x: 420, y: 300 }), latLngToContainerPoint: () => ({ x: 210, y: 150 }),
+  // Quest buttons fly to the quest's rooms; the remembered view reads the centre.
+  flyTo: vi.fn(), flyToBounds: vi.fn(), getCenter: () => ({ lat: 12, lng: 34 }),
 }))
+/** The props the last map was created with (centre/zoom of a remembered view, or the whole map's bounds). */
+const created = vi.hoisted(() => ({ props: {} as Record<string, unknown> }))
 vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  MapContainer: ({ children, ...props }: { children: ReactNode }) => { created.props = props; return <div>{children}</div> },
   ImageOverlay: () => null, Marker: () => null, Pane: ({ children }: { children: ReactNode }) => <>{children}</>,
   // Tile layers leave their address in the page, so a test can see which floor is drawn.
   TileLayer: ({ url }: { url: string }) => <i data-testid="tiles" data-url={url} />,
@@ -131,6 +135,103 @@ describe('minimap floor from the screenshot', () => {
       expect(floorButton('Tunnels')).toHaveAttribute('title', 'You are on this floor (from the last screenshot)')
       expect(floorButton('Main')).toHaveAttribute('aria-pressed', 'false')
       expect(floorButton('Floor 2')).toBeInTheDocument()
+    } finally {
+      setRenderLanguage('ru')
+    }
+  })
+})
+
+/** Handlers the minimap registered on the Leaflet map for an event. */
+const mapHandlers = (event: string) => map.on.mock.calls.filter(([name]) => name === event).map(([, handler]) => handler as () => void)
+
+describe('minimap view remembered per map', () => {
+  afterEach(() => window.localStorage.clear())
+
+  it('saves the centre and zoom only after the player moved the map by hand', () => {
+    render(<OverlayApp kind="minimap" />)
+    ready()
+    // A move made by the app (following the player, a quest button) is not saved.
+    act(() => mapHandlers('moveend').forEach((handler) => handler()))
+    expect(window.localStorage.getItem('raidos.minimap.views.v1')).toBeNull()
+    act(() => { mapHandlers('dragstart').forEach((handler) => handler()); mapHandlers('moveend').forEach((handler) => handler()) })
+    expect(JSON.parse(window.localStorage.getItem('raidos.minimap.views.v1')!)).toEqual({ woods: { center: [12, 34], zoom: 2 } })
+  })
+
+  it('opens the map at the saved view and keeps its zoom while following the player', () => {
+    window.localStorage.setItem('raidos.minimap.views.v1', JSON.stringify({ factory: { center: [5, 6], zoom: 3.5 } }))
+    render(<OverlayApp kind="minimap" />)
+    openFactory()
+    expect(created.props).toMatchObject({ center: [5, 6], zoom: 3.5 })
+    expect(created.props.bounds).toBeUndefined()
+    sendPosition(1, 1000)
+    // The player marker is inside the window: no jump to the player's zoom.
+    expect(map.setView).not.toHaveBeenCalled()
+    expect(map.panTo).not.toHaveBeenCalled()
+  })
+
+  it('opens a map without a saved view on the whole map and zooms to the player as before', () => {
+    render(<OverlayApp kind="minimap" />)
+    openFactory()
+    expect(created.props).toHaveProperty('bounds')
+    expect(created.props.center).toBeUndefined()
+    sendPosition(1, 1000)
+    expect(map.setView).toHaveBeenCalledOnce()
+  })
+})
+
+describe('quest button steps through the rooms of the quest', () => {
+  const quest = (id: string, z: number, x: number, height?: number) => ({ id, position: [z, x], layerId: 'quest.item', title: id, questId: 'q1', height })
+  const openWithQuest = () => act(() => listeners.get('overlay:minimap')?.({
+    state: 'ready', map: { id: 'woods', name: 'Лес', layers: [] }, opacity: 0.9, minimapWidth: 420, questCount: 1,
+    // Two shelves of one room, a far building, and the same spot one storey up.
+    markers: [quest('shelf-a', 0, 0, 1), quest('shelf-b', 3, 4, 1.5), quest('far', 200, 150, 1), quest('upstairs', 1, 1, 5)],
+    quests: [{ questId: 'q1', name: 'Задание', trader: 'Прапор', markerIds: ['shelf-a', 'shelf-b', 'far', 'upstairs'], objectives: ['Найти'] }],
+  }))
+  const press = () => fireEvent.click(screen.getByRole('button', { name: 'Задание' }))
+
+  it('flies room by room, then shows the whole map, then starts again', () => {
+    render(<OverlayApp kind="minimap" />)
+    openWithQuest()
+    press()
+    expect(map.flyToBounds).toHaveBeenLastCalledWith([[0, 0], [3, 4]], expect.anything())
+    expect(screen.getByText('Точка 1 из 3')).toBeInTheDocument()
+    press()
+    expect(map.flyTo).toHaveBeenLastCalledWith([200, 150], expect.any(Number), expect.anything())
+    press()
+    expect(map.flyTo).toHaveBeenLastCalledWith([1, 1], expect.any(Number), expect.anything())
+    expect(map.fitBounds).not.toHaveBeenCalled()
+    press()
+    expect(map.fitBounds).toHaveBeenCalledOnce()
+    expect(screen.getByText('Вся карта')).toBeInTheDocument()
+    press()
+    expect(map.flyToBounds).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('button', { name: 'Задание' })).toHaveAttribute('aria-pressed', 'true')
+    // A new payload (the minimap opened again) does not move the map.
+    openWithQuest()
+    expect(map.flyToBounds).toHaveBeenCalledTimes(2)
+  })
+
+  it('the clear button takes the quest off and shows the whole map', () => {
+    render(<OverlayApp kind="minimap" />)
+    openWithQuest()
+    press()
+    fireEvent.click(screen.getByRole('button', { name: 'Снять выбор задания' }))
+    expect(map.fitBounds).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Задание' })).toHaveAttribute('aria-pressed', 'false')
+    // The next press starts at the first room again.
+    press()
+    expect(map.flyToBounds).toHaveBeenCalledTimes(2)
+  })
+
+  it('names the step and the clear button in English', async () => {
+    const { setRenderLanguage } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      render(<OverlayApp kind="minimap" />)
+      openWithQuest()
+      fireEvent.click(screen.getAllByRole('button', { pressed: false }).find((button) => button.closest('.ov-quest-list'))!)
+      expect(screen.getByText('Point 1 of 3')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Clear quest selection' })).toBeInTheDocument()
     } finally {
       setRenderLanguage('ru')
     }

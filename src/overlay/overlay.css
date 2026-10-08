@@ -209,6 +209,11 @@ html.overlay-root #root {
 .ov-quest-task-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .ov-quest-task-head strong { color: #f2e2b8; font-size: 12px; }
 .ov-quest-task-head span { color: #8e8c80; font-size: 11px; white-space: nowrap; }
+/* The quest's name takes the room; trader, «Точка 2 из 3» and the clear button sit on the right. */
+.ov-quest-task-head { align-items: center; }
+.ov-quest-task-head strong { flex: 1 1 auto; min-width: 0; }
+.ov-quest-step { color: #d8c48a; font-size: 10.5px; font-style: normal; white-space: nowrap; }
+.ov-quest-task-head .ov-icon-button { width: 20px; height: 20px; }
 .ov-quest-task ul { margin: 0; padding-left: 15px; color: #c9c7b7; font-size: 11.5px; line-height: 1.35; }
 .ov-quest-task li + li { margin-top: 2px; }
 

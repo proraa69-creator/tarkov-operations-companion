@@ -44,6 +44,8 @@ export interface MinimapMarker {
   title: string
   subtitle?: string
   questId?: string
+  /** Game-space height of a quest point, to tell apart rooms on different floors (minimapView.ts). */
+  height?: number
 }
 
 export type MinimapPayload =
