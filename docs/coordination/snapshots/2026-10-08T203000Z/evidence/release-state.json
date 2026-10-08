@@ -1,0 +1,28 @@
+{
+  "capturedAt": "2026-10-08T20:32:46.160Z",
+  "published": {
+    "sourceCommit": "dde17f638578b46a188be05aa04e7733b8567721",
+    "build": 1791491244691,
+    "size": 203586262,
+    "sha256": "7f9bb8f3b6d2089e6315ad7c8b435dfab687b1d5b22d17449fe866f53e95295e",
+    "gateRun": 37838619993,
+    "gateConclusion": "success"
+  },
+  "pending": {
+    "releaseHead": "550e893d259f1f37f943b6d6e56856c08f81c92b",
+    "gateRun": 37839923518,
+    "gateStatus": "completed",
+    "gateConclusion": "success",
+    "observedAt": "2026-10-08T20:35:35Z",
+    "publicManifestStillAt": "dde17f638578b46a188be05aa04e7733b8567721"
+  },
+  "production": {
+    "sourceFilesVerified": 224,
+    "apiHealthy": true,
+    "databaseHealthy": true,
+    "serviceActive": true
+  },
+  "sharedSourceMatchesProduction": false,
+  "manualDeploymentByMonitor": false,
+  "secretsOrUserDataExported": false
+}
