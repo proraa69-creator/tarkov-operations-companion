@@ -87,6 +87,20 @@ describe('task availability', () => {
     expect(availability.get('debut')?.status).toBe('completed')
   })
 
+  it('takes a tarkov.dev quest without requirements at its word, not the wiki chain («Егерь» 11 instead of 2)', () => {
+    const progress = createModeProgress()
+    progress.taskProgress.scum = { taskId: 'scum', status: 'active', source: 'eft-log', updatedAt: '2026-10-08T00:00:00.000Z' }
+    const jaeger = (id: string, previous?: string[]): Quest => ({ id, name: id, trader: 'Егерь', level: 1, kappa: false, description: '',
+      objectives: [], rewards: [], requirements: [], ...(previous ? { previous } : {}) })
+    // tarkov.dev: «Всей этой швали...» has no requirement; the wiki's «Предыдущий квест» names an old Jaeger chain.
+    const availability = calculateAvailability([jaeger('chain-1'), jaeger('chain-2', ['chain-1']), jaeger('scum', ['chain-2'])], progress)
+    expect(availability.get('chain-1')?.status).not.toBe('completed')
+    expect(availability.get('chain-2')?.status).not.toBe('completed')
+    // A quest tarkov.dev does not know (no requirement list at all) still follows its wiki chain.
+    const wikiOnly = calculateAvailability([jaeger('chain-1'), { ...jaeger('scum', ['chain-1']), requirements: undefined }], progress)
+    expect(wikiOnly.get('chain-1')?.status).toBe('completed')
+  })
+
   it('does not guess which alternative prerequisite was completed', () => {
     const progress = createModeProgress()
     progress.taskProgress.next = { taskId: 'next', status: 'active', source: 'eft-log', updatedAt: '' }

@@ -43,7 +43,8 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const counts = {
     all: quests.length,
     available: quests.filter((quest) => open(statusOf(quest))).length,
-    completed: quests.filter((quest) => closed(statusOf(quest))).length,
+    // «Выполнено» is handed-in quests only; failed ones stay in the «Завершённые» list but are not done.
+    completed: quests.filter((quest) => statusOf(quest) === 'completed').length,
   }
   const shown = quests.filter((quest) => list === 'all' || (list === 'available' ? open(statusOf(quest)) : closed(statusOf(quest))))
   const position = new Map(quests.map((quest, index) => [quest.id, index + 1]))
