@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-10-08T18:27:13.092Z",
+  "reason": "Claude work branch advanced with two additional unpublished Overview commits",
+  "refs": {
+    "main": "c6500a2ed5f9232e04ead221241de1c55946823d",
+    "releaseProduction": "af8a900df515093274e9f47bea0c629e0274e6a5",
+    "sharedContext": "2396d1e1dcda40deec5a0636c91c4a8093a6917e",
+    "claude": "822a44a6e64c68f95fd550bdde9ed5ea13a12049"
+  },
+  "claudeChange": {
+    "previousHead": "eced7383bfcb05c75fabb96fc69aeba9f331894b",
+    "commits": ["ec67577", "822a44a"],
+    "changedFiles": 14,
+    "status": "in_progress",
+    "reviewedByCodex": false,
+    "mergedToReleaseProduction": false
+  },
+  "production": {
+    "build": 1791472046174,
+    "sourceCommit": "254f2898c0a8ec1a121db04f77d4fe963493eda7",
+    "sourceFilesVerified": 121,
+    "apiHealthy": true,
+    "databaseHealthy": true,
+    "changed": false
+  },
+  "secretsOrUserDataExported": false
+}

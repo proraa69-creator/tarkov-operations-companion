@@ -10,7 +10,7 @@
   "claudeActuallyStarted": true,
   "closedClaudeChatConnected": false,
   "claudePublishedHandoffObserved": true,
-  "claudeHead": "eced7383bfcb05c75fabb96fc69aeba9f331894b",
+  "claudeHead": "822a44a6e64c68f95fd550bdde9ed5ea13a12049",
   "claudeCodeIntegrated": true,
   "claudeWorkInProgress": true,
   "unpublishedClaudeCodeChanges": true,
@@ -21,5 +21,5 @@
   "automaticReleaseGate": "VPS timer + GitHub successful exact-SHA push; no SSH secrets",
   "pipelineSmokePassed": true,
   "nativeEftVerified": false,
-  "note": "Claude published substantial work-branch commits, but the task is still marked in progress. They have not been reviewed, merged to release/production or published as a new build."
+  "note": "Claude added two more Overview commits to the substantial in-progress work branch. None of this batch has been reviewed, merged to release/production or published as a new build."
 }
