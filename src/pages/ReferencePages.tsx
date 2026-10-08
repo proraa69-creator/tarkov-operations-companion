@@ -17,13 +17,14 @@ import {
 import { useTarkovData } from "../data/DataProvider";
 import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
+import { bestSale, displayPrice, fleaSale, traderQuotes } from "../domain/itemPrices";
 import { useLocale } from "../i18n/LocaleProvider";
 import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
 import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
-import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats } from "../arsenal/ammoSource";
+import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats, withModePrices } from "../arsenal/ammoSource";
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
@@ -37,28 +38,22 @@ export function EconomyPage() {
     () =>
       data.items
         .flatMap((item) => {
-          const quotes = item.prices.filter(
-            (quote) => quote.mode === state.raidMode,
-          );
-          const best = quotes.slice().sort((a, b) => b.price - a.price)[0];
-          return best
-            ? [
-                {
-                  item,
-                  best,
-                  spread:
-                    best.price -
-                    Math.min(...quotes.map((quote) => quote.price)),
-                },
-              ]
-            : [];
+          // Sale options of this mode compared by what the seller keeps: the flea price minus the fee vs the traders.
+          const best = bestSale(item, state.raidMode);
+          if (!best) return [];
+          const flea = fleaSale(item, state.raidMode);
+          const nets = [
+            ...traderQuotes(item, state.raidMode).map((quote) => quote.price),
+            ...(flea ? [flea.net] : []),
+          ];
+          return [{ item, best, spread: best.net - Math.min(...nets) }];
         })
         .filter(({ item }) =>
           `${item.name} ${item.shortName}`
             .toLowerCase()
             .includes(query.toLowerCase()),
         )
-        .sort((a, b) => b.best.price - a.best.price),
+        .sort((a, b) => b.best.net - a.best.net),
     [data.items, query, state.raidMode],
   );
 
@@ -148,7 +143,8 @@ export function EconomyPage() {
                   <td>{uiText(best.source)}</td>
                   <td className="mono price-up">+{uiText(formatPrice(spread))}</td>
                   <td className="mono">
-                    <strong>{uiText(formatPrice(best.price))}</strong>
+                    <strong>{uiText(formatPrice(best.net))}</strong>
+                    {best.fee ? <small className="dim" style={{ display: "block" }}>{uiText("после комиссии")}</small> : null}
                   </td>
                 </tr>
               )))}
@@ -207,9 +203,7 @@ export function KeysPage() {
             item.questIds
               ?.map((id) => data.quests.find((entry) => entry.id === id))
               .filter(Boolean) ?? [];
-          const price = item.prices
-            .filter((p) => p.mode === state.raidMode)
-            .sort((a, b) => b.price - a.price)[0];
+          const price = displayPrice(item, state.raidMode);
           return (
             <article className="panel" key={item.id}>
               <div className="item-detail-visual" style={{ minHeight: 140 }}>
@@ -269,7 +263,7 @@ export function AmmoPage() {
   const { locale } = useLocale();
   const live = useAmmoStats(state.raidMode, locale);
   const ammo = useMemo(
-    () => (live.data?.length ? live.data : ammoFromCatalog(data.items, state.raidMode)),
+    () => (live.data?.length ? withModePrices(live.data, data.items, state.raidMode) : ammoFromCatalog(data.items, state.raidMode)),
     [live.data, data.items, state.raidMode],
   );
   const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);

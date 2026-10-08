@@ -1,6 +1,7 @@
 import type { Item, ModeProgress, Quest, RaidMode } from '../domain/types'
 import type { ItemOverlayInfo, QuestNeed } from './types'
 import type { KeepBadge } from '../raidprep/keepList'
+import { fleaQuote, isAveragePrice, quoteKind } from '../domain/itemPrices'
 
 const PURPOSE: Record<string, string> = {
   handover: 'сдать',
@@ -33,8 +34,13 @@ export function describeItem(item: Item, quests: Quest[], progress: Pick<ModePro
   }
   needs.sort((a, b) => Number(progress.taskProgress[b.questId]?.status === 'active') - Number(progress.taskProgress[a.questId]?.status === 'active') || Number(b.kappa) - Number(a.kappa))
 
-  const traderQuotes = item.prices.filter((quote) => quote.source !== 'Барахолка' && quote.source !== 'Базовая цена' && quote.price > 0 && (!mode || !quote.mode || quote.mode === mode))
+  const traderQuotes = item.prices.filter((quote) => quoteKind(quote) === 'trader' && quote.price > 0 && (!mode || !quote.mode || quote.mode === mode))
   const bestTrader = traderQuotes.sort((a, b) => b.price - a.price)[0]
+  // The flea price of the selected mode only; an item whose flea quote belongs to another mode shows none.
+  const flea = mode ? fleaQuote(item, mode) : undefined
+  const hasFleaQuotes = item.prices.some((quote) => quoteKind(quote) === 'flea')
+  const fleaPrice = flea ? flea.price : mode && hasFleaQuotes ? undefined : item.fleaPrice
+  const fleaAverage = flea ? isAveragePrice(flea) : fleaPrice !== undefined && item.fleaPriceBasis === 'avg-24h'
 
   return {
     state: 'found',
@@ -43,7 +49,8 @@ export function describeItem(item: Item, quests: Quest[], progress: Pick<ModePro
     shortName: item.shortName,
     iconUrl: item.types?.includes('gun') && item.presetImageUrl ? item.presetImageUrl : item.iconUrl,
     ...(item.types?.includes('gun') && item.presetImageUrl ? { weaponPreset: true } : {}),
-    fleaPrice: item.fleaPrice,
+    fleaPrice,
+    ...(fleaAverage ? { fleaAverage: true } : {}),
     bestTrader: bestTrader ? { name: bestTrader.source, price: bestTrader.price } : undefined,
     quests: needs,
     kappa: needs.some((need) => need.kappa),

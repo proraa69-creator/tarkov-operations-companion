@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import type { Item, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { fleaQuote } from '../domain/itemPrices'
 
 /**
  * Ammo stats for «Баллистика 2.0» from the tarkov.dev GraphQL API (https://api.tarkov.dev/graphql).
  * Schema (the-hideout/tarkov-api, schema-static.mjs): `items(type: ammo, gameMode: GameMode, lang: LanguageCode)`
  * with `properties { ... on ItemPropertiesAmmo { … ballisticCoeficient … } }` (the API spells it with one «f»).
- * GameMode has only `regular` and `pve`; the Season profile uses the regular (PvP) prices.
+ * GameMode has only `regular` and `pve`; the Season profile loads the regular stats (they are the same rounds), but its
+ * prices come from the Season catalog (json.tarkov.dev `pvp-season/items`), see `withModePrices`.
  */
 export const TARKOV_GRAPHQL_URL = 'https://api.tarkov.dev/graphql'
 
@@ -42,8 +44,8 @@ export function graphqlGameMode(mode: RaidMode): 'regular' | 'pve' {
 export function ammoQuery(mode: RaidMode, locale: AppLocale) {
   return `{
   items(type: ammo, gameMode: ${graphqlGameMode(mode)}, lang: ${locale === 'en' ? 'en' : 'ru'}) {
-    id name shortName iconLink
-    buyFor { priceRUB vendor { name } }
+    id name shortName iconLink lastLowPrice
+    buyFor { priceRUB vendor { name normalizedName } }
     properties {
       ... on ItemPropertiesAmmo {
         caliber ammoType damage penetrationPower armorDamage fragmentationChance
@@ -72,8 +74,14 @@ export function adaptAmmoResponse(payload: unknown): AmmoStats[] {
     if (!id || damage === undefined || penetration === undefined || !props.caliber) return []
     if (ammoType && !['bullet', 'buckshot'].includes(ammoType)) return []
     const offers = (Array.isArray(item.buyFor) ? item.buyFor : []) as JsonRecord[]
+    // tarkov.dev prices the flea entry of `buyFor` at the 24-hour average; the cheapest offer now is `lastLowPrice`.
+    const lastLow = num(item.lastLowPrice) ?? 0
     const cheapest = offers
-      .map((offer) => ({ price: num(offer.priceRUB) ?? 0, source: str((offer.vendor as JsonRecord | undefined)?.name) }))
+      .map((offer) => {
+        const vendor = (offer.vendor ?? {}) as JsonRecord
+        const flea = str(vendor.normalizedName) === 'flea-market'
+        return { price: flea && lastLow > 0 ? lastLow : num(offer.priceRUB) ?? 0, source: str(vendor.name) }
+      })
       .filter((offer) => offer.price > 0)
       .sort((a, b) => a.price - b.price)[0]
     return [{
@@ -98,10 +106,13 @@ export function adaptAmmoResponse(payload: unknown): AmmoStats[] {
   })
 }
 
-/** Fallback when the GraphQL API is unreachable: the catalog's ammo (damage, penetration and price only). */
+/**
+ * Fallback when the GraphQL API is unreachable: the catalog's ammo (damage, penetration and price only). The price is
+ * the flea price of this mode — the catalog's trader quotes are what traders PAY for a round, not a price to buy at.
+ */
 export function ammoFromCatalog(items: Item[], mode: RaidMode): AmmoStats[] {
   return items.filter((item) => item.category === 'Боеприпас' && item.damage && item.penetration !== undefined).map((item) => {
-    const quote = item.prices.filter((entry) => entry.mode === mode).sort((a, b) => a.price - b.price)[0]
+    const quote = fleaQuote(item, mode)
     return {
       id: item.id,
       name: item.name,
@@ -113,6 +124,20 @@ export function ammoFromCatalog(items: Item[], mode: RaidMode): AmmoStats[] {
       price: quote?.price,
       priceSource: quote?.source,
     }
+  })
+}
+
+/**
+ * Prices of the selected mode. PvP and PvE rounds come priced by GraphQL for that mode. GraphQL has no Season market,
+ * so Season rounds (fetched as `regular`) get the Season catalog's flea price instead — never the PvP one; a round the
+ * Season catalog has no flea price for shows no price.
+ */
+export function withModePrices(rows: AmmoStats[], items: Item[], mode: RaidMode): AmmoStats[] {
+  if (mode !== 'seasonal') return rows
+  const byId = new Map(items.map((item) => [item.id, item]))
+  return rows.map((row) => {
+    const quote = fleaQuote(byId.get(row.id), mode)
+    return { ...row, price: quote?.price, priceSource: quote?.source }
   })
 }
 

@@ -22,12 +22,20 @@ export interface PriceChoice {
   unitPrice: number
   /** For a flea sale: the listing fee per unit, already subtracted from unitPrice. */
   fee?: number
+  /** Flea: no current offer, the price is the 24-hour average. */
+  average?: boolean
 }
 
-/** Current flea price used for both buying and selling: the lowest live offer, else the 24h average. */
+/**
+ * Current flea price used for both buying and selling: the lowest live offer (`lastLowPrice`), else the 24h average.
+ * Not `low24hPrice`: the lowest price seen during the day is a past one-off listing, not a price one can buy at now.
+ */
 export function fleaPrice(item: EconomyItem): number | undefined {
-  return item.lastLowPrice ?? item.low24hPrice ?? item.avg24hPrice
+  return item.lastLowPrice ?? item.avg24hPrice
 }
+
+/** The flea price is the 24-hour average (no current offer). */
+const fleaIsAverage = (item: EconomyItem) => item.lastLowPrice === undefined && item.avg24hPrice !== undefined
 
 function traderLevelAllows(traderId: string | undefined, minLevel: number | undefined, context: PriceContext) {
   if (!traderId || !minLevel) return true
@@ -40,7 +48,7 @@ export function cheapestBuy(item: EconomyItem | undefined, context: PriceContext
   if (!item) return null
   const options: PriceChoice[] = []
   const flea = fleaPrice(item)
-  if (context.fleaEnabled && !item.noFlea && flea) options.push({ source: 'Барахолка', kind: 'flea', unitPrice: flea })
+  if (context.fleaEnabled && !item.noFlea && flea) options.push({ source: 'Барахолка', kind: 'flea', unitPrice: flea, ...(fleaIsAverage(item) ? { average: true } : {}) })
   for (const offer of item.buyFor) {
     if (offer.kind !== 'trader') continue
     if (!traderLevelAllows(offer.traderId, offer.minTraderLevel, context)) continue
@@ -56,7 +64,7 @@ export function bestSell(item: EconomyItem | undefined, context: PriceContext, c
   const flea = fleaPrice(item)
   if (context.fleaEnabled && !item.noFlea && flea) {
     const fee = fleaMarketFee(item.basePrice, flea, { ...context.feeOptions, count: Math.max(1, count) }) / Math.max(1, count)
-    options.push({ source: 'Барахолка', kind: 'flea', unitPrice: flea - fee, fee })
+    options.push({ source: 'Барахолка', kind: 'flea', unitPrice: flea - fee, fee, ...(fleaIsAverage(item) ? { average: true } : {}) })
   }
   for (const quote of item.sellFor) {
     if (quote.kind === 'trader') options.push({ source: quote.source, kind: 'trader', unitPrice: quote.price })

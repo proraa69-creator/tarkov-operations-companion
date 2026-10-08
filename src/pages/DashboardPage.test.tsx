@@ -34,13 +34,20 @@ const dataset: AppDataset = {
     ...demoDataset.items,
     ...PACKS.map(([id, name]) => item(id, `Пачка патронов 7.62x51мм ${name} (20 штук)`, ['ammoBox'])),
     ...ELCAN.map(([id, name]) => item(id, name, ['mods'])),
+    // Favourites: a trader quote above the flea price (the old Math.max picked it), and an item priced only in PvE.
+    { ...item('fav-odd', 'Флешка', ['barter']), prices: [
+      { source: 'Барахолка', price: 36500, mode: 'pvp', updatedAt: '', kind: 'flea', basis: 'last-low' },
+      { source: 'Терапевт', price: 40000, mode: 'pvp', updatedAt: '', kind: 'trader' },
+    ] },
+    { ...item('fav-pve', 'Тетрис', ['barter']), prices: [{ source: 'Барахолка', price: 410000, mode: 'pve', updatedAt: '', kind: 'flea' }] },
   ],
 }
 // «Дебют» is not in the log: «Проверка», which requires it, is current, so the chain counts «Дебют» as done.
 const CUSTOMS_TASKS = ['checking', 'operation-aquarius', 'golden-swag', 'bp-depot', 'pharmacist', 'break-the-deal', 'scope-stash']
 
-function renderDashboard() {
+function renderDashboard(favoriteItemIds?: string[]) {
   let profile = createLocalProfile('TEST', 'overview')
+  if (favoriteItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds } } }
   for (const taskId of [...CUSTOMS_TASKS, 'grenadier']) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -110,5 +117,15 @@ describe('DashboardPage', () => {
     const dialog = document.querySelector('[role=dialog]') as HTMLElement
     expect([...dialog.querySelectorAll('.kappa-quest strong')].map((node) => node.textContent))
       .toEqual(['Реагент. Часть 4', 'Стрелок от бога', 'Тарковский стрелок. Часть 4', 'Шить — не тужить. Часть 4'])
+  })
+  it('market favourites show the PvP flea price (cheapest offer), not the highest quote nor another mode\'s price', () => {
+    const { container } = renderDashboard(['fav-odd', 'fav-pve'])
+    const rows = [...container.querySelectorAll('.market-favorites .item-row')].map((row) => row.textContent?.replace(/\s+/g, ' '))
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toContain('барахолка, минимальное предложение')
+    expect(rows[0]).toMatch(/36 500 ₽/)
+    expect(rows[0]).not.toMatch(/40 000/)
+    expect(rows[1]).toContain('нет цены')
+    expect(rows[1]).not.toMatch(/410 000/)
   })
 })

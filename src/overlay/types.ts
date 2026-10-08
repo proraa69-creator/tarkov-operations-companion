@@ -22,7 +22,10 @@ export interface ItemOverlayInfo {
   iconUrl?: string
   /** Standard assembled weapon, not a reconstruction of the player's attachments. */
   weaponPreset?: boolean
+  /** Flea price of the selected mode: the current lowest offer (or the 24-hour average, then `fleaAverage`). */
   fleaPrice?: number
+  /** No current flea offer: `fleaPrice` is the 24-hour average. */
+  fleaAverage?: boolean
   bestTrader?: { name: string; price: number }
   quests: QuestNeed[]
   kappa: boolean

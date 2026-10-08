@@ -135,3 +135,75 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
     expect([pvp.metadata?.mode, pve.metadata?.mode]).toEqual(['pvp', 'pve'])
   })
 })
+
+/**
+ * Flea prices of one item per mode (json.tarkov.dev `<mode>/items`, the shape tarkov.dev's own site reads). Every mode
+ * has its own numbers so a mix-up would show; `avg24hPrice` is above the cheapest offer, as on the live market.
+ */
+const priceFeed = (mode: 'regular' | 'pve' | 'pvp-season'): Record<string, unknown> => {
+  const salewa = { regular: [36500, 41000], pve: [22100, 25400], 'pvp-season': [30200, 33900] }[mode]
+  return {
+    tasks: { tasks: { t1: { id: 't1', name: 'Задание', trader: 'tr-therapist', objectives: [] } } },
+    items: {
+      fleaMarket: { enabled: true, sellOfferFeeRate: 0.03, sellRequirementFeeRate: 0.03 },
+      items: {
+        salewa: { id: 'salewa', name: 'Аптечка Salewa', shortName: 'Salewa', types: ['meds'], basePrice: 21000,
+          lastLowPrice: salewa[0], avg24hPrice: salewa[1], low24hPrice: salewa[0] - 1500, high24hPrice: salewa[1] + 11000,
+          sellToTrader: [{ trader: 'tr-therapist', price: 11000, currency: 'RUB', priceRUB: 11000 }] },
+        // No current offer: the 24-hour average is used and flagged.
+        rare: { id: 'rare', name: 'Редкость', shortName: 'Редк', types: ['barter'], basePrice: 5000, lastLowPrice: null, avg24hPrice: 90000 },
+        // Flea-banned: no flea price even if an old average is still in the data.
+        ledx: { id: 'ledx', name: 'LEDX', shortName: 'LEDX', types: ['meds', 'noFlea'], basePrice: 600000, avg24hPrice: 1300000,
+          sellToTrader: [{ trader: 'tr-therapist', priceRUB: 611000, price: 611000, currency: 'RUB' }] },
+        // Peacekeeper pays in dollars: without priceRUB the bare price is not roubles.
+        intel: { id: 'intel', name: 'Папка', shortName: 'Intel', types: ['barter'], basePrice: 40000,
+          sellToTrader: [{ trader: 'tr-peacekeeper', price: 120, currency: 'USD' }, { trader: 'tr-therapist', price: 18000, currency: 'RUB' }] },
+      },
+    },
+    maps: { maps: { 'm-customs': { id: 'm-customs', name: 'Customs', normalizedName: 'customs' } } },
+    traders: { 'tr-therapist': { id: 'tr-therapist', name: 'Терапевт' }, 'tr-peacekeeper': { id: 'tr-peacekeeper', name: 'Миротворец' } },
+    hideout: {},
+  }
+}
+
+function stubPriceFeeds(requested: string[]) {
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    const match = /json\.tarkov\.dev\/([a-z-]+)\/([a-z]+)(_[a-z]+)?$/.exec(String(url))
+    if (!match || !['regular', 'pve', 'pvp-season'].includes(match[1])) return new Response('', { status: 404 })
+    requested.push(`${match[1]}/${match[2]}${match[3] ?? ''}`)
+    return new Response(JSON.stringify({ data: match[3] ? {} : priceFeed(match[1] as 'regular')[match[2]] ?? {} }), { status: 200 })
+  }))
+}
+
+describe('catalog adapter: flea prices per mode', () => {
+  it('PvP, PvE and Season read their own items file and stamp every quote with their mode', async () => {
+    const requested: string[] = []
+    stubPriceFeeds(requested)
+    const catalogs = { pvp: await fetchLiveCatalog('pvp', 'en'), pve: await fetchLiveCatalog('pve', 'en'), seasonal: await fetchLiveCatalog('seasonal', 'en') }
+    expect(requested.filter((path) => path.endsWith('/items'))).toEqual(['regular/items', 'pve/items', 'pvp-season/items'])
+    const salewa = (mode: keyof typeof catalogs) => catalogs[mode].items.find((entry) => entry.id === 'salewa')!
+    expect([salewa('pvp').fleaPrice, salewa('pve').fleaPrice, salewa('seasonal').fleaPrice]).toEqual([36500, 22100, 30200])
+    for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+      expect(catalogs[mode].items.flatMap((entry) => entry.prices).every((entry) => entry.mode === mode)).toBe(true)
+      expect(catalogs[mode].metadata).toMatchObject({ mode, fleaMarket: { enabled: true, offerFeeRate: 0.03, requirementFeeRate: 0.03 } })
+    }
+  })
+
+  it('the flea price is the cheapest current offer (lastLowPrice), not the 24-hour average; the average only as a flagged fallback', async () => {
+    stubPriceFeeds([])
+    const catalog = await fetchLiveCatalog('pvp', 'en')
+    const byId = new Map(catalog.items.map((entry) => [entry.id, entry]))
+    // Before: fleaPrice = avg24hPrice = 41 000 ₽ (+12 % over the cheapest offer of 36 500 ₽).
+    expect(byId.get('salewa')).toMatchObject({ fleaPrice: 36500, fleaPriceBasis: 'last-low', basePrice: 21000 })
+    expect(byId.get('salewa')!.prices).toEqual([
+      { source: 'Барахолка', price: 36500, mode: 'pvp', updatedAt: expect.any(String), kind: 'flea', basis: 'last-low' },
+      { source: 'Терапевт', price: 11000, mode: 'pvp', updatedAt: expect.any(String), kind: 'trader' },
+    ])
+    expect(byId.get('rare')).toMatchObject({ fleaPrice: 90000, fleaPriceBasis: 'avg-24h' })
+    expect(byId.get('rare')!.prices[0]).toMatchObject({ kind: 'flea', basis: 'avg-24h', price: 90000 })
+    expect(byId.get('ledx')!.fleaPrice).toBeUndefined()
+    expect(byId.get('ledx')!.prices.map((entry) => entry.source)).toEqual(['Терапевт'])
+    // 120 USD from Peacekeeper is not 120 ₽: that quote is dropped, the rouble one stays.
+    expect(byId.get('intel')!.prices.map((entry) => [entry.source, entry.price])).toEqual([['Терапевт', 18000]])
+  })
+})

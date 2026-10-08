@@ -18,3 +18,23 @@ describe('item overlay weapon pictures', () => {
     expect(describeItem({ ...item, presetImageUrl: undefined }, [], progress).iconUrl).toBe('receiver.webp')
   })
 })
+
+describe('item overlay prices per mode', () => {
+  const salewa: Item = {
+    id: 'salewa', name: 'Salewa', shortName: 'Salewa', category: 'Медицина', description: '', fleaPrice: 36500,
+    prices: [
+      { source: 'Барахолка', price: 36500, mode: 'pvp', updatedAt: '', kind: 'flea', basis: 'last-low' },
+      { source: 'Терапевт', price: 11000, mode: 'pvp', updatedAt: '', kind: 'trader' },
+      { source: 'Барахолка', price: 25400, mode: 'pve', updatedAt: '', kind: 'flea', basis: 'avg-24h' },
+      { source: 'Терапевт', price: 9000, mode: 'pve', updatedAt: '', kind: 'trader' },
+    ],
+  }
+  it('shows the flea price and the trader of the selected mode only', () => {
+    expect(describeItem(salewa, [], progress, 'pvp')).toMatchObject({ fleaPrice: 36500, bestTrader: { name: 'Терапевт', price: 11000 } })
+    const pve = describeItem(salewa, [], progress, 'pve')
+    expect(pve).toMatchObject({ fleaPrice: 25400, fleaAverage: true, bestTrader: { price: 9000 } })
+    // Season has no flea quote here: no price rather than the PvP one in `fleaPrice`.
+    expect(describeItem(salewa, [], progress, 'seasonal').fleaPrice).toBeUndefined()
+    expect(describeItem(salewa, [], progress, 'pvp').fleaAverage).toBeUndefined()
+  })
+})

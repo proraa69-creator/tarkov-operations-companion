@@ -26,7 +26,7 @@ export function ItemLines({ lines, side }: { lines: PricedLine[]; side: 'buy' | 
       <span className="economy-line-text">
         <span className="economy-line-name">{line.count > 1 && <b className="mono">{line.count}× </b>}{uiText(line.shortName)}</span>
         <small className="dim">{line.choice
-          ? <>{uiText(line.choice.source)} · <span className="mono">{formatPrice(Math.round(line.choice.unitPrice))}</span>{side === 'sell' && line.choice.fee ? <> {uiText('(после комиссии)')}</> : null}</>
+          ? <>{uiText(line.choice.source)} · <span className="mono">{formatPrice(Math.round(line.choice.unitPrice))}</span>{side === 'sell' && line.choice.fee ? <> {uiText('(после комиссии)')}</> : null}{line.choice.average ? <> {uiText('(среднее за 24 ч)')}</> : null}</>
           : uiText(side === 'buy' ? 'нельзя купить' : 'нет цены')}</small>
       </span>
     </li>)}

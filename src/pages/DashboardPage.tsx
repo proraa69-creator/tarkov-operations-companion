@@ -6,6 +6,7 @@ import { ChevronRight, Clock3, LockKeyhole, Map as MapIcon, Route, Users } from 
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
+import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
@@ -132,7 +133,12 @@ export function DashboardPage() {
         <section className="panel market-favorites">
           <div className="panel-header"><div className="panel-title">{uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>
           <div className="panel-body">
-            {uiText(favorites.map((item) => item && <div className="item-row" key={item.id}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText("лучшее предложение")}</small></span><strong className="mono price-up">{uiText(formatPrice(Math.max(...item.prices.filter((p) => p.mode === state.raidMode).map((p) => p.price), 0)))}</strong></div>))}
+            {uiText(favorites.map((item) => {
+              if (!item) return null
+              // The flea price of THIS mode (current lowest offer), else the best trader: not the highest of all quotes.
+              const price = displayPrice(item, state.raidMode)
+              return <div className="item-row" key={item.id}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText(favoritePriceLabel(price))}</small></span><strong className="mono price-up">{uiText(price ? formatPrice(price.price) : '—')}</strong></div>
+            }))}
           </div>
         </section>
       </div>

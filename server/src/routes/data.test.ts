@@ -173,6 +173,34 @@ test('gateway cache: shared per query + variables (gameMode), price data 10 min,
   await assert.rejects(gateway.graphql('{ items { id } }', { nested: { object: true } }), (error: GatewayError) => error.status === 400)
 })
 
+test('gateway cache: flea prices of PvP, PvE and Season never share an entry (gameMode inline in the query, mode in the JSON path)', async () => {
+  const upstream = fakeUpstream()
+  upstream.setPayload((url, body) => JSON.stringify(url.includes('graphql')
+    ? { data: { items: [{ id: 'gpu', lastLowPrice: /gameMode\s*:\s*pve\b/.test(body ?? '') ? 410000 : 600000 }] } }
+    : { data: { items: { gpu: { id: 'gpu', lastLowPrice: url.includes('/pve/') ? 410000 : url.includes('/pvp-season/') ? 520000 : 600000 } } } }))
+  const gateway = new DataGateway({ fetch: upstream.fetcher })
+  // Shaped like the app's prices query (src/data/economyApi.ts `economyQueries`): the GameMode enum value is inlined,
+  // no variables (that module reads the browser environment, so it is not imported here; src/data/economyApi.test.ts
+  // checks the real text).
+  const prices = (mode: 'regular' | 'pve') => `{
+  fleaMarket(gameMode: ${mode}) { enabled sellOfferFeeRate sellRequirementFeeRate }
+  items(gameMode: ${mode}, lang: ru) { id basePrice avg24hPrice lastLowPrice types }
+}`
+  const pvp = JSON.parse(await gateway.graphql(prices('regular'), undefined)) as { data: { items: Array<{ lastLowPrice: number }> } }
+  const pve = JSON.parse(await gateway.graphql(prices('pve'), undefined)) as typeof pvp
+  assert.equal(pvp.data.items[0]!.lastLowPrice, 600000)
+  assert.equal(pve.data.items[0]!.lastLowPrice, 410000, 'PvE is not answered from the PvP entry')
+  assert.equal(upstream.calls.length, 2)
+  assert.match(upstream.calls[1]!.body ?? '', /fleaMarket\s*\(\s*gameMode\s*:\s*pve\s*\)/, 'gameMode reaches tarkov.dev as sent')
+  // Asking PvP again is served from its own entry, still with the PvP price.
+  assert.equal((JSON.parse(await gateway.graphql(prices('regular'), undefined)) as typeof pvp).data.items[0]!.lastLowPrice, 600000)
+  assert.equal(upstream.calls.length, 2)
+
+  const jsonPrice = async (path: string) => (JSON.parse(await gateway.json(path)) as { data: { items: Record<string, { lastLowPrice: number }> } }).data.items.gpu!.lastLowPrice
+  assert.deepEqual([await jsonPrice('regular/items'), await jsonPrice('pve/items'), await jsonPrice('pvp-season/items')], [600000, 410000, 520000])
+  assert.deepEqual(upstream.calls.slice(2).map((call) => call.url.replace(/^https:\/\/json\.tarkov\.dev\//, '')), ['regular/items', 'pve/items', 'pvp-season/items'])
+})
+
 async function withApi(run: (ctx: { call: (method: string, path: string, options?: { token?: string; device?: string; body?: unknown; ip?: string }) => Promise<Response>; accounts: AccountStore; paid: Map<string, number>; upstream: ReturnType<typeof fakeUpstream>; entitlements: EntitlementService }) => Promise<void>, limits?: { perIp?: number; perAccount?: number }) {
   const paid = new Map<string, number>()
   const accounts = new AccountStore({ ownerEmails: ['owner@example.com'] })
