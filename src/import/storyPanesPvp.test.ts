@@ -18,13 +18,14 @@ function saved(id: string, stage: number): ModeProgress {
   return progress
 }
 
-/** What the scanner does with two fresh readings of the same pane. */
-function scanTwice(progress: ModeProgress, text: string) {
+/** What the scanner does with two fresh readings of the same pane (read once, applied to any saved progress). */
+function scanner(text: string) {
   const matches = matchStoryChapters(text, QUESTS)
   const first = confirmStoryFrame(null, 'profile:pvp', 1000, matches)
   const second = confirmStoryFrame(first.state, 'profile:pvp', 2000, matches)
-  return applyStoryScan(applyStoryScan(progress, matches.filter((match) => match.objectives?.length), '2026-10-08T10:00:00.000Z'), second.confirmed, '2026-10-08T10:00:01.000Z')
+  return (progress: ModeProgress) => applyStoryScan(applyStoryScan(progress, matches.filter((match) => match.objectives?.length), '2026-10-08T10:00:00.000Z'), second.confirmed, '2026-10-08T10:00:01.000Z')
 }
+const scanTwice = (progress: ModeProgress, text: string) => scanner(text)(progress)
 
 const links = (id: string, progress: ModeProgress) => visibleStoryObjectives(chapter(id), progress)
   .map((objective) => [objective.text, storyObjectiveMapLinks(chapter(id), objective).map((link) => link.mapId)])
@@ -97,6 +98,16 @@ describe('story panes of the owner\'s PvP account (real in-game wording)', () =>
     const two = matchStoryChapters(PVP_BOREAS.replace('набор инструментов', 'набор инструментоз'), QUESTS)
     const first = confirmStoryFrame(null, 'p:pvp', 1, one)
     expect(confirmStoryFrame(first.state, 'p:pvp', 2, two).confirmed.map((match) => match.questId)).toEqual(['story-boreas'])
+  })
+
+  it('corrects a stale higher stage left by the old forward jumps («Батя» 10 instead of 1), never keeps it', () => {
+    const panes = [['story-batya', PVP_BATYA, 1], ['story-falling-skies', PVP_FALLING_SKIES, 0], ['story-boreas', PVP_BOREAS, 2], ['story-tour', PVP_TOUR, 12]] as const
+    for (const [id, text, shown] of panes) {
+      const scan = scanner(text)
+      for (let stage = shown + 1; stage < chapter(id).stages!.length; stage += 1) {
+        expect(scan(saved(id, stage)).taskProgress[id]!.currentStageIndex, `${id}: saved ${stage}`).toBe(shown)
+      }
+    }
   })
 })
 
