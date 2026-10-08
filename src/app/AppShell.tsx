@@ -30,7 +30,7 @@ import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 import { useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { canResolvePlayerProfiles } from '../profile/playerProfileGateway'
-import { rememberEftAccount } from '../account/eftAccountBinding'
+import { rememberEftAccount } from '../account/eftAccountLink'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -143,7 +143,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         detectedMode = result.latestMode
         sessionStorage.setItem('eft-last-detected-mode', result.latestMode)
       }
-      // «Пригласи друга»: the game account of this PC goes to the signed-in server account (eftAccountBinding.tsx).
+      // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
       applyScanToModes(
         result,

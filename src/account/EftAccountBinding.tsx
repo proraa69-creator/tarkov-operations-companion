@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
-import { detectedEftAccount, EFT_IN_USE_TEXT, subscribeEftAccount } from './eftAccountBinding'
+import { detectedEftAccount, EFT_IN_USE_TEXT, subscribeEftAccount } from './eftAccountLink'
 import './paywall.css'
 
 /**
  * Desktop only (App): binds the game account seen in the logs to the signed-in server account once per account pair,
- * and shows a notice when the server answers that another Raid OS account already holds it (eftAccountBinding.ts).
+ * and shows a notice when the server answers that another Raid OS account already holds it (eftAccountLink.ts).
  */
 export function EftAccountBinding() {
   const { status } = useServerAccount()

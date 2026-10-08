@@ -177,3 +177,13 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
   - `4ae4797` — привязка ника после вайпа/смены ника: сначала AccountId из логов игры (приложение шлёт его в `POST /v1/players/resolve` полем `accountId`), затем живой поиск `player.tarkov.dev/name` без токена Turnstile (при 401/403/429 пропускается, капча не обходится), затем индекс (принудительно не чаще раза в 5 мин). Аккаунт без опубликованного профиля привязывается как `pending`, уровень подтягивает минутное обновление.
   - `8b344f2` — по просьбе владельца убраны видимые упоминания Tarkov.dev (29 файлов, RU+EN). Оставлены подписи карт «© … tarkov.dev · CC BY-NC-SA 4.0»: этого требует лицензия картинок; владельцу сообщено, что NC-лицензия конфликтует с платной подпиской (нужны свои карты или разрешение авторов).
 - Риски: живой поиск может требовать Turnstile — тогда работает путь через логи и индекс; карты под CC BY-NC-SA.
+
+## 2026-10-09: Codex, неподписанная iOS-сборка для владельца
+
+- По прямому поручению владельца добавлен отдельный `.github/workflows/ios-ipa.yml`; доверенный `.github/workflows/production.yml` не менялся.
+- Источник — точный push в `release/production`. Ubuntu сначала выполняет typecheck и frontend unit tests, затем `macos-26` собирает Capacitor 8 для физического iPhone без подписи.
+- Артефакт: `Raid-OS-iOS-<version>-<sha>.ipa` и SHA-256, хранение 14 дней. Apple ID, сертификаты, provisioning profile, серверные секреты и пользовательская база не используются.
+- iOS получает тот же React renderer и `https://raidos.app`, что актуальный Windows-выпуск. Windows-only функции (EFT logs, screenshots/OCR hotkeys, overlay, EXE updater) не имитируются на телефоне; видны их синхронизированные серверные результаты.
+- Устранены две case-insensitive коллизии модулей для Windows/macOS: logic-файлы переименованы в `eftAccountLink.ts` и `raidPlanEngine.ts`; поведение не изменено.
+- Локально: YAML разобран `js-yaml`; `npm run typecheck` OK; затронутые тесты 25/25; `npm run build:renderer` OK. Полный Windows-прогон: 1037/1040, три известные платформенные проверки Linux/CRLF падают только на Windows; workflow запускает полный набор на Ubuntu.
+- Осталось проверить самим GitHub Actions: Xcode device build, структуру `Payload/App.app`, версию, bundle id и загрузку IPA. Установка на реальный iPhone через Sideloadly ещё не проверена.
