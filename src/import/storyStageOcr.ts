@@ -9,8 +9,6 @@ export function inferStoryStageIndex(text: string, quest: Quest): number | undef
   if (quest.kind !== 'story' || !quest.stages?.length) return undefined
   const objectives = objectivesSection(text)
   if (!objectives) return undefined
-  const haystack = ocrKey(objectives)
-  const folded = foldOcrGlyphs(objectives.toLowerCase())
   // Keep digits intact for counters like 0/3 (foldOcrGlyphs turns 3→з).
   const plain = objectivesSection(text, true).toLowerCase().replace(/ё/g, 'е')
 
@@ -29,7 +27,7 @@ export function inferStoryStageIndex(text: string, quest: Quest): number | undef
     hits.push({
       index,
       score,
-      done: stageLooksComplete(stage, plain, folded, haystack),
+      done: stageLooksComplete(stage, plain),
       talk: !stage.mapIds.length,
     })
   })
@@ -84,6 +82,15 @@ export function storyStageEvidence(text: string, quest: Quest): number | undefin
     if (keys.some((key) => haystack.includes(key))) found = index
   })
   return found
+}
+
+/**
+ * How many stages of the chapter the objective blocks (main and optional) show by an 8+ letter title / alias. Breaks a
+ * tie of shared wording: «Поговорить с Лыжником» is in «Тур» and in «Случайный свидетель», «Посетить Лес» only in «Тур».
+ */
+export function storyStageHits(text: string, quest: Quest) {
+  const haystack = ocrKey(objectivesSection(text, true))
+  return haystack ? (quest.stages ?? []).filter((stage) => stageKeys(stage).some((key) => key.length >= 8 && haystack.includes(key))).length : 0
 }
 
 export function hasExactStoryStageEvidence(text: string, quest: Quest, index: number) {
@@ -158,7 +165,7 @@ export function completedStoryStageIndexes(text: string, quest: Quest): number[]
   const all = objectivesSection(text, true)
   if (!main) return []
   return (quest.stages ?? []).flatMap((stage, index) => (
-    exactStageScore(stage, main, quest.stages, index) && stageLooksComplete(stage, all.toLowerCase().replace(/ё/g, 'е'), '', ocrKey(all)) ? [index] : []
+    exactStageScore(stage, main, quest.stages, index) && stageLooksComplete(stage, all.toLowerCase().replace(/ё/g, 'е')) ? [index] : []
   ))
 }
 
@@ -196,7 +203,7 @@ function stageMatchScore(stage: QuestStage, haystack: string, folded: string) {
   return best
 }
 
-function stageLooksComplete(stage: QuestStage, plain: string, _folded: string, haystack: string) {
+function stageLooksComplete(stage: QuestStage, plain: string) {
   const total = stage.progressTotal
   if (total && total > 1) {
     const progress = findProgress(plain, stage)

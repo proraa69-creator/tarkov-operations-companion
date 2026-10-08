@@ -4,6 +4,7 @@ import type { PlayerProfileSnapshot, RaidMode } from './domain/types'
 import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
 import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
+import type { StoryPaneReading } from './import/storyPaneLayout'
 
 type DesktopLogScanResult = ModeLogScanResult
 
@@ -208,8 +209,9 @@ interface TarkovDesktopApi {
   notify?: (title: string, body: string) => Promise<boolean>
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number }>
-  captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number } | null>
+  /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading }>
+  captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   scanScreenText?: () => Promise<{ text: string; gameWindow: boolean }>
   recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>

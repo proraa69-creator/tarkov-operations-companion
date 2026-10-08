@@ -69,11 +69,11 @@ export function StoryScreenScanner() {
             // The first observation must retain small objective text too: a menu-quality probe
             // would require a third OCR pass before an exact stage can be confirmed.
             let frame = await desktop.captureQuestFrame(true, true).catch(() => null)
-            let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current) : []
+            let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current, frame.story) : []
             if (!matches.some((match) => match.stageIndex != null) && desktop.captureQuestScreenshot) {
               const screenshot = await desktop.captureQuestScreenshot(contextStartedAt)
               const fresh = screenshot && Date.now() - screenshot.observedAt <= STORY_SCAN_TIMING.screenshotMaxAgeMs
-              const snapshotMatches = fresh ? matchStoryChapters(screenshot.text, questsRef.current) : []
+              const snapshotMatches = fresh ? matchStoryChapters(screenshot.text, questsRef.current, screenshot.story) : []
               if (snapshotMatches.some((match) => match.stageIndex != null)) { frame = screenshot; matches = snapshotMatches }
             }
             if (cancelled) return
@@ -84,7 +84,8 @@ export function StoryScreenScanner() {
               continue
             }
             if (frame?.gameWindow) delay = MENU_CHECK_MS
-            if (frame?.gameWindow && !inRaid && isStoryMenuText(frame.text)) {
+            // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
+            if (frame?.gameWindow && !inRaid && (frame.story || isStoryMenuText(frame.text))) {
               delay = STORY_PANE_MS
               const screenshot = frame.sourceName === 'EFT screenshot'
               const checked = confirmStoryFrame(screenshot ? null : confirmation, context, frame.observedAt ?? 0, matches)

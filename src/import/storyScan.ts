@@ -1,8 +1,9 @@
 import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types'
-import { matchQuestsFromOcr, ocrKey } from './questOcr'
+import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey } from './questOcr'
 import { isTasksMenuText } from './screenScanSync'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
+import { storyPaneText, type StoryPaneReading } from './storyPaneLayout'
 
 export interface StoryScanMatch {
   questId: string
@@ -27,21 +28,47 @@ export interface StoryScanMatch {
  * it to «ТОРИЯ») with the chapter name on it or right under it. Only an exact name counts: never a word of the story.
  */
 export function storyPaneChapter(text: string, story: Quest[]): { quest: Quest; active: boolean } | undefined {
-  const lines = text.slice(0, 20000).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  // The header sits on banner art: OCR puts junk before «ИСТОРИЯ» («> ИСТОРИЯ >. a.») and after the name («Typ > tgs»).
+  const lines = text.slice(0, 20000).split(/\r?\n/).map((line) => line.trim().replace(/^[^\p{L}]+/u, '')).filter(Boolean)
   const names = story.map((quest) => ({ quest, keys: [quest.name, quest.normalizedName ?? ''].map(ocrKey).filter((key) => key.length >= 3) }))
   const STATUS = /(?:^|\s)(?:активно|active|выполнено|завершено|completed)(?=\s|$)/gi
+  const isActive = (line: string) => /(?:^|\s)(?:активно|active)(?=\s|$)/i.test(foldOcrGlyphs(line).toLowerCase())
   for (let index = 0; index < lines.length; index += 1) {
     const header = lines[index]!.match(/^(?:история|[а-яё]{0,2}тория|story)(?=\s|$)(.*)$/i)
     if (!header) continue
     const window = [header[1]!, ...lines.slice(index + 1, index + 3)]
     for (const candidate of window) {
-      const key = ocrKey(candidate.replace(STATUS, ' '))
-      if (!key) continue
-      const found = names.find((entry) => entry.keys.includes(key))
-      if (found) return { quest: found.quest, active: [lines[index]!, ...lines.slice(index + 1, index + 4)].some((line) => /(?:^|\s)(?:активно|active)(?=\s|$)/i.test(line)) }
+      const found = titleKeys(candidate.replace(STATUS, ' ')).map((key) => names.find((entry) => entry.keys.some((name) => sameTitle(name, key))))
+        .find(Boolean)
+      if (found) return { quest: found.quest, active: [lines[index]!, ...lines.slice(index + 1, index + 4)].some(isActive) }
     }
   }
   return undefined
+}
+
+/** The chapter name at the start of a header line: the whole line, then its first one to four words (junk follows). */
+function titleKeys(line: string) {
+  const words = line.split(/\s+/).filter((word) => /\p{L}/u.test(word))
+  const keys = [ocrKey(line), ...words.slice(0, 4).map((_, index) => ocrKey(words.slice(0, index + 1).join(' ')))]
+  return [...new Set(keys.filter((key) => key.length >= 3))]
+}
+
+/** One OCR slip is allowed in a long name («Небеса в огне» read with a Latin «r»); short names must match exactly. */
+function sameTitle(name: string, key: string) {
+  if (name === key) return true
+  if (name.length < 6 || Math.abs(name.length - key.length) > 1) return false
+  let a = 0
+  let b = 0
+  let slips = 0
+  while (a < name.length && b < key.length) {
+    if (name[a] === key[b]) { a += 1; b += 1; continue }
+    slips += 1
+    if (slips > 1) return false
+    if (name.length > key.length) a += 1
+    else if (key.length > name.length) b += 1
+    else { a += 1; b += 1 }
+  }
+  return slips + (name.length - a) + (key.length - b) <= 1
 }
 
 /** The copy of a repeated stage meant at `reference`: progress never goes back, so the first copy not before it. */
@@ -57,8 +84,10 @@ export function isStoryMenuText(text: string) {
 }
 
 /** Story chapters named on a story-menu frame; trader quests are left to the game logs. */
-export function matchStoryChapters(text: string, quests: Quest[]): StoryScanMatch[] {
-  if (!isStoryMenuText(text)) return []
+export function matchStoryChapters(screen: string, quests: Quest[], parts?: StoryPaneReading): StoryScanMatch[] {
+  // The pane read part by part (electron/screenOcr.ts) replaces the whole-screen text: no merged columns, the real title.
+  if (!parts && !isStoryMenuText(screen)) return []
+  const text = parts ? storyPaneText(parts) : screen
   const story = quests.filter((quest) => quest.kind === 'story')
   const matches = matchQuestsFromOcr(text, story)
     .filter((match) => story.some((quest) => quest.id === match.questId))
