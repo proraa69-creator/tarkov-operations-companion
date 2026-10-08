@@ -68,9 +68,12 @@ describe('SupportButtons', () => {
   it('asks to sign in first and keeps Telegram available', async () => {
     const serviceRequest = mockDesktop(signedOut)
     const user = userEvent.setup()
-    render(<SupportButtons variant="panel" />)
+    const { container } = render(<SupportButtons variant="panel" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
     const dialog = await screen.findByRole('dialog', { name: 'Сообщить об ошибке' })
+    // over the whole window, not inside the sidebar the button lives in
+    expect(dialog.parentElement).toBe(document.body)
+    expect(container.contains(dialog)).toBe(false)
     expect(await screen.findByText(/можно отправить после входа в аккаунт/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Написать в Telegram' })).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
     expect(dialog.querySelector('form')).toBeNull()

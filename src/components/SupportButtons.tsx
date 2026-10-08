@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, Bug, CheckCircle2, ImagePlus, LoaderCircle, LogIn, MessageCircle, Send, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
@@ -96,7 +97,8 @@ export function BugReportDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return <div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText('Сообщить об ошибке')} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
+  // Rendered into <body>: the sidebar it is opened from clips and positions fixed children (it was drawn inside it).
+  return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText('Сообщить об ошибке')} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
     <section className="panel registration-dialog bug-report-dialog" onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
       <div className="registration-icon"><Bug size={26} /></div>
@@ -157,7 +159,7 @@ export function BugReportDialog({ onClose }: { onClose: () => void }) {
         </div>
       </form>}
     </section>
-  </div>
+  </div>, document.body)
 }
 
 /**

@@ -367,9 +367,15 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     [availability, data.quests],
   )
 
+  // «Сделал в этом рейде»: the player's own checks (this profile and mode, not progress); checked quests go last
+  // in «Квесты на карте» and their points leave the map, so they stop getting in the way (a selected one still shows).
+  const profileId = state.activeProfile.id
+  const raidMode = state.raidMode
+  const questChecks = useQuestChecks(profileId, raidMode)
+
   const visibleQuestIds = useMemo(
-    () => new Set(currentQuests.map((quest) => quest.id)),
-    [currentQuests],
+    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id)).map((quest) => quest.id)),
+    [currentQuests, questChecks],
   )
 
   const plottedMarkers = useMemo(
@@ -413,11 +419,6 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     })
   }, [activeMap.id, currentQuests, plottedMarkers, progress])
 
-  // «Сделал в этом рейде»: the player's own checks (this profile and mode, not progress); checked quests go last.
-  const profileId = state.activeProfile.id
-  const raidMode = state.raidMode
-  const questChecks = useQuestChecks(profileId, raidMode)
-
   const localMapQuests = useMemo(
     () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), questChecks),
     [mapQuestEntries, questChecks],
@@ -458,6 +459,13 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     const nextMap = data.maps.find((entry) => entry.id === id)
     setFloor(nextMap ? mainFloor(nextMap) : baseFloor)
     navigate(`/maps/${id}`)
+  }
+
+  // Checking a quest takes its points off the map; if it is the selected one, the selection goes too.
+  const toggleRaidCheck = (questId: string) => {
+    const checking = !questChecks.has(questId)
+    toggleQuestCheck(profileId, raidMode, questId)
+    if (checking && (focusedQuestId === questId || selectedMarker?.questId === questId)) clearQuestSelection()
   }
 
   const clearQuestSelection = () => {
@@ -766,7 +774,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     onSelect={() => showQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
                     checked={questChecks.has(quest.id)}
-                    onToggleCheck={() => toggleQuestCheck(profileId, raidMode, quest.id)}
+                    onToggleCheck={() => toggleRaidCheck(quest.id)}
                   />
                 )))}
               </>
@@ -782,7 +790,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     onSelect={() => showQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
                     checked={questChecks.has(quest.id)}
-                    onToggleCheck={() => toggleQuestCheck(profileId, raidMode, quest.id)}
+                    onToggleCheck={() => toggleRaidCheck(quest.id)}
                   />
                 )))}
               </>
