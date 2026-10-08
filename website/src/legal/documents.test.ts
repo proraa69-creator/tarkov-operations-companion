@@ -10,7 +10,7 @@ describe('published seller details', () => {
     expect(details['E-mail для обращений и претензий']).toBe('raidosapp@gmail.com')
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
-    expect(details['Telegram']).toBe('@shauuuurma')
+    expect(details['Telegram']).toBe('@raidosapp')
     expect(LEGAL_VERSION).toBe('2026-10-08.3')
   })
 

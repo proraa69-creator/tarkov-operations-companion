@@ -22,7 +22,7 @@ describe('SupportButtons', () => {
     render(<SupportButtons variant="panel" />)
     const link = screen.getByRole('link', { name: 'Связаться' })
     expect(link).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
-    expect(SUPPORT_TELEGRAM_URL).toBe('https://t.me/shauuuurma')
+    expect(SUPPORT_TELEGRAM_URL).toBe('https://t.me/raidosapp')
     expect(link).toHaveAttribute('target', '_blank')
   })
 

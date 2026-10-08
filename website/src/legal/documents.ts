@@ -37,7 +37,7 @@ export const SELLER_DETAILS: Array<[string, string]> = [
   ['Статус', SELLER_STATUS],
   ['ИНН', SELLER_INN],
   ['E-mail для обращений и претензий', 'raidosapp@gmail.com'],
-  ['Telegram', '@shauuuurma'],
+  ['Telegram', '@raidosapp'],
   ['Сайт', 'https://raidos.app'],
 ]
 

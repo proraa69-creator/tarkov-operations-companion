@@ -140,7 +140,7 @@ function BuyerInfo() {
             <h2>Контакты</h2>
             <ul>
               <li>E-mail для вопросов, заявлений и претензий: <a href="mailto:raidosapp@gmail.com">raidosapp@gmail.com</a>. Отвечаем в течение 10 календарных дней, обычно быстрее.</li>
-              <li>Telegram: <a href="https://t.me/shauuuurma" target="_blank" rel="noreferrer">@shauuuurma</a></li>
+              <li>Telegram: <a href="https://t.me/raidosapp" target="_blank" rel="noreferrer">@raidosapp</a></li>
             </ul>
           </section>
 

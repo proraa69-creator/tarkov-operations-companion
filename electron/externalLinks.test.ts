@@ -6,7 +6,7 @@ describe('external links (L1)', () => {
   it('opens known sites at once', () => {
     for (const url of [
       'https://raidos.app/cabinet', 'https://www.raidos.app/', 'https://tarkov.dev/task/x', 'https://assets.tarkov.dev/a.png',
-      'https://t.me/shauuuurma', 'https://t.me/other', 'https://escapefromtarkov.fandom.com/wiki/Killa',
+      'https://t.me/raidosapp', 'https://t.me/other', 'https://escapefromtarkov.fandom.com/wiki/Killa',
       'https://github.com/proraa69-creator/tarkov-operations-companion/issues', 'https://github.com/proraa69-creator',
       'https://vk.com/metadvij', 'https://www.youtube.com/watch?v=1', 'https://youtu.be/1', 'https://yoomoney.ru/checkout/payments/v2/contract',
       'https://timesaver.gg/blog/tarkov-reshala-boss-guide', 'https://eft.su/b/killa/en',
