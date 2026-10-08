@@ -57,6 +57,8 @@ describe('icon addresses the app fetches', () => {
     expect(isItemIconUrl('https://user:pass@assets.tarkov.dev/5c0530ee86f774697952d952-icon.webp')).toBe(false)
     expect(isItemIconUrl('https://assets.tarkov.dev:8443/5c0530ee86f774697952d952-icon.webp')).toBe(false)
     expect(isItemIconUrl('file:///C:/5c0530ee86f774697952d952-icon.webp')).toBe(false)
+    expect(isItemIconUrl('https://example.com/5c0530ee86f774697952d952-icon.webp')).toBe(false)
+    expect(isItemIconUrl('https://192.168.1.1/5c0530ee86f774697952d952-icon.webp')).toBe(false)
     expect(isItemIconUrl(undefined)).toBe(false)
   })
 })

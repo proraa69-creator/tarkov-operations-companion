@@ -143,11 +143,15 @@ export interface PictureAnswer<Payload = unknown> {
 }
 
 /** Whether a catalog picture address may be fetched for the check: an https item icon, nothing else. */
+const ICON_HOSTS = new Set(['assets.tarkov.dev', 'raidos.app'])
+
 export function isItemIconUrl(raw: unknown): raw is string {
   if (typeof raw !== 'string' || raw.length > 300) return false
   try {
     const url = new URL(raw)
-    return url.protocol === 'https:' && !url.username && !url.password && !url.port && !url.search && !url.hash
+    // Only the catalog's icon hosts (tarkov.dev, or the server's own copy — RAIDOS_ITEM_IMAGE_URL): the main process
+    // downloads these, so a crafted candidate list cannot send it anywhere else.
+    return url.protocol === 'https:' && ICON_HOSTS.has(url.hostname) && !url.username && !url.password && !url.port && !url.search && !url.hash
       && /^[a-z0-9]{16,48}-icon\.(?:webp|png|jpe?g)$/.test(url.pathname.split('/').pop() ?? '')
   } catch {
     return false
