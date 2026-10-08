@@ -917,9 +917,11 @@ a.quest-stage:hover { color: var(--text); }
 .goon-report-actions { display: flex; gap: 6px; }
 .goon-report-actions .button { flex: 1; }
 
-.map-priority-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 8px; padding: 12px 14px; }
+/* compact: one line per tile (rank · map · count) over the bar, so «Требования рейда» fits under it */
+.map-priority .panel-header { min-height: 42px; }
+.map-priority-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(122px, 1fr)); gap: 6px; padding: 10px 12px; }
 .map-priority-tile {
-  display: grid; gap: 5px; min-width: 0; padding: 7px 9px 8px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 7px; row-gap: 6px; min-width: 0; padding: 6px 8px 7px;
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surf-1) 70%, transparent);
   color: var(--text); text-align: left; cursor: pointer;
@@ -928,14 +930,14 @@ a.quest-stage:hover { color: var(--text); }
 .map-priority-tile:hover, .map-priority-tile:focus-visible { border-color: var(--line-strong); background: var(--panel-3); outline: none; }
 .map-priority-tile.is-top { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
 .map-priority-tile.is-empty { color: var(--text-dim); }
-.map-priority-top { display: flex; justify-content: space-between; align-items: center; }
 .map-priority-rank { color: var(--text-dim); font-size: 10px; }
 .map-priority-count { min-width: 22px; padding: 1px 6px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 11px; font-weight: 800; text-align: center; }
 .map-priority-tile.is-top .map-priority-count { background: color-mix(in srgb, var(--brass) 26%, transparent); color: var(--brass-strong); }
 .map-priority-tile.is-empty .map-priority-count { background: transparent; color: var(--text-dim); }
-.map-priority-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-priority-name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 750; white-space: nowrap; overflow: hidden; }
+.map-priority-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .map-priority-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
-.map-priority-bar { display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.map-priority-bar { grid-column: 1 / -1; display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .map-priority-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brass); transition: width .25s var(--ease-soft); }
 /* ── end Goons card + map priority ── */
 .profile-live-card { display: flex; flex-direction: column; }
@@ -1076,3 +1078,91 @@ a.quest-stage:hover { color: var(--text); }
 .quest-point-name { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px; border: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-align: left; }
 .quest-point-name small { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .quest-point-row-actions { display: inline-flex; gap: 2px; }
+
+/* ── Overview (DashboardPage): current tasks, raid requirements grid, Kappa task list ── */
+/* «11 на Таможне»: set in the heading's own type (.panel-title, themed too) in the accent colour — it is the second
+ * half of the title and the link to the map, not a footnote tag. Outweighs the themes' `.panel-title` colours. */
+:root .panel-header .panel-title.current-tasks-where {
+  display: inline-flex; align-items: baseline; gap: .42em; white-space: nowrap; color: var(--brass);
+  text-decoration: none; text-underline-offset: 4px; text-decoration-thickness: 1px;
+}
+:root .panel-header .panel-title.current-tasks-where:hover { color: var(--brass-strong); text-decoration: underline; }
+.current-tasks-where:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 3px; }
+.current-tasks-where-count { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
+/* the rest of the list behind «Ещё N заданий»: grid rows 0fr ↔ 1fr. The owner asked for a slow, calm reveal, so it
+ * opens over .9 s with the rows fading in once the space has started to open; folding back is a little quicker. */
+.current-tasks-more {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows .7s cubic-bezier(.4, 0, .2, 1), opacity .45s ease;
+}
+.current-tasks-more.is-open {
+  grid-template-rows: 1fr; opacity: 1;
+  transition: grid-template-rows .9s var(--ease-soft), opacity .6s ease .18s;
+}
+.current-tasks-more-inner { min-height: 0; overflow: hidden; }
+.current-tasks-group { margin: 14px 0 8px; }
+.current-tasks-toggle { width: 100%; margin-top: 12px; gap: 6px; color: var(--text-muted); }
+.current-tasks-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }
+.current-tasks-toggle svg { transition: rotate .6s var(--ease-soft); }
+.current-tasks-toggle[aria-expanded="true"] svg { rotate: 180deg; }
+
+/* «Требования рейда» across the left column: as many columns as fit instead of one long list */
+.raid-needs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); gap: 8px; }
+.raid-need {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 7px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surf-1) 70%, transparent);
+  color: var(--text); text-decoration: none;
+  transition: border-color .15s var(--ease-soft), background-color .15s var(--ease-soft);
+}
+.raid-need:hover, .raid-need:focus-visible { border-color: var(--line-strong); background-color: var(--panel-3); outline: none; }
+.raid-need .item-thumb { width: 38px; height: 38px; padding: 3px; border-radius: 7px; }
+.raid-need-copy { min-width: 0; }
+.raid-need-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.3; }
+.raid-need-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; line-height: 1.3; }
+.raid-needs-note { margin: 12px 0 0; font-size: 11.5px; }
+/* «Рынок · избранное»: the «лучшее предложение» caption sat on the item name's line («GPUлучшее предложение») */
+.market-favorites .item-row small { display: block; margin-top: 2px; }
+
+/* Kappa card: «Выполнено N из M · Список» opens the list of the counted tasks below the cards */
+.kappa-card-toggle {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 8px; width: 100%; padding: 0; border: 0; background: none;
+  font-family: inherit; line-height: inherit; text-align: left; cursor: pointer;
+}
+.kappa-card-toggle-hint { display: inline-flex; align-items: center; gap: 3px; color: var(--brass); font-weight: 750; }
+.kappa-card-toggle:hover .kappa-card-toggle-hint { color: var(--brass-strong); text-decoration: underline; text-underline-offset: 3px; }
+.kappa-card-toggle:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 3px; }
+.kappa-card-toggle svg { transition: rotate .5s var(--ease-soft); }
+.kappa-card-toggle[aria-expanded="true"] svg { rotate: 180deg; }
+.kappa-breakdown {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows .6s cubic-bezier(.4, 0, .2, 1), opacity .35s ease;
+}
+.kappa-breakdown.is-open { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .75s var(--ease-soft), opacity .5s ease .1s; }
+.kappa-breakdown-inner { min-height: 0; overflow: hidden; }
+.kappa-breakdown-panel { margin-top: 12px; }
+.kappa-breakdown-panel .panel-body { max-height: min(56vh, 520px); overflow: auto; }
+.kappa-breakdown-actions { display: flex; align-items: center; gap: 8px; }
+.kappa-breakdown-note { margin: 0 0 4px; max-width: 980px; font-size: 12px; line-height: 1.5; }
+.kappa-breakdown-group { margin: 14px 0 8px; }
+.kappa-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 6px; }
+.kappa-quest {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-width: 0; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surf-1) 60%, transparent);
+  color: var(--text); text-decoration: none;
+  transition: border-color .15s var(--ease-soft), background-color .15s var(--ease-soft);
+}
+.kappa-quest:hover, .kappa-quest:focus-visible { border-color: var(--line-strong); background-color: var(--panel-3); outline: none; }
+.kappa-quest-mark { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid var(--line); border-radius: 50%; color: var(--text-dim); }
+.kappa-quest.is-counted .kappa-quest-mark { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green); }
+.kappa-quest-copy { min-width: 0; }
+.kappa-quest-copy strong { display: block; overflow: hidden; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.kappa-quest-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
+.kappa-quest-via { color: var(--brass); }
+.kappa-quest-state { color: var(--text-dim); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+
+@media (max-width: 980px) {
+  /* one column: both columns' panels interleave, so the current tasks stay above the raid requirements as before */
+  .dashboard-layout > .dashboard-column { display: contents; }
+  .dashboard-layout .raid-needs { order: 1; }
+  .dashboard-layout .market-favorites { order: 2; }
+}
