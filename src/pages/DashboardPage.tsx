@@ -9,7 +9,7 @@ import { formatPrice } from '../shared/format'
 import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
-import { aggregateRaidNeeds, ammoPackGroupLabel, groupAmmoPackAlternatives } from '../shared/raidNeeds'
+import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapSlideshow } from '../components/MapSlideshow'
 import { GoonCard } from '../components/GoonCard'
@@ -47,15 +47,21 @@ export function DashboardPage() {
   const raidPrepPurposes = new Set(['place', 'mark', 'key', 'bring'])
   const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })))
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
-  const grouped = groupAmmoPackAlternatives(requirements, (id) => itemById.get(id))
+  const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
     const group = grouped.groups.get(row.itemId)
     if (group) {
-      const packs = group.itemIds.flatMap((id) => itemById.get(id) ?? [])
-      // The card opens on the cheapest accepted pack: any of them will do.
-      const cheapest = [...packs].sort((a, b) => (a.fleaPrice || Infinity) - (b.fleaPrice || Infinity))[0]
+      const options = group.itemIds.flatMap((id) => itemById.get(id) ?? [])
+      // The row opens on the cheapest accepted item: any of them will do.
+      const cheapest = [...options].sort((a, b) => (a.fleaPrice || Infinity) - (b.fleaPrice || Infinity))[0]
       if (!cheapest) return []
-      return [{ ...row, key: row.itemId, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: `/flea?selected=${cheapest.id}`, title: [locale === 'en' ? 'Any of:' : 'Подходит любая:', ...packs.map((pack) => uiText(pack.name))].join('\n') }]
+      const card = (items: typeof options) => items.map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
+      // «Любая пачка патронов 7.62x51»: every pack in the card. Anything else: one item in the list, the others in the card.
+      if (group.kind === 'ammo-pack' && group.caliber) {
+        return [{ ...row, key: row.itemId, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: `/flea?selected=${cheapest.id}`, alternatives: { title: 'Подходит любая', items: card(options) } }]
+      }
+      const others = options.filter((item) => item.id !== cheapest.id)
+      return [{ ...row, key: row.itemId, name: cheapest.name, iconUrl: cheapest.iconUrl, href: `/flea?selected=${cheapest.id}`, alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
     }
     const item = itemById.get(row.itemId)
     return item ? [{ ...row, key: item.id, name: item.name, iconUrl: item.iconUrl, href: `/flea?selected=${item.id}` }] : []

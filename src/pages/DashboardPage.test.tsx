@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { render, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -55,7 +55,7 @@ beforeEach(() => {
 afterEach(() => setRenderLanguage('ru'))
 
 describe('DashboardPage', () => {
-  it('puts «Приоритет карт» across the page under the cards and the raid requirements in the left column, with one row for any 7.62x51 pack', () => {
+  it('puts «Приоритет карт» across the page under the cards and the raid requirements in the left column, with one row for any 7.62x51 pack', async () => {
     const { container } = renderDashboard()
     const priority = container.querySelector('.map-priority') as HTMLElement
     expect(priority.previousElementSibling).toHaveClass('stat-grid')
@@ -67,8 +67,21 @@ describe('DashboardPage', () => {
     expect(right.querySelector('.raid-needs')).toBeNull()
     expect(within(needs).getByText('Любая пачка патронов 7.62x51')).toBeInTheDocument()
     expect(within(needs).queryByText(/M80 \(20 штук\)/)).toBeNull()
-    expect(within(needs).getAllByText(/ELCAN/)).toHaveLength(2)
-    expect(within(needs).getByText('Любая пачка патронов 7.62x51').closest('a')?.getAttribute('title')).toContain('Пачка патронов 7.62x51мм M80A1 (20 штук)')
+    // the two ELCAN colours: one row, the other colour in the row's hover card
+    expect(within(needs).getAllByText(/ELCAN/)).toHaveLength(1)
+    const elcan = within(needs).getByText(/ELCAN/).closest('a')!
+    expect(elcan).toHaveTextContent('+1')
+    expect(elcan).not.toHaveAttribute('title')
+    fireEvent.mouseEnter(elcan)
+    const card = await screen.findByRole('tooltip')
+    expect(card).toHaveTextContent('Подходит и')
+    expect(card.textContent?.match(/ELCAN/g)).toHaveLength(1)
+    expect(card.parentElement).toBe(document.body)
+    fireEvent.mouseLeave(elcan)
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+    // any 7.62x51 pack: every pack in the hover card
+    fireEvent.mouseEnter(within(needs).getByText('Любая пачка патронов 7.62x51').closest('a')!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Пачка патронов 7.62x51мм M80A1 (20 штук)')
   })
 
   it('shows three current tasks of the map, «11 на Таможне»-style count and the rest behind «Ещё»', async () => {

@@ -73,15 +73,25 @@ export interface ObjectiveRaidRequirement extends RaidRequirementLine {
   alternatives?: number
 }
 
-export interface AmmoPackGroup {
-  /** Item id of the merged row: `ammo-pack:<caliber>`. */
+/**
+ * One row for the items one objective accepts interchangeably: `ammo-pack` — packs of one caliber («Любая пачка
+ * патронов 7.62x51»), `any-of` — anything else (the two ELCAN SpecterDR colours): the row shows one, the rest go to
+ * the row's hover card.
+ */
+export interface AlternativeGroup {
+  /** Item id of the merged row: `ammo-pack:<caliber>` or `any-of:<objectiveId>`. */
   id: string
-  caliber: string
-  /** The packs the objective accepts, in catalog order. */
+  kind: 'ammo-pack' | 'any-of'
+  /** `ammo-pack` only. */
+  caliber?: string
+  /** The items the objective accepts, in catalog order. */
   itemIds: string[]
 }
+/** @deprecated the ammo-pack case of AlternativeGroup. */
+export type AmmoPackGroup = AlternativeGroup
 
 export const AMMO_PACK_GROUP_PREFIX = 'ammo-pack:'
+export const ANY_OF_GROUP_PREFIX = 'any-of:'
 
 /** tarkov.dev `properties.caliber` codes of the common cartridges; anything else is read from the item name. */
 const CALIBER_CODES: Record<string, string> = {
@@ -115,15 +125,14 @@ export function ammoPackGroupLabel(caliber: string, locale: 'ru' | 'en' = 'ru') 
 }
 
 /**
- * «Сорвать сделку» accepts any 7.62x51 ammo pack, and tarkov.dev lists every pack as an alternative of that one
- * objective: the raid requirements showed eight rows (ТПЗ SP, БПЗ FMJ, M80, M61…). When all alternatives of an
- * objective are ammo packs of one caliber they become a single line with the item id `ammo-pack:<caliber>` and the
- * objective's count. Other alternatives (the two ELCAN scope variants) and single items are returned unchanged.
+ * The items one objective accepts interchangeably become one line with the objective's count (not one line per
+ * variant): «Сорвать сделку» accepts any 7.62x51 pack (tarkov.dev lists all eight as alternatives) → `ammo-pack:7.62x51`;
+ * a hidden scope accepts either ELCAN SpecterDR colour → `any-of:<objectiveId>`. Single items are returned unchanged.
  */
-export function groupAmmoPackAlternatives<T extends ObjectiveRaidRequirement>(
+export function groupAlternatives<T extends ObjectiveRaidRequirement>(
   requirements: T[],
   itemById: (id: string) => RaidNeedItem | undefined,
-): { requirements: T[]; groups: Map<string, AmmoPackGroup> } {
+): { requirements: T[]; groups: Map<string, AlternativeGroup> } {
   const byObjective = new Map<string, T[]>()
   for (const requirement of requirements) {
     if ((requirement.alternatives ?? 1) < 2 || !requirement.objectiveId) continue
@@ -133,7 +142,7 @@ export function groupAmmoPackAlternatives<T extends ObjectiveRaidRequirement>(
 
   const replaced = new Map<T, T>()
   const dropped = new Set<T>()
-  const groups = new Map<string, AmmoPackGroup>()
+  const groups = new Map<string, AlternativeGroup>()
   for (const alternatives of byObjective.values()) {
     if (new Set(alternatives.map((requirement) => requirement.itemId)).size < 2) continue
     const calibers = new Set(alternatives.map((requirement) => {
@@ -141,12 +150,12 @@ export function groupAmmoPackAlternatives<T extends ObjectiveRaidRequirement>(
       return item && isAmmoPack(item) ? ammoCaliber(item) : undefined
     }))
     const [caliber] = calibers
-    if (calibers.size !== 1 || !caliber) continue
-    const id = `${AMMO_PACK_GROUP_PREFIX}${caliber}`
-    const group = groups.get(id) ?? { id, caliber, itemIds: [] }
+    const ammo = calibers.size === 1 && caliber
+    const id = ammo ? `${AMMO_PACK_GROUP_PREFIX}${caliber}` : `${ANY_OF_GROUP_PREFIX}${alternatives[0].objectiveId}`
+    const group = groups.get(id) ?? (ammo ? { id, kind: 'ammo-pack' as const, caliber, itemIds: [] } : { id, kind: 'any-of' as const, itemIds: [] })
     for (const requirement of alternatives) if (!group.itemIds.includes(requirement.itemId)) group.itemIds.push(requirement.itemId)
     groups.set(id, group)
-    // One line per objective: its count is how many packs it takes, not one per accepted variant.
+    // One line per objective: its count is how many it takes, not one per accepted variant.
     const [first, ...rest] = alternatives
     replaced.set(first, { ...first, itemId: id })
     for (const requirement of rest) dropped.add(requirement)

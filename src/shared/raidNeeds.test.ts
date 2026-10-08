@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregateRaidNeeds, ammoCaliber, ammoPackGroupLabel, formatItemCountLabel, groupAmmoPackAlternatives, isAmmoPack, type RaidNeedItem } from './raidNeeds'
+import { aggregateRaidNeeds, ammoCaliber, ammoPackGroupLabel, formatItemCountLabel, groupAlternatives, isAmmoPack, type RaidNeedItem } from './raidNeeds'
 
 // «Сорвать сделку» (break-the-deal): tarkov.dev lists every 7.62x51 pack as an alternative of one plant objective.
 const PACKS: Array<[string, string, string]> = [
@@ -23,12 +23,12 @@ const lookup = (id: string) => items.get(id)
 const breakTheDeal = PACKS.map(([itemId]) => ({ itemId, count: 1, purpose: 'place', questName: 'Сорвать сделку', objectiveId: 'break-the-deal-stash', alternatives: PACKS.length }))
 const elcan = ['57ac965c24597706be5f975c', '57aca93d2459771f2c7e26db'].map((itemId) => ({ itemId, count: 1, purpose: 'place', questName: 'Оружейник', objectiveId: 'scope-stash', alternatives: 2 }))
 
-describe('groupAmmoPackAlternatives', () => {
+describe('groupAlternatives', () => {
   it('turns the eight 7.62x51 packs of «Сорвать сделку» into one «Любая пачка патронов 7.62x51» line', () => {
     const marker = { itemId: '5991b51486f77447b112d44f', count: 1, purpose: 'mark', questName: 'БП Топливо', objectiveId: 'fuel-mark', alternatives: 1 }
-    const grouped = groupAmmoPackAlternatives([...breakTheDeal, marker], lookup)
+    const grouped = groupAlternatives([...breakTheDeal, marker], lookup)
     expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['ammo-pack:7.62x51', '5991b51486f77447b112d44f'])
-    expect(grouped.groups.get('ammo-pack:7.62x51')).toEqual({ id: 'ammo-pack:7.62x51', caliber: '7.62x51', itemIds: PACKS.map(([id]) => id) })
+    expect(grouped.groups.get('ammo-pack:7.62x51')).toEqual({ id: 'ammo-pack:7.62x51', kind: 'ammo-pack', caliber: '7.62x51', itemIds: PACKS.map(([id]) => id) })
     // one pack is needed, not one of each variant
     expect(aggregateRaidNeeds(grouped.requirements)).toEqual([
       { itemId: 'ammo-pack:7.62x51', count: 1, lines: [{ purpose: 'place', count: 1, questNames: ['Сорвать сделку'] }], fromRaidListOnly: false },
@@ -38,26 +38,27 @@ describe('groupAmmoPackAlternatives', () => {
     expect(ammoPackGroupLabel('7.62x51', 'en')).toBe('Any 7.62x51 ammo pack')
   })
 
-  it('leaves alternatives that are not ammo packs (two ELCAN variants) as they are', () => {
-    const grouped = groupAmmoPackAlternatives([...elcan, ...breakTheDeal], lookup)
-    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['57ac965c24597706be5f975c', '57aca93d2459771f2c7e26db', 'ammo-pack:7.62x51'])
-    expect(grouped.groups.size).toBe(1)
+  it('turns other alternatives (the two ELCAN colours) into one «any of» line', () => {
+    const grouped = groupAlternatives([...elcan, ...breakTheDeal], lookup)
+    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['any-of:scope-stash', 'ammo-pack:7.62x51'])
+    expect(grouped.groups.get('any-of:scope-stash')).toEqual({ id: 'any-of:scope-stash', kind: 'any-of', itemIds: ['57ac965c24597706be5f975c', '57aca93d2459771f2c7e26db'] })
+    expect(aggregateRaidNeeds(grouped.requirements)[0]).toMatchObject({ itemId: 'any-of:scope-stash', count: 1 })
   })
 
-  it('does not merge packs of different calibers or single packs', () => {
+  it('merges packs of different calibers as «any of», and leaves single items alone', () => {
     const mixed = [
       { itemId: '65702558cfc010a0f5006a25', count: 1, purpose: 'place', objectiveId: 'mixed', alternatives: 2 },
       { itemId: '556-pack', count: 1, purpose: 'place', objectiveId: 'mixed', alternatives: 2 },
       { itemId: '6570254fcfc010a0f5006a22', count: 2, purpose: 'bring', objectiveId: 'single', alternatives: 1 },
     ]
-    const grouped = groupAmmoPackAlternatives(mixed, lookup)
-    expect(grouped.requirements).toEqual(mixed)
-    expect(grouped.groups.size).toBe(0)
+    const grouped = groupAlternatives(mixed, lookup)
+    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['any-of:mixed', '6570254fcfc010a0f5006a22'])
+    expect(grouped.groups.get('any-of:mixed')?.kind).toBe('any-of')
   })
 
   it('sums the same «any pack» across quests and keeps the objective count', () => {
     const second = PACKS.slice(0, 3).map(([itemId]) => ({ itemId, count: 2, purpose: 'place', questName: 'Другой тайник', objectiveId: 'other-stash', alternatives: 3 }))
-    const rows = aggregateRaidNeeds(groupAmmoPackAlternatives([...breakTheDeal, ...second], lookup).requirements)
+    const rows = aggregateRaidNeeds(groupAlternatives([...breakTheDeal, ...second], lookup).requirements)
     expect(rows).toEqual([{ itemId: 'ammo-pack:7.62x51', count: 3, lines: [{ purpose: 'place', count: 3, questNames: ['Сорвать сделку', 'Другой тайник'] }], fromRaidListOnly: false }])
     expect(formatItemCountLabel(ammoPackGroupLabel('7.62x51'), rows[0].count)).toBe('Любая пачка патронов 7.62x51 ×3')
   })

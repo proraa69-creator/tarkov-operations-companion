@@ -10,5 +10,6 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // the owner's names, shown when the loaded catalog has no such task (the catalog itself comes in the app's language)
   ['Реагент. Часть 4', 'Chemical - Part 4'], ['Стрелок от бога', 'Shooter Born in Heaven'],
   ['Тарковский стрелок. Часть 4', 'The Tarkov Shooter - Part 4'], ['Шить — не тужить. Часть 4', 'Sew it Good - Part 4'],
+  ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
   ['Лыжник', 'Skier'], ['Механик', 'Mechanic'], ['Егерь', 'Jaeger'], ['Барахольщик', 'Ragman'],
 ]
