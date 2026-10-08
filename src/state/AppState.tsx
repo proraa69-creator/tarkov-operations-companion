@@ -18,6 +18,7 @@ import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { applyLogQuestState, logStateFingerprint } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
+import { clearAllQuestChecks } from '../progression/questChecks'
 
 interface UiState {
   selectedMapId: string
@@ -312,6 +313,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         'tarkov-operations-menu-watch-v1',
       ]
       for (const key of keys) localStorage.removeItem(key)
+      clearAllQuestChecks()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })

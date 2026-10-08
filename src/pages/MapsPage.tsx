@@ -39,6 +39,9 @@ import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
 import { useRaidRoute } from '../raidprep/useRaidPrep'
 import { useSquadSharedQuests } from '../squad/useSquad'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
+import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
+import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
+import { isDesktopShell } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -408,15 +411,21 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     })
   }, [activeMap.id, currentQuests, plottedMarkers, progress])
 
+  // «Сделал в этом рейде»: the player's own checks (this profile and mode, not progress); checked quests go last.
+  const profileId = state.activeProfile.id
+  const raidMode = state.raidMode
+  const questChecks = useQuestChecks(profileId, raidMode)
+
   const localMapQuests = useMemo(
-    () => mapQuestEntries.filter(({ quest }) => !quest.anyMap),
-    [mapQuestEntries],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), questChecks),
+    [mapQuestEntries, questChecks],
   )
 
   const anyMapQuests = useMemo(
-    () => mapQuestEntries.filter(({ quest }) => quest.anyMap),
-    [mapQuestEntries],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), questChecks),
+    [mapQuestEntries, questChecks],
   )
+  const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
   const squadShared = useSquadSharedQuests(state.raidMode)
 
@@ -798,6 +807,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     selected={selectedMarker?.questId === quest.id}
                     onSelect={() => showQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
+                    checked={questChecks.has(quest.id)}
+                    onToggleCheck={() => toggleQuestCheck(profileId, raidMode, quest.id)}
                   />
                 )))}
               </>
@@ -812,10 +823,13 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     selected={selectedMarker?.questId === quest.id}
                     onSelect={() => showQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
+                    checked={questChecks.has(quest.id)}
+                    onToggleCheck={() => toggleQuestCheck(profileId, raidMode, quest.id)}
                   />
                 )))}
               </>
             ))}
+            {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
           </div>
         ) : (
           <div className="map-detail-empty">
@@ -901,15 +915,16 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-function QuestMapRow({ quest, selected, onSelect, squad }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number }) {
+function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void }) {
   return (
-    <div className={`catalog-card quest-catalog-card quest-map-row ${selected ? 'selected' : ''}`}>
+    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}`}>
       <button type="button" className="quest-map-row-main" onClick={onSelect}>
         <span className="quest-card-copy">
           <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
         </span>
       </button>
+      <QuestRaidCheck questName={quest.name} checked={checked} onToggle={onToggleCheck} />
     </div>
   )
 }

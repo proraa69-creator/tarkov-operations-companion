@@ -52,6 +52,10 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Попасть на объект TerraGroup; найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»); осмотреть серверную (1-й уровень, у ангара); осмотреть офисы топ-менеджеров (O21, 2-й уровень).', 'Get into the TerraGroup facility; find the escape route through the drain (basement, by the “Sewage conduit” exit); inspect the server room (level 1, by the hangar); inspect the top managers’ offices (O21, level 2).'],
   ['Развязка', 'Interchange'], ['Развязку', 'Interchange'], ['Таможня', 'Customs'], ['Таможню', 'Customs'], ['Завод', 'Factory'], ['Береге', 'Shoreline'], ['Берег', 'Shoreline'],
   ['Низкая', 'Low'], ['Средняя', 'Medium'], ['Высокая', 'High'], ['Экстремальная', 'Extreme'],
+  // «Квесты на карте»: the player's in-raid check, only a note (src/components/QuestRaidCheck.tsx)
+  ['Сделал в этом рейде', 'Done this raid'], ['Снять галочку', 'Clear check'], ['Снять все галочки', 'Clear all checks'],
+  ['Галочки сбрасываются при входе в следующий рейд', 'Checks clear when the next raid starts'],
+  ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
   // «Вид карты» toggle (src/pages/MapsPage.tsx)
   ['Вид карты', 'Map view'], ['ВИД', 'VIEW'], ['Спутник', 'Satellite'], ['Схема', 'Schematic'],
   ['Спутник: объёмный рендер местности сверху', 'Satellite: a top-down render of the terrain'],

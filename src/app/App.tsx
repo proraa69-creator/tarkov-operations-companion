@@ -11,6 +11,7 @@ import { CraftsPage } from '../pages/CraftsPage'
 import { FleaMarketPage } from '../pages/FleaMarketPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { StoryScreenScanner } from '../components/StoryScreenScanner'
+import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
@@ -41,7 +42,7 @@ export function App() {
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><ExperimentalBridge /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />
