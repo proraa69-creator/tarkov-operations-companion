@@ -89,7 +89,9 @@ export function ExperimentalBridge() {
         if (marker.mapId !== map.id || !layerId || !MINIMAP_LAYERS.has(layerId) || PLOTTED_SOURCES_EXCLUDED.has(marker.source ?? '')) return []
         const isQuest = layerId.startsWith('quest')
         if (isQuest ? !marker.questId || !current.has(marker.questId) : false) return []
-        return [{ id: marker.id, position: marker.position, layerId, title: marker.title, subtitle: marker.meta, questId: isQuest ? marker.questId : undefined }]
+        // Quest points carry their height: the minimap's quest button steps through them room by room.
+        const height = isQuest ? marker.height ?? (marker.heightRange ? (marker.heightRange[0] + marker.heightRange[1]) / 2 : undefined) : undefined
+        return [{ id: marker.id, position: marker.position, layerId, title: marker.title, subtitle: marker.meta, questId: isQuest ? marker.questId : undefined, ...(height != null ? { height } : {}) }]
       })
       const quests: MinimapQuest[] = []
       for (const marker of markers) {
