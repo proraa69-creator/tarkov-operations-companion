@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { approvedRun, deployPath, safeTarget, transaction } from './release-policy.mjs'
+import { approvedRun, assertLocalTree, deployPath, safeTarget, transaction } from './release-policy.mjs'
 
 const sha = 'a'.repeat(40)
 const run = { head_sha: sha, head_branch: 'release/production', event: 'push', status: 'completed', conclusion: 'success', head_repository: { full_name: 'owner/repo' }, path: '.github/workflows/production.yml' }
@@ -32,4 +32,13 @@ test('failed publication restores all components without restoring the database'
 })
 test('a failed rollback is explicit and never reported as successful', async () => {
   await assert.rejects(transaction(async () => { throw new Error('publish') }, async () => { throw new Error('rollback') }), AggregateError)
+})
+test('root publisher cannot follow a forged artifact link outside staging', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'raidos-artifact-'))
+  try {
+    await mkdir(join(root, 'build'))
+    await mkdir(join(root, 'outside'))
+    await symlink(join(root, 'outside'), join(root, 'build', 'malicious'), process.platform === 'win32' ? 'junction' : 'dir')
+    await assert.rejects(assertLocalTree(join(root, 'build')), /escapes staging/)
+  } finally { await rm(root, { recursive: true, force: true }) }
 })

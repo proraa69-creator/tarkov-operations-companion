@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import { DatabaseSync } from 'node:sqlite'
 import { verify } from 'node:crypto'
-import { approvedRun, deployPath, fileHash, hash, safeTarget, transaction } from './release-policy.mjs'
+import { approvedRun, assertLocalTree, deployPath, fileHash, hash, safeTarget, transaction } from './release-policy.mjs'
 import { canonicalUpdatePayload, embeddedPublicKey, readSigningKey, signClientRelease } from './sign-client-release.mjs'
 
 // Installed, root-owned copy only. Repository scripts are executed exclusively as raidos-build.
@@ -13,7 +13,7 @@ const stateFile = '/var/lib/raidos-release/state.json'
 const state = JSON.parse(await readFile(stateFile, 'utf8'))
 const root = '/opt/tarkov-operations-companion'
 const mirror = '/opt/raidos-release-mirror.git'
-const command = (bin, args, options = {}) => execFileSync(bin, args, { encoding: 'utf8', timeout: 120_000, ...options })
+const command = (bin, args, options = {}) => execFileSync(bin, args, { encoding: 'utf8', timeout: 120_000, maxBuffer: 64 * 1024 * 1024, ...options })
 const git = (...args) => command('git', ['--git-dir', mirror, ...args])
 const repoUrl = `https://github.com/${config.repository}.git`
 const head = command('git', ['ls-remote', '--exit-code', repoUrl, `refs/heads/${config.branch}`]).split(/\s/)[0]
@@ -96,7 +96,8 @@ try {
   }
   // Stop any build descendants before sealing artifacts; this user owns no other services.
   try { command('pkill', ['-u', 'raidos-build']) } catch (error) { if (error.status !== 1) throw error }
-  command('chown', ['-R', 'root:root', build])
+  await assertLocalTree(build)
+  command('chown', ['-h', '-R', 'root:root', build])
   command('chmod', ['-R', 'go-w', build])
   const asar = createRequire(`${root}/package.json`)('@electron/asar')
   for (const edition of ['client', 'owner']) {
@@ -135,6 +136,8 @@ try {
   const nextModules = join(root, `server/node_modules-next-${manifest.build}`)
   const oldModules = join(root, `server/node_modules-old-${manifest.build}`)
   await cp(join(build, 'website/dist'), nextDist, { recursive: true })
+  // Already-open browsers may still request chunks from the previous website build.
+  await cp(join(dist, 'assets'), join(nextDist, 'assets'), { recursive: true, force: false, errorOnExist: false })
   await cp(join(dist, 'downloads'), join(nextDist, 'downloads'), { recursive: true })
   await copyFile(client, join(nextDist, 'downloads/RaidOSClient.exe'))
   await writeFile(join(nextDist, 'downloads/release.json'), JSON.stringify(manifest))
@@ -167,7 +170,7 @@ try {
     const page = await fetch('https://raidos.app/', { signal: AbortSignal.timeout(10_000) })
     if (!page.ok || !(await page.text()).includes('id="root"')) throw new Error('Website check failed')
     await health()
-    await writeFile(`${stateFile}.new`, JSON.stringify({ sourceCommit: head, gateRun: green.id, build: manifest.build, releasedAt: new Date().toISOString(), backup }), { mode: 0o600 })
+    await writeFile(`${stateFile}.new`, JSON.stringify({ sourceCommit: head, publishedSourceCommit: head, gateRun: green.id, build: manifest.build, releasedAt: new Date().toISOString(), backup }), { mode: 0o600 })
     await rename(`${stateFile}.new`, stateFile)
   }, async () => {
     for (const change of changes) { const current = await fileHash(change.target); if (current !== change.beforeHash && current !== change.afterHash) throw new Error(`Concurrent edit during rollback: ${change.file}`) }

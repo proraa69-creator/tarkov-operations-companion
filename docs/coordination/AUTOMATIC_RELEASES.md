@@ -1,6 +1,6 @@
 # Выпуски Claude без доступа к SSH
 
-Статус: настройка и первый end-to-end выпуск в работе. Не считать готовым, пока в WORK_LOG нет результата smoke release.
+Статус: первый полный выпуск успешно выполнен 08.10.2026, Actions run 37796500169, published client build 1791472046174; raidos-release.timer ACTIVE на VPS. Ноутбук и GitHub secrets не нужны.
 
 Ветка публикации: `release/production`. Ветка `sync/codex-claude-context` остаётся обменом контекстом; `main` пока не отражает весь актуальный production overlay.
 

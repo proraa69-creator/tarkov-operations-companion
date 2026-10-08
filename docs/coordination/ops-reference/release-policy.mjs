@@ -1,4 +1,4 @@
-import { lstat, readFile } from 'node:fs/promises'
+import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { resolve, relative, sep } from 'node:path'
 
@@ -31,6 +31,19 @@ export async function safeTarget(root, file) {
 }
 export async function fileHash(path) {
   try { return hash(await readFile(path)) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
+}
+export async function assertLocalTree(root) {
+  async function walk(path) {
+    const s = await lstat(path)
+    if (s.isSymbolicLink()) {
+      const resolved = await realpath(path)
+      if (!resolved.startsWith(`${root}${sep}`)) throw new Error('Build artifact link escapes staging')
+    } else if (s.isDirectory()) {
+      for (const name of await readdir(path)) await walk(resolve(path, name))
+    } else if (!s.isFile()) throw new Error('Unexpected artifact file type')
+  }
+  if ((await lstat(root)).isSymbolicLink()) throw new Error('Build root is a symlink')
+  await walk(root)
 }
 export async function transaction(publish, rollback) {
   try { return await publish() }

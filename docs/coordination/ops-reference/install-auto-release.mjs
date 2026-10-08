@@ -23,7 +23,7 @@ await writeFile('/var/lib/raidos-release/state.json', JSON.stringify({ sourceCom
 try { execFileSync('git', ['--git-dir', '/opt/raidos-release-mirror.git', 'rev-parse', '--is-bare-repository'], { stdio: 'ignore' }) }
 catch { run('git', ['clone', '--bare', 'https://github.com/proraa69-creator/tarkov-operations-companion.git', '/opt/raidos-release-mirror.git']) }
 await mkdir('/var/lib/raidos-build/.cache', { recursive: true, mode: 0o700 })
-for (const name of ['electron', 'electron-builder']) await cp(`/root/.cache/${name}`, `/var/lib/raidos-build/.cache/${name}`, { recursive: true })
+for (const name of ['electron', 'electron-builder']) await cp(`/root/.cache/${name}`, `/var/lib/raidos-build/.cache/${name}`, { recursive: true, dereference: true })
 run('chown', ['-R', 'raidos-build:raidos-build', '/var/lib/raidos-build'])
 run('systemctl', ['daemon-reload'])
 console.log('Installed without starting timer; activate after GitHub gate verification')
