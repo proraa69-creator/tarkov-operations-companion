@@ -92,7 +92,7 @@ export function StoryScreenScanner() {
               previous = new Set(matches.map((match) => match.questId))
               // One screenshot is one observation, even if the same file is read twice.
               // Exact evidence can correct an old stage, but cannot authorize an unproven forward step.
-              if (screenshot) applyRef.current(mode, matches.filter(match => match.stageIndex != null))
+              if (screenshot) applyRef.current(mode, matches.filter(match => match.stageIndex != null || (match.active && match.objectives?.length)))
               else {
                 // Publish visible tasks on the first exact reading; sequence advancement still needs confirmation.
                 applyRef.current(mode, matches.filter(match => match.objectives?.length))

@@ -1,7 +1,7 @@
 import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types'
-import { matchQuestsFromOcr } from './questOcr'
+import { matchQuestsFromOcr, ocrKey } from './questOcr'
 import { isTasksMenuText } from './screenScanSync'
-import { completedStoryStageIndexes, hasExactStoryStageEvidence } from './storyStageOcr'
+import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
 
 export interface StoryScanMatch {
@@ -10,6 +10,44 @@ export interface StoryScanMatch {
   completedStageIndexes?: number[]
   stageConfirmed?: boolean
   objectives?: StoryObjectiveReading[]
+  /**
+   * Stages with the same title as a read stage (the read stage itself included), keyed by the read index; only for
+   * repeated titles. Resolved against the saved stage by applyStoryScan, never saved.
+   */
+  stageCopies?: Record<number, number[]>
+  /**
+   * The pane header names this chapter («ИСТОРИЯ / Небеса в огне») with the status «АКТИВНО»: the account has it,
+   * even when the catalog does not know the wording of its current objective yet.
+   */
+  active?: boolean
+}
+
+/**
+ * The chapter whose pane is open and whether the header says «АКТИВНО». The header is the line «ИСТОРИЯ» (OCR may clip
+ * it to «ТОРИЯ») with the chapter name on it or right under it. Only an exact name counts: never a word of the story.
+ */
+export function storyPaneChapter(text: string, story: Quest[]): { quest: Quest; active: boolean } | undefined {
+  const lines = text.slice(0, 20000).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const names = story.map((quest) => ({ quest, keys: [quest.name, quest.normalizedName ?? ''].map(ocrKey).filter((key) => key.length >= 3) }))
+  const STATUS = /(?:^|\s)(?:активно|active|выполнено|завершено|completed)(?=\s|$)/gi
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = lines[index]!.match(/^(?:история|[а-яё]{0,2}тория|story)(?=\s|$)(.*)$/i)
+    if (!header) continue
+    const window = [header[1]!, ...lines.slice(index + 1, index + 3)]
+    for (const candidate of window) {
+      const key = ocrKey(candidate.replace(STATUS, ' '))
+      if (!key) continue
+      const found = names.find((entry) => entry.keys.includes(key))
+      if (found) return { quest: found.quest, active: [lines[index]!, ...lines.slice(index + 1, index + 4)].some((line) => /(?:^|\s)(?:активно|active)(?=\s|$)/i.test(line)) }
+    }
+  }
+  return undefined
+}
+
+/** The copy of a repeated stage meant at `reference`: progress never goes back, so the first copy not before it. */
+export function nearestStageCopy(copies: number[], reference: number) {
+  const sorted = [...copies].sort((a, b) => a - b)
+  return sorted.find((index) => index >= reference) ?? sorted[sorted.length - 1]!
 }
 
 /** The story tab / chapter pane of the Tasks menu is on screen. */
@@ -28,17 +66,68 @@ export function matchStoryChapters(text: string, quests: Quest[]): StoryScanMatc
       const quest = story.find((entry) => entry.id === questId)!
       const exactEvidence = stageIndex != null && hasExactStoryStageEvidence(text, quest, stageIndex)
       const completedStageIndexes = completedStoryStageIndexes(text, quest)
+      const objectives = exactEvidence ? readStoryObjectives(text, quest) : undefined
+      // Text that more than one stage shows (repeated objectives): every candidate copy, resolved by applyStoryScan.
+      const stageCopies: Record<number, number[]> = {}
+      const readings: Array<[number | undefined, string]> = [[exactEvidence ? stageIndex : undefined, storyObjectivesBlock(text)],
+        ...(objectives ?? []).map((objective): [number | undefined, string] => [objective.stageIndex, objective.text])]
+      for (const [index, visible] of readings) {
+        if (index == null) continue
+        const copies = [...new Set([...(stageCopies[index] ?? []), ...storyStageCopies(quest, index, visible)])].sort((a, b) => a - b)
+        if (copies.length > 1) stageCopies[index] = copies
+      }
       return {
         questId,
         // Loose word overlap can identify a chapter, but cannot change its saved stage.
         stageIndex: exactEvidence ? stageIndex : undefined,
-        ...(exactEvidence ? { objectives: readStoryObjectives(text, quest) } : {}),
+        ...(objectives ? { objectives } : {}),
         ...(completedStageIndexes.length ? { completedStageIndexes } : {}),
+        ...(Object.keys(stageCopies).length ? { stageCopies } : {}),
       }
     })
+  const pane = storyPaneChapter(text, story)
+  if (pane) {
+    // The header names the open chapter: only it can carry a stage or objectives on this frame.
+    const own: StoryScanMatch = matches.find((match) => match.questId === pane.quest.id) ?? { questId: pane.quest.id }
+    if (pane.active) {
+      own.active = true
+      if (!own.objectives?.length) {
+        const objectives = readStoryObjectives(text, pane.quest)
+        if (objectives.length) own.objectives = objectives
+      }
+    }
+    return [own, ...matches.filter((match) => match.questId !== pane.quest.id).map(({ questId }) => ({ questId }))]
+  }
   // A frame has one open objective pane. Shared wording must not advance two chapters.
   return matches.filter(match => match.stageIndex != null).length > 1
     ? matches.map(({ questId }) => ({ questId })) : matches
+}
+
+/**
+ * Which copy of a repeated stage the pane shows. With a saved stage: the first copy not before it (progress never goes
+ * back). Without one: the last copy not after the earliest optional objective that names a single stage (optional
+ * objectives belong to the stage being played or a later one). Otherwise unknown.
+ */
+function resolveStageCopy(match: StoryScanMatch, savedStage: number | undefined): number | undefined {
+  const read = match.stageIndex
+  if (read == null) return undefined
+  const copies = match.stageCopies?.[read]
+  if (!copies) return read
+  if (savedStage != null) return nearestStageCopy(copies, savedStage)
+  const bound = Math.min(...(match.objectives ?? []).filter((objective) => objective.optional && objective.stageIndex != null
+    && !match.stageCopies?.[objective.stageIndex]).map((objective) => objective.stageIndex!))
+  if (!Number.isFinite(bound)) return undefined
+  const before = copies.filter((index) => index <= bound)
+  return before.length ? before[before.length - 1] : undefined
+}
+
+/** Repeated objectives point at the copy of their stage that belongs to `stage` (its map, its point). */
+function placeObjectives(match: StoryScanMatch, stage: number | undefined) {
+  if (!match.objectives?.length) return undefined
+  return match.objectives.map((objective) => {
+    const copies = objective.stageIndex != null ? match.stageCopies?.[objective.stageIndex] : undefined
+    return copies && stage != null ? { ...objective, stageIndex: nearestStageCopy(copies, stage) } : objective
+  })
 }
 
 /**
@@ -48,13 +137,22 @@ export function matchStoryChapters(text: string, quests: Quest[]): StoryScanMatc
 export function applyStoryScan(progress: ModeProgress, matches: StoryScanMatch[], now = new Date().toISOString()): ModeProgress {
   let taskProgress = progress.taskProgress
   for (const match of matches) {
-    // A sidebar can list locked chapters too; its title alone is not an active account quest.
-    if (match.stageIndex == null) continue
     const current = taskProgress[match.questId]
     if (current?.status === 'completed') continue
-    let stageIndex = match.stageIndex ?? current?.currentStageIndex
     if (match.stageIndex != null && (!Number.isInteger(match.stageIndex) || match.stageIndex < 0)) continue
     const savedStage = current?.currentStageIndex
+    // A repeated title is the copy at or after the saved stage, not the first one in the chapter.
+    let stageIndex = resolveStageCopy(match, savedStage)
+    if (stageIndex == null) {
+      // A sidebar can list locked chapters too; its title alone is not an active account quest. The open pane of an
+      // «АКТИВНО» chapter is: publish what it shows, keep the saved stage.
+      if (!match.active || !match.objectives?.length || (current && current.updatedAt > now)) continue
+      const objectives = placeObjectives(match, savedStage)
+      if (current?.status === 'active' && JSON.stringify(current.storyObjectives) === JSON.stringify(objectives)) continue
+      taskProgress = { ...taskProgress, [match.questId]: { ...current, taskId: match.questId, status: 'active', source: 'screen-scan', updatedAt: now,
+        ...(objectives ? { storyObjectives: objectives } : {}) } }
+      continue
+    }
     if (savedStage != null && stageIndex != null && stageIndex > savedStage) {
       const completed = new Set(match.completedStageIndexes ?? [])
       // A newly opened adjacent objective may hide the previous one. Two independent, exact
@@ -68,7 +166,7 @@ export function applyStoryScan(progress: ModeProgress, matches: StoryScanMatch[]
       }
     }
     if (current && current.updatedAt > now) continue
-    const objectives = match.objectives?.length ? match.objectives : current?.storyObjectives
+    const objectives = placeObjectives(match, stageIndex) ?? current?.storyObjectives
     if (current?.status === 'active' && current.currentStageIndex === stageIndex
       && JSON.stringify(current.storyObjectives) === JSON.stringify(objectives)) continue
     taskProgress = {
@@ -92,7 +190,12 @@ export function confirmStoryFrame(previous: StoryConfirmation | null, context: s
   const confirmed = fresh && previous?.context === context ? matches.filter((match) => previous.matches.some((entry) => (
     entry.questId === match.questId && entry.stageIndex === match.stageIndex
     && JSON.stringify(entry.completedStageIndexes ?? []) === JSON.stringify(match.completedStageIndexes ?? [])
-    && JSON.stringify(entry.objectives ?? []) === JSON.stringify(match.objectives ?? [])
+    && objectiveShape(entry.objectives) === objectiveShape(match.objectives)
   ))).map((match) => ({ ...match, stageConfirmed: match.stageIndex != null })) : []
   return { confirmed, state: fresh ? { context, observedAt, matches } : previous }
+}
+
+/** What two readings must agree on: which objectives, which stage, done or not. A hint OCR read differently is noise. */
+function objectiveShape(objectives: StoryObjectiveReading[] | undefined) {
+  return JSON.stringify((objectives ?? []).map(({ id, optional, completed, stageIndex, current, total }) => [id, optional, completed, stageIndex ?? null, current ?? null, total ?? null]))
 }

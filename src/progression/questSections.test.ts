@@ -18,6 +18,15 @@ describe('separate account story section', () => {
     progress.taskProgress[story.id].status = 'completed'
     expect(belongsInQuestSection(story, progress, 'story')).toBe(false)
   })
+  it('shows an active chapter whose objectives were read from the game even before its stage is known', () => {
+    const progress = createModeProgress()
+    progress.taskProgress[story.id] = { taskId: story.id, status: 'active', source: 'screen-scan', updatedAt: '' }
+    expect(belongsInQuestSection(story, progress, 'story')).toBe(false)
+    progress.taskProgress[story.id].storyObjectives = [{ id: 'main:x', text: 'Разузнать у торговцев про упавший самолет', optional: false, completed: false }]
+    expect(belongsInQuestSection(story, progress, 'story')).toBe(true)
+    progress.taskProgress[story.id].source = 'inferred'
+    expect(belongsInQuestSection(story, progress, 'story')).toBe(false)
+  })
   it('never duplicates story chapters in current, all, Kappa or completed sections', () => {
     const progress = createModeProgress()
     progress.taskProgress[story.id] = { taskId: story.id, status: 'active', source: 'screen-scan', updatedAt: '', currentStageIndex: 0 }

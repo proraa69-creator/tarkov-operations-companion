@@ -49,6 +49,8 @@ export interface StoryObjectiveReading {
   stageIndex?: number
   current?: number
   total?: number
+  /** The grey hint line under the objective in the game («Для ремонта понадобится набор инструментов»). */
+  hint?: string
 }
 
 /** Where an objective value came from. `sync` = another device / the server copy whose origin is unknown. */

@@ -20,7 +20,10 @@ export function inferStoryStageIndex(text: string, quest: Quest): number | undef
     const lines = objectives.split(/\r?\n/).filter((line) => line.trim())
     const score = Math.max(0, ...lines.map((line, position) => {
       const wrapped = `${line} ${lines[position + 1] ?? ''}`
-      return Math.max(stageMatchScore(stage, ocrKey(line), foldOcrGlyphs(line.toLowerCase())), exactStageScore(stage, wrapped))
+      // «Узнать больше о жертве» inside «Узнать больше о жертве культистов из пыточной» is the longer stage's text,
+      // not a sighting of the shorter, earlier one.
+      return Math.max(stageMatchScore(stage, maskLongerStageTitles(quest.stages!, index, ocrKey(line)), foldOcrGlyphs(line.toLowerCase())),
+        exactStageScore(stage, wrapped, quest.stages, index))
     }))
     if (score < 0.55) return
     hits.push({
@@ -85,7 +88,49 @@ export function storyStageEvidence(text: string, quest: Quest): number | undefin
 
 export function hasExactStoryStageEvidence(text: string, quest: Quest, index: number) {
   const stage = quest.stages?.[index]
-  return Boolean(stage && exactStageScore(stage, objectivesSection(text)))
+  return Boolean(stage && exactStageScore(stage, objectivesSection(text), quest.stages, index))
+}
+
+/**
+ * Every stage of the chapter that the same on-screen text can belong to, in order; just `[index]` when the text is
+ * unique. «Поговорить с Лыжником» is stage 6 and 12 of «Тур»; «Построить Солнечную электростанцию 1-го уровня» is an
+ * objective of stage 24, 66 and 91 of «Билет». With `text`, only the titles / aliases of stage `index` that are really
+ * on screen count. The pane shows the text only, so which copy is meant is decided against the saved progress
+ * (storyScan.ts), never by taking the first copy.
+ */
+export function storyStageCopies(quest: Quest, index: number, text?: string): number[] {
+  const stages = quest.stages ?? []
+  const own = stageKeys(stages[index]).filter((key) => key.length >= 8)
+  const screen = text == null ? undefined : ocrKey(text)
+  const visible = screen == null ? own : own.filter((key) => screen.includes(key))
+  if (!visible.length) return [index]
+  return stages.flatMap((stage, position) => position === index || stageKeys(stage).some((key) => visible.includes(key)) ? [position] : [])
+}
+
+/**
+ * The OCR key with every title / alias of ANOTHER stage removed when it is longer than, and contains, a title / alias of
+ * stage `index`: what is left is evidence for this stage that the longer title does not already explain.
+ */
+export function maskLongerStageTitles(stages: QuestStage[], index: number, key: string) {
+  const own = stageKeys(stages[index]).filter((value) => value.length >= 6)
+  if (!own.length) return key
+  let masked = key
+  stages.forEach((other, position) => {
+    if (position === index) return
+    for (const longer of stageKeys(other)) {
+      if (own.some((value) => longer.length > value.length && longer.includes(value)) && masked.includes(longer)) masked = masked.split(longer).join('|')
+    }
+  })
+  return masked
+}
+
+function stageKeys(stage: QuestStage | undefined) {
+  return stage ? [stage.title, ...(stage.ocrAliases ?? [])].map(ocrKey).filter(Boolean) : []
+}
+
+/** The «Главные задачи» block of a story pane (without the optional objectives). */
+export function storyObjectivesBlock(text: string) {
+  return objectivesSection(text)
 }
 
 /** Prefer the «Главные задачи» block so trader chrome / chapter list do not steal the stage. */
@@ -98,8 +143,9 @@ function objectivesSection(text: string, includeOptional = false) {
   return includeOptional ? block : block.split(/(?:опциональн|(?<![а-яё])[а-яё]{0,4}иональн)[а-яё]*\s*задач[^\r\n]*|optional\s+(?:tasks|objectives)/i)[0]!
 }
 
-function exactStageScore(stage: QuestStage, text: string) {
-  const key = ocrKey(text)
+/** 1 when a long title / alias of the stage is in `text`; with `stages`, not counting longer titles of other stages. */
+function exactStageScore(stage: QuestStage, text: string, stages?: QuestStage[], index?: number) {
+  const key = stages && index != null ? maskLongerStageTitles(stages, index, ocrKey(text)) : ocrKey(text)
   return [stage.title, ...(stage.ocrAliases ?? [])].some((alias) => {
     const needle = ocrKey(alias)
     return needle.length >= 14 && key.includes(needle)
@@ -112,7 +158,7 @@ export function completedStoryStageIndexes(text: string, quest: Quest): number[]
   const all = objectivesSection(text, true)
   if (!main) return []
   return (quest.stages ?? []).flatMap((stage, index) => (
-    exactStageScore(stage, main) && stageLooksComplete(stage, all.toLowerCase().replace(/ё/g, 'е'), '', ocrKey(all)) ? [index] : []
+    exactStageScore(stage, main, quest.stages, index) && stageLooksComplete(stage, all.toLowerCase().replace(/ё/g, 'е'), '', ocrKey(all)) ? [index] : []
   ))
 }
 

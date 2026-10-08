@@ -7,3 +7,5 @@
 .story-objective-maps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .story-objective-maps .button { max-width: 100%; white-space: normal; text-align: left; }
 .story-objectives .is-done .story-objective-copy { color: var(--text-dim); }
+/* The grey hint under an objective, as in the game («Для ремонта понадобится набор инструментов»). */
+.story-objective-hint { margin: 2px 0 0; color: var(--text-dim); font-size: 12px; line-height: 1.35; }
