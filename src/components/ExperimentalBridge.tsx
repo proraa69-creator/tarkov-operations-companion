@@ -4,6 +4,7 @@ import { canonicalMapId } from '../data/mapIds'
 import { mapForView, readMapView, resolveMapView } from '../data/mapView'
 import { useAppState } from '../state/AppState'
 import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
+import { readQuestChecks } from '../progression/questChecks'
 import { createItemMatcher, matchNearest } from '../overlay/itemMatch'
 import { createTooltipMatcher, foldTooltipText, type ItemNameVariant, type TooltipCandidate, type TooltipMatcher } from '../overlay/tooltipMatch'
 import { createLookupMemory } from '../overlay/tooltipLookup'
@@ -189,7 +190,9 @@ export function ExperimentalBridge() {
         void api.answer(query.id, { state: 'no-data', reason: query.input.location ? `Карта «${query.input.location}» не найдена` : 'Карта определится, когда начнётся рейд' } satisfies MinimapPayload)
         return
       }
-      const current = new Set(data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)).map((quest) => quest.id))
+      // «Сделал в этом рейде» on the Maps page takes a quest off the minimap too.
+      const checks = readQuestChecks(state.activeProfile.id, state.raidMode)
+      const current = new Set(data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress) && !checks.has(quest.id)).map((quest) => quest.id))
       const markers: MinimapMarker[] = data.markers.flatMap((marker) => {
         const layerId = marker.layerId
         if (marker.mapId !== map.id || !layerId || !MINIMAP_LAYERS.has(layerId) || PLOTTED_SOURCES_EXCLUDED.has(marker.source ?? '')) return []
