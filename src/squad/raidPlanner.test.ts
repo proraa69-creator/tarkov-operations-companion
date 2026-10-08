@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MapMarker, Quest } from '../domain/types'
-import { planMapRoute, rankMaps, SHARED_WEIGHT } from './raidPlanner'
+import { planMapRoute, rankMaps, SHARED_WEIGHT } from './raidPlanEngine'
 import { computeSquadOverview, itemIdsNeededBy } from './squadOverview'
 
 const quest = (id: string, extra: Partial<Quest>): Quest => ({ id, name: id, trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [], ...extra })
