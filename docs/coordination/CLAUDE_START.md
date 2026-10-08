@@ -13,7 +13,7 @@
 Не выдавай подписки, не включай платежи, не перезапускай 15-минутный deploy-agent, не публикуй новый Overview UI без решения владельца. Не трогай live database, .env, секреты и ключи. Старые пароли из чата в этом пакете отсутствуют и не нужны.
 
 Сохраняй различие: implemented/published, tests passed, native EFT verified, pending. Не обещай «всё работает», если есть только mock IPC/unit-тесты.
+
 # Обновление 08.10.2026: автономные выпуски
 
 Правки Claude cc1506f уже выпущены. Client build 1791472046174, Actions run 37796500169; API и база здоровы. Для следующих выпусков читать AUTOMATIC_RELEASES.md: готовый код переносится в release/production, после успешного exact-SHA GitHub gate VPS собирает и публикует Windows/site/API сам. Общая ветка sync/codex-claude-context не является триггером деплоя. Root SSH не нужен и не передаётся. Native EFT/Windows и <=10 секунд не подтверждены.
-
