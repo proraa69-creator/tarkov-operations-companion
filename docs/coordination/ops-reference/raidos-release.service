@@ -1,0 +1,13 @@
+[Unit]
+Description=RaidOS verified production release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock -n /run/lock/raidos-release.lock /usr/bin/node /usr/local/lib/raidos-release/auto-release.mjs
+TimeoutStartSec=90min
+UMask=0022
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

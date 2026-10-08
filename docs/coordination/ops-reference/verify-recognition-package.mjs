@@ -14,7 +14,7 @@ for (const edition of ['client', 'owner']) {
   }
   if (!asar.extractFile(archive, 'dist-electron/src/overlay/tooltipLookup.js').toString().includes('grabWide')) throw new Error('Old lookup code packaged')
   if (!asar.extractFile(archive, 'dist-electron/electron/main.js').toString().includes('quests:read-screenshot')) throw new Error('Old IPC code packaged')
-  if (suffix.startsWith('weapon-story')) {
+  if (suffix.startsWith('weapon-story') || suffix === 'story-goons-olive') {
     const main = asar.extractFile(archive, 'dist-electron/electron/main.js').toString()
     const timing = asar.extractFile(archive, 'dist-electron/src/import/storyScanTiming.js').toString()
     const rendererName = [...names].find(name => /^\/dist\/assets\/index-[^/]+\.js$/.test(name))
@@ -24,7 +24,7 @@ for (const edition of ['client', 'owner']) {
     const api = asar.extractFile(archive, 'dist-electron/local-server/server.cjs').toString()
     if (!api.includes('6a15ae2ae5267ba21c07f98f') || !api.includes('6a78b7f8c2016eb33e0027cd')) throw new Error('Cosmetic weapon fallback missing from packaged server')
   }
-  if (suffix.startsWith('overlay-story')) {
+  if (suffix.startsWith('overlay-story') || suffix === 'story-goons-olive') {
     const main = asar.extractFile(archive, 'dist-electron/electron/experimental/index.js').toString()
     const preload = asar.extractFile(archive, 'electron/preload.cjs').toString()
     const placement = asar.extractFile(archive, 'dist-electron/src/overlay/itemCardPlacement.js').toString()

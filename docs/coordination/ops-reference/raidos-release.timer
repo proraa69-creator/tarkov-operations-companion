@@ -1,0 +1,11 @@
+[Unit]
+Description=Observe the production branch and its GitHub test gate (no laptop required)
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+Unit=raidos-release.service
+
+[Install]
+WantedBy=timers.target

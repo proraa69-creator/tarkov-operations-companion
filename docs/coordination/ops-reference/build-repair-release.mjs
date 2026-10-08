@@ -21,7 +21,8 @@ const endpoint = await fetch('https://raidos.app/api/v1/entitlement/public-key')
 })
 const env = { RAIDOS_ENTITLEMENT_PUBLIC_KEY: endpoint.publicKey }
 const version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version
-const commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: '/opt/tarkov-operations-companion' }).toString().trim()
+const commit = process.env.REPAIR_SOURCE_COMMIT || execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: '/opt/tarkov-operations-companion' }).toString().trim()
+if (!/^[a-f0-9]{7,40}$/.test(commit)) throw new Error('Invalid source commit')
 async function edition(name) {
   run('node', ['scripts/write-build-info.mjs'], { ...env, OWNER_BUILD: name === 'owner' ? '1' : '0', ...(name === 'owner' ? { OWNER_EMAILS: 'proraa69@gmail.com' } : {}) })
   const infoFile = join(root, 'dist-electron', 'build-info.json')

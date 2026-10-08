@@ -1,0 +1,37 @@
+name: RaidOS Production Gate
+on:
+  push:
+    branches: [release/production]
+permissions:
+  contents: read
+concurrency:
+  group: raidos-production-gate
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix server
+      - run: npm run typecheck
+      - run: node node_modules/typescript/bin/tsc -p tsconfig.electron.json --noEmit
+      - run: node node_modules/vitest/vitest.mjs run --maxWorkers=1 --exclude scripts/cache-item-images.test.mjs --exclude docs/coordination/ops-reference/release-policy.test.mjs
+      - run: node --test scripts/cache-item-images.test.mjs
+      - run: npm --prefix server run typecheck
+      - run: npm --prefix server test
+      - run: npm --prefix website run build
+        env:
+          VITE_API_URL: /api
+          VITE_DOWNLOAD_URL: /download/windows
+      - run: node --test docs/coordination/ops-reference/release-policy.test.mjs
