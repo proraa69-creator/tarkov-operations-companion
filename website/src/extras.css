@@ -15,9 +15,6 @@
 
 /* Legal pages */
 .legal .page-title { margin-bottom: 4px; }
-.legal-draft { display: grid; gap: 3px; margin: 18px 0 16px; padding: 12px 14px; border: 1px dashed #7d6c45; border-radius: 11px; background: #1f1a11; color: #d9c49a; font-size: 13.5px; }
-.legal-draft strong { color: #f0dcae; }
-mark.ph { padding: 0 3px; border-radius: 4px; background: rgb(196 166 101 / 18%); color: #f0d48c; }
 .legal-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
 .legal-nav a { min-height: 34px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-muted); font-size: 13px; font-weight: 650; transition: border-color .2s var(--ease-soft), color .2s var(--ease-soft); }
 .legal-nav a:hover { border-color: var(--line-strong); color: var(--text); }
@@ -134,3 +131,9 @@ mark.ph { padding: 0 3px; border-radius: 4px; background: rgb(196 166 101 / 18%)
 @media (max-width: 560px) {
   .container { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 }
+
+/* «Тарифы, оплата и возврат» (/legal): price table and the step-by-step refund */
+.legal-doc h3 { margin: 16px 0 6px; font-size: 15px; }
+.legal-doc ol { display: grid; gap: 6px; padding-left: 22px; }
+.legal-prices td .tag { margin-left: 8px; }
+.legal-doc .table-scroll { margin: 8px 0 10px; }
