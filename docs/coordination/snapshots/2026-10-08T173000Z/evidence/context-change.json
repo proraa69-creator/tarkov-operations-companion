@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-10-08T17:31:36.845Z",
+  "reason": "Claude work branch advanced with unpublished product-code changes",
+  "refs": {
+    "main": "c6500a2ed5f9232e04ead221241de1c55946823d",
+    "releaseProduction": "af8a900df515093274e9f47bea0c629e0274e6a5",
+    "sharedContext": "1e28831422422406f10e9964173f8f441295dd21",
+    "claude": "eced7383bfcb05c75fabb96fc69aeba9f331894b"
+  },
+  "claudeChange": {
+    "previousHead": "a1269a02bdc2320b49e53b925b3e023a8bfd8a2a",
+    "commitCount": 16,
+    "changedFiles": 80,
+    "status": "in_progress",
+    "reviewedByCodex": false,
+    "mergedToReleaseProduction": false
+  },
+  "production": {
+    "build": 1791472046174,
+    "sourceCommit": "254f2898c0a8ec1a121db04f77d4fe963493eda7",
+    "sourceFilesVerified": 121,
+    "apiHealthy": true,
+    "databaseHealthy": true,
+    "changed": false
+  },
+  "secretsOrUserDataExported": false
+}

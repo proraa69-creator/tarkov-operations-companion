@@ -10,15 +10,16 @@
   "claudeActuallyStarted": true,
   "closedClaudeChatConnected": false,
   "claudePublishedHandoffObserved": true,
-  "claudeHead": "a1269a02bdc2320b49e53b925b3e023a8bfd8a2a",
+  "claudeHead": "eced7383bfcb05c75fabb96fc69aeba9f331894b",
   "claudeCodeIntegrated": true,
   "claudeWorkInProgress": true,
-  "unpublishedClaudeCodeChanges": false,
+  "unpublishedClaudeCodeChanges": true,
+  "claudeCurrentHandoffReady": false,
   "publishedBuild": 1791472046174,
   "releaseBranchHead": "af8a900df515093274e9f47bea0c629e0274e6a5",
   "productionCodeUpdatedDuringHeartbeat": false,
   "automaticReleaseGate": "VPS timer + GitHub successful exact-SHA push; no SSH secrets",
   "pipelineSmokePassed": true,
   "nativeEftVerified": false,
-  "note": "Claude declared a new evening task in the shared work log; no product-code handoff or new production build has been published yet."
+  "note": "Claude published substantial work-branch commits, but the task is still marked in progress. They have not been reviewed, merged to release/production or published as a new build."
 }
