@@ -7,6 +7,10 @@
   "productionCodeChangedDuringPackaging": false,
   "sourceFilesVerified": 104,
   "manualReadOnlyProbeMatchesLatest": true,
-  "claudeActuallyStarted": false,
-  "closedClaudeChatConnected": false
+  "claudeActuallyStarted": null,
+  "closedClaudeChatConnected": false,
+  "claudePublishedHandoffObserved": true,
+  "claudeHead": "6616c74f3fd942d4923d2928459bec0a7afece1b",
+  "claudeCodeIntegrated": false,
+  "note": "Claude activity is evidenced by published commits/log only; closed chat not connected."
 }

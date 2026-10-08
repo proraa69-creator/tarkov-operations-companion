@@ -1,0 +1,9 @@
+{
+  "checks": [
+    "Actual story component: task text, per-task map links, desktop/mobile fit",
+    "Settings switches, top-right update button and download progress window",
+    "Real Leaflet image, reopen, drag and opacity/size slider IPC calls",
+    "Overview concept screenshots only; production dashboard unchanged"
+  ],
+  "errors": []
+}

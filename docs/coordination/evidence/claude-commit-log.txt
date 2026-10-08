@@ -1,0 +1,8 @@
+6616c74f3fd942d4923d2928459bec0a7afece1b 2026-10-08T13:51:51Z Work log: Claude handoff — story OCR, Goons, default theme (tests, risks, review request)
+2abe1d7abffc101c176d48f24d150cf45af22d09 2026-10-08T13:49:05Z Default colour scheme: the olive «tarkov» scheme, now called «Олива»
+53de28e2745ad5f33ceeac7b4f0f439cbeef1a9c 2026-10-08T13:48:18Z «Кочевники»: «Видел», the reporter's Tarkov nickname, every app updated at once
+b4eed06f9c3b0a2907362d98cbf6c2ce8714a5c8 2026-10-08T13:41:09Z Work log: Claude adds Goons wiring files to owned files
+7b49bc63535f932639067f634d93469921b37cc4 2026-10-08T13:36:04Z Story scan: no backward jumps, real in-game wording, the account's chapters only
+473dc09cbe3cbc4ce3d61982ccbcdcc7d08d07ac 2026-10-08T13:33:24Z Work log: Claude adds questSections and storyObjectives.css to owned files
+9d39a12976a8c1bc41e2d10d808d63e1eb6fd4ec 2026-10-08T13:28:27Z Work log: Claude extends owned files (story data/panel, Goons, default theme)
+765864ea3c67bdac0f83aa4d85abbe6613442f3e 2026-10-08T13:10:02Z Work log: Claude takes P0 story OCR forward-jump task (owned files declared)

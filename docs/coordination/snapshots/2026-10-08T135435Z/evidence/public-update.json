@@ -1,0 +1,15 @@
+{
+  "checkedAt": "2026-10-08T11:15:10.771Z",
+  "build": 1791457737377,
+  "label": "ec0af4f-overlay-story-update-complete",
+  "version": "0.5.4",
+  "size": 203537167,
+  "sha256": "f9b126f7159336169bcbabc330786cbb11c7756913826fe24999adb6efcd0eef",
+  "signatureVerified": true,
+  "directAttachment": true,
+  "executableRange": 206,
+  "apiHealthy": true,
+  "databaseHealthy": true,
+  "websiteHealthy": true,
+  "unauthenticatedOwnerRequest": 404
+}
