@@ -28,7 +28,9 @@ jobs:
           cache: npm
 
       - name: Install locked dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm ci --prefix server
 
       - name: Verify current renderer
         run: |

@@ -187,3 +187,4 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Устранены две case-insensitive коллизии модулей для Windows/macOS: logic-файлы переименованы в `eftAccountLink.ts` и `raidPlanEngine.ts`; поведение не изменено.
 - Локально: YAML разобран `js-yaml`; `npm run typecheck` OK; затронутые тесты 25/25; `npm run build:renderer` OK. Полный Windows-прогон: 1037/1040, три известные платформенные проверки Linux/CRLF падают только на Windows; workflow запускает полный набор на Ubuntu.
 - Осталось проверить самим GitHub Actions: Xcode device build, структуру `Payload/App.app`, версию, bundle id и загрузку IPA. Установка на реальный iPhone через Sideloadly ещё не проверена.
+- Первый run `37847769035` остановился на frontend-тестах до macOS: не были установлены зависимости `server/` (`cors` импортируется bridge-тестами). Workflow исправлен на `npm ci --prefix server`; это не дефект приложения и не меняет production workflow.
