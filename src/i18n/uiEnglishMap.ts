@@ -60,6 +60,8 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Для этой карты у tarkov.dev нет схемы, только спутник', 'tarkov.dev has no schematic for this map, only satellite'],
   ['Выбранного вида нет у этой карты — показан этот', 'This map lacks the chosen view, so this one is shown'],
   ['только схема', 'schematic only'], ['только спутник', 'satellite only'],
+  // «Этаж по скриншоту»: the player's floor from the screenshot position (src/data/useAutoFloor.ts).
+  ['Вы на этом этаже — по последнему скриншоту', 'You are on this floor (from the last screenshot)'], ['Этаж карты', 'Map floor'],
   // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
   ['Возможное место предмета', 'Possible item location'], ['Возможная точка задания', 'Possible objective point'],
   ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],

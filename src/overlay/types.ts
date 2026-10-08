@@ -1,4 +1,4 @@
-import type { GameMap, MarkerLayerId } from '../domain/types'
+import type { GameMap, MapView, MarkerLayerId } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
 import type { ScreenshotKeyInfo } from './screenshotCheck'
 
@@ -48,7 +48,11 @@ export interface MinimapMarker {
 
 export type MinimapPayload =
   | { state: 'no-data'; reason?: string }
-  | { state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; minimapWidth?: number; playerMarker?: 'arrow' | 'chevron' | 'dot' }
+  | {
+    state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; minimapWidth?: number; playerMarker?: 'arrow' | 'chevron' | 'dot'
+    /** The drawing shown, as on the Maps page («Спутник» / «Схема»); the minimap draws the chosen floor in it. */
+    view?: MapView
+  }
 
 /** A current quest that has at least one point on this map. */
 export interface MinimapQuest {
