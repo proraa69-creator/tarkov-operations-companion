@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type Display, type Point, type Rectangle } from 'electron'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type Display, type Point, type Rectangle, type WebContents } from 'electron'
 import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
@@ -243,16 +243,22 @@ function registerIpc() {
   ipcMain.on('overlay:zones', (event, zones: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || window !== minimapWindow || !Array.isArray(zones)) return
+    // The page measures in CSS pixels, the cursor check works in window (DIP) pixels: they differ when the page is
+    // zoomed — and Chromium shares a zoom level between all pages of one origin, so Ctrl+/- in the main window of the
+    // owner build zoomed the overlays too and moved every clickable zone off its control.
+    const zoom = pageZoom(event.sender)
     minimapZones = zones.slice(0, 40).flatMap((zone) => {
       const { x, y, width, height } = (zone ?? {}) as Record<string, unknown>
-      return [x, y, width, height].every((value) => Number.isFinite(Number(value))) ? [{ x: Number(x), y: Number(y), width: Number(width), height: Number(height) }] : []
+      return [x, y, width, height].every((value) => Number.isFinite(Number(value))) ? [{ x: Number(x) * zoom, y: Number(y) * zoom, width: Number(width) * zoom, height: Number(height) * zoom }] : []
     })
   })
   ipcMain.on('overlay:resize', (event, width: unknown, height: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || (window !== minimapWindow && window !== itemWindow) || window.isDestroyed()) return
-    const w = Math.round(Number(width))
-    const h = Math.round(Number(height))
+    // CSS pixels to window pixels, as for the zones above.
+    const zoom = pageZoom(event.sender)
+    const w = Math.round(Number(width) * zoom)
+    const h = Math.round(Number(height) * zoom)
     if (!Number.isFinite(w) || !Number.isFinite(h) || w < 120 || h < 40) return
     const bounds = window.getBounds()
     const area = screen.getDisplayMatching(bounds).workArea
@@ -273,9 +279,11 @@ function registerIpc() {
     window.setBounds({ x: bounds.x + bounds.width - nextWidth, y: bounds.y, width: nextWidth, height: nextHeight })
   })
   ipcMain.handle('experimental:get-settings', () => readSettings())
-  ipcMain.handle('experimental:update-settings', async (_event, patch: unknown) => {
+  ipcMain.handle('experimental:update-settings', async (event, patch: unknown) => {
     const settings = await updateSettings(patch)
-    applySettings(settings)
+    // The minimap's own sliders (opacity, size): it already shows the new value. Sending its whole payload back on
+    // every slider step set the slider back to an older value while it was still dragged and rebuilt the map each time.
+    applySettings(settings, { echoMinimap: !minimapWindow || minimapWindow.isDestroyed() || event.sender !== minimapWindow.webContents })
     return settings
   })
   ipcMain.handle('experimental:status', async () => ({
@@ -326,13 +334,26 @@ function registerIpc() {
 
 let appliedScreenshotsDir: string | null = null
 
-function applySettings(settings: ExperimentalSettings) {
+/** Zoom factor of an overlay page (CSS pixels to window pixels); 1 when unknown. */
+function pageZoom(contents: WebContents) {
+  try {
+    const zoom = contents.getZoomFactor()
+    return Number.isFinite(zoom) && zoom > 0 ? zoom : 1
+  } catch {
+    return 1
+  }
+}
+
+function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: { echoMinimap?: boolean } = {}) {
   if (appliedScreenshotsDir !== null && appliedScreenshotsDir !== settings.screenshotsDir) tracker.stop()
   appliedScreenshotsDir = settings.screenshotsDir
   setScreenshotsOverride(settings.screenshotsDir)
   const map = minimapWindow && overlayPayloads.get(minimapWindow)?.get('overlay:minimap')
   if (map && typeof map === 'object' && (map as { state?: string }).state === 'ready') {
-    sendOverlay(minimapWindow, 'overlay:minimap', { ...map, opacity: settings.minimapOpacity, minimapWidth: settings.minimapWidth, playerMarker: settings.playerMarker })
+    const next = { ...map, opacity: settings.minimapOpacity, minimapWidth: settings.minimapWidth, playerMarker: settings.playerMarker }
+    // Kept for the next subscription either way; sent only when the change came from elsewhere (the Mini Map page).
+    if (echoMinimap) sendOverlay(minimapWindow, 'overlay:minimap', next)
+    else overlayPayloads.get(minimapWindow!)?.set('overlay:minimap', next)
   }
   if (settings.tracking) void tracker.start()
   else tracker.stop()

@@ -9,6 +9,13 @@ html.overlay-root #root {
   user-select: none;
 }
 
+/* The minimap window keeps its top-right corner when it changes size (electron/experimental/index.ts), so its content
+   hugs the right edge too: a wider or narrower minimap grows to the left and the size slider (on the right) stays
+   under the cursor while it is dragged, instead of sliding away and swinging the size back and forth. */
+html.overlay-minimap #root { display: flex; justify-content: flex-end; align-items: flex-start; }
+/* Never squeezed by a window that is still smaller: the window is sized from this box (useFitWindow). */
+html.overlay-minimap #root > * { flex: none; }
+
 .ov-card {
   box-sizing: border-box;
   margin: 4px;
@@ -188,6 +195,13 @@ html.overlay-root #root {
 .ov-icon-button { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 1px solid #3a3b37; border-radius: 4px; background: #1c1d1a; color: #c9c7b7; cursor: pointer; }
 .ov-drag { touch-action: none; }
 .ov-marker.is-selected img { filter: drop-shadow(0 0 4px #f2d27a) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }
+/* A quest is chosen: its points stand out, everything else fades; the points the map shows now (the stop, or all of
+   them on the overview) carry a pulsing ring. */
+.ov-marker.is-dim { opacity: .38; }
+.ov-marker.is-focus img { filter: drop-shadow(0 0 3px #f2d27a) drop-shadow(0 0 6px rgb(242 210 122 / 70%)) drop-shadow(0 1px 2px rgb(0 0 0 / 85%)); }
+.ov-marker.is-focus::after { content: ""; position: absolute; inset: -6px; border: 2px solid rgb(242 210 122 / 85%); border-radius: 50%; pointer-events: none; animation: ov-marker-pulse 1.4s cubic-bezier(.22, 1, .36, 1) infinite; }
+@keyframes ov-marker-pulse { from { transform: scale(.55); opacity: .95; } to { transform: scale(1.35); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ov-marker.is-focus::after { animation: none; opacity: .75; } }
 .ov-quest-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px; max-height: 64px; overflow-y: auto; margin: 0; padding: 5px 6px; list-style: none; border-top: 1px solid #4b4c47; background: rgb(9 10 10 / 92%); }
 .ov-quest-list button { max-width: 200px; overflow: hidden; padding: 2px 7px; border: 1px solid #3a3b37; background: #1c1d1a; color: #c9c7b7; font: inherit; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .ov-quest-list button:hover { border-color: #6d603f; color: #f1efe2; }
