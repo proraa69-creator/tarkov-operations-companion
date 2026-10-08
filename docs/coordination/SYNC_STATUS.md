@@ -1,22 +1,3 @@
-# Статус постоянной синхронизации
+# Synchronization status
 
-Общая папка: `C:\Users\BANGKOK PC\raidos-claude-sync`.
-Отдельный Git checkout общей ветки: `C:\Users\BANGKOK PC\raidos-claude-shared`.
-Ветка обмена: `sync/codex-claude-context`, не main/production.
-
-## Что синхронизируется
-
-- Актуальные Git refs main/claude/codex, SHA базового deploy и source file hashes.
-- Опубликованный build, signed manifest и доступность API/database.
-- Project state, выполненные задачи, pending verification и work queue/log.
-- Неизменяемые code snapshots; новые сообщения владельца учитываются при следующей работе в этом чате.
-
-Штатная автоматизация Codex создана и включена: `raidos-context-sync`, статус `ACTIVE`, проверка раз в час. Подтверждение создания получено от приложения. Первый scheduled heartbeat наблюдался 2026-10-08T13:50:36.725Z; новый handoff Claude сохранён, production не изменён. Итоговый статус записан в `AUTOMATION_STATUS.json`.
-
-## Чего эта проверка не делает
-
-Не деплоит код, не меняет базу/подписки/платежи/права, не запускает Claude и не передаёт ему SSH/root/секреты. Не может читать закрытый чужой чат Claude; Claude должен сохранять результаты в общей ветке/логе или владелец должен передать их.
-
-Работа локальной автоматизации требует доступного ПК и приложения Codex. При выключенном компьютере круглосуточная синхронизация не гарантируется. VPS daemon для синхронизации не устанавливался.
-
-Без новых actionable изменений проверка молчит. Ошибки доступа/конкурирующие правки не должны уничтожать предыдущий снимок; они сообщаются владельцу только при необходимости вмешательства.
+Snapshot: 2026-10-08T151900Z. Source hashes and signed build 1791472046174 verified. Claude changes integrated and released. CI-gated production pipeline smoke passed; hourly context monitor remains read-only. Native verification pending.

@@ -1,8 +1,8 @@
 {
   "format": 1,
-  "snapshotPath": "docs/coordination/snapshots/2026-10-08T151900Z",
+  "snapshotPath": ".",
   "capturedAt": "2026-10-08T15:18:55.156Z",
-  "capturedAtBangkok": "Thursday, 8 October 2026 at 22:18:55 GMT+7",
+  "capturedAtBangkok": "Thursday, 8 October 2026 at 20:54:35 GMT+7",
   "fingerprint": "7db7b4be8554ca9b6f6c87a0a2e8227a3a1433f38e4b7a5f22fd7e4da93cd19d",
   "baseCommit": "ec0af4fdf3390fe3789a2c6e8af630ea7011240d",
   "publishedBuild": 1791472046174,
