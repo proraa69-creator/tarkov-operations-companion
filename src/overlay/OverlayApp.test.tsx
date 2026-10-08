@@ -13,9 +13,13 @@ const map = vi.hoisted(() => ({
 }))
 /** The props the last map was created with (centre/zoom of a remembered view, or the whole map's bounds). */
 const created = vi.hoisted(() => ({ props: {} as Record<string, unknown> }))
+/** The icon class of the marker drawn last at each position ("z,x"). */
+const drawn = vi.hoisted(() => ({ markers: new Map<string, string>() }))
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children, ...props }: { children: ReactNode }) => { created.props = props; return <div>{children}</div> },
-  ImageOverlay: () => null, Marker: () => null, Pane: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ImageOverlay: () => null,
+  Marker: ({ position, icon }: { position: unknown; icon?: { options?: { className?: string } } }) => { drawn.markers.set(String(position), icon?.options?.className ?? ''); return null },
+  Pane: ({ children }: { children: ReactNode }) => <>{children}</>,
   // Tile layers leave their address in the page, so a test can see which floor is drawn.
   TileLayer: ({ url }: { url: string }) => <i data-testid="tiles" data-url={url} />,
   useMap: () => map,
@@ -25,6 +29,7 @@ const zones = vi.fn(), resize = vi.fn(), updateSettings = vi.fn(), drag = vi.fn(
 beforeEach(() => {
   vi.clearAllMocks()
   listeners.clear()
+  drawn.markers.clear()
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 400, bottom: 30, width: 400, height: 30, toJSON: () => ({}) })
   window.tarkovDesktop = {
@@ -65,6 +70,16 @@ describe('minimap controls after reopening', () => {
     expect(container.querySelector('.ov-minimap')).toHaveStyle({ width: '520px' })
     fireEvent.click(screen.getByRole('button', { name: 'Скрыть мини-карту' }))
     expect(toggle).toHaveBeenCalledOnce()
+  })
+  it('keeps a slider where the player moved it when an older payload arrives meanwhile', () => {
+    render(<OverlayApp kind="minimap" />)
+    ready()
+    fireEvent.change(screen.getByRole('slider', { name: 'Прозрачность' }), { target: { value: '50' } })
+    fireEvent.change(screen.getByRole('slider', { name: 'Размер мини-карты' }), { target: { value: '600' } })
+    // Sent before the moves were saved: still the old values.
+    ready()
+    expect(screen.getByRole('slider', { name: 'Прозрачность' })).toHaveValue('50')
+    expect(screen.getByRole('slider', { name: 'Размер мини-карты' })).toHaveValue('600')
   })
 })
 
@@ -179,58 +194,116 @@ describe('minimap view remembered per map', () => {
   })
 })
 
-describe('quest button steps through the rooms of the quest', () => {
-  const quest = (id: string, z: number, x: number, height?: number) => ({ id, position: [z, x], layerId: 'quest.item', title: id, questId: 'q1', height })
+describe('quest button steps through the stops of the quest', () => {
+  const quest = (id: string, z: number, x: number, height?: number, questId = 'q1') => ({ id, position: [z, x], layerId: 'quest.item', title: id, questId, height })
   const openWithQuest = () => act(() => listeners.get('overlay:minimap')?.({
-    state: 'ready', map: { id: 'woods', name: 'Лес', layers: [] }, opacity: 0.9, minimapWidth: 420, questCount: 1,
-    // Two shelves of one room, a far building, and the same spot one storey up.
-    markers: [quest('shelf-a', 0, 0, 1), quest('shelf-b', 3, 4, 1.5), quest('far', 200, 150, 1), quest('upstairs', 1, 1, 5)],
-    quests: [{ questId: 'q1', name: 'Задание', trader: 'Прапор', markerIds: ['shelf-a', 'shelf-b', 'far', 'upstairs'], objectives: ['Найти'] }],
+    state: 'ready', map: { id: 'woods', name: 'Лес', layers: [] }, opacity: 0.9, minimapWidth: 420, questCount: 2,
+    // Two shelves of one room, a far building, the same spot one storey up; another quest with a single point.
+    markers: [quest('shelf-a', 0, 0, 1), quest('shelf-b', 3, 4, 1.5), quest('far', 200, 150, 1), quest('upstairs', 1, 1, 5), quest('solo', 50, 60, 0, 'q2'),
+      { id: 'exit', position: [-40, -40], layerId: 'extract.pmc', title: 'exit' }],
+    quests: [
+      { questId: 'q1', name: 'Задание', trader: 'Прапор', markerIds: ['shelf-a', 'shelf-b', 'far', 'upstairs'], objectives: ['Найти'] },
+      { questId: 'q2', name: 'Одна точка', trader: 'Лыжник', markerIds: ['solo'], objectives: ['Пометить'] },
+    ],
   }))
-  const press = () => fireEvent.click(screen.getByRole('button', { name: 'Задание' }))
+  const press = (name = 'Задание') => fireEvent.click(screen.getByRole('button', { name }))
+  const lastFlight = () => map.flyToBounds.mock.calls.at(-1) as [unknown, Record<string, unknown>]
+  /** The whole map of the test payload (no bounds in it: the CRS default). */
+  const wholeMap = [[0, 0], [1000, 1000]]
 
-  it('flies room by room, then shows the whole map, then starts again', () => {
+  it('glides stop by stop, then fits all of the quest\'s points, then starts again', () => {
     render(<OverlayApp kind="minimap" />)
     openWithQuest()
     press()
-    expect(map.flyToBounds).toHaveBeenLastCalledWith([[0, 0], [3, 4]], expect.anything())
+    // The room of both shelves, widened to the smallest stop box (24 m) so a single room never gets an endless zoom.
+    expect(lastFlight()[0]).toEqual([[-10.5, -10], [13.5, 14]])
     expect(screen.getByText('Точка 1 из 3')).toBeInTheDocument()
     press()
-    expect(map.flyTo).toHaveBeenLastCalledWith([200, 150], expect.any(Number), expect.anything())
+    expect(lastFlight()[0]).toEqual([[188, 138], [212, 162]])
+    expect(screen.getByText('Точка 2 из 3')).toBeInTheDocument()
     press()
-    expect(map.flyTo).toHaveBeenLastCalledWith([1, 1], expect.any(Number), expect.anything())
+    expect(lastFlight()[0]).toEqual([[-11, -11], [13, 13]])
+    press()
+    // After the last stop: every point of the quest, zoomed out further than a stop, with a margin.
+    expect(lastFlight()).toEqual([[[0, 0], [200, 150]], expect.objectContaining({ padding: [40, 40], maxZoom: 2 })])
+    expect(screen.getByText('Все точки задания')).toBeInTheDocument()
+    press()
+    expect(lastFlight()[0]).toEqual([[-10.5, -10], [13.5, 14]])
+    expect(screen.getByText('Точка 1 из 3')).toBeInTheDocument()
+    // Every move glides: no instant fit (the zoom-animation jump) and no teleport.
+    expect(map.flyToBounds).toHaveBeenCalledTimes(5)
     expect(map.fitBounds).not.toHaveBeenCalled()
-    press()
-    expect(map.fitBounds).toHaveBeenCalledOnce()
-    expect(screen.getByText('Вся карта')).toBeInTheDocument()
-    press()
-    expect(map.flyToBounds).toHaveBeenCalledTimes(2)
+    expect(map.setView).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Задание' })).toHaveAttribute('aria-pressed', 'true')
     // A new payload (the minimap opened again) does not move the map.
     openWithQuest()
-    expect(map.flyToBounds).toHaveBeenCalledTimes(2)
+    expect(map.flyToBounds).toHaveBeenCalledTimes(5)
   })
 
-  it('the clear button takes the quest off and shows the whole map', () => {
+  it('a quest with one stop takes turns between the stop and the whole map; another quest starts at its first stop', () => {
+    render(<OverlayApp kind="minimap" />)
+    openWithQuest()
+    press()
+    press()
+    press('Одна точка')
+    expect(lastFlight()[0]).toEqual([[38, 48], [62, 72]])
+    expect(screen.queryByText(/Точка \d/)).toBeNull()
+    press('Одна точка')
+    expect(lastFlight()).toEqual([wholeMap, expect.objectContaining({ padding: [0, 0] })])
+    expect(screen.getByText('Вся карта')).toBeInTheDocument()
+    press('Одна точка')
+    expect(lastFlight()[0]).toEqual([[38, 48], [62, 72]])
+  })
+
+  it('marks the quest\'s points, rings the ones shown now and fades the rest', () => {
+    render(<OverlayApp kind="minimap" />)
+    openWithQuest()
+    expect(drawn.markers.get('0,0')).toBe('ov-marker')
+    press()
+    expect(drawn.markers.get('0,0')).toContain('is-focus')
+    expect(drawn.markers.get('3,4')).toContain('is-focus')
+    expect(drawn.markers.get('200,150')).toBe('ov-marker is-selected')
+    expect(drawn.markers.get('50,60')).toContain('is-dim')
+    expect(drawn.markers.get('-40,-40')).toContain('is-dim')
+    press(); press(); press()
+    // The overview: every point of the quest is ringed.
+    for (const point of ['0,0', '3,4', '200,150', '1,1']) expect(drawn.markers.get(point)).toContain('is-focus')
+  })
+
+  it('the clear button takes the quest off and glides back to the whole map', () => {
     render(<OverlayApp kind="minimap" />)
     openWithQuest()
     press()
     fireEvent.click(screen.getByRole('button', { name: 'Снять выбор задания' }))
-    expect(map.fitBounds).toHaveBeenCalledOnce()
+    expect(lastFlight()[0]).toEqual(wholeMap)
     expect(screen.getByRole('button', { name: 'Задание' })).toHaveAttribute('aria-pressed', 'false')
-    // The next press starts at the first room again.
+    expect(drawn.markers.get('50,60')).toBe('ov-marker')
+    // The next press starts at the first stop again.
     press()
-    expect(map.flyToBounds).toHaveBeenCalledTimes(2)
+    expect(lastFlight()[0]).toEqual([[-10.5, -10], [13.5, 14]])
   })
 
-  it('names the step and the clear button in English', async () => {
+  it('a quest that leaves the list lets the map follow the player again', () => {
+    render(<OverlayApp kind="minimap" />)
+    openWithQuest()
+    press()
+    act(() => listeners.get('overlay:minimap')?.({ state: 'ready', map: { id: 'woods', name: 'Лес', layers: [] }, markers: [], quests: [], questCount: 0 }))
+    act(() => listeners.get('overlay:position')?.({ x: 10, y: 0, z: 20, yaw: 0, at: 1000 }))
+    // [z, x]: Unity is Y-up, the map is drawn from above.
+    expect(map.setView).toHaveBeenCalledWith(expect.objectContaining({ lat: 20, lng: 10 }), expect.any(Number), expect.anything())
+  })
+
+  it('names the steps and the clear button in English', async () => {
     const { setRenderLanguage } = await import('../i18n/renderText')
     setRenderLanguage('en')
     try {
       render(<OverlayApp kind="minimap" />)
       openWithQuest()
-      fireEvent.click(screen.getAllByRole('button', { pressed: false }).find((button) => button.closest('.ov-quest-list'))!)
+      const button = screen.getAllByRole('button', { pressed: false }).find((entry) => entry.closest('.ov-quest-list'))!
+      fireEvent.click(button)
       expect(screen.getByText('Point 1 of 3')).toBeInTheDocument()
+      fireEvent.click(button); fireEvent.click(button); fireEvent.click(button)
+      expect(screen.getByText('All quest points')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Clear quest selection' })).toBeInTheDocument()
     } finally {
       setRenderLanguage('ru')
