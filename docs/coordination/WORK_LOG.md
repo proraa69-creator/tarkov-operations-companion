@@ -12,3 +12,6 @@
 - Claude ещё не запущен и не получил активную задачу через подключённый канал.
 - Следующая запись агента: цель, base/branch, ownedFiles, статус, test evidence, review request.
 - Automation `raidos-context-sync` создана в приложении и ACTIVE: проверяет контекст раз в час, без deploy, без сообщений при отсутствии изменений; первый scheduled run ещё не наблюдался.
+- Source snapshot и shared context опубликованы в `sync/codex-claude-context`, commit `ae89f5a3041c6aaa8e77612780884863249a8e24`. GitHub main и VPS baseline не менялись.
+- Повторный read-only probe после публикации дал тот же fingerprint: монитор не зацикливается на собственных docs commits.
+- Whitespace check для source/docs прошёл; raw tracked-changes.patch исключается из такой проверки, потому что пробельные context lines являются частью формата diff и должны сохраняться.

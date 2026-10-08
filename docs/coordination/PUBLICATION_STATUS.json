@@ -1,0 +1,12 @@
+{
+  "repository": "proraa69-creator/tarkov-operations-companion",
+  "branch": "sync/codex-claude-context",
+  "sourceSnapshotCommit": "ae89f5a3041c6aaa8e77612780884863249a8e24",
+  "githubSourceSnapshotVerified": true,
+  "githubMainUnchanged": true,
+  "productionCodeChangedDuringPackaging": false,
+  "sourceFilesVerified": 104,
+  "manualReadOnlyProbeMatchesLatest": true,
+  "claudeActuallyStarted": false,
+  "closedClaudeChatConnected": false
+}
