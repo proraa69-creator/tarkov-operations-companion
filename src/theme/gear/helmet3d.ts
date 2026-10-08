@@ -310,7 +310,11 @@ function prepare(model: Object3D, variant: HelmetVariant, swing: { lag: { value:
     if (variant.glass) mesh.material = glassMaterial(mesh.material as MeshStandardMaterial)
     if (variant.sway && mesh.geometry.getAttribute('_sway')) addSway(mesh.material as MeshStandardMaterial, swing)
   })
-  // Centre the model (the rig turns about this point) and fit it to MODEL_SIZE so any export scale works.
+  // Turn the export to face like the first mask, then centre it (the rig turns about this point) and fit it to
+  // MODEL_SIZE so any export scale works.
+  const deg = Math.PI / 180
+  model.rotation.set((variant.facing?.pitch ?? 0) * deg, (variant.facing?.yaw ?? 0) * deg, (variant.facing?.roll ?? 0) * deg, 'YXZ')
+  model.updateMatrixWorld(true)
   const box = new Box3().setFromObject(model)
   const size = box.getSize(new Vector3())
   model.position.sub(box.getCenter(new Vector3()))

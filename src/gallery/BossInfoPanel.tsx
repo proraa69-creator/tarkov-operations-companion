@@ -38,7 +38,7 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
 
     {total ? <section className="boss-info-block">
       <h3><HeartPulse size={14} /> {uiText('Здоровье')} <b className="boss-info-total">{total} HP</b></h3>
-      {loadout?.body && <BodyHealthFigure body={loadout.body} showTotal={false} />}
+      {loadout?.body && <BodyHealthFigure body={loadout.body} />}
     </section> : null}
 
     {loadout?.weapons?.length ? <section className="boss-info-block">
