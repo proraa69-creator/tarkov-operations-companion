@@ -16,7 +16,10 @@ interface MarkerMiniMapProps {
   color: string
 }
 
-const ZOOM_IN_STEPS = 2.5
+/** The preview shows the spot as close as the main map can: the map's most detailed tiles. */
+function previewZoom(map: Pick<GameMap, 'maxZoom'>) {
+  return map.maxZoom ?? 3
+}
 
 export function MarkerMiniMap({ map, view = 'satellite', position, color }: MarkerMiniMapProps) {
   const bounds = toLeafletBounds(map)
@@ -62,18 +65,17 @@ export function MarkerMiniMap({ map, view = 'satellite', position, color }: Mark
             noWrap
           />
         )}
-        <CenterOn position={position} />
+        <CenterOn position={position} zoom={previewZoom(map)} />
         <Marker position={position} icon={icon} interactive={false} keyboard={false} />
       </MapContainer>
     </div>
   )
 }
 
-function CenterOn({ position }: { position: [number, number] }) {
+function CenterOn({ position, zoom }: { position: [number, number]; zoom: number }) {
   const map = useMap()
   useEffect(() => {
-    const zoom = Math.min(map.getZoom() + ZOOM_IN_STEPS, map.getMaxZoom())
-    map.setView(position, zoom, { animate: false })
-  }, [map, position])
+    map.setView(position, Math.min(zoom, map.getMaxZoom()), { animate: false })
+  }, [map, position, zoom])
   return null
 }
