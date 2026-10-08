@@ -11,7 +11,7 @@ import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { reuseQuestReading } from '../src/import/storyScanTiming.js'
-import { isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 
 const require = createRequire(import.meta.url)
 interface OcrLine { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
@@ -340,9 +340,10 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
         }
       }
       const title = await read(rects.title, 2, '6')
-      if (!isStoryTitleText(title)) return null
-      const status = await read(rects.status, 2, '7')
       const body = await read(rects.body, 1, '6')
+      // Either part proves the pane: the name may sit on bright art, the headings may be scrolled away.
+      if (!isStoryTitleText(title) && !isStoryObjectivesText(body)) return null
+      const status = await read(rects.status, 2, '7')
       return { title, status, body }
     })
   } finally {

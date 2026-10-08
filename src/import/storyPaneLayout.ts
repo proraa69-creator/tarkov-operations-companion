@@ -30,9 +30,14 @@ export function isStoryTitleText(text: string) {
   return /истори|тори[яи]|(?:^|\s)story(?:\s|$)/i.test(text)
 }
 
+/** The objective block headings of the story pane («Главные задачи», «Опциональные задачи»; the left edge may be cut). */
+export function isStoryObjectivesText(text: string) {
+  return /главн(?:ые|ая)\s*задач|[а-яё]{0,4}иональн[а-яё]*\s*задач|main\s+(?:tasks|objectives)|optional\s+(?:tasks|objectives)/i.test(text)
+}
+
 /** A full-screen reading that shows the story pane: the header or the objective blocks under the «Сюжетные» tab. */
 export function isStoryPaneOcr(text: string) {
-  const objectives = /главн(?:ые|ая)\s*задач|[а-яё]{0,4}иональн[а-яё]*\s*задач|main\s+(?:tasks|objectives)|optional\s+(?:tasks|objectives)/i.test(text)
+  const objectives = isStoryObjectivesText(text)
   return (isStoryTitleText(text) && (objectives || /сюжетн|story/i.test(text))) || (objectives && /сюжетн/i.test(text))
 }
 
