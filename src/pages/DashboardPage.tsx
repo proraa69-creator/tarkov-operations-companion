@@ -21,7 +21,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { CurrentTasksPanel } from '../components/CurrentTasksPanel'
 import { RaidRequirementsPanel, type RaidNeedRow } from '../components/RaidRequirementsPanel'
 import { KappaBreakdownPanel, KappaStatCard } from '../components/KappaProgress'
-import { kappaBreakdown } from '../components/kappaBreakdown'
+import { collectorKeyTasks } from '../components/collectorKeyTasks'
 
 export function DashboardPage() {
   const { data } = useTarkovData()
@@ -29,8 +29,6 @@ export function DashboardPage() {
   const navigate = useNavigate()
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
   const [kappaOpen, setKappaOpen] = useState(false)
-  // The Kappa list is worked out on the first open only: it asks the availability engine once per tracked task.
-  const [kappaSeen, setKappaSeen] = useState(false)
   const kappaListId = useId()
   const { locale } = useLocale()
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
@@ -64,11 +62,10 @@ export function DashboardPage() {
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const stats = completedQuestStats(data.quests, availability)
-  const kappaRows = useMemo(() => kappaSeen ? kappaBreakdown(data.quests, availability, progress) : [], [kappaSeen, data.quests, availability, progress])
-  const openKappa = () => {
-    setKappaOpen(true)
-    setKappaSeen(true)
-  }
+  // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
+  const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
+  const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
+  const openKappa = () => setKappaOpen(true)
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
@@ -87,10 +84,11 @@ export function DashboardPage() {
     <section className="stat-grid">
       <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
-      <KappaStatCard completed={stats.kappaCompleted} total={stats.kappaTotal} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
+      <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
       <GoonCard mode={state.raidMode} mapName={mapName} />
     </section>
-    <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={stats.kappaCompleted} total={stats.kappaTotal} onClose={() => setKappaOpen(false)} />
+    <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
+    <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
 
     <div className="dashboard-layout">
       <div className="dashboard-column">
@@ -119,7 +117,6 @@ export function DashboardPage() {
         </section>
 
         <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} />
-        <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
         <RaidRequirementsPanel rows={neededRows} />
       </div>
 

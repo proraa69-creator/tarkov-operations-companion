@@ -920,11 +920,17 @@ a.quest-stage:hover { color: var(--text); }
 .goon-report-actions { display: flex; gap: 6px; }
 .goon-report-actions .button { flex: 1; }
 
-/* compact: one line per tile (rank · map · count) over the bar, so «Требования рейда» fits under it */
-.map-priority .panel-header { min-height: 42px; }
-.map-priority-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(122px, 1fr)); gap: 6px; padding: 10px 12px; }
+/* one row across the Overview under the stat cards: tiles stretch to fill it and scroll sideways when they do not fit */
+.map-priority { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 0 16px 0 18px; }
+.map-priority-title { flex: none; white-space: nowrap; }
+.map-priority-all { flex: none; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+.map-priority-grid {
+  flex: 1; min-width: 0;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(158px, 1fr); gap: 6px; padding: 8px 0;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
 .map-priority-tile {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 7px; row-gap: 6px; min-width: 0; padding: 6px 8px 7px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 7px; row-gap: 4px; min-width: 0; padding: 5px 8px 6px;
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surf-1) 70%, transparent);
   color: var(--text); text-align: left; cursor: pointer;
@@ -1128,16 +1134,19 @@ a.quest-stage:hover { color: var(--text); }
 
 /* Kappa card: «Квесты» opens the list of the counted tasks in a dialog over the Overview */
 .kappa-breakdown-overlay { animation: kappa-dialog-fade .45s var(--ease-soft) both; }
-.kappa-breakdown-panel { width: min(1080px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; box-shadow: 0 28px 90px rgba(0, 0, 0, .55); animation: kappa-dialog-rise .6s var(--ease-soft) both; }
+.kappa-breakdown-panel { width: min(820px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; box-shadow: 0 28px 90px rgba(0, 0, 0, .55); animation: kappa-dialog-rise .6s var(--ease-soft) both; }
 .kappa-breakdown-panel .panel-body { min-height: 0; overflow: auto; }
 .kappa-breakdown-close { width: 30px; height: 30px; }
 @keyframes kappa-dialog-fade { from { opacity: 0; } }
 @keyframes kappa-dialog-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
 @media (prefers-reduced-motion: reduce) { .kappa-breakdown-overlay, .kappa-breakdown-panel { animation: none; } }
 .kappa-breakdown-actions { display: flex; align-items: center; gap: 8px; }
-.kappa-breakdown-note { margin: 0 0 4px; max-width: 980px; font-size: 12px; line-height: 1.5; }
-.kappa-breakdown-group { margin: 14px 0 8px; }
-.kappa-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 6px; }
+.kappa-conditions-lead { margin: 0 0 8px; color: var(--text-muted); font-size: 12.5px; }
+.kappa-conditions { display: grid; gap: 8px; margin: 0; padding-left: 20px; font-size: 12.5px; line-height: 1.4; }
+.kappa-conditions > li::marker { color: var(--brass); font-weight: 750; }
+.kappa-conditions > li > span { color: var(--text-dim); }
+.kappa-conditions .kappa-breakdown-grid { margin: 6px 0 0; padding: 0; list-style: none; }
+.kappa-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 6px; }
 .kappa-quest {
   display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-width: 0; padding: 7px 9px;
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surf-1) 60%, transparent);
@@ -1149,10 +1158,16 @@ a.quest-stage:hover { color: var(--text); }
 .kappa-quest.is-counted .kappa-quest-mark { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); background: color-mix(in srgb, var(--green) 14%, transparent); color: var(--green); }
 .kappa-quest-copy { min-width: 0; }
 .kappa-quest-copy strong { display: block; overflow: hidden; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.kappa-quest-copy small span { white-space: nowrap; }
+@media (max-width: 600px) { .kappa-breakdown-panel .kappa-quest-copy strong { white-space: normal; } }
 .kappa-quest-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
-.kappa-quest-via { color: var(--brass); }
 .kappa-quest-state { color: var(--text-dim); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
 
+@media (max-width: 600px) {
+  .map-priority { flex-wrap: wrap; row-gap: 0; padding-top: 10px; }
+  .map-priority-grid { order: 3; flex-basis: 100%; }
+  .map-priority-all { margin-left: auto; }
+}
 @media (max-width: 980px) {
   /* one column: both columns' panels interleave, so the current tasks stay above the raid requirements as before */
   .dashboard-layout > .dashboard-column { display: contents; }

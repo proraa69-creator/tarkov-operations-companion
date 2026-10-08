@@ -1,19 +1,17 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { Check, Circle, X } from 'lucide-react'
+import { Check, Circle, Clock, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import type { KappaCountSource, KappaQuestRow } from './kappaBreakdown'
+import type { CollectorTaskRow, CollectorTaskState } from './collectorKeyTasks'
 
-const SOURCE_LABELS: Record<KappaCountSource, string> = {
-  'eft-log': 'по логам', 'screen-scan': 'по экрану', manual: 'вручную', inferred: 'по цепочке',
-}
+const STATE_LABELS: Record<CollectorTaskState, string> = { completed: 'выполнено', active: 'текущее', open: 'не выполнено' }
 
 /**
- * Third Overview stat card. The number counts tasks tarkov.dev marks `kappaRequired`, not Collector items, so the
- * label says so. «Квесты» opens the list of those tasks in a dialog (KappaBreakdownPanel below), «Предметы» the
- * Collector items page; the card itself keeps the plain layout of the other stat cards.
+ * Third Overview stat card: how many of the four key tasks for «Коллекционер» are done (not Collector items), so the
+ * label says so. «Квесты» opens what Fence wants for «Коллекционер» in a dialog (KappaBreakdownPanel below),
+ * «Предметы» the Collector items page; the card itself keeps the plain layout of the other stat cards.
  */
 export function KappaStatCard({ completed, total, open, onOpen, controlsId }: { completed: number; total: number; open: boolean; onOpen: () => void; controlsId: string }) {
   return <div className="stat-card kappa-card">
@@ -28,33 +26,13 @@ export function KappaStatCard({ completed, total, open, onOpen, controlsId }: { 
 }
 
 /**
- * The Kappa tasks with their state and where «done» came from (logs, screen, manual mark, or a later task of the chain),
- * in a dialog over the Overview: Esc, «×» or a click outside closes it and gives the focus back to «Квесты».
+ * What Fence wants before he hands out «Коллекционер»: loyalty 4 with the main traders, reputation +3.0 with him, and the
+ * four key tasks with their state in this profile. Esc, «×» or a click outside closes it and gives the focus back to
+ * «Квесты». Loyalty and reputation are not in the game logs, so those two lines are plain text.
  */
-export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose }: { id: string; open: boolean; rows: KappaQuestRow[]; completed: number; total: number; onClose: () => void }) {
+export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose }: { id: string; open: boolean; rows: CollectorTaskRow[]; completed: number; total: number; onClose: () => void }) {
   const { locale } = useLocale()
-  const counted = rows.filter((row) => row.counted)
-  const rest = rows.filter((row) => !row.counted)
-
-  // «взято «Охота на крыс»»: the later task the engine used, and whether it is accepted or already done.
-  const reason = (row: KappaQuestRow) => {
-    if (!row.via) return null
-    const name = uiText(row.via.name)
-    const accepted = row.viaStatus === 'active'
-    if (locale === 'en') return `${accepted ? 'accepted' : 'completed'} “${name}”`
-    return `${accepted ? 'взято' : 'выполнено'} «${name}»`
-  }
-  const state = (row: KappaQuestRow) => row.source ? SOURCE_LABELS[row.source] : row.status === 'active' ? 'текущее' : row.status === 'failed' ? 'провалено' : 'не выполнено'
-
-  const item = (row: KappaQuestRow) => <Link to={`/quests?filter=kappa&selected=${encodeURIComponent(row.quest.id)}`} className={`kappa-quest${row.counted ? ' is-counted' : ''}`} key={row.quest.id}>
-    <span className="kappa-quest-mark" aria-hidden="true">{row.counted ? <Check size={13} /> : <Circle size={9} />}</span>
-    <span className="kappa-quest-copy">
-      <strong>{uiText(row.quest.name)}</strong>
-      <small>{uiText(row.quest.trader)}{uiText(' · ур. ')}{row.quest.level}{row.via && <span className="kappa-quest-via"> · {reason(row)}</span>}</small>
-    </span>
-    <span className={`kappa-quest-state${row.source === 'inferred' ? ' tag brass' : row.counted ? ' tag green' : ''}`}>{uiText(state(row))}</span>
-  </Link>
-
+  const quoted = (name: string) => locale === 'en' ? `“${uiText(name)}”` : `«${uiText(name)}»`
   const closeRef = useRef<HTMLButtonElement>(null)
   const closeLatest = useRef(onClose)
   useEffect(() => { closeLatest.current = onClose })
@@ -68,6 +46,21 @@ export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose 
   }, [open])
   if (!open) return null
 
+  const task = (row: CollectorTaskRow) => {
+    const content = <>
+      <span className="kappa-quest-mark" aria-hidden="true">{row.state === 'completed' ? <Check size={13} /> : row.state === 'active' ? <Clock size={11} /> : <Circle size={9} />}</span>
+      <span className="kappa-quest-copy">
+        <strong>{uiText(row.name)}</strong>
+        <small>{uiText(row.trader)}{row.alternatives.length > 0 && <>{uiText(' · или ')}{row.alternatives.map((quest, index) => <span key={quest.id}>{index > 0 && ', '}{quoted(quest.name)} ({uiText(quest.trader)})</span>)}</>}</small>
+      </span>
+      <span className={`kappa-quest-state${row.state === 'completed' ? ' tag green' : row.state === 'active' ? ' tag brass' : ''}`}>{uiText(STATE_LABELS[row.state])}</span>
+    </>
+    const className = `kappa-quest${row.state === 'completed' ? ' is-counted' : ''}`
+    return <li key={row.key}>{row.quest
+      ? <Link to={`/quests?selected=${encodeURIComponent(row.quest.id)}`} className={className}>{content}</Link>
+      : <div className={className}>{content}</div>}</li>
+  }
+
   return createPortal(<div className="registration-overlay kappa-breakdown-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section id={id} className="panel kappa-breakdown-panel" role="dialog" aria-modal="true" aria-label={uiText('Задания для Капы')}>
       <div className="panel-header">
@@ -78,16 +71,14 @@ export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose 
         </div>
       </div>
       <div className="panel-body">
-        <p className="muted kappa-breakdown-note">{uiText('Это задания, которые tarkov.dev отмечает обязательными для Капы, а не предметы для «Коллекционера». Задание засчитано, если оно выполнено по логам игры, распознано с экрана, отмечено вручную или следует из цепочки: в игре взято или выполнено более позднее задание, которому оно нужно.')}</p>
-        {counted.length > 0 && <>
-          <div className="stat-label kappa-breakdown-group">{uiText('Засчитаны · ')}{counted.length}</div>
-          <div className="kappa-breakdown-grid">{counted.map(item)}</div>
-        </>}
-        {rest.length > 0 && <>
-          <div className="stat-label kappa-breakdown-group">{uiText('Не выполнены · ')}{rest.length}</div>
-          <div className="kappa-breakdown-grid">{rest.map(item)}</div>
-        </>}
-        {!rows.length && <p className="muted">{uiText('В данных нет заданий, отмеченных для Капы.')}</p>}
+        <p className="kappa-conditions-lead">{uiText('Скупщик выдаёт «Коллекционера», когда выполнены три условия:')}</p>
+        <ol className="kappa-conditions">
+          <li><strong>{uiText('Лояльность 4 (корона)')}</strong> <span>{uiText('у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря')}</span></li>
+          <li><strong>{uiText('Репутация у Скупщика от +3,0')}</strong> <span>{uiText('(карма Дикого)')}</span></li>
+          <li><strong>{uiText('4 ключевых задания')}</strong>
+            <ul className="kappa-breakdown-grid">{rows.map(task)}</ul>
+          </li>
+        </ol>
       </div>
     </section>
   </div>, document.body)

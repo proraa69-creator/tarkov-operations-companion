@@ -55,12 +55,15 @@ beforeEach(() => {
 afterEach(() => setRenderLanguage('ru'))
 
 describe('DashboardPage', () => {
-  it('puts the raid requirements under «Приоритет карт» in the left column, with one row for any 7.62x51 pack', () => {
+  it('puts «Приоритет карт» across the page under the cards and the raid requirements in the left column, with one row for any 7.62x51 pack', () => {
     const { container } = renderDashboard()
+    const priority = container.querySelector('.map-priority') as HTMLElement
+    expect(priority.previousElementSibling).toHaveClass('stat-grid')
+    expect(priority.closest('.dashboard-layout')).toBeNull()
+    expect(priority.querySelectorAll('.map-priority-tile')).toHaveLength(dataset.maps.length)
     const [left, right] = [...container.querySelectorAll('.dashboard-column')]
     const needs = left.querySelector('.raid-needs') as HTMLElement
     expect(needs).not.toBeNull()
-    expect(needs.previousElementSibling).toHaveClass('map-priority')
     expect(right.querySelector('.raid-needs')).toBeNull()
     expect(within(needs).getByText('Любая пачка патронов 7.62x51')).toBeInTheDocument()
     expect(within(needs).queryByText(/M80 \(20 штук\)/)).toBeNull()
@@ -83,19 +86,16 @@ describe('DashboardPage', () => {
     expect(within(panel).getByRole('button', { name: /Свернуть/ })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('keeps the four stat cards in order and explains the Kappa count', async () => {
+  it('keeps the four stat cards in order; «Квесты» on the Kappa card opens the four key tasks for «Коллекционер»', async () => {
     const user = userEvent.setup()
     const { container } = renderDashboard()
     const cards = [...container.querySelectorAll('.stat-grid > .stat-card')]
     expect(cards).toHaveLength(4)
     expect(cards[2]).toHaveClass('kappa-card')
-    await user.click(within(cards[2] as HTMLElement).getByRole('button', { name: /Выполнено/ }))
-    const list = container.querySelector('.kappa-breakdown') as HTMLElement
-    expect(list).toHaveClass('is-open')
-    // «Проверка» is a current task: the chain proves «Дебют» done, nothing else is counted
-    const counted = list.querySelectorAll('.kappa-quest.is-counted')
-    expect([...counted].map((entry) => entry.querySelector('strong')?.textContent)).toEqual(['Дебют'])
-    expect(counted[0]).toHaveTextContent('по цепочке')
-    expect(counted[0]).toHaveTextContent('взято «Проверка»')
+    expect(cards[2]).toHaveTextContent('Выполнено 0 из 4')
+    await user.click(within(cards[2] as HTMLElement).getByRole('button', { name: 'Квесты' }))
+    const dialog = document.querySelector('[role=dialog]') as HTMLElement
+    expect([...dialog.querySelectorAll('.kappa-quest strong')].map((node) => node.textContent))
+      .toEqual(['Реагент. Часть 4', 'Стрелок от бога', 'Тарковский стрелок. Часть 4', 'Шить — не тужить. Часть 4'])
   })
 })

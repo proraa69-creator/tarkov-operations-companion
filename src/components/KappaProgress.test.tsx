@@ -7,24 +7,21 @@ import type { Quest } from '../domain/types'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { installCatalogTranslations, setRenderLanguage } from '../i18n/renderText'
 import { KappaBreakdownPanel, KappaStatCard } from './KappaProgress'
-import type { KappaQuestRow } from './kappaBreakdown'
+import type { CollectorTaskRow } from './collectorKeyTasks'
 
-const quest = (id: string, name: string, level: number): Quest => ({ id, name, trader: 'Прапор', level, kappa: true, description: '', objectives: [], rewards: [] })
-const ratHunt = quest('rat-hunt', 'Охота на крыс', 9)
-const rows: KappaQuestRow[] = [
-  { quest: quest('shortage', 'Дефицит', 3), status: 'completed', counted: true, source: 'eft-log' },
-  { quest: quest('scanned', 'Секта', 14), status: 'completed', counted: true, source: 'screen-scan' },
-  { quest: quest('manual', 'Ищейка', 18), status: 'completed', counted: true, source: 'manual' },
-  { quest: quest('debut', 'Дебют', 1), status: 'completed', counted: true, source: 'inferred', via: ratHunt, viaStatus: 'active' },
-  { quest: quest('sanitary', 'Санитарные нормы', 9), status: 'available', counted: false },
-  { quest: quest('failed', 'Ловушка', 20), status: 'failed', counted: false },
+const quest = (id: string, name: string, trader: string): Quest => ({ id, name, trader, level: 1, kappa: false, description: '', objectives: [], rewards: [] })
+const rows: CollectorTaskRow[] = [
+  { key: 'chemical-part-4', name: 'Реагент. Часть 4', trader: 'Лыжник', state: 'completed', quest: quest('big', 'Большой заказчик', 'Прапор'), alternatives: [quest('big', 'Большой заказчик', 'Прапор'), quest('curious', 'Простое любопытство', 'Терапевт')] },
+  { key: 'shooter-born-in-heaven', name: 'Стрелок от бога', trader: 'Механик', state: 'open', quest: quest('sbih', 'Стрелок от бога', 'Механик'), alternatives: [] },
+  { key: 'the-tarkov-shooter-part-4', name: 'Тарковский стрелок. Часть 4', trader: 'Егерь', state: 'active', quest: quest('ts4', 'Тарковский стрелок. Часть 4', 'Егерь'), alternatives: [] },
+  { key: 'sew-it-good-part-4', name: 'Шить — не тужить. Часть 4', trader: 'Барахольщик', state: 'open', alternatives: [] },
 ]
 
 function KappaHarness() {
   const [open, setOpen] = useState(false)
   return <LocaleProvider><MemoryRouter>
-    <div className="stat-grid"><KappaStatCard completed={4} total={6} open={open} onOpen={() => setOpen(true)} controlsId="kappa-list" /></div>
-    <KappaBreakdownPanel id="kappa-list" open={open} rows={rows} completed={4} total={6} onClose={() => setOpen(false)} />
+    <div className="stat-grid"><KappaStatCard completed={1} total={4} open={open} onOpen={() => setOpen(true)} controlsId="kappa-list" /></div>
+    <KappaBreakdownPanel id="kappa-list" open={open} rows={rows} completed={1} total={4} onClose={() => setOpen(false)} />
   </MemoryRouter></LocaleProvider>
 }
 
@@ -35,11 +32,11 @@ afterEach(() => {
 })
 
 describe('Kappa card', () => {
-  it('keeps the card plain and opens the counted tasks with their sources from «Квесты»', async () => {
+  it('keeps the card plain and opens the Fence conditions with the four key tasks from «Квесты»', async () => {
     const user = userEvent.setup()
     const { container } = render(<KappaHarness />)
     expect(screen.getByText('Задания для Капы', { selector: '.stat-label' })).toBeInTheDocument()
-    expect(screen.getByText('Выполнено 4 из 6', { selector: '.stat-meta' })).toBeInTheDocument()
+    expect(screen.getByText('Выполнено 1 из 4', { selector: '.stat-meta' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Предметы' })).toHaveAttribute('href', '/kappa-items')
     const quests = screen.getByRole('button', { name: 'Квесты' })
     expect(quests).toHaveAttribute('aria-haspopup', 'dialog')
@@ -51,19 +48,18 @@ describe('Kappa card', () => {
     expect(quests).toHaveAttribute('aria-expanded', 'true')
     expect(quests).toHaveAttribute('aria-controls', 'kappa-list')
     expect(dialog).toHaveAttribute('id', 'kappa-list')
-    // the dialog sits over the page: the card grid keeps its layout
     expect(container.querySelector('#kappa-list')).toBeNull()
     expect(within(dialog).getByRole('button', { name: 'Закрыть' })).toHaveFocus()
 
-    const counted = dialog.querySelectorAll('.kappa-breakdown-grid')[0] as HTMLElement
-    const entries = within(counted).getAllByRole('link')
-    expect(entries.map((entry) => entry.querySelector('strong')?.textContent)).toEqual(['Дефицит', 'Секта', 'Ищейка', 'Дебют'])
-    expect(entries.map((entry) => entry.querySelector('.kappa-quest-state')?.textContent)).toEqual(['по логам', 'по экрану', 'вручную', 'по цепочке'])
-    expect(entries[3]).toHaveTextContent('взято «Охота на крыс»')
-    expect(entries[0]).toHaveAttribute('href', '/quests?filter=kappa&selected=shortage')
-    expect(within(dialog).getByText('Засчитаны · 4')).toBeInTheDocument()
-    expect(within(dialog).getByText('Не выполнены · 2')).toBeInTheDocument()
-    expect(within(dialog).getByText('провалено')).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('Лояльность 4 (корона) у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря')
+    expect(dialog).toHaveTextContent('Репутация у Скупщика от +3,0 (карма Дикого)')
+    expect(dialog).not.toHaveTextContent('tarkov.dev')
+    const tasks = [...dialog.querySelectorAll('.kappa-quest')] as HTMLElement[]
+    expect(tasks.map((task) => task.querySelector('strong')?.textContent)).toEqual(['Реагент. Часть 4', 'Стрелок от бога', 'Тарковский стрелок. Часть 4', 'Шить — не тужить. Часть 4'])
+    expect(tasks.map((task) => task.querySelector('.kappa-quest-state')?.textContent)).toEqual(['выполнено', 'не выполнено', 'текущее', 'не выполнено'])
+    expect(tasks[0]).toHaveTextContent('Лыжник · или «Большой заказчик» (Прапор), «Простое любопытство» (Терапевт)')
+    expect(tasks[0]).toHaveAttribute('href', '/quests?selected=big')
+    expect(tasks[3].tagName).toBe('DIV')
 
     await user.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -85,18 +81,18 @@ describe('Kappa card', () => {
 
   it('speaks English', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
-    // the English catalog names quests in English; here its translation table stands in for it
-    installCatalogTranslations([['Охота на крыс', 'Rat hunt']])
+    installCatalogTranslations([['Большой заказчик', 'Big Customer']])
     const user = userEvent.setup()
     render(<KappaHarness />)
     expect(screen.getByText('Kappa-required tasks', { selector: '.stat-label' })).toBeInTheDocument()
-    expect(screen.getByText('Completed 4 of 6', { selector: '.stat-meta' })).toBeInTheDocument()
+    expect(screen.getByText('Completed 1 of 4', { selector: '.stat-meta' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Tasks' }))
-    expect(screen.getByText('from logs')).toBeInTheDocument()
-    expect(screen.getByText('from screen')).toBeInTheDocument()
-    expect(screen.getByText('manual')).toBeInTheDocument()
-    expect(screen.getByText('by chain')).toBeInTheDocument()
-    expect(screen.getByText(/accepted “Rat hunt”/)).toBeInTheDocument()
-    expect(screen.getByText(/tasks tarkov\.dev marks as required for Kappa/)).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('Fence gives out “The Collector” once three conditions are met:')
+    expect(dialog).toHaveTextContent('Fence reputation +3.0 or higher (Scav karma)')
+    expect(dialog).toHaveTextContent('Chemical - Part 4')
+    expect(dialog).toHaveTextContent('Sew it Good - Part 4')
+    expect(dialog).toHaveTextContent('“Big Customer”')
+    expect(within(dialog).getAllByText('not done')).toHaveLength(2)
   })
 })

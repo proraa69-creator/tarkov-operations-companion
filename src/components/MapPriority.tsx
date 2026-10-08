@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -9,16 +10,43 @@ interface MapPriorityProps {
   /** Current-stage tasks on this map. */
   countFor: (mapId: string) => number
   onOpen: (mapId: string) => void
+  /** How many maps to show; all by default. */
   limit?: number
 }
 
 /**
- * Compact "Приоритет карт": top maps by current tasks as one-line tiles (rank · map · count) over a thin bar,
- * low enough to leave the left column room for «Требования рейда» below.
+ * The wheel scrolls the tile row sideways while the pointer is over it and there is more to see in that direction;
+ * at either end the page scrolls as usual. React's onWheel is passive, so the listener is attached by hand.
  */
-export function MapPriority({ maps, countFor, onOpen, limit = 5 }: MapPriorityProps) {
+function useWheelScrollsSideways<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  useEffect(() => {
+    const row = ref.current
+    if (!row) return
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+      const max = row.scrollWidth - row.clientWidth
+      if (max <= 1) return
+      const step = event.deltaY * (event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? row.clientWidth : 1)
+      if ((step < 0 && row.scrollLeft <= 0) || (step > 0 && row.scrollLeft >= max - 1)) return
+      event.preventDefault()
+      row.scrollLeft += step
+    }
+    row.addEventListener('wheel', onWheel, { passive: false })
+    return () => row.removeEventListener('wheel', onWheel)
+  }, [])
+  return ref
+}
+
+/**
+ * "Приоритет карт": one thin strip across the Overview under the stat cards — title, the maps by current tasks as
+ * one-line tiles (rank · map · count) over a thin bar, «Все карты». Tiles stretch to fill the row; when they do not fit, the row scrolls sideways
+ * (wheel over it, drag on a touchpad, or the thin scrollbar).
+ */
+export function MapPriority({ maps, countFor, onOpen, limit }: MapPriorityProps) {
   const { locale } = useLocale()
-  const rows = maps.map((map) => ({ map, count: countFor(map.id) })).sort((a, b) => b.count - a.count).slice(0, limit)
+  const rowRef = useWheelScrollsSideways<HTMLDivElement>()
+  const rows = maps.map((map) => ({ map, count: countFor(map.id) })).sort((a, b) => b.count - a.count).slice(0, limit ?? maps.length)
   const max = Math.max(1, ...rows.map((row) => row.count))
   const taskLabel = (count: number) => {
     if (locale === 'en') return `${count} ${count === 1 ? 'task' : 'tasks'}`
@@ -28,9 +56,9 @@ export function MapPriority({ maps, countFor, onOpen, limit = 5 }: MapPriorityPr
     return `${count} ${word}`
   }
 
-  return <section className="panel map-priority">
-    <div className="panel-header"><div className="panel-title">{uiText('Приоритет карт')}</div><Link to="/maps" className="dim">{uiText('Все карты ')}<ChevronRight size={13} /></Link></div>
-    <div className="map-priority-grid">
+  return <section className="panel map-priority" aria-label={uiText('Приоритет карт')}>
+    <div className="panel-title map-priority-title">{uiText('Приоритет карт')}</div>
+    <div className="map-priority-grid" ref={rowRef}>
       {rows.map(({ map, count }, index) => {
         const label = `${uiText(map.name)} · ${taskLabel(count)}`
         return <button type="button" key={map.id} className={`map-priority-tile ${index === 0 && count > 0 ? 'is-top' : ''} ${count === 0 ? 'is-empty' : ''}`} title={label} aria-label={label} onClick={() => onOpen(map.id)}>
@@ -41,5 +69,6 @@ export function MapPriority({ maps, countFor, onOpen, limit = 5 }: MapPriorityPr
         </button>
       })}
     </div>
+    <Link to="/maps" className="dim map-priority-all">{uiText('Все карты ')}<ChevronRight size={13} /></Link>
   </section>
 }

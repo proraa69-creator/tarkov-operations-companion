@@ -6,11 +6,8 @@ describe('Overview English', () => {
   it('translates the Kappa card, its list and the reused Overview texts', () => {
     expect(translateUiText('Задания для Капы')).toBe('Kappa-required tasks')
     expect(translateUiText('Выполнено 3 из 13')).toBe('Completed 3 of 13')
-    expect(translateUiText('по логам')).toBe('from logs')
-    expect(translateUiText('по экрану')).toBe('from screen')
-    expect(translateUiText('вручную')).toBe('manual')
-    expect(translateUiText('по цепочке')).toBe('by chain')
-    expect(translateUiText('Засчитаны · ')).toBe('Counted · ')
+    expect(translateUiText('Репутация у Скупщика от +3,0')).toBe('Fence reputation +3.0 or higher')
+    expect(translateUiText('4 ключевых задания')).toBe('4 key tasks')
     expect(translateUiText('Квесты')).toBe('Tasks')
     expect(translateUiText('Закрыть')).toBe('Close')
     expect(translateUiText('Требования рейда')).toBe('Raid requirements')
