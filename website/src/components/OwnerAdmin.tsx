@@ -271,7 +271,7 @@ export function OwnerPayoutsList() {
           {limitsMessage && <span className="field-hint" style={{ color: limitsMessage.ok ? 'var(--success)' : 'var(--danger)' }}>{limitsMessage.text}</span>}
         </form>
       )}
-      <span className="field-hint">Деньги сервер сам не переводит: переведите сумму по СБП и нажмите «Выплачено». Автоматический перевод через ЮKassa «Выплаты» потребует отдельного договора — его можно подключить позже.</span>
+      <span className="field-hint">Деньги сервер сам не переводит: переведите сумму по СБП и нажмите «Выплачено». Автоматический перевод потребует отдельного договора с платёжным сервисом — его можно подключить позже.</span>
     </div>
   )
 }

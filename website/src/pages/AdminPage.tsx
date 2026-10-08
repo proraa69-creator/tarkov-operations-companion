@@ -20,7 +20,6 @@ const TABS = [
   { id: 'payments', label: 'Платежи', icon: Receipt },
   { id: 'users', label: 'Пользователи', icon: Users },
   { id: 'streamers', label: 'Стримеры', icon: Radio },
-  { id: 'payouts', label: 'Выплаты', icon: Banknote },
   { id: 'invites', label: 'Друзья', icon: HeartHandshake },
   { id: 'sales', label: 'Настройки продаж', icon: Settings2 },
   { id: 'bugs', label: 'Баг-репорты', icon: Bug },
@@ -37,7 +36,8 @@ type TabId = typeof TABS[number]['id']
 export function AdminPage() {
   const auth = useAuth()
   const [params, setParams] = useSearchParams()
-  const requested = params.get('tab')
+  // «Выплаты» now live in «Стримеры» (owner, 09.10): an old ?tab=payouts link opens that tab.
+  const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab')
   const tab: TabId = TABS.some((item) => item.id === requested) ? requested as TabId : 'summary'
 
   if (auth.status === 'signed-out') return <Navigate to="/login" replace state={{ from: '/admin' }} />
@@ -76,17 +76,17 @@ export function AdminPage() {
           ))}
         </nav>
         <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} className="admin-panel-body">
-          {tab === 'streamers' || tab === 'payouts' ? null : <h2 className="visually-hidden">{current.label}</h2>}
+          {tab === 'streamers' ? null : <h2 className="visually-hidden">{current.label}</h2>}
           {tab === 'summary' && <AdminSummary />}
           {tab === 'payments' && <AdminPayments />}
           {tab === 'users' && <AdminUsers />}
-          {tab === 'streamers' && <AdminStreamers />}
-          {tab === 'payouts' && (
-            <section className="panel owner-panel" aria-labelledby="admin-payouts-title">
+          {tab === 'streamers' && <>
+            <AdminStreamers />
+            <section className="panel owner-panel admin-streamer-payouts" aria-labelledby="admin-payouts-title">
               <div className="panel-header"><div className="panel-title" id="admin-payouts-title"><Banknote aria-hidden="true" />Выплаты стримерам</div></div>
               <div className="panel-body owner-body"><OwnerPayoutsList /></div>
             </section>
-          )}
+          </>}
           {tab === 'invites' && <AdminInvites />}
           {tab === 'sales' && <AdminSales />}
           {tab === 'bugs' && <><AdminBugReports /><AdminQuestPoints /></>}

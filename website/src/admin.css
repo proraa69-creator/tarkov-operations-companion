@@ -142,3 +142,4 @@
 .admin-bug-shot-placeholder { display: grid; place-items: center; height: 110px; border: 1px dashed var(--line); border-radius: 9px; color: var(--text-dim); }
 .admin-bug-shots small { font-size: 11px; }
 .admin-bug-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-streamer-payouts { margin-top: 16px; }
