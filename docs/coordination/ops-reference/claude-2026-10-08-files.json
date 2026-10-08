@@ -1,0 +1,142 @@
+[
+ {
+  "file": "docs/mobile.md",
+  "before": "cf4e32066d043db00fcd3934dc177e98165947a83f3164db02bb001e5bd64b79",
+  "after": "c69e39854b06b0181f2ede35e89e25961394ace5dcc5a25482b0a5308485710e"
+ },
+ {
+  "file": "server/src/app.ts",
+  "before": "9efa881ea0dc46b4aa430ba2b88eed7025f4dd7d18cc016edecf54c9a2a2c19d",
+  "after": "75f69b14f681b1a9a9b09dcd203fd1be6ee1681f520ecdfc01f6c79bf891e09e"
+ },
+ {
+  "file": "server/src/routes/goons.test.ts",
+  "before": "209a448ca4236a5c3709e0048cc1cac460b6cb0fe82ab7b712fe31158e1fbe6c",
+  "after": "1ee4bc94fe156a8b73c8fe2a05c4e258de984282783e59d1a13cfa688d75a922"
+ },
+ {
+  "file": "server/src/routes/goons.ts",
+  "before": "03d22c60ba0917b4e47425273e8194118cf0dbe8bd41f994f9e06609677a29c6",
+  "after": "394b690baf921c1fb67fc0094f76a64848e33315acac003397cdf59a0f6cd329"
+ },
+ {
+  "file": "server/src/services/goonStore.ts",
+  "before": "ab83366982a7184a61f0c81fa43c3e1e99bb2853a3bcbd5bed844ae4fad602a6",
+  "after": "c435d79f1e337f6a616d06a64a7d74009ba5a38dc3a2b349afa7d99aa1021f02"
+ },
+ {
+  "file": "src/components/GoonCard.test.tsx",
+  "before": null,
+  "after": "e5182708ec783c8fe0424268e6e3f000684a30d8b1fb11a21d735b8f44019a7e"
+ },
+ {
+  "file": "src/components/GoonCard.tsx",
+  "before": "f7c3e50077fbc8860147682a421c008e4704fbd1088cf34bafaacbf1a46b8b5a",
+  "after": "fa61ab2682226ad231913c1801991e402dcc508e1b57258bacaa4f329fe88217"
+ },
+ {
+  "file": "src/components/StoryObjectivesPanel.tsx",
+  "before": "6970c72265c4541719475328f8cae971152814ba6ae147c825dc740059ca4295",
+  "after": "b974fd7ad020fac6ae880afcedca805c99702fd622558b38323a1ef3ddcfed78"
+ },
+ {
+  "file": "src/components/StoryScreenScanner.tsx",
+  "before": "87d6a6f5b198eb3a3a96d604f0684b5adfe84083aa6fe0425d46d8b2a5560a9f",
+  "after": "a1a6ee596ced36340a2face4cfb0ac1c4350879a7f431ea36ac8a2eb1899ed37"
+ },
+ {
+  "file": "src/components/goonCard.css",
+  "before": "aed4886eeb489a8a0900ea75cdcaeca5f9e38a168bb27463dde19be213db5db2",
+  "after": "527f817f2c65ae5ef1dd1feaeb9f6ccfdd6464e688ecba181a2452768bb39d20"
+ },
+ {
+  "file": "src/data/goonTracker.test.ts",
+  "before": "28ebb98632eccf1049af7a6f7d1cb002dfa1814c17111a6471f438dc9c3a39a4",
+  "after": "32f228db8322cb0603a0026918ab5ed9f7b518d4512c65ce79651a2c35b58b95"
+ },
+ {
+  "file": "src/data/goonTracker.ts",
+  "before": "a3963b4341b4a2381e4a07bf38f45e94c73628b5d79952100e67b208ffb60027",
+  "after": "2f475544a9b6f4157665414fd60c6619f3f65335d30a272f8550782321a75f1f"
+ },
+ {
+  "file": "src/data/mapUpdates.ts",
+  "before": "54f304731b2da1698a2eb0e5cf0f184b9892718562f6fed9f86c5d60d882d1b2",
+  "after": "c4913006f8fbc8c1e9b1eea81696229127d6dc6fefc8d173aaa8119d456159ee"
+ },
+ {
+  "file": "src/data/storyChapterSeeds.ts",
+  "before": "6d58247bacabfdcc60772b73d46ec93e7fcbdcd207903b95d57f1f607ff1a0f5",
+  "after": "ced79d9aaa33ec8c054761ca772a942e82b897aefdc02711c1e3cbc29e987883"
+ },
+ {
+  "file": "src/domain/types.ts",
+  "before": "f297f223984d0d33904890541ca7193544fdbd76e155ceee7f62286305db9f19",
+  "after": "fc0afb8e2276445f20eaabe7939415b2889b3778d7c1774630b1d372358d48c0"
+ },
+ {
+  "file": "src/i18n/uiEnglishGoons.ts",
+  "before": "78d24a1a0da1f39b39b7257fb03d539cd9d288c0735226adec96f36a16f60237",
+  "after": "a5eedd06765bb6b2bb6bd16626807140132f6bc1956bd91d9398ac60d826fe94"
+ },
+ {
+  "file": "src/i18n/uiEnglishThemes.ts",
+  "before": "1fc16788fc2f0d7603cf06507da0b5dc2d644a584cc6e56cc6bcb476dd395fb1",
+  "after": "8f91dee85076afdab577db42fb5c9154f158fde16986a031a7abdb52fe057507"
+ },
+ {
+  "file": "src/import/__fixtures__/storyPanesPvp.ts",
+  "before": null,
+  "after": "4a61d31acc765e1f1fcc5b7d5652d64a04f88116056b75344502d17fb0a7bb00"
+ },
+ {
+  "file": "src/import/storyObjectives.ts",
+  "before": "4e52c7574e5e1eada1b2cac1d22a686715398896af3e081e0769164230acb207",
+  "after": "005fb7523762f271a858986572058f7d342b008ac58beae094c25c66b19d8b52"
+ },
+ {
+  "file": "src/import/storyPanesPvp.test.ts",
+  "before": null,
+  "after": "2ad66ab62a76f0cc30e39b27f0c9a446b43a67e8fc5c9d23a1bbfbbe884e87f4"
+ },
+ {
+  "file": "src/import/storyScan.ts",
+  "before": "30507480c01f497eeba72aacbc39bb285997d966728421b15b522aa03fe9b128",
+  "after": "afe507d537dc9e3fee5b8f2557d13e94a446c0e28014446f818735f613265922"
+ },
+ {
+  "file": "src/import/storyStageOcr.ts",
+  "before": "9797e857d7523419f01c66476e7ebcd99ccb696e5b9d949e3565520842e05f9e",
+  "after": "96e00801028568a9fec19f3a1478f749fad8db790485cbaf2feac25c990b6f5c"
+ },
+ {
+  "file": "src/pages/storyObjectives.css",
+  "before": "a5f3e20d00624959234cc2e67879943887e61fd817e10580ffe860b38ed345e6",
+  "after": "afb8297f06da9a0f0f8ca1d3c526f58f3492b796071e6ee8033e81665742d5ac"
+ },
+ {
+  "file": "src/platform.test.ts",
+  "before": "a11ee780f42c4dbf4e24267fd28b753be57007a4c03a30ad5b476c77e6dda754",
+  "after": "5e24cc3a7259813be15690448249e460f4b90ebd9c949bd9a21aaf61f85ce082"
+ },
+ {
+  "file": "src/progression/questSections.test.ts",
+  "before": "12a4f79896d3e9867280b512fafd82665f52e539eb8761c53b7216117f05c98c",
+  "after": "a02e29cea385e8aa283f45d7df200cb2857e6eb9fe9355fab2248487cabc7bad"
+ },
+ {
+  "file": "src/progression/questSections.ts",
+  "before": "6e4331c9ee3072efaf35f89aa0478d52e38fbefcd59bf1731f10ada117d0d51a",
+  "after": "1054306cfb66752df1991338ceb6583156ba78278622e5bc41d677201d583cdb"
+ },
+ {
+  "file": "src/sync/webAccount.ts",
+  "before": "d3fd4e5842dde8deaaf5f393b6dfc84afc5ae8cb5b7238eeab7cb4682dad48be",
+  "after": "3dc3eeb15ecb0267c68d4b392f35b61a0e964b7990e6046bdea2aaee47e2895e"
+ },
+ {
+  "file": "src/theme/theme.ts",
+  "before": "910ba3ca7f4c6119ca0a224fa4726ca72696bd0d3ee0736330298dea416f3eb5",
+  "after": "ab7274a39406497a419f17ee7e15d62735f89f8c75bbb745497c1912b010461d"
+ }
+]
