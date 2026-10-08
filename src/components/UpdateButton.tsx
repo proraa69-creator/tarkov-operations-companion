@@ -52,7 +52,7 @@ export function UpdateButton() {
   }
   const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : 'Обновить приложение'
   const title = status.state === 'error' ? uiText(status.error ?? 'Ошибка обновления')
-    : `${uiText('Доступна новая версия')}${status.version ? ` ${status.version}` : ''}${status.commit ? ` (${status.commit})` : ''}. ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
+    : `${uiText('Доступна новая версия')}${status.version ? ` ${status.version}` : ''}. ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
   return (
     <>
       <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
@@ -95,7 +95,7 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
         <div className="update-overlay-versions">
           <span>{uiText('Сейчас')} <b>{current}</b></span>
           <span aria-hidden="true">→</span>
-          <span>{uiText('Новая')} <b>{status.version ?? '—'}</b>{status.commit ? <small> ({status.commit})</small> : null}</span>
+          <span>{uiText('Новая')} <b>{status.version ?? '—'}</b></span>
         </div>
 
         <div className="update-overlay-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={uiText(stateText)}>
