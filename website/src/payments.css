@@ -63,9 +63,11 @@
 .button.account-delete:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 
 /* «Подписка» in the site header (components/SubscriptionDialog.tsx): what it gives, the prices, payment and refund in short. */
-.subscription-dialog { width: min(760px, 100%); }
-.subscription-included { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 6px 16px; font-size: 13.5px; color: var(--text-muted); }
-.subscription-included li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; }
+.subscription-dialog { width: min(820px, 100%); }
+/* two newspaper columns, not a grid: a line that wraps never stretches its neighbour, so the gaps stay equal */
+.subscription-included { margin: 0; padding: 0; list-style: none; columns: 2 280px; column-gap: 24px; font-size: 13.5px; line-height: 1.45; color: var(--text-muted); }
+.subscription-included li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; margin-bottom: 8px; break-inside: avoid; }
+.subscription-included li:last-child { margin-bottom: 0; }
 .subscription-included svg { width: 16px; height: 16px; margin-top: 1px; color: var(--success); }
 .subscription-plans { margin-top: 8px; }
 .subscription-plans .plan-card { padding: 14px; }
