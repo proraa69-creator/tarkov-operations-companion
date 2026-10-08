@@ -233,8 +233,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode), lang))
   })
   app.post('/v1/players/resolve', players, paid, async (req, res) => {
-    const body = z.object({ mode: modeSchema, nickname: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,15}$/) }).parse(req.body)
-    res.json(await resolvePlayer(body.mode, body.nickname))
+    // `accountId`: the account the desktop app read from this player's own game logs (optional).
+    const body = z.object({ mode: modeSchema, nickname: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,15}$/), accountId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional() }).parse(req.body)
+    res.json(await resolvePlayer(body.mode, body.nickname, body.accountId))
   })
   app.get('/v1/players/:mode/:accountId', players, paid, async (req, res) => res.json(await fetchPlayerProfile(modeSchema.parse(req.params.mode), z.coerce.number().int().positive().parse(req.params.accountId))))
   app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {

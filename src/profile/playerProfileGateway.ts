@@ -8,7 +8,13 @@ export interface PlayerProfileCandidate {
   level: number
   faction: PlayerProfileSnapshot['faction']
   mode: RaidMode
-  snapshot: PlayerProfileSnapshot
+  /** Missing while `pending`. */
+  snapshot?: PlayerProfileSnapshot
+  /**
+   * The account is known (game logs or tarkov.dev's live search) but tarkov.dev has not published its profile yet —
+   * a new character after a wipe or a renamed one. The nickname is bound; usePlayerProfileSync fills the level in later.
+   */
+  pending?: boolean
 }
 
 export interface PlayerProfileGateway {
@@ -45,7 +51,7 @@ export function desktopPlayerProfileGateway(): PlayerProfileGateway {
   return {
     resolveByNickname: async (mode, nickname) => {
       const candidate = await window.tarkovDesktop!.resolvePlayerProfile(mode, nickname)
-      if (!candidate?.snapshot) throw new Error('Сервер не вернул профиль персонажа. Повторите позже.')
+      if (!candidate?.accountId || (!candidate.snapshot && !candidate.pending)) throw new Error('Сервер не вернул профиль персонажа. Повторите позже.')
       return candidate
     },
     fetchByAccountId: async (mode, accountId) => {

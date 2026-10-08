@@ -19,7 +19,7 @@ export function useNicknameBinder() {
       nickname: candidate.nickname,
       verifiedAt: new Date().toISOString(),
     })
-    state.updatePlayerSnapshot(mode, candidate.snapshot)
+    if (candidate.snapshot) state.updatePlayerSnapshot(mode, candidate.snapshot)
     void saveNicknamesOnServer({ [mode]: candidate.nickname })
     refresh()
     return candidate

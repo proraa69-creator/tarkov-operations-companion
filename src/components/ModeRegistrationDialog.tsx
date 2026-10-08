@@ -80,7 +80,7 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
       {error && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
       {bound && <div className="profile-candidate account-bound" role="status">
         <span className="profile-avatar small"><UserRound size={20} /></span>
-        <span><strong>{bound.nickname}</strong><small>{bound.mode.toUpperCase()}{uiText(' · уровень ')}{bound.level} · {bound.faction.toUpperCase()}</small></span>
+        <span><strong>{bound.nickname}</strong><small>{bound.pending ? <>{bound.mode.toUpperCase()}{uiText(' · уровень появится, когда Tarkov.dev обновит профиль')}</> : <>{bound.mode.toUpperCase()}{uiText(' · уровень ')}{bound.level} · {bound.faction.toUpperCase()}</>}</small></span>
         <span className="tag green"><Check size={12} />{uiText('Привязан')}</span>
       </div>}
       <div className="import-note"><ShieldCheck size={14} />{uiText('Ник закрепляется отдельно за этим режимом и сохраняется в вашем аккаунте. Изменить его можно позже в профиле.')}</div>

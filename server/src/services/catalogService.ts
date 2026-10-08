@@ -1,6 +1,6 @@
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
 import { fetchLiveCatalog } from '../../../src/data/catalogSource'
-import { fetchPlayerProfile, resolveAccountIdsByNickname } from '../../../electron/playerProfileService'
+import { resolvePlayerByNickname } from '../../../electron/playerProfileService'
 import { createCatalogCache, type CatalogLocale } from './catalogCache.js'
 import { withCachedItemImages } from './itemImageCache.js'
 
@@ -18,11 +18,10 @@ export async function getCatalogSnapshot(mode: RaidMode, locale: CatalogLocale =
 export function peekCatalogSnapshot(mode: RaidMode): AppDataset | undefined {
   return catalogCache.peek(mode)
 }
-export async function resolvePlayer(mode: RaidMode, nickname: string) {
-  const matches = await resolveAccountIdsByNickname(mode, nickname, { refresh: true })
-  if (!matches.length) throw Object.assign(new Error('Профиль этого режима пока не опубликован в Tarkov.dev'), { status: 404 })
-  if (matches.length > 1) throw Object.assign(new Error('Найдено несколько профилей. Требуется идентификатор из журналов игры.'), { status: 409 })
-  const snapshot = await fetchPlayerProfile(mode, matches[0])
-  if (snapshot.nickname.toLowerCase() !== nickname.toLowerCase()) throw Object.assign(new Error('Индекс ников устарел. Повторите позднее.'), { status: 409 })
-  return { accountId: snapshot.accountId, nickname: snapshot.nickname, mode, level: snapshot.level, faction: snapshot.faction, snapshot }
+/**
+ * «Привязать ник»: the account id from the player's game logs (sent by the desktop app), tarkov.dev's live search, then
+ * the published index; a profile not published yet comes back `pending` and is bound anyway (electron/playerProfileService.ts).
+ */
+export async function resolvePlayer(mode: RaidMode, nickname: string, accountIdHint?: number) {
+  return resolvePlayerByNickname(mode, nickname, accountIdHint)
 }

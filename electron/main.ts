@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import type { RaidMode } from '../src/domain/types.js'
 import { discoverEftLogs, normalizeSelectedLogsFolder } from './logDiscovery.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
-import { fetchPlayerProfile, resolveAccountIdsByNickname, clearPlayerSnapshotCache, humanizeNetworkError } from './playerProfileService.js'
+import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
 import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
@@ -533,61 +533,21 @@ function registerIpc() {
 
     const modeLabel = mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : 'сезонного режима'
     try {
+      // The account id of this mode from the player's own game logs: a new character after a wipe, or a renamed one,
+      // is bound at once even before tarkov.dev publishes its profile (electron/playerProfileService.ts).
+      const discovered = await discoverEftLogs(app.getPath('appData')).catch(() => null)
+      const scan = discovered?.logsFolder ? await scanLogFolderBySession(discovered.logsFolder).catch(() => null) : null
+      const logAccountId = scan?.latestAccountIdByMode[mode]
+      const body = { mode, nickname, ...(logAccountId ? { accountId: logAccountId } : {}) }
       // The server resolves through its shared cache; if it is not running or fails, resolve locally.
       // The players' exe asks only the server (subscription required, docs/subscription-protection.md).
-      if (dataGatewayOnly) return await serviceRequest('POST', '/v1/players/resolve', { mode, nickname })
-      const remote = await serviceRequest('POST', '/v1/players/resolve', { mode, nickname }).catch(() => null)
+      if (dataGatewayOnly) return await serviceRequest('POST', '/v1/players/resolve', body)
+      const remote = await serviceRequest('POST', '/v1/players/resolve', body).catch(() => null)
       if (remote) return remote
-
-      const discovered = await discoverEftLogs(app.getPath('appData'))
-      const scan = discovered.logsFolder ? await scanLogFolderBySession(discovered.logsFolder) : null
-      const logAccountId = scan?.latestAccountIdByMode[mode]
-
-      // Prefer local logs first — skips the ~70MB nickname index.
-      if (logAccountId) {
-        try {
-          clearPlayerSnapshotCache(mode, [logAccountId])
-          const snapshot = await fetchPlayerProfile(mode, logAccountId)
-          if (snapshot.nickname.toLowerCase() === nickname.toLowerCase()) {
-            return { accountId: logAccountId, nickname: snapshot.nickname, level: snapshot.level, faction: snapshot.faction, mode, snapshot }
-          }
-        } catch {
-          // Fall through to Tarkov.dev index.
-        }
-      }
-
-      let candidates: number[] = await resolveAccountIdsByNickname(mode, nickname).catch(() => [] as number[])
-      if (!candidates.length) {
-        candidates = await resolveAccountIdsByNickname(mode, nickname, { refresh: true })
-      }
-
-      const orderedIds = [
-        ...(logAccountId && candidates.includes(logAccountId) ? [logAccountId] : []),
-        ...candidates.filter((id) => id !== logAccountId),
-      ]
-
-      if (!orderedIds.length) {
-        throw new Error(
-          `Профиль «${nickname}» не найден в индексе ${modeLabel}. Проверьте режим (PvP/PvE/Сезон), откройте профиль на Tarkov.dev и повторите через пару минут.`,
-        )
-      }
-
-      clearPlayerSnapshotCache(mode, orderedIds.slice(0, 5))
-      let lastError: Error | null = null
-      for (const accountId of orderedIds.slice(0, 5)) {
-        try {
-          const snapshot = await fetchPlayerProfile(mode, accountId)
-          if (snapshot.nickname.toLowerCase() !== nickname.toLowerCase()) {
-            lastError = new Error(`Найден профиль ${snapshot.nickname}, а введён ${nickname}. Проверьте режим и ник.`)
-            continue
-          }
-          return { accountId, nickname: snapshot.nickname, level: snapshot.level, faction: snapshot.faction, mode, snapshot }
-        } catch (error) {
-          lastError = humanizeNetworkError(error)
-        }
-      }
-
-      throw lastError ?? new Error(`Профиль не найден в ${modeLabel}. Откройте его на Tarkov.dev и повторите синхронизацию.`)
+      return await resolvePlayerByNickname(mode, nickname, logAccountId).catch((error: unknown) => {
+        if (error instanceof Error && (error as Error & { status?: number }).status === 404) throw new Error(`${error.message} Проверьте режим (${modeLabel}).`)
+        throw error
+      })
     } catch (error) {
       throw humanizeNetworkError(error)
     }
