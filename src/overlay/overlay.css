@@ -192,6 +192,12 @@ html.overlay-root #root {
 .ov-quest-list button { max-width: 200px; overflow: hidden; padding: 2px 7px; border: 1px solid #3a3b37; background: #1c1d1a; color: #c9c7b7; font: inherit; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .ov-quest-list button:hover { border-color: #6d603f; color: #f1efe2; }
 .ov-quest-list button.active { border-color: #c9b26a; background: #2f2a1b; color: #f2e2b8; }
+/* The map's floors under the map; the crosshair (the player marker's blue) marks the floor from the last screenshot. */
+.ov-floor-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px 6px; border-top: 1px solid #4b4c47; background: rgb(9 10 10 / 92%); }
+.ov-floor-list button { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border: 1px solid #3a3b37; background: #1c1d1a; color: #c9c7b7; font: inherit; font-size: 11px; white-space: nowrap; cursor: pointer; }
+.ov-floor-list button:hover { border-color: #6d603f; color: #f1efe2; }
+.ov-floor-list button.active { border-color: #c9b26a; background: #2f2a1b; color: #f2e2b8; }
+.ov-floor-list svg { flex: none; color: #4fc3f7; }
 .ov-player { background: transparent; border: 0; }
 
 /* The opacity slider fades the whole minimap — frame, header, list and map alike. */
@@ -216,9 +222,9 @@ html.overlay-root #root {
 :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-minimap-head strong { color: var(--text); font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .08em; text-shadow: 0 1px 2px #000; }
 :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-minimap-head, .ov-opacity) { color: var(--text-muted); }
 :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-minimap { background: var(--ov-bg); border-color: var(--line-strong); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-quest-list, .ov-quest-task) { background: var(--ov-bg); border-top-color: var(--line-strong); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-quest-list button { background: var(--well); border-color: var(--well-line); color: var(--text-muted); }
-:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-quest-list button.active { border-color: var(--brass); background: var(--accent-soft); color: var(--text); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-quest-list, .ov-quest-task, .ov-floor-list) { background: var(--ov-bg); border-top-color: var(--line-strong); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-quest-list, .ov-floor-list) button { background: var(--well); border-color: var(--well-line); color: var(--text-muted); }
+:root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-quest-list, .ov-floor-list) button.active { border-color: var(--brass); background: var(--accent-soft); color: var(--text); }
 :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) :is(.ov-timer) { background: var(--brass); }
 :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-opacity input { accent-color: var(--brass); }
 :root:is([data-theme="blackmc"], [data-theme="ocp"], [data-theme="perforated"], [data-theme="rust"], [data-theme="slate"], [data-theme="telnyashka"]) .ov-quest-task-head strong { color: var(--brass-strong); }

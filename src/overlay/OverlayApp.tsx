@@ -1,18 +1,21 @@
 import { uiText } from '../i18n/renderText'
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { divIcon, latLng, type LatLngBoundsExpression, type LatLngExpression } from 'leaflet'
-import { ImageOverlay, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, useMap } from 'react-leaflet'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
+import { MapFloorLayers } from '../components/MapFloorLayers'
 import { mainFloor } from '../data/mapProjection'
-import type { GameMap } from '../domain/types'
+import { planMapLayers, resolveMapView } from '../data/mapView'
+import { PLAYER_FLOOR_HINT, useAutoFloor } from '../data/useAutoFloor'
+import type { GameMap, MapView } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
 import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
 import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
 import { MateBadge } from './MateBadge'
 import { minimapWidth } from './minimapSize'
-import { Grip, X, Scaling, Contrast } from 'lucide-react'
+import { Grip, X, Scaling, Contrast, Crosshair } from 'lucide-react'
 
 export type OverlayKind = 'item' | 'minimap'
 
@@ -93,6 +96,8 @@ function MinimapOverlay() {
   const [width, setWidth] = useState(420)
   const [selectedQuest, setSelectedQuest] = useState<string | null>(null)
   const [visibilityRevision, setVisibilityRevision] = useState(0)
+  /** The floor shown, for the map it was chosen on: the next raid's map starts on its main level. */
+  const [floorChoice, setFloorChoice] = useState<{ mapId: string; floor: string } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -108,6 +113,13 @@ function MinimapOverlay() {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => { offMap?.(); offPosition?.(); offVisibility?.(); window.clearInterval(timer) }
   }, [])
+
+  // «Этаж по скриншоту»: each new screenshot shows the player's floor; a floor clicked here stays until the next one
+  // (opening the minimap again re-sends the same position, which changes nothing).
+  const readyMap = payload?.state === 'ready' ? payload.map : undefined
+  const readyMapId = readyMap?.id
+  const chooseFloor = useCallback((floor: string) => { if (readyMapId) setFloorChoice({ mapId: readyMapId, floor }) }, [readyMapId])
+  const playerOnFloor = useAutoFloor(readyMap, position, chooseFloor)
 
   // The overlay is click-through except over its controls.
   useInteractiveZones(rootRef, visibilityRevision, payload?.state)
@@ -126,6 +138,10 @@ function MinimapOverlay() {
   const age = position ? Math.max(0, Math.round((now - position.at) / 1000)) : null
   const quests = payload.quests ?? []
   const selected = quests.find((quest) => quest.questId === selectedQuest)
+  const floors = payload.map.floors ?? []
+  const floor = floorChoice?.mapId === payload.map.id ? floorChoice.floor : mainFloor(payload.map)
+  // The map comes with only the drawing chosen on the Maps page left in it (mapForView): tiles when it has them.
+  const view = payload.view ?? resolveMapView(payload.map, 'satellite')
   const changeOpacity = (value: number) => {
     setOpacity(value)
     void window.tarkovDesktop?.experimental?.updateSettings({ minimapOpacity: value })
@@ -151,7 +167,17 @@ function MinimapOverlay() {
         <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
         <button className="ov-icon-button" type="button" title={uiText('Скрыть мини-карту')} aria-label={uiText('Скрыть мини-карту')} onClick={() => void window.tarkovDesktop?.experimental?.toggleMinimap()}><X size={14} /></button>
       </div>
-      <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} selectedQuest={selectedQuest} />
+      <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} view={view} floor={floor} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} selectedQuest={selectedQuest} />
+      {floors.length > 1 && (
+        <div className="ov-floor-list ov-interactive" role="group" aria-label={uiText('Этаж карты')}>
+          {floors.map((entry) => (
+            <button key={entry} type="button" className={entry === floor ? 'active' : ''} aria-pressed={entry === floor} onClick={() => chooseFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
+              {entry === playerOnFloor && <Crosshair size={11} aria-hidden="true" />}
+              {uiText(entry)}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ov-minimap-controls ov-interactive">
         <label className="ov-opacity" title={uiText('Прозрачность')}><Contrast size={14} aria-hidden="true" />
           <input aria-label={uiText('Прозрачность')} type="range" min={30} max={100} step={5} value={Math.round(opacity * 100)} onChange={(event) => changeOpacity(Number(event.target.value) / 100)} />
@@ -257,15 +283,14 @@ function mapAspect(map: GameMap) {
   return width > 0 && height > 0 ? height / width : 1
 }
 
-function MinimapMap({ width, visibilityRevision, map, markers, position, playerMarker, selectedQuest }: { width: number; visibilityRevision: number; map: GameMap; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; selectedQuest: string | null }) {
+function MinimapMap({ width, visibilityRevision, map, view, floor, markers, position, playerMarker, selectedQuest }: { width: number; visibilityRevision: number; map: GameMap; view: MapView; floor: string; markers: MinimapMarker[]; position: PlayerPosition | null; playerMarker: PlayerMarkerStyle; selectedQuest: string | null }) {
   const crs = useMemo(() => createMapCrs(map), [map])
   // Stable between renders: the overlay re-renders every second (the «live» age), and a new bounds object
   // used to re-run the fit below — the map jumped back to the whole map and lost the player's zoom.
   const bounds = useMemo(() => toLeafletBounds(map), [map])
   const height = Math.round(Math.min(560, Math.max(180, width * mapAspect(map))))
-  const base = map.layers?.find((layer) => layer.name === mainFloor(map))
-  const tileUrl = base?.tileUrl ?? map.tileUrl
-  const imageUrl = base?.imageUrl ?? map.imageUrl
+  // The chosen floor is drawn as on the Maps page: its own render tiles or its plan from the scheme.
+  const plan = useMemo(() => planMapLayers(map, view, floor), [map, view, floor])
   return (
     <MapContainer
       key={map.id}
@@ -285,10 +310,7 @@ function MinimapMap({ width, visibilityRevision, map, markers, position, playerM
       doubleClickZoom
       keyboard={false}
     >
-      {imageUrl && !tileUrl ? <ImageOverlay url={imageUrl} bounds={bounds} /> : null}
-      {tileUrl ? (
-        <TileLayer url={tileUrl} bounds={bounds} tileSize={map.tileSize ?? 256} minZoom={-5} minNativeZoom={map.minZoom} maxZoom={Math.max(7, map.maxZoom ?? 3)} maxNativeZoom={map.maxZoom} noWrap />
-      ) : null}
+      <MapFloorLayers map={map} plan={plan} floor={floor} />
       {markers.map((marker) => (
         <Marker key={marker.id} position={marker.position} icon={minimapIcon(marker.layerId, Boolean(selectedQuest && marker.questId === selectedQuest))} interactive={false} zIndexOffset={marker.questId === selectedQuest ? 500 : 0} />
       ))}
