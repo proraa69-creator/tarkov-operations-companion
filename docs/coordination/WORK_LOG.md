@@ -211,3 +211,12 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Remote Claude/release head is `550e893`, but gate `37839923518` was still `in_progress` at capture. Commits `f219401`/`550e893` are therefore pending, not published evidence.
 - Shared source remains at the reviewed/synchronized `466c246` state plus docs; it does not match the larger `dde17f6` production delta. No unreviewed source was merged by this monitor; exact production is preserved in snapshot `2026-10-08T203000Z`.
 - Follow-up at 20:35Z: gate `37839923518` for `550e893` completed successfully, while public `version.json` still pointed to `dde17f6`. Publication was therefore still pending at the end of this monitor run.
+
+## 2026-10-09T04:52+07: Codex, iOS IPA pipeline completed
+
+- Owner requested the simplest private iPhone build installed from Windows through Sideloadly. Added `.github/workflows/ios-ipa.yml` without changing the trusted production workflow or using Apple/server secrets.
+- `release/production` contains commits `587e8b1` and `1639e8f`; later release merge `acc3fda` retained the workflow and became the first successful artifact source.
+- Run `37848814226` succeeded: Ubuntu renderer gate 179/179 files and 1040/1040 tests; macOS 26 unsigned device build succeeded in 2m19s.
+- Artifact `Raid-OS-iOS-0.5.4-acc3fda2`, 52.7 MB, artifact id `11581960559`, Actions digest `sha256:20d7f5038a38b412ee14b99f7b106885480cc85d02f1b2df376fda6e6b28a9f4`; retained for 14 days.
+- The IPA uses the same release React renderer and `https://raidos.app`. Windows-only EFT log/OCR/hotkey/overlay/update functionality remains desktop-only; synchronized server data is available on iOS.
+- Fixed case-insensitive module resolution for Windows/macOS by renaming logic modules to `eftAccountLink.ts` and `raidPlanEngine.ts`; targeted checks passed. Real installation, QR deep link and runtime behavior on the owner's iPhone remain unverified until Sideloadly installation.
