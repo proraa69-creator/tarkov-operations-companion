@@ -27,6 +27,7 @@ import { isDesktopShell, useMobileLayout } from '../platform'
 import { startAppActivity } from './appActivity'
 import { useDataAccess } from '../account/dataAccess'
 import { DeviceLimitNotice, Paywall } from '../account/Paywall'
+import { EftAccountBinding } from '../account/EftAccountBinding'
 import { UpdateButton } from '../components/UpdateButton'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
@@ -42,7 +43,7 @@ export function App() {
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />

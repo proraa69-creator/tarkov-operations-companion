@@ -60,6 +60,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Пригласи друга»: the Escape from Tarkov AccountId read from the game logs (one game account — one Raid OS account).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/eft-account$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
   // Phone number and SMS codes (server/src/routes/phone.ts). Only the code *requests* go through here: the calls that
   // return a session (/phone/login, /phone/reset) have their own IPC, so the token never reaches the renderer.
