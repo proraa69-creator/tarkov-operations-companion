@@ -130,3 +130,16 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Gate run 37796500169; full VPS smoke passed; timer enabled. Release branch 254f2898c0a8ec1a121db04f77d4fe963493eda7. No GitHub secrets and no extra SSH access.
 - Checks: frontend 865/865, server 230/230, root/electron/server typecheck, cache node:test 2+1, release policy 6/6 (initial CI 5/5, follow-up artifact guard separately), signed metadata/direct HEAD/206 MZ, health/database, nickname column. Source hashes/archive signature verified separately in snapshot.
 - Backups preserved; no DB replacement. Native EFT and Windows updater installation remain unverified. Mobile not shipped.
+
+## 2026-10-08: Claude, переход на автоматические выпуски
+
+- Прочитаны `AUTOMATIC_RELEASES.md`, `CLAUDE_START.md`, `.github/workflows/production.yml`, `ops-reference/release-policy.mjs`, `evidence/release-20261008.json`.
+- Подтверждено по Git: `release/production` (`af8a900`) содержит `cc1506f`. Выпуск по evidence: client `1791472046174`, owner `1791472137832`, gate `37796500169`.
+- `ops-reference/deploy-claude-2026-10-08.md` помечен как выполненный и устаревший (только история).
+- Порядок выпусков Claude дальше:
+  - готовые изменения переносятся в `release/production` обычным merge, чужие коммиты не перетираются;
+  - перед push — локально те же проверки, что в gate;
+  - выпуск только после зелёного `RaidOS Production Gate`.
+  - `sync/codex-claude-context` — только обмен контекстом, не триггер.
+  - Не отправлять в `release/production` правки workflow, release-скриптов и пути, которых нет в `release-policy.mjs`.
+- Без изменений кода; `release/production` не трогал. Pending по-прежнему: нативный EFT, задержка ≤10 с, живой UI с двух аккаунтов, автоустановка Windows, мобильная сборка.
