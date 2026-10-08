@@ -1,14 +1,16 @@
 {
   "format": 1,
-  "snapshotPath": "docs/coordination",
-  "capturedAt": "2026-10-08T12:54:04.682Z",
-  "capturedAtBangkok": "Thursday, 8 October 2026 at 19:54:04 GMT+7",
-  "fingerprint": "92f6c0413be7da55cef79b639ba19c52c515fccce802338e032eac05c1bb7a09",
+  "snapshotPath": "docs/coordination/snapshots/2026-10-08T135435Z",
+  "capturedAt": "2026-10-08T13:54:35.948Z",
+  "capturedAtBangkok": "Thursday, 8 October 2026 at 20:54:35 GMT+7",
+  "fingerprint": "2b2ff729529f5a6cb9e50ddc80787fa4ab14a7f957485c2d220b1e00a56936ba",
   "baseCommit": "ec0af4fdf3390fe3789a2c6e8af630ea7011240d",
   "publishedBuild": 1791457737377,
   "codeFileCount": 104,
-  "archiveSha256": "c6c476fb5d39b59398880dd85b25f629c2f7cec8f6c205d4f0cd31be9eccfa31",
+  "archiveSha256": "c09b97432b3fcd1a56f31449e3385f61825b13de009682629edd9c7a6d12f141",
   "sharedBranch": "sync/codex-claude-context",
   "sharedDocumentationPath": "docs/coordination",
-  "automaticDeployment": false
+  "automaticDeployment": false,
+  "claudeHead": "6616c74f3fd942d4923d2928459bec0a7afece1b",
+  "claudeCodeIntegrated": false
 }

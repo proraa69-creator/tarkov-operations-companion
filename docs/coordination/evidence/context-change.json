@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-10-08T13:54:35.948Z",
+  "previousFingerprint": "92f6c0413be7da55cef79b639ba19c52c515fccce802338e032eac05c1bb7a09",
+  "fingerprint": "2b2ff729529f5a6cb9e50ddc80787fa4ab14a7f957485c2d220b1e00a56936ba",
+  "productionSourceFilesUnchanged": true,
+  "publishedReleaseUnchanged": true,
+  "health": {
+    "ok": true,
+    "database": true
+  },
+  "claude": {
+    "branch": "claude/vibrant-ritchie-vy7uh2",
+    "baseCommit": "de80c83620a174c3befee85665187f534a94205d",
+    "head": "6616c74f3fd942d4923d2928459bec0a7afece1b",
+    "changedFiles": 29,
+    "codeCommits": [
+      "7b49bc6",
+      "53de28e",
+      "2abe1d7"
+    ],
+    "reportedTests": {
+      "application": "839/839",
+      "server": "230/230",
+      "typecheck": "passed"
+    },
+    "independentlyRerunByCodex": false,
+    "codeReviewedForIntegration": false,
+    "deployed": false,
+    "nativeEftVerified": false,
+    "latencyTargetMeasured": false
+  }
+}

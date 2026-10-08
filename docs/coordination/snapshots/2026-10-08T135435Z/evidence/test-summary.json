@@ -1,0 +1,8 @@
+{
+  "fullSuiteBeforeFinalOcrRefinement": { "total": 833, "passed": 833, "failed": 0 },
+  "affectedSuiteAfterFinalOcrRefinement": { "total": 36, "passed": 36, "failed": 0 },
+  "priorServerSuite": { "passed": 227, "rerunDuringContextPackaging": false },
+  "nativeEftVerified": false,
+  "realWindowsExeSwapVerified": false,
+  "note": "Counts describe prior repair runs, not a new test run against every shared-branch commit."
+}
