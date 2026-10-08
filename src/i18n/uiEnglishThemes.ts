@@ -1,5 +1,6 @@
 /** English strings for the colour themes (Settings picker, top-bar theme button) and their small jokes. */
 export const THEME_PHRASES: Array<[string, string]> = [
+  ['Олива', 'Olive'],
   ['Чёрный мультикам', 'Black MultiCam'],
   ['Перфорация', 'Perforated steel'],
   ['Ржавая сталь', 'Rusted steel'],

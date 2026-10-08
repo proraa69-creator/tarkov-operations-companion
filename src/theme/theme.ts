@@ -1,7 +1,8 @@
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
 export const THEMES: ThemeOption[] = [
-  { id: 'tarkov', label: 'Тарков', swatch: ['#0a0f0c', '#19241e', '#c4a665'] },
+  // The original olive scheme (id «tarkov», kept so saved choices stay); shown as «Олива» since 08.10.2026.
+  { id: 'tarkov', label: 'Олива', swatch: ['#0a0f0c', '#19241e', '#c4a665'] },
   // Material themes: procedural textures from scripts/textures, styles in src/styles/themes.css
   { id: 'blackmc', label: 'Чёрный мультикам', swatch: ['#060607', '#1b1b1d', '#a9b973'] },
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
@@ -32,9 +33,9 @@ export function saveStitch(stitch: AlcantaraStitch) {
 
 const THEME_KEY = 'tarkov-app-theme'
 
-/** Everyone who has not picked a scheme yet starts on «Чёрный мультикам» (the phone app always did). */
+/** Everyone who has not picked a scheme yet starts on the olive scheme «Олива» (id «tarkov»), phone and desktop. */
 export function defaultTheme() {
-  return 'blackmc'
+  return 'tarkov'
 }
 
 function read(key: string) {

@@ -14,7 +14,7 @@ features stay in the Windows app, which sends its results to the API server. The
 | «Мини Карта»: overlay window, hotkeys, screenshot folder, item OCR | «Мини Карта»: the map the player is on now, with his live position (see below) |
 | Collector screen scan | Manual ticks only (synced through the server account) |
 | Theme decorations (gear kit, helmet badge, telnyashka still life) | Hidden. The textures and colours of every theme stay |
-| Default theme «Тарков» | Default theme «Чёрный мультикам» |
+| Default theme «Олива» (id `tarkov`) | Default theme «Олива» (the same; until 08.10.2026 the phone started on «Чёрный мультикам») |
 
 The code gates this with `src/platform.ts`: `isNative()`, `isDesktopShell()`, `isMobileLayout()`. The phone layout
 is `<html data-layout="mobile">` + `src/styles/mobile.css`. A desktop browser narrower than 700 px also gets
