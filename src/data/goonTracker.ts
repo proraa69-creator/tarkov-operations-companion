@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { tarkovJson } from './tarkovApi'
+import { serviceClient } from '../account/nicknameBinding'
+import { LIVE_UPDATE_EVENT } from './mapUpdates'
 import type { RaidMode } from '../domain/types'
 
 export const GOON_MAPS = ['customs', 'woods', 'shoreline', 'lighthouse'] as const
@@ -25,13 +27,17 @@ export interface GoonLocation {
   source: 'server' | 'community' | 'local'
   /** Own sighting that has not reached our server yet. */
   unsent?: boolean
+  /** Escape from Tarkov nickname of who saw them (server sightings of signed-in accounts). */
+  nickname?: string
 }
 export interface GoonMapStat { mapId: GoonMapId; count: number; lastAt: string }
-export interface GoonSnapshot { latest: { mapId: GoonMapId; reportedAt: string } | null; last5h: GoonMapStat[] }
+export interface GoonSightingView { mapId: GoonMapId; reportedAt: string; nickname?: string }
+export interface GoonSnapshot { latest: GoonSightingView | null; last5h: GoonMapStat[]; recent: GoonSightingView[] }
 export interface OwnGoonSighting { mapId: GoonMapId; reportedAt: string; sent: boolean }
 /** server: our API answered · offline: API configured but unreachable · local-only: no API configured. */
 export type GoonConnection = 'server' | 'offline' | 'local-only'
-export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'local'
+/** signin: no account session · nickname: the account has no Tarkov nickname for this mode. */
+export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'local' | 'signin' | 'nickname'
 
 export function parseGoonReport(value: unknown): GoonLocation | null {
   const reports = Array.isArray(value) ? value : [value]
@@ -49,20 +55,29 @@ export function parseGoonReport(value: unknown): GoonLocation | null {
 }
 
 const isoTime = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value))
+/** EFT nicknames: letters, digits, «_» and «-»; anything else from the server is not shown. */
+const NICKNAME = /^[\p{L}\p{N}_-]{2,32}$/u
+
+function parseSighting(value: unknown): GoonSightingView | null {
+  const raw = value as { mapId?: unknown; reportedAt?: unknown; nickname?: unknown } | null | undefined
+  if (!raw || !isGoonMap(raw.mapId) || !isoTime(raw.reportedAt)) return null
+  return { mapId: raw.mapId, reportedAt: new Date(raw.reportedAt).toISOString(), ...(typeof raw.nickname === 'string' && NICKNAME.test(raw.nickname) ? { nickname: raw.nickname } : {}) }
+}
 
 /** Validates GET /v1/goons/:mode (and the `snapshot` field of the POST answer). */
 export function parseGoonSnapshot(value: unknown): GoonSnapshot | null {
   if (!value || typeof value !== 'object') return null
-  const root = value as { latest?: unknown; last5h?: unknown }
+  const root = value as { latest?: unknown; last5h?: unknown; recent?: unknown }
   if (!Array.isArray(root.last5h)) return null
-  const latestRaw = root.latest as { mapId?: unknown; reportedAt?: unknown } | null | undefined
-  const latest = latestRaw && isGoonMap(latestRaw.mapId) && isoTime(latestRaw.reportedAt) ? { mapId: latestRaw.mapId, reportedAt: new Date(latestRaw.reportedAt).toISOString() } : null
+  const latest = parseSighting(root.latest)
+  // Older servers send no list: no names then.
+  const recent = Array.isArray(root.recent) ? root.recent.slice(0, 20).flatMap((entry) => parseSighting(entry) ?? []) : []
   const last5h = root.last5h.flatMap((entry): GoonMapStat[] => {
     const row = entry as { mapId?: unknown; count?: unknown; lastAt?: unknown } | null
     if (!row || !isGoonMap(row.mapId) || !isoTime(row.lastAt) || typeof row.count !== 'number' || !Number.isFinite(row.count) || row.count < 1) return []
     return [{ mapId: row.mapId, count: Math.floor(row.count), lastAt: new Date(row.lastAt).toISOString() }]
   })
-  return { latest, last5h: sortStats(last5h) }
+  return { latest, last5h: sortStats(last5h), recent }
 }
 
 const sortStats = (rows: GoonMapStat[]) => rows.sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt))
@@ -92,10 +107,15 @@ export function mergeGoonView(input: { server: GoonSnapshot | null; community: G
 
 type Transport = (method: 'GET' | 'POST', path: string, body?: unknown) => Promise<unknown | null>
 
-/** Desktop: IPC service gateway. Browser: VITE_SERVICE_URL. Otherwise null (local-only mode). */
+/**
+ * Desktop: IPC service gateway. Phone / browser: the account's web transport (sends the session with a sighting, so the
+ * server knows the nickname). A build with VITE_SERVICE_URL only: plain requests. Otherwise null (local-only mode).
+ */
 export function resolveGoonTransport(): Transport | null {
   const desktop = typeof window === 'undefined' ? undefined : window.tarkovDesktop
   if (desktop?.serviceRequest) return (method, path, body) => desktop.serviceRequest(method, path, body)
+  const account = serviceClient()
+  if (account) return (method, path, body) => account(method, path, body)
   const base = String(import.meta.env.VITE_SERVICE_URL ?? '').trim().replace(/\/$/, '')
   if (!base) return null
   return async (method, path, body) => {
@@ -137,7 +157,9 @@ function writeOwnSightings(mode: RaidMode, list: OwnGoonSighting[]) {
 async function postSighting(transport: Transport, mode: RaidMode, mapId: GoonMapId) {
   const answer = await transport('POST', `/v1/goons/${mode}/sightings`, { mapId }) as { accepted?: unknown; reason?: unknown; snapshot?: unknown } | null
   if (!answer) return null
-  return { duplicate: answer.accepted === false && answer.reason === 'duplicate', snapshot: parseGoonSnapshot(answer.snapshot) }
+  const refused = answer.accepted === false ? answer.reason : undefined
+  const rejected: 'signin' | 'nickname' | undefined = refused === 'signin' ? 'signin' : refused === 'nickname' ? 'nickname' : undefined
+  return { duplicate: refused === 'duplicate', rejected, snapshot: parseGoonSnapshot(answer.snapshot) }
 }
 
 interface TrackerState { mode: RaidMode; server: GoonSnapshot | null; community: GoonLocation | null; own: OwnGoonSighting[]; connection: GoonConnection }
@@ -157,6 +179,12 @@ export function useGoonTracker(mode: RaidMode) {
     writeOwnSightings(targetMode, list)
     return list
   }, [])
+  /** A sighting the server refused (no session / no nickname) is not kept as «not sent»: it would never go. */
+  const dropOwn = useCallback((targetMode: RaidMode, sighting: OwnGoonSighting) => {
+    const list = readOwnSightings(targetMode).filter((entry) => !(entry.reportedAt === sighting.reportedAt && entry.mapId === sighting.mapId))
+    writeOwnSightings(targetMode, list)
+    return list
+  }, [])
 
   const refreshServer = useCallback(async (targetMode: RaidMode) => {
     const transport = resolveGoonTransport()
@@ -164,7 +192,11 @@ export function useGoonTracker(mode: RaidMode) {
     try {
       let own = readOwnSightings(targetMode)
       for (const pending of own.filter((entry) => !entry.sent && Date.now() - Date.parse(entry.reportedAt) < RETRY_UNSENT_MS).reverse()) {
-        try { if (await postSighting(transport, targetMode, pending.mapId)) own = markSent(targetMode, pending) } catch { break }
+        try {
+          const answer = await postSighting(transport, targetMode, pending.mapId)
+          if (answer?.rejected) own = dropOwn(targetMode, pending)
+          else if (answer) own = markSent(targetMode, pending)
+        } catch { break }
       }
       const answer = await transport('GET', `/v1/goons/${targetMode}`)
       const snapshot = answer === null ? null : parseGoonSnapshot(answer)
@@ -175,7 +207,7 @@ export function useGoonTracker(mode: RaidMode) {
     } catch {
       if (modeRef.current === targetMode) setState((previous) => previous.mode === targetMode ? { ...previous, connection: 'offline' } : previous)
     }
-  }, [markSent])
+  }, [markSent, dropOwn])
 
   useEffect(() => {
     let alive = true
@@ -198,7 +230,10 @@ export function useGoonTracker(mode: RaidMode) {
     }
     tick()
     const timer = window.setInterval(tick, GOON_REFRESH_MS)
-    return () => { alive = false; window.clearInterval(timer) }
+    // Somebody reported them (the server told every app, data/mapUpdates.ts): refresh now, not in up to 30 s.
+    const onLive = () => { if (alive) { setNow(Date.now()); void refreshServer(mode) } }
+    window.addEventListener(LIVE_UPDATE_EVENT, onLive)
+    return () => { alive = false; window.clearInterval(timer); window.removeEventListener(LIVE_UPDATE_EVENT, onLive) }
   }, [mode, refreshServer])
 
   const reportSighting = useCallback(async (mapId: string): Promise<GoonReportResult> => {
@@ -213,7 +248,21 @@ export function useGoonTracker(mode: RaidMode) {
     if (!transport) { setState((previous) => previous.mode === targetMode ? { ...previous, connection: 'local-only' } : previous); return 'local' }
     try {
       const answer = await postSighting(transport, targetMode, mapId)
-      if (!answer) { setState((previous) => previous.mode === targetMode ? { ...previous, connection: 'local-only' } : previous); return 'local' }
+      if (!answer) {
+        // The phone / browser transport answers nothing for a sighting while signed out.
+        if (!window.tarkovDesktop?.serviceRequest && serviceClient()) {
+          const updated = dropOwn(targetMode, sighting)
+          setState((previous) => previous.mode === targetMode ? { ...previous, own: updated } : previous)
+          return 'signin'
+        }
+        setState((previous) => previous.mode === targetMode ? { ...previous, connection: 'local-only' } : previous)
+        return 'local'
+      }
+      if (answer.rejected) {
+        const updated = dropOwn(targetMode, sighting)
+        setState((previous) => previous.mode === targetMode ? { ...previous, own: updated, server: answer.snapshot ?? previous.server, connection: 'server' } : previous)
+        return answer.rejected
+      }
       const updated = markSent(targetMode, sighting)
       setState((previous) => previous.mode === targetMode ? { ...previous, own: updated, server: answer.snapshot ?? previous.server, connection: 'server' } : previous)
       if (!answer.snapshot) void refreshServer(targetMode)
@@ -222,8 +271,8 @@ export function useGoonTracker(mode: RaidMode) {
       setState((previous) => previous.mode === targetMode ? { ...previous, connection: previous.connection === 'local-only' ? 'local-only' : 'offline' } : previous)
       return 'unsent'
     }
-  }, [mode, markSent, refreshServer])
+  }, [mode, markSent, dropOwn, refreshServer])
 
   const view = mergeGoonView({ server: current.server, community: current.community, own: current.own, now })
-  return { ...view, connection: current.connection, now, reportSighting }
+  return { ...view, recent: current.server?.recent ?? [], connection: current.connection, now, reportSighting }
 }

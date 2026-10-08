@@ -1,6 +1,7 @@
 /** English strings for the Goons (Кочевники) card and the compact map priority block. */
 export const GOON_PHRASES: Array<[string, string]> = [
-  ['Видели', 'Spotted'], ['Где видели Кочевников?', 'Where were the Goons seen?'],
+  ['Видели', 'Spotted'], ['Видел', 'Spotted'], ['видел', 'spotted by'], ['игрок', 'player'], ['Где видели Кочевников?', 'Where were the Goons seen?'],
+  ['Войдите в аккаунт, чтобы отметить', 'Sign in to report'], ['Укажите ник Таркова в профиле', 'Set your Tarkov nickname in the profile'],
   ['Отправить: Кочевники на карте', 'Report: Goons on'], ['Отправка…', 'Sending…'],
   ['Отметка отправлена', 'Sighting sent'], ['Вы уже отмечали эту карту', 'You already reported this map'],
   ['Не отправлено · сохранено локально', 'Not sent · saved locally'], ['Не отправлено', 'Not sent'], ['сохранено локально', 'saved locally'],

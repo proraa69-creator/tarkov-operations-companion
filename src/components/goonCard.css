@@ -16,3 +16,8 @@
   .stat-card.goon-card .goon-stats-popover, .stat-card.goon-card .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
   .stat-card.goon-card .goon-rise { animation: none; }
 }
+/* Who saw them: the newest sightings with the reporter's Tarkov nickname. */
+.goon-recent { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 12px; }
+.goon-recent li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: baseline; }
+.goon-recent b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.goon-recent span, .goon-recent time { color: var(--text-dim); }

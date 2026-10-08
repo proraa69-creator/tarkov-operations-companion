@@ -16,6 +16,8 @@ const NOTICE: Record<GoonReportResult, string> = {
   duplicate: 'Вы уже отмечали эту карту',
   unsent: 'Не отправлено · сохранено локально',
   local: 'Сохранено только на этом компьютере',
+  signin: 'Войдите в аккаунт, чтобы отметить',
+  nickname: 'Укажите ник Таркова в профиле',
 }
 
 /**
@@ -24,7 +26,7 @@ const NOTICE: Record<GoonReportResult, string> = {
  */
 export function GoonCard({ mode, mapName }: GoonCardProps) {
   const { locale } = useLocale()
-  const { location, stats, connection, now, reportSighting } = useGoonTracker(mode)
+  const { location, stats, recent, connection, now, reportSighting } = useGoonTracker(mode)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmMap, setConfirmMap] = useState<GoonMapId | null>(null)
   const [sending, setSending] = useState(false)
@@ -80,14 +82,14 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const meta = notice
     ? uiText(NOTICE[notice])
     : location
-      ? `${uiText('крайний раз')} · ${time(location.reportedAt)} · ${ago(location.reportedAt)}`
+      ? `${location.nickname ? `${uiText('видел')} ${location.nickname}` : uiText('крайний раз')} · ${time(location.reportedAt)} · ${ago(location.reportedAt)}`
       : uiText(connectionNote)
 
   return <div ref={cardRef} className={`stat-card goon-card ${menuOpen ? 'is-open' : ''}`}>
     <div className="goon-card-heading">
       <div className="stat-label">{uiText('Кочевники')}</div>
       <div className="goon-report-anchor">
-        <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}>{uiText('Видели')}</button>
+        <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}>{uiText('Видел')}</button>
         {menuOpen && <div className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>
           {confirmMap
             ? <div className="goon-report-confirm">
@@ -125,6 +127,11 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
           </div>
         })}
       </div>
+      {recent.length > 0 && <ul className="goon-recent">
+        {recent.slice(0, 5).map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
+          <b>{entry.nickname ?? uiText('игрок')}</b><span>{uiText(mapName(entry.mapId))}</span><time dateTime={entry.reportedAt}>{time(entry.reportedAt)}</time>
+        </li>)}
+      </ul>}
       <div className="goon-stats-foot">
         {lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}
       </div>

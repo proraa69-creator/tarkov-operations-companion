@@ -30,7 +30,7 @@ describe('Goons server snapshot', () => {
 
   it('merges unsent own sightings on top of the server data', () => {
     const now = Date.parse('2026-09-28T12:00:00.000Z')
-    const server = { latest: { mapId: 'woods' as const, reportedAt: '2026-09-28T11:00:00.000Z' }, last5h: [{ mapId: 'woods' as const, count: 2, lastAt: '2026-09-28T11:00:00.000Z' }] }
+    const server = { latest: { mapId: 'woods' as const, reportedAt: '2026-09-28T11:00:00.000Z' }, last5h: [{ mapId: 'woods' as const, count: 2, lastAt: '2026-09-28T11:00:00.000Z' }], recent: [] }
     const own = [
       { mapId: 'customs' as const, reportedAt: '2026-09-28T11:30:00.000Z', sent: false },
       { mapId: 'woods' as const, reportedAt: '2026-09-28T10:00:00.000Z', sent: true },
@@ -41,6 +41,21 @@ describe('Goons server snapshot', () => {
     const offline = mergeGoonView({ server: null, community: { mapId: 'lighthouse', reportedAt: '2026-09-28T11:45:00.000Z', source: 'community' }, own, now })
     expect(offline.location?.source).toBe('community')
     expect(offline.stats.map((row) => [row.mapId, row.count])).toEqual([['customs', 1], ['woods', 1]])
+  })
+})
+
+describe('who saw them', () => {
+  it('keeps the nickname of each server sighting and drops a malformed one', () => {
+    const snapshot = parseGoonSnapshot({
+      latest: { mapId: 'customs', reportedAt: '2026-09-28T10:00:00.000Z', nickname: 'Bober' },
+      last5h: [{ mapId: 'customs', count: 1, lastAt: '2026-09-28T10:00:00.000Z' }],
+      recent: [{ mapId: 'customs', reportedAt: '2026-09-28T10:00:00.000Z', nickname: 'Bober' }, { mapId: 'woods', reportedAt: '2026-09-28T09:00:00.000Z', nickname: '<script>' }, { mapId: 'factory', reportedAt: '2026-09-28T09:00:00.000Z' }],
+    })
+    expect(snapshot?.latest).toEqual({ mapId: 'customs', reportedAt: '2026-09-28T10:00:00.000Z', nickname: 'Bober' })
+    expect(snapshot?.recent).toEqual([{ mapId: 'customs', reportedAt: '2026-09-28T10:00:00.000Z', nickname: 'Bober' }, { mapId: 'woods', reportedAt: '2026-09-28T09:00:00.000Z' }])
+    expect(mergeGoonView({ server: snapshot, community: null, own: [], now: Date.parse('2026-09-28T11:00:00.000Z') }).location).toMatchObject({ source: 'server', nickname: 'Bober' })
+    // An older server without the list.
+    expect(parseGoonSnapshot({ latest: null, last5h: [] })?.recent).toEqual([])
   })
 })
 
@@ -91,5 +106,29 @@ describe('useGoonTracker', () => {
     await act(async () => { outcome = await result.current.reportSighting('customs') })
     expect(outcome).toBe('local')
     expect(result.current.location).toMatchObject({ mapId: 'customs', source: 'local', unsent: true })
+  })
+
+  it('tells the player to sign in or to set a nickname, and keeps no never-sendable sighting', async () => {
+    serviceRequest.mockImplementation(async (method: string) => method === 'GET' ? { latest: null, last5h: [], recent: [] } : { accepted: false, reason: 'nickname', snapshot: { latest: null, last5h: [], recent: [] } })
+    const { result } = renderHook(() => useGoonTracker('pvp'))
+    await waitFor(() => expect(result.current.connection).toBe('server'))
+    let outcome = ''
+    await act(async () => { outcome = await result.current.reportSighting('woods') })
+    expect(outcome).toBe('nickname')
+    expect(readOwnSightings('pvp')).toEqual([])
+    expect(result.current.location).toBeNull()
+    serviceRequest.mockImplementation(async (method: string) => method === 'GET' ? { latest: null, last5h: [], recent: [] } : { accepted: false, reason: 'signin' })
+    await act(async () => { outcome = await result.current.reportSighting('customs') })
+    expect(outcome).toBe('signin')
+    expect(readOwnSightings('pvp')).toEqual([])
+  })
+
+  it('refreshes at once when the server tells every app about a new sighting', async () => {
+    serviceRequest.mockResolvedValue({ latest: null, last5h: [], recent: [] })
+    const { result } = renderHook(() => useGoonTracker('pvp'))
+    await waitFor(() => expect(result.current.connection).toBe('server'))
+    serviceRequest.mockResolvedValue({ latest: { mapId: 'lighthouse', reportedAt: new Date().toISOString(), nickname: 'Bober' }, last5h: [], recent: [] })
+    act(() => { window.dispatchEvent(new Event('raidos:live-update')) })
+    await waitFor(() => expect(result.current.location).toMatchObject({ mapId: 'lighthouse', nickname: 'Bober' }))
   })
 })

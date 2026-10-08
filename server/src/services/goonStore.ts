@@ -10,12 +10,19 @@ export interface GoonSighting {
   mode: GoonMode
   /** Server time, ISO 8601. */
   reportedAt: string
-  /** Opaque reporter key (hashed client address). Never returned by the API. */
+  /** Opaque reporter key (hashed account id, or hashed client address for anonymous reports). Never returned by the API. */
   reporter: string
+  /** The reporter's Escape from Tarkov nickname for this mode, from his account (shown to everybody). */
+  nickname?: string
 }
 
+/** A sighting as everybody sees it: where, when, who saw it. */
+export interface GoonSightingView { mapId: GoonMapId; reportedAt: string; nickname?: string }
+
 export interface GoonMapStat { mapId: GoonMapId; count: number; lastAt: string }
-export interface GoonSnapshot { latest: { mapId: GoonMapId; reportedAt: string } | null; last5h: GoonMapStat[] }
+export interface GoonSnapshot { latest: GoonSightingView | null; last5h: GoonMapStat[]; recent: GoonSightingView[] }
+/** How many of the newest sightings (last 5 hours) the snapshot lists with their nicknames. */
+export const GOON_RECENT_LIMIT = 8
 
 /** Storage contract so the in-memory store can later be swapped for SQLite/Redis without touching the routes. */
 export interface GoonStore {
@@ -69,7 +76,8 @@ export class MemoryGoonStore implements GoonStore {
 
 type Row = Record<string, unknown>
 const toSighting = (row: Row | undefined): GoonSighting | undefined => row
-  ? { mapId: row.map_id as GoonMapId, mode: row.mode as GoonMode, reportedAt: String(row.reported_at), reporter: String(row.reporter) }
+  ? { mapId: row.map_id as GoonMapId, mode: row.mode as GoonMode, reportedAt: String(row.reported_at), reporter: String(row.reporter),
+    ...(typeof row.nickname === 'string' && row.nickname ? { nickname: row.nickname } : {}) }
   : undefined
 
 /**
@@ -86,11 +94,14 @@ export class SqliteGoonStore implements GoonStore {
         reporter TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS goon_sightings_mode ON goon_sightings(mode, reported_at);
       CREATE INDEX IF NOT EXISTS goon_sightings_reporter ON goon_sightings(reporter, reported_at);`)
+    // Older databases: the nickname of the reporter (the column is added once, existing rows stay anonymous).
+    const columns = db.prepare('PRAGMA table_info(goon_sightings)').all() as Array<{ name?: unknown }>
+    if (!columns.some((column) => column.name === 'nickname')) db.exec('ALTER TABLE goon_sightings ADD COLUMN nickname TEXT')
   }
 
   add(sighting: GoonSighting) {
-    this.db.prepare('INSERT INTO goon_sightings (mode, map_id, reported_at, reporter) VALUES (?, ?, ?, ?)')
-      .run(sighting.mode, sighting.mapId, sighting.reportedAt, sighting.reporter)
+    this.db.prepare('INSERT INTO goon_sightings (mode, map_id, reported_at, reporter, nickname) VALUES (?, ?, ?, ?, ?)')
+      .run(sighting.mode, sighting.mapId, sighting.reportedAt, sighting.reporter, sighting.nickname ?? null)
   }
 
   list(mode: GoonMode, sinceMs: number) {
@@ -112,10 +123,16 @@ export class SqliteGoonStore implements GoonStore {
   }
 }
 
-/** Latest sighting ever kept (24 h) plus per-map counts for the last 5 hours, most reported first. */
+const viewOf = (entry: GoonSighting): GoonSightingView => ({ mapId: entry.mapId, reportedAt: entry.reportedAt, ...(entry.nickname ? { nickname: entry.nickname } : {}) })
+
+/**
+ * Latest sighting ever kept (24 h), per-map counts for the last 5 hours (most reported first) and the newest sightings
+ * of those 5 hours with the nickname of who saw them.
+ */
 export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number): GoonSnapshot {
   const day = store.list(mode, nowMs - GOON_RETENTION_MS)
-  const latest = day[0] ? { mapId: day[0].mapId, reportedAt: day[0].reportedAt } : null
+  const latest = day[0] ? viewOf(day[0]) : null
+  const recent = day.filter((entry) => Date.parse(entry.reportedAt) >= nowMs - GOON_STATS_WINDOW_MS).slice(0, GOON_RECENT_LIMIT).map(viewOf)
   const stats = new Map<GoonMapId, GoonMapStat>()
   for (const entry of day) {
     if (Date.parse(entry.reportedAt) < nowMs - GOON_STATS_WINDOW_MS) break
@@ -124,5 +141,5 @@ export function summarizeGoons(store: GoonStore, mode: GoonMode, nowMs: number):
     else stats.set(entry.mapId, { mapId: entry.mapId, count: 1, lastAt: entry.reportedAt })
   }
   const last5h = [...stats.values()].sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt))
-  return { latest, last5h }
+  return { latest, last5h, recent }
 }

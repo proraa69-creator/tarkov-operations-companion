@@ -33,6 +33,9 @@ export async function watchMapUpdates(request: Request, changed: () => void, sig
   }
 }
 
+/** Window event after every server-side change (a map correction or a Goons sighting): the Goons card listens to it. */
+export const LIVE_UPDATE_EVENT = 'raidos:live-update'
+
 /** Re-reads the owner's quest points and boss placements the moment the server says they changed — no reload needed. */
 export function useLiveMapUpdates(enabled = true) {
   const client = useQueryClient()
@@ -43,6 +46,7 @@ export function useLiveMapUpdates(enabled = true) {
     void watchMapUpdates(request, () => {
       void client.invalidateQueries({ queryKey: OVERRIDES_KEY })
       void client.invalidateQueries({ queryKey: PLACEMENTS_KEY })
+      window.dispatchEvent(new Event(LIVE_UPDATE_EVENT))
     }, stop.signal)
     return () => stop.abort()
   }, [client, enabled])

@@ -44,6 +44,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
+  // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
+  { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
+  { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Кабинет стримера» on the phone too.
@@ -171,6 +174,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+    || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')

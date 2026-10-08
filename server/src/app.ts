@@ -13,7 +13,7 @@ import { PhoneAuthService } from './services/phoneAuth.js'
 import { createEmailRouter } from './routes/email.js'
 import { EmailAuthService } from './services/emailAuth.js'
 import { LoginCodeStore } from './services/loginCodes.js'
-import { AccountStore, FixedWindowRateLimiter } from './services/accountStore.js'
+import { AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import { createPaymentsRouter } from './routes/payments.js'
@@ -149,7 +149,19 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   }))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
-  app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore()))
+  // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
+  // Goons card as soon as anybody reports them (routes/mapUpdates.ts).
+  const mapUpdates = new MapUpdates()
+  // «Кочевники»: reported by a signed-in account; his Tarkov nickname for the mode is shown to everybody.
+  app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore(), {
+    identify: (req, mode) => {
+      const id = accounts.authenticate(bearer(req.get('authorization')))
+      if (!id) return null
+      const nickname = accounts.view(id).nicknames[mode]
+      return { account: id, ...(nickname ? { nickname } : {}) }
+    },
+    onSighting: () => mapUpdates.changed(),
+  }))
   // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.
   const payments = options.payments ?? new PaymentStore(accounts.database, undefined)
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
@@ -168,8 +180,6 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
   if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
-  // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one (routes/mapUpdates.ts).
-  const mapUpdates = new MapUpdates()
   app.use(createMapUpdatesRouter(mapUpdates))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
