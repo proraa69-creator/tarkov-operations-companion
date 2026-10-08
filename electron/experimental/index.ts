@@ -1,14 +1,16 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, screen, shell, type Display, type Point, type Rectangle } from 'electron'
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type Display, type Point, type Rectangle } from 'electron'
 import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { readScreenshotBinding } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
-import { TOOLTIP_CAPTURE } from '../../src/overlay/tooltipDetect.js'
-import { readGameTooltip } from '../../src/overlay/tooltipLookup.js'
+import { TOOLTIP_CAPTURE, type Bitmap, type Rect } from '../../src/overlay/tooltipDetect.js'
+import { readGameTooltip, retryOcrReadings, type TooltipReading } from '../../src/overlay/tooltipLookup.js'
+import { findItemCell, type ItemCell } from '../../src/overlay/itemCell.js'
+import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidatesAnswer } from '../../src/overlay/iconMatch.js'
 import { itemCardBounds } from '../../src/overlay/itemCardPlacement.js'
 import { MapScreenshotRetention } from './mapScreenshotRetention.js'
 import { relaunchAsAdmin } from './elevation.js'
@@ -510,7 +512,7 @@ async function snippingState() {
 }
 
 /** Asks the main window (which holds the catalog and quest progress) to answer a query. */
-function askRenderer(kind: 'item' | 'minimap', input: unknown): Promise<unknown> {
+function askRenderer(kind: 'item' | 'item-candidates' | 'item-picture' | 'minimap', input: unknown): Promise<unknown> {
   const target = options.mainWindow()
   if (!target || target.isDestroyed()) return Promise.resolve(null)
   const id = ++queryId
@@ -630,48 +632,183 @@ async function lookupItem(test: boolean) {
     })()
     // Only the game's own name tooltip is read: it holds the name of exactly the hovered item. It appears a moment
     // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
+    const started = Date.now()
     const reading = await readGameTooltip({
       grab: () => grabAroundCursor(point, display),
       grabWide: () => grabAroundCursor(point, display, true),
       recognize: (bitmap) => recognizeTooltip(bitmap),
       match: async (text) => {
         const reply = await askRenderer('item', { text, tooltip: true })
-        return reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found' ? reply : null
+        return found(reply) ? reply : null
       },
       onTooltip: () => { void windowReady.then((window) => showItemCard(window, point, display, { state: 'loading' })) },
     })
     const window = await windowReady
     if (!reading.shot || !reading.rect) {
       showItemCard(window, point, display, { state: 'not-found' })
+      void logLookup({ outcome: 'no-tooltip', reading, ms: Date.now() - started })
       return null
     }
-    if (!reading.answer) void logFailedLookup(reading.shot.image, reading.rect, reading.tries)
-    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', reading.answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
-    return reading.answer
+    // Not found the first time: the tooltip is read other ways, then the picture is compared (see secondAttempt).
+    const second = reading.answer ? null : await secondAttempt(reading as TooltipReading<unknown, Grab> & { shot: Grab; rect: Rect })
+    const answer = reading.answer ?? second?.answer ?? null
+    if (second) void logLookup({ outcome: second.answer ? second.via! : 'not-found', reading, second, ms: Date.now() - started })
+    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
+    return answer
   } finally {
     lookupBusy = false
   }
 }
 
-/** Unrecognised items are kept (last 30) so the owner can send them: the tooltip picture and what was read. */
-const lookupLogDir = () => join(app.getPath('userData'), 'item-lookups')
+type Grab = NonNullable<Awaited<ReturnType<typeof grabAroundCursor>>>
+const found = (reply: unknown) => Boolean(reply && typeof reply === 'object' && (reply as { state?: string }).state === 'found')
 
-async function logFailedLookup(image: { width: number; height: number; data: Uint8Array }, rect: Rectangle, tries: string[]) {
+interface SecondAttempt {
+  answer: unknown
+  via?: 'retry' | 'picture'
+  /** What the other OCR readings of the tooltip gave. */
+  retry: string[]
+  /** The picture check: where the item was taken to be and every candidate's comparison. */
+  picture?: { cell: ItemCell; reason: string; candidates: PictureAnswer['candidates']; icons: number; ms: number }
+  ms: number
+}
+
+/**
+ * The second attempt for a tooltip whose readings named no item: the last (settled) tooltip is read other ways
+ * (retryOcrReadings), then the picture of the item under the cursor — from the first grab with the tooltip, taken
+ * before the app's own card could show — is compared with the icons of the items the readings could be (iconMatch.ts).
+ * An item found so is remembered for these readings by the main window. Icons are fetched meanwhile.
+ */
+async function secondAttempt(reading: TooltipReading<unknown, Grab> & { shot: Grab; rect: Rect }): Promise<SecondAttempt> {
+  const started = Date.now()
+  const readings = [...new Set(reading.tries.map((text) => text.trim()).filter(Boolean))]
+  const result: SecondAttempt = { answer: null, retry: [], ms: 0 }
+  const done = () => { result.ms = Date.now() - started; return result }
+  const prefetch = readings.length ? pictureIcons(readings) : null
+  for (const pictures of retryOcrReadings(reading.shot.image, reading.rect, reading.shot.cursor, reading.unit ?? reading.shot.unit)) {
+    const parts: string[] = []
+    for (const picture of pictures) parts.push(await recognizeTooltip(picture).catch(() => ''))
+    const text = parts.join(' ').replace(/\s+/g, ' ').trim()
+    result.retry.push(text)
+    if (!text || readings.includes(text)) continue
+    const reply = await askRenderer('item', { text, tooltip: true, remember: readings })
+    if (found(reply)) { result.answer = reply; result.via = 'retry'; return done() }
+  }
+  const texts = [...new Set([...readings, ...result.retry.filter(Boolean)])]
+  const shot = reading.first ?? { shot: reading.shot, rect: reading.rect, unit: reading.unit ?? reading.shot.unit }
+  if (!texts.length) return done()
+  const pictureStarted = Date.now()
+  const cell = findItemCell(shot.shot.image, shot.shot.cursor, shot.unit, shot.rect)
+  const screen = screenPicture(shot.shot.image, cell)
+  await prefetch
+  const icons = await pictureIcons(texts)
+  const reply = await askRenderer('item-picture', { texts, screen, icons }) as PictureAnswer | null
+  result.picture = { cell, reason: reply?.reason ?? 'no-reply', candidates: reply?.candidates ?? [], icons: Object.keys(icons).length, ms: Date.now() - pictureStarted }
+  if (reply && found(reply.payload)) { result.answer = reply.payload; result.via = 'picture' }
+  return done()
+}
+
+/** Icon bytes by address (base64, for the main window to decode), for the session; failed ones are tried again after a minute. */
+const iconBytes = new Map<string, { at: number; failed: boolean; bytes: Promise<string | null> }>()
+/** The fetch runs while the tooltip is read again, so it mostly costs no extra wait; a slow one is given up. */
+const ICON_TIMEOUT_MS = 1500
+const ICON_MAX_BYTES = 256 * 1024
+const ICONS_KEPT = 300
+
+function iconBase64(url: string) {
+  const known = iconBytes.get(url)
+  if (known && (!known.failed || Date.now() - known.at < 60_000)) return known.bytes
+  const entry = { at: Date.now(), failed: false, bytes: Promise.resolve<string | null>(null) }
+  entry.bytes = (async () => {
+    // No cookies: just the public picture.
+    const response = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(ICON_TIMEOUT_MS) })
+    if (!response.ok || !/^image\/(?:webp|png|jpeg)\b/i.test(response.headers.get('content-type') ?? '')) return null
+    const bytes = Buffer.from(await response.arrayBuffer())
+    return bytes.length && bytes.length <= ICON_MAX_BYTES ? bytes.toString('base64') : null
+  })().catch(() => null).then((bytes) => { entry.failed = !bytes; return bytes })
+  if (iconBytes.size >= ICONS_KEPT) iconBytes.delete(iconBytes.keys().next().value!)
+  iconBytes.set(url, entry)
+  return entry.bytes
+}
+
+/** Icons of the items these readings could be, that the main window has no signature of yet (fetched together). */
+async function pictureIcons(texts: string[]) {
+  const reply = await askRenderer('item-candidates', { texts }) as PictureCandidatesAnswer | null
+  const icons: Record<string, string> = {}
+  await Promise.all((reply?.candidates ?? []).map(async (candidate) => {
+    if (candidate.known || !isItemIconUrl(candidate.iconUrl)) return
+    const bytes = await iconBase64(candidate.iconUrl)
+    if (bytes) icons[candidate.itemId] = bytes
+  }))
+  return icons
+}
+
+/**
+ * Lookups the first attempt could not answer are kept (last 30) so the owner can send them: what was read, the second
+ * attempt (other readings, the picture candidates and their distances), the tooltip's size, and small crops — the
+ * tooltip, the item cell, or (when no tooltip was found) the area beside the cursor where it should have been.
+ */
+const lookupLogDir = () => join(app.getPath('userData'), 'item-lookups')
+const LOOKUPS_KEPT = 30
+
+async function logLookup(entry: { outcome: string; reading: TooltipReading<unknown, Grab>; second?: SecondAttempt; ms: number }) {
   try {
+    const { reading, second } = entry
     const dir = lookupLogDir()
     await mkdir(dir, { recursive: true })
-    const pad = 6
-    const x = Math.max(0, rect.x - pad), y = Math.max(0, rect.y - pad)
-    const width = Math.min(image.width - x, rect.width + pad * 2), height = Math.min(image.height - y, rect.height + pad * 2)
-    const crop = new Uint8Array(width * height * 4)
-    for (let row = 0; row < height; row += 1) crop.set(image.data.subarray(((y + row) * image.width + x) * 4, ((y + row) * image.width + x + width) * 4), row * width * 4)
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const png = nativeImage.createFromBitmap(Buffer.from(crop.buffer), { width, height }).toPNG()
-    await writeFile(join(dir, `${stamp}.png`), png)
-    await writeFile(join(dir, `${stamp}.json`), JSON.stringify({ read: tries, box: rect }, null, 2), 'utf8')
+    const unit = reading.unit ?? reading.latest?.unit ?? 1
+    const rect = reading.rect
+    const cell = second?.picture?.cell.layouts[0]?.rect
+    const record = {
+      outcome: entry.outcome,
+      ms: entry.ms,
+      read: reading.tries,
+      grabs: reading.grabs,
+      // Size in game pixels too (1080p): a box taller than one line is a two-line tooltip.
+      box: rect ? { ...rect, unit: Number(unit.toFixed(3)), width1080: Math.round(rect.width / unit), height1080: Math.round(rect.height / unit) } : null,
+      capture: reading.latest ? { width: reading.latest.image.width, height: reading.latest.image.height, cursor: reading.latest.cursor, screenUnit: Number(reading.latest.unit.toFixed(3)) } : null,
+      ...(second ? {
+        second: {
+          ms: second.ms,
+          retry: second.retry,
+          ...(second.picture ? { picture: {
+            reason: second.picture.reason,
+            ms: second.picture.ms,
+            iconsFetched: second.picture.icons,
+            grid: second.picture.cell.grid,
+            layouts: second.picture.cell.layouts.map((layout) => ({ cols: layout.cols, rows: layout.rows, rect: layout.rect })),
+            candidates: second.picture.candidates,
+          } } : {}),
+        },
+      } : {}),
+    }
+    await writeFile(join(dir, `${stamp}.json`), JSON.stringify(record, null, 2), 'utf8')
+    if (rect && reading.shot) await writeCrop(join(dir, `${stamp}.png`), reading.shot.image, rect, 6)
+    // The item from the grab the picture check used (see secondAttempt).
+    const pictured = reading.first?.shot ?? reading.shot
+    if (cell && pictured) await writeCrop(join(dir, `${stamp}.cell.png`), pictured.image, cell, 4)
+    if (!rect && reading.latest) {
+      const { cursor } = reading.latest
+      const near = { x: Math.round(cursor.x - 40 * unit), y: Math.round(cursor.y - 60 * unit), width: Math.round(640 * unit), height: Math.round(140 * unit) }
+      await writeCrop(join(dir, `${stamp}.near.png`), reading.latest.image, near, 0)
+    }
+    // The newest lookups stay: every file of one lookup starts with its time stamp.
     const files = (await readdir(dir)).sort()
-    for (const old of files.slice(0, Math.max(0, files.length - 60))) await rm(join(dir, old), { force: true })
+    const stamps = [...new Set(files.map((name) => name.split('.')[0]!))]
+    const keep = new Set(stamps.slice(-LOOKUPS_KEPT))
+    for (const name of files) if (!keep.has(name.split('.')[0]!)) await rm(join(dir, name), { force: true })
   } catch { /* diagnostics only */ }
+}
+
+/** A PNG of part of a grab (with `pad` pixels around it), clipped to the grab. */
+async function writeCrop(file: string, image: Bitmap, area: Rectangle, pad: number) {
+  const x = Math.max(0, area.x - pad), y = Math.max(0, area.y - pad)
+  const width = Math.min(image.width, area.x + area.width + pad) - x, height = Math.min(image.height, area.y + area.height + pad) - y
+  if (width <= 0 || height <= 0) return
+  const crop = new Uint8Array(width * height * 4)
+  for (let row = 0; row < height; row += 1) crop.set(image.data.subarray(((y + row) * image.width + x) * 4, ((y + row) * image.width + x + width) * 4), row * width * 4)
+  await writeFile(file, nativeImage.createFromBitmap(Buffer.from(crop.buffer), { width, height }).toPNG())
 }
 
 function showItemCard(window: BrowserWindow, point: Point, display: Display, payload: unknown) {
