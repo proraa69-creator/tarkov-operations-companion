@@ -15,3 +15,11 @@
 - Source snapshot и shared context опубликованы в `sync/codex-claude-context`, commit `ae89f5a3041c6aaa8e77612780884863249a8e24`. GitHub main и VPS baseline не менялись.
 - Повторный read-only probe после публикации дал тот же fingerprint: монитор не зацикливается на собственных docs commits.
 - Whitespace check для source/docs прошёл; raw tracked-changes.patch исключается из такой проверки, потому что пробельные context lines являются частью формата diff и должны сохраняться.
+
+## 2026-10-08: Claude, P0 «Сюжетный OCR и неправильное опережение целей»
+
+- Статус: in_progress (анализ и тесты; без сборки, без деплоя, без изменений VPS).
+- Agent: Claude (cloud). Branch: `claude/vibrant-ritchie-vy7uh2`, fast-forward на общий снимок `de80c831` (поверх baseline `ec0af4fdf3390fe3789a2c6e8af630ea7011240d`).
+- Проверка контекста: LATEST.json ветки и ZIP совпадают (fingerprint `92f6c041…`, build `1791457737377`); 104/104 source hashes из `source-manifest.json` совпали с веткой; sha256 `source-overlay.tar.gz` совпал; сверх манифеста в ветке только `CLAUDE.md` (документация).
+- ownedFiles: `src/import/storyScan.ts`, `src/import/storyObjectives.ts`, `src/import/storyStageOcr.ts`, `src/components/StoryScreenScanner.tsx` и их тесты (`src/import/storyScan*.test.ts`, `src/import/storyObjectives.test.ts`, `src/import/storyStage*.test.ts`, новые `src/import/storyAdvance*.test.ts`).
+- Не трогаю: `electron/*` (OCR capture/updater/native — Codex), `App.tsx`, auth, сборку, релизы, VPS.
