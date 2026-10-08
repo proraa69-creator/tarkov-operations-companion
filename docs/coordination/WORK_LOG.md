@@ -188,3 +188,12 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Локально: YAML разобран `js-yaml`; `npm run typecheck` OK; затронутые тесты 25/25; `npm run build:renderer` OK. Полный Windows-прогон: 1037/1040, три известные платформенные проверки Linux/CRLF падают только на Windows; workflow запускает полный набор на Ubuntu.
 - Осталось проверить самим GitHub Actions: Xcode device build, структуру `Payload/App.app`, версию, bundle id и загрузку IPA. Установка на реальный iPhone через Sideloadly ещё не проверена.
 - Первый run `37847769035` остановился на frontend-тестах до macOS: не были установлены зависимости `server/` (`cors` импортируется bridge-тестами). Workflow исправлен на `npm ci --prefix server`; это не дефект приложения и не меняет production workflow.
+
+## 2026-10-08 — Claude: ники «Кочевников», Telegram @raidosapp, откат схемы здоровья
+
+- `b446e9c` — схема здоровья босса возвращена к прежней (владелец пришлёт свой снимок-основу; маски остаются). Превью рентген-схемы лежит в `git stash` «xray-health-preview»; владелец хочет свой снимок без изменений + окна HP как в EFT — ждём файл (загрузка в ветку на GitHub), уточнён вопрос лицензии стокового фото.
+- `b071b74`, `acc3fda` — слияния release/production (iOS IPA workflow Codex, переименования файлов), ничего не перезаписано.
+- `4c9cd1a` — «Кочевники»: сервер хранит аккаунт отметившего (`goon_sightings.account_id`, не отдаётся наружу) и показывает его текущий ник режима (`summarizeGoons(..., nicknameOf)`), отвязка прячет ник; приложение отправляет на аккаунт новый ник персонажа после смены ника в игре (`AccountController`). Режимы PvP/PvE/Сезон как и раньше раздельны. Файлы: `server/src/services/goonStore.ts`, `server/src/routes/goons.ts`, `server/src/app.ts`, `server/src/routes/goons.test.ts`, `src/account/AccountController.tsx`.
+- `53029f0` — Telegram для связи `@raidosapp` (`src/app/support.ts`, `website/src/legal/documents.ts`, `website/src/pages/LegalPage.tsx` + тесты); `LEGAL_VERSION` не менялся (только контакт).
+- Проверки: typecheck, electron tsc, vitest 179/1040, cache-item-images, server typecheck + 233 теста, сайт собран, release-policy 6/6. Выпуск: `53029f0` в release/production.
+- Риски: новый ник берётся из профиля персонажа по account id — появляется с задержкой обновления игровых данных. Терминал: на карточке 6 боссов (5×20% + Black Division); источники также называют ВС РФ (RUAF) 100% — ждём решения владельца.
