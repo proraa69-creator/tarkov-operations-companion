@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adaptAmmo, adaptMods, adaptWeapons, asFraction } from './gunQueries'
+import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
 import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
 import { approximateMoa, cheapestOffer, computeCost, computeStats, deltaTone } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
@@ -175,5 +175,20 @@ describe('share codes and saved builds', () => {
     expect(loadSavedBuilds('pve')).toEqual([])
     expect(loadSavedBuilds('seasonal')).toEqual([])
     expect(deleteSavedBuild('pvp', loadSavedBuilds('pvp')[0].id)).toEqual([])
+  })
+})
+
+describe('buy offers: the flea at the cheapest current offer', () => {
+  it('replaces the 24-hour average tarkov.dev puts in the flea entry of buyFor with lastLowPrice', () => {
+    const buyFor = [
+      { priceRUB: 31_800, vendor: { name: 'Барахолка', normalizedName: 'flea-market' } },
+      { priceRUB: 29_000, vendor: { name: 'Механик', normalizedName: 'mechanic', minTraderLevel: 3 } },
+    ]
+    expect(adaptOffers({ lastLowPrice: 26_700, buyFor })).toEqual([
+      { vendor: 'flea-market', vendorName: 'Барахолка', priceRUB: 26_700 },
+      { vendor: 'mechanic', vendorName: 'Механик', priceRUB: 29_000, minTraderLevel: 3 },
+    ])
+    // No current offer: the average from buyFor stays.
+    expect(adaptOffers({ lastLowPrice: null, buyFor })[0]?.priceRUB).toBe(31_800)
   })
 })

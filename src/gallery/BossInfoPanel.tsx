@@ -10,6 +10,8 @@ import { BodyHealthFigure } from '../components/BodyHealthFigure'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import { formatPrice } from '../shared/format'
 import type { Item } from '../domain/types'
+import { displayPrice } from '../domain/itemPrices'
+import { useAppState } from '../state/AppState'
 import './bossInfoPanel.css'
 
 /**
@@ -62,10 +64,12 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
 
 function ItemTiles({ refs, items, index, gun = false, price = false }: { refs: BossItemRef[]; items: Item[]; index: Map<string, Item>; gun?: boolean; price?: boolean }) {
   const { locale } = useLocale()
+  const { raidMode } = useAppState()
   return <ul className={`boss-info-items${gun ? ' is-guns' : ''}`}>
     {refs.map((ref) => {
       const found = resolveBossItem(ref, items, index, gun)
-      const value = price ? found?.fleaPrice ?? Math.max(0, ...(found?.prices ?? []).map((quote) => quote.price)) : 0
+      // The flea price of the selected mode (else its best trader), not the highest quote of any mode.
+      const value = price ? displayPrice(found, raidMode)?.price ?? 0 : 0
       return <li key={ref.name.en} className="boss-info-item" title={found ? uiText(found.name) : ref.name[locale]}>
         <span className={`boss-info-item-image${found?.presetImageUrl ? ' is-weapon' : ''}`}>
           <ItemPicture item={found} />

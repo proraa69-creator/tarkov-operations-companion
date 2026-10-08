@@ -7,7 +7,11 @@ import type { AmmoStats, GunOffer, GunPart, GunPreset, GunSlot, Weapon } from '.
  * but its cache and saved builds stay separate (src/arsenal/gunCatalog.ts, src/arsenal/buildStorage.ts).
  */
 const SLOT_FIELDS = `fragment SlotFields on ItemSlot { id name nameId required filters { allowedItems { id } } }`
-const OFFER_FIELDS = `buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel } } }`
+/**
+ * `lastLowPrice` is asked next to `buyFor`: tarkov.dev's flea entry in `buyFor` is priced at the 24-hour average
+ * (`avg24hPrice || lastLowPrice`, tarkov-api datasources/items.mjs), above the cheapest offer one can buy right now.
+ */
+const OFFER_FIELDS = `lastLowPrice buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel } } }`
 
 export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: GameMode) {
   items(type: gun, lang: $lang, gameMode: $gameMode) {
@@ -71,11 +75,13 @@ export function asFraction(value: unknown): number {
   return Math.abs(raw) > 1 ? raw / 100 : raw
 }
 
+/** Buy offers; the flea one at the current lowest offer (`lastLowPrice`) when there is one, not the 24-hour average. */
 export function adaptOffers(item: Json): GunOffer[] {
+  const lastLow = num(item.lastLowPrice)
   return list(item.buyFor).flatMap((entry) => {
     const vendor = record(entry.vendor)
-    const priceRUB = num(entry.priceRUB)
     const key = text(vendor.normalizedName)
+    const priceRUB = key === 'flea-market' && lastLow > 0 ? lastLow : num(entry.priceRUB)
     if (!key || priceRUB <= 0) return []
     const level = optional(vendor.minTraderLevel)
     return [{ vendor: key, vendorName: text(vendor.name, key), priceRUB, ...(key !== 'flea-market' && level ? { minTraderLevel: level } : {}) }]

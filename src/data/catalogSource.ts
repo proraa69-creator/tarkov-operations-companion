@@ -1,4 +1,4 @@
-import type { AppDataset, GameMap, HideoutStation, Item, Quest, RaidMode, Trader } from '../domain/types'
+import type { AppDataset, GameMap, HideoutStation, Item, PriceQuote, Quest, RaidMode, Trader } from '../domain/types'
 import { maps as curatedMaps } from './demo'
 import { hideoutPosition } from './hideoutLayout'
 import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
@@ -55,6 +55,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
+  const fleaMarket = adaptFleaMarket(items)
   const itemById = new Map(itemRows.map((item) => [item.id, item]))
   const mapRows = adaptMaps(maps, mapConfigs, locale)
   const mapNameById = buildMapNameIndex(maps)
@@ -80,6 +81,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
       mode,
       loadedAt: new Date().toISOString(),
       sourceUrl: `${BASE_URL}/${upstreamMode}/tasks`,
+      ...(fleaMarket ? { fleaMarket } : {}),
       ...(taskVersion.version ? { sourceVersion: taskVersion.version } : {}),
       ...(taskVersion.version && Number.isFinite(Date.parse(taskVersion.version)) ? { sourceUpdatedAt: new Date(taskVersion.version).toISOString() } : {}),
       counts: {
@@ -162,20 +164,66 @@ export function presetImageFor(entry: JsonRecord, rawItems: JsonRecord): string 
   return `https://assets.tarkov.dev/${presetId}-512.webp`
 }
 
+type FleaMarketInfo = NonNullable<NonNullable<AppDataset['metadata']>['fleaMarket']>
+
+/** tarkov.dev `fleaMarket` of the items file (json.tarkov.dev `<mode>/items`): whether this mode's flea is open, and its fee rates. */
+export function adaptFleaMarket(root: JsonRecord): FleaMarketInfo | undefined {
+  const flea = asRecord(root.fleaMarket)
+  if (!Object.keys(flea).length) return undefined
+  const rate = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined)
+  const offerFeeRate = rate(flea.sellOfferFeeRate)
+  const requirementFeeRate = rate(flea.sellRequirementFeeRate)
+  return {
+    enabled: flea.enabled !== false,
+    ...(offerFeeRate !== undefined ? { offerFeeRate } : {}),
+    ...(requirementFeeRate !== undefined ? { requirementFeeRate } : {}),
+  }
+}
+
+/**
+ * Roubles a trader pays: `priceRUB`; the bare `price` only when it is in roubles. Peacekeeper pays in dollars: a quote
+ * `{ price: 120, currency: 'USD' }` without `priceRUB` used to be read as 120 ₽.
+ */
+export function traderQuoteRub(quote: JsonRecord): number {
+  const rub = number(quote.priceRUB)
+  if (rub > 0) return rub
+  const currency = text(quote.currency)
+  return !currency || currency === 'RUB' ? number(quote.price) : 0
+}
+
+/**
+ * The flea price shown to the player: the current lowest offer (`lastLowPrice`). Only when there is no current offer,
+ * the 24-hour average (`avg24hPrice`), flagged so the pages can say so. The average lags the market and is pulled up by
+ * expensive listings, so it sits above the cheapest offer for most items — it is not what the item costs right now.
+ * Flea-banned items (`types: noFlea`) and a closed flea (`fleaMarket.enabled: false`) have no flea price.
+ */
+export function fleaPriceOf(entry: JsonRecord, fleaEnabled = true): { price: number; basis: 'last-low' | 'avg-24h' } | undefined {
+  if (!fleaEnabled || strings(entry.types).includes('noFlea')) return undefined
+  const lastLow = number(entry.lastLowPrice)
+  if (lastLow > 0) return { price: lastLow, basis: 'last-low' }
+  const average = number(entry.avg24hPrice)
+  return average > 0 ? { price: average, basis: 'avg-24h' } : undefined
+}
+
 function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMode): Item[] {
   const rawItems = asRecord(root.items)
+  const fleaEnabled = adaptFleaMarket(root)?.enabled !== false
   return recordValues(rawItems).map((entry) => {
     const types = strings(entry.types)
     const properties = asRecord(entry.properties)
-    const prices = asArray(entry.sellToTrader).map((quote) => ({
+    const updatedAt = text(entry.updated, new Date().toISOString())
+    // What each trader pays for the item (sell to trader), in roubles.
+    const prices: PriceQuote[] = asArray(entry.sellToTrader).map((quote) => ({
       source: traders.get(text(quote.trader))?.name ?? 'Торговец',
-      price: number(quote.priceRUB ?? quote.price),
+      price: traderQuoteRub(quote),
       mode,
-      updatedAt: text(entry.updated, new Date().toISOString()),
+      updatedAt,
+      kind: 'trader' as const,
     })).filter((quote) => quote.price > 0)
-    const fleaPrice = number(entry.avg24hPrice)
-    if (fleaPrice > 0) prices.unshift({ source: 'Барахолка', price: fleaPrice, mode, updatedAt: text(entry.updated, new Date().toISOString()) })
-    if (!prices.length) prices.push({ source: 'Базовая цена', price: number(entry.basePrice), mode, updatedAt: text(entry.updated, new Date().toISOString()) })
+    const flea = fleaPriceOf(entry, fleaEnabled)
+    if (flea) prices.unshift({ source: 'Барахолка', price: flea.price, mode, updatedAt, kind: 'flea', basis: flea.basis })
+    const basePrice = number(entry.basePrice)
+    if (!prices.length && basePrice > 0) prices.push({ source: 'Базовая цена', price: basePrice, mode, updatedAt, kind: 'base' })
 
     return {
       id: text(entry.id),
@@ -191,7 +239,9 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       height: number(entry.height) || undefined,
       slots: number(entry.width) && number(entry.height) ? `${number(entry.width)}×${number(entry.height)}` : undefined,
       prices,
-      fleaPrice: fleaPrice || undefined,
+      fleaPrice: flea?.price,
+      fleaPriceBasis: flea?.basis,
+      basePrice: basePrice || undefined,
       wikiLink: text(entry.wikiLink) || undefined,
       types,
       valuable: isValuableItem(entry) || undefined,

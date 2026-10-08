@@ -33,4 +33,9 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['История цены сейчас недоступна.', 'Price history is unavailable right now.'],
   ['Недостаточно данных за период.', 'Not enough data for this period.'],
   ['мин', 'min'], ['макс', 'max'],
+  // Flea prices per mode (flea page, overview favourites, barter / craft lines).
+  ['среднее за 24 ч', '24h average'], ['(среднее за 24 ч)', '(24h average)'],
+  ['минимальное предложение', 'lowest offer'], ['после комиссии', 'after fee'], ['не предложение', 'not an offer'],
+  ['барахолка, минимальное предложение', 'flea market, lowest offer'], ['барахолка, среднее за 24 ч', 'flea market, 24h average'],
+  ['базовая цена', 'base price'], ['выкуп:', 'trader buys:'],
 ]

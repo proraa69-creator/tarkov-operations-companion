@@ -381,9 +381,14 @@ export type QuestObjectiveDetail = QuestObjective
 
 export interface PriceQuote {
   source: string
+  /** Roubles per item. */
   price: number
   mode: RaidMode
   updatedAt: string
+  /** flea: the flea listing price; trader: what the trader pays; base: the handbook base price (no offer). Older data: by `source`. */
+  kind?: 'flea' | 'trader' | 'base'
+  /** Flea quotes: the current lowest offer (`lastLowPrice`) or, when there is none, the 24-hour average. */
+  basis?: 'last-low' | 'avg-24h'
 }
 
 export interface Item {
@@ -405,7 +410,14 @@ export interface Item {
   armorClass?: number
   width?: number
   height?: number
+  /**
+   * Flea price in the catalog's mode: the current lowest offer (tarkov.dev `lastLowPrice`); the 24-hour average only
+   * when there is no current offer (`fleaPriceBasis: 'avg-24h'`). Missing for flea-banned items.
+   */
   fleaPrice?: number
+  fleaPriceBasis?: 'last-low' | 'avg-24h'
+  /** Handbook base price (tarkov.dev `basePrice`): needed for the flea fee. */
+  basePrice?: number
   wikiLink?: string
   types?: string[]
   /** Jewelry / valuables by the item's tarkov.dev categories (src/data/catalogSource.ts `isValuableItem`). */
@@ -466,5 +478,7 @@ export interface AppDataset {
     sourceVersion?: string
     /** Upstream timestamp of the task data, ISO. */
     sourceUpdatedAt?: string
+    /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
+    fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
   }
 }
