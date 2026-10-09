@@ -73,13 +73,13 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
         {autopayAvailable && (
           <label className="consent pay-autopay" htmlFor="pay-auto-renew">
             <input id="pay-auto-renew" type="checkbox" checked={autoRenew} disabled={busy} onChange={(event) => setAutoRenew(event.target.checked)} />
-            <span>Включить автопродление: списывать {plan.price === null ? 'стоимость тарифа' : formatMoney(plan.price, 'RUB')} {PERIOD_TEXT[plan.id]} до отмены. Отменить можно в личном кабинете.</span>
+            <span>Включить автопродление</span>
           </label>
         )}
 
         <p className="pay-dialog-note">
           {autoRenew
-            ? `После первого платежа ЮKassa сохранит способ оплаты и будет списывать ${plan.price === null ? 'стоимость тарифа' : formatMoney(plan.price, 'RUB')} ${PERIOD_TEXT[plan.id]} до отмены.`
+            ? `После первого подтверждения выбранный способ оплаты сохранится в ЮKassa. Затем с него будет списываться ${plan.price === null ? 'стоимость тарифа' : formatMoney(plan.price, 'RUB')} ${PERIOD_TEXT[plan.id]} до отмены. Перед каждым списанием мы уведомим вас. Отключить автопродление можно в личном кабинете.`
             : 'Платёж разовый. Автоматических повторных списаний нет.'}{' '}
           Raid OS не получает и не хранит реквизиты вашего банковского счёта.
         </p>

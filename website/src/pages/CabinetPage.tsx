@@ -128,7 +128,7 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   refunded: { label: 'Возвращён', tone: 'danger' },
 }
 const PAYMENT_ID_PATTERN = /^[a-f0-9]{24}$/
-const PAYMENT_POLL_MS = 3_000
+const PAYMENT_POLL_MS = 1_500
 const PAYMENT_POLL_LIMIT_MS = 120_000
 const shortDateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
 
@@ -209,7 +209,7 @@ function PaymentCheckNotice({ check }: { check: PaymentCheck }) {
       return (
         <div className="notice info" role="status">
           <LoaderCircle className="spinner" aria-hidden="true" />
-          <div><strong>Проверяем оплату…</strong>Это займёт несколько секунд — не закрывайте страницу.</div>
+          <div><strong>Проверяем предыдущую оплату…</strong>Можно сразу выбрать тариф и начать новую оплату другим способом.</div>
         </div>
       )
     case 'succeeded':
@@ -357,7 +357,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
                         <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
                       </>
                     )}
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={!plans?.providers?.yookassa || paying || check?.phase === 'checking'} onClick={() => { setPayError(null); setSelectedPlan(plan) }} aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={!plans?.providers?.yookassa || paying} onClick={() => { setPayError(null); setSelectedPlan(plan) }} aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
                       <CreditCard aria-hidden="true" />Оплатить
                     </button>
                   </div>

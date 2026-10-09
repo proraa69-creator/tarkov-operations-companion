@@ -67,6 +67,21 @@ describe('subscription checkout', () => {
     await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-09.1', { region: 'ru', method: 'sbp', language: 'ru' }))
   })
 
+  it('allows another payment while the previous payment is still being checked', async () => {
+    mocks.plans.mockResolvedValue({
+      enabled: true,
+      plans: [{ id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 }],
+      providers: { yookassa: true, lava: false, autopay: false, methods: ['sbp'] }, foreign: null,
+    })
+    render(<MemoryRouter initialEntries={['/cabinet?payment=0123456789abcdef01234567']}><CabinetPage /></MemoryRouter>)
+
+    expect(await screen.findByText('Проверяем предыдущую оплату…')).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Оплатить 1 месяц' })
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+    expect(screen.getByRole('dialog', { name: /1 месяц/ })).toBeInTheDocument()
+  })
+
   it('starts a T-Pay payment with autopay only after both checkboxes are selected', async () => {
     mocks.plans.mockResolvedValue({
       enabled: true,
@@ -81,7 +96,7 @@ describe('subscription checkout', () => {
     const checkboxes = within(dialog).getAllByRole('checkbox')
     fireEvent.click(checkboxes[0]!)
     fireEvent.click(checkboxes[1]!)
-    expect(within(dialog).getByText(/ЮKassa сохранит способ оплаты/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/выбранный способ оплаты сохранится в ЮKassa/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Перейти к оплате' }))
     await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-09.1', {
       region: 'ru', method: 'tinkoff_bank', language: 'ru', autopayVersion: '2026-10-09.1',
