@@ -97,6 +97,8 @@ export interface AccountView {
   createdAt: string
   referralCode?: string
   referredBy?: string
+  /** Came with a friend's code («Пригласи друга»): the first month is discounted until the first payment. */
+  invitedByFriend?: true
   nicknames: Partial<Record<AccountMode, string>>
   /** `lifetime`: streamers use the service free of charge, for good. */
   subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
@@ -547,6 +549,7 @@ export class AccountStore {
     const paidUntil = this.subscriptions?.paidUntil(account.id)
     if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
+    if (this.invitedBy(account.id)) view.invitedByFriend = true
     if (account.kind === 'streamer' && account.referralCode) {
       view.referralCode = account.referralCode
       // The streamer sees his share, never the amounts his viewers paid.

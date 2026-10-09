@@ -274,8 +274,8 @@ function SubscriptionPanel({ account }: { account: Account }) {
     // The history is secondary: on errors the table simply stays hidden.
     api.payments(token).then((next) => { if (!cancelled) { setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null) } }, () => undefined)
     return () => { cancelled = true }
-    // A friend's code entered below («Код приглашения») changes referredBy: reload for the friend's price.
-  }, [token, historyVersion, account.referredBy])
+    // A code entered below («Код приглашения»): a streamer's sets referredBy, a friend's invitedByFriend — reload the price.
+  }, [token, historyVersion, account.referredBy, account.invitedByFriend])
 
   async function cancelAutopay() {
     if (!token) return
@@ -565,6 +565,8 @@ function InviteCodePanel({ account }: { account: Account }) {
           <dl className="kv">
             <div><dt>Вы приглашены по коду</dt><dd className="mono" style={{ color: 'var(--brass-strong)' }}>{account.referredBy}</dd></div>
           </dl>
+        ) : account.invitedByFriend ? (
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.</p>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
             <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код стримера или друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц. Код стримера также даёт 3 дня бесплатно.</p>

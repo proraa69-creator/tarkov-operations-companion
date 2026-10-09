@@ -22,6 +22,8 @@ export interface Account {
   createdAt: string
   referralCode?: string
   referredBy?: string
+  /** Came with a friend's code: the first month is discounted until the first payment. */
+  invitedByFriend?: true
   nicknames: Partial<Record<AccountMode, string>>
   /** `lifetime`: streamers use the service free of charge, for good. */
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }

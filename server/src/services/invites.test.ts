@@ -275,6 +275,26 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   assert.equal(t.paidUntil(inviter), t.now())
   assert.equal(t.payments.list(friend).find((item) => item.id === first.paymentId)?.status, 'refunded')
   assert.equal(t.invites.adminList('canceled', 10, 0).rewards[0]?.friend, 'friend@example.com')
+  // After that refund the cabinet and the bank agree: no discount shown, the list price is charged.
+  assert.equal(t.invites.discountPercent(friend), 0)
+  await t.payments.create(t.accounts.billingInfo(friend), '1m', 'https://raidos.example.com', { version: '2026-10-06' }, undefined, { percent: 20 })
+  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '300.00', currency: 'RUB' })
+})
+
+test('a plain sign-up without a friend or streamer code pays the list price; the cabinet shows no discount', async () => {
+  const t = await setup()
+  const plain = await t.register('plain@example.com')
+  assert.equal(t.invites.discountPercent(plain), 0)
+  const inviter = await t.register('host@example.com')
+  const invited = await t.register('guest@example.com', t.invites.code(inviter), '10.9.0.7')
+  assert.equal(t.invites.discountPercent(invited), 20)
+  // The account view tells the cabinet about it (the price reloads, the code form is not offered again).
+  assert.equal(t.accounts.view(invited).invitedByFriend, true)
+  assert.equal(t.accounts.view(plain).invitedByFriend, undefined)
+  // A friend's code entered later in the cabinet: the same discount and flag.
+  const late = await t.register('late@example.com')
+  t.accounts.applyReferral(late, t.invites.code(inviter))
+  assert.deepEqual([t.invites.discountPercent(late), t.accounts.view(late).invitedByFriend], [20, true])
 })
 
 test('a friend counts once per Escape from Tarkov account: no app, no reward; one game account, one Raid OS account', async () => {

@@ -383,6 +383,15 @@ export class PaymentStore {
   }
 
   /**
+   * The first-month invitation discount is spent: a payment went through, or a discounted one was refunded. The one rule
+   * for the price the cabinet shows (services/invites.ts) and the amount create() asks the bank for. An abandoned
+   * pending attempt does not spend it.
+   */
+  friendDiscountUsed(accountId: string) {
+    return this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND (status = 'succeeded' OR (status = 'refunded' AND discount_percent IS NOT NULL))").get(accountId) !== undefined
+  }
+
+  /**
    * `notify`: called for autopayment notices (upcoming charge 3 days ahead, charged, failed, stopped).
    * TODO(e-mail): send these to the account's e-mail once a mail service (SendPulse / Unisender Go) is connected;
    * until then the cabinet shows the amount and date of the next charge and the hook does nothing.
@@ -525,9 +534,10 @@ export class PaymentStore {
     const id = randomBytes(12).toString('hex')
     const listAmount = planPrice(config.monthPrice, plan)
     // The friend's discount (services/invites.ts) is only for the first month.
-    // …and for the first completed payment only. An abandoned bank redirect must not consume the advertised discount:
-    // the provider may leave that attempt pending for minutes, while the buyer needs to retry immediately.
-    const discountUsed = this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND discount_percent IS NOT NULL AND status IN ('succeeded', 'refunded')").get(account.id) !== undefined
+    // …and for the first completed payment only (friendDiscountUsed — the same rule the cabinet's price uses). An abandoned
+    // bank redirect must not consume the advertised discount: the provider may leave that attempt pending for minutes,
+    // while the buyer needs to retry immediately.
+    const discountUsed = this.friendDiscountUsed(account.id)
     const percent = discount && !discountUsed && plan === '1m' && discount.percent > 0 && discount.percent < 100 ? discount.percent : undefined
     const amount = percent === undefined ? listAmount : Math.round(listAmount * (100 - percent) / 100)
     const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}${percent === undefined ? '' : ` (скидка ${percent} % по приглашению)`}`

@@ -130,7 +130,8 @@ export class InviteProgram {
   /** Discount on the first month for either a player or streamer invitation, %, or 0. */
   discountPercent(accountId: string) {
     const account = this.accounts.view(accountId)
-    return (this.accounts.invitedBy(accountId) || account.referredBy) && !this.payments.hasSucceeded(accountId) ? FRIEND_DISCOUNT_PERCENT : 0
+    // Only an account that came with a friend's or a streamer's code; a plain sign-up pays the list price.
+    return (this.accounts.invitedBy(accountId) || account.referredBy) && !this.payments.friendDiscountUsed(accountId) ? FRIEND_DISCOUNT_PERCENT : 0
   }
 
   /** The player's code, created on first use. Streamers have their own program. */
