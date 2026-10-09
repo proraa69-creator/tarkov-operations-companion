@@ -569,7 +569,7 @@ function InviteCodePanel({ account }: { account: Account }) {
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.</p>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код стримера или друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц. Код стримера также даёт 3 дня бесплатно.</p>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.</p>
             <div className="inline-form">
               <input className="input code" aria-label="Код приглашения" value={code} maxLength={24} spellCheck={false} autoComplete="off" placeholder="КОД" onChange={(e) => setCode(e.target.value)} />
               <button type="submit" className="button primary" disabled={busy || !code.trim()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}Применить</button>

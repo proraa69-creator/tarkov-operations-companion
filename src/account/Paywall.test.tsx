@@ -11,7 +11,8 @@ describe('paywall of the players’ app', () => {
     expect(screen.getByRole('heading', { name: 'Нужна подписка' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Оплатить/ })).toBeInTheDocument()
     expect(screen.getByText('12 месяцев')).toBeInTheDocument()
-    expect(screen.getByText(/первые 3 дня бесплатно/)).toBeInTheDocument()
+    expect(screen.getByText(/Есть код друга\?.*скидка 20 %/)).toBeInTheDocument()
+    expect(screen.queryByText(/стример/i)).toBeNull()
     expect(screen.queryByText(/Закрыто до оплаты/)).toBeNull()
   })
 

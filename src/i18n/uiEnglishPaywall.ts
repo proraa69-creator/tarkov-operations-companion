@@ -14,7 +14,7 @@ export const PAYWALL_PHRASES: Array<[string, string]> = [
   ['Ключ сервера изменился. Выйдите из аккаунта и войдите снова; если это повторяется — напишите в поддержку.', 'The server key changed. Sign out and sign in again; if it happens again, contact support.'],
   ['Сервер недоступен. Проверьте интернет и нажмите «Проверить оплату».', 'The server is unavailable. Check the internet connection and press “Check payment”.'],
   ['Пробный период закончился. Оформите подписку, чтобы продолжить.', 'Your trial has ended. Subscribe to continue.'],
-  ['Пришли по ссылке стримера? Укажите его код приглашения в личном кабинете на сайте — первые 3 дня бесплатно.', 'Came via a streamer link? Enter the streamer’s invite code in your account on the website — the first 3 days are free.'],
+  ['Есть код друга? Укажите его в личном кабинете на сайте до первой оплаты — скидка 20 % на первый месяц.', 'Have a friend’s code? Enter it in your account on the website before the first payment for 20% off the first month.'],
   ['Оплатить', 'Pay'],
   ['Проверить оплату', 'Check payment'],
   ['Выйти из аккаунта на этом устройстве?', 'Sign out on this device?'],

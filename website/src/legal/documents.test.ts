@@ -11,7 +11,7 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-10-09.1')
+    expect(LEGAL_VERSION).toBe('2026-10-09.2')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -38,10 +38,11 @@ describe('published seller details', () => {
     expect(offer).toContain('Оказание услуги и срок доступа')
   })
 
-  it('gives the first-month discount for either invitation type', () => {
+  it('gives the first-month discount for a friend\'s invitation only and does not mention streamers', () => {
     const offer = JSON.stringify(legalDocument('offer'))
-    expect(offer).toContain('по ссылке друга или стримера')
+    expect(offer).toContain('по ссылке друга')
     expect(offer).toContain('скидку 20 %')
+    for (const kind of ['offer', 'privacy'] as const) expect(JSON.stringify(legalDocument(kind))).not.toMatch(/стример/i)
   })
 
   it('does not claim that a notification has already been filed', () => {

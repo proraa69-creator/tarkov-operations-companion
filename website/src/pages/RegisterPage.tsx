@@ -100,13 +100,13 @@ export function RegisterPage() {
           {linkCode && !showCode ? (
             <div className="notice success" role="status">
               <Gift aria-hidden="true" />
-              <div><strong>Вы пришли по приглашению · {linkCode}</strong>Код применится автоматически — вводить ничего не нужно. Скидка 20 % действует на первый месяц по ссылке друга или стримера; код стримера также даёт 3 дня бесплатно.</div>
+              <div><strong>Вы пришли по приглашению · {linkCode}</strong>Код применится автоматически — вводить ничего не нужно. Скидка 20 % действует на первый месяц по ссылке друга.</div>
             </div>
           ) : showCode || referral.trim() ? (
             <label className="field">
               <span className="field-label">Код приглашения <span className="dim">(необязательно)</span></span>
-              <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="HUNTER_TV или RAID-XXXXX" />
-              <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Любой код даёт скидку 20 % на первый месяц; код стримера также даёт 3 дня бесплатно.</span>
+              <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="RAID-XXXXX" />
+              <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Код друга даёт скидку 20 % на первый месяц.</span>
             </label>
           ) : (
             <button type="button" className="button ghost small" style={{ justifySelf: 'start' }} onClick={() => setShowCode(true)}><Gift aria-hidden="true" />У меня есть код приглашения</button>

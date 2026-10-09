@@ -127,11 +127,11 @@ export class InviteProgram {
     payments.onRefunded((payment) => this.paymentRefunded(payment.id, payment.partial === true))
   }
 
-  /** Discount on the first month for either a player or streamer invitation, %, or 0. */
+  /** Discount on the first month for a friend's invitation, %, or 0. */
   discountPercent(accountId: string) {
-    const account = this.accounts.view(accountId)
-    // Only an account that came with a friend's or a streamer's code; a plain sign-up pays the list price.
-    return (this.accounts.invitedBy(accountId) || account.referredBy) && !this.payments.friendDiscountUsed(accountId) ? FRIEND_DISCOUNT_PERCENT : 0
+    // Only an account that came with a friend's code (owner, 09.10.2026: no streamer discount); a plain sign-up pays the
+    // list price.
+    return this.accounts.invitedBy(accountId) && !this.payments.friendDiscountUsed(accountId) ? FRIEND_DISCOUNT_PERCENT : 0
   }
 
   /** The player's code, created on first use. Streamers have their own program. */

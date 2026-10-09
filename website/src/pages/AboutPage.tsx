@@ -46,7 +46,7 @@ export function AboutPage() {
           <div className="about-icon"><Mail aria-hidden="true" /></div>
           <div className="contact-text">
             <h2>Связаться с нами</h2>
-            <p>Идеи, ошибки, сотрудничество со стримерами — пишите.</p>
+            <p>Идеи, ошибки, сотрудничество — пишите.</p>
             <p className="mono contact-mail"><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
           </div>
           <Link to="/download" className="button primary">Скачать приложение</Link>

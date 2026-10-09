@@ -219,11 +219,11 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.equal(overview.subscriptions.streamers, 1)
     // 12 months: 2400 ₽ today (ЮKassa) + 900 ₽ (Lava at the owner's rate).
     assert.deepEqual(overview.revenue.today, { yookassa: 2400, lava: 900, total: 3300, payments: 2 })
-    assert.equal(overview.revenue.all.total, 3540)
+    assert.equal(overview.revenue.all.total, 3600)
     assert.equal(overview.revenue.all.payments, 3)
     assert.deepEqual(overview.revenue.lavaOriginal, [{ currency: 'USD', amount: 10 }])
-    // 10 % of the two referred ЮKassa payments (the Lava row was inserted without a referral code).
-    assert.equal(overview.payouts.earned, 264)
+    // 10 % of the two referred ЮKassa payments (the Lava row was inserted without a referral code); no streamer discount.
+    assert.equal(overview.payouts.earned, 270)
 
     const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<string, { count: number; revenue: number }> }> }
     assert.equal(days.rows.length, 31)
@@ -232,17 +232,17 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.deepEqual([today!.registrations, today!.payments, today!.revenue, today!.yookassa, today!.lava], [1, 2, 3300, 2400, 900])
     assert.deepEqual(today!.plans['12m'], { count: 1, revenue: 2400 })
     assert.deepEqual(today!.plans['3m'], { count: 1, revenue: 900 })
-    assert.deepEqual([yesterday!.period, yesterday!.registrations, yesterday!.payments, yesterday!.revenue], ['2026-10-01', 3, 1, 240])
+    assert.deepEqual([yesterday!.period, yesterday!.registrations, yesterday!.payments, yesterday!.revenue], ['2026-10-01', 3, 1, 300])
     const months = (await t.call('GET', '/accounts/me/admin/series?period=month', owner)).json as unknown as { rows: Array<{ period: string; payments: number; revenue: number }> }
     assert.equal(months.rows.length, 12)
-    assert.deepEqual([months.rows[0]!.period, months.rows[0]!.payments, months.rows[0]!.revenue], ['2026-10', 3, 3540])
+    assert.deepEqual([months.rows[0]!.period, months.rows[0]!.payments, months.rows[0]!.revenue], ['2026-10', 3, 3600])
     const years = (await t.call('GET', '/accounts/me/admin/series?period=year', owner)).json as unknown as { rows: Array<{ period: string; registrations: number }> }
     assert.deepEqual(years.rows.map((row) => [row.period, row.registrations]), [['2026', 4]])
     assert.equal((await t.call('GET', '/accounts/me/admin/series?period=week', owner)).status, 400)
 
     // Payments: filters and totals.
     const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; lava: number; yookassa: number } }
-    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.lava, all.totals.yookassa], [4, 3, 3540, 900, 2640])
+    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.lava, all.totals.yookassa], [4, 3, 3600, 900, 2700])
     const lava = (await t.call('GET', '/accounts/me/admin/payments?provider=lava', owner)).json as unknown as { payments: Array<{ original: { amount: number; currency: string } }> }
     assert.deepEqual(lava.payments.map((item) => item.original), [{ amount: 10, currency: 'USD' }])
     const canceled = (await t.call('GET', '/accounts/me/admin/payments?status=canceled&plan=6m', owner)).json as unknown as { total: number }
@@ -289,7 +289,8 @@ test('streamer percent per streamer applies to new payments only; a disabled lin
     const owner = await t.login('owner@example.com')
     const first = await t.register('first@example.com', 'HUNTER')
     await t.pay(first, '1m')
-    assert.equal(t.payments.streamerEarned('HUNTER'), 2400)
+    // A streamer's code gives no discount (owner, 09.10.2026): 10 % of 300 ₽.
+    assert.equal(t.payments.streamerEarned('HUNTER'), 3000)
 
     assert.equal((await t.call('PUT', '/accounts/me/admin/streamers/HUNTER/percent', owner, { percent: 101 })).status, 400)
     assert.equal((await t.call('PUT', '/accounts/me/admin/streamers/NOBODY/percent', owner, { percent: 20 })).status, 404)
@@ -298,8 +299,8 @@ test('streamer percent per streamer applies to new payments only; a disabled lin
     assert.deepEqual(settings.streamers.map((row) => [row.code, row.percent, row.custom, row.linkEnabled]), [['HUNTER', 50, true, true]])
     const second = await t.register('second@example.com', 'HUNTER')
     await t.pay(second, '1m')
-    // 10 % of the first discounted payment stays, 50 % of the second.
-    assert.equal(t.payments.streamerEarned('HUNTER'), 2400 + 12000)
+    // 10 % of the first payment stays, 50 % of the second.
+    assert.equal(t.payments.streamerEarned('HUNTER'), 3000 + 15000)
     const streamer = await t.login('streamer@example.com')
     assert.equal(((await t.call('GET', '/accounts/me/payouts', streamer)).json as unknown as { percent: number }).percent, 50)
 
@@ -420,7 +421,7 @@ test('«Удалить аккаунт»: password required, personal data erased
     assert.equal((t.db.prepare('SELECT COUNT(*) AS n FROM subscriptions WHERE account_id = ?').get(id) as { n: number }).n, 0)
     // The payment and the streamer's earning stay for accounting.
     assert.equal((t.db.prepare('SELECT COUNT(*) AS n FROM payments WHERE account_id = ?').get(id) as { n: number }).n, 1)
-    assert.equal(t.payments.streamerEarned('HUNTER'), 2400)
+    assert.equal(t.payments.streamerEarned('HUNTER'), 3000)
     // Gone from the owner's user list; the address can register again.
     const users = (await t.call('GET', '/accounts/me/admin/users', owner)).json as unknown as { users: Array<{ email: string }> }
     assert.ok(!users.users.some((user) => user.email.includes('player') || user.email.startsWith('deleted-')))
@@ -446,7 +447,7 @@ test('calendar: every day of the month with revenue; a day opens with registrati
     assert.equal(calendar.days.length, 31)
     assert.equal(calendar.today, '2026-10-02')
     const byDate = Object.fromEntries(calendar.days.map((day) => [day.date, day]))
-    assert.deepEqual([byDate['2026-10-01']!.registrations, byDate['2026-10-01']!.payments, byDate['2026-10-01']!.revenue], [3, 1, 240])
+    assert.deepEqual([byDate['2026-10-01']!.registrations, byDate['2026-10-01']!.payments, byDate['2026-10-01']!.revenue], [3, 1, 300])
     assert.deepEqual([byDate['2026-10-02']!.registrations, byDate['2026-10-02']!.payments, byDate['2026-10-02']!.revenue, byDate['2026-10-02']!.plans['12m']!.count], [1, 1, 2400, 1])
     assert.equal(byDate['2026-10-31']!.payments, 0)
     assert.equal(((await t.call('GET', '/accounts/me/admin/calendar?month=2026-02', owner)).json as unknown as { days: unknown[] }).days.length, 28)

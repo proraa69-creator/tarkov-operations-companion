@@ -168,13 +168,14 @@ test('a friend code: not one\'s own, not after a payment, once; codes share one 
   assert.equal(t.accounts.invitedBy(fresh), inviter)
   assert.throws(() => t.accounts.applyReferral(fresh, code), /уже указан/)
 
-  // Streamer codes keep the trial and also give the first-month discount; namespaces remain shared.
+  // Streamer codes keep the trial but give no discount (owner, 09.10.2026: the discount is a friend's code only);
+  // namespaces remain shared.
   await t.accounts.register('streamer@example.com', password)
   t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
   assert.equal(t.accounts.codeKind('hunter'), 'streamer')
   const viewer = await t.register('viewer@example.com', 'HUNTER')
   assert.equal(t.accounts.view(viewer).subscription.status, 'trial')
-  assert.equal(t.invites.discountPercent(viewer), 20)
+  assert.equal(t.invites.discountPercent(viewer), 0)
   assert.throws(() => t.invites.setCode(fresh, 'hunter'), /занят/)
   assert.throws(() => t.accounts.promoteToStreamer('fresh@example.com', code), /taken/)
 

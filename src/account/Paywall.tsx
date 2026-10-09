@@ -68,7 +68,7 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
           <Gift size={16} />
           <span>{uiText(trialOver
             ? 'Пробный период закончился. Оформите подписку, чтобы продолжить.'
-            : 'Пришли по ссылке стримера? Укажите его код приглашения в личном кабинете на сайте — первые 3 дня бесплатно.')}</span>
+            : 'Есть код друга? Укажите его в личном кабинете на сайте до первой оплаты — скидка 20 % на первый месяц.')}</span>
         </div>
         <div className="paywall-actions">
           <button className="button primary" onClick={() => openWebsite('cabinet')}><CreditCard size={15} />{uiText('Оплатить')}</button>
