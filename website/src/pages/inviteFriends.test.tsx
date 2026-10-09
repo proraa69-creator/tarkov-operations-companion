@@ -106,7 +106,7 @@ describe('«Пригласи друга»', () => {
     mocks.plans.mockResolvedValue({ enabled: true, plans: [{ id: '1m', months: 1, price: 299, currency: 'RUB', discountPercent: 0 }] })
     mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: { percent: 20, plan: '1m' } })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
-    expect(await screen.findByText('−20 % по коду друга, только первый месяц')).toBeInTheDocument()
+    expect(await screen.findByText('−20 % по приглашению, только первый месяц')).toBeInTheDocument()
     expect(document.querySelector('.plan-old')?.textContent?.replace(/\s/g, '')).toBe('299₽')
   })
 

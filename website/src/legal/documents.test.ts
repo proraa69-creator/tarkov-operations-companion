@@ -11,7 +11,7 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-10-08.3')
+    expect(LEGAL_VERSION).toBe('2026-10-09.1')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -25,16 +25,23 @@ describe('published seller details', () => {
   it.each(['offer', 'privacy', 'consent', 'cookies'])('publishes %s without drafts, placeholders or old payment services', (slug) => {
     const document = JSON.stringify(legalDocument(slug))
     expect(document).not.toMatch(/\[[А-ЯЁа-яё]/)
-    expect(document).not.toMatch(/ЮKassa|ЮМани|Lava|юрист/i)
+    expect(document).not.toMatch(/Robokassa|Робокасса|Lava|юрист/i)
   })
 
-  it('refunds through Robokassa without keeping any commission, step by step', () => {
+  it('refunds through YooKassa without keeping any commission, step by step', () => {
     const offer = JSON.stringify(legalDocument('offer'))
-    expect(offer).toContain('Robokassa')
+    expect(offer).toContain('ЮKassa')
+    expect(offer).toContain('СБП')
     expect(offer).toContain('Комиссии платёжного сервиса и банка из суммы возврата не удерживаются.')
     expect(offer).not.toContain('за вычетом')
     expect(offer).toContain('Как вернуть деньги: 1)')
     expect(offer).toContain('Оказание услуги и срок доступа')
+  })
+
+  it('gives the first-month discount for either invitation type', () => {
+    const offer = JSON.stringify(legalDocument('offer'))
+    expect(offer).toContain('по ссылке друга или стримера')
+    expect(offer).toContain('скидку 20 %')
   })
 
   it('does not claim that a notification has already been filed', () => {

@@ -73,36 +73,36 @@ test('the streamer share is fixed per payment: a later percent change never rewr
 
 test('balance = earned − paid − pending; requests are bounded and never make it negative; one open request at a time', async () => {
   const { payouts, streamerId, pay } = await setup(10)
-  await pay('12m') // 12 000 × 0.67 = 8040 ₽ → 804 ₽
-  assert.equal(payouts.balance('HUNTER').available, 804_00)
+  await pay('12m') // 12 000 ₽ at the monthly rate; yearly price is 8000 ₽ → 800 ₽
+  assert.equal(payouts.balance('HUNTER').available, 800_00)
 
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 200), /реквизиты/)
   payouts.saveSettings(streamerId, { ...details, auto: false })
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 99.99), /Минимальная выплата/)
-  assert.throws(() => payouts.request(streamerId, 'HUNTER', 804.01), /Доступно к выплате только 804/)
+  assert.throws(() => payouts.request(streamerId, 'HUNTER', 800.01), /Доступно к выплате только 800/)
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 100.001), /двух знаков/)
 
   const first = payouts.request(streamerId, 'HUNTER', 500)
   assert.equal(first.status, 'pending')
   assert.equal(first.destination, '+7 ••• •••-45-67 · Т-Банк')
-  assert.deepEqual(payouts.balance('HUNTER'), { earned: 804_00, paid: 0, pending: 500_00, available: 304_00 })
+  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, paid: 0, pending: 500_00, available: 300_00 })
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 100), /ещё ждёт выплаты/)
 
   payouts.decide(first.id, 'paid', 'СБП, чек 123')
   assert.throws(() => payouts.decide(first.id, 'rejected'), /уже обработана/)
-  assert.deepEqual(payouts.balance('HUNTER'), { earned: 804_00, paid: 500_00, pending: 0, available: 304_00 })
+  assert.deepEqual(payouts.balance('HUNTER'), { earned: 800_00, paid: 500_00, pending: 0, available: 300_00 })
 
-  const second = payouts.request(streamerId, 'HUNTER', 304)
+  const second = payouts.request(streamerId, 'HUNTER', 300)
   assert.equal(payouts.balance('HUNTER').available, 0)
   assert.throws(() => payouts.request(streamerId, 'HUNTER', 100), /ещё ждёт выплаты/)
   payouts.decide(second.id, 'rejected', 'неверный номер')
-  assert.equal(payouts.balance('HUNTER').available, 304_00, 'a rejected request returns to the balance')
+  assert.equal(payouts.balance('HUNTER').available, 300_00, 'a rejected request returns to the balance')
 
   const overview = payouts.overview(streamerId, 'HUNTER')
   assert.equal(overview.percent, 10)
-  assert.deepEqual([overview.earned, overview.paidOut, overview.pending, overview.available, overview.minimum], [804, 500, 0, 304, 100])
+  assert.deepEqual([overview.earned, overview.paidOut, overview.pending, overview.available, overview.minimum], [800, 500, 0, 300, 100])
   assert.deepEqual(overview.details, { phone: '+7 ••• •••-45-67', bank: 'Т-Банк', recipient: 'Иван Петров' })
-  assert.deepEqual(overview.payouts.map((item) => [item.amount, item.status]), [[304, 'rejected'], [500, 'paid']])
+  assert.deepEqual(overview.payouts.map((item) => [item.amount, item.status]), [[300, 'rejected'], [500, 'paid']])
 })
 
 test('auto-payout requests the whole balance every N days (3 by default); the streamer picks N within the owner limits', async () => {

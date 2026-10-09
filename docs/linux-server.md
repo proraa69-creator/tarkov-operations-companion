@@ -47,7 +47,11 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
 ## Day to day
 
 - Logs: `journalctl -u raidos-api -f`, `journalctl -u raidos-site -f`, `cat /var/lib/raidos-updater/update.log`
-- Settings: `nano /etc/raidos/raidos.env`, then `systemctl restart raidos-api`
+- Settings: `nano /etc/raidos/raidos.env`, then `systemctl restart raidos-api`. YooKassa uses
+  `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `TARKOV_PRICE_MONTH_RUB=300`, `TARKOV_PUBLIC_URL=https://raidos.app`
+  and `YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank`. List only methods actually enabled for the shop;
+  unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
+  payment methods and recurring charges for the shop. Keep it unset otherwise.
 - Check now: `systemctl start raidos-update.service`
 - ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook`
 

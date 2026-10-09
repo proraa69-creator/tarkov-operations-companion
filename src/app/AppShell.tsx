@@ -31,6 +31,7 @@ import { useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { canResolvePlayerProfiles } from '../profile/playerProfileGateway'
 import { rememberEftAccount } from '../account/eftAccountLink'
+import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 
 const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
@@ -245,6 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
           <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(activeProfile.modes[raidMode].registration.nickname ?? activeProfile.displayName)}</span></button>
           <ThemeButton />
+          <SubscriptionExpiryNotice compact />
         </header>
       ) : (
       <header className="topbar">
@@ -255,6 +257,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
         <UpdateButton />
+        <SubscriptionExpiryNotice />
         <ThemeButton />
         <ServerQuickButton />
         <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>

@@ -1,11 +1,11 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod } from '../api'
+import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
-import { AutopayCard } from '../components/PaymentRegionDialog'
+import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
@@ -18,6 +18,7 @@ import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveRef
 import { DownloadButton } from './DownloadPage'
 import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
 import { formatMoney, PLAN_LABELS, visiblePlans } from '../plans'
+import { LEGAL_VERSION } from '../legal/documents'
 import '../invites.css'
 
 const MODES: { id: AccountMode; label: string; color: string }[] = [
@@ -127,7 +128,7 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   refunded: { label: 'Возвращён', tone: 'danger' },
 }
 const PAYMENT_ID_PATTERN = /^[a-f0-9]{24}$/
-const PAYMENT_POLL_MS = 3_000
+const PAYMENT_POLL_MS = 1_500
 const PAYMENT_POLL_LIMIT_MS = 120_000
 const shortDateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
 
@@ -208,7 +209,7 @@ function PaymentCheckNotice({ check }: { check: PaymentCheck }) {
       return (
         <div className="notice info" role="status">
           <LoaderCircle className="spinner" aria-hidden="true" />
-          <div><strong>Проверяем оплату…</strong>Это займёт несколько секунд — не закрывайте страницу.</div>
+          <div><strong>Проверяем предыдущую оплату…</strong>Можно сразу выбрать тариф и начать новую оплату другим способом.</div>
         </div>
       )
     case 'succeeded':
@@ -235,12 +236,28 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [plans, setPlans] = useState<PlansResponse | null>(null)
   const [history, setHistory] = useState<Payment[]>([])
   const [historyVersion, setHistoryVersion] = useState(0)
+  const [selectedPlan, setSelectedPlan] = useState<PlansResponse['plans'][number] | null>(null)
+  const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const reloadHistory = useCallback(() => setHistoryVersion((n) => n + 1), [])
   const check = usePaymentCheck(paymentId, reloadHistory)
+
+  async function pay(method: YooKassaPaymentMethod, autoRenew: boolean) {
+    if (!token || !selectedPlan) return
+    setPaying(true)
+    setPayError(null)
+    try {
+      const { confirmationUrl } = await api.createPayment(token, selectedPlan.id, LEGAL_VERSION, { region: 'ru', method, language: 'ru', ...(autoRenew ? { autopayVersion: LEGAL_VERSION } : {}) })
+      window.location.assign(confirmationUrl)
+    } catch (reason) {
+      setPayError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
+      setPaying(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -297,8 +314,12 @@ function SubscriptionPanel({ account }: { account: Account }) {
       : 'Не активна'
   const hint = active ? 'Ваша подписка продолжает действовать.' : trial ? 'Бесплатный доступ по приглашению.' : ''
   const shownPlans = visiblePlans(plans)
+  const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
+    ? { ...selectedPlan, price: Math.round(selectedPlan.price * (100 - friendDiscount.percent)) / 100 }
+    : selectedPlan
 
   return (
+    <>
     <section className="panel" id="subscription" aria-labelledby="sub-title">
       <div className="panel-header">
         <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />Подписка</div>
@@ -331,7 +352,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
                     {friendPrice !== null && plan.price !== null ? (
                       <>
                         <div className="plan-price mono"><s className="plan-old" aria-label={`Без скидки ${formatMoney(plan.price, plan.currency)}`}>{formatMoney(plan.price, plan.currency)}</s> {formatMoney(friendPrice, plan.currency)}</div>
-                        <div className="plan-friend-note">−{friend} % по коду друга, только первый месяц</div>
+                        <div className="plan-friend-note">−{friend} % по приглашению, только первый месяц</div>
                       </>
                     ) : (
                       <>
@@ -339,18 +360,21 @@ function SubscriptionPanel({ account }: { account: Account }) {
                         <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
                       </>
                     )}
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={!plans?.providers?.yookassa || paying} onClick={() => { setPayError(null); setSelectedPlan(plan) }} aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
                       <CreditCard aria-hidden="true" />Оплатить
                     </button>
                   </div>
                 )
               })}
             </div>
+            {!plans?.providers?.yookassa && <Notice tone="info" title="Оплата временно недоступна">Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.</Notice>}
           </>
 
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>
     </section>
+    {checkoutPlan && <YooKassaPaymentDialog plan={checkoutPlan} methods={plans?.providers?.methods ?? ['sbp']} autopayAvailable={plans?.providers?.autopay === true} busy={paying} error={payError} onClose={() => { if (!paying) { setSelectedPlan(null); setPayError(null) } }} onPay={(method, autoRenew) => void pay(method, autoRenew)} />}
+    </>
   )
 }
 
@@ -543,7 +567,7 @@ function InviteCodePanel({ account }: { account: Account }) {
           </dl>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код стримера или друга? Укажите его — это можно сделать один раз. Код стримера — 3 дня бесплатно. Код друга — скидка 20 % на первый месяц, только до первой оплаты.</p>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код стримера или друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц. Код стримера также даёт 3 дня бесплатно.</p>
             <div className="inline-form">
               <input className="input code" aria-label="Код приглашения" value={code} maxLength={24} spellCheck={false} autoComplete="off" placeholder="КОД" onChange={(e) => setCode(e.target.value)} />
               <button type="submit" className="button primary" disabled={busy || !code.trim()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}Применить</button>

@@ -88,7 +88,8 @@ export interface AccountSummary {
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 /** `price` is null when only foreign payments (Lava.top) are on. */
 export interface Plan { id: PlanId; months: number; price: number | null; currency: 'RUB'; discountPercent: number }
-export interface PaymentProviders { yookassa: boolean; lava: boolean; autopay: boolean; lavaCurrency?: 'USD' | 'EUR' }
+export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
+export interface PaymentProviders { yookassa: boolean; lava: boolean; autopay: boolean; methods?: YooKassaPaymentMethod[]; lavaCurrency?: 'USD' | 'EUR' }
 export interface PlansResponse {
   enabled: boolean
   plans: Plan[]
@@ -99,9 +100,9 @@ export interface PlansResponse {
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 export type PaymentProvider = 'yookassa' | 'lava'
-/** `discountPercent`: the friend's discount (−20 % on the first month by a friend's code). */
+/** `discountPercent`: the invitation discount (−20 % on the first month by a friend or streamer code). */
 export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
-/** GET /v1/payments → friendDiscount: the first payment by a friend's code is cheaper (plan 1m only). */
+/** GET /v1/payments → friendDiscount: the first payment by any invitation code is cheaper (plan 1m only). */
 export interface FriendDiscount { percent: number; plan: '1m' }
 export interface Autopay {
   provider: PaymentProvider
@@ -119,7 +120,7 @@ export interface Autopay {
 }
 /** «Россия и СНГ» (ЮKassa) or «Другие страны» (Lava.top). */
 export type PaymentRegion = 'ru' | 'intl'
-export interface PaymentOptions { region: PaymentRegion; /** The separate autopayment consent (LEGAL_VERSION) — only when ticked. */ autopayVersion?: string; language: 'ru' | 'en' }
+export interface PaymentOptions { region: PaymentRegion; method?: YooKassaPaymentMethod; /** The separate autopayment consent (LEGAL_VERSION) — only when ticked. */ autopayVersion?: string; language: 'ru' | 'en' }
 export interface CreatedPayment { paymentId: string; confirmationUrl: string }
 
 async function request<T>(path: string, options: { method?: string; body?: unknown; token?: string | null; root?: string; timeoutMs?: number } = {}): Promise<T> {
@@ -421,7 +422,7 @@ export const api = {
   /** `consentVersion`: the offer / personal data documents the payer accepted with the checkbox. */
   createPayment: (token: string, plan: PlanId, consentVersion: string, options?: PaymentOptions) => request<CreatedPayment>('', {
     method: 'POST', token, root: '/v1/payments',
-    body: { plan, consent: { version: consentVersion }, ...(options ? { region: options.region, language: options.language, ...(options.autopayVersion ? { autopay: { version: options.autopayVersion } } : {}) } : {}) },
+    body: { plan, consent: { version: consentVersion }, ...(options ? { region: options.region, language: options.language, ...(options.method ? { method: options.method } : {}), ...(options.autopayVersion ? { autopay: { version: options.autopayVersion } } : {}) } : {}) },
   }),
   /** «Отменить автопродление»: ЮKassa — the saved method is deleted; Lava.top — the subscription is cancelled. */
   cancelAutopay: (token: string) => request<{ autopay: Autopay | null }>('/autopay/cancel', { method: 'POST', token, root: '/v1/payments' }),

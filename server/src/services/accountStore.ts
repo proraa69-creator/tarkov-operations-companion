@@ -668,7 +668,7 @@ export class AccountStore {
     const inviter = this.playerOfCode(code)
     if (!inviter) throw new AccountError(404, 'Код приглашения не найден')
     if (inviter === account.id) throw new AccountError(409, 'Свой код указать нельзя')
-    if (this.hasPaid(account.id)) throw new AccountError(409, 'Код друга действует только для новых игроков — до первой оплаты')
+    if (this.hasPaid(account.id)) throw new AccountError(409, 'Код приглашения действует только для новых игроков — до первой оплаты')
     this.db.prepare('UPDATE accounts SET invited_by = ?, invited_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(inviter, this.now(), account.id)
   }
 

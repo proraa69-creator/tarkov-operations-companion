@@ -26,6 +26,7 @@ const planSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']) })
 const consentSchema = z.object({ consent: z.object({ version: z.string().regex(CONSENT_VERSION) }) })
 const optionsSchema = z.object({
   region: z.enum(['ru', 'intl']).default('ru'),
+  method: z.enum(['sbp', 'sberbank', 'tinkoff_bank']).default('sbp'),
   autopay: z.object({ version: z.string().regex(CONSENT_VERSION) }).optional(),
   language: z.enum(['ru', 'en']).default('ru'),
 })
@@ -92,7 +93,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const billing = accounts.billingInfo(id)
     const created = options.region === 'intl'
       ? await payments.createLava(billing, plan, { version }, options.autopay, options.language === 'en' ? 'EN' : 'RU')
-      : await payments.create(billing, plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined)
+      : await payments.create(billing, plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined, options.method)
     accounts.recordConsent(id, 'payment', version)
     res.status(201).json(created)
   }))
