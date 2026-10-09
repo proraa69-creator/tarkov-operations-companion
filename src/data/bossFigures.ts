@@ -42,6 +42,7 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   kollontay: { ru: 'Колонтай', en: 'Kollontay' },
   'black-division': { ru: 'Black Division', en: 'Black Division' },
   military: { ru: 'Военные', en: 'Military' },
+  ruaf: { ru: 'ВС РФ', en: 'RUAF' },
   // Ancient (medieval) versions: Gallery only, never on a map.
   'tagilla-knight': { ru: 'Древний Тагилла', en: 'Ancient Tagilla' },
   'tagilla-2-knight': { ru: 'Древняя Тень Тагиллы', en: 'Ancient Shadow of Tagilla' },
@@ -60,9 +61,9 @@ const GROUPS: Record<string, string[]> = { goons: ['goon-1', 'goon-2', 'goon-3']
 
 /**
  * Bosses without a figure of their own that stand as the closest existing one (same still, own name):
- * the Raiders as the «Военные» soldiers, Vengeful Killa (Labyrinth) as Killa.
+ * the Raiders and the RUAF (ВС РФ) as the «Военные» soldiers, Vengeful Killa (Labyrinth) as Killa.
  */
-const FIGURE_ALIASES: Record<string, string> = { raiders: 'military', 'killa-vengeful': 'killa' }
+const FIGURE_ALIASES: Record<string, string> = { raiders: 'military', ruaf: 'military', 'killa-vengeful': 'killa' }
 
 type FigureMode = 'pvp' | 'pve' | 'seasonal'
 /** A boss that stands on a map only in some modes. */
@@ -88,7 +89,8 @@ const MAP_BOSSES: Record<string, Array<string | ModeEntry>> = {
   icebreaker: ['wadge', 'black-division', 'goons', 'rogue'],
   'the-lab': ['raiders', seasonOnly('black-division')],
   'the-labyrinth': ['tagilla-2', 'killa-vengeful'],
-  terminal: ['reshala', 'sanitar', 'killa', 'glukhar', 'tagilla', 'black-division'],
+  // One of the five bosses per raid (~20% each); Black Division and the RUAF (ВС РФ) in every raid (owner, 09.10.2026).
+  terminal: ['reshala', 'sanitar', 'killa', 'glukhar', 'tagilla', 'black-division', 'ruaf'],
 }
 
 const entryKey = (entry: string | ModeEntry) => (typeof entry === 'string' ? entry : entry.key)

@@ -7,7 +7,7 @@ describe('raid card boss figures (research list 30.09.2026)', () => {
   it('stands every boss of the list on its map, Goons as the trio', () => {
     expect(keys('customs', 'pvp')).toEqual(['reshala', 'goon-1', 'goon-2', 'goon-3', 'partisan'])
     expect(keys('lighthouse', 'pve')).toEqual(['zryachiy', 'rogue', 'goon-1', 'goon-2', 'goon-3', 'partisan'])
-    expect(keys('terminal', 'pvp')).toEqual(['reshala', 'sanitar', 'killa', 'glukhar', 'tagilla', 'black-division'])
+    expect(keys('terminal', 'pvp')).toEqual(['reshala', 'sanitar', 'killa', 'glukhar', 'tagilla', 'black-division', 'ruaf'])
     expect(keys('reserve', 'pve')).toEqual(['glukhar', 'raiders'])
   })
 
@@ -27,12 +27,15 @@ describe('raid card boss figures (research list 30.09.2026)', () => {
     expect(raiders.name.ru).toBe('Рейдеры')
     const vengeful = bossFiguresFor('the-labyrinth', 'pvp').find((figure) => figure.key === 'killa-vengeful')
     expect(vengeful?.url).toBe(bossFiguresFor('interchange', 'pvp').find((figure) => figure.key === 'killa')?.url)
-    expect(bossMapIds('military')).toEqual(['reserve', 'the-lab'])
+    expect(bossMapIds('military')).toEqual(['reserve', 'the-lab', 'terminal'])
+    const ruaf = bossFiguresFor('terminal', 'pve').find((figure) => figure.key === 'ruaf')
+    expect([ruaf?.name.ru, ruaf?.name.en]).toEqual(['ВС РФ', 'RUAF'])
   })
 
-  it('never stands more than six figures on the card', () => {
+  it('never stands more than seven figures on the card (Terminal: five bosses, Black Division and the RUAF)', () => {
+    expect(bossFiguresFor('terminal', 'pvp')).toHaveLength(7)
     for (const mapId of ['customs', 'woods', 'shoreline', 'interchange', 'factory', 'reserve', 'lighthouse', 'streets-of-tarkov', 'ground-zero', 'icebreaker', 'the-lab', 'the-labyrinth', 'terminal']) {
-      for (const mode of ['pvp', 'pve', 'seasonal'] as const) expect(bossFiguresFor(mapId, mode).length, `${mapId} ${mode}`).toBeLessThanOrEqual(6)
+      for (const mode of ['pvp', 'pve', 'seasonal'] as const) expect(bossFiguresFor(mapId, mode).length, `${mapId} ${mode}`).toBeLessThanOrEqual(7)
     }
   })
 })
