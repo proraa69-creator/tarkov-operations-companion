@@ -235,3 +235,11 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Удалены 9 устаревших `auto-release-*`, разовые repair-backup 08.10 и `/opt/raidos-repair-20261008`. Сохранены три последние release-копии; 12 копий базы находятся в `/var/backups/raidos-db`.
 - Действующая `/var/lib/raidos/companion.sqlite*`, текущие client/owner EXE, release mirror и item-image cache не удалялись. После очистки сайт и `/api/health` отвечают 200, API сообщает `database: true`, `raidos-api` и `raidos-release.timer` активны.
 - Read-only probe после операции: исходники по-прежнему 246 файлов, base `ec0af4f`, signed build `1791498472811` из `f577ef0`, API/database healthy. Новый snapshot исходников не создан: production code/build/refs не изменились; отличие сырого fingerprint вызвано новой версией collector, которая перестала включать `release/production` в `remoteRefs`.
+
+## 2026-10-09T21:10+07: Codex, ЮKassa и автосписание включены
+
+- `release/production` выпущен из `b3c57d5`; Production Gate run `37937170973` завершён успешно (180 test files, 1046 tests). Публичный signed build `1791553060296` соответствует `b3c57d5...-production`; API и база здоровы.
+- Robokassa удалена из пользовательского потока. ЮKassa использует ShopID `1481580`, HTTP webhook ранее настроен на `/v1/payments/yookassa/webhook`; секретный API-ключ создан владельцем и установлен только в `/etc/raidos/raidos-api.env`, без публикации в Git или общий контекст.
+- В production включены `YOOKASSA_PAYMENT_METHODS=sbp` и `YOOKASSA_AUTOPAY=1` после сообщения владельца об одобрении автосписаний ЮKassa. SberPay и T-Pay кодом поддерживаются, но не включены в env без отдельного подтверждения их активации у провайдера.
+- Публичный `/v1/payments/plans` подтверждает YooKassa и autopay enabled, методы `sbp`, тарифы 1/3/6/12 месяцев: 300/900/1500/2400 RUB, скидки 0/0/17/33%. Read-only запрос к API ЮKassa с серверными credentials вернул HTTP 200; реальный платёж и списание не создавались.
+- Для приглашения друга или стримера действует скидка 20% только на первый месячный платёж. Автосписание требует отдельной явной галочки пользователя и не выбирается заранее.
