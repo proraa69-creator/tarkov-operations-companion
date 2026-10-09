@@ -1,0 +1,20 @@
+{
+  "capturedAt": "2026-10-09T15:06:39.633Z",
+  "previousFingerprint": "79b46484f61a362b3888bfece2acc1d49eb0d1911d29d7933bd967a2acd67f09",
+  "fingerprint": "6874a07b8957e1a2a2b9696faf09f07e4a4dd5c79b3480fb144de29092bb0636",
+  "releaseBranchHead": "96e86123ed4ff563ab490ae450bc725eadd07729",
+  "publishedBuild": 1791557960416,
+  "gateRun": 37947316590,
+  "sourceFilesVerified": 261,
+  "signedReleaseVerified": true,
+  "health": {
+    "ok": true,
+    "database": true
+  },
+  "manualTasks": [
+    "payment retry",
+    "SBP-only correction",
+    "subscription expiry warning"
+  ],
+  "nativeVerificationPending": true
+}
