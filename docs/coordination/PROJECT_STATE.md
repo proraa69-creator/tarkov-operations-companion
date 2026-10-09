@@ -44,9 +44,9 @@ Raid OS: Windows-приложение-компаньон для Escape from Tark
 ## VPS и эксплуатация
 
 - Провайдер Timeweb Cloud, сервер `129.101.117.231`.
-- RAM около 4 GB, диск около 50 GB, swap не обнаружен. Собирать из staging и ограничивать ресурсы.
+- RAM около 4 GB, диск около 50 GB, swap не обнаружен. После безопасной очистки 09.10 диск занят на 54%: около 26 GB занято и 22 GB свободно. Собирать из staging и ограничивать ресурсы.
 - Производственная папка: `/opt/tarkov-operations-companion`.
-- Staging ремонта: `/opt/raidos-repair-20261008`.
+- Одноразовый staging ремонта `/opt/raidos-repair-20261008` удалён 09.10 как устаревший после успешных выпусков.
 - Сервис: `raidos-api`, запускает `npm start` из `/opt/tarkov-operations-companion/server`, пользователь `raidos-api`.
 - API слушает loopback `127.0.0.1:8787`, nginx проксирует `/api/` с удалением префикса.
 - Сайт nginx: `/opt/tarkov-operations-companion/website/dist`; SPA-маршруты требуют fallback на `index.html`.
@@ -60,6 +60,8 @@ Raid OS: Windows-приложение-компаньон для Escape from Tark
 При сборке сайта использовать `VITE_API_URL=/api`, `VITE_DOWNLOAD_URL=/download/windows`. Старая инструкция с URL страницы GitHub ошибочна: она возвращает нежелательный переход на GitHub вместо скачивания.
 
 Нельзя заменять рабочую базу файлом с ноутбука во время обновления кода. Для бэкапа SQLite использовать Backup API или `VACUUM INTO`, а не раздельное копирование активных sqlite/WAL/SHM. Откат кода не должен терять новые данные аккаунтов.
+
+Очистка диска выполняется штатным `scripts/server-disk-cleanup.sh`: сохраняются три последние release-копии и rollback, а базы удаляемых копий сначала архивируются в `/var/backups/raidos-db`. После очистки 09.10 сохранены 3 release-backup и 12 сжатых архивов базы; действующая база, клиент, owner/server EXE, release mirror и item-image cache не затронуты.
 
 ## Последний выполненный ремонт
 

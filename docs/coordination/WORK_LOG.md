@@ -228,3 +228,10 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - First launch showed «Сервер недоступен». Root cause: production `/etc/raidos/raidos-api.env` allowed only `https://raidos.app`, overriding the source default that already includes Capacitor origins.
 - Backed up the environment file, set `WEB_ORIGIN=https://raidos.app,capacitor://localhost,https://localhost`, restarted only `raidos-api`, and verified active service, healthy database, `Access-Control-Allow-Origin: capacitor://localhost` on GET `/v1/accounts/auth-config`, plus a 204 login preflight with POST/content-type allowed.
 - No database, account, subscription, payment, nginx, source-code or scheduled-task changes were made. Post-fix successful sign-in on the phone remains unverified until the owner reports the result.
+
+## 2026-10-09T10:36+07: Codex, безопасная очистка диска VPS
+
+- По прямому поручению владельца выполнен штатный `scripts/server-disk-cleanup.sh --clean` на Timeweb VPS. Использование корневого диска снизилось с 81% (9,2 GB свободно) до 54% (22 GB свободно), освобождено около 13 GB.
+- Удалены 9 устаревших `auto-release-*`, разовые repair-backup 08.10 и `/opt/raidos-repair-20261008`. Сохранены три последние release-копии; 12 копий базы находятся в `/var/backups/raidos-db`.
+- Действующая `/var/lib/raidos/companion.sqlite*`, текущие client/owner EXE, release mirror и item-image cache не удалялись. После очистки сайт и `/api/health` отвечают 200, API сообщает `database: true`, `raidos-api` и `raidos-release.timer` активны.
+- Read-only probe после операции: исходники по-прежнему 246 файлов, base `ec0af4f`, signed build `1791498472811` из `f577ef0`, API/database healthy. Новый snapshot исходников не создан: production code/build/refs не изменились; отличие сырого fingerprint вызвано новой версией collector, которая перестала включать `release/production` в `remoteRefs`.
