@@ -151,7 +151,7 @@ test('lava invoice: offer, currency, periodicity per plan, buyer language; autop
     assert.equal(lavaApi.requests.filter((item) => item.method === 'POST').at(-1)!.body!.periodicity, periodicity)
   }
   assert.deepEqual(await payments.foreignPrices(), { '1m': 4.99, '3m': 12.99 })
-  assert.deepEqual(payments.providers(), { yookassa: true, lava: true, autopay: true, lavaCurrency: 'USD' })
+  assert.deepEqual(payments.providers(), { yookassa: true, lava: true, autopay: true, methods: ['sbp'], lavaCurrency: 'USD' })
 })
 
 test('lava webhooks: auth, first payment, duplicates, renewals and cancellation', async () => {

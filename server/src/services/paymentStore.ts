@@ -21,8 +21,9 @@
  *
  * Configuration comes from the environment of the server process (the desktop app passes it from its encrypted
  * settings, electron/ownerAdmin.ts): YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY, TARKOV_PRICE_MONTH_RUB, optional
- * YOOKASSA_RECEIPTS=1 (send a 54-ФЗ receipt with each payment), YOOKASSA_AUTOPAY=1, TARKOV_STREAMER_PERCENT and
- * TARKOV_PUBLIC_URL (the site address for the return link); LAVA_* for Lava.top (lavaTop.ts). Without a shop id, key
+ * YOOKASSA_RECEIPTS=1 (send a 54-ФЗ receipt with each payment), YOOKASSA_AUTOPAY=1,
+ * YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank, TARKOV_STREAMER_PERCENT and TARKOV_PUBLIC_URL (the site address
+ * for the return link); LAVA_* for Lava.top (lavaTop.ts). Without a shop id, key
  * and price ЮKassa is switched off. Secret keys are never logged, stored in the database or sent to a client.
  */
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
@@ -68,9 +69,11 @@ export interface LavaWebhookLogEntry {
 export interface LavaPendingInvoice { paymentId: string; email: string; plan: PlanId; createdAt: string; ageMinutes: number; contract?: string; expected?: { amount: number; currency: string } }
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
+export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
+export const YOOKASSA_PAYMENT_METHODS: readonly YooKassaPaymentMethod[] = ['sbp', 'sberbank', 'tinkoff_bank']
 export const PLAN_MONTHS: Record<PlanId, number> = { '1m': 1, '3m': 3, '6m': 6, '12m': 12 }
-/** The yearly plan is 33% cheaper than twelve monthly payments (docs/product-roadmap-and-business-model.md). */
-const YEAR_DISCOUNT = 0.33
+/** Public prices: six months cost five monthly payments; a year costs eight. */
+const PLAN_DISCOUNTS: Partial<Record<PlanId, number>> = { '6m': 1 / 6, '12m': 1 / 3 }
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const YOOKASSA_API = 'https://api.yookassa.ru/v3'
@@ -106,6 +109,8 @@ export interface PaymentConfig {
   publicUrl?: string
   /** ЮKassa autopayments switched on by the owner (the shop must have recurring payments enabled by ЮKassa). */
   autopay?: boolean
+  /** Methods enabled for this YooKassa shop. Unlisted methods are rejected server-side and never shown by the site. */
+  paymentMethods?: YooKassaPaymentMethod[]
 }
 
 /** A site origin for return links: https://host[:port], or this PC's own site (http://localhost / 127.0.0.1). */
@@ -118,6 +123,8 @@ export function paymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Paym
   if (!/^\d{1,12}$/.test(shopId) || !secretKey || !Number.isFinite(monthPrice) || monthPrice < 1) return undefined
   const percent = Number(env.TARKOV_STREAMER_PERCENT ?? DEFAULT_STREAMER_PERCENT)
   const publicUrl = env.TARKOV_PUBLIC_URL?.trim().replace(/\/+$/, '')
+  const requestedMethods = (env.YOOKASSA_PAYMENT_METHODS ?? 'sbp').split(',').map((item) => item.trim()).filter(Boolean)
+  const paymentMethods = YOOKASSA_PAYMENT_METHODS.filter((method) => requestedMethods.includes(method))
   return {
     shopId,
     secretKey,
@@ -126,6 +133,7 @@ export function paymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Paym
     streamerPercent: Number.isFinite(percent) ? Math.min(100, Math.max(0, percent)) : 0,
     ...(publicUrl && PUBLIC_URL.test(publicUrl) ? { publicUrl } : {}),
     ...(env.YOOKASSA_AUTOPAY === '1' ? { autopay: true } : {}),
+    paymentMethods: paymentMethods.length ? paymentMethods : ['sbp'],
   }
 }
 
@@ -133,7 +141,7 @@ export function paymentConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Paym
 export function planPrice(monthPrice: number, plan: PlanId) {
   const months = PLAN_MONTHS[plan]
   const full = monthPrice * months
-  return Math.round((plan === '12m' ? full * (1 - YEAR_DISCOUNT) : full) * 100)
+  return Math.round(full * (1 - (PLAN_DISCOUNTS[plan] ?? 0)) * 100)
 }
 
 /** `price` in roubles, `null` when only foreign payments are on (the price is then shown by Lava.top). */
@@ -443,6 +451,7 @@ export class PaymentStore {
       yookassa: this.config !== undefined,
       lava: this.lava !== undefined,
       autopay: this.config?.autopay === true,
+      methods: this.config?.paymentMethods ?? ['sbp'],
       ...(this.lava ? { lavaCurrency: this.lava.config.currency } : {}),
     }
   }
@@ -457,7 +466,7 @@ export class PaymentStore {
     const month = this.config?.monthPrice
     return (Object.keys(PLAN_MONTHS) as PlanId[]).map((id) => {
       const months = PLAN_MONTHS[id]
-      if (month === undefined) return { id, months, price: null, currency: 'RUB', discountPercent: id === '12m' ? Math.round(YEAR_DISCOUNT * 100) : 0 }
+      if (month === undefined) return { id, months, price: null, currency: 'RUB', discountPercent: Math.round((PLAN_DISCOUNTS[id] ?? 0) * 100) }
       const price = planPrice(month, id) / 100
       return { id, months, price, currency: 'RUB', discountPercent: Math.round((1 - price / (month * months)) * 100) }
     })
@@ -507,9 +516,10 @@ export class PaymentStore {
    * the offer / personal data documents the payer accepted with the checkbox; it is stored with the payment. `autopay`
    * is the separate autopayment consent: only with it ЮKassa is asked to save the payment method.
    */
-  async create(account: { id: string; email: string; referredBy?: string }, plan: PlanId, siteUrl: string, consent?: { version: string }, autopay?: { version: string }, discount?: { percent: number }) {
+  async create(account: { id: string; email: string; referredBy?: string }, plan: PlanId, siteUrl: string, consent?: { version: string }, autopay?: { version: string }, discount?: { percent: number }, method: YooKassaPaymentMethod = 'sbp') {
     const config = this.config
     if (!config) throw new PaymentError(503, 'Оплата пока не подключена')
+    if (!(config.paymentMethods ?? ['sbp']).includes(method)) throw new PaymentError(409, 'Этот способ оплаты пока не подключён')
     if (autopay && !config.autopay) throw new PaymentError(409, 'Автоплатежи пока не подключены — оплатите без автопродления')
     if (autopay) this.assertNoActiveAutopay(account.id)
     const id = randomBytes(12).toString('hex')
@@ -519,10 +529,11 @@ export class PaymentStore {
     const discountUsed = this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND discount_percent IS NOT NULL AND (status IN ('succeeded', 'refunded') OR (status = 'pending' AND created_at > ?))").get(account.id, this.now() - DAY_MS) !== undefined
     const percent = discount && !discountUsed && plan === '1m' && discount.percent > 0 && discount.percent < 100 ? discount.percent : undefined
     const amount = percent === undefined ? listAmount : Math.round(listAmount * (100 - percent) / 100)
-    const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}${percent === undefined ? '' : ` (скидка ${percent} % по коду друга)`}`
+    const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}${percent === undefined ? '' : ` (скидка ${percent} % по приглашению)`}`
     const body: Record<string, unknown> = {
       amount: { value: rub(amount), currency: 'RUB' },
       capture: true,
+      payment_method_data: { type: method },
       confirmation: { type: 'redirect', return_url: `${siteUrl}/cabinet?payment=${id}` },
       description,
       metadata: { paymentId: id, accountId: account.id, plan },

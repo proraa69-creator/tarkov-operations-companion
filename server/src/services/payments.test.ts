@@ -49,20 +49,22 @@ async function setup() {
 
 const providerId = (url: string) => new URL(url).searchParams.get('orderId')!
 
-test('plans: 1, 3, 6 months at the monthly price, the year 33% off', () => {
+test('plans: public prices are 300, 900, 1500 and 2400 roubles', () => {
   const store = new PaymentStore(openDatabase(':memory:'), config)
-  assert.deepEqual(store.plans().map((plan) => [plan.id, plan.price, plan.discountPercent]), [['1m', 300, 0], ['3m', 900, 0], ['6m', 1800, 0], ['12m', 2412, 33]])
-  assert.equal(planPrice(299, '12m'), 240396)
+  assert.deepEqual(store.plans().map((plan) => [plan.id, plan.price, plan.discountPercent]), [['1m', 300, 0], ['3m', 900, 0], ['6m', 1500, 17], ['12m', 2400, 33]])
+  assert.equal(planPrice(299, '6m'), 149500)
+  assert.equal(planPrice(299, '12m'), 239200)
   assert.equal(new PaymentStore(openDatabase(':memory:'), undefined).enabled, false)
 })
 
 test('config comes only from a complete environment', () => {
   assert.equal(paymentConfigFromEnv({}), undefined)
   assert.equal(paymentConfigFromEnv({ YOOKASSA_SHOP_ID: '1', YOOKASSA_SECRET_KEY: 'k' }), undefined)
-  const parsed = paymentConfigFromEnv({ YOOKASSA_SHOP_ID: '1', YOOKASSA_SECRET_KEY: 'k', TARKOV_PRICE_MONTH_RUB: '249', TARKOV_PUBLIC_URL: 'https://tarkov.example.com/' })
+  const parsed = paymentConfigFromEnv({ YOOKASSA_SHOP_ID: '1', YOOKASSA_SECRET_KEY: 'k', TARKOV_PRICE_MONTH_RUB: '249', TARKOV_PUBLIC_URL: 'https://tarkov.example.com/', YOOKASSA_PAYMENT_METHODS: 'sbp,sberbank,tinkoff_bank,unknown' })
   assert.equal(parsed?.monthPrice, 249)
   assert.equal(parsed?.publicUrl, 'https://tarkov.example.com')
   assert.equal(parsed?.receipts, false)
+  assert.deepEqual(parsed?.paymentMethods, ['sbp', 'sberbank', 'tinkoff_bank'])
   // The return address: an https origin or this PC's own site (the owner app's fallback); nothing else.
   const publicUrl = (value: string) => paymentConfigFromEnv({ YOOKASSA_SHOP_ID: '1', YOOKASSA_SECRET_KEY: 'k', TARKOV_PRICE_MONTH_RUB: '249', TARKOV_PUBLIC_URL: value })?.publicUrl
   assert.equal(publicUrl('http://127.0.0.1:5202'), 'http://127.0.0.1:5202')
@@ -79,6 +81,7 @@ test('a paid payment activates the subscription once and credits the streamer', 
   assert.equal(request.headers.authorization, `Basic ${Buffer.from('123456:test_secret').toString('base64')}`)
   assert.ok(request.headers['idempotence-key'])
   assert.deepEqual((request.body as { amount: unknown }).amount, { value: '900.00', currency: 'RUB' })
+  assert.deepEqual((request.body as { payment_method_data: unknown }).payment_method_data, { type: 'sbp' })
   assert.equal((request.body as { confirmation: { return_url: string } }).confirmation.return_url, `https://tarkov.example.com/cabinet?payment=${created.paymentId}`)
   assert.equal((request.body as { receipt: { customer: { email: string } } }).receipt.customer.email, 'player@example.com')
 
@@ -123,6 +126,17 @@ test('canceled, tampered and unknown payments never grant a subscription', async
   await payments.sync('../../etc')
   assert.notEqual(accounts.view(accountId).subscription.status, 'active')
   await assert.rejects(payments.status('someone-else', first.paymentId), /не найден/)
+})
+
+test('only payment methods enabled for the shop can be created', async () => {
+  const { accounts, payments, yoo, accountId } = await setup()
+  await assert.rejects(
+    payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com', undefined, undefined, undefined, 'sberbank'),
+    /не подключён/,
+  )
+  payments.configureYookassa({ ...config, paymentMethods: ['sbp', 'sberbank', 'tinkoff_bank'] })
+  await payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com', undefined, undefined, undefined, 'tinkoff_bank')
+  assert.deepEqual((yoo.requests.at(-1)!.body as { payment_method_data: unknown }).payment_method_data, { type: 'tinkoff_bank' })
 })
 
 test('streamer statistics by day, month and year: visits, sign-ups and paid plans', async () => {

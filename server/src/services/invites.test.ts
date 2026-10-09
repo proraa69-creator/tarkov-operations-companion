@@ -72,7 +72,7 @@ test('a friend registers with a player code and gets 20 % off the first month on
   assert.equal(t.invites.discountPercent(friend), 20)
   await t.pay(friend, '1m')
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '240.00', currency: 'RUB' })
-  assert.match(String(t.yoo.bodies.at(-1)!.description), /скидка 20 % по коду друга/)
+  assert.match(String(t.yoo.bodies.at(-1)!.description), /скидка 20 % по приглашению/)
   assert.equal(t.payments.list(friend)[0]!.discountPercent, 20)
   assert.equal(t.invites.discountPercent(friend), 0, 'only the first payment')
   await t.pay(friend, '1m')
@@ -81,7 +81,7 @@ test('a friend registers with a player code and gets 20 % off the first month on
   // A longer plan never gets the discount.
   const other = await t.register('other@example.com', code)
   await t.pay(other, '12m')
-  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '2412.00', currency: 'RUB' })
+  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '2400.00', currency: 'RUB' })
 })
 
 test('the inviter gets 7 days only after the friend paid and 14 days passed; milestones at 3 friends', async () => {
@@ -168,13 +168,13 @@ test('a friend code: not one\'s own, not after a payment, once; codes share one 
   assert.equal(t.accounts.invitedBy(fresh), inviter)
   assert.throws(() => t.accounts.applyReferral(fresh, code), /уже указан/)
 
-  // Streamer codes keep the trial; a player cannot take a streamer's code or the other way round.
+  // Streamer codes keep the trial and also give the first-month discount; namespaces remain shared.
   await t.accounts.register('streamer@example.com', password)
   t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
   assert.equal(t.accounts.codeKind('hunter'), 'streamer')
   const viewer = await t.register('viewer@example.com', 'HUNTER')
   assert.equal(t.accounts.view(viewer).subscription.status, 'trial')
-  assert.equal(t.invites.discountPercent(viewer), 0)
+  assert.equal(t.invites.discountPercent(viewer), 20)
   assert.throws(() => t.invites.setCode(fresh, 'hunter'), /занят/)
   assert.throws(() => t.accounts.promoteToStreamer('fresh@example.com', code), /taken/)
 

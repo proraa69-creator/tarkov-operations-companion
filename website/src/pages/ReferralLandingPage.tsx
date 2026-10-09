@@ -64,7 +64,7 @@ export function ReferralLandingPage() {
       <Users aria-hidden="true" />
       <div className="text">
         <strong>Друг пригласил вас в Raid OS · код <span className="mono" style={{ color: 'var(--brass-strong)', fontSize: 'inherit' }}>{code}</span></strong>
-        <span>{account ? 'Код друга можно указать в личном кабинете до первой оплаты — скидка 20 % на первый месяц.' : 'Зарегистрируйтесь — скидка 20 % на первый месяц.'}</span>
+        <span>{account ? 'Код можно указать в личном кабинете до первой оплаты — скидка 20 % на первый месяц.' : 'Зарегистрируйтесь — скидка 20 % на первый месяц.'}</span>
       </div>
       <Link to={account ? '/cabinet' : '/register'} className="button primary">
         <UserPlus aria-hidden="true" />{account ? 'Открыть кабинет' : 'Зарегистрироваться'}

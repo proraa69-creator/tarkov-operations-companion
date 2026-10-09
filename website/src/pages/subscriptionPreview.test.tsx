@@ -20,8 +20,8 @@ vi.mock('../api', async (original) => {
 const { CabinetPage } = await import('./CabinetPage')
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
-describe('subscription preview with checkout disabled', () => {
-  it.each(['disabled', 'enabled', 'offline'])('shows four inactive payment buttons when the provider is %s', async (mode) => {
+describe('subscription checkout', () => {
+  it.each(['disabled', 'offline'])('shows four inactive payment buttons when the provider is %s', async (mode) => {
     if (mode === 'offline') mocks.plans.mockRejectedValue(new Error('offline'))
     else mocks.plans.mockResolvedValue({ enabled: mode === 'enabled', plans: [], providers: { yookassa: mode === 'enabled', lava: false, autopay: false }, foreign: null })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
@@ -41,5 +41,50 @@ describe('subscription preview with checkout disabled', () => {
     expect(panel.getByText('−33%')).toBeInTheDocument()
     await vi.waitFor(() => expect(mocks.plans).toHaveBeenCalled())
     expect(mocks.createPayment).not.toHaveBeenCalled()
+  })
+
+  it('requires consent and starts an SBP payment with the published legal version', async () => {
+    mocks.plans.mockResolvedValue({
+      enabled: true,
+      plans: [
+        { id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 },
+        { id: '3m', months: 3, price: 900, currency: 'RUB', discountPercent: 0 },
+        { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
+        { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
+      ],
+      providers: { yookassa: true, lava: false, autopay: false, methods: ['sbp', 'sberbank', 'tinkoff_bank'] }, foreign: null,
+    })
+    mocks.createPayment.mockReturnValue(new Promise(() => {}))
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const button = await screen.findByRole('button', { name: 'Оплатить 1 месяц' })
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+    const dialog = screen.getByRole('dialog', { name: /1 месяц/ })
+    const submit = within(dialog).getByRole('button', { name: 'Перейти к оплате' })
+    expect(submit).toBeDisabled()
+    fireEvent.click(within(dialog).getByRole('checkbox'))
+    fireEvent.click(submit)
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-09.1', { region: 'ru', method: 'sbp', language: 'ru' }))
+  })
+
+  it('starts a T-Pay payment with autopay only after both checkboxes are selected', async () => {
+    mocks.plans.mockResolvedValue({
+      enabled: true,
+      plans: [{ id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 }],
+      providers: { yookassa: true, lava: false, autopay: true, methods: ['sbp', 'sberbank', 'tinkoff_bank'] }, foreign: null,
+    })
+    mocks.createPayment.mockReturnValue(new Promise(() => {}))
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Оплатить 1 месяц' }))
+    const dialog = screen.getByRole('dialog', { name: /1 месяц/ })
+    fireEvent.click(within(dialog).getByRole('radio', { name: /T-Pay/ }))
+    const checkboxes = within(dialog).getAllByRole('checkbox')
+    fireEvent.click(checkboxes[0]!)
+    fireEvent.click(checkboxes[1]!)
+    expect(within(dialog).getByText(/ЮKassa сохранит способ оплаты/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Перейти к оплате' }))
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-09.1', {
+      region: 'ru', method: 'tinkoff_bank', language: 'ru', autopayVersion: '2026-10-09.1',
+    }))
   })
 })
