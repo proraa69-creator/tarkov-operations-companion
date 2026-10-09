@@ -15,8 +15,21 @@
 .boss-info-chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); font-size: 12px; font-weight: 700; }
 
 /* health: Tarkov-style body figure (src/components/BodyHealthFigure.tsx), HP on every part, a PMC's HP small under it */
-.body-figure { position: relative; margin: 0; overflow: hidden; border-radius: 8px; container-type: inline-size; }
-.body-figure img { display: block; width: 100%; height: auto; user-select: none; }
+.body-figure { position: relative; margin: 0; aspect-ratio: 710 / 891; container-type: inline-size; border-radius: 8px; background: radial-gradient(ellipse 55% 60% at 50% 45%, rgb(150 190 196 / 10%), transparent 70%), #0b0e0e; overflow: hidden; }
+/* the skeleton fills the middle 60% (its cut-out box is 710×1485 of the picture) */
+.body-figure-skeleton { position: absolute; top: 0; bottom: 0; left: 20%; width: 60%; }
+.body-figure-skeleton img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; user-select: none; pointer-events: none; }
+.body-figure-base { transition: opacity .18s ease, filter .18s ease; }
+.body-figure.has-active .body-figure-base { opacity: .4; filter: saturate(.6); }
+.body-figure-glow { opacity: 0; filter: sepia(1) saturate(7) hue-rotate(-14deg) brightness(1.08) contrast(1.05); transition: opacity .18s ease; }
+.body-figure-glow.is-active { opacity: 1; }
+.body-figure-areas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.body-figure-areas polygon { fill: transparent; cursor: pointer; }
+.body-figure-window { cursor: default; outline: none; }
+.body-figure-window.is-active .body-figure-name { background: rgb(224 120 46 / 92%); color: #160b04; }
+.body-figure-window.is-active .body-figure-bar { border-color: #e0782e; box-shadow: 0 0 0 1px rgb(224 120 46 / 35%), 0 0 12px rgb(224 120 46 / 35%); }
+.body-figure-window:focus-visible .body-figure-bar { outline: 2px solid var(--brass-strong); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .body-figure-base, .body-figure-glow { transition: none; } }
 /* a window of the game's health screen: dark tab with a cut corner, then the HP bar */
 .body-figure-window { position: absolute; width: 28%; transform: translate(-50%, -50%); font-family: inherit; }
 .body-figure-name { display: block; width: 100%; padding: 2px 11% 2px 5%; background: rgb(32 34 35 / 88%); clip-path: polygon(0 0, 88% 0, 100% 100%, 0 100%); color: #d6d6d0; font-size: clamp(7px, 2.5cqi, 9.5px); font-weight: 700; letter-spacing: .02em; line-height: 1.3; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
