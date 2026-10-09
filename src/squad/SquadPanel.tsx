@@ -78,7 +78,7 @@ function AccessNotice() {
   return (
     <div className="panel squad-paywall">
       <ShieldAlert size={20} />
-      <div><strong>{uiText('Отряд — функция подписки')}</strong><p className="muted">{uiText('Создать отряд, вступить в него и видеть общие задания можно с активной подпиской, в пробный период или со стримерским аккаунтом. Покинуть отряд можно всегда.')}</p></div>
+      <div><strong>{uiText('Отряд — функция подписки')}</strong><p className="muted">{uiText('Создать отряд, вступить в него и видеть общие задания можно с активной подпиской. Покинуть отряд можно всегда.')}</p></div>
       <Link className="button small" to="/profile">{uiText('Подписка')}</Link>
     </div>
   )

@@ -40,7 +40,7 @@ const joinSchema = z.object({ code: z.string().max(32) }).strict()
 const inviteFriendSchema = z.object({ friendId: z.string().regex(FRIEND_ID) }).strict()
 const kickSchema = z.object({ memberId: z.string().regex(SQUAD_MEMBER_ID) }).strict()
 
-export const SUBSCRIPTION_REQUIRED = 'Отряд доступен с активной подпиской, в пробный период или стримерам'
+export const SUBSCRIPTION_REQUIRED = 'Отряд доступен с активной подпиской'
 const TOO_MANY = 'Слишком много запросов. Попробуйте позже.'
 
 export interface SquadRouterOptions {

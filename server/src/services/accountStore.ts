@@ -356,8 +356,15 @@ export class AccountStore {
   private readonly ownerEmails: ReadonlySet<string>
 
   /** `ownerEmails` defaults to TARKOV_OWNER_EMAILS (the owner's desktop app passes it to the API process). */
-  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[] } = {}) {
+  /**
+   * The 3 free days for a streamer's code. The live server turns them off (server/src/index.ts: the streamer programme is
+   * paused, owner 09.10.2026) — the code still records the referral; trials granted before keep running out.
+   */
+  private readonly streamerTrial: boolean
+
+  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; streamerTrial?: boolean } = {}) {
     this.now = options.now ?? Date.now
+    this.streamerTrial = options.streamerTrial ?? true
     this.ownerEmails = new Set(options.ownerEmails ? parseOwnerEmails(options.ownerEmails.join(',')) : parseOwnerEmails(process.env.TARKOV_OWNER_EMAILS))
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
@@ -455,6 +462,10 @@ export class AccountStore {
    * re-registration after «Удалить аккаунт») keeps the referral — it counts for the streamer — but gets no trial.
    */
   private claimTrialByEmail(accountId: string, email: string) {
+    if (!this.streamerTrial) {
+      this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
+      return
+    }
     const digest = trialEmailDigest(email)
     if (this.db.prepare('SELECT 1 FROM trial_claims WHERE email_canon_hash = ? AND account_id <> ?').get(digest, accountId)) {
       this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)

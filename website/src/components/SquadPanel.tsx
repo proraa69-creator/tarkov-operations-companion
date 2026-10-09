@@ -78,7 +78,7 @@ export function SquadPanel() {
           <>
             {!mine.access && (
               <Notice tone="warn" title="Отряд — функция подписки">
-                <ShieldAlert size={14} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 4 }} />Создать отряд, вступить и видеть общие задания можно с активной подпиской, в пробный период или со стримерским аккаунтом. Покинуть отряд можно всегда.
+                <ShieldAlert size={14} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 4 }} />Создать отряд, вступить и видеть общие задания можно с активной подпиской. Покинуть отряд можно всегда.
               </Notice>
             )}
             {!squad && mine.invitations.map((invitation) => (

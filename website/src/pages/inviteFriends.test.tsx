@@ -131,12 +131,13 @@ describe('«Пригласи друга»', () => {
     expect(screen.getAllByRole('link', { name: 'Зарегистрироваться' }).every((link) => link.getAttribute('href') === '/register')).toBe(true)
   })
 
-  it('/r/<streamer code> keeps the streamer banner', async () => {
+  it('/r/<streamer code>: a plain invitation, no free days (streamer programme paused)', async () => {
     mocks.auth = { status: 'signed-out', token: null, account: null }
     mocks.referralVisit.mockResolvedValue({ ok: true, code: 'HUNTER_TV', kind: 'streamer' })
     render(<MemoryRouter initialEntries={['/r/HUNTER_TV']}><Routes><Route path="/r/:code" element={<ReferralLandingPage />} /></Routes></MemoryRouter>)
     await settle()
-    expect(screen.getByText(/3 дня бесплатного доступа/)).toBeInTheDocument()
+    expect(screen.getByText('Зарегистрируйтесь по приглашению.')).toBeInTheDocument()
+    expect(screen.queryByText(/3 дня бесплатного доступа/)).toBeNull()
     expect(screen.queryByText(/Друг пригласил вас/)).toBeNull()
   })
 })

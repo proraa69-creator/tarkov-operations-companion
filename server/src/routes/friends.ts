@@ -37,7 +37,7 @@ const requestSchema = z.union([
 const privacySchema = z.object({ hideProgress: z.boolean() }).strict()
 const progressSchema = z.object({ friendIds: z.array(z.string().regex(FRIEND_ID)).max(10) }).strict()
 
-export const FRIENDS_SUBSCRIPTION_REQUIRED = 'Друзья и общий прогресс доступны с активной подпиской, в пробный период или стримерам'
+export const FRIENDS_SUBSCRIPTION_REQUIRED = 'Друзья и общий прогресс доступны с активной подпиской'
 const TOO_MANY = 'Слишком много запросов. Попробуйте позже.'
 
 export const FRIEND_RATE_LIMITS = { ip: 900, account: 300, windowMs: 10 * 60 * 1000, requestsAccount: 20, requestsIp: 40, requestsWindowMs: 60 * 60 * 1000 }

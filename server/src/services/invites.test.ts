@@ -282,6 +282,20 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '300.00', currency: 'RUB' })
 })
 
+test('streamer programme paused: a streamer\'s code records the referral but gives no free days and no discount', async () => {
+  const { AccountStore } = await import('./accountStore.js')
+  const { openDatabase } = await import('./database.js')
+  const store = new AccountStore({ db: openDatabase(':memory:'), ownerEmails: [], streamerTrial: false })
+  await store.register('tv@example.com', 'correct horse battery')
+  store.promoteToStreamer('tv@example.com', 'HUNTER')
+  const viewer = store.authenticate((await store.register('viewer@example.com', 'correct horse battery', 'HUNTER')).token)!
+  assert.equal(store.view(viewer).referredBy, 'HUNTER')
+  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive' })
+  const late = store.authenticate((await store.register('late@example.com', 'correct horse battery')).token)!
+  store.applyReferral(late, 'HUNTER')
+  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription.status], ['HUNTER', 'inactive'])
+})
+
 test('a plain sign-up without a friend or streamer code pays the list price; the cabinet shows no discount', async () => {
   const t = await setup()
   const plain = await t.register('plain@example.com')

@@ -53,7 +53,7 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
       {!friends.access && (
         <div className="panel squad-paywall">
           <ShieldAlert size={20} />
-          <div><strong>{uiText('Друзья — функция подписки')}</strong><p className="muted">{uiText('Добавлять друзей и видеть их задания можно с активной подпиской, в пробный период или со стримерским аккаунтом. Отвечать на запросы, удалять и блокировать можно всегда.')}</p></div>
+          <div><strong>{uiText('Друзья — функция подписки')}</strong><p className="muted">{uiText('Добавлять друзей и видеть их задания можно с активной подпиской. Отвечать на запросы, удалять и блокировать можно всегда.')}</p></div>
         </div>
       )}
       <div className="grid-2 squad-start">

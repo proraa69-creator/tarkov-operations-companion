@@ -75,7 +75,7 @@ export function ReferralLandingPage() {
       <Gift aria-hidden="true" />
       <div className="text">
         <strong>Вас пригласили · код <span className="mono" style={{ color: 'var(--brass-strong)', fontSize: 'inherit' }}>{code}</span></strong>
-        <span>{account ? 'Код можно указать в личном кабинете, если он ещё не указан.' : kind === 'streamer' ? 'Зарегистрируйтесь по приглашению и получите 3 дня бесплатного доступа.' : 'Зарегистрируйтесь по приглашению — бонус по коду применится сам.'}</span>
+        <span>{account ? 'Код можно указать в личном кабинете, если он ещё не указан.' : kind === 'streamer' ? 'Зарегистрируйтесь по приглашению.' : 'Зарегистрируйтесь по приглашению — скидка 20 % на первый месяц применится сама.'}</span>
       </div>
       <Link to={account ? '/cabinet' : '/register'} className="button primary">
         <UserPlus aria-hidden="true" />{account ? 'Открыть кабинет' : 'Зарегистрироваться'}

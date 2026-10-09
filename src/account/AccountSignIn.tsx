@@ -266,7 +266,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
       {showCode ? (
         <label className="field-label">{uiText('Код приглашения (необязательно)')}
           <input className="input" autoComplete="off" spellCheck={false} maxLength={24} value={referral} placeholder="HUNTER_TV" onChange={(event) => setReferral(event.target.value)} />
-          {referral.trim() && <small className="dim"><Gift size={12} /> {uiText('По коду приглашения — 3 дня бесплатного доступа.')}</small>}
+          {referral.trim() && <small className="dim"><Gift size={12} /> {uiText('Код друга — скидка 20 % на первый месяц.')}</small>}
         </label>
       ) : (
         <button type="button" className="link-button account-gate-invite" onClick={() => setShowCode(true)}><Gift size={14} />{uiText('У меня есть код приглашения')}</button>
