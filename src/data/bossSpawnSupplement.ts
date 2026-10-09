@@ -61,9 +61,15 @@ const pct = (chance: number, text = `${Math.round(chance * 100)}%`): SupplementM
 const UNKNOWN: SupplementModeChance = { text: 'шанс неизвестен' }
 const ROAMS = 'Бродит по карте, постоянной точки нет.'
 const NIGHT = 'Только ночные рейды.'
+const PARTISAN_KARMA = 'Базовый шанс 25% (обновление 09.10.2026); в PvP и Сезоне выше, если в рейде есть ЧВК с низкой кармой.'
 
 const GOONS = { key: 'goons', infoKey: 'knight', name: 'Кочевники', match: /^(goons|knight)$|кочевник/i, escorts: ['Knight', 'Big Pipe', 'Birdeye'] }
-const PARTISAN = { key: 'partisan', infoKey: 'partisan', name: 'Партизан', match: /^partisan$|партизан/i, note: ROAMS }
+const PARTISAN = { key: 'partisan', infoKey: 'partisan', name: 'Партизан', match: /^partisan$|партизан/i, note: `${ROAMS} ${PARTISAN_KARMA}` }
+/**
+ * Official technical update (EFT channel, 09.10.2026): base chance 25% on Lighthouse, Shoreline, Woods and Customs;
+ * in PvP and Season the final chance grows with low-karma PMCs in the raid.
+ */
+const PARTISAN_CHANCE = { pvp: pct(0.25, 'от 25%'), pve: pct(0.25), seasonal: pct(0.25, 'от 25%') }
 const CULTISTS = { key: 'cultist-priest', infoKey: 'cultist-priest', name: 'Жрец культа', match: /cultist|жрец|культ/i, escorts: ['Культисты ×3–4'], note: NIGHT }
 const BLACK_DIVISION = { key: 'black-division', infoKey: 'black-division', name: 'Black Division', match: /black.?div/i, note: 'Патруль из 4 человек.' }
 /** «15–20%» in PvP / Season (tarkovdex, timesaver, goon-tracker disagree). */
@@ -81,14 +87,14 @@ export const BOSS_SPAWN_SUPPLEMENT: Record<string, SupplementBoss[]> = {
       modes: { pvp: pct(0.75, '60–75%'), pve: pct(1), seasonal: pct(0.45) },
       areas: [{ zone: 'Общаги', label: 'Dorms', x: 200, z: 150 }, { zone: 'Новая заправка', label: 'New Gas', x: 404, z: 31 }, { zone: 'Крепость', label: 'Fortress', x: 201, z: -127 }] },
     { ...GOONS, modes: { pvp: GOONS_ROTATION, pve: pct(0.3), seasonal: GOONS_ROTATION }, areas: [{ zone: 'Крепость', label: 'Fortress', x: 201, z: -127 }] },
-    { ...PARTISAN, modes: { pvp: pct(0.1, '10–15%'), pve: pct(0.1), seasonal: pct(0.1) }, areas: [{ zone: 'Старая стройка', label: 'Old Construction', x: 75, z: -9 }] },
+    { ...PARTISAN, modes: PARTISAN_CHANCE, areas: [{ zone: 'Старая стройка', label: 'Old Construction', x: 75, z: -9 }] },
     { ...CULTISTS, modes: { pvp: UNKNOWN, pve: pct(0.25), seasonal: pct(0.1) }, areas: [{ zone: 'Крепость', label: 'Fortress', x: 201, z: -127 }] },
   ],
   woods: [
     { key: 'shturman', infoKey: 'shturman', name: 'Штурман', match: /^shturman$|штурман/i, escorts: ['Охранник Штурмана ×2'],
       modes: { pvp: pct(1), pve: pct(0.75), seasonal: pct(0.75) }, areas: [{ zone: 'Лесопилка', label: 'Sawmill', x: 10, z: -3 }] },
     { ...GOONS, modes: { pvp: GOONS_ROTATION, pve: pct(0.25), seasonal: GOONS_ROTATION }, areas: [{ zone: 'Бункер Диких', label: 'Scav Bunker', x: 226.2, z: -700.6, community: true }] },
-    { ...PARTISAN, modes: { pvp: pct(0.1), pve: pct(0.1), seasonal: pct(0.1) }, areas: [{ zone: 'Снайперская скала', label: 'Sniper Rock', x: 85, z: -147 }] },
+    { ...PARTISAN, modes: PARTISAN_CHANCE, areas: [{ zone: 'Снайперская скала', label: 'Sniper Rock', x: 85, z: -147 }] },
     { ...CULTISTS, modes: { pvp: UNKNOWN, pve: pct(0.3), seasonal: pct(0.1) }, areas: [{ zone: 'Заброшенная деревня', label: 'Cultist Village', x: -80, z: -680 }] },
   ],
   shoreline: [
@@ -96,7 +102,7 @@ export const BOSS_SPAWN_SUPPLEMENT: Record<string, SupplementBoss[]> = {
       modes: { pvp: { text: 'шанс неизвестен (в 1.0 было 60–75%)' }, pve: pct(0.75), seasonal: pct(0.45) },
       areas: [{ zone: 'Санаторий', label: 'Resort', x: -258.2, z: -71.2 }, { zone: 'Причал', label: 'Pier', x: -338.6, z: 525 }] },
     { ...GOONS, modes: { pvp: GOONS_ROTATION, pve: pct(0.3), seasonal: GOONS_ROTATION }, areas: [{ zone: 'Метеостанция', label: 'Weather Station', x: -496, z: 257 }] },
-    { ...PARTISAN, modes: { pvp: pct(0.1), pve: pct(0.1), seasonal: pct(0.1) }, areas: [{ zone: 'Электростанция', label: 'Power Station', x: -215.8, z: 178.4 }] },
+    { ...PARTISAN, modes: PARTISAN_CHANCE, areas: [{ zone: 'Электростанция', label: 'Power Station', x: -215.8, z: 178.4 }] },
     { ...CULTISTS, modes: { pvp: UNKNOWN, pve: pct(0.25), seasonal: pct(0.05) },
       areas: [{ zone: 'Санаторий', label: 'Resort', x: -258.2, z: -71.2 }, { zone: 'Болото', label: 'Swamp', x: 326, z: -118.5 }] },
     { ...BLACK_DIVISION, modes: { seasonal: pct(0.35) }, areas: [{ zone: 'Санаторий', label: 'Resort', x: -258.2, z: -71.2 }] },
@@ -121,7 +127,7 @@ export const BOSS_SPAWN_SUPPLEMENT: Record<string, SupplementBoss[]> = {
       areas: [{ zone: 'Шале', label: 'Grand Chalet', x: -133, z: 100 }, { zone: 'Курорт Pikes Peak (шале)', label: 'Pikes Peak Resort', x: -107, z: -53 }],
       note: 'С патча 1.1.5.0 база Отступников — шале, очистные без турелей.' },
     { ...GOONS, modes: { pvp: GOONS_ROTATION, pve: pct(0.3), seasonal: GOONS_ROTATION }, areas: [{ zone: 'Очистные', label: 'Water Treatment', x: -65, z: -600 }] },
-    { ...PARTISAN, modes: { pvp: pct(0.1), pve: pct(0.1), seasonal: pct(0.1) }, areas: [{ zone: 'Очистные', label: 'Water Treatment', x: -65, z: -600 }] },
+    { ...PARTISAN, modes: PARTISAN_CHANCE, areas: [{ zone: 'Очистные', label: 'Water Treatment', x: -65, z: -600 }] },
   ],
   'streets-of-tarkov': [
     { key: 'kaban', infoKey: 'kaban', name: 'Кабан', match: /^kaban$|кабан/i, modes: { pvp: pct(0.75), pve: pct(0.75), seasonal: pct(0.45) },

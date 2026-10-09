@@ -3,6 +3,8 @@ export const BOSS_SUPPLEMENT_PHRASES: Array<[string, string]> = [
   ['Точное место босса здесь не отмечено — зона по списку боссов, точка приблизительная.', 'The exact boss spot is not marked here: area from the boss list, the point is approximate.'],
   ['Шанс по данным сообщества (30.09.2026):', 'Community-reported chance (30 Sep 2026):'],
   ['Бродит по карте, постоянной точки нет.', 'Roams the map, no fixed spawn point.'],
+  ['Базовый шанс 25% (обновление 09.10.2026); в PvP и Сезоне выше, если в рейде есть ЧВК с низкой кармой.', 'Base chance 25% (update of 9 Oct 2026); higher in PvP and Season when low-karma PMCs are in the raid.'],
+  ['от 25%', 'from 25%'],
   ['Только ночные рейды.', 'Night raids only.'], ['Патруль из 4 человек.', 'Patrol of 4.'],
   ['Один из пяти боссов Терминала за рейд.', 'One of Terminal’s five bosses per raid.'],
   ['Засады у порта, ворот и ангаров.', 'Ambushes at the port, the gates and the hangars.'],
