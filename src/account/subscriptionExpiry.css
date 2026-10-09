@@ -1,0 +1,28 @@
+.subscription-top-chip {
+  min-width: 0; height: 39px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surf-1); color: var(--text-muted); display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+}
+.subscription-top-chip:hover { border-color: var(--brass); color: var(--text); }
+.subscription-top-chip > span { max-width: 155px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 750; }
+.subscription-top-chip > small { color: var(--text-dim); font-size: 10px; white-space: nowrap; }
+.subscription-top-chip.is-urgent { border-color: color-mix(in srgb, var(--amber) 62%, var(--line)); color: var(--brass-strong); }
+.subscription-top-chip.is-urgent > small { color: var(--amber); }
+.subscription-top-chip.is-compact { width: 44px; height: 44px; padding: 0; justify-content: center; }
+.subscription-top-chip.is-compact > :is(span, small) { display: none; }
+
+.subscription-expiry-overlay {
+  position: fixed; inset: 0; z-index: 1990; display: grid; place-items: center; padding: 24px;
+  background: rgb(0 0 0 / 72%); backdrop-filter: blur(10px);
+}
+.subscription-expiry-card {
+  position: relative; width: min(470px, 100%); padding: 28px; border: 1px solid var(--line-soft, var(--line));
+  border-top: 2px solid var(--amber); border-radius: var(--radius-md); background: var(--surf-1); box-shadow: 0 30px 90px rgb(0 0 0 / 70%);
+}
+.subscription-expiry-close { position: absolute; top: 12px; right: 12px; }
+.subscription-expiry-icon { width: 48px; height: 48px; margin-bottom: 16px; border: 1px solid color-mix(in srgb, var(--amber) 55%, var(--line)); border-radius: 8px; display: grid; place-items: center; color: var(--amber); background: color-mix(in srgb, var(--amber) 10%, transparent); }
+.subscription-expiry-card h2 { margin: 7px 36px 10px 0; font-size: 23px; line-height: 1.2; }
+.subscription-expiry-card p { margin: 0; color: var(--text-muted); line-height: 1.55; }
+.subscription-expiry-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+@media (max-width: 1600px) { .subscription-top-chip > small { display: none; } }
+@media (max-width: 1380px) { .subscription-top-chip { width: 39px; padding: 0; justify-content: center; } .subscription-top-chip > span { display: none; } }
+@media (max-width: 720px) { .subscription-expiry-actions { flex-direction: column-reverse; } .subscription-expiry-actions .button { width: 100%; } }
