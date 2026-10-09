@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ plans: vi.fn(), createPayment: vi.fn() }))
+const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(() => new Promise(() => {})), createPayment: vi.fn() }))
 vi.mock('../auth', () => ({ useAuth: () => ({
   status: 'ready', token: 'session-token',
   account: { email: 'player@example.com', kind: 'user', createdAt: '2026-10-01T00:00:00Z', nicknames: {}, subscription: { status: 'inactive' }, emailVerifiedAt: '2026-10-01T00:00:00Z' },
@@ -13,6 +13,7 @@ vi.mock('../api', async (original) => {
   const actual = await original<typeof import('../api')>()
   return { ...actual, api: new Proxy({}, { get: (_target, key) => {
     if (key === 'plans') return mocks.plans
+    if (key === 'payments') return mocks.payments
     if (key === 'createPayment') return mocks.createPayment
     return () => new Promise(() => {})
   } }) }
@@ -80,6 +81,21 @@ describe('subscription checkout', () => {
     expect(button).toBeEnabled()
     fireEvent.click(button)
     expect(screen.getByRole('dialog', { name: /1 месяц/ })).toBeInTheDocument()
+  })
+
+  it('shows the invitation price in the dialog and keeps it for a retry', async () => {
+    mocks.plans.mockResolvedValue({
+      enabled: true,
+      plans: [{ id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 }],
+      providers: { yookassa: true, lava: false, autopay: false, methods: ['sbp'] }, foreign: null,
+    })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: { percent: 20, plan: '1m' } })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+
+    await screen.findByText('240 ₽')
+    fireEvent.click(await screen.findByRole('button', { name: 'Оплатить 1 месяц' }))
+    const dialog = await screen.findByRole('dialog', { name: /1 месяц.*240/ })
+    expect(within(dialog).getAllByText('240 ₽').length).toBeGreaterThan(0)
   })
 
   it('starts a T-Pay payment with autopay only after both checkboxes are selected', async () => {

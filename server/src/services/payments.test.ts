@@ -139,6 +139,19 @@ test('only payment methods enabled for the shop can be created', async () => {
   assert.deepEqual((yoo.requests.at(-1)!.body as { payment_method_data: unknown }).payment_method_data, { type: 'tinkoff_bank' })
 })
 
+test('an abandoned pending attempt does not consume the invitation discount', async () => {
+  const { accounts, payments, yoo, accountId } = await setup()
+  const discount = { percent: 20 }
+  await payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com', undefined, undefined, discount)
+  const retry = await payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com', undefined, undefined, discount)
+  assert.deepEqual((yoo.requests.at(-1)!.body as { amount: unknown }).amount, { value: '240.00', currency: 'RUB' })
+
+  yoo.pay(providerId(retry.confirmationUrl))
+  await payments.sync(providerId(retry.confirmationUrl))
+  await payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com', undefined, undefined, discount)
+  assert.deepEqual((yoo.requests.at(-1)!.body as { amount: unknown }).amount, { value: '300.00', currency: 'RUB' })
+})
+
 test('streamer statistics by day, month and year: visits, sign-ups and paid plans', async () => {
   const { accounts, payments, yoo, accountId, advance } = await setup()
   const streamerId = accounts.authenticate((await accounts.login('streamer@example.com', 'correct horse battery')).token)!

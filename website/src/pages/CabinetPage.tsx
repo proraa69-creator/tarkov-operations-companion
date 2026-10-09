@@ -314,6 +314,9 @@ function SubscriptionPanel({ account }: { account: Account }) {
       : 'Не активна'
   const hint = active ? 'Ваша подписка продолжает действовать.' : trial ? 'Бесплатный доступ по приглашению.' : ''
   const shownPlans = visiblePlans(plans)
+  const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
+    ? { ...selectedPlan, price: Math.round(selectedPlan.price * (100 - friendDiscount.percent)) / 100 }
+    : selectedPlan
 
   return (
     <>
@@ -370,7 +373,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>
     </section>
-    {selectedPlan && <YooKassaPaymentDialog plan={selectedPlan} methods={plans?.providers?.methods ?? ['sbp']} autopayAvailable={plans?.providers?.autopay === true} busy={paying} error={payError} onClose={() => { if (!paying) { setSelectedPlan(null); setPayError(null) } }} onPay={(method, autoRenew) => void pay(method, autoRenew)} />}
+    {checkoutPlan && <YooKassaPaymentDialog plan={checkoutPlan} methods={plans?.providers?.methods ?? ['sbp']} autopayAvailable={plans?.providers?.autopay === true} busy={paying} error={payError} onClose={() => { if (!paying) { setSelectedPlan(null); setPayError(null) } }} onPay={(method, autoRenew) => void pay(method, autoRenew)} />}
     </>
   )
 }

@@ -525,8 +525,9 @@ export class PaymentStore {
     const id = randomBytes(12).toString('hex')
     const listAmount = planPrice(config.monthPrice, plan)
     // The friend's discount (services/invites.ts) is only for the first month.
-    // …and for one payment only: not while another discounted payment of this account is open or already paid.
-    const discountUsed = this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND discount_percent IS NOT NULL AND (status IN ('succeeded', 'refunded') OR (status = 'pending' AND created_at > ?))").get(account.id, this.now() - DAY_MS) !== undefined
+    // …and for the first completed payment only. An abandoned bank redirect must not consume the advertised discount:
+    // the provider may leave that attempt pending for minutes, while the buyer needs to retry immediately.
+    const discountUsed = this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND discount_percent IS NOT NULL AND status IN ('succeeded', 'refunded')").get(account.id) !== undefined
     const percent = discount && !discountUsed && plan === '1m' && discount.percent > 0 && discount.percent < 100 ? discount.percent : undefined
     const amount = percent === undefined ? listAmount : Math.round(listAmount * (100 - percent) / 100)
     const description = `Raid OS: подписка на ${monthsText(PLAN_MONTHS[plan])}${percent === undefined ? '' : ` (скидка ${percent} % по приглашению)`}`

@@ -257,11 +257,11 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   assert.deepEqual(t.invites.adminList(undefined, 10, 0).rewards.map((reward) => [reward.status, reward.flags.join(',')]), [['review', 'same-email']])
 
   const friend = await t.register('friend@example.com', code, '10.9.0.2')
-  // Two discounted invoices opened before paying: only the first one gets the discount.
+  // An abandoned first invoice does not consume the discount: retries stay at the advertised price.
   const first = await t.payments.create(t.accounts.billingInfo(friend), '1m', 'https://raidos.example.com', { version: '2026-10-06' }, undefined, { percent: 20 })
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '240.00', currency: 'RUB' })
   await t.payments.create(t.accounts.billingInfo(friend), '1m', 'https://raidos.example.com', { version: '2026-10-06' }, undefined, { percent: 20 })
-  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '300.00', currency: 'RUB' })
+  assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '240.00', currency: 'RUB' })
   const providerId = new URL(first.confirmationUrl).searchParams.get('orderId')!
   t.yoo.pay(providerId)
   await t.payments.sync(providerId)
