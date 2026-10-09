@@ -1,0 +1,11 @@
+{
+  "verifiedAt": "2026-10-09T03:03:02.410Z",
+  "sourceFilesVerified": 246,
+  "deletionEntries": 0,
+  "archiveSha256": "817d7f70a7541de1a52d1ac0787022f20ad7d9535324d9b68f9726140f21de5f",
+  "signedReleaseVerified": true,
+  "publishedBuild": 1791498472811,
+  "safeArchivePaths": true,
+  "noArchiveLinks": true,
+  "manifestFingerprint": "79b46484f61a362b3888bfece2acc1d49eb0d1911d29d7933bd967a2acd67f09"
+}

@@ -1,0 +1,47 @@
+/* Full-screen «Обновление до актуальной версии» (src/components/UpdateButton.tsx). Theme tokens only. */
+.update-overlay {
+  position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px;
+  background: rgb(0 0 0 / 72%); backdrop-filter: blur(10px);
+  animation: update-overlay-in .25s var(--ease-soft) both;
+}
+.update-overlay-card {
+  position: relative; width: min(560px, 100%); padding: 28px 30px 22px;
+  border: 1px solid var(--line-soft, var(--line)); border-top: 2px solid var(--brass); border-radius: var(--radius-md);
+  background: var(--surf-1); box-shadow: 0 30px 90px rgb(0 0 0 / 70%); color: var(--text);
+}
+.update-overlay-card.is-error { border-top-color: var(--danger); }
+.update-overlay-x { position: absolute; top: 12px; right: 12px; }
+.update-overlay-eyebrow { color: var(--brass); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.update-overlay-title { margin: 6px 0 14px; font-size: 24px; line-height: 1.15; }
+.update-overlay-versions { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 20px; color: var(--text-muted); font-size: 13px; }
+.update-overlay-versions b { color: var(--text); font-variant-numeric: tabular-nums; }
+.update-overlay-versions small { color: var(--text-dim); }
+.update-overlay-progress { position: relative; height: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; background: var(--surf-0); }
+.update-overlay-progress i {
+  position: absolute; inset: 0 auto 0 0; display: block; border-radius: inherit; transition: width .3s var(--ease-soft);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brass) 70%, transparent), var(--brass));
+}
+.update-overlay-progress i.is-running { background-image: repeating-linear-gradient(-45deg, rgb(255 255 255 / 14%) 0 8px, transparent 8px 16px), linear-gradient(90deg, color-mix(in srgb, var(--brass) 70%, transparent), var(--brass)); background-size: 22px 22px, 100% 100%; animation: update-overlay-stripes .9s linear infinite; }
+.update-overlay-card.is-error .update-overlay-progress i { background: var(--danger); }
+.update-overlay-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 8px 0 18px; color: var(--text-muted); font-size: 13px; }
+.update-overlay-status span { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.update-overlay-status b { flex: none; min-width: 4ch; text-align: right; color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.update-overlay-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+.update-overlay-steps li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 12px; font-weight: 700; line-height: 1.2; }
+.update-overlay-steps li.is-active { border-color: var(--brass); color: var(--text); }
+.update-overlay-steps li.is-done { color: var(--text-muted); }
+.update-overlay-step-mark { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; }
+.update-overlay-steps li.is-active .update-overlay-step-mark { border-color: var(--brass); color: var(--brass); }
+.update-overlay-steps li.is-done .update-overlay-step-mark { border-color: var(--success); background: var(--success); color: var(--surf-0); }
+.update-overlay-error { margin: 0 0 14px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 12%, transparent); color: #f0c2b9; font-size: 13px; }
+.update-overlay-actions { display: flex; gap: 10px; margin-bottom: 12px; }
+.update-overlay-note { margin: 0; color: var(--text-dim); font-size: 12px; }
+@keyframes update-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes update-overlay-stripes { to { background-position: 22px 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .update-overlay, .update-overlay-progress i.is-running { animation: none; } }
+@media (max-width: 560px) { .update-overlay-steps { grid-template-columns: minmax(0, 1fr); } }
+.locked-update { position: fixed; top: 16px; right: 16px; z-index: 1000; }
+.update-overlay-note-closable { display: flex; align-items: flex-start; gap: 10px; }
+.update-overlay-note-closable > span { flex: 1; }
+.update-overlay-note-close { display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin: -2px -4px 0 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; opacity: .75; }
+.update-overlay-note-close:hover, .update-overlay-note-close:focus-visible { opacity: 1; background: color-mix(in srgb, var(--danger) 22%, transparent); }

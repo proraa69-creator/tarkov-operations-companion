@@ -1,0 +1,26 @@
+/** English for the research-list boss markers (src/data/bossSpawnSupplement.ts) and the raid-card boss names. */
+export const BOSS_SUPPLEMENT_PHRASES: Array<[string, string]> = [
+  ['Точное место босса здесь не отмечено — зона по списку боссов, точка приблизительная.', 'The exact boss spot is not marked here: area from the boss list, the point is approximate.'],
+  ['Шанс по данным сообщества (30.09.2026):', 'Community-reported chance (30 Sep 2026):'],
+  ['Бродит по карте, постоянной точки нет.', 'Roams the map, no fixed spawn point.'],
+  ['Только ночные рейды.', 'Night raids only.'], ['Патруль из 4 человек.', 'Patrol of 4.'],
+  ['Один из пяти боссов Терминала за рейд.', 'One of Terminal’s five bosses per raid.'],
+  ['Засады у порта, ворот и ангаров.', 'Ambushes at the port, the gates and the hangars.'],
+  ['С патча 1.1.5.0 база Отступников — шале, очистные без турелей.', 'Since patch 1.1.5.0 the Rogues’ base is the chalets; the water treatment plant has no turrets.'],
+  ['Только Эпицентр 21+.', 'Ground Zero 21+ only.'],
+  ['шанс неизвестен (в 1.0 было 60–75%)', 'chance unknown (60–75% in 1.0)'], ['шанс неизвестен', 'chance unknown'],
+  ['20% (или 100% — источники расходятся)', '20% (or 100%, sources disagree)'],
+  // Boss names of the research-list markers (live markers get tarkov.dev's own English names).
+  ['Решала', 'Reshala'], ['Санитар', 'Sanitar'], ['Килла', 'Killa'], ['Глухарь', 'Glukhar'], ['Тагилла', 'Tagilla'],
+  ['Штурман', 'Shturman'], ['Кабан', 'Kaban'], ['Зрячий', 'Zryachiy'], ['Партизан', 'Partisan'],
+  ['Жрец культа', 'Cultist Priest'], ['Культисты', 'Cultists'], ['Отступники', 'Rogues'], ['Коллонтай', 'Kollontay'],
+  ['Охранник Решалы', 'Reshala’s guard'], ['Охранник Штурмана', 'Shturman’s guard'], ['Охранник Санитара', 'Sanitar’s guard'],
+  ['Охрана Глухаря', 'Glukhar’s guards'], ['Охранник Коллонтая', 'Kollontay’s guard'],
+  ['Общаги', 'Dorms'], ['Новая заправка', 'New Gas Station'], ['Крепость', 'Stronghold'], ['Старая стройка', 'Old Construction'],
+  ['Лесопилка', 'Sawmill'], ['Бункер Диких', 'Scav Bunker'], ['Снайперская скала', 'Sniper Rock'], ['Заброшенная деревня', 'Abandoned Village'],
+  ['Санаторий', 'Health Resort'], ['Причал', 'Pier'], ['Метеостанция', 'Weather Station'], ['Электростанция', 'Power Station'], ['Болото', 'Swamp'],
+  ['Центр ТЦ «УЛЬТРА»', 'ULTRA mall centre'], ['К-здания', 'K Buildings'], ['Белый конь', 'White Knight'], ['Казармы', 'Barracks'],
+  ['Склад-бункер', 'Warehouse bunker'], ['Остров Смотрителя', 'Lightkeeper Island'], ['Курорт Pikes Peak (шале)', 'Pikes Peak Resort (chalets)'], ['Шале', 'Chalet'],
+  ['Очистные', 'Water Treatment'], ['Автосалон LEXOS', 'LEXOS car dealership'], ['Академия МВД', 'MVD Academy'], ['Конкордия', 'Concordia'],
+  ['Перед зданием TerraGroup', 'In front of the TerraGroup building'], ['Порт', 'Port'],
+]

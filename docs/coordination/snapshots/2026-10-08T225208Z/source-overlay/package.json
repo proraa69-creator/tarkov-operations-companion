@@ -1,0 +1,127 @@
+{
+  "name": "tarkov-operations-companion",
+  "productName": "Raid OS",
+  "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
+  "author": "Raid OS contributors",
+  "private": true,
+  "version": "0.5.4",
+  "type": "module",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build:renderer": "tsc -b && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "npm run build:renderer && npm run build:electron && npm run build:local-server && node scripts/write-build-info.mjs",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win portable",
+    "server:dev": "npm --prefix server run dev",
+    "server:test": "npm --prefix server test",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "mobile:build": "npm run build:renderer && npx cap sync",
+    "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
+    "ios:open": "npx cap open ios",
+    "build:local-server": "node scripts/build-local-server.mjs"
+  },
+  "build": {
+    "afterPack": "scripts/pack-windows-native.cjs",
+    "appId": "local.tarkov.operations.companion",
+    "productName": "Raid OS",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "electron/preload.cjs",
+      "package.json"
+    ],
+    "asar": true,
+    "npmRebuild": false,
+    "asarUnpack": [
+      "**/node_modules/tesseract.js/**",
+      "**/node_modules/tesseract.js-core/**",
+      "**/node_modules/uiohook-napi/**",
+      "**/node_modules/node-gyp-build/**",
+      "**/node_modules/koffi/**",
+      "**/node_modules/@koromix/**",
+      "**/dist-electron/local-server/**"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/tessdata",
+        "to": "tessdata"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "Raid OS ${version}.exe",
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "unpackDirName": true
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    }
+  },
+  "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@tanstack/react-query": "latest",
+    "fflate": "^0.8.3",
+    "idb-keyval": "^6.3.0",
+    "koffi": "^3.3.1",
+    "leaflet": "latest",
+    "lucide-react": "latest",
+    "qrcode-generator": "^2.0.4",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-leaflet": "latest",
+    "react-router-dom": "latest",
+    "tesseract.js": "^7.0.0",
+    "three": "^0.186.1",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@eslint/js": "latest",
+    "@imgly/background-removal-node": "^1.4.5",
+    "@playwright/test": "latest",
+    "@testing-library/jest-dom": "latest",
+    "@testing-library/react": "latest",
+    "@testing-library/user-event": "latest",
+    "@types/leaflet": "latest",
+    "@types/node": "^26.6.2",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "latest",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "eslint": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "eslint-plugin-react-refresh": "latest",
+    "globals": "latest",
+    "jsdom": "latest",
+    "sharp": "^0.35.5",
+    "typescript": "latest",
+    "typescript-eslint": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  }
+}

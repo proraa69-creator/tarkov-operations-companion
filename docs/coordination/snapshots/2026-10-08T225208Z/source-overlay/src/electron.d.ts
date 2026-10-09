@@ -1,0 +1,263 @@
+import type { ModeLogScanResult } from './import/eftLogTimeline'
+import type { RaidState } from './import/raidState'
+import type { PlayerProfileSnapshot, RaidMode } from './domain/types'
+import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
+import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
+import type { PlayerPosition } from './overlay/screenshotPosition'
+import type { StoryPaneReading } from './import/storyPaneLayout'
+
+type DesktopLogScanResult = ModeLogScanResult
+
+/** running: started by this app; external: something else already answers on the port (e.g. start-local.ps1). */
+export type LocalServiceState = 'running' | 'external' | 'stopped' | 'error'
+export interface LocalServerStatus { enabled: boolean; api: LocalServiceState; site: LocalServiceState; siteUrl: string; database: string; error?: string; /** Started with --server-mode (the server laptop). */ serverMode?: boolean }
+
+export interface TunnelStatus { state: 'off' | 'downloading' | 'starting' | 'on' | 'error'; url?: string; error?: string; autoStart: boolean; hostname?: string }
+
+/** Server watchdog (electron/serverWatchdog.ts): status lamps, journal and alerts in the owner's app. */
+export type WatchdogServiceId = 'api' | 'site' | 'public' | 'database' | 'security'
+export type WatchdogLamp = 'green' | 'amber' | 'red' | 'grey'
+export interface WatchdogService { id: WatchdogServiceId; lamp: WatchdogLamp; text: string; lastError?: string; checkedAt?: number; failures: number; attempts: number; nextRetryAt?: number }
+export interface WatchdogEvent { at: number; service: WatchdogServiceId; level: 'info' | 'warn' | 'error'; text: string }
+export interface WatchdogSnapshot { enabled: boolean; services: WatchdogService[]; events: WatchdogEvent[]; worst: WatchdogLamp; checkedAt?: number }
+export interface WatchdogAlert { service: WatchdogServiceId; kind: 'down' | 'repaired' | 'recovered' | 'gave-up' | 'blocked' | 'guard'; title: string; body: string; at: number }
+
+/** POST /v1/accounts/register while the server sends e-mail codes: no account yet, the code from the e-mail follows. */
+export interface PendingServerRegistration { challengeId: string; expiresAt: string; resendSeconds: number; message: string }
+export type ServerRegistrationResult = { pending: PendingServerRegistration; status?: undefined } | { pending?: undefined; status: ServerAccountStatus; referralApplied: boolean }
+
+export interface ServerAccountStatus {
+  signedIn: boolean
+  email?: string
+  kind?: 'user' | 'streamer'
+  /** The API server answered /health. */
+  online: boolean
+  serverUrl: string
+  /** false when the OS offers no secure storage: the session lasts until the app closes. */
+  persistent: boolean
+  /** From the server account while online: nicknames per mode and the subscription. */
+  nicknames?: Partial<Record<RaidMode, string>>
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+  /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
+  phone?: string
+  /** false while the e-mail is not confirmed («Подтвердите e-mail»); absent with an older server or app. */
+  emailVerified?: boolean
+  /** Signed entitlement of this device (electron/entitlement.ts): the players' app shows the paywall without it. */
+  entitlement?: EntitlementView
+}
+
+/** Why the players' app has no access right now (docs/subscription-protection.md). */
+export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+export interface EntitlementView {
+  valid: boolean
+  plan?: 'owner' | 'streamer' | 'paid' | 'trial'
+  expiresAt?: string
+  until?: string
+  reason?: EntitlementReason
+  /** Devices this sign-in switched off (three-device limit): shown once. */
+  revokedDevices?: Array<{ name: string; lastSeenAt: string }>
+  message?: string
+}
+
+/** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */
+export interface MobileLoginLink { url: string; expiresAt: string; reachable: boolean }
+
+/** Auto-update from the server laptop's site (electron/appUpdate.ts). */
+/** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean }
+/** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
+export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
+/** Settings → «Проверить обновление приложения». */
+export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'; status: UpdateStatus; current: string; checkedAt: string }
+
+/** Owner controls for the server on this PC (electron/ownerAdmin.ts). */
+export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
+/** `autopay`/`lava` are missing when the main process is older than the renderer. */
+export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean; lava?: LavaSettings }
+/** «SMS: одноразовые коды» (electron/ownerAdmin.ts). The key is write-only. */
+export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
+export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
+export interface LavaWebhookStatus { configured: boolean; last: { at: string; result: string; eventType?: string } | null }
+export interface LavaWebhookTest { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
+export interface SmsServerStatus { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
+/** «Почта: коды подтверждения» (electron/ownerAdmin.ts). The key is write-only. */
+export type EmailProvider = '' | 'resend'
+export interface EmailSettings { provider: EmailProvider; from: string; dailyLimit: number; hasKey: boolean; configured: boolean }
+export interface EmailServerStatus { emailEnabled: boolean; provider: string | null; from: string | null; sentToday: number; dailyLimit: number }
+/** «Отчёты об ошибках (GitHub)» (electron/errorReporter.ts). The token is write-only. */
+export interface ErrorReportSettings { enabled: boolean; repo: string; hasToken: boolean; pending: number; lastResult?: { at: string; ok: boolean; text: string } }
+/** «Автообновление сервера» (electron/selfUpdate.ts, electron/serverSelfUpdate.ts). The token is write-only. */
+export interface ServerBuildRef { version: string; build: number; commit: string }
+export interface ServerUpdateFile { name: string; size: number; done: number; state: 'pending' | 'downloading' | 'ok' | 'error' }
+export interface ServerUpdateHistoryEntry { at: string; kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; result: 'ok' | 'rolled-back' | 'failed'; reason?: string; code?: string; log?: string }
+export type ServerInstallWindow = 'manual' | 'any' | 'night'
+export interface ServerUpdateView {
+  enabled: boolean; repo: string; window: ServerInstallWindow; hasToken: boolean
+  unsupported: string
+  current: ServerBuildRef
+  previous: (ServerBuildRef & { savedAt: string }) | null
+  updater: { phase: 'off' | 'idle' | 'checking' | 'downloading' | 'verifying' | 'ready' | 'installing' | 'error'; message: string; checkedAt?: string; latest?: ServerBuildRef; files: ServerUpdateFile[]; checks: Array<{ label: string; ok: boolean; detail?: string }>; error?: string; waitingForWindow?: boolean; waitingForInstall?: boolean }
+  ready: ServerBuildRef | null
+  restart: { kind: 'update' | 'rollback'; from: ServerBuildRef; to: ServerBuildRef; startedAt: string; deadlineAt: string; phase: string } | null
+  history: ServerUpdateHistoryEntry[]
+  skipped: number[]
+  nextCheckAt?: string
+}
+export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
+
+interface TarkovDesktopApi {
+  isDesktop: true
+  /** 'owner': server, tunnel, payments and streamers controls; 'client' (default): the players' app. */
+  edition?: 'owner' | 'client'
+  /** The server laptop (owner build started with --server-mode): no catalog polling. */
+  serverMode?: boolean
+  /** true: game data only through the server with a subscription (src/data/tarkovApi.ts). Missing in older builds. */
+  dataGateway?: boolean
+  /** Encrypted cache of the paid game data (electron/gameDataCache.ts). Missing in older builds. */
+  dataCache?: {
+    get: (key: string) => Promise<string | null>
+    set: (key: string, value: string, maxAgeMs: number) => Promise<boolean>
+  }
+  owner?: {
+    payments: () => Promise<PaymentSettings>
+    setPayments: (settings:
+      | { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }
+      | { section: 'lava'; offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: LavaSettings['paymentMethod']; apiKey?: string; webhookKey?: string; clearKeys?: boolean }) => Promise<PaymentSettings>
+    streamers: () => Promise<{ streamers: StreamerRow[]; invites: Array<{ code: string; expiresAt: string }> }>
+    /** Missing when the main process is older than the renderer. */
+    sms?: () => Promise<SmsSettings>
+    setSms?: (settings: { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; apiKey?: string; clearKey?: boolean }) => Promise<SmsSettings>
+    /** Missing when the main process is older than the renderer. */
+    lavaWebhookStatus?: () => Promise<LavaWebhookStatus>
+    testLavaWebhook?: () => Promise<LavaWebhookTest>
+    smsStatus?: () => Promise<SmsServerStatus>
+    sendTestSms?: (phone: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
+    email?: () => Promise<EmailSettings>
+    setEmail?: (settings: { provider: EmailProvider; from: string; dailyLimit: number; apiKey?: string; clearKey?: boolean }) => Promise<EmailSettings>
+    emailStatus?: () => Promise<EmailServerStatus>
+    sendTestEmail?: (to: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
+    inviteStreamer: (code: string) => Promise<{ link: string; code: string; expiresAt: string }>
+    /** «E-mail владельца»: accounts that see the owner section of the website (TARKOV_OWNER_EMAILS). */
+    ownerEmails: () => Promise<string[]>
+    setOwnerEmails: (emails: string) => Promise<string[]>
+    /** Missing when the main process is older than the renderer. */
+    errorReports?: () => Promise<ErrorReportSettings>
+    setErrorReports?: (settings: { enabled?: boolean; repo?: string; token?: string; clearToken?: boolean }) => Promise<ErrorReportSettings>
+    testErrorReports?: () => Promise<ErrorReportSettings>
+    serverUpdate?: () => Promise<ServerUpdateView>
+    setServerUpdate?: (settings: { enabled?: boolean; repo?: string; window?: ServerInstallWindow; token?: string; clearToken?: boolean }) => Promise<ServerUpdateView>
+    checkServerUpdate?: () => Promise<ServerUpdateView>
+    installServerUpdate?: () => Promise<ServerUpdateView>
+    rollbackServerUpdate?: () => Promise<ServerUpdateView>
+  }
+  update?: {
+    status: () => Promise<UpdateStatus>
+    install: () => Promise<UpdateStatus>
+    check?: () => Promise<UpdateCheckResult>
+    settings?: () => Promise<UpdateSettings>
+    setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
+    onStatus: (callback: (status: UpdateStatus) => void) => () => void
+  }
+  openWikiMap: (id: string) => Promise<boolean>
+  /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
+  serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>
+  /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */
+  account?: {
+    status: () => Promise<ServerAccountStatus>
+    login: (email: string, password: string) => Promise<ServerAccountStatus>
+    logout: () => Promise<ServerAccountStatus>
+    /** Sign-in or password reset by phone after the SMS code; the session stays in the main process. */
+    phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
+    /** Sign-in or password reset by e-mail code; the session stays in the main process. */
+    emailSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
+    /** Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process). */
+    register?: (email: string, password: string, referralCode?: string) => Promise<ServerRegistrationResult>
+    /** The code from the registration e-mail: the account appears and is signed in (the session stays in the main process). */
+    registerConfirm?: (challengeId: string, code: string) => Promise<{ status: ServerAccountStatus; referralApplied: boolean }>
+    openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
+    /** «Сервер и сайт на этом компьютере»: the API and the website run from the app on this PC. */
+    localServerStatus?: () => Promise<LocalServerStatus>
+    setLocalServerEnabled?: (enabled: boolean) => Promise<LocalServerStatus>
+    /** «Открыть сайт друзьям»: a public https link to this PC's site (Cloudflare quick tunnel). */
+    tunnelStatus?: () => Promise<TunnelStatus>
+    setTunnel?: (enabled: boolean) => Promise<TunnelStatus>
+    /** Permanent address from the owner's Cloudflare account (hostname + tunnel token); empty values remove it. */
+    setNamedTunnel?: (hostname: string, token: string) => Promise<TunnelStatus>
+    /** Status lamps + journal of the server watchdog; «Перезапустить сейчас»; live updates and alerts. */
+    watchdogStatus?: () => Promise<WatchdogSnapshot>
+    watchdogCheck?: () => Promise<WatchdogSnapshot>
+    restartService?: (service: 'api' | 'site' | 'public') => Promise<WatchdogSnapshot>
+    onWatchdog?: (onStatus: (snapshot: WatchdogSnapshot) => void, onAlert: (alert: WatchdogAlert) => void) => () => void
+    /** A one-time code for the phone app, as a website link for a QR code. */
+    mobileLogin?: () => Promise<MobileLoginLink>
+    /** The public address of the account website (for links a streamer shares). */
+    websiteUrl?: () => Promise<string>
+    /** Another server address (e.g. the owner's public link); '' = this PC. */
+    setServerUrl?: (url: string) => Promise<ServerAccountStatus>
+  }
+  autoFindAndScanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  scanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  startWatchingLogs: (folder: string) => Promise<boolean>
+  clearApplicationData: () => Promise<boolean>
+  onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
+  getRaidState: () => Promise<RaidState>
+  onRaidStateChanged: (callback: (state: RaidState) => void) => () => void
+  saveProfileBackup: (json: string) => Promise<boolean>
+  openProfileBackup: () => Promise<string | null>
+  getVersion: () => Promise<string>
+  /** A system notification (trader restock reminders); false when the OS does not support them. */
+  notify?: (title: string, body: string) => Promise<boolean>
+  resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
+  refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
+  /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading }>
+  captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
+  /** Whole-screen OCR for the Collector checklist (stash / inventory). */
+  scanScreenText?: () => Promise<{ text: string; gameWindow: boolean }>
+  recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
+  experimental?: {
+    getSettings: () => Promise<ExperimentalSettings>
+    updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
+    getStatus: () => Promise<ExperimentalStatus>
+    toggleMinimap: () => Promise<boolean>
+    pickScreenshotsFolder: () => Promise<ExperimentalSettings>
+    testItemLookup: () => Promise<unknown>
+    /** Folder, key, one real press with the game in front, the file and its coordinates. */
+    checkScreenshots: () => Promise<ScreenshotCheck>
+    /** Opens the folder with unrecognised item tooltips (picture + what was read). */
+    openLookupLog?: () => Promise<boolean>
+    onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
+    /** Restarts the app with administrator rights; false when refused. */
+    relaunchAsAdmin: () => Promise<boolean>
+    /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
+    openKeyboardSettings: () => Promise<boolean>
+    answer: (id: number, payload: unknown) => Promise<void>
+    onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
+    onPosition: (callback: (position: PlayerPosition) => void) => () => void
+    onCollectorScan: (callback: () => void) => () => void
+  }
+  /** Overlay windows only: let the mouse through (false) or catch it over controls (true). */
+  overlaySetInteractive?: (value: boolean) => void
+  /** Overlay windows only: fit the window to its content. */
+  overlayResize?: (width: number, height: number) => void
+  /** Overlay windows only: start (true) or finish (false) dragging the window with the mouse. */
+  overlayDrag?: (active: boolean) => void
+  /** Overlay windows only: a mouse button went down (true) or up (false) over a control; the window keeps the mouse meanwhile. */
+  overlayHold?: (held: boolean) => void
+  /** Overlay windows only: rectangles (window coordinates) that should catch the mouse. */
+  overlayZones?: (zones: Array<{ x: number; y: number; width: number; height: number }>) => void
+  onOverlay?: {
+    (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
+    (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
+    (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
+    (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
+  }
+}
+
+declare global {
+  interface Window {
+    tarkovDesktop?: TarkovDesktopApi
+  }
+}
+
+export {}
