@@ -91,9 +91,12 @@ export class FriendStore {
     return row ? String(row.account_id) : undefined
   }
 
-  /** Accounts whose nickname for this mode is `nickname` (case-insensitive). */
-  private accountsByNickname(mode: RaidMode, nickname: string) {
-    const rows = this.db.prepare(`SELECT id FROM accounts WHERE lower(json_extract(nicknames, '$.' || ?)) = lower(?) LIMIT 2`).all(mode, nickname) as Row[]
+  /**
+   * Accounts whose Escape from Tarkov nickname is `nickname` (case-insensitive). One nickname for all modes; rows from
+   * before it may differ per mode, and then the first of PvP → PvE → «Сезон» counts (AccountStore.view does the same).
+   */
+  private accountsByNickname(nickname: string) {
+    const rows = this.db.prepare(`SELECT id FROM accounts WHERE lower(coalesce(json_extract(nicknames, '$.pvp'), json_extract(nicknames, '$.pve'), json_extract(nicknames, '$.seasonal'))) = lower(?) LIMIT 2`).all(nickname) as Row[]
     return rows.map((row) => String(row.id))
   }
 
@@ -143,7 +146,7 @@ export class FriendStore {
    * Sends a request by friend code or by nickname. Returns 'friends' when the two are friends now (already, or the
    * other side had asked first), otherwise 'sent' — also for unknown targets (see the class comment).
    */
-  request(accountId: string, target: { code: string } | { mode: RaidMode; nickname: string }): 'sent' | 'friends' {
+  request(accountId: string, target: { code: string } | { mode?: RaidMode; nickname: string }): 'sent' | 'friends' {
     return transaction(this.db, () => {
       let toId: string | undefined
       let label: string
@@ -154,7 +157,7 @@ export class FriendStore {
         toId = this.accountByCode(code)
       } else {
         label = target.nickname
-        const matches = this.accountsByNickname(target.mode, target.nickname)
+        const matches = this.accountsByNickname(target.nickname)
         toId = matches.length === 1 ? matches[0] : undefined
       }
       if (toId === accountId) throw new FriendError(400, 'Это ваш собственный код')

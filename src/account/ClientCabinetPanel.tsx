@@ -5,7 +5,7 @@ import { useAppState } from '../state/AppState'
 import { useServerAccount } from '../sync/serverSync'
 import { isDesktopShell } from '../platform'
 import { openWebsite, subscriptionText } from './accountActions'
-import { modeTitle, RAID_MODE_ORDER } from './nicknameBinding'
+import { accountNickname, profileNickname } from './nicknameBinding'
 import { ApproveWebLoginDialog, MobileLoginDialog } from './QrDialogs'
 import { openAccountSignIn } from './accountEvents'
 import { PhoneCabinetRow } from './PhoneAccount'
@@ -43,10 +43,8 @@ export function ClientCabinetPanel() {
 
   const subscription = status.subscription
   const good = subscription?.status === 'active' || subscription?.status === 'lifetime' || subscription?.status === 'trial'
-  const nicknames = RAID_MODE_ORDER.map((mode) => {
-    const local = state.activeProfile.modes[mode].registration
-    return `${uiText(modeTitle(mode))}: ${(local.status === 'registered' ? local.nickname : status.nicknames?.[mode]) ?? '—'}`
-  }).join(' · ')
+  // One nickname for every mode (owner, 10.10.2026): the account's, else the one bound in the app.
+  const nickname = accountNickname(status.nicknames) ?? profileNickname(state.activeProfile, state.raidMode)
 
   return (
     <section className="panel account-cabinet" aria-label={uiText('Личный кабинет')}>
@@ -67,9 +65,9 @@ export function ClientCabinetPanel() {
             <small>{uiText(subscription?.status === 'lifetime' ? 'Аккаунт стримера' : good ? 'Все функции доступны' : 'Оформить можно в личном кабинете на сайте')}</small>
           </div>
           <div className="account-cabinet-cell">
-            <span>{uiText('Ники')}</span>
-            <strong>{nicknames}</strong>
-            <small>{uiText('Хранятся в аккаунте отдельно для каждого режима')}</small>
+            <span>{uiText('Ник в игре')}</span>
+            <strong>{nickname ?? '—'}</strong>
+            <small>{uiText('Один для PvP, PvE и «Сезона», хранится в аккаунте')}</small>
           </div>
           {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
           <EmailVerifyRow status={status} online={online} />

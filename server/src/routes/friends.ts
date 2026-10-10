@@ -32,7 +32,8 @@ import type { CatalogPeek } from './me.js'
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const requestSchema = z.union([
   z.object({ code: z.string().max(32) }).strict(),
-  z.object({ mode: modeSchema, nickname: z.string().trim().regex(NICKNAME) }).strict(),
+  // `mode` is ignored (one nickname for all modes) and stays allowed for builds that still send it.
+  z.object({ mode: modeSchema.optional(), nickname: z.string().trim().regex(NICKNAME) }).strict(),
 ])
 const privacySchema = z.object({ hideProgress: z.boolean() }).strict()
 const progressSchema = z.object({ friendIds: z.array(z.string().regex(FRIEND_ID)).max(10) }).strict()
@@ -76,7 +77,9 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     if (!parsed.success) throw new FriendError(400, 'Некорректный режим')
     return parsed.data
   }
-  const nicknames = (accountId: string) => accounts.view(accountId).nicknames
+  /** The one nickname and, for builds that read `nicknames[mode]`, the same under every mode. */
+  const names = (accountId: string) => { const view = accounts.view(accountId); return { nickname: view.nickname ?? null, nicknames: view.nicknames } }
+  const nickname = (accountId: string) => accounts.view(accountId).nickname ?? null
   const handle = (work: (req: Request, res: Response) => void): express.RequestHandler => (req, res, next) => {
     try { work(req, res) } catch (error) {
       if (error instanceof FriendError) { res.status(error.status).json({ error: error.message, ...(error.status === 402 ? { code: 'subscription_required' } : {}) }); return }
@@ -92,15 +95,15 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
       access: hasPaidAccess(accounts, accountId),
       friends: friends.friends(accountId).map((friend) => ({
         friendId: friend.publicId,
-        nicknames: nicknames(friend.accountId),
+        ...names(friend.accountId),
         since: new Date(friend.since).toISOString(),
         hideMyProgress: friend.hideMyProgress,
         sharesProgress: !friend.hidesFromMe,
       })),
-      incoming: friends.incoming(accountId).map((request) => ({ requestId: request.id, friendId: friends.publicId(request.fromId), nicknames: nicknames(request.fromId), createdAt: new Date(request.createdAt).toISOString() })),
+      incoming: friends.incoming(accountId).map((request) => ({ requestId: request.id, friendId: friends.publicId(request.fromId), ...names(request.fromId), createdAt: new Date(request.createdAt).toISOString() })),
       // Only what the sender typed: whether the target exists is not revealed.
       outgoing: friends.outgoing(accountId).map((request) => ({ requestId: request.id, label: request.label, createdAt: new Date(request.createdAt).toISOString() })),
-      blocked: friends.blocked(accountId).map((blockedId) => ({ friendId: friends.publicId(blockedId), nicknames: nicknames(blockedId) })),
+      blocked: friends.blocked(accountId).map((blockedId) => ({ friendId: friends.publicId(blockedId), ...names(blockedId) })),
     })
   }))
 
@@ -141,9 +144,9 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     const people = [...new Set(body.data.friendIds)].map((friendId) => {
       const friendAccount = friends.friendAccount(accountId, friendId)
       const hidden = friends.hidesProgress(friendAccount, accountId)
-      return { id: friendId, nickname: nicknames(friendAccount)[mode] ?? null, hidden, ...(hidden ? HIDDEN_PROGRESS : sharedProgress(progress, friendAccount, mode)) }
+      return { id: friendId, nickname: nickname(friendAccount), hidden, ...(hidden ? HIDDEN_PROGRESS : sharedProgress(progress, friendAccount, mode)) }
     })
-    const self = { id: 'me', nickname: nicknames(accountId)[mode] ?? null, hidden: false, isYou: true, ...sharedProgress(progress, accountId, mode) }
+    const self = { id: 'me', nickname: nickname(accountId), hidden: false, isYou: true, ...sharedProgress(progress, accountId, mode) }
     res.json({ mode, people: [self, ...people] })
   }))
 

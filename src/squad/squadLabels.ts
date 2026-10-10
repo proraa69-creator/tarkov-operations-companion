@@ -2,16 +2,17 @@ import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import type { Nicknames } from './socialClient'
 
-/** A member's name: the nickname of this mode, or «Боец N» when that mode has no nickname bound. */
+/** A member's name: the Escape from Tarkov nickname (one for all modes), or «Боец N» while none is bound. */
 export function memberLabel(nickname: string | null | undefined, index: number) {
   return nickname || `${uiText('Боец')} ${index + 1}`
 }
 
-/** A friend's nickname for this mode, else any bound nickname with its mode, else a neutral label. */
+/**
+ * A friend's Escape from Tarkov nickname — one for every mode (owner, 10.10.2026; the server repeats it under each mode).
+ * A server from before kept one per mode: this mode's, else the first bound one. Else a neutral label.
+ */
 export function friendLabel(nicknames: Nicknames, mode: RaidMode) {
-  if (nicknames[mode]) return nicknames[mode]!
-  const other = (['pvp', 'pve', 'seasonal'] as const).find((entry) => nicknames[entry])
-  return other ? `${nicknames[other]} (${other === 'seasonal' ? uiText('Сезон') : other.toUpperCase()})` : uiText('Ник не привязан')
+  return nicknames[mode] ?? (['pvp', 'pve', 'seasonal'] as const).map((entry) => nicknames[entry]).find((nickname): nickname is string => Boolean(nickname)) ?? uiText('Ник не привязан')
 }
 
 export function modeLabel(mode: RaidMode) {

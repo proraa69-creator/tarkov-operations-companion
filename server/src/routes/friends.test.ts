@@ -54,8 +54,8 @@ async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: Frien
 const json = async <T>(response: Response) => (await response.json()) as T
 interface Overview {
   code: string; access: boolean
-  friends: Array<{ friendId: string; nicknames: Record<string, string>; hideMyProgress: boolean; sharesProgress: boolean }>
-  incoming: Array<{ requestId: string; friendId: string; nicknames: Record<string, string> }>
+  friends: Array<{ friendId: string; nickname: string | null; nicknames: Record<string, string>; hideMyProgress: boolean; sharesProgress: boolean }>
+  incoming: Array<{ requestId: string; friendId: string; nickname: string | null; nicknames: Record<string, string> }>
   outgoing: Array<{ requestId: string; label: string }>
   blocked: Array<{ friendId: string }>
 }
@@ -82,7 +82,7 @@ test('friend requests by code: accept, decline, cancel; no e-mails; self and mal
     const a = await trial('alpha@example.com')
     const b = await trial('bravo@example.com')
     const c = await trial('charlie@example.com')
-    accounts.setNicknames(accounts.authenticate(a)!, { pvp: 'AlphaPvP' })
+    accounts.setNicknames(accounts.authenticate(a)!, { nickname: 'Alpha_1' })
     const mine = await overview(call, a)
     assert.match(mine.code, /^[0-9A-Z]{4}-[0-9A-Z]{4}$/)
     assert.equal((await call('POST', '/v1/friends/requests', { code: mine.code }, a)).status, 400, 'own code')
@@ -90,7 +90,9 @@ test('friend requests by code: accept, decline, cancel; no e-mails; self and mal
     const { bAsSeenByA, aAsSeenByB } = await befriend(call, a, b)
     assert.match(bAsSeenByA, /^[a-f0-9]{24}$/)
     const seen = await overview(call, b)
-    assert.deepEqual(seen.friends[0].nicknames, { pvp: 'AlphaPvP' })
+    // One nickname for all modes; `nicknames` repeats it per mode for builds that read it.
+    assert.equal(seen.friends[0].nickname, 'Alpha_1')
+    assert.deepEqual(seen.friends[0].nicknames, { pvp: 'Alpha_1', pve: 'Alpha_1', seasonal: 'Alpha_1' })
     assert.equal(seen.friends[0].friendId, aAsSeenByB)
     // Asking again: already friends.
     assert.deepEqual(await json(await call('POST', '/v1/friends/requests', { code: mine.code }, b)), { status: 'friends' })
@@ -122,14 +124,15 @@ test('adding by nickname answers the same for unknown nicknames and blocked send
   await withServer(async ({ call, trial, accounts }) => {
     const a = await trial('a@example.com')
     const b = await trial('b@example.com')
-    accounts.setNicknames(accounts.authenticate(b)!, { pve: 'BravoPvE' })
-    const unknown = await json(await call('POST', '/v1/friends/requests', { mode: 'pve', nickname: 'Nobody_123' }, a))
-    const known = await json(await call('POST', '/v1/friends/requests', { mode: 'pve', nickname: 'bravopve' }, a))
+    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_1' })
+    const unknown = await json(await call('POST', '/v1/friends/requests', { nickname: 'Nobody_123' }, a))
+    // One nickname for all modes: the mode that builds before it still send changes nothing.
+    const known = await json(await call('POST', '/v1/friends/requests', { mode: 'pve', nickname: 'bravo_1' }, a))
     assert.deepEqual(unknown, known)
-    assert.deepEqual((await overview(call, a)).outgoing.map((entry) => entry.label).sort(), ['Nobody_123', 'bravopve'])
-    // The PvP nickname is a different binding: no match there.
+    assert.deepEqual((await overview(call, a)).outgoing.map((entry) => entry.label).sort(), ['Nobody_123', 'bravo_1'])
     const incoming = (await overview(call, b)).incoming
     assert.equal(incoming.length, 1)
+    assert.equal(incoming[0].nickname, null, 'a has no nickname yet')
     // b blocks a: the friendship never happens and a's next request is kept undelivered.
     assert.equal((await call('POST', `/v1/friends/${incoming[0].friendId}/block`, undefined, b)).status, 204)
     assert.equal((await overview(call, b)).blocked.length, 1)
@@ -171,15 +174,15 @@ test('privacy toggle hides progress from that friend everywhere: progress, needs
     const a = await trial('a@example.com')
     const b = await trial('b@example.com')
     const { bAsSeenByA, aAsSeenByB } = await befriend(call, a, b)
-    accounts.setNicknames(accounts.authenticate(b)!, { pvp: 'BravoPvP', pve: 'BravoPvE' })
+    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_1' })
     activate(progress, accounts, b, 'pvp', [Q_A, Q_B])
     activate(progress, accounts, b, 'pve', [Q_B])
 
     const people = (await json<{ people: Person[] }>(await call('POST', '/v1/friends/progress/pvp', { friendIds: [bAsSeenByA] }, a))).people
     assert.equal(people[0].id, 'me')
-    assert.deepEqual(people[1], { id: bAsSeenByA, nickname: 'BravoPvP', hidden: false, activeQuestIds: [Q_A, Q_B], objectives: {}, completedCount: 0, lastSyncAt: (people[1] as unknown as { lastSyncAt: string }).lastSyncAt })
+    assert.deepEqual(people[1], { id: bAsSeenByA, nickname: 'Bravo_1', hidden: false, activeQuestIds: [Q_A, Q_B], objectives: {}, completedCount: 0, lastSyncAt: (people[1] as unknown as { lastSyncAt: string }).lastSyncAt })
     const pve = (await json<{ people: Person[] }>(await call('POST', '/v1/friends/progress/pve', { friendIds: [bAsSeenByA] }, a))).people
-    assert.deepEqual([pve[1].nickname, pve[1].activeQuestIds], ['BravoPvE', [Q_B]], 'modes stay separate')
+    assert.deepEqual([pve[1].nickname, pve[1].activeQuestIds], ['Bravo_1', [Q_B]], 'one nickname; the quests of each mode stay separate')
     assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pvp', undefined, a)), { mode: 'pvp', itemIds: ['axe', 'flash'], questIds: [Q_A, Q_B] })
     assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pve', undefined, a)), { mode: 'pve', itemIds: null, questIds: [Q_B] }, 'no PvE catalog on the server')
 

@@ -92,7 +92,7 @@ function CreateSquadCard({ disabled, busy, onCreate }: { disabled: boolean; busy
     <form className="panel squad-card" onSubmit={submit}>
       <div className="panel-header"><div className="panel-title">{uiText('Создать отряд')}</div><Plus size={16} className="dim" /></div>
       <div className="panel-body stack">
-        <p className="muted">{uiText('До 5 человек. Участники видят друг друга только по нику в игре для текущего режима — без e-mail.')}</p>
+        <p className="muted">{uiText('До 5 человек. Участники видят друг друга только по нику в игре — без e-mail.')}</p>
         <input className="input" value={name} maxLength={32} onChange={(event) => setName(event.target.value)} placeholder={uiText('Название (необязательно)')} aria-label={uiText('Название отряда')} />
         <button className="button primary" type="submit" disabled={disabled}>{busy ? <LoaderCircle className="spin" size={16} /> : <Users size={16} />}{uiText('Создать отряд')}</button>
       </div>

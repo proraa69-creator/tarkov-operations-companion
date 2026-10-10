@@ -1,25 +1,20 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, LoaderCircle, ShieldCheck, UserRound, X } from 'lucide-react'
-import type { PlayerProfileCandidate } from '../profile/playerProfileGateway'
-import { useAppState } from '../state/AppState'
-import { modeTitle } from '../account/nicknameBinding'
-import { useNicknameBinder } from '../account/useNicknameBinder'
+import { AlertTriangle, LoaderCircle, ShieldCheck, UserRound, X } from 'lucide-react'
+import { useNicknameBinder, type NicknameBinding } from '../account/useNicknameBinder'
+import { BoundNickname } from '../account/BoundNickname'
 
 /**
- * «Привязать ник» for the mode selected in the top bar (also opened when the app switches to a mode without a bound
- * nickname: by the mode buttons or by the game mode read from the EFT logs, see account/AccountController.tsx).
+ * «Привязать ник» / «Сменить ник»: one Escape from Tarkov nickname for PvP, PvE and «Сезон» (owner, 10.10.2026). Opened
+ * from the profile, or by itself on a switch to an unbound mode while no nickname is known (account/AccountController.tsx).
  */
 export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
-  const state = useAppState()
   const bind = useNicknameBinder()
   const inputRef = useRef<HTMLInputElement>(null)
   const [nickname, setNickname] = useState('')
-  const [bound, setBound] = useState<PlayerProfileCandidate | null>(null)
+  const [bound, setBound] = useState<NicknameBinding | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const mode = state.raidMode
-  const label = modeTitle(mode)
 
   useEffect(() => {
     const focus = () => {
@@ -46,7 +41,7 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
     setLoading(true)
     setError('')
     try {
-      setBound(await bind(mode, nickname))
+      setBound(await bind(nickname))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Профиль не найден')
       window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0)
@@ -55,15 +50,15 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return <div className="registration-overlay" role="dialog" aria-modal="true" aria-label={uiText(`Привязать ник · ${label}`)} onMouseDown={(event) => {
+  return <div className="registration-overlay" role="dialog" aria-modal="true" aria-label={uiText('Привязать ник')} onMouseDown={(event) => {
     if (event.target === event.currentTarget) onClose()
   }}>
     <section className="panel registration-dialog" onMouseDown={(event) => event.stopPropagation()}>
       <button className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
       <div className="registration-icon"><UserRound size={28} /></div>
-      <div className="eyebrow">{uiText('Режим · ')}{uiText(label)}</div>
+      <div className="eyebrow">{uiText('PvP · PvE · Сезон')}</div>
       <h2>{uiText('Привязать ник')}</h2>
-      <p className="muted">{uiText(`Для режима ${label} ник ещё не привязан. Введите ник, который у вас в этом режиме игры: программа найдёт профиль игрока и закрепит его за режимом.`)}</p>
+      <p className="muted">{uiText('Введите ник персонажа в Escape from Tarkov — он один для PvP, PvE и «Сезона». Программа найдёт профиль в каждом режиме, прогресс у режимов свой.')}</p>
       <label className="field-label">{uiText('Ник Escape from Tarkov')}<input
           ref={inputRef}
           className="input"
@@ -78,12 +73,8 @@ export function ModeRegistrationDialog({ onClose }: { onClose: () => void }) {
         />
       </label>
       {error && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText(error)}</span></div>}
-      {bound && <div className="profile-candidate account-bound" role="status">
-        <span className="profile-avatar small"><UserRound size={20} /></span>
-        <span><strong>{bound.nickname}</strong><small>{bound.pending ? <>{bound.mode.toUpperCase()}{uiText(' · уровень появится, когда обновится профиль игрока')}</> : <>{bound.mode.toUpperCase()}{uiText(' · уровень ')}{bound.level} · {bound.faction.toUpperCase()}</>}</small></span>
-        <span className="tag green"><Check size={12} />{uiText('Привязан')}</span>
-      </div>}
-      <div className="import-note"><ShieldCheck size={14} />{uiText('Ник закрепляется отдельно за этим режимом и сохраняется в вашем аккаунте. Изменить его можно позже в профиле.')}</div>
+      {bound && <BoundNickname binding={bound} />}
+      <div className="import-note"><ShieldCheck size={14} />{uiText('Ник сохраняется в вашем аккаунте и один для всех режимов. Изменить его можно позже в профиле.')}</div>
       {!bound && <button type="button" className="button primary" disabled={loading || nickname.trim().length < 3} onClick={() => void submit()}>
         {loading ? <LoaderCircle className="spin" size={16} /> : <UserRound size={16} />}{uiText(loading ? 'Ищем профиль…' : 'Привязать ник')}
       </button>}

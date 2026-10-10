@@ -9,6 +9,7 @@ import { isOwnerApp } from '../app/buildEdition'
 import { ClientCabinetPanel } from '../account/ClientCabinetPanel'
 import { StreamerCabinetPanel } from '../account/StreamerCabinetPanel'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
+import { accountNickname, modeTitle, profileNickname, RAID_MODE_ORDER } from '../account/nicknameBinding'
 import '../account/account.css'
 
 export function ProfilePage() {
@@ -17,10 +18,10 @@ export function ProfilePage() {
   const owner = isOwnerApp()
   const progress = state.activeProfile.modes[state.raidMode]
   const modeName = state.raidMode === 'seasonal' ? 'Сезон' : state.raidMode.toUpperCase()
+  // One nickname for PvP, PvE and «Сезон» (owner, 10.10.2026); each mode keeps its own profile and progress.
+  const nickname = profileNickname(state.activeProfile, state.raidMode) ?? accountNickname(status?.nicknames)
   const changeNickname = () => {
-    const mode = state.raidMode.toUpperCase()
-    if (!window.confirm(`Сменить ник для ${mode}? Прогресс и привязка текущего режима будут сброшены. Остальные режимы не изменятся.`)) return
-    state.clearModeProfile(state.raidMode)
+    if (!window.confirm(uiText('Сменить ник? Он сменится во всех режимах. Прогресс режима сбросится, только если новый ник — другой аккаунт Escape from Tarkov.'))) return
     window.setTimeout(() => openModeRegistrationDialog(), 0)
   }
   // Owner build: «Аккаунт сервера» with the server controls. Players (and the phone): «Личный кабинет»; the phone
@@ -36,7 +37,7 @@ export function ProfilePage() {
     </header>
     <div className="profile-operator-layout">
       <section className="panel profile-character-panel">
-        <div className="panel-header"><div><div className="eyebrow">{uiText('Привязка ника · ')}{uiText(modeName)}</div><div className="panel-title">{uiText("Персонаж")}</div></div></div>
+        <div className="panel-header"><div><div className="eyebrow">{uiText('Ник · PvP · PvE · Сезон')}</div><div className="panel-title">{uiText("Персонаж")}</div></div></div>
         <div className="panel-body stack">
           <div className="field-label">{uiText("Режим ")}<div className="mode-switch wide">
               <button className={state.raidMode === 'pvp' ? 'active' : ''} onClick={() => state.setRaidMode('pvp')}>PvP</button>
@@ -45,12 +46,18 @@ export function ProfilePage() {
             </div>
           </div>
           <div className="setting-row">
-            <span><strong>{uiText(progress.registration.nickname ?? 'Ник не привязан')}</strong><small>{uiText(progress.registration.status === 'registered' ? `Tarkov ID ${progress.registration.accountId} · автообновление 1 мин.` : 'Привяжите ник для выбранного режима')}</small></span>
+            <span><strong>{nickname ?? uiText('Ник не привязан')}</strong><small>{uiText(progress.registration.status === 'registered' ? `${modeName}: Tarkov ID ${progress.registration.accountId} · автообновление 1 мин.` : nickname ? `${modeName}: профиль с этим ником пока не найден` : 'Привяжите ник — он один для всех режимов')}</small></span>
             <span className={`tag ${progress.registration.status === 'registered' ? 'green' : 'brass'}`}>{uiText(progress.registration.status === 'registered' ? 'Привязан' : 'Не настроен')}</span>
           </div>
-          {uiText(progress.registration.status === 'registered'
-            ? <button className="button danger" onClick={changeNickname}><Pencil size={14} />{uiText(" Смена ника (вайп)")}</button>
-            : <button className="button primary" onClick={openModeRegistrationDialog}><UserRound size={14} />{uiText(" Привязать ник")}</button>)}
+          <div className="profile-mode-bindings">
+            {RAID_MODE_ORDER.map((mode) => {
+              const bound = state.activeProfile.modes[mode].registration.status === 'registered'
+              return <span key={mode} className={`tag ${bound ? 'green' : ''}`}>{uiText(modeTitle(mode))} · {uiText(bound ? 'профиль найден' : 'профиля нет')}</span>
+            })}
+          </div>
+          {nickname
+            ? <button className="button danger" onClick={changeNickname}><Pencil size={14} />{uiText(" Сменить ник")}</button>
+            : <button className="button primary" onClick={openModeRegistrationDialog}><UserRound size={14} />{uiText(" Привязать ник")}</button>}
         </div>
       </section>
       <section className="panel profile-live-card">
