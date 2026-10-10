@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { CreditCard, ExternalLink, Globe, LogIn, LogOut, RefreshCw, Smartphone, UserPlus, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { useAppState } from '../state/AppState'
 import { useServerAccount } from '../sync/serverSync'
 import { isDesktopShell } from '../platform'
 import { openWebsite, subscriptionText } from './accountActions'
-import { accountNickname, profileNickname } from './nicknameBinding'
+import { useAccountNickname } from './useAccountNickname'
 import { ApproveWebLoginDialog, MobileLoginDialog } from './QrDialogs'
 import { openAccountSignIn } from './accountEvents'
 import { PhoneCabinetRow } from './PhoneAccount'
@@ -20,7 +19,8 @@ import './account.css'
  */
 export function ClientCabinetPanel() {
   const { status, checking, refresh, logout } = useServerAccount()
-  const state = useAppState()
+  // One nickname for every mode (owner, 10.10.2026): the account's, else the one bound in the app.
+  const nickname = useAccountNickname()
   const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
   const desktop = isDesktopShell()
   const online = status?.online ?? false
@@ -43,8 +43,6 @@ export function ClientCabinetPanel() {
 
   const subscription = status.subscription
   const good = subscription?.status === 'active' || subscription?.status === 'lifetime' || subscription?.status === 'trial'
-  // One nickname for every mode (owner, 10.10.2026): the account's, else the one bound in the app.
-  const nickname = accountNickname(status.nicknames) ?? profileNickname(state.activeProfile, state.raidMode)
 
   return (
     <section className="panel account-cabinet" aria-label={uiText('Личный кабинет')}>

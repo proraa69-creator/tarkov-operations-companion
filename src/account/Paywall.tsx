@@ -7,7 +7,6 @@ import { ServerAccountPanel } from '../components/ServerAccountPanel'
 import { SignInStep } from './AccountSignIn'
 import { openWebsite, subscriptionText } from './accountActions'
 import { lockedReasonText, type DataAccess } from './dataAccess'
-import { requestNicknameStep } from './accountEvents'
 import './account.css'
 import './paywall.css'
 
@@ -46,7 +45,7 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
         <section className="panel paywall-card" aria-label={uiText('Вход в аккаунт')}>
           <PaywallHeader />
           {/* The phone signs in with its own form (server address included); the desktop with the first-run form. */}
-          {usesWebAccount() ? <ServerAccountPanel /> : <SignInStep onSigningIn={() => {}} onSignedIn={(nicknames) => { requestNicknameStep(nicknames); void refresh() }} />}
+          {usesWebAccount() ? <ServerAccountPanel /> : <SignInStep onSigningIn={() => {}} onSignedIn={() => { void refresh() }} />}
         </section>
       </div>
     )

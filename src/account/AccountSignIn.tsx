@@ -17,7 +17,7 @@ type Nicknames = Partial<Record<RaidMode, string>>
 export type AccountGateTab = 'login' | 'register'
 
 interface StepProps {
-  /** Called right before a request that may sign in: the gate goes on to «Привязать ник» without showing the app. */
+  /** Called right before a request that may sign in: lets the gate keep its window until the sign-in settles. */
   onSigningIn: () => void
   onSignedIn: (nicknames?: Nicknames) => void
   /** «Продолжить без входа» while the server is offline; absent on the paywall (no way past it). */
@@ -73,7 +73,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
 
   return (
     <div className="stack account-gate-form">
-      <div className="eyebrow">{uiText('Raid OS · шаг 1 из 2')}</div>
+      <div className="eyebrow">Raid OS</div>
       {body}
       {status && !online && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Сервер недоступен. Проверьте интернет и адрес сервера или попробуйте позже.')}</span></div>}
       {status && !online && (

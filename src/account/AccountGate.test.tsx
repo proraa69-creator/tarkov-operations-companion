@@ -58,6 +58,12 @@ async function open(locale: 'ru' | 'en' = 'ru') {
   return user
 }
 
+// No manual nickname step any more (owner, 10.10.2026): the app reads the nickname from the game logs.
+const expectStraightToTheApp = async () => {
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(screen.queryByText('Привязать ник')).toBeNull()
+}
+
 const PHONE_TEXT = /SMS|СМС|телефон|phone number/i
 const expectNoPhoneUi = () => {
   expect(document.body.textContent ?? '').not.toMatch(PHONE_TEXT)
@@ -81,7 +87,7 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     expectNoPhoneUi()
   })
 
-  it('signs in with e-mail and password, then asks for the nickname', async () => {
+  it('signs in with e-mail and password, then goes straight to the app (the nickname comes from the game logs)', async () => {
     const { account } = desktop()
     const user = await open()
     await screen.findByRole('dialog', { name: 'Вход в аккаунт' })
@@ -89,10 +95,10 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     await user.type(screen.getByLabelText('Пароль'), 'correct horse')
     await user.click(screen.getByRole('button', { name: 'Войти' }))
     expect(account.login).toHaveBeenCalledWith('me@example.com', 'correct horse')
-    expect(await screen.findByRole('dialog', { name: 'Привязать ник' })).toBeInTheDocument()
+    await expectStraightToTheApp()
   })
 
-  it('registers in the app: e-mail code step, then the consent is recorded and the nickname step follows', async () => {
+  it('registers in the app: e-mail code step, then the consent is recorded and the app opens', async () => {
     const { account, serviceRequest } = desktop()
     const user = await open()
     await screen.findByRole('dialog', { name: 'Вход в аккаунт' })
@@ -123,7 +129,7 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     account.status.mockResolvedValue(signedIn)
     await user.click(screen.getByRole('button', { name: 'Подтвердить и войти' }))
     expect(account.registerConfirm).toHaveBeenCalledWith(CHALLENGE, '123456')
-    expect(await screen.findByRole('dialog', { name: 'Привязать ник' })).toBeInTheDocument()
+    await expectStraightToTheApp()
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/accounts/me/consents', { kind: 'registration', version: LEGAL_VERSION })
   })
 
@@ -139,7 +145,7 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }))
     expect(account.register).toHaveBeenCalledWith('new@example.com', 'correct horse', undefined)
-    expect(await screen.findByRole('dialog', { name: 'Привязать ник' })).toBeInTheDocument()
+    await expectStraightToTheApp()
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/accounts/me/consents', { kind: 'registration', version: LEGAL_VERSION })
   })
 
@@ -225,7 +231,7 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
       await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }))
       await user.type(await screen.findByLabelText('Код из письма'), '654321')
       await user.click(screen.getByRole('button', { name: 'Подтвердить и войти' }))
-      expect(await screen.findByRole('dialog', { name: 'Привязать ник' })).toBeInTheDocument()
+      await expectStraightToTheApp()
       expect(calls.find((call) => call.path === '/v1/accounts/register')?.body).toEqual({ email: 'phone@example.com', password: 'correct horse' })
       expect(calls.find((call) => call.path === '/v1/accounts/register/confirm')?.body).toEqual({ challengeId: CHALLENGE, code: '654321' })
       await waitFor(() => expect(calls.find((call) => call.path === '/v1/accounts/me/consents')).toMatchObject({ body: { kind: 'registration', version: LEGAL_VERSION }, auth: `Bearer ${token}` }))

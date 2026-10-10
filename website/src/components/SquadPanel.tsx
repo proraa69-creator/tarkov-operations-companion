@@ -106,7 +106,7 @@ export function SquadPanel() {
                         <small className="muted">
                           {member.isOwner && 'Командир · '}
                           {member.hidden ? <><EyeOff size={11} aria-hidden="true" /> скрыл прогресс</> : member.activeQuestIds ? `активных заданий: ${member.activeQuestIds.length}` : ''}
-                          {!member.nickname && ` · ник для ${MODES.find((entry) => entry.id === mode)?.label} не привязан`}
+                          {!member.nickname && ' · ник ещё не найден'}
                         </small>
                       </span>
                     </li>

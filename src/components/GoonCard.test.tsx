@@ -31,14 +31,14 @@ describe('«Кочевники» card', () => {
     expect(screen.getByText('SHAURMA')).toBeInTheDocument()
   })
 
-  it('asks for a nickname when the account has none for this mode', async () => {
+  it('says the nickname comes from the game logs when the account has none yet', async () => {
     serviceRequest.mockImplementation(async (method: string) => method === 'GET' ? { latest: null, last5h: [], recent: [] } : { accepted: false, reason: 'nickname' })
     render(<LocaleProvider><GoonCard mode="pvp" mapName={(id) => MAPS[id] ?? id} /></LocaleProvider>)
     await waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/goons/pvp', undefined))
     fireEvent.click(screen.getByRole('button', { name: 'Видел' }))
     fireEvent.click(screen.getByRole('button', { name: 'Лес' }))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Подтвердить' })) })
-    await waitFor(() => expect(screen.getByText('Укажите ник Таркова в профиле')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Ник появится, когда приложение прочитает логи игры')).toBeInTheDocument())
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/goons/pvp/sightings', { mapId: 'woods' })
   })
 })
