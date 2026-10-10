@@ -380,11 +380,11 @@ sceneEl('s-collector', `
 
 // 5. Squad: members, «Квесты по картам» (the board zooms into the first maps), who shares which quest -----------------
 const wMembers = win('s-squad', 120, 46, 1680, 300, 'squad.png', [1080, 422, 1600], [1080, 423, 1588], [1920, 1080])
-const wBoard = win('s-squad', 120, 376, 1680, 420, 'squad-board-panel.png', [790, 164, 1600], [560, 192, 1120], [1580, 329])
+const wBoard = win('s-squad', 120, 376, 1680, 400, 'squad-board-panel.png', [790, 164, 1600], [560, 192, 1120], [1580, 329])
 sceneEl('s-squad', `
   <div class="bg-grid"></div>
   ${wMembers.html}${wBoard.html}
-  ${captionHtml('05', 'Отряд', 'Кто что делает на каждой карте', [['Состав отряда', 'hot'], 'Квесты каждого по картам', 'Общие квесты — у кого'])}`)
+  ${captionHtml('05', 'Отряд', 'Общие квесты на картах', [['Состав отряда', 'hot'], 'Квесты каждого по картам', 'У кого квесты совпадают'])}`)
 
 // 6. Bosses: quick cuts through several bosses, then one 3D model turning and the health card lighting body parts ----
 const BOSS_STILLS = ['Решала', 'Килла', 'Глухарь', 'Кабан']
