@@ -1,5 +1,7 @@
 /** English for texts the app builds itself (map markers, tooltips, rewards, hideout). */
 export const MAP_PHRASES: Array<[string, string]> = [
+  // Quest card under the map: objectives grouped by what is done (src/progression/sheetObjectives.ts)
+  ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
   ['Точка перехода между локациями.', 'Transit point between locations.'], ['Переход', 'Transit'],
   ['Санаторий (главный корпус)', 'Health resort (main building)'], ['неизвестная зона', 'unknown zone'],

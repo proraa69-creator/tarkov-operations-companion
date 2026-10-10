@@ -207,6 +207,20 @@
 .map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); columns: 3 170px; column-gap: 24px; }
 .map-quest-sheet-objectives li { break-inside: avoid; }
 .map-quest-sheet-objectives li { margin: 0 0 3px; }
+/* «Цели» grouped (components/QuestSheetObjectives.tsx): в рейде / заложить / найти / сдать торговцу, and the map of
+   each line when the quest's objectives are on several maps (the map being viewed in brass) */
+.sheet-objective-groups { columns: 3 190px; column-gap: 24px; }
+.sheet-objective-group { margin: 0 0 6px; }
+.sheet-objective-group h5 { margin: 0 0 3px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; break-after: avoid; }
+.sheet-objective-group ul { margin: 0; padding: 0; list-style: none; }
+.sheet-objective { margin: 0 0 4px; color: var(--text); line-height: 1.35; break-inside: avoid; }
+.sheet-objective-where { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; white-space: nowrap; }
+.sheet-objective-where.is-here { border-color: var(--brass); color: var(--brass-strong); }
+.sheet-objective.is-done { color: var(--text-dim); }
+.sheet-objective.is-done .sheet-objective-text { text-decoration: line-through; }
+.sheet-objective-check { margin-right: 4px; color: var(--success); vertical-align: -1px; }
+.sheet-objective-verb { color: var(--brass-strong); font-weight: 700; }
+.sheet-objective-fir, .sheet-objective-trader { color: var(--text-dim); font-weight: 600; letter-spacing: 0; text-transform: none; }
 .map-quest-sheet-link { width: auto; min-width: 200px; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
 .map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px; align-items: start; }
 /* Quest card: title, tags and the button on the left, the stage / objectives across the rest of the strip. */

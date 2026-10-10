@@ -34,6 +34,8 @@ import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Qu
 import { calculateAvailability, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
+import { sheetObjectives } from '../progression/sheetObjectives'
+import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -514,6 +516,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const sheetOpen = Boolean(selectedMarker)
   const selectedItem = selectedMarker?.itemId ? itemsById.get(selectedMarker.itemId) : undefined
   const sheetPoint = relatedQuest && flyTarget && flyTarget.questId === relatedQuest.id ? flyTarget : null
+  // «Цели» grouped (в рейде / заложить / найти / сдать торговцу) with the map of each one when they are on several maps
+  const relatedSheet = relatedQuest ? sheetObjectives(relatedQuest, { mapId: activeMap.id, maps: data.maps, itemsById, progress }) : null
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
 
@@ -687,11 +691,13 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      <ul className="map-quest-sheet-objectives">
-                        {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective) => (
-                          <li key={objective}>{uiText(objective)}</li>
-                        )))}
-                      </ul>
+                      {relatedSheet ? <QuestSheetObjectives sheet={relatedSheet} trader={relatedQuest.trader} /> : (
+                        <ul className="map-quest-sheet-objectives">
+                          {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective) => (
+                            <li key={objective}>{uiText(objective)}</li>
+                          )))}
+                        </ul>
+                      )}
                     </>
                   ))}
                   {uiText(sheetPoint?.approximate && (
