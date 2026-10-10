@@ -376,7 +376,6 @@ export const api = {
   authConfig: () => request<AuthConfig>('/auth-config'),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   /** One nickname for all modes; '' removes it. */
-  setNickname: (token: string, nickname: string) => request<Account>('/me/nicknames', { method: 'PUT', token, body: { nickname } }),
   /** `kind`: whose code it is — a streamer's (3 days free) or a player's (friend: −20 % on the first month). Missing on older servers. */
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string; kind?: 'streamer' | 'friend' }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),
   referralCampaigns: (token: string) => request<{ campaigns: CampaignStats[] }>('/me/referral-campaigns', { token }),

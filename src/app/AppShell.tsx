@@ -15,9 +15,8 @@ import {
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
-import { ModeRegistrationDialog } from '../components/ModeRegistrationDialog'
 import { AccountController } from '../account/AccountController'
-import { profileNickname } from '../account/nicknameBinding'
+import { useAccountNickname } from '../account/useAccountNickname'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
 import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerSync } from '../sync/serverSync'
@@ -30,11 +29,10 @@ import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 import { useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
-import { canResolvePlayerProfiles } from '../profile/playerProfileGateway'
 import { rememberEftAccount } from '../account/eftAccountLink'
+import { bindNicknameFromLogs } from '../account/logNickname'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 
-const OPEN_REGISTRATION_EVENT = 'tarkov-open-registration'
 
 const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
 
@@ -75,6 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const state = useAppState()
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
+  const nickname = useAccountNickname()
   const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
@@ -82,9 +81,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mobile = useMobileLayout()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [registrationOpen, setRegistrationOpen] = useState(false)
-  const [registrationKey, setRegistrationKey] = useState(0)
-  const registrationIdentity = `${activeProfile.id}:${raidMode}`
   const navigate = useNavigate()
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
@@ -115,23 +111,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         event.preventDefault()
         setSearchOpen(true)
       }
-      if (event.key === 'Escape') {
-        setSearchOpen(false)
-        setRegistrationOpen(false)
-      }
+      if (event.key === 'Escape') setSearchOpen(false)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  useEffect(() => {
-    const open = () => {
-      setRegistrationKey(Date.now())
-      setRegistrationOpen(true)
-    }
-    window.addEventListener(OPEN_REGISTRATION_EVENT, open)
-    return () => window.removeEventListener(OPEN_REGISTRATION_EVENT, open)
-  }, [])
 
   useEffect(() => {
     if (!window.tarkovDesktop) return
@@ -147,6 +132,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
+      // The nickname from the logs: their AccountId of each mode → its Tarkov.dev profile → bound, nothing to type.
+      void bindNicknameFromLogs(result, () => stateRef.current).catch(() => {})
       applyScanToModes(
         result,
         (mode) => stateRef.current.activeProfile.modes[mode].registration,
@@ -245,7 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar mobile-topbar">
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
-          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(profileNickname(activeProfile, raidMode) ?? activeProfile.displayName)}</span></button>
+          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
           <ThemeButton />
           <SubscriptionExpiryNotice compact />
         </header>
@@ -254,7 +241,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
         <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
-        <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(profileNickname(activeProfile, raidMode) ?? activeProfile.displayName)}</span></button>
+        <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
         <UpdateButton />
@@ -279,9 +266,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>)}
       {mobile && <MobileTabBar onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
       <AccountController />
-      {uiText(canResolvePlayerProfiles() && registrationOpen && (
-        <ModeRegistrationDialog key={`${registrationIdentity}:${registrationKey}`} onClose={() => setRegistrationOpen(false)} />
-      ))}
     </div>
   )
 }

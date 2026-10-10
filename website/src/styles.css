@@ -309,7 +309,7 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
 .sub-status { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .sub-status .big { font-size: 22px; font-weight: 850; letter-spacing: -.02em; }
 /* «Ник в Escape from Tarkov»: one field for every mode */
-.nick-field { max-width: 320px; }
+.nick-value { margin: 0; font-size: 20px; }
 .copy-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 6px 6px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-0); }
 .copy-row code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e3d6b4; font-family: "Roboto Mono", "Cascadia Code", ui-monospace, monospace; font-size: 14px; }
 .ref-top { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; margin-bottom: 16px; }
@@ -399,7 +399,6 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
   .mobile-nav a { min-height: 44px; display: flex; align-items: center; padding: 0 12px; border-radius: 9px; color: #b4bfb6; font-weight: 650; }
   .mobile-nav a.active { color: #f1e9d6; background: linear-gradient(90deg, rgb(117 99 60 / 31%), rgb(29 39 32 / 68%)); }
   .about-grid { grid-template-columns: 1fr; }
-  .nick-field { max-width: none; }
   .ref-top { grid-template-columns: 1fr; }
   .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

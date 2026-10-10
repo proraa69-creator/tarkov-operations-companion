@@ -1,5 +1,5 @@
 import { useAppState } from '../../state/AppState'
-import { profileNickname } from '../../account/nicknameBinding'
+import { useAccountNickname } from '../../account/useAccountNickname'
 import { useLocale } from '../../i18n/LocaleProvider'
 import { GearHangers } from './GearHangers'
 import { GearPatches } from './GearPatches'
@@ -20,7 +20,8 @@ function GearDecorActive() {
   const reduced = useReducedMotion()
   const { locale } = useLocale()
   const { activeProfile, raidMode } = useAppState()
-  const callsign = profileNickname(activeProfile, raidMode) ?? activeProfile.displayName
+  const nickname = useAccountNickname()
+  const callsign = nickname ?? activeProfile.displayName
   const en = locale === 'en'
   const tagLines: [string[], string[]] = [
     [callsign.toUpperCase().slice(0, 10), en ? 'O POS' : '0(I) RH+', en ? 'NO PREF' : 'Б/Р', '7734-19'],

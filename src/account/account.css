@@ -35,12 +35,6 @@
 .account-gate-server-edit { display: flex; gap: 6px; width: 100%; }
 .account-gate-server-edit .input { flex: 1; min-width: 0; }
 .account-error { color: var(--danger); }
-.account-gate-steps { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-.account-gate-steps span { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-dim); font-size: 12px; font-weight: 850; }
-.account-gate-steps span.active { border-color: var(--brass); color: var(--brass); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass) 14%, transparent); }
-.account-gate-steps span.done { border-color: var(--green); color: var(--green); }
-.account-gate-steps i { flex: 0 0 34px; height: 1px; background: var(--line-strong); }
-.account-bound { margin: 0; cursor: default; }
 /* «Вход» / «Регистрация» in the account window (AccountSignIn.tsx) */
 .account-gate-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .account-gate-hint { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 12px; line-height: 1.45; }
@@ -124,3 +118,6 @@
 
 /* Profile: where the one nickname found a profile (PvP · PvE · Сезон) */
 .profile-mode-bindings { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Персонаж»: one nickname field and its button, compact (owner, 10.10.2026) */
+.profile-character-panel.is-compact { align-self: start; }
+.profile-nick-message { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.4; }

@@ -37,12 +37,15 @@ The app must support three separate Tarkov profile bindings:
 - Seasonal.
 
 One nickname for all modes (owner, 10.10.2026: in Escape from Tarkov a character has the same nickname in PvP, PvE
-and Seasonal, so the website cabinet and the app ask for it once — not three nicknames). Progress stays separate:
+and Seasonal — not three nicknames). It is read from the game logs automatically and fast; there is no manual
+nickname input in the app or on the website (owner, 10.10.2026: «ручную привязку везде удали»). Progress stays separate:
 
-1. User starts the app and enters the Tarkov nickname once.
-2. The same nickname is used to find and link the PvP, PvE and Seasonal profiles (Tarkov.dev/public profile where possible).
-3. Switching modes switches the progress, levels and quests of that mode; the nickname does not change.
-4. Changing the nickname changes it for every mode at once.
+1. The desktop app reads the game AccountId of each mode from the EFT logs and gets its Tarkov.dev profile; the nickname
+   is the most recently updated profile's name (a mode's Tarkov.dev name can lag behind a rename).
+2. Each mode found in the logs is bound to its game account; other bound modes take the same nickname; a mode not in the
+   logs is looked up on Tarkov.dev by that nickname.
+3. The nickname is saved on the server account; the website cabinet and the phone show it read-only.
+4. Switching modes switches the progress, levels and quests of that mode; the nickname does not change.
 
 The app should try to detect the currently selected/played game mode automatically from logs/session data. If the game mode changes from PvP to PvE or Seasonal, the app should switch its active mode accordingly.
 
@@ -130,7 +133,7 @@ Required:
 - show level;
 - show account/game time if available;
 - show current bound profiles for PvP/PvE/Seasonal;
-- allow changing the nickname (one for all modes) through an explicit “change nickname” action;
+- the nickname (one for all modes) comes from the game logs — no manual change action;
 - allow deleting/removing a profile binding with a small X/cross;
 - add a full “clear all app data” action that removes all local app data and resets the application completely.
 

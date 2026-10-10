@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, UserPlus, WifiOff } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
@@ -75,7 +75,7 @@ export function CabinetPage() {
         {(state.welcome || state.referralRejected || state.streamerWelcome || state.passwordReset) && (
           <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
             {state.streamerWelcome && <Notice tone="success" title="Вы стример">Код {state.streamerWelcome} привязан к аккаунту. Ниже — ваша ссылка для зрителей и статистика.</Notice>}
-            {state.welcome && !state.streamerWelcome && <Notice tone="success" title="Аккаунт создан">Добро пожаловать! Укажите ник в Escape from Tarkov и скачайте приложение.</Notice>}
+            {state.welcome && !state.streamerWelcome && <Notice tone="success" title="Аккаунт создан">Добро пожаловать! Скачайте приложение и запустите его на ПК с игрой — ник в Escape from Tarkov оно возьмёт из логов игры само и добавит в аккаунт.</Notice>}
             {state.passwordReset && <Notice tone="success" title="Пароль изменён">Новый пароль сохранён. Входы на других устройствах завершены — там войдите заново.</Notice>}
             {state.referralRejected && <Notice tone="warn" title="Код приглашения не применён">Такой код не найден. Проверьте его и укажите ниже, в блоке «Код приглашения».</Notice>}
           </div>
@@ -465,51 +465,25 @@ function accountNickname(account: Account) {
   return account.nickname ?? account.nicknames.pvp ?? account.nicknames.pve ?? account.nicknames.seasonal ?? ''
 }
 
-/** «Ник в Escape from Tarkov»: one for PvP, PvE and «Сезон» — in the game a character has the same nickname everywhere. */
+/**
+ * «Ник в Escape from Tarkov»: one for PvP, PvE and «Сезон» — in the game a character has the same nickname everywhere.
+ * Read only: the desktop app reads it from the game logs by itself and saves it on the account (no manual binding).
+ */
 function NicknamesPanel({ account }: { account: Account }) {
-  const auth = useAuth()
-  const saved = accountNickname(account)
-  const [value, setValue] = useState(saved)
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; message: string; offline?: boolean } | null>(null)
-  const dirty = value.trim() !== saved
-
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    const nickname = value.trim()
-    if (nickname && !/^[a-zA-Z0-9_-]{3,15}$/.test(nickname)) { setResult({ ok: false, message: 'Ник: 3–15 символов, латиница, цифры, «_» или «-».' }); return }
-    if (!auth.token) return
-    setBusy(true)
-    setResult(null)
-    try {
-      const next = await api.setNickname(auth.token, nickname)
-      auth.setAccount(next)
-      setResult({ ok: true, message: nickname ? 'Ник сохранён.' : 'Ник удалён.' })
-    } catch (error) {
-      setResult({ ok: false, message: errorMessage(error), offline: error instanceof ApiError && error.network })
-    } finally {
-      setBusy(false)
-    }
-  }
-
+  const nickname = accountNickname(account)
   return (
     <section className="panel" aria-labelledby="nick-title">
       <div className="panel-header">
         <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />Ник в Escape from Tarkov</div>
       </div>
-      <form className="panel-body form" onSubmit={save}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Один ник для PvP, PvE и «Сезона» — в игре он у персонажа везде одинаковый. Прогресс заданий у каждого режима свой.</p>
+      <div className="panel-body form">
+        <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">Ещё не найден</span>}</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.</p>
         {/* «Пригласи друга»: the game account the desktop app found in the logs (one game account — one Raid OS account). */}
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>
           Аккаунт Escape from Tarkov: {account.eftAccount ? <strong className="mono">{account.eftAccount.masked}</strong> : 'не привязан — откройте приложение Raid OS на ПК с игрой, оно найдёт аккаунт в логах игры'}.
         </p>
-        <label className="field nick-field">
-          <span className="field-label">Ник</span>
-          <input className="input" value={value} maxLength={15} spellCheck={false} autoComplete="off" placeholder="Не привязан" onChange={(e) => setValue(e.target.value)} />
-        </label>
-        {result && <Notice tone={result.ok ? 'success' : result.offline ? 'offline' : 'error'}>{result.message}</Notice>}
-        <div><button type="submit" className="button primary" disabled={busy || !dirty}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Save aria-hidden="true" />}Сохранить</button></div>
-      </form>
+      </div>
     </section>
   )
 }

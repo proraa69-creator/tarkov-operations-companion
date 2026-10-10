@@ -162,6 +162,11 @@ export function useServerAccount() {
 
 const connected = () => Boolean(state.status?.signedIn && state.status.online)
 
+/** The server account status as last read (outside React). */
+export function currentServerStatus() {
+  return state.status
+}
+
 /** `/v1/me/*` through the main-process gateway. null = no desktop, not signed in or server offline. */
 async function meRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T | null> {
   const request = serviceClient()
