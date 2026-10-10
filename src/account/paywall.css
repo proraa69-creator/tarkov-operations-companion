@@ -10,8 +10,9 @@
 .paywall-account { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 13px; }
 .paywall-account strong { color: var(--text); overflow-wrap: anywhere; }
 .paywall-card .import-warning { margin: 0; }
-.paywall-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-.paywall-plan { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+/* two by two (one column on a phone): room for «вместо 3 600 ₽» and «−33% · экономия 1 200 ₽» on one line each */
+.paywall-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.paywall-plan { display: grid; align-content: start; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .paywall-plan:hover { border-color: var(--brass); }
 .paywall-plan span { color: var(--text-muted); font-size: 12px; }
 .paywall-plan small { color: var(--green); font-weight: 800; }

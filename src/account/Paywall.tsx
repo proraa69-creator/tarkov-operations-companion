@@ -93,7 +93,8 @@ function PaywallHeader() {
   )
 }
 
-const rub = (amount: number) => `${amount.toLocaleString('ru-RU')} ₽`
+/** «2 400 ₽»: a no-break space, so «₽» never wraps to a line of its own. */
+const rub = (amount: number) => `${amount.toLocaleString('ru-RU')}\u00a0₽`
 
 /** «810 ₽ вместо 900 ₽, экономия 90 ₽»: a longer plan against paying month by month (website/src/plans.ts planSaving). */
 function planSaving(plan: Plan, plans: Plan[]) {
