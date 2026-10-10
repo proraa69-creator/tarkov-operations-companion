@@ -45,6 +45,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   // «Правки карты сразу у всех»: waits up to ~25 s for the owner's next map correction (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
+  // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-points\/[a-f0-9]{24}\/remove$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
@@ -307,7 +309,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
-  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

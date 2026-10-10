@@ -14,6 +14,14 @@ type Request = NonNullable<ReturnType<typeof serviceClient>>
  * and calls `changed` each time the version moves. Runs until `signal` aborts.
  */
 export async function watchMapUpdates(request: Request, changed: () => void, signal: AbortSignal, retryMs = RETRY_MS) {
+  return watchVersion(request, '/v1/map-updates', changed, signal, retryMs)
+}
+
+/**
+ * Long polling of a server version (`path` answers { version } at once, `path?since=<version>` when it moves or after
+ * ~25 s): calls `changed` each time the version moves. Runs until `signal` aborts.
+ */
+export async function watchVersion(request: Request, path: string, changed: () => void, signal: AbortSignal, retryMs = RETRY_MS) {
   let version: number | undefined
   const pause = (ms: number) => new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms)
@@ -21,7 +29,7 @@ export async function watchMapUpdates(request: Request, changed: () => void, sig
   })
   while (!signal.aborted) {
     try {
-      const answer = await request('GET', version === undefined ? '/v1/map-updates' : `/v1/map-updates?since=${version}`) as { version?: unknown } | null
+      const answer = await request('GET', version === undefined ? path : `${path}?since=${version}`) as { version?: unknown } | null
       if (signal.aborted) return
       const next = typeof answer?.version === 'number' && Number.isSafeInteger(answer.version) ? answer.version : undefined
       if (next === undefined) { await pause(retryMs); continue }

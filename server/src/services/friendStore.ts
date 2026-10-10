@@ -138,6 +138,12 @@ export class FriendStore {
     return (this.db.prepare('SELECT id, from_id, to_id, label, created_at FROM friend_requests WHERE from_id = ? ORDER BY created_at').all(accountId) as Row[]).map(requestRow)
   }
 
+  /** The other ends of this account's delivered friend requests, both directions (server/src/services/socialSignals.ts). */
+  requestCounterparts(accountId: string): string[] {
+    const rows = this.db.prepare('SELECT from_id, to_id FROM friend_requests WHERE (from_id = ? AND to_id IS NOT NULL) OR to_id = ?').all(accountId, accountId) as Row[]
+    return [...new Set(rows.map((row) => String(row.from_id) === accountId ? String(row.to_id) : String(row.from_id)))]
+  }
+
   blocked(accountId: string) {
     return (this.db.prepare('SELECT blocked_id FROM friend_blocks WHERE account_id = ? ORDER BY created_at').all(accountId) as Row[]).map((row) => String(row.blocked_id))
   }

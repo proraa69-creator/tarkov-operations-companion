@@ -31,7 +31,8 @@ const MORE = [
 ]
 
 /** Phone layout: the bottom tab bar and the «Ещё» sheet (replaces the desktop sidebar). */
-export function MobileTabBar({ onSearch, onRefresh, refreshing }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean }) {
+export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number }) {
+  const badge = (count: number) => count > 0 ? <span className="nav-badge" aria-label={uiText(`Новых заявок: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
   const { locale, setLocale } = useLocale()
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
@@ -59,7 +60,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing }: { onSearch: ()
             <nav className="mobile-more-grid">
               {MORE.map((entry) => {
                 const Icon = entry.icon
-                return <NavLink key={entry.to} to={entry.to} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span></NavLink>
+                return <NavLink key={entry.to} to={entry.to} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{entry.to === '/squad' && badge(squadBadge)}</NavLink>
               })}
             </nav>
             <div className="mobile-more-tools">
@@ -75,7 +76,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing }: { onSearch: ()
           const Icon = entry.icon
           return <NavLink key={entry.to} to={entry.to} end={entry.to === '/'} className={({ isActive }) => `nav-link mobile-tab${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon /><span>{label(entry)}</span></NavLink>
         })}
-        <button type="button" className={`nav-link mobile-tab${moreActive || moreOpen ? ' active' : ''}`} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}><Menu /><span>{uiText(locale === 'en' ? 'More' : 'Ещё')}</span></button>
+        <button type="button" className={`nav-link mobile-tab${moreActive || moreOpen ? ' active' : ''}`} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}><Menu /><span>{uiText(locale === 'en' ? 'More' : 'Ещё')}</span>{badge(squadBadge)}</button>
       </nav>
     </>
   )

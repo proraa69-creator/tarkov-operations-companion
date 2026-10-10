@@ -29,6 +29,7 @@ import { FriendError, FRIEND_ID, type FriendStore } from '../services/friendStor
 import type { ProgressStore } from '../services/progressStore.js'
 import { HIDDEN_PROGRESS, sharedProgress } from '../services/sharedProgress.js'
 import { SquadError, SquadStore, SQUAD_MEMBER_ID, type SquadRow } from '../services/squadStore.js'
+import { signalAround, socialCircle, type SocialSignals } from '../services/socialSignals.js'
 import { computeSquadOverview, sharedQuestsOf, SQUAD_MAX_MEMBERS } from '../../../src/squad/squadOverview'
 import type { CatalogPeek } from './me.js'
 
@@ -47,6 +48,8 @@ export interface SquadRouterOptions {
   now?: () => number
   /** Per window: all squad requests per IP and per account, and join attempts per IP and per account. */
   limits?: Partial<{ ip: number; account: number; joinIp: number; joinAccount: number; windowMs: number }>
+  /** Instant updates (services/socialSignals.ts): everybody a change touches reloads at once. */
+  signals?: SocialSignals
 }
 
 export const SQUAD_RATE_LIMITS = { ip: 900, account: 300, joinIp: 20, joinAccount: 10, windowMs: 10 * 60 * 1000 }
@@ -54,6 +57,7 @@ export const SQUAD_RATE_LIMITS = { ip: 900, account: 300, joinIp: 20, joinAccoun
 export function createSquadsRouter(accounts: AccountStore, progress: ProgressStore, squads: SquadStore, friends: FriendStore, options: SquadRouterOptions = {}) {
   const router = express.Router()
   const limits = { ...SQUAD_RATE_LIMITS, ...options.limits }
+  const around = (accountId: string) => signalAround(options.signals, (id) => socialCircle(friends, squads, id), accountId)
   const limiter = (max: number) => new FixedWindowRateLimiter(max, limits.windowMs, options.now)
   const ipLimiter = limiter(limits.ip)
   const accountLimiter = limiter(limits.account)
@@ -123,7 +127,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     const action = String(req.params.action)
     if (action !== 'accept' && action !== 'decline') throw new SquadError(404, 'Неизвестное действие')
     if (action === 'accept') requireAccess(accountId)
-    const squad = squads.answerInvitation(accountId, String(req.params.id), action === 'accept')
+    const squad = around(accountId)(() => squads.answerInvitation(accountId, String(req.params.id), action === 'accept'))
     if (squad) res.json({ squad: squadView(squad, accountId) })
     else res.status(204).end()
   }))
@@ -133,7 +137,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     const body = createSchema.safeParse(req.body ?? {})
     if (!body.success) throw new SquadError(400, 'Название отряда: до 32 букв, цифр и пробелов')
     requireAccess(accountId)
-    const squad = squads.create(accountId, body.data.name || 'Отряд')
+    const squad = around(accountId)(() => squads.create(accountId, body.data.name || 'Отряд'))
     res.status(201).json({ squad: squadView(squad, accountId) })
   }))
 
@@ -147,7 +151,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     const body = joinSchema.safeParse(req.body)
     if (!body.success) throw new SquadError(400, 'Введите код приглашения')
     requireAccess(accountId)
-    const squad = squads.join(accountId, body.data.code)
+    const squad = around(accountId)(() => squads.join(accountId, body.data.code))
     res.json({ squad: squadView(squad, accountId) })
   }))
 
@@ -184,17 +188,17 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     const body = inviteFriendSchema.safeParse(req.body)
     if (!body.success) throw new SquadError(400, 'Некорректный друг')
     requireAccess(accountId)
-    squads.inviteAccount(accountId, squad.id, friends.friendAccount(accountId, body.data.friendId))
+    around(accountId)(() => squads.inviteAccount(accountId, squad.id, friends.friendAccount(accountId, body.data.friendId)))
     res.status(204).end()
   }))
 
   router.post('/:id/leave', handle((req, res) => {
-    squads.leave(account(res), String(req.params.id))
+    around(account(res))(() => squads.leave(account(res), String(req.params.id)))
     res.status(204).end()
   }))
 
   router.post('/:id/disband', handle((req, res) => {
-    squads.disband(account(res), String(req.params.id))
+    around(account(res))(() => squads.disband(account(res), String(req.params.id)))
     res.status(204).end()
   }))
 
@@ -203,7 +207,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     squads.memberSquad(accountId, String(req.params.id))
     const body = kickSchema.safeParse(req.body)
     if (!body.success) throw new SquadError(400, 'Некорректный участник')
-    squads.kick(accountId, String(req.params.id), body.data.memberId)
+    around(accountId)(() => squads.kick(accountId, String(req.params.id), body.data.memberId))
     res.status(204).end()
   }))
 

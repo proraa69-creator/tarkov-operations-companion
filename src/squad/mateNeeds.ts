@@ -1,31 +1,51 @@
 /**
- * The in-raid «MATE» badge: which items friends or squad mates need for a current quest, per mode. Only a set of item
- * ids is kept — never who needs it or for what (the overlay shows a bare badge). Refreshed every few minutes, when the
- * mode changes and when a raid starts; looked up synchronously when the item overlay asks.
+ * The in-raid badge on the item card: which items friends or squad mates need for a current quest, per mode, and who
+ * (their Tarkov nicknames — owner, 10.10.2026: «вместо MATE ник того, кому нужен предмет»; an older server sends no
+ * names, then the badge says «MATE»). Refreshed every few minutes, when the mode changes, when a raid starts and when a
+ * friend's or squad mate's quests change (squad/useSocialEvents.ts); looked up synchronously when the overlay asks.
  */
 import { useEffect, useRef } from 'react'
 import type { Quest, RaidMode } from '../domain/types'
 import { fetchFriendNeeds } from './socialClient'
 import { itemIdsNeededBy } from './squadOverview'
+import { SOCIAL_UPDATE_EVENT } from './useSocialEvents'
 
 export const MATE_REFRESH_MS = 5 * 60_000
-const cache = new Map<RaidMode, Set<string>>()
+/** Item id → nicknames of who needs it ([] = somebody, no names from this server). */
+const cache = new Map<RaidMode, Map<string, string[]>>()
 
 export function mateNeedsItem(mode: RaidMode, itemId: string) {
   return cache.get(mode)?.has(itemId) ?? false
 }
 
-/** For tests and sign-out. */
-export function setMateNeeds(mode: RaidMode, itemIds: Iterable<string> | null) {
-  if (itemIds === null) cache.delete(mode)
-  else cache.set(mode, new Set(itemIds))
+/** Who needs the item (nicknames; [] when the server sent none), or null when nobody does. */
+export function mateNamesFor(mode: RaidMode, itemId: string): string[] | null {
+  return cache.get(mode)?.get(itemId) ?? null
+}
+
+/** For tests and sign-out: bare ids (no names) or id → nicknames. */
+export function setMateNeeds(mode: RaidMode, items: Iterable<string> | Map<string, string[]> | null) {
+  if (items === null) cache.delete(mode)
+  else cache.set(mode, items instanceof Map ? items : new Map([...items].map((id) => [id, []])))
+}
+
+/** Who needs which item: the server's names per item, or (no server catalog) per quest through the app's catalog. */
+export function namesPerItem(answer: Awaited<ReturnType<typeof fetchFriendNeeds>>, quests: Quest[]) {
+  const out = new Map<string, string[]>()
+  const add = (itemId: string, names: string[]) => { const list = out.get(itemId) ?? []; for (const name of names) if (!list.includes(name)) list.push(name); out.set(itemId, list) }
+  if (answer.itemIds) {
+    for (const itemId of answer.itemIds) add(itemId, answer.byItem?.[itemId] ?? [])
+    return out
+  }
+  for (const questId of answer.questIds) {
+    for (const itemId of itemIdsNeededBy([{ memberId: 'friends', activeQuestIds: [questId] }], quests)) add(itemId, answer.byQuest?.[questId] ?? [])
+  }
+  return out
 }
 
 export async function refreshMateNeeds(mode: RaidMode, quests: Quest[]) {
   try {
-    const answer = await fetchFriendNeeds(mode)
-    // Without a server catalog the answer has only quest ids: the app's own catalog turns them into items.
-    setMateNeeds(mode, answer.itemIds ?? itemIdsNeededBy([{ memberId: 'friends', activeQuestIds: answer.questIds }], quests))
+    setMateNeeds(mode, namesPerItem(await fetchFriendNeeds(mode), quests))
   } catch {
     // Signed out, no subscription or offline: no badge rather than a stale one from another account.
     setMateNeeds(mode, null)
@@ -43,6 +63,12 @@ export function useMateNeedsRefresh(mode: RaidMode, quests: Quest[]) {
     return () => window.clearInterval(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, quests.length > 0])
+  // A friend's or squad mate's quests changed (squad/useSocialEvents.ts): the names on the card follow at once.
+  useEffect(() => {
+    const refresh = () => void refreshMateNeeds(latest.current.mode, latest.current.quests)
+    window.addEventListener(SOCIAL_UPDATE_EVENT, refresh)
+    return () => window.removeEventListener(SOCIAL_UPDATE_EVENT, refresh)
+  }, [])
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!desktop?.onRaidStateChanged) return

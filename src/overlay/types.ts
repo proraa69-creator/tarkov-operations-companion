@@ -32,8 +32,10 @@ export interface ItemOverlayInfo {
   collector: boolean
   /** On the «Что не продавать» list of this mode: still needed for quests / hideout / Collector. */
   keep?: import('../raidprep/keepList').KeepBadge
-  /** A friend or squad mate needs this item for a current quest (squad/mateNeeds.ts): only a bare «MATE» badge. */
+  /** A friend or squad mate needs this item for a current quest (squad/mateNeeds.ts). */
   mate?: boolean
+  /** Their Tarkov nicknames; empty from an older server (the badge then says «MATE»). */
+  mateNames?: string[]
   /** How the tooltip lookup found it when not by the name at once (diagnostics): a remembered reading, the second
    * attempt's other OCR readings, or the picture check. */
   source?: 'memory' | 'retry' | 'picture'

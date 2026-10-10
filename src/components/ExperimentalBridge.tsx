@@ -16,7 +16,7 @@ import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload
 import type { Item, MarkerLayerId } from '../domain/types'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
-import { mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
+import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 import { featureEnabled } from '../app/archivedFeatures'
 
 const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
@@ -141,10 +141,10 @@ export function ExperimentalBridge() {
     return api.onQuery((query) => {
       const { data, state, matcher, tooltipMatcher, itemsById, keepRows } = latest.current
       const progress = state.activeProfile.modes[state.raidMode]
-      // Two independent overlay slots: the keep badge («Что не продавать») and the bare «MATE» badge.
+      // Two independent overlay slots: the keep badge («Что не продавать») and who of the friends / squad needs the item.
       const card = (item: Item, source?: ItemOverlayInfo['source']): ItemOverlayPayload => ({
         ...describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id))),
-        ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true } : {}),
+        ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true, mateNames: mateNamesFor(state.raidMode, item.id) ?? [] } : {}),
         ...(source ? { source } : {}),
       })
       if (query.kind === 'item') {

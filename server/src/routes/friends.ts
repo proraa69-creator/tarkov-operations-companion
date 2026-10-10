@@ -26,6 +26,7 @@ import { FriendError, FriendStore, formatFriendCode, FRIEND_ID } from '../servic
 import type { ProgressStore } from '../services/progressStore.js'
 import { HIDDEN_PROGRESS, sharedProgress } from '../services/sharedProgress.js'
 import type { SquadStore } from '../services/squadStore.js'
+import { signalAround, socialCircle, type SocialSignals } from '../services/socialSignals.js'
 import { itemIdsNeededBy } from '../../../src/squad/squadOverview'
 import type { CatalogPeek } from './me.js'
 
@@ -47,11 +48,14 @@ export interface FriendsRouterOptions {
   catalog?: CatalogPeek
   now?: () => number
   limits?: Partial<typeof FRIEND_RATE_LIMITS>
+  /** Instant updates (services/socialSignals.ts): everybody a change touches reloads at once. */
+  signals?: SocialSignals
 }
 
 export function createFriendsRouter(accounts: AccountStore, progress: ProgressStore, friends: FriendStore, squads: SquadStore, options: FriendsRouterOptions = {}) {
   const router = express.Router()
   const limits = { ...FRIEND_RATE_LIMITS, ...options.limits }
+  const around = (accountId: string) => signalAround(options.signals, (id) => socialCircle(friends, squads, id), accountId)
   const ipLimiter = new FixedWindowRateLimiter(limits.ip, limits.windowMs, options.now)
   const accountLimiter = new FixedWindowRateLimiter(limits.account, limits.windowMs, options.now)
   const requestAccountLimiter = new FixedWindowRateLimiter(limits.requestsAccount, limits.requestsWindowMs, options.now)
@@ -116,7 +120,7 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     const body = requestSchema.safeParse(req.body)
     if (!body.success) throw new FriendError(400, 'Введите код друга или ник в игре')
     requireAccess(accountId)
-    res.json({ status: friends.request(accountId, body.data) })
+    res.json({ status: around(accountId)(() => friends.request(accountId, body.data)) })
   }))
 
   router.post('/requests/:id/:action', handle((req, res) => {
@@ -124,10 +128,12 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     const id = String(req.params.id)
     if (!FRIEND_ID.test(id)) throw new FriendError(404, 'Запрос не найден')
     const action = String(req.params.action)
-    if (action === 'accept') friends.accept(accountId, id)
-    else if (action === 'decline') friends.decline(accountId, id)
-    else if (action === 'cancel') friends.cancel(accountId, id)
-    else throw new FriendError(404, 'Неизвестное действие')
+    around(accountId)(() => {
+      if (action === 'accept') friends.accept(accountId, id)
+      else if (action === 'decline') friends.decline(accountId, id)
+      else if (action === 'cancel') friends.cancel(accountId, id)
+      else throw new FriendError(404, 'Неизвестное действие')
+    })
     res.status(204).end()
   }))
 
@@ -154,20 +160,27 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     const accountId = account(res)
     const mode = parseMode(req)
     requireAccess(accountId)
-    // Friends and squad mates, minus anybody who hides their progress from me. Only the union is returned: the
-    // overlay shows a bare «MATE» badge, never who or for which quest.
+    // Friends and squad mates, minus anybody who hides their progress from me. The overlay shows who needs the item
+    // (owner, 10.10.2026: «вместо MATE ник того, кому нужен предмет»): their Tarkov nicknames, which friends and squad
+    // mates already see in «Отряд» — never e-mails or quests of anybody hiding their progress.
     const others = new Set(friends.friends(accountId).filter((friend) => !friend.hidesFromMe).map((friend) => friend.accountId))
     for (const member of squads.squadOf(accountId)?.members ?? []) {
       if (member.accountId !== accountId && !friends.hidesProgress(member.accountId, accountId)) others.add(member.accountId)
     }
-    const members = [...others].map((other, index) => {
+    const people = [...others].map((other, index) => {
       const shared = sharedProgress(progress, other, mode)
-      return { memberId: String(index), activeQuestIds: shared.activeQuestIds, objectives: shared.objectives }
+      return { name: nickname(other) ?? `#${index + 1}`, member: { memberId: String(index), activeQuestIds: shared.activeQuestIds, objectives: shared.objectives } }
     })
+    const members = people.map((person) => person.member)
     let catalog
     try { catalog = options.catalog?.(mode) } catch { catalog = undefined }
     const questIds = [...new Set(members.flatMap((member) => member.activeQuestIds))].sort()
-    res.json({ mode, itemIds: catalog ? itemIdsNeededBy(members, catalog.quests) : null, questIds })
+    const add = (into: Record<string, string[]>, key: string, name: string) => { if (!(into[key] ??= []).includes(name)) into[key].push(name) }
+    const byQuest: Record<string, string[]> = {}
+    for (const person of people) for (const questId of person.member.activeQuestIds) add(byQuest, questId, person.name)
+    const byItem: Record<string, string[]> = {}
+    if (catalog) for (const person of people) for (const itemId of itemIdsNeededBy([person.member], catalog.quests)) add(byItem, itemId, person.name)
+    res.json({ mode, itemIds: catalog ? itemIdsNeededBy(members, catalog.quests) : null, questIds, byQuest, byItem: catalog ? byItem : null })
   }))
 
   router.post('/:friendId/:action', handle((req, res) => {
@@ -175,17 +188,19 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     const friendId = String(req.params.friendId)
     if (!FRIEND_ID.test(friendId)) throw new FriendError(404, 'Друг не найден')
     const action = String(req.params.action)
-    if (action === 'remove') friends.remove(accountId, friendId)
-    else if (action === 'block') friends.block(accountId, friendId)
-    else if (action === 'unblock') friends.unblock(accountId, friendId)
-    else throw new FriendError(404, 'Неизвестное действие')
+    around(accountId)(() => {
+      if (action === 'remove') friends.remove(accountId, friendId)
+      else if (action === 'block') friends.block(accountId, friendId)
+      else if (action === 'unblock') friends.unblock(accountId, friendId)
+      else throw new FriendError(404, 'Неизвестное действие')
+    })
     res.status(204).end()
   }))
 
   router.put('/:friendId/privacy', handle((req, res) => {
     const body = privacySchema.safeParse(req.body)
     if (!body.success) throw new FriendError(400, 'Некорректные данные запроса')
-    friends.setHideProgress(account(res), String(req.params.friendId), body.data.hideProgress)
+    around(account(res))(() => friends.setHideProgress(account(res), String(req.params.friendId), body.data.hideProgress))
     res.status(204).end()
   }))
 

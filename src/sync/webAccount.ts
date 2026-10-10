@@ -44,6 +44,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
+  // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
   { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
@@ -178,7 +180,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const gated = GATED.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

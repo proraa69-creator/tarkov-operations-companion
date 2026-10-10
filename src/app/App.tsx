@@ -31,6 +31,7 @@ import { EftAccountBinding } from '../account/EftAccountBinding'
 import { UpdateButton } from '../components/UpdateButton'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
+const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
 
 export function App() {
@@ -47,6 +48,8 @@ export function App() {
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />
+    {/* «Тактика боя»: not in the menu, opened only from a boss's button (Gallery, the raid card). */}
+    <Route path="/bosses/:key/tactics" element={<Suspense fallback={null}><BossTacticsPage /></Suspense>} />
     <Route path="/kappa-items" element={<KappaItemsPage />} />
     <Route path="/keep-items" element={featureEnabled('keepItems') ? <KeepItemsPage /> : <Navigate to="/kappa-items" replace />} />
     <Route path="/briefing" element={featureEnabled('raidBriefing') ? <RaidBriefingPage /> : <Navigate to="/" replace />} />

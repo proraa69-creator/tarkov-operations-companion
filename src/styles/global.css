@@ -198,3 +198,13 @@ img { max-width: 100%; }
   transition-duration: .12s;
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* «Отряд»: incoming friend requests + squad invitations (squad/useSocialEvents.ts). A round count after the label; on
+   the collapsed sidebar and the phone tab bar it sits on the icon's corner. */
+.nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 999px; background: var(--danger, #d4513b); color: #fff; font-size: 11px; font-weight: 800; line-height: 1; box-shadow: 0 0 0 2px var(--surf-1, #121614); animation: nav-badge-pop .32s cubic-bezier(.34, 1.56, .64, 1) both; }
+@media (max-width: 1180px) {
+  .nav-link .nav-badge { display: inline-grid; position: absolute; top: 3px; right: 6px; margin: 0; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+}
+.mobile-tab .nav-badge, .mobile-more-link .nav-badge { display: inline-grid; position: absolute; top: 4px; right: calc(50% - 22px); margin: 0; min-width: 18px; height: 18px; font-size: 10px; }
+@keyframes nav-badge-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .nav-badge { animation: none; } }

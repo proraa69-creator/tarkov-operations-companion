@@ -25,6 +25,7 @@ import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/a
 import type { ProgressStore } from '../services/progressStore.js'
 import type { UserDataStore } from '../services/userDataStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
+import type { SocialSignals } from '../services/socialSignals.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -85,6 +86,8 @@ export interface MeRouterOptions {
   /** Requests per account per window. Default 1200 per 10 minutes (a position every 2 s fits easily). */
   rateLimit?: { max: number; windowMs: number }
   now?: () => number
+  /** Instant updates for friends and squad mates (services/socialSignals.ts): who sees this account's progress. */
+  social?: { signals: SocialSignals; circle: (accountId: string) => string[] }
 }
 
 export interface ModeSummary {
@@ -118,6 +121,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const bad = (res: Response, message = 'Некорректные данные запроса') => { res.status(400).json({ error: message }) }
   const account = (res: Response) => String(res.locals.accountId)
   const mode = (req: Request) => modeSchema.safeParse(req.params.mode)
+  const progressChanged = (accountId: string) => { if (options.social) options.social.signals.changed(options.social.circle(accountId)) }
 
   router.get('/progress/:mode', (req, res) => {
     const parsed = mode(req)
@@ -130,6 +134,16 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const body = eventsSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
     res.json(progress.syncUser(owner(account(res)), parsed.data, body.data))
+    // A quest started or handed in: friends and squad mates (and this account's other devices) reload at once.
+    progressChanged(account(res))
+  })
+
+  // «Моментально»: waits up to ~25 s for anything new among this account's friends and squad (services/socialSignals.ts).
+  router.get('/social-events', (req, res) => {
+    const since = typeof req.query.since === 'string' && /^\d{1,16}$/.test(req.query.since) ? Number(req.query.since) : undefined
+    if (req.query.since !== undefined && since === undefined) { bad(res); return }
+    if (!options.social) { res.json({ version: 0 }); return }
+    options.social.signals.wait(res, account(res), since)
   })
 
   router.get('/collector/:mode', (req, res) => {
@@ -188,6 +202,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
         objectives: body.data.objectives.map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
         events: body.data.events.map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
       }))
+      progressChanged(account(res))
     } catch (error) {
       if (error instanceof ObjectiveLimitError) { res.status(413).json({ error: error.message }); return }
       throw error

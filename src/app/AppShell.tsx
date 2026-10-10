@@ -31,6 +31,7 @@ import { useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
+import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 
 
@@ -74,6 +75,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
   const nickname = useAccountNickname()
+  // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
+  useSocialEvents(raidMode)
+  const socialBadge = useSocialBadge(raidMode)
   const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
@@ -210,7 +214,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'RAID' : 'РЕЙД')}</div>
         <nav className="nav-list" aria-label={uiText(locale === 'en' ? 'Raid' : 'Рейд')}>
-          {raidNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{locale === 'en' ? en : ru}</span></NavLink>)}
+          {raidNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{locale === 'en' ? en : ru}</span>{to === '/squad' && socialBadge > 0 && <span className="nav-badge" aria-label={uiText(`Новых заявок: ${socialBadge}`)}>{socialBadge > 99 ? '99+' : socialBadge}</span>}</NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
         <nav className="nav-list" aria-label={uiText('Экономика')}>
@@ -264,7 +268,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>)}
-      {mobile && <MobileTabBar onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
       <AccountController />
     </div>
   )

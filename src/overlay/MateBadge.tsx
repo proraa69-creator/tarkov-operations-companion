@@ -1,8 +1,13 @@
 import { uiText } from '../i18n/renderText'
 import './mateBadge.css'
 
-/** A bare purple «MATE» badge: a friend or squad mate needs this item for a current quest. No names, no details. */
-export function MateBadge({ show }: { show: boolean }) {
+/**
+ * Who of the friends / squad needs this item for a current quest: their Tarkov nicknames (owner, 10.10.2026: «вместо
+ * MATE ник того, кому нужен предмет»), two at most and «+N»; «MATE» when the server sent no names.
+ */
+export function MateBadge({ show, names = [] }: { show: boolean; names?: string[] }) {
   if (!show) return null
-  return <em className="eft-mate" title={uiText('Нужен другу или участнику отряда')}>MATE</em>
+  const shown = names.slice(0, 2)
+  const label = shown.length ? `${shown.join(', ')}${names.length > shown.length ? ` +${names.length - shown.length}` : ''}` : 'MATE'
+  return <em className="eft-mate" title={uiText(names.length ? `Нужен: ${names.join(', ')}` : 'Нужен другу или участнику отряда')}>{label}</em>
 }

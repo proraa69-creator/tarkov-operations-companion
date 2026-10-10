@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Compass, LogIn, UserRound, Users } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { useServerAccount } from '../sync/serverSync'
-import { fetchFriends, SignedOutError, type FriendsOverview } from '../squad/socialClient'
+import { useFriends } from '../squad/useFriends'
 import { SquadPanel } from '../squad/SquadPanel'
 import { FriendsPanel } from '../squad/FriendsPanel'
 import { RaidPlanner } from '../squad/RaidPlanner'
@@ -34,18 +34,9 @@ export function SquadPage({ friendLink = false }: { friendLink?: boolean }) {
   const setTab = (next: Tab) => setParams((current) => { const copy = new URLSearchParams(current); copy.set('tab', next); return copy }, { replace: true })
   const signedIn = Boolean(status?.signedIn)
 
-  const [friends, setFriends] = useState<FriendsOverview | null>(null)
-  const [friendsError, setFriendsError] = useState('')
-  const [friendsLoading, setFriendsLoading] = useState(false)
-  const loadFriends = useCallback(() => fetchFriends().then(
-    (overview) => { setFriends(overview); setFriendsError('') },
-    (error: unknown) => setFriendsError(error instanceof SignedOutError ? '' : error instanceof Error ? error.message : String(error)),
-  ), [])
-  const reloadFriends = useCallback(async () => {
-    setFriendsLoading(true)
-    try { await loadFriends() } finally { setFriendsLoading(false) }
-  }, [loadFriends])
-  useEffect(() => { if (signedIn) void loadFriends() }, [signedIn, loadFriends])
+  // One shared copy with the «Отряд» badge: a request answered anywhere shows here at once (squad/useFriends.ts).
+  const { overview: friends, error: friendsError, loading: friendsLoading, reload: reloadFriends } = useFriends()
+  useEffect(() => { if (signedIn) void reloadFriends() }, [signedIn, reloadFriends])
 
   return (
     <div className="page squad-page">

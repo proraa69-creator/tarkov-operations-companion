@@ -63,7 +63,7 @@ function ItemOverlay() {
       <div className="eft-card-head">
         <span>{uiText(payload.name)}</span>
         {payload.collector && <em className="eft-kappa" title={uiText('Нужен для задания «Коллекционер»')}>{uiText('Каппа')}</em>}
-        <MateBadge show={payload.mate === true} />
+        <MateBadge show={payload.mate === true} names={payload.mateNames} />
       </div>
       {payload.keep && <KeepBadgeLine keep={payload.keep} />}
       <div className="eft-card-body">

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Crosshair, Gem, HeartPulse, Map as MapIcon, Package } from 'lucide-react'
+import { Crosshair, Gem, HeartPulse, Map as MapIcon, Package, Swords } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { bossTactics, tacticsPath } from '../data/bossTactics'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useTarkovData } from '../data/DataProvider'
@@ -29,6 +31,7 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
   const total = loadout?.body ? loadout.body.reduce((sum, value) => sum + value, 0) : info.health
 
   return <aside className="gallery-viewer-info boss-info" aria-label={uiText('Описание')}>
+    {bossTactics(bossKey) && <Link className="button primary boss-tactics-button" to={tacticsPath(bossKey)}><Swords size={15} />{uiText('Тактика боя')}</Link>}
     <p className="boss-info-about">{info.about[locale]}</p>
 
     {maps.length > 0 && <section className="boss-info-block">

@@ -152,10 +152,30 @@ export async function fetchPlannerPeople(mode: RaidMode, friendIds: string[]): P
   })
 }
 
-/** What the friends need, as bare ids (no names): item ids when the server has a catalog, else their quest ids. */
+/** Nicknames per id from the server ({ id: [nickname…] }), only well-formed entries. */
+function namesById(value: unknown, pattern: RegExp): Record<string, string[]> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const out: Record<string, string[]> = {}
+  for (const [id, names] of Object.entries(value as Record<string, unknown>)) {
+    if (!pattern.test(id) || !Array.isArray(names)) continue
+    const clean = names.filter((name): name is string => typeof name === 'string' && name.length > 0 && name.length <= 32).slice(0, 10)
+    if (clean.length) out[id] = clean
+  }
+  return out
+}
+
+/**
+ * What friends and squad mates need: item ids when the server has a catalog, else their quest ids — and who needs it
+ * (Tarkov nicknames per item / per quest; an older server sends no names, the overlay then shows «MATE»).
+ */
 export async function fetchFriendNeeds(mode: RaidMode) {
-  const answer = await request<{ itemIds?: unknown; questIds?: unknown }>('GET', `/v1/friends/needs/${mode}`)
-  return { itemIds: Array.isArray(answer?.itemIds) ? ids(answer.itemIds, /^[A-Za-z0-9_-]{1,64}$/) : null, questIds: ids(answer?.questIds) }
+  const answer = await request<{ itemIds?: unknown; questIds?: unknown; byItem?: unknown; byQuest?: unknown }>('GET', `/v1/friends/needs/${mode}`)
+  return {
+    itemIds: Array.isArray(answer?.itemIds) ? ids(answer.itemIds, /^[A-Za-z0-9_-]{1,64}$/) : null,
+    questIds: ids(answer?.questIds),
+    byItem: namesById(answer?.byItem, /^[A-Za-z0-9_-]{1,64}$/),
+    byQuest: namesById(answer?.byQuest, TASK_ID),
+  }
 }
 
 /** A squad code from what the user typed or pasted: the code itself or a link …/squad/<code>. */

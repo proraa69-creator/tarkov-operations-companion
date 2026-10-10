@@ -183,8 +183,9 @@ test('privacy toggle hides progress from that friend everywhere: progress, needs
     assert.deepEqual(people[1], { id: bAsSeenByA, nickname: 'Bravo_1', hidden: false, activeQuestIds: [Q_A, Q_B], objectives: {}, completedCount: 0, lastSyncAt: (people[1] as unknown as { lastSyncAt: string }).lastSyncAt })
     const pve = (await json<{ people: Person[] }>(await call('POST', '/v1/friends/progress/pve', { friendIds: [bAsSeenByA] }, a))).people
     assert.deepEqual([pve[1].nickname, pve[1].activeQuestIds], ['Bravo_1', [Q_B]], 'one nickname; the quests of each mode stay separate')
-    assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pvp', undefined, a)), { mode: 'pvp', itemIds: ['axe', 'flash'], questIds: [Q_A, Q_B] })
-    assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pve', undefined, a)), { mode: 'pve', itemIds: null, questIds: [Q_B] }, 'no PvE catalog on the server')
+    // Who needs what: the friend's Tarkov nickname instead of a bare «MATE» (owner, 10.10.2026).
+    assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pvp', undefined, a)), { mode: 'pvp', itemIds: ['axe', 'flash'], questIds: [Q_A, Q_B], byQuest: { [Q_A]: ['Bravo_1'], [Q_B]: ['Bravo_1'] }, byItem: { flash: ['Bravo_1'], axe: ['Bravo_1'] } })
+    assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pve', undefined, a)), { mode: 'pve', itemIds: null, questIds: [Q_B], byQuest: { [Q_B]: ['Bravo_1'] }, byItem: null }, 'no PvE catalog on the server')
 
     // Both in one squad (through a friend invitation).
     const squad = (await json<{ squad: { id: string } }>(await call('POST', '/v1/squads', {}, a))).squad
@@ -203,7 +204,7 @@ test('privacy toggle hides progress from that friend everywhere: progress, needs
     assert.equal((await overview(call, a)).friends[0].sharesProgress, false)
     const hidden = (await json<{ people: Person[] }>(await call('POST', '/v1/friends/progress/pvp', { friendIds: [bAsSeenByA] }, a))).people[1]
     assert.deepEqual([hidden.hidden, hidden.activeQuestIds, hidden.completedCount], [true, [], 0])
-    assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pvp', undefined, a)), { mode: 'pvp', itemIds: [], questIds: [] })
+    assert.deepEqual(await json(await call('GET', '/v1/friends/needs/pvp', undefined, a)), { mode: 'pvp', itemIds: [], questIds: [], byQuest: {}, byItem: {} })
     const after = await json<{ squad: { members: Array<{ hidden: boolean; activeQuestIds: string[] }> } }>(await call('GET', `/v1/squads/${squad.id}/overview/pvp`, undefined, a))
     assert.deepEqual([after.squad.members[1].hidden, after.squad.members[1].activeQuestIds], [true, []])
     // b still sees a (a did not hide anything).
@@ -268,4 +269,32 @@ test('friend code normalization and objective sanitizing', () => {
   assert.equal(normalizeFriendCode(' 7kq2-m9xd '), '7KQ2M9XD')
   assert.equal(normalizeFriendCode('7KQ2-M9XU'), null)
   assert.deepEqual(sanitizeObjectives([{ objectiveId: 'x', count: -1, target: 3, completed: true }, { id: 'y', status: 'completed' }, null, 'z']), [{ objectiveId: 'x', target: 3, done: true }, { objectiveId: 'y', done: true }])
+})
+
+test('instant social events: a request wakes the receiver, the answer the sender, a friend\'s handed-in quest its friends', async () => {
+  await withServer(async ({ call, trial }) => {
+    const a = await trial('events-a@example.com')
+    const b = await trial('events-b@example.com')
+    const version = async (token: string) => (await json<{ version: number }>(await call('GET', '/v1/me/social-events', undefined, token))).version
+    assert.equal((await call('GET', '/v1/me/social-events')).status, 401)
+    assert.equal((await call('GET', '/v1/me/social-events?since=x', undefined, a)).status, 400)
+
+    const before = await version(a)
+    const waitingA = call('GET', `/v1/me/social-events?since=${before}`, undefined, a)
+    const { code } = await overview(call, a)
+    await call('POST', '/v1/friends/requests', { code }, b)
+    assert.notEqual((await json<{ version: number }>(await waitingA)).version, before, 'the request wakes the receiver')
+
+    const beforeB = await version(b)
+    const waitingB = call('GET', `/v1/me/social-events?since=${beforeB}`, undefined, b)
+    const incoming = (await overview(call, a)).incoming
+    await call('POST', `/v1/friends/requests/${incoming[0].requestId}/accept`, undefined, a)
+    assert.notEqual((await json<{ version: number }>(await waitingB)).version, beforeB, 'the answer wakes the sender')
+
+    const afterFriends = await version(a)
+    const waitingQuest = call('GET', `/v1/me/social-events?since=${afterFriends}`, undefined, a)
+    const handedIn = await call('POST', '/v1/me/progress/pvp/events', { accountId: 7, characterId: CHARACTER, events: [{ taskId: Q_A, status: 'completed', timestamp: '2026-10-10T10:00:00.000Z' }] }, b)
+    assert.equal(handedIn.status, 200)
+    assert.notEqual((await json<{ version: number }>(await waitingQuest)).version, afterFriends, 'a friend\'s quest wakes the friend')
+  })
 })

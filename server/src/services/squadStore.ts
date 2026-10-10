@@ -116,6 +116,11 @@ export class SquadStore {
       .run(randomBytes(12).toString('hex'), squadId, targetId, now, now + FRIEND_INVITE_TTL_MS)
   }
 
+  /** Friends this squad invited who have not answered yet (server/src/services/socialSignals.ts). */
+  invitedAccounts(squadId: string): string[] {
+    return (this.db.prepare('SELECT account_id FROM squad_friend_invites WHERE squad_id = ? AND expires_at > ?').all(squadId, this.now()) as Row[]).map((row) => String(row.account_id))
+  }
+
   /** Invitations waiting for this account (not expired). */
   invitationsFor(accountId: string) {
     const rows = this.db.prepare('SELECT id, squad_id, expires_at FROM squad_friend_invites WHERE account_id = ? AND expires_at > ? ORDER BY created_at').all(accountId, this.now()) as Row[]
