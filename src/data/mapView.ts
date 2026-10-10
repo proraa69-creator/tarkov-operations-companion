@@ -68,6 +68,8 @@ export interface MapLayerPlan {
   groundInteriors?: boolean
   /** Digital view, a floor the scheme has no drawing of: the scheme stays as it is (never the render tiles). */
   floorWithoutScheme?: boolean
+  /** Satellite view, a floor with no render of its own: the render stays as it is (never the scheme). */
+  floorWithoutRender?: boolean
 }
 
 export function planMapLayers(map: GameMap, preferred: MapView, floor: string): MapLayerPlan {
@@ -78,13 +80,13 @@ export function planMapLayers(map: GameMap, preferred: MapView, floor: string): 
   const floorTileUrl = floorLayer?.ownTiles !== false && floorLayer?.tileUrl && floorLayer.tileUrl !== tileUrl ? floorLayer.tileUrl : undefined
   const svgFloor = Boolean(imageUrl && floorLayer?.svgLayer)
   if (view === 'satellite') {
-    const floorSvg = !floorTileUrl && svgFloor ? 'floor-only' as const : undefined
-    // «Спутник» is the render on every level: the floor's own render tiles, or (a floor only the scheme has) its plan
-    // over the dimmed render. No scheme under the tiles: through the render's empty spots (Ground Zero's buildings)
-    // it showed the scheme's ground floors on the satellite view (owner, 04.10.2026).
+    // «Спутник» is the render on every level: the floor's own render tiles, or — a floor only the scheme draws (Развязка's
+    // 2nd and 3rd floors, Улицы) — the render itself, never the scheme (owner, 10.10.2026: «открывается как схема»);
+    // its markers still follow the floor. No scheme under the tiles either: through the render's empty spots it showed
+    // the scheme's ground floors (owner, 04.10.2026).
     return {
-      view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg, dimBase: Boolean(floorTileUrl || floorSvg),
-      underlay: false, groundInteriors: false,
+      view, tileUrl, imageUrl, imageBounds: map.svgBounds ?? map.bounds, floorTileUrl, floorSvg: undefined, dimBase: Boolean(floorTileUrl),
+      underlay: false, groundInteriors: false, floorWithoutRender: Boolean(floorLayer) && !floorTileUrl,
     }
   }
   // «Схема» is the scheme on every level: the floor's group when the SVG has it, otherwise the scheme unchanged —

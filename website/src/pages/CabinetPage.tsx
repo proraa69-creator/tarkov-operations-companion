@@ -479,10 +479,6 @@ function NicknamesPanel({ account }: { account: Account }) {
       <div className="panel-body form">
         <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">Ещё не найден</span>}</p>
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.</p>
-        {/* «Пригласи друга»: the game account the desktop app found in the logs (one game account — one Raid OS account). */}
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-          Аккаунт Escape from Tarkov: {account.eftAccount ? <strong className="mono">{account.eftAccount.masked}</strong> : 'не привязан — откройте приложение Raid OS на ПК с игрой, оно найдёт аккаунт в логах игры'}.
-        </p>
       </div>
     </section>
   )

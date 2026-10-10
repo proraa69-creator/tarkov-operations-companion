@@ -4,7 +4,7 @@
   "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
   "author": "Raid OS contributors",
   "private": true,
-  "version": "0.5.4",
+  "version": "0.5.4.1",
   "type": "module",
   "main": "dist-electron/electron/boot.js",
   "scripts": {

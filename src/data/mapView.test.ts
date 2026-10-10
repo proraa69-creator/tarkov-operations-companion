@@ -53,7 +53,8 @@ describe('map layer plan', () => {
     expect(planMapLayers(map, 'satellite', '2 этаж')).toMatchObject({ underlay: false, groundInteriors: false })
     expect(planMapLayers(map, 'digital', 'Основной').groundInteriors).toBeFalsy()
     expect(planMapLayers(map, 'satellite', '2 этаж')).toMatchObject({ floorTileUrl: expect.stringContaining('/2nd/'), floorSvg: undefined, dimBase: true })
-    expect(planMapLayers(map, 'satellite', 'Подземный')).toMatchObject({ floorTileUrl: undefined, floorSvg: 'floor-only', dimBase: true })
+    // A floor only the scheme draws: the render stays, never the scheme (owner, 10.10.2026).
+    expect(planMapLayers(map, 'satellite', 'Подземный')).toMatchObject({ floorTileUrl: undefined, floorSvg: undefined, dimBase: false, floorWithoutRender: true })
   })
 
   it('digital: the SVG with the floor group, or the scheme unchanged when the SVG has no such floor (never tiles)', () => {

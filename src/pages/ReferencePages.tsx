@@ -604,7 +604,6 @@ export function SettingsPage() {
   const { data, source, updatedAt } = useTarkovData();
   const state = useAppState();
   const { locale, setLocale } = useLocale();
-  const [compact, setCompact] = useState(true);
   const raidSmoke = useRaidSmokeEnabled();
   const counts = data.metadata?.counts;
   return (
@@ -626,18 +625,6 @@ export function SettingsPage() {
             <div className="panel-title">{uiText("Интерфейс")}</div>
           </div>
           <div className="panel-body">
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Компактные таблицы")}</strong>
-                <small>{uiText("Больше строк на экране")}</small>
-              </span>
-              <button
-                className={`toggle ${compact ? "on" : ""}`}
-                onClick={() => setCompact(!compact)}
-              >
-                <span />
-              </button>
-            </div>
             <div className="setting-row">
               <span>
                 <strong>{uiText("Дым за боссами")}</strong>

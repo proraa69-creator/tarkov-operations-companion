@@ -504,6 +504,12 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     setSelectedMarker(questInfoMarker(quest, activeMap.id))
   }
 
+  // The quest list on the right: a second click on the open quest closes its window (owner, 10.10.2026).
+  const toggleQuest = (quest: Quest, marker?: MapMarker) => {
+    if (selectedMarker?.questId === quest.id) clearQuestSelection()
+    else showQuest(quest, marker)
+  }
+
   const relatedQuest = selectedMarker?.questId
     ? data.quests.find((quest) => quest.id === selectedMarker.questId)
     : undefined
@@ -765,6 +771,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
               </button>
             )))}
             {plan.floorWithoutScheme && <small className="dim map-floor-note">{uiText('У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».')}</small>}
+            {plan.floorWithoutRender && <small className="dim map-floor-note">{uiText('У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».')}</small>}
           </div>
         ))}
         {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
@@ -777,7 +784,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     key={quest.id}
                     quest={quest}
                     selected={selectedMarker?.questId === quest.id}
-                    onSelect={() => showQuest(quest, marker)}
+                    onSelect={() => toggleQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
                     checked={questChecks.has(quest.id)}
                     onToggleCheck={() => toggleRaidCheck(quest.id)}
@@ -793,7 +800,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                     key={quest.id}
                     quest={quest}
                     selected={selectedMarker?.questId === quest.id}
-                    onSelect={() => showQuest(quest, marker)}
+                    onSelect={() => toggleQuest(quest, marker)}
                     squad={squadShared.get(quest.id)}
                     checked={questChecks.has(quest.id)}
                     onToggleCheck={() => toggleRaidCheck(quest.id)}

@@ -1,8 +1,8 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useId, useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, Clock3, LockKeyhole, Map as MapIcon, Route, Users } from 'lucide-react'
+import { ChevronRight, Clock3, LockKeyhole, Map as MapIcon, MapPinned, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
@@ -29,6 +29,7 @@ export function DashboardPage() {
   const state = useAppState()
   const navigate = useNavigate()
   const [mapPickerOpen, setMapPickerOpen] = useState(false)
+  const raidCardRef = useRef<HTMLElement>(null)
   const [kappaOpen, setKappaOpen] = useState(false)
   const kappaListId = useId()
   const { locale } = useLocale()
@@ -94,12 +95,13 @@ export function DashboardPage() {
       <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
       <GoonCard mode={state.raidMode} mapName={mapName} />
     </section>
-    <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); navigate(`/maps/${id}`) }} />
+    {/* A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026). */}
+    <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} />
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
 
     <div className="dashboard-layout">
       <div className="dashboard-column">
-        <section className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
+        <section ref={raidCardRef} className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
           <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
           <RaidSmoke mapId={selectedMap.id} />
           <BossFigures mapId={selectedMap.id} />
@@ -119,7 +121,7 @@ export function DashboardPage() {
                 }))}
               </div>
             </div>
-              <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button></div>
+              <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
           </div>
         </section>
 
