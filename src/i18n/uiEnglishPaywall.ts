@@ -20,6 +20,8 @@ export const PAYWALL_PHRASES: Array<[string, string]> = [
   ['Выйти из аккаунта на этом устройстве?', 'Sign out on this device?'],
   ['Подписка работает на трёх устройствах одновременно. Вход на четвёртом отключает то, которым пользовались давнее всех.', 'A subscription works on three devices at once. Signing in on a fourth switches off the one used least recently.'],
   ['цена на странице оплаты', 'price on the payment page'],
+  // «810 ₽ вместо 900 ₽», «−10% · экономия 90 ₽» on the longer plans
+  ['вместо', 'instead of'], ['экономия', 'save'],
   ['1 месяц', '1 month'], ['3 месяца', '3 months'], ['6 месяцев', '6 months'], ['12 месяцев', '12 months'],
   ['Вход выполнен. Чтобы на аккаунте было не больше трёх устройств, отключено:', 'Signed in. To keep at most three devices on the account, switched off:'],
   ['Понятно', 'Got it'],

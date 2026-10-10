@@ -75,6 +75,12 @@
 .subscription-terms { margin: 0; padding-left: 18px; display: grid; gap: 5px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 .subscription-terms strong { color: var(--text); }
 @media (max-width: 720px) { .subscription-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* phones: a little more width for «вместо 3 600 ₽ · экономия 1 200 ₽» in the two columns */
+@media (max-width: 560px) {
+  .subscription-dialog { padding: 16px; }
+  .subscription-plans { gap: 10px; }
+  .subscription-plans .plan-card { padding: 12px; }
+}
 /* «Подписка» in the phone menu as well */
 .mobile-nav-button { min-height: 44px; display: flex; align-items: center; padding: 0 12px; border: 0; border-radius: 9px; background: none; color: #b4bfb6; font: inherit; font-weight: 650; text-align: left; cursor: pointer; }
 .mobile-nav-button:hover { background: var(--surf-1); }

@@ -334,6 +334,14 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
 .sub-status > div { flex: 1 1 220px; }
 .plan-price { margin-top: 4px; font-size: 24px; font-weight: 850; letter-spacing: -.035em; white-space: nowrap; }
 .plan-card .button { margin-top: 10px; }
+/* Longer plans: «вместо 3 600 ₽» and «экономия 1 200 ₽» under the price (components/PlanSaving.tsx) */
+.plan-saving { display: grid; gap: 1px; color: var(--text-muted); font-size: 12.5px; line-height: 1.35; }
+.plan-saving s { color: inherit; }
+.plan-saving strong { color: var(--success); font-weight: 750; }
+/* Cabinet cards: «Оплатить» stays at the bottom in every card of a row, also under the shorter 1-month text */
+.plan-card.has-pay { display: flex; flex-direction: column; }
+.plan-card.has-pay .button { margin-top: auto; }
+.plan-card.has-pay .stat-meta, .plan-card.has-pay .plan-friend-note { margin-bottom: 6px; }
 .pay-history { display: grid; gap: 8px; }
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); }
 .pay-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -428,6 +436,8 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
   .plan-grid { gap: 10px; }
   .plan-card { padding: 13px; }
   .plan-price { font-size: 21px; }
+  .plan-saving { font-size: 12px; }
+  .plan-saving strong { font-weight: 700; }
   .ref-stats > .stat-card:not(.is-money) { padding-inline: 10px; }
   .ref-stats > .stat-card:not(.is-money) .stat-label { font-size: 9px; letter-spacing: .04em; }
   .ref-stats > .stat-card:not(.is-money) .stat-label svg { display: none; }

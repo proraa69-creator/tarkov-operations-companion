@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { api, type PlansResponse } from '../api'
 import { LEGAL_DOCUMENTS, LEGAL_VERSION_LABEL, legalDocument, SELLER_DETAILS } from '../legal/documents'
-import { formatMoney, PLAN_LABELS, visiblePlans } from '../plans'
+import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import '../extras.css'
 
 function LegalNav({ current }: { current?: string }) {
@@ -83,15 +83,19 @@ function BuyerInfo() {
             <h2>Тарифы и цены</h2>
             <div className="table-scroll">
               <table className="pay-table legal-prices">
-                <thead><tr><th scope="col">Срок доступа</th><th scope="col">Цена</th><th scope="col">В пересчёте на месяц</th></tr></thead>
+                <thead><tr><th scope="col">Срок доступа</th><th scope="col">Цена</th><th scope="col">Экономия</th><th scope="col">В пересчёте на месяц</th></tr></thead>
                 <tbody>
-                  {shown.map((plan) => (
-                    <tr key={plan.id}>
-                      <td>{PLAN_LABELS[plan.id]}{plan.discountPercent > 0 && <span className="tag brass tag-mini">−{plan.discountPercent} %</span>}</td>
-                      <td className="mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</td>
-                      <td className="mono">{plan.price === null ? '—' : formatMoney(Math.round(plan.price / plan.months), plan.currency)}</td>
-                    </tr>
-                  ))}
+                  {shown.map((plan) => {
+                    const saving = planSaving(plan, shown)
+                    return (
+                      <tr key={plan.id}>
+                        <td>{PLAN_LABELS[plan.id]}{plan.discountPercent > 0 && <span className="tag brass tag-mini">−{plan.discountPercent} %</span>}</td>
+                        <td className="mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}{saving && <> <span className="legal-saving-full">вместо {formatMoney(saving.full, plan.currency)}</span></>}</td>
+                        <td className="mono">{saving ? formatMoney(saving.saving, plan.currency) : '—'}</td>
+                        <td className="mono">{plan.price === null ? '—' : formatMoney(Math.round(plan.price / plan.months), plan.currency)}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

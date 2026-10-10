@@ -20,6 +20,8 @@ vi.mock('../api', async (original) => {
 })
 const { CabinetPage } = await import('./CabinetPage')
 afterEach(() => { cleanup(); vi.clearAllMocks() })
+/** «вместо <s>900 ₽</s>»: the whole line, the struck-through price included. */
+const line = (text: string) => (_content: string, element: Element | null) => element?.tagName === 'SPAN' && element.textContent?.replace(/\s+/g, ' ') === text
 
 describe('subscription checkout', () => {
   it.each(['disabled', 'offline'])('shows four inactive payment buttons when the provider is %s', async (mode) => {
@@ -42,6 +44,14 @@ describe('subscription checkout', () => {
     expect(panel.getByText('2 400 ₽')).toBeInTheDocument()
     expect(panel.getByText('≈ 200 ₽ в месяц')).toBeInTheDocument()
     expect(panel.getByText('−33%')).toBeInTheDocument()
+    // «2 400 ₽ вместо 3 600 ₽, экономия 1 200 ₽» (owner, 10.10.2026)
+    expect(panel.getByText(line('вместо 900 ₽'))).toBeInTheDocument()
+    expect(panel.getByText('экономия 90 ₽')).toBeInTheDocument()
+    expect(panel.getByText(line('вместо 1 800 ₽'))).toBeInTheDocument()
+    expect(panel.getByText('экономия 300 ₽')).toBeInTheDocument()
+    expect(panel.getByText(line('вместо 3 600 ₽'))).toBeInTheDocument()
+    expect(panel.getByText('экономия 1 200 ₽')).toBeInTheDocument()
+    expect(panel.getAllByText(/^экономия /)).toHaveLength(3)
     await vi.waitFor(() => expect(mocks.plans).toHaveBeenCalled())
     expect(mocks.createPayment).not.toHaveBeenCalled()
   })

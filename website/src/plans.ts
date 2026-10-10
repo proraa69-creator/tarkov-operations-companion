@@ -1,4 +1,4 @@
-import type { PlanId, PlansResponse } from './api'
+import type { Plan, PlanId, PlansResponse } from './api'
 
 export const PLAN_LABELS: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
 
@@ -16,6 +16,18 @@ export function visiblePlans(plans: PlansResponse | null | undefined): PlansResp
     const configured = plans?.plans.find((plan) => plan.id === fallback.id)
     return configured?.price != null ? configured : fallback
   })
+}
+
+/**
+ * What a longer plan saves against paying month by month at the 1-month price: «2 400 ₽ вместо 3 600 ₽, экономия
+ * 1 200 ₽» (owner, 10.10.2026). Null for the 1-month plan, a plan without a price, or when nothing is saved.
+ */
+export function planSaving(plan: Plan, plans: readonly Plan[]): { full: number; saving: number } | null {
+  const month = plans.find((entry) => entry.months === 1)?.price
+  if (plan.months <= 1 || plan.price === null || month == null) return null
+  const full = Math.round(month * plan.months * 100) / 100
+  const saving = Math.round((full - plan.price) * 100) / 100
+  return saving > 0 ? { full, saving } : null
 }
 
 export function formatMoney(amount: number, currency: string) {

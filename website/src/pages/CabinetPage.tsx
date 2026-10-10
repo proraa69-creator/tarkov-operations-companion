@@ -17,7 +17,8 @@ import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
 import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
-import { formatMoney, PLAN_LABELS, visiblePlans } from '../plans'
+import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
+import { PlanSaving } from '../components/PlanSaving'
 import { LEGAL_VERSION } from '../legal/documents'
 import '../invites.css'
 
@@ -343,8 +344,9 @@ function SubscriptionPanel({ account }: { account: Account }) {
                 const best = plan.discountPercent > 0 || friend > 0
                 // The same rounding as the server (kopecks): server/src/services/paymentStore.ts create().
                 const friendPrice = friend && plan.price !== null ? Math.round(plan.price * (100 - friend)) / 100 : null
+                const saving = planSaving(plan, shownPlans)
                 return (
-                  <div key={plan.id} className={`plan-card${best ? ' is-best' : ''}`}>
+                  <div key={plan.id} className={`plan-card has-pay${best ? ' is-best' : ''}`}>
                     {best && <span className="tag brass plan-badge">−{friend || plan.discountPercent}%</span>}
                     <div className="plan-head">
                       <span className="stat-label">{PLAN_LABELS[plan.id] ?? `${plan.months} мес.`}</span>
@@ -357,6 +359,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
                     ) : (
                       <>
                         <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
+                        {saving && <PlanSaving {...saving} currency={plan.currency} />}
                         <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
                       </>
                     )}

@@ -4,7 +4,8 @@ import { Check, Crown, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, type PlansResponse } from '../api'
 import { useAuth } from '../auth'
-import { formatMoney, PLAN_LABELS, visiblePlans } from '../plans'
+import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
+import { PlanSaving } from './PlanSaving'
 import '../payments.css'
 
 const INCLUDED = [
@@ -65,14 +66,18 @@ export function SubscriptionDialog({ onClose }: { onClose: () => void }) {
         </ul>
 
         <div className="plan-grid subscription-plans">
-          {shown.map((plan) => (
-            <div key={plan.id} className={`plan-card${plan.id === '12m' ? ' is-best' : ''}`}>
-              {plan.discountPercent > 0 && <span className="tag brass plan-badge">−{plan.discountPercent} %</span>}
-              <span className="stat-label">{PLAN_LABELS[plan.id]}</span>
-              <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
-              <div className="stat-meta">{plan.price === null ? '' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
-            </div>
-          ))}
+          {shown.map((plan) => {
+            const saving = planSaving(plan, shown)
+            return (
+              <div key={plan.id} className={`plan-card${plan.id === '12m' ? ' is-best' : ''}`}>
+                {plan.discountPercent > 0 && <span className="tag brass plan-badge">−{plan.discountPercent} %</span>}
+                <span className="stat-label">{PLAN_LABELS[plan.id]}</span>
+                <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
+                {saving && <PlanSaving {...saving} currency={plan.currency} />}
+                <div className="stat-meta">{plan.price === null ? '' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
+              </div>
+            )
+          })}
         </div>
 
         <ul className="subscription-terms">

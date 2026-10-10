@@ -93,6 +93,17 @@ function PaywallHeader() {
   )
 }
 
+const rub = (amount: number) => `${amount.toLocaleString('ru-RU')} ₽`
+
+/** «810 ₽ вместо 900 ₽, экономия 90 ₽»: a longer plan against paying month by month (website/src/plans.ts planSaving). */
+function planSaving(plan: Plan, plans: Plan[]) {
+  const month = plans.find((entry) => entry.months === 1)?.price
+  if (plan.months <= 1 || !plan.price || !month) return null
+  const full = Math.round(month * plan.months * 100) / 100
+  const saving = Math.round((full - plan.price) * 100) / 100
+  return saving > 0 ? { full, saving } : null
+}
+
 /** Plans and prices from the server (GET /v1/payments/plans); without prices — «цена на странице оплаты». */
 function PlanList() {
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS)
@@ -107,13 +118,17 @@ function PlanList() {
   }, [])
   return (
     <div className="paywall-plans" role="list">
-      {plans.map((plan) => (
-        <button type="button" key={plan.id} role="listitem" className={`paywall-plan${plan.id === '12m' ? ' best' : ''}`} onClick={() => openWebsite('cabinet')}>
-          <strong>{uiText(PLAN_NAMES[plan.id])}</strong>
-          <span>{plan.price ? `${plan.price.toLocaleString('ru-RU')} ₽` : uiText('цена на странице оплаты')}</span>
-          {plan.discountPercent > 0 && <small>−{plan.discountPercent}%</small>}
-        </button>
-      ))}
+      {plans.map((plan) => {
+        const saving = planSaving(plan, plans)
+        return (
+          <button type="button" key={plan.id} role="listitem" className={`paywall-plan${plan.id === '12m' ? ' best' : ''}`} onClick={() => openWebsite('cabinet')}>
+            <strong>{uiText(PLAN_NAMES[plan.id])}</strong>
+            <span>{plan.price ? rub(plan.price) : uiText('цена на странице оплаты')}</span>
+            {saving && <span>{uiText('вместо')} <s>{rub(saving.full)}</s></span>}
+            {plan.discountPercent > 0 && <small>−{plan.discountPercent}%{saving ? ` · ${uiText('экономия')} ${rub(saving.saving)}` : ''}</small>}
+          </button>
+        )
+      })}
     </div>
   )
 }
