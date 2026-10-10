@@ -226,6 +226,11 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
 .ov-frame { position: absolute; z-index: 3; filter: drop-shadow(0 30px 60px rgb(0 0 0 / 60%)); }
 .ov-frame img { display: block; }
 .ping { position: absolute; z-index: 4; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid rgb(223 189 112 / 95%); }
+/* Advert only: the Raid OS badge in the corner while the features play */
+#wm { position: absolute; z-index: 19; right: 46px; bottom: 30px; display: flex; align-items: center; gap: 14px; opacity: 0; pointer-events: none; }
+#wm img { width: 52px; height: 52px; border-radius: 12px; box-shadow: 0 10px 26px rgb(0 0 0 / 55%); }
+#wm b { display: block; font: 700 30px/1 Oswald, Inter, sans-serif; letter-spacing: .06em; color: #f3e7c6; text-shadow: 0 4px 18px rgb(0 0 0 / 70%); }
+#wm span { display: block; margin-top: 5px; font: 700 16px/1 Inter, sans-serif; letter-spacing: .12em; color: var(--brass-strong); text-shadow: 0 4px 18px rgb(0 0 0 / 70%); }
 /* Mouse pointer for the «наведение» demo on the health card */
 .cursor { position: absolute; z-index: 9; left: 0; top: 0; width: 34px; height: 44px; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 60%)); pointer-events: none; }
 /* Scan sweep over the Collector grid («синхронизация из схрона») */
@@ -287,6 +292,11 @@ function win(sid, x, y, w, h, img, from, to, size = [1920, 1080]) {
 // ---- scenes -------------------------------------------------------------------------------------
 const OWN = (n) => `owner/${n}`
 const FADE = 0.4
+/** Which cut plays: the site trailer (default) or the 30 s advert (`trailer.html?cut=ad`, render.mjs --cut=ad). */
+const CUT = new URLSearchParams(location.search).get('cut') === 'ad' ? 'ad' : 'site'
+/** Sound cues for music.mjs (advert): { t, kind } — kinds: pop, cut, tick, ping. Read by render.mjs as window.__cues. */
+const CUES = []
+const cue = (t, kind) => CUES.push({ t: Math.round(t * 1000) / 1000, kind })
 
 // Compass ticks for the in-game backdrop
 const compass = (() => {
@@ -492,6 +502,7 @@ sceneEl('s-outro', `
   </div></div>`)
 
 stage.insertAdjacentHTML('beforeend', '<div id="letter"></div><div id="grain"></div><div id="progress"></div><div id="fade"></div>')
+if (CUT === 'ad') stage.insertAdjacentHTML('beforeend', '<div id="wm"><img src="assets/raidos-icon.svg" alt=""><div><b>Raid OS</b><span>raidos.app</span></div></div>')
 
 // ---- timeline -------------------------------------------------------------------------------------------
 /** Scene fades in over FADE s on top of the previous one, stays opaque until the next has covered it, then drops out. */
@@ -539,190 +550,337 @@ function mark(sel, a) {
   anim(`${sel} .tag`, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.4, POP)
 }
 
-const T = {
-  intro: [0, 2.6], overview: [2.3, 7.9], item: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.5], squad: [21.1, 26.1],
-  boss: [25.7, 32.3], ammo: [31.9, 37.1], minimap: [36.7, 41.1], update: [40.7, 44.3], phone: [43.9, 47.9], sync: [47.5, 51.9],
-  fair: [51.5, 56.5], outro: [56.1, 60.2],
+const CUTS = {
+  site: {
+    T: {
+      intro: [0, 2.6], overview: [2.3, 7.9], item: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.5], squad: [21.1, 26.1],
+      boss: [25.7, 32.3], ammo: [31.9, 37.1], minimap: [36.7, 41.1], update: [40.7, 44.3], phone: [43.9, 47.9], sync: [47.5, 51.9],
+      fair: [51.5, 56.5], outro: [56.1, 60.2],
+    },
+    DURATION: 60.2,
+  },
+  // the advert: the middle of every cross-fade (a + FADE / 2) is a beat of the 120 BPM music (music.mjs)
+  ad: {
+    T: {
+      intro: [0, 2.2], overview: [1.8, 5.7], item: [5.3, 9.7], boss: [9.3, 15.2], squad: [14.8, 18.2], minimap: [17.8, 21.2],
+      sync: [20.8, 24.2], fair: [23.8, 26.7], outro: [26.3, 30],
+    },
+    DURATION: 30,
+  },
 }
-const DURATION = 60.2
+const { T, DURATION } = CUTS[CUT]
 const ids = Object.fromEntries(Object.keys(T).map((k) => [k, `s-${k}`]))
 for (const [k, [a, b]] of Object.entries(T)) scene(ids[k], a, k === 'outro' ? DURATION + 0.6 : b)
 
-keyframesAt('#fade', 'opacity', [[0, 1, 'ease-out'], [0.6, 0], [DURATION - 0.7, 0, 'ease-in'], [DURATION, 1]])
+keyframesAt('#fade', 'opacity', [[0, 1, 'ease-out'], [CUT === 'ad' ? 0.2 : 0.6, 0], [DURATION - 0.7, 0, 'ease-in'], [DURATION, 1]])
 anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, DURATION, 'linear')
 
-// 0. Intro
-{
-  const [, b] = T.intro
-  anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, b, SMOOTH)
-  anim('#s-intro .title-lines', [{ transform: 'translateY(0)' }, { transform: 'translateY(48px)' }], 0, b, 'linear')
-  anim('#intro-badge', [{ opacity: 0, transform: 'scale(.6) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], 0.15, 0.7, 'cubic-bezier(.2,1.4,.4,1)')
-  anim('#intro-kicker', [{ opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '.5em' }], 0.35, 0.9)
-  anim('#intro-title', [{ opacity: 0, transform: 'translateY(30px) scale(.96)', letterSpacing: '.12em', filter: 'blur(12px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' },
-    { opacity: 1, transform: 'none', letterSpacing: '.015em', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 0.4, 0.95)
-  anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.85, 0.7)
-  anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 1.05, 0.6)
+function siteTimeline() {
+  // 0. Intro
+  {
+    const [, b] = T.intro
+    anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, b, SMOOTH)
+    anim('#s-intro .title-lines', [{ transform: 'translateY(0)' }, { transform: 'translateY(48px)' }], 0, b, 'linear')
+    anim('#intro-badge', [{ opacity: 0, transform: 'scale(.6) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], 0.15, 0.7, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#intro-kicker', [{ opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '.5em' }], 0.35, 0.9)
+    anim('#intro-title', [{ opacity: 0, transform: 'translateY(30px) scale(.96)', letterSpacing: '.12em', filter: 'blur(12px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' },
+      { opacity: 1, transform: 'none', letterSpacing: '.015em', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 0.4, 0.95)
+    anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.85, 0.7)
+    anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 1.05, 0.6)
+  }
+
+  // 1. Overview — top to bottom over the owner's screenshot, the blocks marked as they come into view
+  {
+    const [a, b] = T.overview
+    kenBurns('#ov-move', [1075, 452, 1.2], [1075, 604, 1.2], a + 0.1, b + FADE)
+    caption('s-overview', a, b)
+    markFor('#ov-b1', a + 0.7, a + 3.2)
+    markFor('#ov-b2', a + 1.3, a + 3.3)
+    mark('#ov-b4', a + 2.0)
+    mark('#ov-b3', a + 2.7)
+    mark('#ov-b5', a + 3.7)
+  }
+  // 2. Stash → the sneaker lights up, its «Каппа» card → the GPU lights up, its MATE card
+  {
+    const [a, b] = T.item
+    anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
+    rise('#stash', a + 0.2, 0.55, 20)
+    anim('#it-sneaker .glow', [{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .6 }, { opacity: 0 }], a + 0.8, 2.6, 'linear')
+    anim('#card-sneaker', [{ opacity: 0, transform: 'translateY(16px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .15 }, { opacity: 1, transform: 'scale(1.02)' }], a + 1.05, b - a - 0.65 + FADE, 'linear')
+    anim('#it-gpu .glow', [{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: 1 }], a + 2.6, b - a - 2.2 + FADE, 'linear')
+    anim('#card-gpu', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.85, b - a - 2.45 + FADE, 'linear')
+    caption('s-item', a, b)
+  }
+  // 3. Modes: PvP → PvE → Season, the switch knob slides and the overview behind it changes
+  {
+    const [a, b] = T.modes
+    kenBurns('#md-move', [960, 540, 1.0], [1000, 560, 1.06], a, b + FADE)
+    pop('#md-switch', a + 0.3, 0.6)
+    rise('#md-chip', a + 0.7, 0.5, 14)
+    const step = 190 + 8
+    const t1 = a + 1.3, t2 = a + 2.6
+    const SNAP = 'cubic-bezier(.3,1.3,.5,1)'
+    keyframesAt('#md-knob', 'transform', [[a, 'translateX(0)'], [t1, 'translateX(0)', SNAP], [t1 + 0.45, `translateX(${step}px)`], [t2, `translateX(${step}px)`, SNAP], [t2 + 0.45, `translateX(${step * 2}px)`]])
+    anim('#md-l0', [{ color: '#17130a' }, { color: '#97a49a' }], t1, 0.3)
+    keyframesAt('#md-l1', 'color', [[t1, '#97a49a'], [t1 + 0.3, '#17130a'], [t2, '#17130a'], [t2 + 0.3, '#97a49a']], EASE)
+    anim('#md-l2', [{ color: '#97a49a' }, { color: '#17130a' }], t2, 0.3)
+    fadeIn('#md-pve', t1, 0.45); fadeIn('#md-season', t2, 0.45)
+    caption('s-modes', a, b)
+  }
+  // 4. Collector: the page pops in, a scan sweeps the grid, the counter and the Viibiin cell are marked, its card pops
+  {
+    const [a, b] = T.collector
+    anim('#s-collector .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#coll-win', a + 0.15, 0.6)
+    anim('#coll-win', [{ scale: '1' }, { scale: '1.025' }], a + 0.2, b - a + FADE, SMOOTH)
+    anim('#coll-scan', [{ opacity: 0, transform: 'translateX(-160px)' }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.88 }, { opacity: 0, transform: 'translateX(1700px)' }], a + 0.55, 1.15, 'linear')
+    mark('#coll-count', a + 0.9)
+    mark('#coll-viibiin', a + 1.75)
+    anim('#coll-card', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.05, b - a - 1.65 + FADE, 'linear')
+    caption('s-collector', a, b)
+  }
+  // 5. Squad
+  {
+    const [a, b] = T.squad
+    anim('#s-squad .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wMembers.wid, a + 0.15, 0.6); regionBurns(wMembers, a + 0.2, b + FADE)
+    pop('#' + wBoard.wid, a + 0.5, 0.6); regionBurns(wBoard, a + 1.5, b + FADE)
+    caption('s-squad', a, b)
+  }
+  // 6. Bosses: four quick cuts, then Tagilla turns while the card lights head → thorax → left leg
+  {
+    const [a, b] = T.boss
+    const cut = 0.42
+    BOSS_STILLS.forEach((_, si) => {
+      const s0 = a + 0.25 + si * cut
+      show(`#bs-${si}`, s0, s0 + cut)
+      anim(`#bs-${si}`, [{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], s0, cut, EASE)
+      show(`#bn-${si}`, s0, s0 + cut)
+    })
+    // the turn plays at the video's 30 fps: one model frame per video frame, each sampled in its middle (no doubled or
+    // skipped frames), then the last one (front again after 360°) stays
+    const r0 = (Math.round((a + 0.25 + BOSS_STILLS.length * cut) * 30) + 0.5) / 30
+    const dt = 1 / 30
+    for (let f = 0; f < BOSS_FRAMES; f++) show(`#bf-${f}`, r0 + f * dt, f === BOSS_FRAMES - 1 ? b + FADE + 1 : r0 + (f + 1) * dt)
+    anim(`#bn-${BOSS_STILLS.length}`, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], r0, 0.35)
+    pop('#hp-card', r0 + 0.15, 0.55)
+    const hpStep = (b - r0 - 0.7) / HP_PARTS.length
+    // the pointer's tip on each part's window just before it lights (card at 1080,56, 700x879; WINDOWS of BodyHealthFigure in %)
+    const WIN_AT = [[78, 7], [52, 25], [52, 41], [86, 41], [14, 41], [82, 66], [22, 66]]
+    const tip = (p) => `translate(${1080 + 7 * WIN_AT[p][0] + 40}px, ${56 + 8.79 * WIN_AT[p][1] + 6}px)`
+    const away = 'translate(1860px, 990px)'
+    anim('#hp-cursor', [{ opacity: 0 }, { opacity: 1 }], r0 + 0.25, 0.2, 'linear')
+    const path = [[r0 + 0.25, away]]
+    HP_PARTS.forEach((p, i) => {
+      const on = r0 + 0.7 + i * hpStep
+      path.push([on - 0.42, path[path.length - 1][1]], [on, tip(p)])
+      const lit = [[r0, 0], [on, 0, 'ease-in-out'], [on + 0.25, 1]]
+      if (i < HP_PARTS.length - 1) lit.push([on + hpStep - 0.15, 1, 'ease-in-out'], [on + hpStep + 0.05, 0])
+      keyframesAt(`#hp-${p}`, 'opacity', lit, 'linear')
+    })
+    keyframesAt('#hp-cursor', 'transform', path)
+    caption('s-boss', a, b)
+  }
+  // 7. Ammo + flea: the chart, then the armor table of the selected round, then the flea prices
+  {
+    const [a, b] = T.ammo
+    anim('#s-ammo .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wBall.wid, a + 0.15, 0.6); regionBurns(wBall, a + 0.2, b + FADE)
+    rise('#lb-ball', a + 0.4, 0.4, 10)
+    pop('#' + wArmor.wid, a + 0.9, 0.6); regionBurns(wArmor, a + 0.9, b + FADE)
+    rise('#lb-armor', a + 1.1, 0.4, 10)
+    pop('#' + wFlea.wid, a + 1.9, 0.6); regionBurns(wFlea, a + 1.9, b + FADE)
+    rise('#lb-flea', a + 2.1, 0.4, 10)
+    caption('s-ammo', a, b)
+  }
+  // 8. Minimap
+  {
+    const [a, b] = T.minimap
+    anim('#s-minimap .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.12) translateX(30px)' }], a, b - a + FADE, 'linear')
+    anim('#compass-strip', [{ transform: 'translateX(-200px)' }, { transform: 'translateX(-520px)' }], a, b - a + FADE, SMOOTH)
+    anim('#mm-card', [{ opacity: 0, transform: 'translateY(24px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.03)' }], a + 0.4, b - a + FADE - 0.4, 'linear')
+    // the player's point pulses (three rings)
+    $('#mm-ping').animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.6)' }], { delay: ms(a + 1.1), duration: 1000, iterations: 3, fill: 'both', easing: 'ease-out' })
+    caption('s-minimap', a, b)
+  }
+  // 9. Update
+  {
+    const [a, b] = T.update
+    kenBurns('#up-move', [960, 556, 1.28], [960, 550, 1.5], a, b + FADE)
+    caption('s-update', a, b)
+  }
+  // 10. Phone
+  {
+    const [a, b] = T.phone
+    pop('#ph1', a + 0.2, 0.7); pop('#ph2', a + 0.45, 0.7); pop('#soon', a + 1.2, 0.5); pop('#pf1', a + 0.5, 0.6); pop('#pf2', a + 0.7, 0.6); pop('#ph-qr', a + 1.4, 0.6)
+    anim('#ph1', [{ translate: '0 0' }, { translate: '0 -14px' }], a + 0.9, b - a, SMOOTH)
+    anim('#ph2', [{ translate: '0 0' }, { translate: '0 -10px' }], a + 1.1, b - a, SMOOTH)
+    caption('s-phone', a, b)
+  }
+  // 11. Sync
+  {
+    const [a, b] = T.sync
+    pop('#d-pc', a + 0.2, 0.6); pop('#d-web', a + 0.45, 0.6); pop('#d-ph', a + 0.7, 0.6)
+    ;['#sy-pc', '#sy-web', '#sy-ph'].forEach((s, i) => rise(s, a + 0.6 + i * 0.25, 0.4, 8))
+    anim('#n1', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.1, 0.5, POP)
+    anim('#n2', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.3, 0.5, POP)
+    anim('#n1', [{ rotate: '0deg' }, { rotate: '360deg' }], a + 1.6, b - a, 'linear')
+    anim('#n2', [{ rotate: '0deg' }, { rotate: '-360deg' }], a + 1.8, b - a, 'linear')
+    caption('s-sync', a, b)
+  }
+  // 12. Fair play
+  {
+    const [a] = T.fair
+    anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.6, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#fair-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.55, 0.6)
+    anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.0, 0.5)
+    document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 1.2 + i * 0.28, 0.45, POP))
+  }
+  // 13. Outro
+  {
+    const [a] = T.outro
+    anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, 5.8, 'linear')
+    anim('#outro-badge', [{ opacity: 0, transform: 'scale(.7)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.55, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#outro-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(10px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }, { opacity: 1, transform: 'none', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], a + 0.4, 0.6)
+    anim('#outro-cta', [{ opacity: 0, transform: 'translateY(26px) scale(.94)' }, { opacity: 1, transform: 'none' }], a + 0.8, 0.55, 'cubic-bezier(.2,1.3,.4,1)')
+    anim('#outro-cta', [{ boxShadow: '0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%)' },
+      { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], a + 1.6, 1.0, 'ease-in-out')
+    anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.2, 0.5)
+    anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.5, 0.5)
+  }
 }
 
-// 1. Overview — top to bottom over the owner's screenshot, the blocks marked as they come into view
-{
-  const [a, b] = T.overview
-  kenBurns('#ov-move', [1075, 452, 1.2], [1075, 604, 1.2], a + 0.1, b + FADE)
-  caption('s-overview', a, b)
-  markFor('#ov-b1', a + 0.7, a + 3.2)
-  markFor('#ov-b2', a + 1.3, a + 3.3)
-  mark('#ov-b4', a + 2.0)
-  mark('#ov-b3', a + 2.7)
-  mark('#ov-b5', a + 3.7)
+// ---- the 30 s advert: the strongest scenes, quicker, cut on the beat of music.mjs -----------------------------------
+function adTimeline() {
+  // the advert plays fewer scenes: number their captions 01, 02, … in its own order
+  Object.entries(T).filter(([k]) => $(`#s-${k} .caption .eyebrow b`)).sort((x, y) => x[1][0] - y[1][0])
+    .forEach(([k], i) => { $(`#s-${k} .caption .eyebrow b`).textContent = String(i + 1).padStart(2, '0') })
+  // 0. Logo (the first impact of the music)
+  {
+    const [, b] = T.intro
+    anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, b, SMOOTH)
+    anim('#intro-badge', [{ opacity: 0, transform: 'scale(.5) rotate(-10deg)' }, { opacity: 1, transform: 'none' }], 0.08, 0.55, 'cubic-bezier(.2,1.4,.4,1)')
+    cue(0.1, 'logo')
+    anim('#intro-kicker', [{ opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '.5em' }], 0.25, 0.7)
+    anim('#intro-title', [{ opacity: 0, transform: 'translateY(26px) scale(.96)', letterSpacing: '.12em', filter: 'blur(12px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' },
+      { opacity: 1, transform: 'none', letterSpacing: '.015em', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 0.25, 0.7)
+    anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.6, 0.5)
+    anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 0.75, 0.5)
+  }
+  // the corner badge while the features play
+  keyframesAt('#wm', 'opacity', [[T.overview[0] + 0.4, 0, EASE], [T.overview[0] + 0.9, 1], [T.fair[0], 1, 'ease-in'], [T.fair[0] + 0.4, 0]])
+  // 1. Quests sync by themselves: a quicker pan, the blocks marked one after another
+  {
+    const [a, b] = T.overview
+    kenBurns('#ov-move', [1075, 452, 1.2], [1075, 604, 1.2], a + 0.1, b + FADE)
+    caption('s-overview', a, b)
+    markFor('#ov-b1', a + 0.45, a + 2.3)
+    markFor('#ov-b2', a + 0.8, a + 2.4)
+    mark('#ov-b4', a + 1.2)
+    mark('#ov-b3', a + 1.7)
+    mark('#ov-b5', a + 2.4)
+    ;[0.45, 0.8, 1.2, 1.7, 2.4].forEach((d) => cue(a + d, 'tick'))
+  }
+  // 2. Sell or keep: the sneaker's «Каппа» card, then the GPU's MATE card
+  {
+    const [a, b] = T.item
+    anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
+    rise('#stash', a + 0.15, 0.45, 20)
+    anim('#it-sneaker .glow', [{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .65 }, { opacity: 0 }], a + 0.5, 1.9, 'linear')
+    anim('#card-sneaker', [{ opacity: 0, transform: 'translateY(16px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.02)' }], a + 0.7, b - a - 0.3 + FADE, 'linear')
+    anim('#it-gpu .glow', [{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: 1 }], a + 1.8, b - a - 1.4 + FADE, 'linear')
+    anim('#card-gpu', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .15 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.0, b - a - 1.6 + FADE, 'linear')
+    cue(a + 0.7, 'pop'); cue(a + 2.0, 'pop')
+    caption('s-item', a, b)
+  }
+  // 3. Bosses: three quick cuts, a full turn of Tagilla (every other frame: 2 s), the pointer on head, thorax, left leg
+  {
+    const [a, b] = T.boss
+    const cut = 0.36, stills = 3
+    for (let si = 0; si < stills; si++) {
+      const s0 = a + 0.2 + si * cut
+      show(`#bs-${si}`, s0, s0 + cut)
+      anim(`#bs-${si}`, [{ transform: 'scale(1.07)' }, { transform: 'scale(1)' }], s0, cut, EASE)
+      show(`#bn-${si}`, s0, s0 + cut)
+      cue(s0, 'cut')
+    }
+    const r0 = (Math.round((a + 0.2 + stills * cut) * 30) + 0.5) / 30
+    const turn = BOSS_FRAMES / 2
+    for (let f = 0; f < turn; f++) show(`#bf-${f * 2}`, r0 + f / 30, r0 + (f + 1) / 30)
+    show(`#bf-${BOSS_FRAMES - 1}`, r0 + turn / 30, b + FADE + 1)
+    cue(r0, 'cut')
+    anim(`#bn-${BOSS_STILLS.length}`, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], r0, 0.3)
+    pop('#hp-card', r0 + 0.1, 0.45)
+    const WIN_AT = [[78, 7], [52, 25], [52, 41], [86, 41], [14, 41], [82, 66], [22, 66]]
+    const tip = (p) => `translate(${1080 + 7 * WIN_AT[p][0] + 40}px, ${56 + 8.79 * WIN_AT[p][1] + 6}px)`
+    const away = 'translate(1860px, 990px)'
+    anim('#hp-cursor', [{ opacity: 0 }, { opacity: 1 }], r0 + 0.2, 0.2, 'linear')
+    const path = [[r0 + 0.2, away]]
+    HP_PARTS.forEach((p, i) => {
+      const on = r0 + 0.75 + i * 1.0
+      path.push([on - 0.35, path[path.length - 1][1]], [on, tip(p)])
+      const lit = [[r0, 0], [on, 0, 'ease-in-out'], [on + 0.2, 1]]
+      if (i < HP_PARTS.length - 1) lit.push([on + 0.85, 1, 'ease-in-out'], [on + 1.0, 0])
+      keyframesAt(`#hp-${p}`, 'opacity', lit, 'linear')
+      cue(on, 'tick')
+    })
+    keyframesAt('#hp-cursor', 'transform', path)
+    caption('s-boss', a, b)
+  }
+  // 4. Squad: members, then the map board zooms in
+  {
+    const [a, b] = T.squad
+    pop('#' + wMembers.wid, a + 0.1, 0.5); regionBurns(wMembers, a + 0.1, b + FADE)
+    pop('#' + wBoard.wid, a + 0.3, 0.5); regionBurns(wBoard, a + 0.9, b + FADE)
+    cue(a + 0.3, 'pop')
+    caption('s-squad', a, b)
+  }
+  // 5. Minimap: the card, the player's point pulses
+  {
+    const [a, b] = T.minimap
+    anim('#s-minimap .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.12) translateX(30px)' }], a, b - a + FADE, 'linear')
+    anim('#compass-strip', [{ transform: 'translateX(-200px)' }, { transform: 'translateX(-520px)' }], a, b - a + FADE, SMOOTH)
+    anim('#mm-card', [{ opacity: 0, transform: 'translateY(24px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.03)' }], a + 0.25, b - a + FADE - 0.25, 'linear')
+    $('#mm-ping').animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.6)' }], { delay: ms(a + 0.8), duration: 900, iterations: 3, fill: 'both', easing: 'ease-out' })
+    cue(a + 0.8, 'ping'); cue(a + 1.7, 'ping')
+    caption('s-minimap', a, b)
+  }
+  // 6. PC · site · phone
+  {
+    const [a, b] = T.sync
+    pop('#d-pc', a + 0.1, 0.5); pop('#d-web', a + 0.25, 0.5); pop('#d-ph', a + 0.4, 0.5)
+    ;['#sy-pc', '#sy-web', '#sy-ph'].forEach((sel, i) => rise(sel, a + 0.45 + i * 0.15, 0.35, 8))
+    anim('#n1', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 0.7, 0.4, POP)
+    anim('#n2', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 0.85, 0.4, POP)
+    anim('#n1', [{ rotate: '0deg' }, { rotate: '360deg' }], a + 1.0, b - a, 'linear')
+    anim('#n2', [{ rotate: '0deg' }, { rotate: '-360deg' }], a + 1.1, b - a, 'linear')
+    cue(a + 0.7, 'tick'); cue(a + 0.85, 'tick')
+    caption('s-sync', a, b)
+  }
+  // 7. Fair play, quickly
+  {
+    const [a] = T.fair
+    anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.15, 0.5, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#fair-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.3, 0.5)
+    anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.55, 0.4)
+    document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 0.7 + i * 0.16, 0.4, POP))
+  }
+  // 8. End card (the last impact of the music)
+  {
+    const [a] = T.outro
+    anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, DURATION - a + 0.6, 'linear')
+    anim('#outro-badge', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.5, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#outro-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(10px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }, { opacity: 1, transform: 'none', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], a + 0.3, 0.5)
+    anim('#outro-cta', [{ opacity: 0, transform: 'translateY(26px) scale(.94)' }, { opacity: 1, transform: 'none' }], a + 0.6, 0.5, 'cubic-bezier(.2,1.3,.4,1)')
+    anim('#outro-cta', [{ boxShadow: '0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%)' },
+      { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], a + 1.3, 1.0, 'ease-in-out')
+    anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.9, 0.45)
+    anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.15, 0.45)
+  }
 }
-// 2. Stash → the sneaker lights up, its «Каппа» card → the GPU lights up, its MATE card
-{
-  const [a, b] = T.item
-  anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
-  rise('#stash', a + 0.2, 0.55, 20)
-  anim('#it-sneaker .glow', [{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .6 }, { opacity: 0 }], a + 0.8, 2.6, 'linear')
-  anim('#card-sneaker', [{ opacity: 0, transform: 'translateY(16px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .15 }, { opacity: 1, transform: 'scale(1.02)' }], a + 1.05, b - a - 0.65 + FADE, 'linear')
-  anim('#it-gpu .glow', [{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: 1 }], a + 2.6, b - a - 2.2 + FADE, 'linear')
-  anim('#card-gpu', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.85, b - a - 2.45 + FADE, 'linear')
-  caption('s-item', a, b)
-}
-// 3. Modes: PvP → PvE → Season, the switch knob slides and the overview behind it changes
-{
-  const [a, b] = T.modes
-  kenBurns('#md-move', [960, 540, 1.0], [1000, 560, 1.06], a, b + FADE)
-  pop('#md-switch', a + 0.3, 0.6)
-  rise('#md-chip', a + 0.7, 0.5, 14)
-  const step = 190 + 8
-  const t1 = a + 1.3, t2 = a + 2.6
-  const SNAP = 'cubic-bezier(.3,1.3,.5,1)'
-  keyframesAt('#md-knob', 'transform', [[a, 'translateX(0)'], [t1, 'translateX(0)', SNAP], [t1 + 0.45, `translateX(${step}px)`], [t2, `translateX(${step}px)`, SNAP], [t2 + 0.45, `translateX(${step * 2}px)`]])
-  anim('#md-l0', [{ color: '#17130a' }, { color: '#97a49a' }], t1, 0.3)
-  keyframesAt('#md-l1', 'color', [[t1, '#97a49a'], [t1 + 0.3, '#17130a'], [t2, '#17130a'], [t2 + 0.3, '#97a49a']], EASE)
-  anim('#md-l2', [{ color: '#97a49a' }, { color: '#17130a' }], t2, 0.3)
-  fadeIn('#md-pve', t1, 0.45); fadeIn('#md-season', t2, 0.45)
-  caption('s-modes', a, b)
-}
-// 4. Collector: the page pops in, a scan sweeps the grid, the counter and the Viibiin cell are marked, its card pops
-{
-  const [a, b] = T.collector
-  anim('#s-collector .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  pop('#coll-win', a + 0.15, 0.6)
-  anim('#coll-win', [{ scale: '1' }, { scale: '1.025' }], a + 0.2, b - a + FADE, SMOOTH)
-  anim('#coll-scan', [{ opacity: 0, transform: 'translateX(-160px)' }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.88 }, { opacity: 0, transform: 'translateX(1700px)' }], a + 0.55, 1.15, 'linear')
-  mark('#coll-count', a + 0.9)
-  mark('#coll-viibiin', a + 1.75)
-  anim('#coll-card', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.05, b - a - 1.65 + FADE, 'linear')
-  caption('s-collector', a, b)
-}
-// 5. Squad
-{
-  const [a, b] = T.squad
-  anim('#s-squad .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  pop('#' + wMembers.wid, a + 0.15, 0.6); regionBurns(wMembers, a + 0.2, b + FADE)
-  pop('#' + wBoard.wid, a + 0.5, 0.6); regionBurns(wBoard, a + 1.5, b + FADE)
-  caption('s-squad', a, b)
-}
-// 6. Bosses: four quick cuts, then Tagilla turns while the card lights head → thorax → left leg
-{
-  const [a, b] = T.boss
-  const cut = 0.42
-  BOSS_STILLS.forEach((_, si) => {
-    const s0 = a + 0.25 + si * cut
-    show(`#bs-${si}`, s0, s0 + cut)
-    anim(`#bs-${si}`, [{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], s0, cut, EASE)
-    show(`#bn-${si}`, s0, s0 + cut)
-  })
-  // the turn plays at the video's 30 fps: one model frame per video frame, each sampled in its middle (no doubled or
-  // skipped frames), then the last one (front again after 360°) stays
-  const r0 = (Math.round((a + 0.25 + BOSS_STILLS.length * cut) * 30) + 0.5) / 30
-  const dt = 1 / 30
-  for (let f = 0; f < BOSS_FRAMES; f++) show(`#bf-${f}`, r0 + f * dt, f === BOSS_FRAMES - 1 ? b + FADE + 1 : r0 + (f + 1) * dt)
-  anim(`#bn-${BOSS_STILLS.length}`, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], r0, 0.35)
-  pop('#hp-card', r0 + 0.15, 0.55)
-  const hpStep = (b - r0 - 0.7) / HP_PARTS.length
-  // the pointer's tip on each part's window just before it lights (card at 1080,56, 700x879; WINDOWS of BodyHealthFigure in %)
-  const WIN_AT = [[78, 7], [52, 25], [52, 41], [86, 41], [14, 41], [82, 66], [22, 66]]
-  const tip = (p) => `translate(${1080 + 7 * WIN_AT[p][0] + 40}px, ${56 + 8.79 * WIN_AT[p][1] + 6}px)`
-  const away = 'translate(1860px, 990px)'
-  anim('#hp-cursor', [{ opacity: 0 }, { opacity: 1 }], r0 + 0.25, 0.2, 'linear')
-  const path = [[r0 + 0.25, away]]
-  HP_PARTS.forEach((p, i) => {
-    const on = r0 + 0.7 + i * hpStep
-    path.push([on - 0.42, path[path.length - 1][1]], [on, tip(p)])
-    const lit = [[r0, 0], [on, 0, 'ease-in-out'], [on + 0.25, 1]]
-    if (i < HP_PARTS.length - 1) lit.push([on + hpStep - 0.15, 1, 'ease-in-out'], [on + hpStep + 0.05, 0])
-    keyframesAt(`#hp-${p}`, 'opacity', lit, 'linear')
-  })
-  keyframesAt('#hp-cursor', 'transform', path)
-  caption('s-boss', a, b)
-}
-// 7. Ammo + flea: the chart, then the armor table of the selected round, then the flea prices
-{
-  const [a, b] = T.ammo
-  anim('#s-ammo .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  pop('#' + wBall.wid, a + 0.15, 0.6); regionBurns(wBall, a + 0.2, b + FADE)
-  rise('#lb-ball', a + 0.4, 0.4, 10)
-  pop('#' + wArmor.wid, a + 0.9, 0.6); regionBurns(wArmor, a + 0.9, b + FADE)
-  rise('#lb-armor', a + 1.1, 0.4, 10)
-  pop('#' + wFlea.wid, a + 1.9, 0.6); regionBurns(wFlea, a + 1.9, b + FADE)
-  rise('#lb-flea', a + 2.1, 0.4, 10)
-  caption('s-ammo', a, b)
-}
-// 8. Minimap
-{
-  const [a, b] = T.minimap
-  anim('#s-minimap .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.12) translateX(30px)' }], a, b - a + FADE, 'linear')
-  anim('#compass-strip', [{ transform: 'translateX(-200px)' }, { transform: 'translateX(-520px)' }], a, b - a + FADE, SMOOTH)
-  anim('#mm-card', [{ opacity: 0, transform: 'translateY(24px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.03)' }], a + 0.4, b - a + FADE - 0.4, 'linear')
-  // the player's point pulses (three rings)
-  $('#mm-ping').animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.6)' }], { delay: ms(a + 1.1), duration: 1000, iterations: 3, fill: 'both', easing: 'ease-out' })
-  caption('s-minimap', a, b)
-}
-// 9. Update
-{
-  const [a, b] = T.update
-  kenBurns('#up-move', [960, 556, 1.28], [960, 550, 1.5], a, b + FADE)
-  caption('s-update', a, b)
-}
-// 10. Phone
-{
-  const [a, b] = T.phone
-  pop('#ph1', a + 0.2, 0.7); pop('#ph2', a + 0.45, 0.7); pop('#soon', a + 1.2, 0.5); pop('#pf1', a + 0.5, 0.6); pop('#pf2', a + 0.7, 0.6); pop('#ph-qr', a + 1.4, 0.6)
-  anim('#ph1', [{ translate: '0 0' }, { translate: '0 -14px' }], a + 0.9, b - a, SMOOTH)
-  anim('#ph2', [{ translate: '0 0' }, { translate: '0 -10px' }], a + 1.1, b - a, SMOOTH)
-  caption('s-phone', a, b)
-}
-// 11. Sync
-{
-  const [a, b] = T.sync
-  pop('#d-pc', a + 0.2, 0.6); pop('#d-web', a + 0.45, 0.6); pop('#d-ph', a + 0.7, 0.6)
-  ;['#sy-pc', '#sy-web', '#sy-ph'].forEach((s, i) => rise(s, a + 0.6 + i * 0.25, 0.4, 8))
-  anim('#n1', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.1, 0.5, POP)
-  anim('#n2', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.3, 0.5, POP)
-  anim('#n1', [{ rotate: '0deg' }, { rotate: '360deg' }], a + 1.6, b - a, 'linear')
-  anim('#n2', [{ rotate: '0deg' }, { rotate: '-360deg' }], a + 1.8, b - a, 'linear')
-  caption('s-sync', a, b)
-}
-// 12. Fair play
-{
-  const [a] = T.fair
-  anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.6, 'cubic-bezier(.2,1.4,.4,1)')
-  anim('#fair-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.55, 0.6)
-  anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.0, 0.5)
-  document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 1.2 + i * 0.28, 0.45, POP))
-}
-// 13. Outro
-{
-  const [a] = T.outro
-  anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, 5.8, 'linear')
-  anim('#outro-badge', [{ opacity: 0, transform: 'scale(.7)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.55, 'cubic-bezier(.2,1.4,.4,1)')
-  anim('#outro-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(10px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }, { opacity: 1, transform: 'none', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], a + 0.4, 0.6)
-  anim('#outro-cta', [{ opacity: 0, transform: 'translateY(26px) scale(.94)' }, { opacity: 1, transform: 'none' }], a + 0.8, 0.55, 'cubic-bezier(.2,1.3,.4,1)')
-  anim('#outro-cta', [{ boxShadow: '0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%)' },
-    { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], a + 1.6, 1.0, 'ease-in-out')
-  anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.2, 0.5)
-  anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.5, 0.5)
-}
+
+if (CUT === 'ad') adTimeline()
+else siteTimeline()
 
 const all = () => document.getAnimations()
 all().forEach((a) => a.pause())
@@ -730,6 +888,8 @@ window.__seek = (seconds) => { for (const a of all()) { a.pause(); a.currentTime
 window.__play = () => { for (const a of all()) { a.currentTime = 0; a.play() } }
 window.__duration = DURATION
 window.__times = T
+window.__cues = CUES
+window.__cut = CUT
 window.__ready = (async () => {
   await document.fonts.ready
   await Promise.all([...document.images].map((img) => img.decode().catch(() => {})))

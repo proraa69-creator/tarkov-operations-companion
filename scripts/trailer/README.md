@@ -46,6 +46,24 @@ PvE 739 000 ₽ (Tarkov Forge 7-day average to 30.09.2026), Терапевт 124
 Squad members, nicknames and the QR link are made up for the picture. The ammo on the ballistics shot is the
 repository's tarkov.dev fixture (16 real rounds).
 
+## Advert (30 s) with music
+
+`trailer.html?cut=ad` plays a 30 s cut for social networks: logo, quests sync, «Продать или оставить?», bosses (three quick
+cuts, a full turn of Tagilla in 2 s, the pointer on the health card), «Общие квесты на картах», the minimap, PC · site ·
+phone, fair play, the end card. Captions are numbered 01–06 in the advert's own order; a Raid OS badge sits in the
+bottom-right corner while the features play. Scene changes fall on beats of the music.
+
+```bash
+node scripts/trailer/render.mjs --cut=ad --music   # → scripts/trailer/out/raidos-ad-30s-silent.mp4 and -music.mp4 (1080p)
+```
+
+`music.mjs` synthesises the soundtrack from the cut's cues (`out/raidos-ad-30s.cues.json`, written by render.mjs): a dark
+120 BPM electronic bed in D minor (Dm–B♭–F–C) — half-time drums from the first scene change, four on the floor from the
+bosses, a break with a snare roll and a riser on «Честная игра», an impact on the logo and on the end card, whooshes on
+scene changes, ticks when cards pop. Everything is generated sample by sample (no recordings or samples), so the music
+has no licence attached. render.mjs brings it to −14 LUFS (ffmpeg loudnorm, two passes) and muxes AAC 192 kb/s.
+`out/` is not committed.
+
 ## Regenerate
 
 From the repository root:
