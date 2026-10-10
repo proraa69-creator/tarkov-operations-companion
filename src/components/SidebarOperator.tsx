@@ -2,6 +2,7 @@ import { useAppVersion } from '../app/appVersion'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
+import { profileNickname } from '../account/nicknameBinding'
 import '../styles/sidebarOperator.css'
 
 type Faction = 'usec' | 'bear' | 'unknown'
@@ -48,7 +49,8 @@ export function SidebarOperator() {
   const { locale } = useLocale()
   const version = useAppVersion()
   const mode = activeProfile.modes[raidMode]
-  const linked = mode.registration.nickname
+  // One nickname for every mode (owner, 10.10.2026): shown in a mode whose profile is not bound yet, too.
+  const linked = profileNickname(activeProfile, raidMode)
   const nick = linked ?? uiText(activeProfile.displayName)
   const faction: Faction = mode.faction === 'usec' || mode.faction === 'bear' ? mode.faction : 'unknown'
   const modeLabel = raidMode === 'pvp' ? 'PvP' : raidMode === 'pve' ? 'PvE' : locale === 'en' ? 'Season' : 'Сезон'

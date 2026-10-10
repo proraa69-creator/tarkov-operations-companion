@@ -55,7 +55,9 @@ test('accounts, sessions, streamer promotion and referral stats survive a store 
     assert.equal(login.status, 200)
     const viewerView = (login.body as { account: AccountView }).account
     assert.equal(viewerView.referredBy, 'HUNTER_TV')
-    assert.deepEqual(viewerView.nicknames, { pve: 'Viewer_1' })
+    // Saved by a build from before the one nickname (one mode): it is the nickname of every mode after the restart.
+    assert.equal(viewerView.nickname, 'Viewer_1')
+    assert.deepEqual(viewerView.nicknames, { pvp: 'Viewer_1', pve: 'Viewer_1', seasonal: 'Viewer_1' })
     assert.equal((await api.register({ ip: '4', body: { email: 'VIEWER@example.com', password } })).status, 409)
     // Logout revokes the persisted session.
     await api.logout({ authorization: `Bearer ${streamer.token}` })

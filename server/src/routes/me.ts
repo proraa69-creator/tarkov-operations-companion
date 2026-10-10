@@ -208,7 +208,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const accountId = account(res)
     const view = accounts.view(accountId)
     const modes = Object.fromEntries(RAID_MODES.map((raidMode) => [raidMode, summarizeMode(raidMode)])) as Record<RaidMode, ModeSummary>
-    res.json({ account: { email: view.email, kind: view.kind, nicknames: view.nicknames }, modes, generatedAt: new Date().toISOString() })
+    res.json({ account: { email: view.email, kind: view.kind, ...(view.nickname ? { nickname: view.nickname } : {}), nicknames: view.nicknames }, modes, generatedAt: new Date().toISOString() })
 
     function summarizeMode(raidMode: RaidMode): ModeSummary {
       const { records, scope } = progress.userRecords(owner(accountId), raidMode)

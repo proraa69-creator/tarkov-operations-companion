@@ -24,6 +24,9 @@ export interface Account {
   referredBy?: string
   /** Came with a friend's code: the first month is discounted until the first payment. */
   invitedByFriend?: true
+  /** The Escape from Tarkov nickname, one for all modes (owner, 10.10.2026). Missing on a server before it. */
+  nickname?: string
+  /** The same nickname under every mode (older servers: one per mode). */
   nicknames: Partial<Record<AccountMode, string>>
   /** `lifetime`: streamers use the service free of charge, for good. */
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
@@ -372,7 +375,8 @@ export const api = {
   revokeAllSessions: (token: string) => request<{ revoked: number }>('/me/sessions/revoke-all', { method: 'POST', token, body: {} }),
   authConfig: () => request<AuthConfig>('/auth-config'),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
-  setNicknames: (token: string, nicknames: Partial<Record<AccountMode, string>>) => request<Account>('/me/nicknames', { method: 'PUT', token, body: nicknames }),
+  /** One nickname for all modes; '' removes it. */
+  setNickname: (token: string, nickname: string) => request<Account>('/me/nicknames', { method: 'PUT', token, body: { nickname } }),
   /** `kind`: whose code it is — a streamer's (3 days free) or a player's (friend: −20 % on the first month). Missing on older servers. */
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string; kind?: 'streamer' | 'friend' }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),
   referralCampaigns: (token: string) => request<{ campaigns: CampaignStats[] }>('/me/referral-campaigns', { token }),
