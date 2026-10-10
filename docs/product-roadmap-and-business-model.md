@@ -36,13 +36,14 @@ The app must support three separate Tarkov profile bindings:
 - PvE;
 - Seasonal.
 
-One nickname for all modes (owner, 10.10.2026: in Escape from Tarkov a character has the same nickname in PvP, PvE
-and Seasonal, so the website cabinet and the app ask for it once — not three nicknames). Progress stays separate:
+Each mode has its own nickname. Example flow:
 
-1. User starts the app and enters the Tarkov nickname once.
-2. The same nickname is used to find and link the PvP, PvE and Seasonal profiles (Tarkov.dev/public profile where possible).
-3. Switching modes switches the progress, levels and quests of that mode; the nickname does not change.
-4. Changing the nickname changes it for every mode at once.
+1. User starts the app and chooses PvP.
+2. The app asks for the Tarkov nickname for PvP.
+3. PvP profile is created and linked to the Tarkov.dev/public profile where possible.
+4. If the user switches to PvE, the app asks for a separate PvE nickname.
+5. If the user switches to Seasonal, the app asks for a separate Seasonal nickname.
+6. After binding, switching modes should use the saved nickname for that mode.
 
 The app should try to detect the currently selected/played game mode automatically from logs/session data. If the game mode changes from PvP to PvE or Seasonal, the app should switch its active mode accordingly.
 
@@ -130,7 +131,7 @@ Required:
 - show level;
 - show account/game time if available;
 - show current bound profiles for PvP/PvE/Seasonal;
-- allow changing the nickname (one for all modes) through an explicit “change nickname” action;
+- allow changing the nickname for a specific mode through an explicit “change nickname” action;
 - allow deleting/removing a profile binding with a small X/cross;
 - add a full “clear all app data” action that removes all local app data and resets the application completely.
 
