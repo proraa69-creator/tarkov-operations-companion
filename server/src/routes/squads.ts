@@ -23,7 +23,6 @@
 import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
-import type { RaidMode } from '../models/api.js'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { hasPaidAccess } from '../services/access.js'
 import { FriendError, FRIEND_ID, type FriendStore } from '../services/friendStore.js'
@@ -85,7 +84,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
   }
 
   /** What a member may see about the squad: the members' Escape from Tarkov nicknames (one for all modes) and this mode's quests. */
-  const squadView = (squad: SquadRow, viewer: string, mode: RaidMode) => ({
+  const squadView = (squad: SquadRow, viewer: string) => ({
     id: squad.id,
     name: squad.name,
     maxMembers: SQUAD_MAX_MEMBERS,
@@ -108,14 +107,15 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
   }
 
   router.get('/mine/:mode', handle((req, res) => {
-    const mode = parseMode(req)
+    // The path keeps its mode for older builds (an unknown one is still 400); names are the same in every mode.
+    parseMode(req)
     const accountId = account(res)
     const squad = squads.squadOf(accountId)
     const invitations = squads.invitationsFor(accountId).map((invitation) => {
       const owner = invitation.squad.members.find((member) => member.isOwner)
       return { invitationId: invitation.id, squadName: invitation.squad.name, from: owner ? accounts.view(owner.accountId).nickname ?? null : null, members: invitation.squad.members.length, expiresAt: new Date(invitation.expiresAt).toISOString() }
     })
-    res.json({ squad: squad ? squadView(squad, accountId, mode) : null, access: hasAccess(accountId), invitations })
+    res.json({ squad: squad ? squadView(squad, accountId) : null, access: hasAccess(accountId), invitations })
   }))
 
   router.post('/invitations/:id/:action', handle((req, res) => {
@@ -124,7 +124,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     if (action !== 'accept' && action !== 'decline') throw new SquadError(404, 'Неизвестное действие')
     if (action === 'accept') requireAccess(accountId)
     const squad = squads.answerInvitation(accountId, String(req.params.id), action === 'accept')
-    if (squad) res.json({ squad: squadView(squad, accountId, 'pvp') })
+    if (squad) res.json({ squad: squadView(squad, accountId) })
     else res.status(204).end()
   }))
 
@@ -134,7 +134,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     if (!body.success) throw new SquadError(400, 'Название отряда: до 32 букв, цифр и пробелов')
     requireAccess(accountId)
     const squad = squads.create(accountId, body.data.name || 'Отряд')
-    res.status(201).json({ squad: squadView(squad, accountId, 'pvp') })
+    res.status(201).json({ squad: squadView(squad, accountId) })
   }))
 
   router.post('/join', handle((req, res) => {
@@ -148,7 +148,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     if (!body.success) throw new SquadError(400, 'Введите код приглашения')
     requireAccess(accountId)
     const squad = squads.join(accountId, body.data.code)
-    res.json({ squad: squadView(squad, accountId, 'pvp') })
+    res.json({ squad: squadView(squad, accountId) })
   }))
 
   router.get('/:id/overview/:mode', handle((req, res) => {
@@ -156,7 +156,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     const squad = squads.memberSquad(accountId, String(req.params.id))
     const mode = parseMode(req)
     requireAccess(accountId)
-    const view = squadView(squad, accountId, mode)
+    const view = squadView(squad, accountId)
     const members = squad.members.map((member, index) => {
       // Privacy wins inside a squad too: hidden from this viewer means no quests at all.
       const hidden = member.accountId !== accountId && friends.hidesProgress(member.accountId, accountId)
