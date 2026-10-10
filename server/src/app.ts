@@ -152,15 +152,15 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
   // Goons card as soon as anybody reports them (routes/mapUpdates.ts).
   const mapUpdates = new MapUpdates()
-  // «Кочевники»: reported by a signed-in account; his Tarkov nickname for the mode is shown to everybody.
+  // «Кочевники»: reported by a signed-in account; his Tarkov nickname (one for all modes) is shown to everybody.
   app.use('/v1/goons', createGoonsRouter(options.goons ?? new MemoryGoonStore(), {
-    identify: (req, mode) => {
+    identify: (req) => {
       const id = accounts.authenticate(bearer(req.get('authorization')))
       if (!id) return null
       const nickname = accounts.view(id).nickname
       return { account: id, ...(nickname ? { nickname } : {}) }
     },
-    nicknameOf: (account, mode) => {
+    nicknameOf: (account) => {
       try { return accounts.view(account).nickname ?? null } catch { return undefined }
     },
     onSighting: () => mapUpdates.changed(),
