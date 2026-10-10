@@ -873,8 +873,10 @@ a.quest-stage:hover { color: var(--text); }
 .goon-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .goon-meta em { flex: none; font-style: normal; font-weight: 700; color: var(--amber); }
 
+/* At least the card's height and as tall as its content: with «кто видел» (up to 5 rows) it reaches below the card
+   instead of cutting the last rows off; the card is raised over its neighbours while it is shown. */
 .goon-stats-popover {
-  position: absolute; inset: 0; z-index: 2;
+  position: absolute; top: 0; left: 0; right: 0; min-height: 100%; z-index: 2;
   display: grid; grid-template-rows: 32px auto 1fr; gap: 5px;
   padding: 16px 16px 8px; overflow: hidden;
   border: 1px solid var(--line-strong); border-radius: inherit;
@@ -886,6 +888,9 @@ a.quest-stage:hover { color: var(--text); }
 }
 .goon-stats-popover > * { transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
 .goon-card:hover:not(.is-open) .goon-stats-popover { clip-path: inset(0 0 0 0 round 12px); opacity: 1; visibility: visible; transition-delay: .1s, .1s, 0s; }
+.goon-card:hover:not(.is-open) { z-index: 30; }
+/* the part below the card keeps the card hovered instead of letting the pointer fall through to the map row */
+.goon-card:hover:not(.is-open) .goon-stats-popover { pointer-events: auto; }
 .goon-card:hover:not(.is-open) .goon-stats-popover > * { transform: none; transition-delay: .16s; }
 @media (prefers-reduced-motion: reduce) {
   .goon-stats-popover, .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
