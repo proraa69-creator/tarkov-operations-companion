@@ -56,6 +56,7 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['Позвать друзей', 'Invite friends'],
   ['Приглашение отправлено: друг увидит его на странице «Отряд».', 'Invitation sent: your friend will see it on the Squad page.'],
   ['Общие квесты', 'Shared tasks'],
+  ['Квесты по картам', 'Tasks by map'], ['Квестов', 'Tasks'], ['общих', 'shared'], ['у всех', 'everyone'],
   ['Карта', 'Map'],
   ['общий', 'shared'],
   ['Открыть карту', 'Open map'],

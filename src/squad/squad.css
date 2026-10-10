@@ -104,3 +104,23 @@
   .squad-tabs { width: 100%; }
   .squad-tabs button { flex: 1; justify-content: center; padding: 0 6px; white-space: nowrap; font-size: 11.5px; }
 }
+
+/* «Квесты по картам»: a card per map, every member's quest count there and the quests they share */
+.squad-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 10px; }
+.squad-board-map { display: grid; align-content: start; gap: 9px; min-width: 0; padding: 11px 12px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); }
+.squad-board-map.has-shared { border-color: var(--squad-line); background: var(--squad-bg); }
+.squad-board-map header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.squad-board-map header strong { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.squad-board-totals { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
+.squad-board-shared { padding: 1px 7px; border-radius: 999px; border: 1px solid var(--squad-line); color: var(--text); font-weight: 750; }
+.squad-board-members { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.squad-board-members li { display: grid; grid-template-columns: 22px minmax(0, 7.5em) 1fr 2ch; align-items: center; gap: 8px; font-size: 12.5px; }
+.squad-board-members li.is-empty { opacity: .55; }
+.squad-board-members .squad-avatar { width: 22px; height: 22px; font-size: 11px; }
+.squad-board-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.squad-board-bar { height: 7px; border-radius: 999px; background: color-mix(in srgb, var(--hue) 12%, transparent); overflow: hidden; }
+.squad-board-bar i { display: block; height: 100%; min-width: 0; border-radius: inherit; background: var(--hue); }
+.squad-board-members b { text-align: right; font-size: 13px; }
+.squad-board-common { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.squad-board-quest { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.squad-board-quest > span:first-child { min-width: 0; overflow-wrap: anywhere; }

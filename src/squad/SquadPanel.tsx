@@ -11,6 +11,7 @@ import {
 } from './socialClient'
 import { invalidateSquads, useSquad, useSquadComputed } from './useSquad'
 import { CopyField, ErrorLine, MemberAvatar, MemberChips } from './squadUi'
+import { SquadMapBoard } from './SquadMapBoard'
 import { friendLabel, memberLabel, modeLabel } from './squadLabels'
 
 type Data = Pick<AppDataset, 'quests' | 'items' | 'maps'>
@@ -207,6 +208,20 @@ function SquadView({ squad, mode, data, friends, access, busy, run, actionError,
 
       {access && computed && (
         <>
+          {maps.length > 0 && (
+            <section className="panel">
+              <div className="panel-header"><div className="panel-title">{uiText('Квесты по картам')} · {modeLabel(mode)}</div><span className="tag">{maps.length}</span></div>
+              <div className="panel-body">
+                <SquadMapBoard
+                  maps={maps}
+                  members={squad.members.map((member, index) => ({ memberId: member.memberId, label: memberLabel(member.nickname, index), index, hidden: member.hidden }))}
+                  names={names}
+                  questName={(id) => quest(id)?.name ?? id}
+                  mapName={mapName}
+                />
+              </div>
+            </section>
+          )}
           <section className="panel">
             <div className="panel-header"><div className="panel-title">{uiText('Общие квесты')} · {modeLabel(mode)}</div><span className="tag brass">{computed.sharedQuests.length}</span></div>
             <div className="panel-body">
