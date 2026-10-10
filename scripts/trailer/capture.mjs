@@ -4,7 +4,7 @@
 // (`npx vite --config website/vite.config.ts --port 5672`).
 //
 //   node scripts/trailer/capture.mjs [name ...]     all shots, or only the named groups:
-//   app stash item modes squad bossstill boss3d bosshp ballistics flea minimap update phone live site qr
+//   app stash item modes themes squad bossstill boss3d bosshp ballistics flea minimap update phone live site qr
 //
 // The owner's own screenshots (overview, the stash, the Collector page; chat 10.10.2026) live in scripts/trailer/owner/
 // and are used as they are; `stash` cuts the item icons for the «Цена в рейде» scene out of owner/stash.webp (the same
@@ -273,6 +273,22 @@ if (want('modes')) {
     await open(page, '#/', 1800)
     await page.waitForTimeout(2200)
     await shot(page, `mode-${name}`)
+    await context.close()
+  }
+}
+
+// 3b. Colour schemes — the overview in every scheme, in the order the top-bar palette button cycles through them
+//     (src/theme/theme.ts THEMES); the button's place is printed for the pointer in trailer.html
+if (want('themes')) {
+  for (const id of ['tarkov', 'blackmc', 'slate', 'telnyashka', 'gear']) {
+    const { context, page } = await newPage({ theme: id })
+    await open(page, '#/', 1800)
+    await page.waitForTimeout(2200)
+    await shot(page, `theme-${id}`)
+    if (id === 'tarkov') {
+      const b = await page.locator('.theme-cycle').first().boundingBox()
+      console.log('theme button (1x):', b && [Math.round(b.x + b.width / 2), Math.round(b.y + b.height / 2), Math.round(b.width), Math.round(b.height)])
+    }
     await context.close()
   }
 }

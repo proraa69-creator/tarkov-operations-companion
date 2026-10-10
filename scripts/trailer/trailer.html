@@ -233,6 +233,8 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
 #wm span { display: block; margin-top: 5px; font: 700 16px/1 Inter, sans-serif; letter-spacing: .12em; color: var(--brass-strong); text-shadow: 0 4px 18px rgb(0 0 0 / 70%); }
 /* Mouse pointer for the «наведение» demo on the health card */
 .cursor { position: absolute; z-index: 9; left: 0; top: 0; width: 34px; height: 44px; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 60%)); pointer-events: none; }
+/* «Смена темы»: a ring where the pointer clicks */
+.click-ring { position: absolute; z-index: 8; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 3px solid rgb(240 214 150 / 95%); box-shadow: 0 0 18px rgb(223 189 112 / 60%); opacity: 0; pointer-events: none; }
 /* Scan sweep over the Collector grid («синхронизация из схрона») */
 .scan { position: absolute; z-index: 3; top: 0; bottom: 0; width: 140px; opacity: 0;
   background: linear-gradient(90deg, rgb(223 189 112 / 0%), rgb(223 189 112 / 22%) 70%, rgb(240 214 150 / 85%) 96%, rgb(223 189 112 / 0%)); }
@@ -292,7 +294,7 @@ function win(sid, x, y, w, h, img, from, to, size = [1920, 1080]) {
 // ---- scenes -------------------------------------------------------------------------------------
 const OWN = (n) => `owner/${n}`
 const FADE = 0.4
-/** Which cut plays: the site trailer (default) or the 30 s advert (`trailer.html?cut=ad`, render.mjs --cut=ad). */
+/** Which cut plays: the site trailer (default) or the ~30 s advert (`trailer.html?cut=ad`, render.mjs --cut=ad). */
 const CUT = new URLSearchParams(location.search).get('cut') === 'ad' ? 'ad' : 'site'
 /** Sound cues for music.mjs (advert): { t, kind } — kinds: pop, cut, tick, ping. Read by render.mjs as window.__cues. */
 const CUES = []
@@ -442,6 +444,19 @@ sceneEl('s-update', `
   <div class="shade"></div>
   ${captionHtml('09', 'Обновления', 'Автообновление — всегда свежая версия', [['Обновляется само', 'hot'], 'Настройки и прогресс сохраняются'])}`)
 
+// 9b. Colour schemes: the pointer clicks the top-bar palette button and the overview cycles through all five schemes
+// (Олива → Чёрный мультикам → Металл → Тельняшка → Снаряжение → Олива), the order of THEMES in src/theme/theme.ts
+const THEME_SHOTS = [['tarkov', 'Олива'], ['blackmc', 'Чёрный мультикам'], ['slate', 'Металл'], ['telnyashka', 'Тельняшка'], ['gear', 'Снаряжение']]
+const THEME_BUTTON = [1266, 34] // centre of the palette button on the 1920x1080 overview (capture.mjs prints it)
+sceneEl('s-themes', `
+  <div class="layer" id="th-move">
+    ${[...THEME_SHOTS, THEME_SHOTS[0]].map(([id], k) => `<img class="shot" id="th-${k}" src="${SH(`theme-${id}.png`)}" alt=""${k ? ' style="opacity:0"' : ''}>`).join('')}
+    ${THEME_SHOTS.map((_, k) => `<div class="click-ring" id="th-ring-${k}" style="left:${THEME_BUTTON[0]}px;top:${THEME_BUTTON[1]}px"></div>`).join('')}
+    <svg class="cursor" id="th-cursor" viewBox="0 0 34 44" style="transform-origin:3px 2px"><path d="M3 2v34l9-8.5 6.2 14 6-2.7-6-13.6H31L3 2Z" fill="#f4f1e8" stroke="#141a16" stroke-width="2.6" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="shade"></div>
+  ${captionHtml('10', 'Темы', 'Смена темы — в один клик', THEME_SHOTS.map(([, label]) => label))}`)
+
 // 10. Phone: iOS and Android soon, sign-in by QR ---------------------------------------------------------------------
 sceneEl('s-phone', `
   <div class="bg-grid"></div>
@@ -554,18 +569,18 @@ const CUTS = {
   site: {
     T: {
       intro: [0, 2.6], overview: [2.3, 7.9], item: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.5], squad: [21.1, 26.1],
-      boss: [25.7, 32.3], ammo: [31.9, 37.1], minimap: [36.7, 41.1], update: [40.7, 44.3], phone: [43.9, 47.9], sync: [47.5, 51.9],
-      fair: [51.5, 56.5], outro: [56.1, 60.2],
+      boss: [25.7, 32.3], ammo: [31.9, 37.1], minimap: [36.7, 41.1], update: [40.7, 44.3], themes: [43.9, 48.3], phone: [47.9, 51.9],
+      sync: [51.5, 55.9], fair: [55.5, 60.5], outro: [60.1, 64.2],
     },
-    DURATION: 60.2,
+    DURATION: 64.2,
   },
   // the advert: the middle of every cross-fade (a + FADE / 2) is a beat of the 120 BPM music (music.mjs)
   ad: {
     T: {
-      intro: [0, 2.2], overview: [1.8, 5.7], item: [5.3, 9.7], boss: [9.3, 15.2], squad: [14.8, 18.2], minimap: [17.8, 21.2],
-      sync: [20.8, 24.2], fair: [23.8, 26.7], outro: [26.3, 30],
+      intro: [0, 2.2], overview: [1.8, 5.2], item: [4.8, 8.7], boss: [8.3, 13.7], squad: [13.3, 16.7], minimap: [16.3, 19.7],
+      themes: [19.3, 22.7], sync: [22.3, 25.2], fair: [24.8, 27.7], outro: [27.3, 31],
     },
-    DURATION: 30,
+    DURATION: 31,
   },
 }
 const { T, DURATION } = CUTS[CUT]
@@ -709,6 +724,8 @@ function siteTimeline() {
     kenBurns('#up-move', [960, 556, 1.28], [960, 550, 1.5], a, b + FADE)
     caption('s-update', a, b)
   }
+  // 9b. Colour schemes: five clicks on the palette button
+  themeScene(T.themes[0], T.themes[1], { reach: 0.55, first: 0.75, gap: 0.65 })
   // 10. Phone
   {
     const [a, b] = T.phone
@@ -750,11 +767,8 @@ function siteTimeline() {
   }
 }
 
-// ---- the 30 s advert: the strongest scenes, quicker, cut on the beat of music.mjs -----------------------------------
+// ---- the ~30 s advert: the strongest scenes, quicker, cut on the beat of music.mjs ----------------------------------
 function adTimeline() {
-  // the advert plays fewer scenes: number their captions 01, 02, … in its own order
-  Object.entries(T).filter(([k]) => $(`#s-${k} .caption .eyebrow b`)).sort((x, y) => x[1][0] - y[1][0])
-    .forEach(([k], i) => { $(`#s-${k} .caption .eyebrow b`).textContent = String(i + 1).padStart(2, '0') })
   // 0. Logo (the first impact of the music)
   {
     const [, b] = T.intro
@@ -845,7 +859,9 @@ function adTimeline() {
     cue(a + 0.8, 'ping'); cue(a + 1.7, 'ping')
     caption('s-minimap', a, b)
   }
-  // 6. PC · site · phone
+  // 6. Colour schemes, quicker
+  themeScene(T.themes[0], T.themes[1], { reach: 0.35, first: 0.5, gap: 0.5 })
+  // 7. PC · site · phone
   {
     const [a, b] = T.sync
     pop('#d-pc', a + 0.1, 0.5); pop('#d-web', a + 0.25, 0.5); pop('#d-ph', a + 0.4, 0.5)
@@ -857,7 +873,7 @@ function adTimeline() {
     cue(a + 0.7, 'tick'); cue(a + 0.85, 'tick')
     caption('s-sync', a, b)
   }
-  // 7. Fair play, quickly
+  // 8. Fair play, quickly
   {
     const [a] = T.fair
     anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.15, 0.5, 'cubic-bezier(.2,1.4,.4,1)')
@@ -865,7 +881,7 @@ function adTimeline() {
     anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.55, 0.4)
     document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 0.7 + i * 0.16, 0.4, POP))
   }
-  // 8. End card (the last impact of the music)
+  // 9. End card (the last impact of the music)
   {
     const [a] = T.outro
     anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, DURATION - a + 0.6, 'linear')
@@ -877,6 +893,39 @@ function adTimeline() {
     anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.9, 0.45)
     anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.15, 0.45)
   }
+}
+
+// captions are numbered 01, 02, … in the order the cut plays them
+Object.entries(T).filter(([k]) => $(`#s-${k} .caption .eyebrow b`)).sort((x, y) => x[1][0] - y[1][0])
+  .forEach(([k], i) => { $(`#s-${k} .caption .eyebrow b`).textContent = String(i + 1).padStart(2, '0') })
+
+/**
+ * «Смена темы»: the camera starts close on the top bar, the pointer reaches the palette button and clicks it every `gap`
+ * seconds (ring, press); each click lays the next scheme over the last; the camera pulls back to the whole overview after
+ * the first click; the caption's pill of the scheme on screen lights up.
+ */
+function themeScene(a, b, { reach, first, gap }) {
+  const [bx, by] = THEME_BUTTON
+  const clicks = THEME_SHOTS.map((_, k) => a + first + k * gap) // the 5th click brings «Олива» back
+  keyframesAt('#th-move', 'transform', [[a, cam([1150, 360, 1.5])], [clicks[0] + 0.05, cam([1150, 360, 1.5])], [clicks[0] + 0.75, cam([960, 540, 1])], [b + FADE, cam([980, 545, 1.02])]], SMOOTH)
+  const tip = (x, y) => `translate(${x - 3}px, ${y - 2}px)`
+  keyframesAt('#th-cursor', 'transform', [[a, tip(bx + 260, by + 230)], [a + reach, tip(bx + 6, by + 5)]], SMOOTH)
+  keyframesAt('#th-cursor', 'scale', clicks.flatMap((t) => [[t - 0.07, '1'], [t, '0.82'], [t + 0.12, '1']]).sort((x, y) => x[0] - y[0]), 'ease-out')
+  const pills = [...document.querySelectorAll('#s-themes .pill')]
+  const lit = (k) => {
+    // shown from its click (Олива from the start and again after the 5th click) until the next one
+    const on = k === 0 ? [[a, true], [clicks[0], false], [clicks[4], true]] : [[a, false], [clicks[k - 1], true], [clicks[k], false]]
+    const steps = (yes, no) => on.flatMap(([t, v], i) => (i === 0 ? [[t, v ? yes : no]] : [[t - 0.01, on[i - 1][1] ? yes : no], [t + 0.15, v ? yes : no]]))
+    keyframesAt(pills[k], 'borderColor', steps('rgb(240 214 150 / 95%)', 'rgb(196 166 101 / 38%)'), 'linear')
+    keyframesAt(pills[k], 'backgroundColor', steps('rgb(150 120 60 / 55%)', 'rgb(10 15 12 / 80%)'), 'linear')
+  }
+  pills.forEach((_, k) => lit(k))
+  clicks.forEach((t, k) => {
+    anim(`#th-${k + 1}`, [{ opacity: 0 }, { opacity: 1 }], t, 0.18, 'linear')
+    anim(`#th-ring-${k}`, [{ opacity: 0.95, transform: 'scale(.35)' }, { opacity: 0, transform: 'scale(1.9)' }], t, 0.45, 'ease-out')
+    cue(t, 'tick')
+  })
+  caption('s-themes', a, b)
 }
 
 if (CUT === 'ad') adTimeline()

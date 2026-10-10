@@ -3,7 +3,7 @@
 // with trailer hits on the cut's own cues: impacts on the logo and on the end card, a whoosh on every scene change, a
 // riser into the end card, quick hits on the boss cuts and soft ticks when a card pops. 48 kHz stereo 16-bit WAV.
 //
-//   node scripts/trailer/music.mjs --cues=scripts/trailer/out/raidos-ad-30s.cues.json --out=music.wav
+//   node scripts/trailer/music.mjs --cues=scripts/trailer/out/raidos-ad.cues.json --out=music.wav
 //
 // The cues file comes from render.mjs --cut=ad: { duration, fade, times: { scene: [a, b] }, cues: [{ t, kind }] }; a scene
 // change is the middle of its cross-fade (a + fade / 2), and the cut puts those on beats of this tempo.

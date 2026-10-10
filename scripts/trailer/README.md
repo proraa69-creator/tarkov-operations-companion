@@ -1,6 +1,6 @@
 # Trailer generator
 
-The cinematic promo video for the website home page (`website/public/media/`), about 60 s, rendered at 1920x1080,
+The cinematic promo video for the website home page (`website/public/media/`), about 64 s, rendered at 1920x1080,
 shipped as 720p. Clean 2x screenshots of the app (and the owner's own screenshots) with captions, slow camera moves,
 floating cards and cross-fades; the only pointer is the one hovering the boss health card. v3 follows the owner's
 storyboard of 10.10.2026 (about a minute, «Тарков» colours).
@@ -27,10 +27,11 @@ Outputs:
 | 07 | Патроны и барахолка | Penetration/damage chart of all rounds, «Против брони · BP» (chance per armor class), the GPU's flea prices for the mode |
 | 08 | Мини-карта | The whole minimap overlay over the game (map, floors, sliders, quest list): the player's point pulses, quest points nearby |
 | 09 | Обновления | The auto-update window («всегда свежая версия») |
-| 10 | Телефон | iOS and Android «скоро», sign-in by QR |
-| 11 | Синхронизация | PC, website, phone: one base, the position on the phone |
-| 12 | Честная игра | Raid OS does not inject into EFT, read its memory, automate actions or bypass protection |
-| 13 | Финал | Raid OS, «Скачать для Windows», raidos.app |
+| 10 | Темы | «Смена темы — в один клик»: the pointer clicks the top-bar palette button five times, the overview cycles Олива → Чёрный мультикам → Металл → Тельняшка → Снаряжение → Олива (shots `theme-<id>.png`, capture group `themes`) |
+| 11 | Телефон | iOS and Android «скоро», sign-in by QR |
+| 12 | Синхронизация | PC, website, phone: one base, the position on the phone |
+| 13 | Честная игра | Raid OS does not inject into EFT, read its memory, automate actions or bypass protection |
+| 14 | Финал | Raid OS, «Скачать для Windows», raidos.app |
 
 The honesty rules from `CLAUDE.md` apply to the captions: no claim of live inventory, the app does not touch the game,
 the phone apps are «скоро». The captions do not explain how the app gets its data (the owner's request, 04.10.2026).
@@ -46,18 +47,18 @@ PvE 739 000 ₽ (Tarkov Forge 7-day average to 30.09.2026), Терапевт 124
 Squad members, nicknames and the QR link are made up for the picture. The ammo on the ballistics shot is the
 repository's tarkov.dev fixture (16 real rounds).
 
-## Advert (30 s) with music
+## Advert (31 s) with music
 
-`trailer.html?cut=ad` plays a 30 s cut for social networks: logo, quests sync, «Продать или оставить?», bosses (three quick
-cuts, a full turn of Tagilla in 2 s, the pointer on the health card), «Общие квесты на картах», the minimap, PC · site ·
-phone, fair play, the end card. Captions are numbered 01–06 in the advert's own order; a Raid OS badge sits in the
+`trailer.html?cut=ad` plays a 31 s cut for social networks: logo, quests sync, «Продать или оставить?», bosses (three quick
+cuts, a full turn of Tagilla in 2 s, the pointer on the health card), «Общие квесты на картах», the minimap, «Смена
+темы» (five clicks on the palette button), PC · site · phone, fair play, the end card. Captions are numbered in the advert's own order (both cuts number them by play order); a Raid OS badge sits in the
 bottom-right corner while the features play. Scene changes fall on beats of the music.
 
 ```bash
-node scripts/trailer/render.mjs --cut=ad --music   # → scripts/trailer/out/raidos-ad-30s-silent.mp4 and -music.mp4 (1080p)
+node scripts/trailer/render.mjs --cut=ad --music   # → scripts/trailer/out/raidos-ad-silent.mp4 and raidos-ad-music.mp4 (1080p)
 ```
 
-`music.mjs` synthesises the soundtrack from the cut's cues (`out/raidos-ad-30s.cues.json`, written by render.mjs): a dark
+`music.mjs` synthesises the soundtrack from the cut's cues (`out/raidos-ad.cues.json`, written by render.mjs): a dark
 120 BPM electronic bed in D minor (Dm–B♭–F–C) — half-time drums from the first scene change, four on the floor from the
 bosses, a break with a snare roll and a riser on «Честная игра», an impact on the logo and on the end card, whooshes on
 scene changes, ticks when cards pop. Everything is generated sample by sample (no recordings or samples), so the music
@@ -76,7 +77,7 @@ node scripts/trailer/render.mjs                           # 3. trailer.html → 
 ```
 
 Stop both vite servers afterwards. `capture.mjs scenegroup ...` re-captures only some groups (`app stash item modes squad
-bossstill boss3d bosshp ballistics flea minimap update phone live site qr`); `boss3d` alone takes about 10 min
+themes bossstill boss3d bosshp ballistics flea minimap update phone live site qr`); `boss3d` alone takes about 10 min
 (120 frames of software WebGL). `render.mjs --preview=scenes --preview-dir=/tmp/p` writes two stills
 per scene without encoding, `--preview=12.5,30` writes stills at those times. The capture also writes the website's
 stills `ballistics-site.png` and `story-site.png` (converted to `website/src/assets/promo/*.webp` at 1200 px wide).

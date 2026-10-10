@@ -3,8 +3,8 @@
 //   node scripts/trailer/render.mjs                           deterministic: seek every frame, pipe JPEGs to ffmpeg
 //   node scripts/trailer/render.mjs --preview=1,5.5,10        only save stills of the timeline (see --preview-dir=)
 //   node scripts/trailer/render.mjs --preview=scenes          one still near the end of every scene
-//   node scripts/trailer/render.mjs --cut=ad [--music]        the 30 s advert (trailer.html?cut=ad) into scripts/trailer/out/:
-//                                                             raidos-ad-30s-silent.mp4 and, with --music, raidos-ad-30s-music.mp4
+//   node scripts/trailer/render.mjs --cut=ad [--music]        the ~30 s advert (trailer.html?cut=ad) into scripts/trailer/out/:
+//                                                             raidos-ad-silent.mp4 and, with --music, raidos-ad-music.mp4
 //                                                             (music.mjs + loudness -14 LUFS); 1080p, not shipped with the site
 //
 // Outputs what the website ships (website/public/media): trailer.mp4 — H.264 1280x720 yuv420p faststart, about 3–4 MB
@@ -24,7 +24,7 @@ const root = normalize(join(here, '..', '..'))
 const CUT = process.argv.find((a) => a.startsWith('--cut='))?.slice(6) ?? 'site'
 // the site trailer goes to the website; other cuts (the advert) to a local folder (gitignored)
 const OUT = process.argv.find((a) => a.startsWith('--out='))?.slice(6) ?? (CUT === 'site' ? join(root, 'website', 'public', 'media') : join(here, 'out'))
-const BASENAME = CUT === 'site' ? 'trailer' : `raidos-${CUT}-30s`
+const BASENAME = CUT === 'site' ? 'trailer' : `raidos-${CUT}`
 const WANT_MUSIC = process.argv.includes('--music')
 const FPS = 30
 const CHROMIUM = process.env.TRAILER_CHROMIUM ?? '/opt/pw-browsers/chromium'
