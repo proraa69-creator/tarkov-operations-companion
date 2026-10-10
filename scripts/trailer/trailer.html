@@ -164,6 +164,73 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>"); }
 #progress { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; z-index: 22; background: linear-gradient(90deg, var(--brass), var(--brass-strong)); transform-origin: 0 50%; transform: scaleX(0); opacity: .75; }
 #fade { position: absolute; inset: 0; background: #000; z-index: 30; pointer-events: none; }
+
+/* ---- v3 additions ------------------------------------------------------------------------------- */
+.caption.top { top: 70px; bottom: auto; }
+.top-shade { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgb(5 8 6 / 96%) 0%, rgb(5 8 6 / 80%) 8%, rgb(5 8 6 / 0%) 22%),
+    radial-gradient(1100px 330px at 22% 12%, rgb(5 8 6 / 78%), rgb(5 8 6 / 0%) 100%),
+    linear-gradient(0deg, rgb(5 8 6 / 55%) 0%, rgb(5 8 6 / 0%) 18%); }
+/* highlight box + tag pinned to a block of a screenshot (lives inside the moving layer, in screenshot px) */
+.hl { position: absolute; z-index: 3; border: 2px solid rgb(223 189 112 / 95%); border-radius: 12px;
+  box-shadow: 0 0 0 4px rgb(223 189 112 / 16%), 0 0 40px rgb(223 189 112 / 28%), inset 0 0 30px rgb(223 189 112 / 10%); }
+.hl .tag { position: absolute; left: -2px; top: -38px; padding: 7px 14px; border-radius: 9px 9px 9px 0; white-space: nowrap;
+  font: 800 19px/1 Inter, sans-serif; letter-spacing: .02em; color: #17130a; background: linear-gradient(180deg, #e7cb86, #c4a665); box-shadow: 0 10px 26px rgb(0 0 0 / 45%); }
+.hl.right .tag { left: auto; right: -2px; border-radius: 9px 9px 0 9px; }
+.hl.below .tag { top: auto; bottom: -38px; border-radius: 0 9px 9px 9px; }
+
+/* EFT-like stash grid for «Продать или оставить?» (icons cut out of the owner's stash screenshot) */
+.eft-stash { position: absolute; z-index: 2; background: rgb(8 10 10 / 92%); border: 1px solid #3c4140; box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
+.eft-stash .head { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(180deg, #2b2f2e, #1d2020); border-bottom: 1px solid #3c4140;
+  font: 700 18px/1 Inter, sans-serif; color: #d6d6cf; letter-spacing: .02em; }
+.eft-stash .head i { width: 12px; height: 12px; border: 2px solid #9a9f97; border-radius: 3px; }
+.eft-grid { position: relative; margin: 10px;
+  background-color: #0c0f0f;
+  background-image: linear-gradient(rgb(255 255 255 / 9%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 9%) 1px, transparent 1px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 9%); }
+.eft-item { position: absolute; overflow: hidden; outline: 1px solid rgb(0 0 0 / 60%); }
+.eft-item img { display: block; width: 100%; height: 100%; }
+.eft-item .glow { position: absolute; inset: 0; opacity: 0; background: rgb(255 255 255 / 16%); box-shadow: inset 0 0 0 2px rgb(240 236 220 / 95%), inset 0 0 26px rgb(255 255 255 / 25%); }
+
+/* PvP / PvE / Season switch, drawn like the app's top bar control */
+.mode-switch-big { position: absolute; z-index: 5; display: flex; gap: 8px; padding: 10px; border-radius: 18px; background: #0a0f0c; border: 1px solid rgb(196 166 101 / 55%); box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
+.mode-switch-big span { position: relative; z-index: 1; display: grid; place-items: center; width: 190px; height: 74px; border-radius: 12px; font: 800 30px/1 Inter, sans-serif; letter-spacing: .04em; color: #97a49a; }
+.mode-switch-big .knob { position: absolute; z-index: 0; left: 10px; top: 10px; width: 190px; height: 74px; border-radius: 12px; background: linear-gradient(180deg, #e2c47c, #b48f4b); box-shadow: 0 10px 30px rgb(196 166 101 / 35%); }
+.mode-switch-big span.on { color: #17130a; }
+.base-chip { position: absolute; z-index: 5; padding: 12px 20px; border-radius: 12px; background: rgb(8 12 10 / 92%); border: 1px solid rgb(127 161 131 / 55%); color: #cfe1d1; font: 700 24px/1 Inter, sans-serif; box-shadow: 0 16px 40px rgb(0 0 0 / 50%); white-space: nowrap; }
+.base-chip b { color: var(--brass-strong); }
+
+/* Bosses: the 3D model as a frame sequence on a floor glow, and the health card */
+.boss-stage { position: absolute; z-index: 2; }
+.boss-stage::before { content: ''; position: absolute; left: 10%; right: 10%; bottom: 3%; height: 60px; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / 65%), transparent); }
+.boss-stage::after { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(48% 46% at 50% 52%, rgb(196 166 101 / 16%), transparent 70%); }
+.boss-stage img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
+.boss-name { position: absolute; z-index: 4; display: flex; align-items: center; gap: 14px; font: 700 54px/1 Oswald, Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #f3e7c6; text-shadow: 0 8px 30px rgb(0 0 0 / 70%); white-space: nowrap; }
+.badge-3d { display: inline-grid; place-items: center; height: 40px; padding: 0 12px; border-radius: 9px; font: 800 22px/1 Inter, sans-serif; letter-spacing: .06em; color: #17130a; background: linear-gradient(180deg, #e2c47c, #b48f4b); }
+.hp-card { position: absolute; z-index: 3; border-radius: 16px; overflow: hidden; border: 1px solid rgb(196 166 101 / 40%); background: #0a0f0c; box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
+.hp-card img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.hp-card img.base { opacity: 1; }
+
+/* Fair play */
+.fair { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 2; }
+.fair-block { display: grid; justify-items: center; }
+.shield { width: 150px; height: 150px; filter: drop-shadow(0 20px 50px rgb(196 166 101 / 30%)); }
+.fair h2 { margin-top: 30px; font: 700 96px/1 Oswald, Inter, sans-serif; letter-spacing: .02em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fbf1d6 0%, #e7cb86 42%, #b8924c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fair p { margin-top: 26px; font: 600 34px/1.3 Inter, sans-serif; color: #dfe6df; }
+.fair ul { margin-top: 34px; display: grid; grid-template-columns: repeat(2, auto); gap: 18px 28px; list-style: none; text-align: left; }
+.fair li { display: flex; align-items: center; gap: 16px; padding: 18px 26px; border-radius: 14px; background: rgb(10 15 12 / 82%); border: 1px solid rgb(127 161 131 / 45%); font: 600 28px/1.15 Inter, sans-serif; color: #e6ebe4; box-shadow: 0 16px 40px rgb(0 0 0 / 45%); }
+.fair li svg { flex: none; width: 34px; height: 34px; }
+
+/* In-game overlay window chrome around the minimap card */
+.ov-frame { position: absolute; z-index: 3; filter: drop-shadow(0 30px 60px rgb(0 0 0 / 60%)); }
+.ov-frame img { display: block; }
+.ping { position: absolute; z-index: 4; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid rgb(223 189 112 / 95%); }
+/* Mouse pointer for the «наведение» demo on the health card */
+.cursor { position: absolute; z-index: 9; left: 0; top: 0; width: 34px; height: 44px; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 60%)); pointer-events: none; }
+/* Scan sweep over the Collector grid («синхронизация из схрона») */
+.scan { position: absolute; z-index: 3; top: 0; bottom: 0; width: 140px; opacity: 0;
+  background: linear-gradient(90deg, rgb(223 189 112 / 0%), rgb(223 189 112 / 22%) 70%, rgb(240 214 150 / 85%) 96%, rgb(223 189 112 / 0%)); }
 </style>
 </head>
 <body>
@@ -171,7 +238,7 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
 
 <script>
 /*
- * Raid OS trailer v2: fixed timeline built with the Web Animations API. Every animation is created up front with an
+ * Raid OS trailer v3 (owner's storyboard, 10.10.2026): fixed timeline built with the Web Animations API. Every animation is created up front with an
  * absolute delay, so the page can play in real time (window.__play) or be stepped frame by frame
  * (window.__seek(seconds)) by render.mjs. No cursor, no scrolling: clean stills with captions, Ken Burns moves,
  * floating cards and cross-fades. Scenes are built from SCENES below (markup helpers first, timeline after).
@@ -218,7 +285,7 @@ function win(sid, x, y, w, h, img, from, to, size = [1920, 1080]) {
 }
 
 // ---- scenes -------------------------------------------------------------------------------------
-const S = {}   // scene id → { start, end } filled in the timeline below
+const OWN = (n) => `owner/${n}`
 const FADE = 0.4
 
 // Compass ticks for the in-game backdrop
@@ -230,11 +297,12 @@ const compass = (() => {
 })()
 const gameBackdrop = (note) => `<div class="game"><div class="haze"></div><div class="ridge"></div><div class="grain"></div><div class="vignette"></div></div>
   <div class="hud"><i></i><i></i><i></i><i></i><div class="hud-note">${note}</div></div>`
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="#9fd0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke="#7fa183"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>'
 
 // 0. Intro -----------------------------------------------------------------------------------------
 sceneEl('s-intro', `
   <div class="title-scene" style="position:absolute;inset:0">
-  <div class="title-bg" style="background-image:url(${SH('dashboard.png')})"></div>
+  <div class="title-bg" style="background-image:url(${OWN('overview.webp')})"></div>
   <div class="title-lines"></div><div class="title-glow"></div>
   <div class="title-block">
     <div class="brand-badge" id="intro-badge"><img src="assets/raidos-icon.svg" alt=""></div>
@@ -244,113 +312,170 @@ sceneEl('s-intro', `
     <div class="tagline" id="intro-tag">Задания<span>·</span>Карты<span>·</span>Цены<span>·</span>Отряд</div>
   </div></div>`)
 
-// 1. Overview --------------------------------------------------------------------------------------
+// 1. Overview: the owner's screenshot, panned from top to bottom, its blocks marked one by one ------------------
+// Blocks of owner/overview.webp (1920x1054): [left, top, width, height] in screenshot px
+const OV_BOXES = [
+  ['ov-b1', [285, 304, 1580, 68], 'Приоритет карт', ''],
+  ['ov-b2', [1476, 173, 389, 120], 'Отслеживание Кочевников', 'right'],
+  ['ov-b3', [285, 385, 968, 450], 'Карта со всеми точками квестов', ''],
+  ['ov-b4', [1263, 385, 602, 312], 'Текущие задания', 'right'],
+  ['ov-b5', [285, 848, 968, 166], 'Предметы, требуемые в рейде', ''],
+]
 sceneEl('s-overview', `
-  <div class="layer" id="ov-move"><img class="shot" src="${SH('dashboard.png')}" alt=""></div>
+  <div class="layer" id="ov-move"><img class="shot" src="${OWN('overview.webp')}" style="height:1054px" alt="">
+    ${OV_BOXES.map(([id, [x, y, w, h], tag, cls]) => `<div class="hl ${cls}" id="${id}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><span class="tag">${tag}</span></div>`).join('')}
+  </div>
+  <div class="top-shade"></div>
+  <div class="caption top"><div class="eyebrow"><b>01</b>Обзор</div><h2>Квесты синхронизируются сами</h2><div class="bar"></div></div>`)
+
+// 2. «Продать или оставить?»: a 6x6 stash with the owner's items; the sneaker shows its «Каппа» card, the GPU its MATE card
+const CELL = 104
+const STASH_ITEMS = [
+  ['lega', 0, 0, 1, 1], ['ledx', 2, 0, 1, 1], ['cpu', 5, 0, 1, 1],
+  ['gpu', 1, 1, 2, 1], ['strike', 4, 1, 1, 1],
+  ['sneaker', 2, 2, 2, 1],
+  ['chain', 0, 3, 1, 1], ['greenbat', 5, 3, 1, 1],
+  ['fleece', 3, 4, 2, 1],
+]
+sceneEl('s-item', `
+  ${gameBackdrop('Оверлей поверх игры · пример')}
+  <div class="eft-stash" id="stash" style="left:180px;top:150px;width:${6 * CELL + 22}px">
+    <div class="head"><i></i>Схрон</div>
+    <div class="eft-grid" style="width:${6 * CELL + 1}px;height:${6 * CELL + 1}px;background-size:${CELL}px ${CELL}px">
+      ${STASH_ITEMS.map(([n, x, y, w, h]) => `<div class="eft-item" id="it-${n}" style="left:${x * CELL + 1}px;top:${y * CELL + 1}px;width:${w * CELL - 1}px;height:${h * CELL - 1}px"><img src="${SH(`icon-${n}.png`)}" alt=""><div class="glow"></div></div>`).join('')}
+    </div>
+  </div>
+  <div class="card bare" id="card-sneaker" style="left:930px;top:140px;width:760px"><img src="${SH('overlay-sneaker.png')}" width="760" alt=""></div>
+  <div class="card bare" id="card-gpu" style="left:1000px;top:470px;width:700px"><img src="${SH('overlay-gpu.png')}" width="700" alt=""></div>
+  <div class="shade" style="background:linear-gradient(180deg, rgb(5 8 6 / 0%) 62%, rgb(5 8 6 / 80%) 82%, rgb(5 8 6 / 96%) 100%)"></div>
+  ${captionHtml('02', 'Цена в рейде', 'Продать или оставить?', [['Цена на барахолке и лучший торговец', 'hot'], 'Пометка «Каппа» и MATE'])}`)
+
+// 3. PvP / PvE / Season: the overview of each mode, the switch moving between them ---------------------------
+sceneEl('s-modes', `
+  <div class="layer" id="md-move">
+    <img class="shot" id="md-pvp" src="${SH('mode-pvp.png')}" alt="">
+    <img class="shot" id="md-pve" src="${SH('mode-pve.png')}" alt="" style="opacity:0">
+    <img class="shot" id="md-season" src="${SH('mode-season.png')}" alt="" style="opacity:0">
+  </div>
   <div class="shade"></div>
-  ${captionHtml('01', 'Обзор', 'Квесты подтягиваются сами', [['План на выбранную карту', 'hot'], 'Текущие задания карты', 'Требования рейда'])}`)
+  <div class="mode-switch-big" id="md-switch" style="left:1250px;top:176px"><div class="knob" id="md-knob"></div><span id="md-l0" class="on">PvP</span><span id="md-l1">PvE</span><span id="md-l2">Сезон</span></div>
+  <div class="base-chip" id="md-chip" style="left:1250px;top:294px">Своя база: <b>прогресс, задания, цены</b></div>
+  ${captionHtml('03', 'Режимы', 'PvP, PvE и Сезон — у каждого своя база', [['Свой прогресс', 'hot'], 'Свои задания', 'Свои цены на барахолке'])}`)
 
-// 2. Item price in the raid: the «Каппа» tag and the MATE tag ----------------------------------------
-{
-  const cells = [[0,0,2,1],[2,0,1,1],[3,0,2,2],[5,0,1,1],[6,0,2,1],[8,0,2,2],[0,1,1,2],[1,1,2,2],[5,1,1,1],[6,1,2,2],
-    [3,2,1,1],[4,2,1,2],[5,2,1,1],[8,2,2,1],[0,3,2,2],[2,3,1,1],[5,3,3,2],[8,3,1,1],[9,3,1,2],[2,4,2,1],
-    [0,5,1,1],[1,5,3,2],[4,5,1,1],[5,5,2,1],[7,5,1,2],[8,5,2,2],[4,6,2,1],[0,6,1,2],[1,7,2,1],[5,7,2,1],[3,7,1,1]]
-  const cellHtml = cells.map(([x, y, w, h], i) => `<div class="cell${i === 16 ? ' hot' : ''}" style="left:${x * 70 + 1}px;top:${y * 70 + 1}px;width:${w * 70 - 2}px;height:${h * 70 - 2}px"></div>`).join('')
-  sceneEl('s-item', `
-    ${gameBackdrop('Оверлей поверх игры · пример')}
-    <div class="stash" id="stash"><div class="head">СХРОН</div>${cellHtml}</div>
-    <div class="lead" id="lead1" style="left:690px;top:430px;width:250px;transform:rotate(-38deg)"></div>
-    <div class="card bare" id="item-kappa" style="left:900px;top:120px;width:700px"><img src="${SH('overlay-item-kappa.png')}" width="700" alt=""></div>
-    <div class="card bare" id="item-mate" style="left:1180px;top:440px;width:460px"><img src="${SH('overlay-item-mate.png')}" width="460" alt=""></div>
-    <div class="shade"></div>
-    ${captionHtml('02', 'Цена в рейде', 'Продать или оставить?', [['Барахолка и лучший торговец', 'hot'], 'Пометка «Каппа»', 'Метка MATE'])}`)
-}
-
-// 3. Story quests -------------------------------------------------------------------------------------
-const wChapter = win('s-story', 120, 150, 900, 250, 'story.png', [748, 372, 930], [748, 372, 900])
-const wStages = win('s-story', 1100, 70, 700, 680, 'story.png', [1550, 592, 670], [1550, 650, 650])
-sceneEl('s-story', `
-  <div class="bg-grid"></div>
-  ${wChapter.html}${wStages.html}
-  <div class="label" id="lb-chapter" style="left:120px;top:96px">Глава и этап — сами</div>
-  <div class="label green" id="lb-stages" style="left:1100px;top:20px;display:none">Этапы главы</div>
-  ${captionHtml('03', 'Сюжетные квесты', 'Каждый этап — на своём месте', [['Автоматическая синхронизация', 'hot'], 'Главы по этапам', 'Показать на карте'])}`)
-
-// 4. Collector (Kappa) ------------------------------------------------------------------------------------
-const wKappa = win('s-collector', 120, 96, 1680, 330, 'kappa.png', [1075, 222, 1660], [1080, 226, 1610])
-const wCapa = win('s-collector', 120, 500, 620, 220, 'dashboard.png', [1277, 250, 404], [1277, 250, 392])
+// 4. Collector: the owner's Collector page (scan sweep, the counter and the Viibiin cell marked) and its «Каппа» card --------
+// Window 1680x620 showing owner/collector.webp from x 270, y 95 at scale 1680/1610: a point (X, Y) of the screenshot is at
+// ((X - 270) * 1.0435, (Y - 95) * 1.0435) in the window.
+const COLL = { x: 120, y: 46, w: 1680, h: 620, s: 1680 / 1610, ox: 270, oy: 95 }
+const collBox = (x, y, w, h) => `left:${((x - COLL.ox) * COLL.s).toFixed(1)}px;top:${((y - COLL.oy) * COLL.s).toFixed(1)}px;width:${(w * COLL.s).toFixed(1)}px;height:${(h * COLL.s).toFixed(1)}px`
 sceneEl('s-collector', `
   <div class="bg-grid"></div>
-  ${wKappa.html}${wCapa.html}
-  <div class="card bare" id="col-item" style="left:1020px;top:470px;width:620px"><img src="${SH('overlay-item-kappa.png')}" width="620" alt=""></div>
-  <div class="label green" id="lb-kappa" style="left:120px;top:42px">Предметы для «Коллекционера»</div>
-  <div class="label" id="lb-capa" style="left:120px;top:446px">Прогресс Каппы</div>
-  <div class="label" id="lb-item" style="left:1020px;top:416px">Пометка в рейде</div>
-  ${captionHtml('04', 'Путь к Каппе', '«Коллекционер» собирается сам', [['Сканирование схрона', 'hot'], 'Счётчик предметов', 'Общий для ПК и телефона'])}`)
+  <div class="win" id="coll-win" style="left:${COLL.x}px;top:${COLL.y}px;width:${COLL.w}px;height:${COLL.h}px">
+    <img src="${OWN('collector.webp')}" style="width:1915px;height:1049px;transform:translate(${-COLL.ox * COLL.s}px, ${-COLL.oy * COLL.s}px) scale(${COLL.s})" alt="">
+    <div class="scan" id="coll-scan" style="top:${(240 - COLL.oy) * COLL.s}px;bottom:0"></div>
+    <div class="hl" id="coll-count" style="${collBox(278, 206, 214, 40)}"><span class="tag">Синхронизация из схрона</span></div>
+    <div class="hl right" id="coll-viibiin" style="${collBox(1384, 361, 114, 104)}"><span class="tag">Каппа</span></div>
+  </div>
+  <div class="card bare" id="coll-card" style="left:1180px;top:470px;width:620px"><img src="${SH('overlay-sneaker.png')}" width="620" alt=""></div>
+  ${captionHtml('04', 'Путь к Каппе', '«Коллекционер» собирается сам', [['Синхронизация из схрона', 'hot'], 'Что уже собрано', 'Цена и пометка «Каппа»'])}`)
 
-// 5. Modes ---------------------------------------------------------------------------------------------
-const wModes = ['pvp', 'pve', 'season'].map((m, i) => win('s-modes', 300, 56 + i * 240, 1500, 226, `mode-${m}.png`, [835, 135, 1670], [835, 135, 1580], [1670, 270]))
-sceneEl('s-modes', `
+// 5. Squad: members, «Квесты по картам» (the board zooms into the first maps), who shares which quest -----------------
+const wMembers = win('s-squad', 120, 46, 1680, 300, 'squad.png', [1080, 422, 1600], [1080, 423, 1588], [1920, 1080])
+const wBoard = win('s-squad', 120, 376, 1680, 420, 'squad-board-panel.png', [790, 164, 1600], [560, 192, 1120], [1580, 329])
+sceneEl('s-squad', `
   <div class="bg-grid"></div>
-  ${wModes.map((w) => w.html).join('')}
-  <div class="label" id="md-0" style="left:120px;top:152px;font-size:26px">PvP</div>
-  <div class="label" id="md-1" style="left:120px;top:392px;font-size:26px">PvE</div>
-  <div class="label" id="md-2" style="left:120px;top:632px;font-size:26px">Сезон</div>
-  ${captionHtml('05', 'Данные', 'PvP, PvE и Сезон — отдельно', [['Свой прогресс в каждом режиме', 'hot'], 'Свои задания и предметы'])}`)
+  ${wMembers.html}${wBoard.html}
+  ${captionHtml('05', 'Отряд', 'Кто что делает на каждой карте', [['Состав отряда', 'hot'], 'Квесты каждого по картам', 'Общие квесты — у кого'])}`)
 
-// 6. Bosses ---------------------------------------------------------------------------------------------
-const BOSSES = [['reshala', 'Решала'], ['killa', 'Килла'], ['tagilla', 'Тагилла'], ['glukhar', 'Глухарь'], ['shturman', 'Штурман'], ['sanitar', 'Санитар'], ['kaban', 'Кабан'], ['zryachiy', 'Зрячий']]
+// 6. Bosses: quick cuts through several bosses, then one 3D model turning and the health card lighting body parts ----
+const BOSS_STILLS = ['Решала', 'Килла', 'Глухарь', 'Кабан']
+const BOSS3D = 'Тагилла'
+const BOSS_FRAMES = 120 // a full turn, 3° a frame
+const HP_PARTS = [0, 1, 5] // head, thorax, left leg (BodyParts order)
 sceneEl('s-boss', `
   <div class="bg-grid"></div>
-  <div class="win" id="boss-win" style="left:120px;top:60px;width:910px;height:700px"><img id="boss-img" src="${SH('boss.png')}" style="width:910px;height:auto" alt=""></div>
-  <div class="label" style="left:1100px;top:80px;border:0;background:none;box-shadow:none;padding:0;font-size:22px">Основные боссы</div>
-  <div class="busts" id="busts" style="left:1100px;top:130px">${BOSSES.map(([k, n]) => `<div class="bust"><div><img src="${SH(`bust-${k}.webp`)}" alt=""></div><span>${n}</span></div>`).join('')}</div>
-  ${captionHtml('06', 'Боссы', 'Информация по основным боссам', [['Здоровье по частям тела', 'hot'], 'Где встречаются', 'Вооружение'])}`)
+  <div class="boss-stage" id="boss-stage" style="left:120px;top:40px;width:860px;height:760px">
+    ${BOSS_STILLS.map((_, si) => `<img id="bs-${si}" src="${SH(`bossstill-${si}.png`)}" alt="">`).join('')}
+    ${Array.from({ length: BOSS_FRAMES }, (_, f) => `<img id="bf-${f}" src="${SH(`boss3d-0-${String(f).padStart(2, '0')}.png`)}" alt="">`).join('')}
+  </div>
+  ${[...BOSS_STILLS, BOSS3D].map((name, i) => `<div class="boss-name" id="bn-${i}" style="left:150px;top:60px;opacity:0">${name}${i === BOSS_STILLS.length ? '<span class="badge-3d">3D</span>' : ''}</div>`).join('')}
+  <div class="hp-card" id="hp-card" style="left:1080px;top:56px;width:700px;height:879px">
+    <img class="base" src="${SH('bosshp-0-idle.png')}" alt="">${HP_PARTS.map((p) => `<img id="hp-${p}" src="${SH(`bosshp-0-${p}.png`)}" alt="">`).join('')}
+  </div>
+  <svg class="cursor" id="hp-cursor" viewBox="0 0 34 44"><path d="M3 2v34l9-8.5 6.2 14 6-2.7-6-13.6H31L3 2Z" fill="#f4f1e8" stroke="#141a16" stroke-width="2.6" stroke-linejoin="round"/></svg>
+  ${captionHtml('06', 'Боссы', 'Боссы в 3D и их здоровье', [['3D-модели', 'hot'], 'HP по частям тела', 'Вооружение и лут'])}`)
 
-// 7. Ballistics: the penetration/damage chart and the armor table (ballistics-site.png is 1050x1075 CSS px at 2x)
-const wChart = win('s-ballistics', 120, 64, 1040, 660, 'ballistics-site.png', [525, 322, 1050], [690, 360, 820], [1050, 1075])
-const wArmor = win('s-ballistics', 1240, 150, 560, 470, 'ballistics-site.png', [290, 857, 548], [290, 860, 520], [1050, 1075])
-sceneEl('s-ballistics', `
+// 7. Ammo and the flea market: the penetration chart, the chance per armor class of the selected round, the GPU's prices --
+const wBall = win('s-ammo', 120, 70, 1040, 600, 'ballistics.png', [1055, 632, 1540], [1045, 640, 1520])
+// «Против брони · BP» panel (982x425 at 1x): class, chance bar, shots on average
+const wArmor = win('s-ammo', 1220, 70, 580, 386, 'ballistics-armor.png', [280, 186, 560], [280, 186, 550], [982, 425])
+// the flea card's price table (340x955 at 1x): flea (best) and the best trader for the mode
+const wFlea = win('s-ammo', 1220, 518, 580, 290, 'flea-card.png', [170, 500, 340], [170, 500, 334], [340, 955])
+sceneEl('s-ammo', `
   <div class="bg-grid"></div>
-  ${wChart.html}${wArmor.html}
-  <div class="label" id="lb-chart" style="left:120px;top:14px;display:none">Пробитие и урон</div>
-  <div class="label green" id="lb-armor" style="left:1240px;top:96px">Против брони · 7.62×39 BP</div>
-  ${captionHtml('07', 'Баллистика', 'Какой патрон пробьёт броню', [['Пробитие и урон', 'hot'], 'Шанс пробития 1–6 класса', 'Выстрелов до пробития'])}`)
+  ${wBall.html}${wArmor.html}${wFlea.html}
+  <div class="label" id="lb-ball" style="left:120px;top:16px">Баллистика · все патроны</div>
+  <div class="label" id="lb-armor" style="left:1220px;top:16px">7.62×39 BP · пробитие 47</div>
+  <div class="label green" id="lb-flea" style="left:1220px;top:470px">Барахолка · Видеокарта</div>
+  ${captionHtml('07', 'Патроны и барахолка', 'Какой патрон пробьёт броню', [['Пробитие и урон', 'hot'], 'Шанс пробить броню 1–6 класса', 'Цены барахолки по режиму'])}`)
 
-// 8. Phone -----------------------------------------------------------------------------------------------
+// 8. Minimap over the game: the player's point and the quest points nearby ------------------------------------------
+sceneEl('s-minimap', `
+  ${gameBackdrop('Оверлей поверх игры · пример')}
+  <div class="compass"><div class="compass-strip" id="compass-strip">${compass}</div></div>
+  <div class="ov-frame" id="mm-card" style="right:120px;top:46px"><img src="${SH('overlay-minimap.png')}" width="660" alt=""><div class="ping" id="mm-ping" style="left:53.4%;top:56.9%"></div></div>
+  <div class="shade"></div>
+  ${captionHtml('08', 'Мини-карта', 'Мини-карта поверх игры', [['Ваша позиция на карте', 'hot'], 'Квестовые точки рядом', 'Не нужно сворачивать игру'])}`)
+
+// 9. Auto-update -----------------------------------------------------------------------------------------------
+sceneEl('s-update', `
+  <div class="layer" id="up-move"><img class="shot" src="${SH('update.png')}" alt=""></div>
+  <div class="shade"></div>
+  ${captionHtml('09', 'Обновления', 'Автообновление — всегда свежая версия', [['Обновляется само', 'hot'], 'Настройки и прогресс сохраняются'])}`)
+
+// 10. Phone: iOS and Android soon, sign-in by QR ---------------------------------------------------------------------
 sceneEl('s-phone', `
   <div class="bg-grid"></div>
-  <div class="phone" id="ph1" style="left:1020px;top:60px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone.png')}" alt=""></div></div>
-  <div class="phone" id="ph2" style="left:1450px;top:130px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone-quests.png')}" alt=""></div></div>
-  <div class="platform" id="pf1" style="left:120px;top:150px"><b>iOS</b><span>скоро</span></div>
-  <div class="platform" id="pf2" style="left:520px;top:150px"><b>Android</b><span>скоро</span></div>
-  <div class="soon" id="soon" style="left:1260px;top:30px;transform:rotate(5deg)">скоро</div>
-  ${captionHtml('08', 'Телефон', 'Приложения для iOS и Android', [['Скоро', 'hot'], 'Те же задания и карты', 'Вход по QR'])}`)
+  <div class="phone" id="ph1" style="left:1060px;top:60px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone.png')}" alt=""></div></div>
+  <div class="phone" id="ph2" style="left:1470px;top:130px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone-quests.png')}" alt=""></div></div>
+  <div class="platform" id="pf1" style="left:120px;top:110px"><b>iOS</b><span>скоро</span></div>
+  <div class="platform" id="pf2" style="left:520px;top:110px"><b>Android</b><span>скоро</span></div>
+  <div class="qr" id="ph-qr" style="left:120px;top:380px"><img src="${SH('qr.svg')}" alt=""><div><strong>Вход по QR</strong><span>Отсканируйте код — тот же аккаунт на телефоне</span></div></div>
+  <div class="soon" id="soon" style="left:1300px;top:30px;transform:rotate(5deg)">скоро</div>
+  ${captionHtml('10', 'Телефон', 'Приложение на iOS и Android — скоро', [['Вход по QR', 'hot'], 'Те же задания и карты'])}`)
 
-// 9. Sync -------------------------------------------------------------------------------------------------
+// 11. Sync: PC, website, phone — one base -------------------------------------------------------------------------
 const SYNC_ICON = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/></svg>'
 sceneEl('s-sync', `
   <div class="bg-grid"></div>
-  <div class="monitor" id="d-pc" style="left:90px;top:96px;width:700px;height:420px"><div class="screen" style="width:680px;height:400px"><img src="${SH('dashboard.png')}" style="width:1920px;height:1080px;transform:scale(.354)" alt=""></div></div>
+  <div class="monitor" id="d-pc" style="left:90px;top:96px;width:700px;height:420px"><div class="screen" style="width:680px;height:400px"><img src="${OWN('overview.webp')}" style="width:1920px;height:1054px;transform:scale(.354)" alt=""></div></div>
   <div class="stand" style="left:350px;top:516px;width:180px"></div>
   <div class="browser" id="d-web" style="left:860px;top:130px;width:640px;height:380px"><div class="bar"><b></b><b></b><b></b><div class="url">raidos.app</div></div><div class="screen" style="width:638px;height:335px"><img src="${SH('site.png')}" style="width:638px;height:auto;top:0" alt=""></div></div>
-  <div class="phone" id="d-ph" style="left:1590px;top:96px;width:230px;height:480px;padding:8px;border-radius:38px"><div class="screen" style="width:212px;height:462px;border-radius:30px"><img src="${SH('phone.png')}" alt=""></div></div>
+  <div class="phone" id="d-ph" style="left:1590px;top:70px;width:250px;height:520px;padding:8px;border-radius:40px"><div class="screen" style="width:232px;height:502px;border-radius:32px"><img src="${SH('phone-live.png')}" alt=""></div></div>
   <div class="sync-node" id="n1" style="left:800px;top:290px">${SYNC_ICON}</div>
   <div class="sync-node" id="n2" style="left:1520px;top:290px">${SYNC_ICON}</div>
   <div class="label" id="sy-pc" style="left:90px;top:550px">ПК</div>
   <div class="label" id="sy-web" style="left:860px;top:550px">Сайт</div>
-  <div class="label" id="sy-ph" style="left:1590px;top:600px">Телефон</div>
-  <div class="qr" id="qr" style="right:120px;top:690px"><img src="${SH('qr.svg')}" alt=""><div><strong>Вход по QR</strong><span>Отсканируйте код — тот же аккаунт на телефоне</span></div></div>
-  ${captionHtml('09', 'Синхронизация', 'ПК · сайт · телефон', [['Один аккаунт', 'hot'], 'Прогресс общий', 'Вход по QR'])}`)
+  <div class="label green" id="sy-ph" style="right:70px;top:610px">Телефон · местоположение</div>
+  ${captionHtml('11', 'Синхронизация', 'ПК · сайт · телефон — одна база', [['Полная синхронизация', 'hot'], 'Моментальное местоположение на телефоне', 'Вся информация везде'])}`)
 
-// 10. Squad ------------------------------------------------------------------------------------------------
-sceneEl('s-squad', `
-  <div class="layer" id="sq-move"><img class="shot" src="${SH('squad.png')}" alt=""><img class="shot" id="sq-plan" src="${SH('squad-plan.png')}" alt="" style="opacity:0"></div>
-  <div class="shade"></div>
-  <div class="card bare" id="mate-card" style="right:70px;top:40px;width:520px"><img src="${SH('overlay-item-mate.png')}" width="520" alt=""></div>
-  ${captionHtml('10', 'Отряд', 'Совместные квесты', [['Общие задания отряда', 'hot'], 'Приоритет карт', 'Метка MATE'])}`)
+// 12. Fair play ---------------------------------------------------------------------------------------------------
+sceneEl('s-fair', `
+  <div class="title-scene" style="position:absolute;inset:0"><div class="title-lines"></div><div class="title-glow"></div></div>
+  <div class="fair"><div class="fair-block">
+    <svg class="shield" id="fair-shield" viewBox="0 0 64 64" fill="none"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3dc9c"/><stop offset="1" stop-color="#a8853f"/></linearGradient></defs>
+      <path d="M32 4 8 13v17c0 15 10.5 25.5 24 30 13.5-4.5 24-15 24-30V13L32 4Z" fill="rgb(196 166 101 / 12%)" stroke="url(#sg)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="m21 32 8 8 15-16" stroke="url(#sg)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h2 id="fair-title">Честная игра</h2>
+    <p id="fair-lead">Raid OS не нарушает правила игры:</p>
+    <ul id="fair-list">
+      <li>${CHECK}не внедряется в Escape from Tarkov</li>
+      <li>${CHECK}не читает её память</li>
+      <li>${CHECK}не автоматизирует действия</li>
+      <li>${CHECK}не обходит защиту</li>
+    </ul>
+  </div></div>`)
 
-// 11. Outro ------------------------------------------------------------------------------------------------
+// 13. Outro ------------------------------------------------------------------------------------------------
 sceneEl('s-outro', `
   <div class="title-scene" style="position:absolute;inset:0">
   <div class="title-bg" style="background-image:url(${SH('squad.png')})"></div>
@@ -364,7 +489,6 @@ sceneEl('s-outro', `
     </div>
     <div class="tagline" id="outro-tag" style="margin-top:36px">Полевой компаньон<span>·</span>Escape from Tarkov</div>
     <div class="site" id="outro-site">raidos.app</div>
-    <div class="fine" id="outro-fine">Не вмешивается в игру</div>
   </div></div>`)
 
 stage.insertAdjacentHTML('beforeend', '<div id="letter"></div><div id="grain"></div><div id="progress"></div><div id="fade"></div>')
@@ -379,6 +503,22 @@ function kenBurns(el, from, to, a, b) { anim(el, [{ transform: cam(from) }, { tr
 function regionBurns(w, a, b) { anim(w.img, [{ transform: region(w.w, w.h, w.from) }, { transform: region(w.w, w.h, w.to) }], a, b - a, SMOOTH) }
 const rise = (el, a, d = 0.55, dy = 26) => anim(el, [{ opacity: 0, transform: `translateY(${dy}px)` }, { opacity: 1, transform: 'none' }], a, d)
 const pop = (el, a, d = 0.55) => anim(el, [{ opacity: 0, transform: 'scale(.92) translateY(14px)' }, { opacity: 1, transform: 'none' }], a, d, POP)
+const fadeIn = (el, a, d = 0.4) => anim(el, [{ opacity: 0 }, { opacity: 1 }], a, d, 'ease-in-out')
+const fadeOut = (el, a, d = 0.4) => anim(el, [{ opacity: 1 }, { opacity: 0 }], a, d, 'ease-in-out')
+/**
+ * One property through several values at given times, as ONE animation: separate fill:both animations of the same
+ * property override each other (the one created later shows its start value even before it begins).
+ * steps: [[seconds, value, easing of the move that starts there?], ...]
+ */
+function keyframesAt(el, prop, steps, easing = SMOOTH) {
+  const t0 = steps[0][0], t1 = steps[steps.length - 1][0]
+  return anim(el, steps.map(([t, value, ease]) => ({ [prop]: value, offset: (t - t0) / (t1 - t0), easing: ease ?? easing })), t0, t1 - t0, 'linear')
+}
+/** Shown only between a and b (no fill outside): one frame of a frame sequence. */
+function show(el, a, b) {
+  if (typeof el === 'string') el = $(el)
+  return el.animate([{ opacity: 1 }, { opacity: 1 }], { delay: ms(a), duration: Math.max(1, ms(b) - ms(a)), fill: 'none' })
+}
 function caption(sid, a, b) {
   const root = $(`#${sid} .caption`)
   anim(root.querySelector('.eyebrow'), [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], a + 0.15, 0.5)
@@ -387,23 +527,33 @@ function caption(sid, a, b) {
   root.querySelectorAll('.pill').forEach((p, i) => anim(p, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 0.75 + i * 0.22, 0.45, POP))
   anim(root, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-10px)' }], b - 0.2, 0.3, 'ease-in')
 }
+/** A highlight box that goes away again at `out` (one animation for the box, see keyframesAt). */
+function markFor(sel, a, out) {
+  const d = out + 0.35 - a
+  anim(sel, [{ opacity: 0, transform: 'scale(1.04)', easing: EASE }, { opacity: 1, transform: 'none', offset: 0.45 / d }, { opacity: 1, transform: 'none', offset: (out - a) / d, easing: 'ease-in' }, { opacity: 0, transform: 'none' }], a, d, 'linear')
+  anim(`${sel} .tag`, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.4, POP)
+}
+/** A highlight box: drawn in (scale + fade), its tag slides in a moment later. */
+function mark(sel, a) {
+  anim(sel, [{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'none' }], a, 0.45, EASE)
+  anim(`${sel} .tag`, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.4, POP)
+}
 
 const T = {
-  intro: [0, 3.2], overview: [2.9, 8.7], item: [8.3, 14.1], story: [13.7, 19.5], collector: [19.1, 24.9],
-  modes: [24.5, 29.7], boss: [29.3, 34.9], ballistics: [34.5, 40.3], phone: [39.9, 45.3], sync: [44.9, 50.9],
-  squad: [50.5, 56.5], outro: [56.1, 61.2],
+  intro: [0, 2.6], overview: [2.3, 7.9], item: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.5], squad: [21.1, 26.1],
+  boss: [25.7, 32.3], ammo: [31.9, 37.1], minimap: [36.7, 41.1], update: [40.7, 44.3], phone: [43.9, 47.9], sync: [47.5, 51.9],
+  fair: [51.5, 56.5], outro: [56.1, 60.2],
 }
-const DURATION = 61.2
-const ids = { intro: 's-intro', overview: 's-overview', item: 's-item', story: 's-story', collector: 's-collector', modes: 's-modes', boss: 's-boss', ballistics: 's-ballistics', phone: 's-phone', sync: 's-sync', squad: 's-squad', outro: 's-outro' }
+const DURATION = 60.2
+const ids = Object.fromEntries(Object.keys(T).map((k) => [k, `s-${k}`]))
 for (const [k, [a, b]] of Object.entries(T)) scene(ids[k], a, k === 'outro' ? DURATION + 0.6 : b)
 
-anim('#fade', [{ opacity: 1 }, { opacity: 0 }], 0, 0.6, 'ease-out')
-anim('#fade', [{ opacity: 0 }, { opacity: 1 }], DURATION - 0.7, 0.7, 'ease-in')
+keyframesAt('#fade', 'opacity', [[0, 1, 'ease-out'], [0.6, 0], [DURATION - 0.7, 0, 'ease-in'], [DURATION, 1]])
 anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, DURATION, 'linear')
 
 // 0. Intro
 {
-  const [a, b] = T.intro
+  const [, b] = T.intro
   anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, b, SMOOTH)
   anim('#s-intro .title-lines', [{ transform: 'translateY(0)' }, { transform: 'translateY(48px)' }], 0, b, 'linear')
   anim('#intro-badge', [{ opacity: 0, transform: 'scale(.6) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], 0.15, 0.7, 'cubic-bezier(.2,1.4,.4,1)')
@@ -414,93 +564,154 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
   anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 1.05, 0.6)
 }
 
-// 1. Overview — slow push toward the quests + raid requirements column
+// 1. Overview — top to bottom over the owner's screenshot, the blocks marked as they come into view
 {
   const [a, b] = T.overview
-  kenBurns('#ov-move', [960, 540, 1.0], [1060, 550, 1.12], a, b + FADE)
+  kenBurns('#ov-move', [1075, 452, 1.2], [1075, 604, 1.2], a + 0.1, b + FADE)
   caption('s-overview', a, b)
+  markFor('#ov-b1', a + 0.7, a + 3.2)
+  markFor('#ov-b2', a + 1.3, a + 3.3)
+  mark('#ov-b4', a + 2.0)
+  mark('#ov-b3', a + 2.7)
+  mark('#ov-b5', a + 3.7)
 }
-// 2. Item overlay: highlight → card → second card
+// 2. Stash → the sneaker lights up, its «Каппа» card → the GPU lights up, its MATE card
 {
   const [a, b] = T.item
   anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
-  rise('#stash', a + 0.2, 0.5, 20)
-  anim('#lead1', [{ transform: 'rotate(-38deg) scaleX(0)' }, { transform: 'rotate(-38deg) scaleX(1)' }], a + 0.9, 0.5, SMOOTH)
-  anim('#item-kappa', [{ opacity: 0, transform: 'scale(.9)', easing: EASE }, { opacity: 1, transform: 'scale(1)', offset: .25 }, { opacity: 1, transform: 'scale(1.025)' }], a + 1.3, b - a - 0.5 + FADE, 'linear')
-  anim('#item-mate', [{ opacity: 0, transform: 'translateY(30px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .3 }, { opacity: 1, transform: 'scale(1.03)' }], a + 2.7, b - a - 1.9 + FADE, 'linear')
+  rise('#stash', a + 0.2, 0.55, 20)
+  anim('#it-sneaker .glow', [{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .6 }, { opacity: 0 }], a + 0.8, 2.6, 'linear')
+  anim('#card-sneaker', [{ opacity: 0, transform: 'translateY(16px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .15 }, { opacity: 1, transform: 'scale(1.02)' }], a + 1.05, b - a - 0.65 + FADE, 'linear')
+  anim('#it-gpu .glow', [{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: 1 }], a + 2.6, b - a - 2.2 + FADE, 'linear')
+  anim('#card-gpu', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.85, b - a - 2.45 + FADE, 'linear')
   caption('s-item', a, b)
 }
-// 3. Story: the chapter card, then the stages column scrolling down a little
+// 3. Modes: PvP → PvE → Season, the switch knob slides and the overview behind it changes
 {
-  const [a, b] = T.story
-  anim('#s-story .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  ;[[wChapter, 0.25], [wStages, 0.5]].forEach(([w, d]) => { pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE) })
-  rise('#lb-chapter', a + 0.6, 0.4, 10)
-  caption('s-story', a, b)
+  const [a, b] = T.modes
+  kenBurns('#md-move', [960, 540, 1.0], [1000, 560, 1.06], a, b + FADE)
+  pop('#md-switch', a + 0.3, 0.6)
+  rise('#md-chip', a + 0.7, 0.5, 14)
+  const step = 190 + 8
+  const t1 = a + 1.3, t2 = a + 2.6
+  const SNAP = 'cubic-bezier(.3,1.3,.5,1)'
+  keyframesAt('#md-knob', 'transform', [[a, 'translateX(0)'], [t1, 'translateX(0)', SNAP], [t1 + 0.45, `translateX(${step}px)`], [t2, `translateX(${step}px)`, SNAP], [t2 + 0.45, `translateX(${step * 2}px)`]])
+  anim('#md-l0', [{ color: '#17130a' }, { color: '#97a49a' }], t1, 0.3)
+  keyframesAt('#md-l1', 'color', [[t1, '#97a49a'], [t1 + 0.3, '#17130a'], [t2, '#17130a'], [t2 + 0.3, '#97a49a']], EASE)
+  anim('#md-l2', [{ color: '#97a49a' }, { color: '#17130a' }], t2, 0.3)
+  fadeIn('#md-pve', t1, 0.45); fadeIn('#md-season', t2, 0.45)
+  caption('s-modes', a, b)
 }
-// 4. Collector: the items window, the Kappa progress card and the in-raid card with its «Каппа» tag
+// 4. Collector: the page pops in, a scan sweeps the grid, the counter and the Viibiin cell are marked, its card pops
 {
   const [a, b] = T.collector
   anim('#s-collector .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  ;[[wKappa, 0.25], [wCapa, 0.55]].forEach(([w, d]) => { pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE) })
-  ;[['#lb-kappa', 0.6], ['#lb-capa', 0.9], ['#lb-item', 1.3]].forEach(([sel, d]) => rise(sel, a + d, 0.4, 10))
-  anim('#col-item', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .25 }, { opacity: 1, transform: 'scale(1.03)' }], a + 1.1, b - a - 0.7 + FADE, 'linear')
+  pop('#coll-win', a + 0.15, 0.6)
+  anim('#coll-win', [{ scale: '1' }, { scale: '1.025' }], a + 0.2, b - a + FADE, SMOOTH)
+  anim('#coll-scan', [{ opacity: 0, transform: 'translateX(-160px)' }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.88 }, { opacity: 0, transform: 'translateX(1700px)' }], a + 0.55, 1.15, 'linear')
+  mark('#coll-count', a + 0.9)
+  mark('#coll-viibiin', a + 1.75)
+  anim('#coll-card', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.05, b - a - 1.65 + FADE, 'linear')
   caption('s-collector', a, b)
 }
-// 5. Modes
+// 5. Squad
 {
-  const [a, b] = T.modes
-  anim('#s-modes .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  wModes.forEach((w, i) => { const d = 0.2 + i * 0.38; pop('#' + w.wid, a + d, 0.6); regionBurns(w, a + d, b + FADE); rise(`#md-${i}`, a + d + 0.2, 0.4, 10) })
-  caption('s-modes', a, b)
+  const [a, b] = T.squad
+  anim('#s-squad .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+  pop('#' + wMembers.wid, a + 0.15, 0.6); regionBurns(wMembers, a + 0.2, b + FADE)
+  pop('#' + wBoard.wid, a + 0.5, 0.6); regionBurns(wBoard, a + 1.5, b + FADE)
+  caption('s-squad', a, b)
 }
-// 6. Bosses
+// 6. Bosses: four quick cuts, then Tagilla turns while the card lights head → thorax → left leg
 {
   const [a, b] = T.boss
-  pop('#boss-win', a + 0.2, 0.6)
-  anim('#boss-img', [{ transform: 'scale(1) translate(0px, 0px)' }, { transform: 'scale(1.3) translate(-219px, -61px)' }], a + 0.4, b - a - 0.4 + FADE, SMOOTH)
-  rise('#s-boss .label', a + 0.5, 0.4, 10)
-  document.querySelectorAll('#busts .bust').forEach((el, i) => pop(el, a + 0.6 + i * 0.12, 0.5))
+  const cut = 0.42
+  BOSS_STILLS.forEach((_, si) => {
+    const s0 = a + 0.25 + si * cut
+    show(`#bs-${si}`, s0, s0 + cut)
+    anim(`#bs-${si}`, [{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], s0, cut, EASE)
+    show(`#bn-${si}`, s0, s0 + cut)
+  })
+  // the turn plays at the video's 30 fps: one model frame per video frame, each sampled in its middle (no doubled or
+  // skipped frames), then the last one (front again after 360°) stays
+  const r0 = (Math.round((a + 0.25 + BOSS_STILLS.length * cut) * 30) + 0.5) / 30
+  const dt = 1 / 30
+  for (let f = 0; f < BOSS_FRAMES; f++) show(`#bf-${f}`, r0 + f * dt, f === BOSS_FRAMES - 1 ? b + FADE + 1 : r0 + (f + 1) * dt)
+  anim(`#bn-${BOSS_STILLS.length}`, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], r0, 0.35)
+  pop('#hp-card', r0 + 0.15, 0.55)
+  const hpStep = (b - r0 - 0.7) / HP_PARTS.length
+  // the pointer's tip on each part's window just before it lights (card at 1080,56, 700x879; WINDOWS of BodyHealthFigure in %)
+  const WIN_AT = [[78, 7], [52, 25], [52, 41], [86, 41], [14, 41], [82, 66], [22, 66]]
+  const tip = (p) => `translate(${1080 + 7 * WIN_AT[p][0] + 40}px, ${56 + 8.79 * WIN_AT[p][1] + 6}px)`
+  const away = 'translate(1860px, 990px)'
+  anim('#hp-cursor', [{ opacity: 0 }, { opacity: 1 }], r0 + 0.25, 0.2, 'linear')
+  const path = [[r0 + 0.25, away]]
+  HP_PARTS.forEach((p, i) => {
+    const on = r0 + 0.7 + i * hpStep
+    path.push([on - 0.42, path[path.length - 1][1]], [on, tip(p)])
+    const lit = [[r0, 0], [on, 0, 'ease-in-out'], [on + 0.25, 1]]
+    if (i < HP_PARTS.length - 1) lit.push([on + hpStep - 0.15, 1, 'ease-in-out'], [on + hpStep + 0.05, 0])
+    keyframesAt(`#hp-${p}`, 'opacity', lit, 'linear')
+  })
+  keyframesAt('#hp-cursor', 'transform', path)
   caption('s-boss', a, b)
 }
-// 7. Ballistics: the chart pushes in toward 7.62×39 BP, the armor table pops in beside it
+// 7. Ammo + flea: the chart, then the armor table of the selected round, then the flea prices
 {
-  const [a, b] = T.ballistics
-  anim('#s-ballistics .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
-  pop('#' + wChart.wid, a + 0.2, 0.6); regionBurns(wChart, a + 0.2, b + FADE)
-  pop('#' + wArmor.wid, a + 1.0, 0.6); regionBurns(wArmor, a + 1.0, b + FADE)
-  rise('#lb-armor', a + 1.2, 0.4, 10)
-  caption('s-ballistics', a, b)
+  const [a, b] = T.ammo
+  anim('#s-ammo .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+  pop('#' + wBall.wid, a + 0.15, 0.6); regionBurns(wBall, a + 0.2, b + FADE)
+  rise('#lb-ball', a + 0.4, 0.4, 10)
+  pop('#' + wArmor.wid, a + 0.9, 0.6); regionBurns(wArmor, a + 0.9, b + FADE)
+  rise('#lb-armor', a + 1.1, 0.4, 10)
+  pop('#' + wFlea.wid, a + 1.9, 0.6); regionBurns(wFlea, a + 1.9, b + FADE)
+  rise('#lb-flea', a + 2.1, 0.4, 10)
+  caption('s-ammo', a, b)
 }
-// 8. Phone
+// 8. Minimap
+{
+  const [a, b] = T.minimap
+  anim('#s-minimap .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.12) translateX(30px)' }], a, b - a + FADE, 'linear')
+  anim('#compass-strip', [{ transform: 'translateX(-200px)' }, { transform: 'translateX(-520px)' }], a, b - a + FADE, SMOOTH)
+  anim('#mm-card', [{ opacity: 0, transform: 'translateY(24px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.03)' }], a + 0.4, b - a + FADE - 0.4, 'linear')
+  // the player's point pulses (three rings)
+  $('#mm-ping').animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.6)' }], { delay: ms(a + 1.1), duration: 1000, iterations: 3, fill: 'both', easing: 'ease-out' })
+  caption('s-minimap', a, b)
+}
+// 9. Update
+{
+  const [a, b] = T.update
+  kenBurns('#up-move', [960, 556, 1.28], [960, 550, 1.5], a, b + FADE)
+  caption('s-update', a, b)
+}
+// 10. Phone
 {
   const [a, b] = T.phone
-  pop('#ph1', a + 0.2, 0.7); pop('#ph2', a + 0.45, 0.7); pop('#soon', a + 1.2, 0.5); pop('#pf1', a + 0.5, 0.6); pop('#pf2', a + 0.7, 0.6)
+  pop('#ph1', a + 0.2, 0.7); pop('#ph2', a + 0.45, 0.7); pop('#soon', a + 1.2, 0.5); pop('#pf1', a + 0.5, 0.6); pop('#pf2', a + 0.7, 0.6); pop('#ph-qr', a + 1.4, 0.6)
   anim('#ph1', [{ translate: '0 0' }, { translate: '0 -14px' }], a + 0.9, b - a, SMOOTH)
   anim('#ph2', [{ translate: '0 0' }, { translate: '0 -10px' }], a + 1.1, b - a, SMOOTH)
   caption('s-phone', a, b)
 }
-// 9. Sync
+// 11. Sync
 {
   const [a, b] = T.sync
   pop('#d-pc', a + 0.2, 0.6); pop('#d-web', a + 0.45, 0.6); pop('#d-ph', a + 0.7, 0.6)
   ;['#sy-pc', '#sy-web', '#sy-ph'].forEach((s, i) => rise(s, a + 0.6 + i * 0.25, 0.4, 8))
   anim('#n1', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.1, 0.5, POP)
   anim('#n2', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.3, 0.5, POP)
-  anim('#n1', [{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], a + 1.6, b - a, 'linear')
-  anim('#n2', [{ transform: 'rotate(0)' }, { transform: 'rotate(-360deg)' }], a + 1.8, b - a, 'linear')
-  pop('#qr', a + 2.2, 0.6)
+  anim('#n1', [{ rotate: '0deg' }, { rotate: '360deg' }], a + 1.6, b - a, 'linear')
+  anim('#n2', [{ rotate: '0deg' }, { rotate: '-360deg' }], a + 1.8, b - a, 'linear')
   caption('s-sync', a, b)
 }
-// 10. Squad: members + shared quests, then the raid plan with map priority
+// 12. Fair play
 {
-  const [a, b] = T.squad
-  kenBurns('#sq-move', [960, 540, 1.0], [980, 600, 1.12], a, b + FADE)
-  anim('#sq-plan', [{ opacity: 0 }, { opacity: 1 }], a + 2.7, 0.5, 'ease-in-out')
-  anim('#mate-card', [{ opacity: 0, transform: 'translateY(20px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, offset: .86 }, { opacity: 0 }], a + 0.9, 2.1, 'linear')
-  caption('s-squad', a, b)
+  const [a] = T.fair
+  anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.6, 'cubic-bezier(.2,1.4,.4,1)')
+  anim('#fair-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.55, 0.6)
+  anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.0, 0.5)
+  document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 1.2 + i * 0.28, 0.45, POP))
 }
-// 11. Outro
+// 13. Outro
 {
   const [a] = T.outro
   anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, 5.8, 'linear')
@@ -511,7 +722,6 @@ anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, D
     { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], a + 1.6, 1.0, 'ease-in-out')
   anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.2, 0.5)
   anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.5, 0.5)
-  anim('#outro-fine', [{ opacity: 0 }, { opacity: 1 }], a + 1.9, 0.5)
 }
 
 const all = () => document.getAnimations()

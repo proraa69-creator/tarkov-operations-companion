@@ -1,15 +1,15 @@
 # Trailer generator
 
-The cinematic promo video for the website home page (`website/public/media/`), about 61 s, rendered at 1920x1080,
-shipped as 720p. No mouse movement, no cursor, no scrolling walkthrough: clean 2x screenshots of the app with captions,
-slow Ken Burns moves, floating cards and cross-fades. The ten feature scenes follow the website's «Десять причин» list
-in the same order and with the same numbers.
+The cinematic promo video for the website home page (`website/public/media/`), about 60 s, rendered at 1920x1080,
+shipped as 720p. Clean 2x screenshots of the app (and the owner's own screenshots) with captions, slow camera moves,
+floating cards and cross-fades; the only pointer is the one hovering the boss health card. v3 follows the owner's
+storyboard of 10.10.2026 (about a minute, «Тарков» colours).
 
 Outputs:
 
 | File | What |
 | --- | --- |
-| `trailer.mp4` | H.264 high, 1280x720, 30 fps, yuv420p, faststart, about 3 MB (shipped inside the server exe: keep it small) |
+| `trailer.mp4` | H.264 high, 1280x720, 30 fps, yuv420p, faststart, about 4–5 MB (shipped inside the server exe: keep it small) |
 | `trailer-poster.jpg` | 1280x720 title card, used as the `<video poster>` |
 | `scripts/trailer/trailer.webm` | only with `render.mjs --webm`: 1080p VP8, not shipped |
 
@@ -17,26 +17,34 @@ Outputs:
 
 | # | Scene | Content |
 | --- | --- | --- |
-| 0 | Title | Raid OS badge, title, «Задания · Карты · Цены · Отряд» |
-| 01 | Обзор | Quests of the selected map, the plan for the raid, raid requirements |
-| 02 | Цена в рейде | Item price in the raid with the «Каппа» tag, MATE tag |
-| 03 | Сюжетные квесты | Story chapter and its stages, automatic sync |
-| 04 | Путь к Каппе | Items for the Collector (scan the stash), Kappa progress, the in-raid «Каппа» card |
-| 05 | Данные | PvP, PvE and Season, separate progress |
-| 06 | Боссы | Boss card with HP per body part, boss busts |
-| 07 | Баллистика | Penetration/damage chart, 7.62×39 BP against armor classes 1–6 |
-| 08 | Телефон | Phone layout at 390 px in a phone frame, marked «скоро» (not in the stores yet) |
-| 09 | Синхронизация | PC, website, phone: one account, sign-in by QR |
-| 10 | Отряд | Squad, shared quests, map priority, MATE tag |
-| 11 | Финал | Raid OS, «Скачать для Windows», tagline, raidos.app |
+| 0 | Title | Raid OS badge, «Полевой компаньон», «Задания · Карты · Цены · Отряд» |
+| 01 | Обзор | «Квесты синхронизируются сами» over the owner's overview screenshot panned top → bottom; marked blocks: «Приоритет карт», «Отслеживание Кочевников», «Текущие задания», «Карта со всеми точками квестов», «Предметы, требуемые в рейде» |
+| 02 | Цена в рейде | «Продать или оставить?»: a 6x6 stash with items cut out of the owner's stash screenshot; the Viibiin sneaker shows its card with «Каппа», the GPU its card with MATE (prices: see below) |
+| 03 | Режимы | PvP → PvE → Сезон: the switch slides, the overview of each mode behind it («у каждого своя база») |
+| 04 | Путь к Каппе | The owner's Collector page: a scan sweep, «8 / 44» marked, the Viibiin cell marked and its in-raid «Каппа» card |
+| 05 | Отряд | Members, «Квесты по картам» (each member's quests per map, shared quests and who has them; the board zooms into the first maps) |
+| 06 | Боссы | Quick cuts through Решала, Килла, Глухарь, Кабан, then Тагилла turning a full 360° (120 frames played at 30 fps, rigid: no cloth physics) while a pointer hovers the health card: head, thorax, left leg light up |
+| 07 | Патроны и барахолка | Penetration/damage chart of all rounds, «Против брони · BP» (chance per armor class), the GPU's flea prices for the mode |
+| 08 | Мини-карта | The whole minimap overlay over the game (map, floors, sliders, quest list): the player's point pulses, quest points nearby |
+| 09 | Обновления | The auto-update window («всегда свежая версия») |
+| 10 | Телефон | iOS and Android «скоро», sign-in by QR |
+| 11 | Синхронизация | PC, website, phone: one base, the position on the phone |
+| 12 | Честная игра | Raid OS does not inject into EFT, read its memory, automate actions or bypass protection |
+| 13 | Финал | Raid OS, «Скачать для Windows», raidos.app |
 
-The honesty rules from `CLAUDE.md` apply to the captions: no claim of live inventory or exact real-time position, the
-app does not touch the game, and the phone apps are «скоро». The captions do not explain how the app gets its data
-(no logs, screenshots or screen reading — the owner's request, 04.10.2026); the story page's hint line about it is
-hidden in the capture. The in-game backdrop behind the item cards is drawn in CSS: no game footage, no Battlestate
-artwork. Map image = neutral survey grid, item icons = neutral tile. Squad members, nicknames and the QR link are made up
-for the picture. The ammo on the ballistics shot is the repository's tarkov.dev fixture (16 real rounds). Boss portraits
-and the 3D boss card are the app's own gallery renders (`website/src/assets/promo`).
+The honesty rules from `CLAUDE.md` apply to the captions: no claim of live inventory, the app does not touch the game,
+the phone apps are «скоро». The captions do not explain how the app gets its data (the owner's request, 04.10.2026).
+`owner/` holds the owner's screenshots (overview, stash, Collector page; chat 10.10.2026), used as they are;
+the item icons of scene 02 are cut out of `owner/stash.webp` (the GPU and LEDX pictures also stand in for the app's
+tarkov.dev icons). The in-game backdrop behind the overlay cards is drawn in CSS (no game footage). Map images are a
+neutral 10 m survey grid: tarkov.dev is not reachable from the capture sandbox, and its maps are CC BY-NC-SA
+(non-commercial), so they are not used in an advert. The flea shot hides the sandbox's «демо-данные» notes (there is no
+live price source here) and the empty price history.
+
+Prices on screen (10.10.2026): Viibiin — flea 55 908 ₽ (Tarkov Forge, live), Терапевт 28 939 ₽; GPU — flea PvP 344 000 ₽ /
+PvE 739 000 ₽ (Tarkov Forge 7-day average to 30.09.2026), Терапевт 124 740 ₽.
+Squad members, nicknames and the QR link are made up for the picture. The ammo on the ballistics shot is the
+repository's tarkov.dev fixture (16 real rounds).
 
 ## Regenerate
 
@@ -45,12 +53,13 @@ From the repository root:
 ```bash
 npx vite --port 5210                                      # 1. renderer (no Electron needed)
 npx vite --config website/vite.config.ts --port 5672      #    and the website (for the site shot)
-node scripts/trailer/capture.mjs                          # 2. app → scripts/trailer/shots/*.png (about 4 min)
+node scripts/trailer/capture.mjs                          # 2. app → scripts/trailer/shots/*.png (about 20 min: the 360° turn is slow)
 node scripts/trailer/render.mjs                           # 3. trailer.html → 720p mp4 + poster (about 10 min)
 ```
 
-Stop both vite servers afterwards. `capture.mjs scenegroup ...` re-captures only some groups (`app kappa story modes
-boss ballistics busts phone squad item site qr`). `render.mjs --preview=scenes --preview-dir=/tmp/p` writes two stills
+Stop both vite servers afterwards. `capture.mjs scenegroup ...` re-captures only some groups (`app stash item modes squad
+bossstill boss3d bosshp ballistics flea minimap update phone live site qr`); `boss3d` alone takes about 10 min
+(120 frames of software WebGL). `render.mjs --preview=scenes --preview-dir=/tmp/p` writes two stills
 per scene without encoding, `--preview=12.5,30` writes stills at those times. The capture also writes the website's
 stills `ballistics-site.png` and `story-site.png` (converted to `website/src/assets/promo/*.webp` at 1200 px wide).
 
