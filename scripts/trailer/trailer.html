@@ -299,6 +299,9 @@ const CUT = new URLSearchParams(location.search).get('cut') === 'ad' ? 'ad' : 's
 /** Sound cues for music.mjs (advert): { t, kind } — kinds: pop, cut, tick, ping. Read by render.mjs as window.__cues. */
 const CUES = []
 const cue = (t, kind) => CUES.push({ t: Math.round(t * 1000) / 1000, kind })
+/** One still per scene for photos (render.mjs --stills): [name, seconds], a moment where all of the scene is on screen. */
+const STILLS = []
+const still = (name, t) => STILLS.push([name, Math.round(t * 1000) / 1000])
 
 // Compass ticks for the in-game backdrop
 const compass = (() => {
@@ -781,6 +784,17 @@ function adTimeline() {
     anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.6, 0.5)
     anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 0.75, 0.5)
   }
+  // stills for photos: before the next scene starts to fade in (b - FADE)
+  const last = (k) => T[k][1] - FADE - 0.05
+  still('logo', 1.7)
+  still('quests', T.overview[0] + 2.25)
+  still('sell-or-keep', last('item'))
+  still('squad', last('squad'))
+  still('minimap', T.minimap[0] + 2.05)
+  still('themes', T.themes[0] + 2.3)
+  still('sync', last('sync'))
+  still('fair-play', last('fair'))
+  still('download', DURATION - 0.8)
   // the corner badge while the features play
   keyframesAt('#wm', 'opacity', [[T.overview[0] + 0.4, 0, EASE], [T.overview[0] + 0.9, 1], [T.fair[0], 1, 'ease-in'], [T.fair[0] + 0.4, 0]])
   // 1. Quests sync by themselves: a quicker pan, the blocks marked one after another
@@ -839,6 +853,7 @@ function adTimeline() {
       cue(on, 'tick')
     })
     keyframesAt('#hp-cursor', 'transform', path)
+    still('bosses', r0 + 2.3) // turned back to the front, thorax lit
     caption('s-boss', a, b)
   }
   // 4. Squad: members, then the map board zooms in
@@ -938,6 +953,7 @@ window.__play = () => { for (const a of all()) { a.currentTime = 0; a.play() } }
 window.__duration = DURATION
 window.__times = T
 window.__cues = CUES
+window.__stills = STILLS.sort((x, y) => x[1] - y[1])
 window.__cut = CUT
 window.__ready = (async () => {
   await document.fonts.ready

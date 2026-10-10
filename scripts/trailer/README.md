@@ -55,8 +55,13 @@ cuts, a full turn of Tagilla in 2 s, the pointer on the health card), «Общи
 bottom-right corner while the features play. Scene changes fall on beats of the music.
 
 ```bash
-node scripts/trailer/render.mjs --cut=ad --music   # → scripts/trailer/out/raidos-ad-silent.mp4 and raidos-ad-music.mp4 (1080p)
+node scripts/trailer/render.mjs --cut=ad           # → scripts/trailer/out/raidos-ad-silent.mp4 (1080p, the version the owner posts)
+node scripts/trailer/render.mjs --cut=ad --music   #   … plus raidos-ad-music.mp4 with the generated music
+node scripts/trailer/render.mjs --cut=ad --stills  # → out/stills-ad/01-logo.jpg … 10-download.jpg: one photo per scene
 ```
+
+The stills are the moments `still()` marks in the advert's timeline (everything of the scene on screen, before the next
+scene fades in), 1920x1080 JPEG without the progress line.
 
 `music.mjs` synthesises the soundtrack from the cut's cues (`out/raidos-ad.cues.json`, written by render.mjs): a dark
 120 BPM electronic bed in D minor (Dm–B♭–F–C) — half-time drums from the first scene change, four on the floor from the

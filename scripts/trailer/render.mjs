@@ -3,6 +3,7 @@
 //   node scripts/trailer/render.mjs                           deterministic: seek every frame, pipe JPEGs to ffmpeg
 //   node scripts/trailer/render.mjs --preview=1,5.5,10        only save stills of the timeline (see --preview-dir=)
 //   node scripts/trailer/render.mjs --preview=scenes          one still near the end of every scene
+//   node scripts/trailer/render.mjs --cut=ad --stills         one 1920x1080 JPEG per scene of the cut → out/stills-ad/NN-name.jpg
 //   node scripts/trailer/render.mjs --cut=ad [--music]        the ~30 s advert (trailer.html?cut=ad) into scripts/trailer/out/:
 //                                                             raidos-ad-silent.mp4 and, with --music, raidos-ad-music.mp4
 //                                                             (music.mjs + loudness -14 LUFS); 1080p, not shipped with the site
@@ -94,6 +95,23 @@ if (previewArg) {
     await page.screenshot({ path: join(dir, `${name}.png`) })
   }
   console.log('previews in', dir)
+  await browser.close(); server.close(); process.exit(0)
+}
+
+// --stills: the cut's photo stills (window.__stills), without the progress line, then stop.
+if (process.argv.includes('--stills')) {
+  const dir = join(OUT, `stills-${CUT}`)
+  mkdirSync(dir, { recursive: true })
+  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 } })
+  const page = await load(context)
+  await page.addStyleTag({ content: '#progress{display:none!important}' })
+  const stills = await page.evaluate(() => window.__stills ?? [])
+  for (const [i, [name, t]] of stills.entries()) {
+    await page.evaluate((s) => window.__seek(s), t)
+    const file = join(dir, `${String(i + 1).padStart(2, '0')}-${name}.jpg`)
+    await page.screenshot({ path: file, type: 'jpeg', quality: 92 })
+    console.log(file, (statSync(file).size / 1024).toFixed(0), 'KB')
+  }
   await browser.close(); server.close(); process.exit(0)
 }
 
