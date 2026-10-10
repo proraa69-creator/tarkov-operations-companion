@@ -33,7 +33,9 @@ describe('subscription checkout', () => {
       fireEvent.click(button)
     }
     expect(panel.getByText('300 ₽')).toBeInTheDocument()
-    expect(panel.getByText('900 ₽')).toBeInTheDocument()
+    expect(panel.getByText('810 ₽')).toBeInTheDocument()
+    expect(panel.getByText('≈ 270 ₽ в месяц')).toBeInTheDocument()
+    expect(panel.getByText('−10%')).toBeInTheDocument()
     expect(panel.getByText('1 500 ₽')).toBeInTheDocument()
     expect(panel.getByText('≈ 250 ₽ в месяц')).toBeInTheDocument()
     expect(panel.getByText('−17%')).toBeInTheDocument()
@@ -49,7 +51,7 @@ describe('subscription checkout', () => {
       enabled: true,
       plans: [
         { id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 },
-        { id: '3m', months: 3, price: 900, currency: 'RUB', discountPercent: 0 },
+        { id: '3m', months: 3, price: 810, currency: 'RUB', discountPercent: 10 },
         { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
         { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
       ],

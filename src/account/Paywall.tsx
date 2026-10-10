@@ -19,8 +19,8 @@ interface Plan { id: '1m' | '3m' | '6m' | '12m'; months: number; price: number |
 const PLAN_NAMES: Record<Plan['id'], string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
 const DEFAULT_PLANS: Plan[] = [
   { id: '1m', months: 1, price: null, currency: 'RUB', discountPercent: 0 },
-  { id: '3m', months: 3, price: null, currency: 'RUB', discountPercent: 0 },
-  { id: '6m', months: 6, price: null, currency: 'RUB', discountPercent: 0 },
+  { id: '3m', months: 3, price: null, currency: 'RUB', discountPercent: 10 },
+  { id: '6m', months: 6, price: null, currency: 'RUB', discountPercent: 17 },
   { id: '12m', months: 12, price: null, currency: 'RUB', discountPercent: 33 },
 ]
 

@@ -114,13 +114,13 @@ test('auto-payout requests the whole balance every N days (3 by default); the st
   assert.equal(overview.autoPayout.intervalDays, 3)
   assert.equal(overview.autoPayout.nextAt, '2026-10-04T10:00:00.000Z')
 
-  await pay('3m') // 3000 ₽ → 300 ₽
+  await pay('3m') // 2700 ₽ (3 months −10 %) → 270 ₽
   advance(2 * DAY)
   assert.deepEqual(payouts.runAuto(codeOf), [], 'not yet: the cycle is 3 days')
   advance(DAY)
   const created = payouts.runAuto(codeOf)
   assert.equal(created.length, 1)
-  assert.equal(created[0]!.amount, 300)
+  assert.equal(created[0]!.amount, 270)
   assert.equal(created[0]!.auto, true)
   assert.deepEqual(payouts.runAuto(codeOf), [], 'the next cycle starts now')
 

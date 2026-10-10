@@ -49,9 +49,10 @@ async function setup() {
 
 const providerId = (url: string) => new URL(url).searchParams.get('orderId')!
 
-test('plans: public prices are 300, 900, 1500 and 2400 roubles', () => {
+test('plans: public prices are 300, 810, 1500 and 2400 roubles (3 months 270 ₽ a month)', () => {
   const store = new PaymentStore(openDatabase(':memory:'), config)
-  assert.deepEqual(store.plans().map((plan) => [plan.id, plan.price, plan.discountPercent]), [['1m', 300, 0], ['3m', 900, 0], ['6m', 1500, 17], ['12m', 2400, 33]])
+  assert.deepEqual(store.plans().map((plan) => [plan.id, plan.price, plan.discountPercent]), [['1m', 300, 0], ['3m', 810, 10], ['6m', 1500, 17], ['12m', 2400, 33]])
+  assert.equal(planPrice(300, '3m'), 81000)
   assert.equal(planPrice(299, '6m'), 149500)
   assert.equal(planPrice(299, '12m'), 239200)
   assert.equal(new PaymentStore(openDatabase(':memory:'), undefined).enabled, false)
@@ -80,7 +81,7 @@ test('a paid payment activates the subscription once and credits the streamer', 
   const request = yoo.requests[0]!
   assert.equal(request.headers.authorization, `Basic ${Buffer.from('123456:test_secret').toString('base64')}`)
   assert.ok(request.headers['idempotence-key'])
-  assert.deepEqual((request.body as { amount: unknown }).amount, { value: '900.00', currency: 'RUB' })
+  assert.deepEqual((request.body as { amount: unknown }).amount, { value: '810.00', currency: 'RUB' })
   assert.deepEqual((request.body as { payment_method_data: unknown }).payment_method_data, { type: 'sbp' })
   assert.equal((request.body as { confirmation: { return_url: string } }).confirmation.return_url, `https://tarkov.example.com/cabinet?payment=${created.paymentId}`)
   assert.equal((request.body as { receipt: { customer: { email: string } } }).receipt.customer.email, 'player@example.com')
@@ -100,8 +101,8 @@ test('a paid payment activates the subscription once and credits the streamer', 
   const streamer = accounts.view(accounts.authenticate((await accounts.login('streamer@example.com', 'correct horse battery')).token)!)
   assert.equal(streamer.stats?.activeSubscriptions, 1)
   assert.equal(streamer.stats?.revenue, undefined, 'the streamer never sees what his viewers paid')
-  assert.deepEqual(streamer.stats?.earnings, { amount: 180, currency: 'RUB' })
-  assert.deepEqual(accounts.streamers().streamers[0]!.stats.revenue, { amount: 900, currency: 'RUB' }, 'the owner does')
+  assert.deepEqual(streamer.stats?.earnings, { amount: 162, currency: 'RUB' })
+  assert.deepEqual(accounts.streamers().streamers[0]!.stats.revenue, { amount: 810, currency: 'RUB' }, 'the owner does')
 
   // A second payment extends the period from its end, not from today.
   advance(10 * 86_400_000)
@@ -163,8 +164,8 @@ test('streamer statistics by day, month and year: visits, sign-ups and paid plan
 
   const days = accounts.referralSeries(streamerId, 'day')
   assert.equal(days.length, 31)
-  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 180 })
-  assert.equal(accounts.streamerSeries('HUNTER', 'day')[0]!.revenue, 900, 'the owner sees the revenue per period')
+  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 162 })
+  assert.equal(accounts.streamerSeries('HUNTER', 'day')[0]!.revenue, 810, 'the owner sees the revenue per period')
   assert.equal(days[1]!.period, '2026-09-30')
 
   advance(40 * 86_400_000)
@@ -172,6 +173,6 @@ test('streamer statistics by day, month and year: visits, sign-ups and paid plan
   const months = accounts.referralSeries(streamerId, 'month')
   assert.equal(months.length, 12)
   assert.deepEqual(months.slice(0, 2).map((row) => [row.period, row.visits, row.payments]), [['2026-11', 1, 0], ['2026-10', 2, 1]])
-  assert.deepEqual(accounts.referralSeries(streamerId, 'year').map((row) => [row.period, row.visits, row.registrations, row.earnings]), [['2026', 3, 1, 180]])
+  assert.deepEqual(accounts.referralSeries(streamerId, 'year').map((row) => [row.period, row.visits, row.registrations, row.earnings]), [['2026', 3, 1, 162]])
   assert.throws(() => accounts.referralSeries(accountId, 'day'), /только стримерам/)
 })

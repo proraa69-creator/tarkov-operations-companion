@@ -377,7 +377,7 @@ test('sales settings show prices and providers, never keys; the database migrati
     assert.equal(text.includes('test_secret'), false)
     const body = sales.json as unknown as { yookassa: { monthPrice: number }; plans: Array<{ id: string; price: number }>; streamerPercent: number }
     assert.equal(body.yookassa.monthPrice, 300)
-    assert.deepEqual(body.plans.map((plan) => plan.price), [300, 900, 1500, 2400])
+    assert.deepEqual(body.plans.map((plan) => plan.price), [300, 810, 1500, 2400])
     assert.equal(body.streamerPercent, 10)
   } finally { await t.close() }
 

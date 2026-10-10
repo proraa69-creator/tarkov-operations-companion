@@ -73,7 +73,8 @@ export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
 export const YOOKASSA_PAYMENT_METHODS: readonly YooKassaPaymentMethod[] = ['sbp', 'sberbank', 'tinkoff_bank']
 export const PLAN_MONTHS: Record<PlanId, number> = { '1m': 1, '3m': 3, '6m': 6, '12m': 12 }
 /** Public prices: six months cost five monthly payments; a year costs eight. */
-const PLAN_DISCOUNTS: Partial<Record<PlanId, number>> = { '6m': 1 / 6, '12m': 1 / 3 }
+// 3 months −10 % (270 ₽ a month at 300 ₽: 810 ₽, the owner's price of 10.10.2026), 6 months −1/6, 12 months −1/3
+const PLAN_DISCOUNTS: Partial<Record<PlanId, number>> = { '3m': 0.1, '6m': 1 / 6, '12m': 1 / 3 }
 const MONTH_MS = 30 * 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const YOOKASSA_API = 'https://api.yookassa.ru/v3'

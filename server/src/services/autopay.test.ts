@@ -359,7 +359,7 @@ test('ЮKassa scheduler: charges once per period with the saved method, a day be
   assert.equal(charge.body!.payment_method_id, `pm-${firstProviderId}`, 'the method ЮKassa saved with the first payment')
   assert.equal(charge.body!.capture, true)
   assert.equal(charge.body!.confirmation, undefined)
-  assert.deepEqual(charge.body!.amount, { value: '900.00', currency: 'RUB' })
+  assert.deepEqual(charge.body!.amount, { value: '810.00', currency: 'RUB' })
   assert.equal((charge.body!.receipt as { customer: { email: string } }).customer.email, 'player@example.com')
   assert.match(charge.headers['idempotence-key']!, /^renew-/)
   assert.equal(until(), firstEnd + 3 * MONTH, 'extended from the end of the paid period')
@@ -370,7 +370,7 @@ test('ЮKassa scheduler: charges once per period with the saved method, a day be
   assert.equal(yoo.charges().length, 1)
   const renewals = payments.list(accountId).filter((item) => item.renewal)
   assert.equal(renewals.length, 1)
-  assert.equal(payments.referralStats('HUNTER').earnings, 2 * 18000, 'the streamer gets his share of the renewal too')
+  assert.equal(payments.referralStats('HUNTER').earnings, 2 * 16200, 'the streamer gets his share of the renewal too')
 
   // Next period: one more charge.
   advance(3 * MONTH)
