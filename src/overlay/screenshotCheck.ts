@@ -5,8 +5,11 @@ export interface ScreenshotKeyInfo {
   /** Unity key names pressed together, e.g. ["F12"] or ["LeftAlt", "F12"]. */
   keys: string[]
   label: string
-  /** setting: chosen on the Mini Map page; game-settings: the game's Control.ini; game-log: the game's log; default: nothing found, PrtSc. */
-  source: 'setting' | 'game-settings' | 'game-log' | 'default'
+  /**
+   * standard: PrtSc, the game's standard key (the default); setting: another key chosen on the Mini Map page;
+   * game-settings: the game's Control.ini; game-log: the game's log; default: nothing found there, PrtSc.
+   */
+  source: 'standard' | 'setting' | 'game-settings' | 'game-log' | 'default'
   /** The game has no screenshot key. */
   unbound: boolean
   /** The app can press it (mouse buttons it cannot). */

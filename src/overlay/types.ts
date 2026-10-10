@@ -74,7 +74,7 @@ export interface MinimapQuest {
 }
 
 export interface ExperimentalSettings {
-  version: 3
+  version: 4
   itemLookup: boolean
   minimap: boolean
   tracking: boolean

@@ -7,7 +7,7 @@ import { SCREENSHOT_KEY_CHOICES } from '../../src/overlay/gameKeys.js'
 import { minimapWidth } from '../../src/overlay/minimapSize.js'
 
 export interface ExperimentalSettings {
-  version: 3
+  version: 4
   /** Always true (kept for older settings files and the server sync). */
   itemLookup: boolean
   /** Always true (kept for older settings files and the server sync). */
@@ -31,12 +31,15 @@ export interface ExperimentalSettings {
   runAsAdmin: boolean
   /** Open the minimap for a moment when the player takes a screenshot in the game. */
   showOnScreenshot: boolean
-  /** Unity key name the app presses for a screenshot when the minimap opens; empty = detected from the game settings. */
+  /**
+   * Unity key name the app presses for a screenshot when the minimap opens: PrtSc («Print», the game's standard key) by
+   * default (owner, 10.10.2026); empty = taken from the game's settings («По настройкам игры»).
+   */
   screenshotKey: string
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
-  version: 3,
+  version: 4,
   itemLookup: true,
   minimap: true,
   tracking: true,
@@ -52,7 +55,7 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   minimapPosition: null,
   runAsAdmin: false,
   showOnScreenshot: false,
-  screenshotKey: '',
+  screenshotKey: 'Print',
 }
 
 let current: ExperimentalSettings | null = null
@@ -78,12 +81,13 @@ export async function updateSettings(patch: unknown): Promise<ExperimentalSettin
   return current
 }
 
-function sanitize(raw: unknown): ExperimentalSettings {
+/** Saved settings (any shape, any older version) as the current ones. Exported for the tests. */
+export function sanitize(raw: unknown): ExperimentalSettings {
   const value = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const flag = (key: keyof ExperimentalSettings) => typeof value[key] === 'boolean' ? value[key] as boolean : DEFAULT_SETTINGS[key] as boolean
   const interval = Number(value.screenshotIntervalMs)
   return {
-    version: 3,
+    version: 4,
     // Always on: the item card and the minimap work by their keys (the on/off switches were removed).
     itemLookup: true,
     minimap: true,
@@ -104,8 +108,17 @@ function sanitize(raw: unknown): ExperimentalSettings {
     runAsAdmin: flag('runAsAdmin'),
     // The owner removed «Показывать мини-карту при скриншоте»: the minimap opens only by its key.
     showOnScreenshot: false,
-    screenshotKey: (SCREENSHOT_KEY_CHOICES as readonly unknown[]).includes(value.screenshotKey) ? value.screenshotKey as string : '',
+    screenshotKey: screenshotKey(value),
   }
+}
+
+/**
+ * The screenshot key: one from the list, '' (from the game's settings) when picked so, else PrtSc. Settings saved before
+ * version 4 had '' as their default («Определить автоматически»): they get PrtSc, the standard key (owner, 10.10.2026).
+ */
+function screenshotKey(value: Record<string, unknown>) {
+  if ((SCREENSHOT_KEY_CHOICES as readonly unknown[]).includes(value.screenshotKey)) return value.screenshotKey as string
+  return value.screenshotKey === '' && Number(value.version) >= 4 ? '' : 'Print'
 }
 
 function readPoint(value: unknown) {

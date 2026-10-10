@@ -13,6 +13,7 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   ['Определить автоматически', 'Detect automatically'],
   ['Определяю клавишу скриншота…', 'Detecting the screenshot key…'],
   ['Выбрана вручную:', 'Chosen manually:'],
+  ['Стандартная клавиша скриншота игры:', 'The game’s standard screenshot key:'], ['стандартная', 'standard'], ['По настройкам игры', 'From the game settings'],
   ['Определена по настройкам игры:', 'Detected from the game settings:'],
   ['Определена по журналу игры:', 'Detected from the game log:'],
   ['В настройках игры не найдена, сейчас:', 'Not found in the game settings, using:'],

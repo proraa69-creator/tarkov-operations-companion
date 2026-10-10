@@ -11,7 +11,7 @@ const OVERLAY_NOTE = 'Мини-карта и карточка предмета �
 
 const ADMIN_NOTE = 'Лаунчер BSG запускает игру от имени администратора. Пока Raid OS работает без этих прав, Windows скрывает от него клавиши, нажатые в игре, и не пропускает в игру его нажатия: мини-карта и карточка предмета по клавише не срабатывают. Скриншот, который вы делаете сами, мини-карта покажет и так.'
 
-const SNIPPING_NOTE = 'Windows открывает «Ножницы» по клавише PrtSc, и игра эту клавишу не получает. Назначьте в игре другую клавишу скриншота (Настройки → Управление → «Скриншот», например F12) — приложение прочитает её само, — или отключите в Windows «Использовать клавишу Print Screen для открытия функции создания фрагмента экрана».'
+const SNIPPING_NOTE = 'Windows открывает «Ножницы» по клавише PrtSc, и игра эту клавишу не получает: скриншот не делается и позиция не обновляется. Отключите в Windows «Использовать клавишу Print Screen для открытия функции создания фрагмента экрана» (кнопка ниже) — или назначьте в игре другую клавишу скриншота (Настройки → Управление → «Скриншот»), приложение прочитает её само.'
 
 const SCREENSHOT_KEY_USE = 'Приложение нажимает её один раз, когда вы открываете мини-карту, — так на карте появляется ваша позиция.'
 
@@ -27,6 +27,7 @@ function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined)
   if (key.unbound) return uiText('В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот»).')
   if (!key.sendable) return `${uiText('В игре скриншот назначен на')} ${key.label}${uiText(': это кнопка мыши, приложение не может её нажать. Назначьте в игре клавишу клавиатуры.')}`
   const source: Record<ScreenshotKeyInfo['source'], string> = {
+    standard: 'Стандартная клавиша скриншота игры:',
     setting: 'Выбрана вручную:',
     'game-settings': 'Определена по настройкам игры:',
     'game-log': 'Определена по журналу игры:',
@@ -167,9 +168,9 @@ export function ExperimentalPage() {
                     <small className="exp-key-found">{screenshotKeyText(status?.screenshotKey)}</small>
                     <small>{uiText(SCREENSHOT_KEY_USE)}</small>
                   </span>
-                  <select className="select" value={settings?.screenshotKey ?? ''} onChange={(event) => update({ screenshotKey: event.target.value })} aria-label={uiText('Клавиша скриншота')}>
-                    <option value="">{uiText('Определить автоматически')}</option>
-                    {SCREENSHOT_KEY_CHOICES.map((key) => <option key={key} value={key}>{gameKeyLabel([key])}</option>)}
+                  <select className="select" value={settings?.screenshotKey ?? 'Print'} onChange={(event) => update({ screenshotKey: event.target.value })} aria-label={uiText('Клавиша скриншота')}>
+                    {SCREENSHOT_KEY_CHOICES.map((key) => <option key={key} value={key}>{key === 'Print' ? `${gameKeyLabel([key])} · ${uiText('стандартная')}` : gameKeyLabel([key])}</option>)}
+                    <option value="">{uiText('По настройкам игры')}</option>
                   </select>
                 </div>
                 {snippingConflict && (

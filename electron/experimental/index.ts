@@ -501,12 +501,13 @@ const KEY_CACHE_MS = 30_000
 let keyCache: { at: number; key: ScreenshotKeyInfo } | null = null
 
 /**
- * The key the app presses for a screenshot: chosen on the Mini Map page, else the one set in the game —
- * its settings file, then the bindings it logs at start — else PrtSc, the game's default.
+ * The key the app presses for a screenshot: PrtSc, the game's standard key, unless another one is chosen on the Mini Map
+ * page; with «По настройкам игры» the one set in the game — its settings file, then the bindings it logs at start —
+ * else PrtSc.
  */
 async function resolveScreenshotKey(fresh = false): Promise<ScreenshotKeyInfo> {
   const chosen = readSettings().screenshotKey
-  if (chosen) return describeKey([chosen], 'setting')
+  if (chosen) return describeKey([chosen], chosen === 'Print' ? 'standard' : 'setting')
   if (!fresh && keyCache && Date.now() - keyCache.at < KEY_CACHE_MS) return keyCache.key
   let keys: string[] | null = parseScreenshotBinding(await readFile(GAME_SETTINGS(), 'utf8').catch(() => ''))
   let source: ScreenshotKeyInfo['source'] = keys ? 'game-settings' : 'default'
