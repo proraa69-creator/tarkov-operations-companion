@@ -75,9 +75,15 @@
 .subscription-terms { margin: 0; padding-left: 18px; display: grid; gap: 5px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 .subscription-terms strong { color: var(--text); }
 @media (max-width: 720px) { .subscription-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-/* the header button; on a phone it lives in the menu, so the header keeps «Скачать» and «Кабинет» */
+/* «Подписка» in the phone menu as well */
 .mobile-nav-button { min-height: 44px; display: flex; align-items: center; padding: 0 12px; border: 0; border-radius: 9px; background: none; color: #b4bfb6; font: inherit; font-weight: 650; text-align: left; cursor: pointer; }
 .mobile-nav-button:hover { background: var(--surf-1); }
-@media (max-width: 560px) { .header-actions .header-subscription { display: none; } }
+/* A phone keeps «Подписка» in the header too (owner, 10.10.2026), in the free space before «Скачать»: the header buttons
+   are compact (styles.css), text only under 430 px, and under 350 px «Кабинет» is just its icon — no width overflows. */
+@media (max-width: 429px) { .header-actions .button svg { display: none; } }
+@media (max-width: 349px) {
+  .header-actions .header-cabinet svg { display: inline-block; }
+  .header-actions .header-cabinet .label-short { display: none; }
+}
 /* anchors under the sticky header: /cabinet#subscription, /legal#refund */
 #subscription, .legal-doc section[id] { scroll-margin-top: calc(var(--header) + 16px); }

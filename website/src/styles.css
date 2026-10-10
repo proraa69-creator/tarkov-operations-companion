@@ -403,8 +403,9 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
   .brand-name { font-size: 11px; letter-spacing: .05em; }
   .brand-sub { display: none; }
   .brand-mark { width: 34px; height: 34px; font-size: 13px; }
-  .header-actions { gap: 6px; }
-  .header-actions .button { min-height: 36px; padding: 0 10px; font-size: 12px; }
+  .header-actions { gap: 5px; }
+  .header-actions .button { min-height: 36px; padding: 0 9px; gap: 5px; font-size: 12px; }
+  .header-actions .button svg { width: 14px; height: 14px; }
   .header-actions .button .label-long { display: none; }
   .menu-toggle { width: 36px; height: 36px; }
   .hero { padding: 30px 0 44px; }
@@ -444,7 +445,7 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
   .play-button svg { width: 24px; height: 24px; }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 500px) {
   .brand-text { display: none; }
 }
 

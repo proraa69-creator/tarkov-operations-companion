@@ -55,7 +55,7 @@ export function SiteLayout() {
               <span className="label-long">Скачать приложение</span>
               <span className="label-short">Скачать</span>
             </Link>
-            <Link to="/cabinet" className="button" title={account ? account.email : undefined}>
+            <Link to="/cabinet" className="button header-cabinet" title={account ? account.email : undefined}>
               <UserRound aria-hidden="true" />
               <span className="label-long">Личный кабинет</span>
               <span className="label-short">Кабинет</span>
