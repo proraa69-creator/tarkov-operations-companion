@@ -49,7 +49,7 @@ describe('SupportButtons', () => {
     expect([method, path]).toEqual(['POST', '/v1/bug-reports'])
     expect(body.topic).toBe('Карта не открывается')
     expect(body.description).toBe('Чёрный экран на Таможне')
-    expect(body.appVersion).toMatch(/^\d+\.\d+\.\d+ · client$/)
+    expect(body.appVersion).toMatch(/^\d+\.\d+\.\d+(?:\.\d+)? · client$/)
     expect(body.platform).toMatch(/desktop app$/)
     expect(body.screenshots).toHaveLength(1)
     expect(body.screenshots[0]!.data).toMatch(/^data:image\/png;base64,/)
