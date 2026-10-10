@@ -157,11 +157,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     identify: (req, mode) => {
       const id = accounts.authenticate(bearer(req.get('authorization')))
       if (!id) return null
-      const nickname = accounts.view(id).nickname
+      const nickname = accounts.view(id).nicknames[mode]
       return { account: id, ...(nickname ? { nickname } : {}) }
     },
     nicknameOf: (account, mode) => {
-      try { return accounts.view(account).nickname ?? null } catch { return undefined }
+      try { return accounts.view(account).nicknames[mode] ?? null } catch { return undefined }
     },
     onSighting: () => mapUpdates.changed(),
   }))

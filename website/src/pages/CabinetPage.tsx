@@ -1,7 +1,7 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, Save, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
+import { ApiError, api, errorMessage, type Account, type AccountMode, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
@@ -21,6 +21,12 @@ import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { PlanSaving } from '../components/PlanSaving'
 import { LEGAL_VERSION } from '../legal/documents'
 import '../invites.css'
+
+const MODES: { id: AccountMode; label: string; color: string }[] = [
+  { id: 'pvp', label: 'PvP', color: 'var(--brass)' },
+  { id: 'pve', label: 'PvE', color: 'var(--green)' },
+  { id: 'seasonal', label: 'Сезон', color: 'var(--blue)' },
+]
 
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
 const numberFormat = new Intl.NumberFormat('ru-RU')
@@ -75,7 +81,7 @@ export function CabinetPage() {
         {(state.welcome || state.referralRejected || state.streamerWelcome || state.passwordReset) && (
           <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
             {state.streamerWelcome && <Notice tone="success" title="Вы стример">Код {state.streamerWelcome} привязан к аккаунту. Ниже — ваша ссылка для зрителей и статистика.</Notice>}
-            {state.welcome && !state.streamerWelcome && <Notice tone="success" title="Аккаунт создан">Добро пожаловать! Укажите ник в Escape from Tarkov и скачайте приложение.</Notice>}
+            {state.welcome && !state.streamerWelcome && <Notice tone="success" title="Аккаунт создан">Добро пожаловать! Привяжите никнеймы Tarkov и скачайте приложение.</Notice>}
             {state.passwordReset && <Notice tone="success" title="Пароль изменён">Новый пароль сохранён. Входы на других устройствах завершены — там войдите заново.</Notice>}
             {state.referralRejected && <Notice tone="warn" title="Код приглашения не применён">Такой код не найден. Проверьте его и укажите ниже, в блоке «Код приглашения».</Notice>}
           </div>
@@ -460,31 +466,26 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   )
 }
 
-/** The account's nickname: the server's one, or — from a server before it — the first of PvP → PvE → «Сезон». */
-function accountNickname(account: Account) {
-  return account.nickname ?? account.nicknames.pvp ?? account.nicknames.pve ?? account.nicknames.seasonal ?? ''
-}
-
-/** «Ник в Escape from Tarkov»: one for PvP, PvE and «Сезон» — in the game a character has the same nickname everywhere. */
 function NicknamesPanel({ account }: { account: Account }) {
   const auth = useAuth()
-  const saved = accountNickname(account)
-  const [value, setValue] = useState(saved)
+  const [values, setValues] = useState<Record<AccountMode, string>>(() => ({
+    pvp: account.nicknames.pvp ?? '', pve: account.nicknames.pve ?? '', seasonal: account.nicknames.seasonal ?? '',
+  }))
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; message: string; offline?: boolean } | null>(null)
-  const dirty = value.trim() !== saved
+  const dirty = MODES.some(({ id }) => values[id].trim() !== (account.nicknames[id] ?? ''))
 
   async function save(event: FormEvent) {
     event.preventDefault()
-    const nickname = value.trim()
-    if (nickname && !/^[a-zA-Z0-9_-]{3,15}$/.test(nickname)) { setResult({ ok: false, message: 'Ник: 3–15 символов, латиница, цифры, «_» или «-».' }); return }
+    const bad = MODES.find(({ id }) => values[id].trim() && !/^[a-zA-Z0-9_-]{3,15}$/.test(values[id].trim()))
+    if (bad) { setResult({ ok: false, message: `Никнейм ${bad.label}: 3–15 символов, латиница, цифры, «_» или «-».` }); return }
     if (!auth.token) return
     setBusy(true)
     setResult(null)
     try {
-      const next = await api.setNickname(auth.token, nickname)
+      const next = await api.setNicknames(auth.token, { pvp: values.pvp.trim(), pve: values.pve.trim(), seasonal: values.seasonal.trim() })
       auth.setAccount(next)
-      setResult({ ok: true, message: nickname ? 'Ник сохранён.' : 'Ник удалён.' })
+      setResult({ ok: true, message: 'Никнеймы сохранены.' })
     } catch (error) {
       setResult({ ok: false, message: errorMessage(error), offline: error instanceof ApiError && error.network })
     } finally {
@@ -495,18 +496,22 @@ function NicknamesPanel({ account }: { account: Account }) {
   return (
     <section className="panel" aria-labelledby="nick-title">
       <div className="panel-header">
-        <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />Ник в Escape from Tarkov</div>
+        <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />Никнеймы Tarkov</div>
       </div>
       <form className="panel-body form" onSubmit={save}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Один ник для PvP, PvE и «Сезона» — в игре он у персонажа везде одинаковый. Прогресс заданий у каждого режима свой.</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>У каждого режима свой профиль и прогресс — укажите ник для каждого режима, в котором играете.</p>
         {/* «Пригласи друга»: the game account the desktop app found in the logs (one game account — one Raid OS account). */}
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>
           Аккаунт Escape from Tarkov: {account.eftAccount ? <strong className="mono">{account.eftAccount.masked}</strong> : 'не привязан — откройте приложение Raid OS на ПК с игрой, оно найдёт аккаунт в логах игры'}.
         </p>
-        <label className="field nick-field">
-          <span className="field-label">Ник</span>
-          <input className="input" value={value} maxLength={15} spellCheck={false} autoComplete="off" placeholder="Не привязан" onChange={(e) => setValue(e.target.value)} />
-        </label>
+        <div className="nick-grid">
+          {MODES.map(({ id, label, color }) => (
+            <label key={id} className="field">
+              <span className="field-label mode-chip"><span className="mode-dot" style={{ background: color }} />{label}</span>
+              <input className="input" value={values[id]} maxLength={15} spellCheck={false} autoComplete="off" placeholder="Не привязан" onChange={(e) => setValues((v) => ({ ...v, [id]: e.target.value }))} />
+            </label>
+          ))}
+        </div>
         {result && <Notice tone={result.ok ? 'success' : result.offline ? 'offline' : 'error'}>{result.message}</Notice>}
         <div><button type="submit" className="button primary" disabled={busy || !dirty}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Save aria-hidden="true" />}Сохранить</button></div>
       </form>

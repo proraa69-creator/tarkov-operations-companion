@@ -90,14 +90,14 @@ test('squad routes need a session and a subscription, trial or streamer account'
   })
 })
 
-test('create, invite, join, overview: shared quests, maps and items per mode, nicknames only (one per player)', async () => {
+test('create, invite, join, overview: shared quests, maps and items per mode, nicknames only', async () => {
   await withServer(async ({ call, trial, accounts, progress }) => {
     const a = await trial('alpha@example.com')
     const b = await trial('bravo@example.com')
     const c = await trial('charlie@example.com')
     const aId = accounts.authenticate(a)!
-    accounts.setNicknames(aId, { nickname: 'Alpha_1' })
-    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_1' })
+    accounts.setNicknames(aId, { pvp: 'AlphaPvP', pve: 'AlphaPvE' })
+    accounts.setNicknames(accounts.authenticate(b)!, { pvp: 'BravoPvP' })
 
     const squad = await createSquad(call, a)
     assert.equal(squad.name, 'Тройка')
@@ -120,7 +120,7 @@ test('create, invite, join, overview: shared quests, maps and items per mode, ni
 
     const overview = await json<{ squad: SquadView; mode: string; sharedQuests: Array<{ questId: string; memberIds: string[] }>; maps: Array<{ mapId: string; sharedCount: number; quests: Array<{ questId: string; memberIds: string[] }> }>; anyMap: Array<{ questId: string }>; items: Array<{ itemId: string; total: number; members: Array<{ count: number }> }> }>(await call('GET', `/v1/squads/${squad.id}/overview/pvp`, undefined, b))
     assert.equal(overview.mode, 'pvp')
-    assert.deepEqual(overview.squad.members.map((member) => member.nickname), ['Alpha_1', 'Bravo_1', null])
+    assert.deepEqual(overview.squad.members.map((member) => member.nickname), ['AlphaPvP', 'BravoPvP', null])
     assert.deepEqual(overview.squad.members.map((member) => member.isYou), [false, true, false])
     assert.deepEqual(overview.squad.members.map((member) => member.isOwner), [true, false, false])
     // Charlie's quest is in PvE: it must not count in PvP.
@@ -133,8 +133,7 @@ test('create, invite, join, overview: shared quests, maps and items per mode, ni
     assert.deepEqual(overview.items.map((item) => [item.itemId, item.total]), [['flash', 5]])
 
     const pve = await json<{ squad: SquadView; sharedQuests: unknown[]; maps: unknown }>(await call('GET', `/v1/squads/${squad.id}/overview/pve`, undefined, a))
-    // One nickname for all modes (owner, 10.10.2026): the PvE overview shows the same names, with PvE quests.
-    assert.deepEqual(pve.squad.members.map((member) => member.nickname), ['Alpha_1', 'Bravo_1', null])
+    assert.deepEqual(pve.squad.members.map((member) => member.nickname), ['AlphaPvE', null, null])
     assert.deepEqual(pve.sharedQuests, [])
     assert.equal(pve.maps, null, 'no PvE catalog on the server: the app groups by map itself')
 

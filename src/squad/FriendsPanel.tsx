@@ -148,7 +148,7 @@ function AddFriendCard({ mode, disabled, busy, initialCode, onAdd }: { mode: Rai
     <form className="panel" onSubmit={submit}>
       <div className="panel-header"><div className="panel-title">{uiText('Добавить в друзья')}</div><UserPlus size={16} className="dim" /></div>
       <div className="panel-body stack">
-        <p className="muted">{uiText('Код друга (XXXX-XXXX), ссылка-приглашение или ник в игре.')}</p>
+        <p className="muted">{uiText('Код друга (XXXX-XXXX), ссылка-приглашение или ник в игре для режима')} {modeLabel(mode)}.</p>
         <input className="input" value={input} onChange={(event) => setInput(event.target.value)} placeholder={uiText('Код, ссылка или ник')} aria-label={uiText('Код, ссылка или ник')} spellCheck={false} />
         <button className="button primary" type="submit" disabled={disabled || (!code && !nickname)}>{busy ? <LoaderCircle className="spin" size={16} /> : <UserPlus size={16} />}{uiText(code ? 'Отправить запрос по коду' : nickname ? 'Отправить запрос по нику' : 'Добавить в друзья')}</button>
       </div>

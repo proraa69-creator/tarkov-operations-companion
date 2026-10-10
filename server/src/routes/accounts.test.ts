@@ -109,27 +109,13 @@ test('streamer promotion is server-side only and exposes referral stats only to 
   assert.throws(() => store.promoteToStreamer('fan@example.com', 'hunter_tv'), /already taken/)
 })
 
-test('one nickname for all modes (owner, 10.10.2026); builds that send per-mode keys still work', async () => {
+test('nicknames are stored separately per mode', async () => {
   const { api } = setup()
   const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password } })).body as { token: string }
-  const all = (nickname: string) => ({ pvp: nickname, pve: nickname, seasonal: nickname })
-  let view = (await api.setNicknames({ authorization: auth(token), body: { nickname: 'Shaurma_1' } })).body as AccountView
-  assert.equal(view.nickname, 'Shaurma_1')
-  assert.deepEqual(view.nicknames, all('Shaurma_1'))
-  // The website before the change: every field, '' for the empty ones — the first filled one of PvP → PvE → «Сезон».
-  view = (await api.setNicknames({ authorization: auth(token), body: { pvp: '', pve: 'PveAlt', seasonal: '' } })).body as AccountView
-  assert.equal(view.nickname, 'PveAlt')
-  assert.deepEqual(view.nicknames, all('PveAlt'))
-  // The app before the change: one mode at a time — it becomes the nickname of every mode.
-  view = (await api.setNicknames({ authorization: auth(token), body: { seasonal: 'Season-1' } })).body as AccountView
-  assert.deepEqual(view.nicknames, all('Season-1'))
-  // Keys that name no mode change nothing; all given keys empty remove the nickname.
-  view = (await api.setNicknames({ authorization: auth(token), body: {} })).body as AccountView
-  assert.equal(view.nickname, 'Season-1')
-  view = (await api.setNicknames({ authorization: auth(token), body: { nickname: null } })).body as AccountView
-  assert.equal(view.nickname, undefined)
-  assert.deepEqual(view.nicknames, {})
-  assert.equal((await api.setNicknames({ authorization: auth(token), body: { nickname: 'bad nick!' } })).status, 400)
+  let view = (await api.setNicknames({ authorization: auth(token), body: { pvp: 'Pvp_Main', pve: 'PveAlt' } })).body as AccountView
+  assert.deepEqual(view.nicknames, { pvp: 'Pvp_Main', pve: 'PveAlt' })
+  view = (await api.setNicknames({ authorization: auth(token), body: { pve: '', seasonal: 'Season-1' } })).body as AccountView
+  assert.deepEqual(view.nicknames, { pvp: 'Pvp_Main', seasonal: 'Season-1' })
 })
 
 test('login and register are rate limited per IP', async () => {

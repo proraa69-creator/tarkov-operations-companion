@@ -70,7 +70,7 @@ export function SquadLinkPage({ kind }: { kind: 'squad' | 'friend' }) {
         <div className="invite-code"><span className="field-label">{kind === 'squad' ? 'Код отряда' : 'Код друга'}</span><code>{code.toUpperCase()}</code></div>
         <ul className="invite-points">
           {kind === 'squad'
-            ? <><li>В отряде до 5 человек. Участники видят друг друга только по нику в игре — e-mail никому не показывается.</li><li>Общие задания по картам и кому что нужно — в приложении Raid OS. Покинуть отряд можно в любой момент.</li></>
+            ? <><li>В отряде до 5 человек. Участники видят друг друга только по нику в игре для выбранного режима — e-mail никому не показывается.</li><li>Общие задания по картам и кому что нужно — в приложении Raid OS. Покинуть отряд можно в любой момент.</li></>
             : <><li>Друг увидит ваш ник в игре, активные задания и нужные предметы — e-mail не показывается.</li><li>Скрыть свой прогресс от конкретного друга можно в приложении в любой момент.</li></>}
         </ul>
         {error !== null && <Notice tone={error instanceof ApiError && error.network ? 'offline' : 'error'}>{errorMessage(error)}</Notice>}

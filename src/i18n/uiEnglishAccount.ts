@@ -1,15 +1,6 @@
 /** English for the account screens: first-run sign-in, «Привязать ник», «Личный кабинет», «Кабинет стримера», QR sign-in. */
 export const ACCOUNT_PHRASES: Array<[string, string]> = [
   // First run: sign-in and nickname
-  // One nickname for PvP, PvE and «Сезон» (owner, 10.10.2026)
-  ['Введите ник персонажа в Escape from Tarkov — он один для PvP, PvE и «Сезона». Программа найдёт профиль в каждом режиме, прогресс у режимов свой.', 'Enter your Escape from Tarkov character nickname — it is the same in PvP, PvE and Season. The app finds the profile in every mode; each mode keeps its own progress.'],
-  ['PvP · PvE · Сезон', 'PvP · PvE · Season'], ['Ник · PvP · PvE · Сезон', 'Nickname · PvP · PvE · Season'],
-  ['Ник сохраняется в вашем аккаунте и один для всех режимов. Изменить его можно позже в профиле.', 'The nickname is saved in your account and is the same for every mode. You can change it later in the profile.'],
-  ['Ник в игре', 'In-game nickname'], ['Один для PvP, PvE и «Сезона», хранится в аккаунте', 'One for PvP, PvE and Season, kept in your account'],
-  ['Сменить ник? Он сменится во всех режимах. Прогресс режима сбросится, только если новый ник — другой аккаунт Escape from Tarkov.', 'Change the nickname? It changes in every mode. A mode\'s progress is reset only if the new nickname is another Escape from Tarkov account.'],
-  ['Сменить ник', 'Change nickname'], ['профиль с этим ником пока не найден', 'no profile with this nickname yet'],
-  ['Привяжите ник — он один для всех режимов', 'Link your nickname — it is the same for every mode'],
-  ['профиль найден', 'profile found'], ['профиля нет', 'no profile'],
   ['Raid OS · шаг 1 из 2', 'Raid OS · step 1 of 2'], ['Raid OS · шаг 2 из 2', 'Raid OS · step 2 of 2'],
   ['Вход в аккаунт', 'Sign in to your account'], ['Войти в аккаунт', 'Sign in'],
   ['Войдите тем же e-mail и паролем, что на сайте. Приложение свяжется с сервером: ваши ники, прогресс заданий и подписка хранятся в аккаунте.', 'Use the same e-mail and password as on the website. The app connects to the server: your nicknames, task progress and subscription are kept in your account.'],

@@ -84,7 +84,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     return parsed.data
   }
 
-  /** What a member may see about the squad: the members' Escape from Tarkov nicknames (one for all modes) and this mode's quests. */
+  /** What a member may see about the squad: nicknames of this mode only. */
   const squadView = (squad: SquadRow, viewer: string, mode: RaidMode) => ({
     id: squad.id,
     name: squad.name,
@@ -93,7 +93,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     createdAt: new Date(squad.createdAt).toISOString(),
     members: squad.members.map((member) => ({
       memberId: member.memberId,
-      nickname: accounts.view(member.accountId).nickname ?? null,
+      nickname: accounts.view(member.accountId).nicknames[mode] ?? null,
       isYou: member.accountId === viewer,
       isOwner: member.isOwner,
       joinedAt: new Date(member.joinedAt).toISOString(),
@@ -113,7 +113,7 @@ export function createSquadsRouter(accounts: AccountStore, progress: ProgressSto
     const squad = squads.squadOf(accountId)
     const invitations = squads.invitationsFor(accountId).map((invitation) => {
       const owner = invitation.squad.members.find((member) => member.isOwner)
-      return { invitationId: invitation.id, squadName: invitation.squad.name, from: owner ? accounts.view(owner.accountId).nickname ?? null : null, members: invitation.squad.members.length, expiresAt: new Date(invitation.expiresAt).toISOString() }
+      return { invitationId: invitation.id, squadName: invitation.squad.name, from: owner ? accounts.view(owner.accountId).nicknames[mode] ?? null : null, members: invitation.squad.members.length, expiresAt: new Date(invitation.expiresAt).toISOString() }
     })
     res.json({ squad: squad ? squadView(squad, accountId, mode) : null, access: hasAccess(accountId), invitations })
   }))

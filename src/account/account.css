@@ -121,6 +121,3 @@
 .account-phone .stack { gap: 8px; margin-top: 4px; }
 .account-phone-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .account-phone-done { display: inline-flex; align-items: center; gap: 5px; color: var(--green) !important; }
-
-/* Profile: where the one nickname found a profile (PvP · PvE · Сезон) */
-.profile-mode-bindings { display: flex; flex-wrap: wrap; gap: 6px; }
