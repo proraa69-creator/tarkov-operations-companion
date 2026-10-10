@@ -11,6 +11,8 @@ import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
 import { runningBuild } from './localServer.js'
 import { apiBaseUrl, loadServerUrl } from './serviceGateway.js'
 import { verifiedUpdateManifest } from './updateManifest.js'
+import type { DeltaInfo } from './appDelta.js'
+import { activateOwnerDelta, fetchDeltaInfo, relaunchWhenClosed, stageOwnerDelta } from './ownerDelta.js'
 
 // Automatic installation has exactly one opportunity per launch. Later checks only offer a manual update.
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
@@ -22,7 +24,8 @@ export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'
 export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: UpdateStatus; current: string; checkedAt: string }
 
-interface Remote { version: string; build: number; commit: string; size: number; sha256: string }
+/** delta: the owner's copy takes the players' release in parts (electron/ownerDelta.ts) instead of a whole exe. */
+interface Remote { version: string; build: number; commit: string; size: number; sha256: string; delta?: DeltaInfo }
 
 const CHECK_DELAY_MS = 3_000
 const CHECK_EVERY_MS = 5 * 60_000
@@ -91,13 +94,17 @@ async function probeOnce(): Promise<UpdateCheckOutcome> {
     // Only the copy whose signature verified is used from here on (its size and SHA-256 check the download).
     const signed = verifiedUpdateManifest(await response.json())
     if (!signed) return 'unsigned'
-    // The site hands out the players' (client) exe: the owner's own app never replaces itself with it.
-    if (signed.edition !== local.edition) return 'latest'
+    // The site hands out the players' (client) exe: the owner's own app never replaces itself with it, but takes the
+    // same release in parts and turns it into an owner build (electron/appDelta.ts).
+    const ownerDelta = local.edition === 'owner' && signed.edition === 'client'
+    if (signed.edition !== local.edition && !ownerDelta) return 'latest'
     if (signed.build <= local.build) { remote = null; if (status.state === 'available') set({ state: 'idle' }); return 'latest' }
+    const delta = ownerDelta ? await fetchDeltaInfo(base, signed) : undefined
+    if (ownerDelta && !delta) return 'latest'
     const known = remote?.build === signed.build && status.state === 'available'
-    remote = { version: signed.version, build: signed.build, commit: signed.commit, size: signed.size, sha256: signed.sha256 }
+    remote = { version: signed.version, build: signed.build, commit: signed.commit, size: signed.size, sha256: signed.sha256, ...(delta ? { delta } : {}) }
     source = base
-    if (!known) set({ state: 'available', version: remote.version, commit: remote.commit, ready: downloaded?.build === remote.build })
+    if (!known) set({ state: 'available', version: remote.version, commit: remote.commit, ready: downloaded?.build === remote.build || staged === remote.build })
     return 'available'
   } catch { return 'offline' } // server offline: try again later
 }
@@ -191,6 +198,7 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
   set({ state: 'downloading', ...base, progress: 0 })
   try {
     if (await raidBlocks()) { set({ state: 'available', ...base, ready: downloaded?.build === target.build, blockedByRaid: true }); return status }
+    if (target.delta) return await installDelta(exe, target, target.delta, raidBlocks)
     const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : await download(target)
     // The signed size and SHA-256 once more, right before the helper swaps the file in (it may have changed on disk).
     if (!fileMatches(file, target.size, target.sha256)) {
@@ -208,6 +216,33 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
     swapStarted = false
     set({ state: 'error', ...base, error: failure(error) })
   }
+  return status
+}
+
+/** Staged partial update of the owner's copy (electron/ownerDelta.ts): the build already downloaded for this release. */
+let staged: number | null = null
+
+/**
+ * The owner's copy: downloads only the changed files of the release, builds the new archive, then restarts the exe,
+ * which starts that build (electron/boot.ts). A raid that began meanwhile keeps it staged for «Обновить» later.
+ */
+async function installDelta(exe: string, target: Remote, delta: DeltaInfo, raidBlocks: () => Promise<boolean>) {
+  const base = { version: target.version, commit: target.commit }
+  if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
+  if (staged !== target.build) {
+    let lastShown = -1
+    await stageOwnerDelta(source, delta, (done, total) => {
+      const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
+      if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
+    })
+    staged = target.build
+  }
+  if (await raidBlocks()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
+  set({ state: 'installing', ...base, progress: 100 })
+  swapStarted = true
+  activateOwnerDelta(delta)
+  relaunchWhenClosed(exe)
+  app.quit()
   return status
 }
 

@@ -21,6 +21,9 @@ vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.
 // The address typed in the app: a player's copy must never update from it.
 vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => 'https://typed-in.example', apiBaseUrl: () => 'https://typed-in.example' }))
 vi.mock('node:child_process', () => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
+// The owner's partial update (electron/ownerDelta.ts): the published parts are mocked here, appDelta.test.ts covers them.
+const delta = vi.hoisted(() => ({ info: null as unknown, fetchDeltaInfo: vi.fn(), stageOwnerDelta: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateOwnerDelta: vi.fn(), relaunchWhenClosed: vi.fn() }))
+vi.mock('./ownerDelta.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageOwnerDelta: delta.stageOwnerDelta, activateOwnerDelta: delta.activateOwnerDelta, relaunchWhenClosed: delta.relaunchWhenClosed }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
 const { checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateStatus } = await import('./appUpdate')
@@ -80,6 +83,13 @@ describe('auto-update: signed manifests only (electron/appUpdate.ts)', () => {
     served = { manifest: signedBy(keys.privateKey), exe }
     expect((await checkForUpdateNow()).outcome).toBe('latest') // the players' build is never installed on it
     expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/typed-in\.example\/download\/version\.json\?ts=\d+$/), expect.anything())
+  })
+
+  it('a player copy never looks for the owner\'s partial update', async () => {
+    delta.fetchDeltaInfo.mockClear()
+    served = { manifest: signedBy(keys.privateKey), exe }
+    await checkForUpdateNow()
+    expect(delta.fetchDeltaInfo).not.toHaveBeenCalled()
   })
 
   it('the downloaded exe must match the signed SHA-256', async () => {

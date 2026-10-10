@@ -2,6 +2,7 @@ const { execFileSync } = require('node:child_process')
 const { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } = require('node:fs')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
+const { publishAppDelta } = require('./publish-app-delta.cjs')
 
 exports.default = async (context) => {
   if (context.electronPlatformName !== 'win32') return
@@ -35,4 +36,6 @@ exports.default = async (context) => {
   } finally {
     if (temporary) rmSync(temporary, { recursive: true, force: true })
   }
+  // After Koffi: its file in resources is part of what a partial update must match (scripts/publish-app-delta.cjs).
+  publishAppDelta({ root, appOutDir: context.appOutDir })
 }

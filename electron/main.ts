@@ -28,6 +28,7 @@ import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { confirmStagedBoot } from './ownerDelta.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
@@ -110,6 +111,8 @@ function createWindow() {
     },
   })
 
+  // The owner's copy started a build staged by a partial update: its page loaded, so that build works (electron/deltaBoot.ts).
+  mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
     return { action: 'deny' }
