@@ -39,9 +39,13 @@ export function loadSquad(mode: RaidMode): Promise<void> {
   return work
 }
 
-/** Drops the cached squads (after leaving, sign-out…). */
+/**
+ * Marks the cached squads of every mode as stale (after an action, or when the server says something changed): the
+ * shown squad stays until the reload answers. Clearing it instead dropped the page back to «Загружаем отряд…» and
+ * remounted the squad view, which lost the invite code that «Пригласить» had just created (owner, 10.10.2026).
+ */
 export function invalidateSquads() {
-  states.clear()
+  for (const [mode, state] of states) states.set(mode, { ...state, loadedAt: 0 })
   emit()
 }
 

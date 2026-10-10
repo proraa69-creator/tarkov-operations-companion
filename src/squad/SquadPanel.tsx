@@ -7,7 +7,7 @@ import { QrCode } from '../components/QrCode'
 import { mapDisplayName } from '../data/mapIds'
 import {
   answerSquadInvitation, createSquad, createSquadInvite, extractSquadCode, inviteFriendToSquad, joinSquad, kickMember, siteAddress, squadAction,
-  type Friend, type SquadInfo,
+  type Friend, type SquadInfo, type SquadOverview,
 } from './socialClient'
 import { invalidateSquads, useSquad, useSquadComputed } from './useSquad'
 import { CopyField, ErrorLine, MemberAvatar, MemberChips } from './squadUi'
@@ -72,7 +72,7 @@ export function SquadPanel({ mode, data, friends, initialCode }: { mode: RaidMod
     )
   }
 
-  return <SquadView squad={overview?.squad ?? mine.squad} mode={mode} data={data} friends={friends} access={mine.access} busy={busy} run={run} actionError={actionError} notice={notice} loading={loading} reload={reload} />
+  return <SquadView squad={overview?.squad ?? mine.squad} overview={overview} mode={mode} data={data} friends={friends} access={mine.access} busy={busy} run={run} actionError={actionError} notice={notice} loading={loading} reload={reload} />
 }
 
 function AccessNotice() {
@@ -117,13 +117,12 @@ function JoinSquadCard({ disabled, busy, initialCode, onJoin }: { disabled: bool
 }
 
 interface ViewProps {
-  squad: SquadInfo; mode: RaidMode; data: Data; friends: Friend[]; access: boolean; busy: string; actionError: string; notice: string; loading: boolean
+  squad: SquadInfo; overview: SquadOverview | null; mode: RaidMode; data: Data; friends: Friend[]; access: boolean; busy: string; actionError: string; notice: string; loading: boolean
   run: (key: string, work: () => Promise<unknown>, success?: string) => Promise<void>
   reload: () => Promise<void>
 }
 
-function SquadView({ squad, mode, data, friends, access, busy, run, actionError, notice, loading, reload }: ViewProps) {
-  const { overview } = useSquad(mode)
+function SquadView({ squad, overview, mode, data, friends, access, busy, run, actionError, notice, loading, reload }: ViewProps) {
   const computed = useSquadComputed(overview, data.quests)
   const [invite, setInvite] = useState<{ code: string; expiresAt: string; link: string } | null>(null)
   const [confirm, setConfirm] = useState<'' | 'leave' | 'disband'>('')
@@ -134,7 +133,7 @@ function SquadView({ squad, mode, data, friends, access, busy, run, actionError,
   const mapName = (id: string) => mapDisplayName(id, data.maps)
   const maps = computed?.maps ?? []
   const selectedMap = maps.find((entry) => entry.mapId === mapId) ?? maps[0]
-  const invitable = friends.filter((friend) => !squad.members.some((member) => member.nickname && member.nickname === friend.nicknames[mode]))
+  const invitable = friends.filter((friend) => !squad.members.some((member) => member.nickname && member.nickname.toLowerCase() === friendLabel(friend.nicknames, mode).toLowerCase()))
 
   const makeInvite = () => void run('invite', async () => {
     const created = await createSquadInvite(squad.id)
@@ -179,7 +178,7 @@ function SquadView({ squad, mode, data, friends, access, busy, run, actionError,
               <div key={member.memberId} className={`squad-member${member.isYou ? ' is-you' : ''}`}>
                 <MemberAvatar name={label} index={index} />
                 <span className="squad-row-main">
-                  <strong>{label}{!member.nickname && <small className="dim"> · {uiText('ник для')} {modeLabel(mode)} {uiText('не привязан')}</small>}</strong>
+                  <strong>{label}{!member.nickname && <small className="dim"> · {uiText('ник не привязан')}</small>}</strong>
                   <small className="muted">
                     {member.isOwner && <span className="tag brass"><Crown size={10} />{uiText('Командир')}</span>}
                     {member.isYou && <span className="tag green">{uiText('Вы')}</span>}
