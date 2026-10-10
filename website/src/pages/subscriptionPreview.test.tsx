@@ -77,7 +77,7 @@ describe('subscription checkout', () => {
     expect(submit).toBeDisabled()
     fireEvent.click(within(dialog).getByRole('checkbox'))
     fireEvent.click(submit)
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-09.2', { region: 'ru', method: 'sbp', language: 'ru' }))
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-10.1', { region: 'ru', method: 'sbp', language: 'ru' }))
   })
 
   it('allows another payment while the previous payment is still being checked', async () => {
@@ -126,8 +126,8 @@ describe('subscription checkout', () => {
     fireEvent.click(checkboxes[1]!)
     expect(within(dialog).getByText(/выбранный способ оплаты сохранится в ЮKassa/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Перейти к оплате' }))
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-09.2', {
-      region: 'ru', method: 'tinkoff_bank', language: 'ru', autopayVersion: '2026-10-09.2',
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-10.1', {
+      region: 'ru', method: 'tinkoff_bank', language: 'ru', autopayVersion: '2026-10-10.1',
     }))
   })
 })

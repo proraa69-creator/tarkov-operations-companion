@@ -99,6 +99,9 @@ export interface AccountView {
   referredBy?: string
   /** Came with a friend's code («Пригласи друга»): the first month is discounted until the first payment. */
   invitedByFriend?: true
+  /** The Escape from Tarkov nickname, one for all modes. */
+  nickname?: string
+  /** The same nickname under every mode (for builds before the single nickname); empty without one. */
   nicknames: Partial<Record<AccountMode, string>>
   /** `lifetime`: streamers use the service free of charge, for good. */
   subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
@@ -209,6 +212,22 @@ const REFERRAL_CODE = /^[A-Z0-9_-]{3,24}$/
 export const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 type Row = Record<string, unknown>
+
+/**
+ * One Escape from Tarkov nickname for every mode (owner, 10.10.2026: a character has the same nickname in PvP, PvE and
+ * «Сезон»). The column still holds a per-mode JSON map, written with the same value in all three keys, so builds that
+ * read `nicknames[mode]` keep working and a rollback finds valid data. Older rows may hold different values per mode:
+ * the nickname is then the first of PvP → PvE → «Сезон».
+ */
+export function primaryNickname(nicknames: Partial<Record<AccountMode, string>>): string | undefined {
+  for (const mode of ACCOUNT_MODES) if (nicknames[mode]) return nicknames[mode]
+  return undefined
+}
+
+/** The per-mode map for builds that still read `nicknames[mode]`: the one nickname in every mode, or nothing. */
+export function nicknamesFor(nickname: string | undefined): Partial<Record<AccountMode, string>> {
+  return nickname ? Object.fromEntries(ACCOUNT_MODES.map((mode) => [mode, nickname])) : {}
+}
 
 function parseNicknames(raw: unknown): Partial<Record<AccountMode, string>> {
   try {
@@ -554,7 +573,8 @@ export class AccountStore {
       email: account.email,
       kind: account.kind,
       createdAt: new Date(account.createdAt).toISOString(),
-      nicknames: { ...account.nicknames },
+      ...(primaryNickname(account.nicknames) ? { nickname: primaryNickname(account.nicknames) } : {}),
+      nicknames: nicknamesFor(primaryNickname(account.nicknames)),
       subscription: trialEndsAt !== undefined && !account.trialDenied && trialEndsAt > this.now() ? { status: 'trial', trialEndsAt: new Date(trialEndsAt).toISOString() } : { status: 'inactive' },
     }
     const paidUntil = this.subscriptions?.paidUntil(account.id)
@@ -710,16 +730,17 @@ export class AccountStore {
     return this.db.prepare("SELECT 1 FROM payments WHERE account_id = ? AND status = 'succeeded'").get(accountId) !== undefined
   }
 
-  setNicknames(accountId: string, nicknames: Partial<Record<AccountMode, string | null>>) {
+  /**
+   * Sets or removes the one nickname. `{ nickname }` is the current form; builds before it send per-mode keys
+   * (the website: `{ pvp, pve, seasonal }` with '' for empty fields, the app: `{ [mode]: nickname }`): then the first
+   * filled key of PvP → PvE → «Сезон» is the nickname, and only keys that are all empty remove it.
+   */
+  setNicknames(accountId: string, input: Partial<Record<AccountMode | 'nickname', string | null>>) {
     const account = this.mustGet(accountId)
-    const next = { ...account.nicknames }
-    for (const mode of ACCOUNT_MODES) {
-      if (!(mode in nicknames)) continue
-      const value = nicknames[mode]
-      if (value === null || value === undefined || value === '') delete next[mode]
-      else next[mode] = value
-    }
-    this.db.prepare('UPDATE accounts SET nicknames = ? WHERE id = ?').run(JSON.stringify(next), account.id)
+    const given = 'nickname' in input ? [input.nickname] : ACCOUNT_MODES.filter((mode) => mode in input).map((mode) => input[mode])
+    if (!given.length) return
+    const nickname = given.find((value): value is string => typeof value === 'string' && value !== '')
+    this.db.prepare('UPDATE accounts SET nicknames = ? WHERE id = ?').run(JSON.stringify(nicknamesFor(nickname)), account.id)
   }
 
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
@@ -1119,7 +1140,7 @@ const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(1
 const deleteAccountSchema = z.object({ password: z.string().min(1).max(128) })
 const nicknameValue = z.union([z.literal(''), z.null(), z.string().trim().regex(NICKNAME)])
 const eftAccountSchema = z.object({ accountId: z.union([z.string(), z.number()]).transform((value) => String(value).trim()).pipe(z.string().regex(/^\d{3,12}$/)) })
-const nicknamesSchema = z.object({ pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
+const nicknamesSchema = z.object({ nickname: nicknameValue.optional(), pvp: nicknameValue.optional(), pve: nicknameValue.optional(), seasonal: nicknameValue.optional() })
 
 const invalid = (message: string): AccountsResponse => ({ status: 400, body: { error: message } })
 
