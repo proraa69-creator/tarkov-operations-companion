@@ -1,6 +1,7 @@
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import type { Barter, Craft, EconomyItem, EconomySnapshot, ItemCount, PricePoint, TaskRef, VendorPrice } from './economyApi'
+export type { PricePoint } from './economyApi'
 
 type Json = Record<string, unknown>
 

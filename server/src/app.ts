@@ -35,6 +35,7 @@ import type { MapMirror } from './services/mapMirror.js'
 import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
 import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
+import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { AdminStore } from './services/adminStore.js'
@@ -68,6 +69,7 @@ export interface ApiOptions {
   dataMirror?: TarkovDataMirror
   priceMirror?: PriceMirror
   legacyGraphql?: LegacyGraphqlBuilder
+  priceHistory?: PriceHistoryMirror
   itemImageDir?: string
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
@@ -203,7 +205,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql }))
+  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
@@ -254,7 +256,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Game data only for signed-in accounts with access on an active device (402 «Нужна подписка» otherwise): the
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
-  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage }), paid, options.mirrorStorage))
+  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
   app.get('/v1/geo', perIp('geo'), (req, res) => {

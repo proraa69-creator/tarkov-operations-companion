@@ -250,6 +250,8 @@ export interface DataGatewayOptions {
   mirror?: MirrorStorage
   /** Never contact upstream while serving an app request. A missing disk snapshot is a controlled 503. */
   strict?: boolean
+  /** Local history store. A miss may enqueue a later background refresh but never contacts upstream here. */
+  priceHistory?: { request(mode: 'regular' | 'pve' | 'pvp-season', itemId: string, days?: number): Promise<{ points: unknown[] }> }
 }
 
 /** Who asks (routes/data.ts passes the signed-in account): counted against the per-account in-flight cap. */
@@ -270,6 +272,7 @@ export class DataGateway {
   private readonly maxInFlightPerAccount: number
   private readonly mirror?: MirrorStorage
   private readonly strict: boolean
+  private readonly priceHistory?: DataGatewayOptions['priceHistory']
   private inFlight = 0
   private readonly inFlightByAccount = new Map<string, number>()
   /** Upstream calls made (tests and the owner's statistics). */
@@ -285,6 +288,7 @@ export class DataGateway {
     this.maxInFlightPerAccount = Math.max(1, options.maxInFlightPerAccount ?? MAX_UPSTREAM_PER_ACCOUNT)
     this.mirror = options.mirror
     this.strict = options.strict ?? process.env.RAIDOS_DATA_STRICT === '1'
+    this.priceHistory = options.priceHistory
   }
 
   /** Upstream calls running now (tests, diagnostics). */
@@ -308,6 +312,12 @@ export class DataGateway {
     const persisted = this.mirror ? await this.mirror.read(slot, 'response.json') : undefined
     if (this.strict) {
       if (persisted) return persisted.toString('utf8')
+      if (shape.fields.length === 1 && shape.fields[0] === 'historicalItemPrices' && this.priceHistory) {
+        const itemId = /historicalItemPrices\s*\(\s*id\s*:\s*"([a-z0-9]{16,48})"/.exec(canonical)?.[1]
+        const mode = /gameMode\s*:\s*(regular|pve|pvp-season)/.exec(canonical)?.[1] as 'regular' | 'pve' | 'pvp-season' | undefined
+        const days = Number(/days\s*:\s*(\d+)/.exec(canonical)?.[1] ?? 30)
+        if (itemId && mode) return JSON.stringify({ data: { historicalItemPrices: (await this.priceHistory.request(mode, itemId, days)).points } })
+      }
       throw new GatewayError(503, 'Данные ещё не подготовлены на сервере. Повторите позже.', 60)
     }
     return this.cached(key, ttl, async () => {
