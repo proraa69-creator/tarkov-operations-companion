@@ -29,7 +29,12 @@ import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
+import { createDataMirrorRouter } from './routes/dataMirror.js'
+import { createItemImagesRouter } from './routes/itemImages.js'
 import type { MapMirror } from './services/mapMirror.js'
+import type { MirrorStorage } from './services/mirrorStorage.js'
+import type { PriceMirror } from './services/priceMirror.js'
+import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -57,6 +62,11 @@ const syncSchema = z.object({
 export interface ApiOptions {
   /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
   mapMirror?: MapMirror
+  /** Persistent Tarkov datasets and prices stored on the server's RaidNVMe. */
+  mirrorStorage?: MirrorStorage
+  dataMirror?: TarkovDataMirror
+  priceMirror?: PriceMirror
+  itemImageDir?: string
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
@@ -191,6 +201,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
+  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror }))
+  app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
@@ -240,7 +252,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Game data only for signed-in accounts with access on an active device (402 «Нужна подписка» otherwise): the
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
-  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway(), paid))
+  app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage }), paid, options.mirrorStorage))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
   app.get('/v1/geo', perIp('geo'), (req, res) => {

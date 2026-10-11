@@ -17,6 +17,7 @@
  *   cache as a whole keeps at most `maxCacheBytes` (oldest entries go first).
  */
 import { createHash } from 'node:crypto'
+import type { MirrorStorage } from './mirrorStorage.js'
 
 export const GRAPHQL_UPSTREAM = 'https://api.tarkov.dev/graphql'
 export const JSON_UPSTREAM = 'https://json.tarkov.dev'
@@ -47,7 +48,7 @@ const SHORT_FIELDS = new Set(['traders'])
 export const SHORT_TTL_MS = 60 * 1000
 
 /** json.tarkov.dev endpoints the app reads (catalog, translations, goon reports, item names). */
-export const JSON_ENDPOINTS: ReadonlySet<string> = new Set(['tasks', 'items', 'maps', 'traders', 'hideout', 'barters', 'crafts', 'mobs', 'handbook'])
+export const JSON_ENDPOINTS: ReadonlySet<string> = new Set(['tasks', 'items', 'maps', 'traders', 'hideout', 'barters', 'crafts', 'mobs', 'handbook', 'season'])
 const JSON_PATH = /^(regular|pve|pvp-season)\/([a-z]+)(?:_([a-z]{2}))?$/
 /** Of the JSON endpoints, these change often (prices, goon reports): short cache. */
 const JSON_PRICE_ENDPOINTS = new Set(['items', 'maps', 'barters', 'crafts'])
@@ -236,6 +237,8 @@ export interface DataGatewayOptions {
   maxInFlight?: number
   /** Upstream calls at the same time started for one account (default MAX_UPSTREAM_PER_ACCOUNT). */
   maxInFlightPerAccount?: number
+  /** Persistent server-owned mirror. Missing snapshots fall back to the guarded upstream path during bootstrap. */
+  mirror?: MirrorStorage
 }
 
 /** Who asks (routes/data.ts passes the signed-in account): counted against the per-account in-flight cap. */
@@ -254,6 +257,7 @@ export class DataGateway {
   private cacheBytes = 0
   private readonly maxInFlight: number
   private readonly maxInFlightPerAccount: number
+  private readonly mirror?: MirrorStorage
   private inFlight = 0
   private readonly inFlightByAccount = new Map<string, number>()
   /** Upstream calls made (tests and the owner's statistics). */
@@ -267,6 +271,7 @@ export class DataGateway {
     this.timeoutMs = options.timeoutMs ?? 60_000
     this.maxInFlight = Math.max(1, options.maxInFlight ?? MAX_UPSTREAM_IN_FLIGHT)
     this.maxInFlightPerAccount = Math.max(1, options.maxInFlightPerAccount ?? MAX_UPSTREAM_PER_ACCOUNT)
+    this.mirror = options.mirror
   }
 
   /** Upstream calls running now (tests, diagnostics). */
@@ -304,6 +309,10 @@ export class DataGateway {
   async json(path: string, caller: GatewayCaller = {}): Promise<string> {
     const match = JSON_PATH.exec(path)
     if (!match || !JSON_ENDPOINTS.has(match[2]!)) throw new GatewayError(404, 'Неизвестный набор данных')
+    if (this.mirror) {
+      const mirrored = await this.mirror.read(`dataset-${match[1]}`, `${match[2]}${match[3] ? `_${match[3]}` : ''}.json`)
+      if (mirrored) return mirrored.toString('utf8')
+    }
     const ttl = (!match[3] && JSON_PRICE_ENDPOINTS.has(match[2]!)) || JSON_CONTENT_ENDPOINTS.has(match[2]!) ? PRICE_TTL_MS : STATIC_TTL_MS
     return this.cached(`json:${path}`, ttl, async () => {
       const body = await this.upstream(`${JSON_UPSTREAM}/${path}`, { headers: { accept: 'application/json' } })

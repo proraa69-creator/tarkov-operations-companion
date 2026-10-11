@@ -110,7 +110,7 @@ export class MapMirror {
   status(): MirrorStatus { return { ...this.current, tiles: { ...this.current.tiles } } }
 
   /** Mirrors in the background: first after `delayMs`, then every `everyMs`. */
-  start(delayMs = 60_000, everyMs = 7 * 24 * 3600_000) {
+  start(delayMs = 60_000, everyMs = 24 * 3600_000) {
     if (this.timer) return
     const kick = () => { void this.run().catch(() => {}) }
     setTimeout(kick, delayMs).unref?.()

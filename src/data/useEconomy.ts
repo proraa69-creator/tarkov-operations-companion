@@ -6,7 +6,7 @@ import { fetchEconomySnapshot, fetchPriceHistory, graphqlGameMode } from './econ
 /** Barters, crafts and prices for the selected mode (query key per mode + language: modes never share data). */
 export function useEconomySnapshot(mode: RaidMode) {
   const { locale } = useLocale()
-  const supported = graphqlGameMode(mode) !== null
+  const supported = mode === 'seasonal' || graphqlGameMode(mode) !== null
   const query = useQuery({
     queryKey: ['tarkov-economy', mode, locale],
     queryFn: () => fetchEconomySnapshot(mode, locale),

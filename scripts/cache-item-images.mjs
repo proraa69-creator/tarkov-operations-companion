@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -121,6 +121,7 @@ export async function cacheItemImages(directory, concurrency = 6) {
       if ((saved + reused + missing.length) % 250 === 0) console.log(`Images ${saved + reused + missing.length}/${jobs.length}`)
     }
   }))
+  await copyFile(join(root, 'manifest.json'), join(root, 'manifest.previous.json')).catch(() => {})
   await atomic(join(root, 'manifest.json'), `${JSON.stringify(manifest)}\n`)
   const report = { items: rows.size, images: Object.values(manifest.items).reduce((sum, row) => sum + Object.keys(row.images).length, 0), saved, reused, missing }
   await atomic(join(root, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)

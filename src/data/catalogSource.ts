@@ -38,16 +38,16 @@ interface Envelope {
   version?: string
 }
 
-export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru'): Promise<AppDataset> {
+export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const taskVersion: { version?: string } = {}
   const [tasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
-    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion),
-    fetchTranslated(upstreamMode, 'items', locale),
-    fetchTranslated(upstreamMode, 'maps', locale),
-    fetchTranslated(upstreamMode, 'traders', locale),
-    fetchTranslated(upstreamMode, 'hideout', locale),
-    fetchMapRenderingConfigs().catch(() => new Map<string, Partial<GameMap>>()),
+    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher),
+    fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher),
+    fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
+    fetchTranslated(upstreamMode, 'traders', locale, undefined, fetcher),
+    fetchTranslated(upstreamMode, 'hideout', locale, undefined, fetcher),
+    fetchMapRenderingConfigs(fetcher).catch(() => new Map<string, Partial<GameMap>>()),
     // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
     (locale === 'ru' ? fetchWikiQuestSync() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
   ])
@@ -95,22 +95,22 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
   }
 }
 
-async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version?: { version?: string }): Promise<JsonRecord> {
+async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`
   const [base, translations] = await Promise.all([
-    fetchEnvelope(`${BASE_URL}/${path}`),
-    fetchEnvelope(`${BASE_URL}/${path}_${locale}`),
+    fetchEnvelope(`${BASE_URL}/${path}`, fetcher),
+    fetchEnvelope(`${BASE_URL}/${path}_${locale}`, fetcher),
   ])
   if (version && base.version) version.version = base.version
   const dictionary = asRecord(translations.data)
   return asRecord(translateDeep(base.data, dictionary))
 }
 
-async function fetchEnvelope(url: string): Promise<Envelope> {
+async function fetchEnvelope(url: string, fetcher: typeof fetch): Promise<Envelope> {
   const controller = new AbortController()
   const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
   try {
-    const response = await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } })
+    const response = await fetcher(url, { signal: controller.signal, headers: { accept: 'application/json' } })
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`)
     const value = await response.json() as Envelope
     if (!value || typeof value !== 'object' || !('data' in value)) throw new Error(`${url}: invalid envelope`)

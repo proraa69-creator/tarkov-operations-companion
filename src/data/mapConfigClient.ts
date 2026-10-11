@@ -1,6 +1,6 @@
 import type { GameMap, MapFloorExtent, MapFloorLayer } from '../domain/types'
 import { localizeFloorName, MAIN_FLOOR } from './mapProjection'
-import { mirroredMapsJsonUrl } from './mapMirror'
+import { mirroredMapsJsonUrl, primaryMapUrl } from './mapMirror'
 
 const MAP_CONFIG_URL = 'https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json'
 const ATTRIBUTION = 'Карта © tarkov.dev contributors · CC BY-NC-SA 4.0'
@@ -42,11 +42,11 @@ interface RawExtent {
   bounds?: unknown[]
 }
 
-export async function fetchMapRenderingConfigs(): Promise<Map<string, Partial<GameMap>>> {
+export async function fetchMapRenderingConfigs(fetcher: typeof fetch = fetch): Promise<Map<string, Partial<GameMap>>> {
   const init = { headers: { accept: 'application/json' } }
-  // GitHub first; our server's copy (data/mapMirror.ts) when GitHub does not answer.
-  let response = await fetch(MAP_CONFIG_URL, { ...init, signal: AbortSignal.timeout(20_000) }).catch(() => null)
-  if (!response?.ok) response = await fetch(mirroredMapsJsonUrl(), { ...init, signal: AbortSignal.timeout(20_000) })
+  // Raid OS first; GitHub only while a new server is still bootstrapping its first copy.
+  let response = await fetcher(mirroredMapsJsonUrl(), { ...init, signal: AbortSignal.timeout(20_000) }).catch(() => null)
+  if (!response?.ok) response = await fetcher(MAP_CONFIG_URL, { ...init, signal: AbortSignal.timeout(20_000) })
   if (!response.ok) throw new Error(`maps.json: HTTP ${response.status}`)
   const roots = await response.json() as RawMapConfigRoot[]
   return adaptMapRenderingConfigs(Array.isArray(roots) ? roots : [])
@@ -59,8 +59,8 @@ export function adaptMapRenderingConfigs(roots: RawMapConfigRoot[]): Map<string,
     const normalizedName = root.normalizedName ?? primary?.key
     if (!normalizedName || !primary) continue
     configs.set(normalizedName, {
-      tileUrl: primary.tilePath,
-      imageUrl: primary.svgPath,
+      tileUrl: primary.tilePath ? primaryMapUrl(primary.tilePath) : undefined,
+      imageUrl: primary.svgPath ? primaryMapUrl(primary.svgPath) : undefined,
       bounds: readBounds(primary.bounds),
       // Only Reserve has it today: the SVG covers a slightly different area than the tiles.
       svgBounds: primary.svgPath ? readBounds(primary.svgBounds) : undefined,
@@ -97,8 +97,8 @@ function mapLayers(config: RawMapConfig): GameMap['layers'] {
     id: 'main',
     svgLayer: config.svgLayer,
     name: MAIN_FLOOR,
-    tileUrl: config.tilePath,
-    imageUrl: config.svgPath,
+    tileUrl: config.tilePath ? primaryMapUrl(config.tilePath) : undefined,
+    imageUrl: config.svgPath ? primaryMapUrl(config.svgPath) : undefined,
     heightRange: readHeightRange(config.heightRange),
     ownTiles: true,
   }
@@ -108,8 +108,8 @@ function mapLayers(config: RawMapConfig): GameMap['layers'] {
       id: `layer-${index}`,
       svgLayer: layer.svgLayer,
       name: localizeFloorName(layer.name ?? `Слой ${index + 1}`),
-      tileUrl: layer.tilePath ?? config.tilePath,
-      imageUrl: layer.svgPath ?? config.svgPath,
+      tileUrl: layer.tilePath || config.tilePath ? primaryMapUrl(layer.tilePath ?? config.tilePath!) : undefined,
+      imageUrl: layer.svgPath || config.svgPath ? primaryMapUrl(layer.svgPath ?? config.svgPath!) : undefined,
       heightRange: readHeightRange(layer.heightRange) ?? extents[0]?.height,
       extents: extents.length ? extents : undefined,
       ownTiles: Boolean(layer.tilePath || layer.svgPath),
