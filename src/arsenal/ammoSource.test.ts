@@ -29,13 +29,13 @@ describe('tarkov.dev ammo adapter', () => {
     expect(ammoQuery('pvp', 'ru')).toContain('ballisticCoeficient')
   })
 
-  it('posts the query to the GraphQL endpoint', async () => {
-    const fetcher = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }))
-    const rows = await fetchAmmoStats('pvp', 'ru', fetcher as unknown as typeof fetch)
-    expect(rows.length).toBe(16)
-    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://api.tarkov.dev/graphql')
-    expect(JSON.parse(String(init.body)).query).toContain('gameMode: regular')
+  it('loads ammo from the selected mirrored JSON dataset', async () => {
+    const id = '54527ac44bdc2d36668b4567'
+    const loader = vi.fn(async (_mode: string, _locale: string) => ({ items: { data: { items: { [id]: { id, name: 'M855A1', shortName: 'M855A1', types: ['ammo'], lastLowPrice: 1200, properties: { propertiesType: 'ItemPropertiesAmmo', caliber: 'Caliber556x45NATO', ammoType: 'bullet', damage: 49, penetrationPower: 44 } } } } }, mode: 'pvp' as const }))
+    const rows = await fetchAmmoStats('pvp', 'ru', loader)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ id, damage: 49, penetration: 44, price: 1200 })
+    expect(loader).toHaveBeenCalledWith('pvp', 'ru')
   })
 
   it('formats caliber ids', () => {

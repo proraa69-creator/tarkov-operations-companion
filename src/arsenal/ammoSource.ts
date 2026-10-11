@@ -2,15 +2,14 @@ import { useQuery } from '@tanstack/react-query'
 import type { Item, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { fleaQuote } from '../domain/itemPrices'
+import { loadTarkovDataset } from '../data/tarkovDataset'
+import { buildLegacyItems } from '../data/tarkovJsonAdapters'
 
 /**
- * Ammo stats for «Баллистика 2.0» from the tarkov.dev GraphQL API (https://api.tarkov.dev/graphql).
- * Schema (the-hideout/tarkov-api, schema-static.mjs): `items(type: ammo, gameMode: GameMode, lang: LanguageCode)`
- * with `properties { ... on ItemPropertiesAmmo { … ballisticCoeficient … } }` (the API spells it with one «f»).
- * GameMode has only `regular` and `pve`; the Season profile loads the regular stats (they are the same rounds), but its
- * prices come from the Season catalog (json.tarkov.dev `pvp-season/items`), see `withModePrices`.
+ * Ammo stats for «Баллистика 2.0» from the Raid OS JSON mirror.
+ * The JSON source spells `ballisticCoeficient` with one «f».
+ * Every mode uses its own item and minute-price generation.
  */
-export const TARKOV_GRAPHQL_URL = 'https://api.tarkov.dev/graphql'
 
 export interface AmmoStats {
   id: string
@@ -162,15 +161,9 @@ export function damageText(ammo: Pick<AmmoStats, 'damage' | 'projectileCount'>) 
   return ammo.projectileCount && ammo.projectileCount > 1 ? `${ammo.damage}×${ammo.projectileCount}` : String(ammo.damage)
 }
 
-export async function fetchAmmoStats(mode: RaidMode, locale: AppLocale, fetcher: typeof fetch = fetch): Promise<AmmoStats[]> {
-  const response = await fetcher(TARKOV_GRAPHQL_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ query: ammoQuery(mode, locale) }),
-    signal: AbortSignal.timeout(30_000),
-  })
-  if (!response.ok) throw new Error(`Сервер данных: HTTP ${response.status}`)
-  const rows = adaptAmmoResponse(await response.json())
+export async function fetchAmmoStats(mode: RaidMode, locale: AppLocale, loader = loadTarkovDataset): Promise<AmmoStats[]> {
+  const items = buildLegacyItems(await loader(mode, locale)).filter((item) => Array.isArray(item.types) && item.types.includes('ammo'))
+  const rows = adaptAmmoResponse({ data: { items } })
   if (!rows.length) throw new Error('Сервер данных: нет патронов')
   return rows
 }

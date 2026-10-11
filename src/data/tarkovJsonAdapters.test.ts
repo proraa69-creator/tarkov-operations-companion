@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptWeapons } from '../arsenal/gunQueries'
-import { buildEconomySnapshot, buildLegacyAmmo, buildLegacyItems, normalizePriceHistory, type TarkovJsonBundle } from './tarkovJsonAdapters'
+import { buildEconomySnapshot, buildLegacyAmmo, buildLegacyBosses, buildLegacyItems, normalizePriceHistory, type TarkovJsonBundle } from './tarkovJsonAdapters'
 
 const gun = '5447a9cd4bdc2dbd208b4567'
 const mod = '55d4b9964bdc2d1d4e8b456e'
@@ -17,6 +17,7 @@ const bundle: TarkovJsonBundle = {
   traders: { data: { traders: { [trader]: { id: trader, name: 'Механик', normalizedName: 'mechanic' } } } },
   barters: { data: [{ id: 'b', trader, minTraderLevel: 2, requiredItems: [{ item: mod, count: 2 }], offeredItem: { item: gun, count: 1 } }] },
   crafts: { data: [{ id: 'c', station: 'workbench', level: 2, duration: 60, requiredItems: [{ item: mod, count: 1 }], productItem: { item: ammo, count: 2 } }] },
+  maps: { data: { maps: { factory: { id: 'factory', bosses: [{ mob: 'boss' }] } }, mobs: { boss: { id: 'boss', name: 'Boss', normalizedName: 'boss', imagePortraitLink: 'https://assets.tarkov.dev/boss.webp', equipment: [{ attributes: [{ name: 'slot', value: 'FirstPrimaryWeapon' }], item: { id: gun, name: 'Gun', iconLink: 'https://assets.tarkov.dev/gun.webp', properties: { defaultPreset: { id: mod, iconLink: 'https://assets.tarkov.dev/preset.webp' } } } }] } } } },
   prices: { mode: 'regular', items: { [gun]: { lastLowPrice: 777 }, [ammo]: { lastLowPrice: 333 } }, fleaMarket: { enabled: true } },
 }
 
@@ -42,5 +43,13 @@ describe('Tarkov JSON adapters', () => {
 
   it('normalizes and sorts stored history', () => {
     expect(normalizePriceHistory({ data: { prices: [{ timestamp: 2, price: 20 }, { timestamp: 1, price: 10 }, { timestamp: 3, price: 0 }] } })).toEqual([{ timestamp: 1, price: 10, priceMin: undefined }, { timestamp: 2, price: 20, priceMin: undefined }])
+  })
+
+  it('keeps boss equipment on the Raid OS image mirror', () => {
+    const [boss] = buildLegacyBosses(bundle)
+    const equipment = boss?.equipment as Array<{ item?: { iconLink?: string; properties?: { defaultPreset?: { iconLink?: string } } } }>
+    expect(boss?.imagePortraitLink).toBeUndefined()
+    expect(equipment[0]?.item?.iconLink).toBe(`https://raidos.app/v1/item-images/${gun}-icon.webp`)
+    expect(equipment[0]?.item?.properties?.defaultPreset?.iconLink).toBe(`https://raidos.app/v1/item-images/${mod}-icon.webp`)
   })
 })

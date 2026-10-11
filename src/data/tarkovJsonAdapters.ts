@@ -261,12 +261,39 @@ export function buildLegacyCrafts(bundle: TarkovJsonBundle, mode: RaidMode = 'pv
 export function buildLegacyBosses(bundle: TarkovJsonBundle): Json[] {
   const root = object(unwrapTarkovData(bundle.maps))
   const mobs = dictionary(root.mobs)
+  const imageBase = bundle.imageBaseUrl ?? 'https://raidos.app/v1/item-images'
   const bossIds = new Set<string>()
   for (const map of Object.values(dictionary(root.maps))) for (const boss of array(map.bosses)) {
     const id = text(boss.mob)
     if (id) bossIds.add(id)
   }
-  return [...bossIds].map((id) => mobs[id]).filter(Boolean).map((mob) => ({ ...mob, normalizedName: text(mob.normalizedName, text(mob.id)), health: mob.health ?? { max: 0 }, equipment: Array.isArray(mob.equipment) ? mob.equipment : [] }))
+  return [...bossIds].map((id) => mobs[id]).filter(Boolean).map((mob) => ({
+    ...mob,
+    imagePortraitLink: undefined,
+    normalizedName: text(mob.normalizedName, text(mob.id)),
+    health: mob.health ?? { max: 0 },
+    equipment: array(mob.equipment).map((entry) => {
+      const item = object(entry.item)
+      const itemId = text(item.id)
+      const properties = object(item.properties)
+      const preset = object(properties.defaultPreset)
+      const presetId = text(preset.id)
+      return {
+        ...entry,
+        item: {
+          ...item,
+          iconLink: itemId ? localImage(imageBase, itemId, 'icon') : undefined,
+          properties: {
+            ...properties,
+            defaultPreset: Object.keys(preset).length ? {
+              ...preset,
+              iconLink: presetId ? localImage(imageBase, presetId, 'icon') : undefined,
+            } : properties.defaultPreset,
+          },
+        },
+      }
+    }),
+  }))
 }
 
 export function normalizePriceHistory(value: unknown): PricePoint[] {
