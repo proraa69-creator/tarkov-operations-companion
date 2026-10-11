@@ -29,6 +29,7 @@ export const BUILD_SCREENSHOTS: ReadonlyArray<readonly [task: string, weapon: st
   ['5b477b6f86f7747290681823', '5a0ec13bfcdbcb00165aa685', 'gunsmith-master-part-5'], // Часть 5 (АКМН)
   ['639873003693c63d86328f25', '5c46fbd72e2216398b5a8c9c', 'gunsmith-master-part-6'], // Часть 6 (СВДС)
   ['5b477f7686f7744d1b23c4d2', '5aafa857e5b5b00018480968', 'gunsmith-master-part-7'], // Часть 7 (M1A)
+  ['63987301e11ec11ff5504036', '5bfea6e90db834001b7347f3', 'gunsmith-master-part-8-m700'], // Часть 8, оружие 1 из 2 (M700)
   ['5b47825886f77468074618d3', '5447a9cd4bdc2dbd208b4567', 'gunsmith-master-part-9'], // Часть 9 (M4A1)
   ['64f83bb69878a0569d6ecfbe', '606587252535c57a13424cfd', 'gunsmith-master-part-10'], // Часть 10 (Mk47)
   ['64f83bcdde58fc437700d8fa', '5df8ce05b11454561e39243b', 'gunsmith-master-part-11'], // Часть 11 (SR-25)
