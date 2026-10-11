@@ -160,7 +160,9 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
     rigid: [
       [-0.32, 0.44, 0.06, 0.2, 0.66, 0.26], // sledgehammer handle
       [0.12, 0.5, -0.08, 0.42, 0.8, 0.22], // sledgehammer head
-      [-0.2, 0.55, -0.2, -0.05, 0.96, -0.04], // rifle on the back
+      // the rifle on the back over the cape: only the rifle (its stock and the pouch on it), not the cape around it
+      [-0.17, 0.55, -0.2, -0.125, 0.96, -0.04],
+      [-0.15, 0.68, -0.2, -0.045, 0.85, -0.04],
     ],
   },
   'tagilla-2-knight': {

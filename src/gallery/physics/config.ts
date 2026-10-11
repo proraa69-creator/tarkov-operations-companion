@@ -27,6 +27,11 @@ export interface ParticleProfile {
   shapeHz: number
   /** Shape spring multiplier at the attachment (the seam end of the element), × at mobility 0. */
   rootShape: number
+  /**
+   * How much softer the element is out in the air than at its attachment, 0..1: the free part's bending and shape spring
+   * are scaled by 1 − airSoftness (owner, 11.10.2026: «точка жёсткости только на теле … дальше в воздухе мягкий»).
+   */
+  airSoftness: number
   /** Damping of motion relative to the body, 1/s. */
   damping: number
   /** Air drag, N·s/m per particle (divided by the mass: light cloth trails, heavy gear does not). */
@@ -114,21 +119,22 @@ export const PHYSICS_SETTINGS: PhysicsSettings = {
 }
 
 export const PARTICLE_PROFILES: Record<ParticleKind, ParticleProfile> = {
-  // soft and light: trails behind a turn, flares out a little, folds; settles in about two seconds
-  cloth: { mass: 0.02, stretchHz: 45, bendHz: 2.2, shapeHz: 0.5, rootShape: 8, damping: 2.6, drag: 0.04, gravity: 1, inertia: 1, maxDistance: 0.3, maxStretch: 0.015, collisionRadius: 0.012, spacing: 0.055 },
-  // slings, ropes, straps: hardly stretch, bend freely, a bit heavier than cloth
-  strap: { mass: 0.03, stretchHz: 80, bendHz: 1.2, shapeHz: 0.4, rootShape: 8, damping: 3, drag: 0.04, gravity: 1, inertia: 1, maxDistance: 0.18, maxStretch: 0.01, collisionRadius: 0.01, spacing: 0.03 },
+  // soft and light: held at the seam, limp in the air — trails behind a turn, flares out a little, folds; settles in
+  // about two seconds
+  cloth: { mass: 0.02, stretchHz: 45, bendHz: 2.2, shapeHz: 0.5, rootShape: 8, airSoftness: 0.65, damping: 2.6, drag: 0.04, gravity: 1, inertia: 1, maxDistance: 0.3, maxStretch: 0.015, collisionRadius: 0.012, spacing: 0.055 },
+  // slings, ropes, straps: hardly stretch, hang slack between their ends, a bit heavier than cloth
+  strap: { mass: 0.03, stretchHz: 80, bendHz: 1.2, shapeHz: 0.4, rootShape: 8, airSoftness: 0.65, damping: 3, drag: 0.04, gravity: 1, inertia: 1, maxDistance: 0.18, maxStretch: 0.01, collisionRadius: 0.01, spacing: 0.03 },
   // hair and dreads: flexible, keep their fall, lively
-  hair: { mass: 0.01, stretchHz: 70, bendHz: 1.6, shapeHz: 0.8, rootShape: 6, damping: 3.2, drag: 0.03, gravity: 1, inertia: 1, maxDistance: 0.14, maxStretch: 0.02, collisionRadius: 0.012, spacing: 0.03 },
+  hair: { mass: 0.01, stretchHz: 70, bendHz: 1.6, shapeHz: 0.8, rootShape: 6, airSoftness: 0.3, damping: 3.2, drag: 0.03, gravity: 1, inertia: 1, maxDistance: 0.14, maxStretch: 0.02, collisionRadius: 0.012, spacing: 0.03 },
   // antennas: springy rods, whip on a turn and spring back to their shape
-  antenna: { mass: 0.01, stretchHz: 120, bendHz: 14, shapeHz: 4.5, rootShape: 4, damping: 4, drag: 0.003, gravity: 0.3, inertia: 1, maxDistance: 0.12, maxStretch: 0.005, collisionRadius: 0, spacing: 0.025 },
+  antenna: { mass: 0.01, stretchHz: 120, bendHz: 14, shapeHz: 4.5, rootShape: 4, airSoftness: 0, damping: 4, drag: 0.003, gravity: 0.3, inertia: 1, maxDistance: 0.12, maxStretch: 0.005, collisionRadius: 0, spacing: 0.025 },
 }
 
 export const PIECE_PROFILES: Record<PieceKind, PieceProfile> = {
-  // pouches: light, quick, a small wobble on their straps
-  pouch: { mass: 0.4, frequencyHz: 4, size: 0.06, dampingRatio: 0.3, drag: 0.08, gravity: 1, inertia: 1, limits: { out: 8, in: 0.5, side: 6, twist: 3 } },
-  // holsters, backpacks, bags: heavy and restrained
-  gear: { mass: 2.5, frequencyHz: 2.5, size: 0.15, dampingRatio: 0.35, drag: 0.15, gravity: 1, inertia: 1, limits: { out: 6, in: 0.5, side: 5, twist: 2 } },
+  // pouches and holsters strapped to a thigh or a belt: a small, quick, well damped give
+  pouch: { mass: 0.4, frequencyHz: 4.5, size: 0.06, dampingRatio: 0.6, drag: 0.08, gravity: 1, inertia: 0.45, limits: { out: 3, in: 0.3, side: 2.5, twist: 1 } },
+  // backpacks and bags: heavy, held by their straps, barely sway (owner, 11.10.2026: «уменьши инерцию кабур и рюкзаков»)
+  gear: { mass: 2.5, frequencyHz: 3, size: 0.15, dampingRatio: 0.6, drag: 0.15, gravity: 1, inertia: 0.45, limits: { out: 2.5, in: 0.3, side: 2, twist: 0.8 } },
 }
 
 /** Per-model overrides (bossSwayHints.ts `physics`): any field of any profile. */

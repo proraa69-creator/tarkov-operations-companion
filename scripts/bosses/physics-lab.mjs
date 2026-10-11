@@ -1,5 +1,6 @@
 // Renders the physics lab page (physics-lab.html) for boss models into PNGs.
-//   node scripts/bosses/physics-lab.mjs <out dir> [classes|sim|walk] [key ...]   (sim: turns; walk: walking, see physics-lab.ts)
+//   node scripts/bosses/physics-lab.mjs <out dir> [classes|sim|walk|strain] [key ...]   (sim: turns; walk: walking; strain: what
+//   the motion does to every vertex — see physics-lab.ts)
 //   PHYSICS_LAB_SIZE=600: pixels per view (default 420)
 import { chromium } from 'playwright'
 import { createServer } from 'vite'

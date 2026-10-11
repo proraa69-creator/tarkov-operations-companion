@@ -62,6 +62,8 @@ const LINK_STRAIN = 0.1
 const SLEEP_OFFSET = 0.002
 
 const smooth = (t: number) => { const c = t < 0 ? 0 : t > 1 ? 1 : t; return c * c * (3 - 2 * c) }
+/** Stiffness left out in the air: 1 at the attachment (mobility ≤ 0.35), 1 − softness where the element is free. */
+const airFactor = (softness: number, mobility: number) => 1 - softness * smooth((mobility - 0.35) / 0.5)
 
 export class BossPhysics {
   readonly rig: PhysicsRig
@@ -180,9 +182,9 @@ export class BossPhysics {
       this.drag[i] = profile.drag / profile.mass
       this.decay[i] = Math.exp(-profile.damping * h)
       // the shape spring: the material's elasticity, stronger towards the attachment (the seam end of a cape or a
-      // strand holds its shape), plus what gravity does to a hanging part — the pull back of a pendulum as long as
-      // the part hangs below its attachment (g / L)
-      const material = TAU * profile.shapeHz * (1 + (profile.rootShape - 1) * (1 - smooth(mobility / 0.5)))
+      // strand holds its shape) and weaker out in the air (the free end hangs limp), plus what gravity does to a hanging
+      // part — the pull back of a pendulum as long as the part hangs below its attachment (g / L)
+      const material = TAU * profile.shapeHz * airFactor(profile.airSoftness, mobility) * (1 + (profile.rootShape - 1) * (1 - smooth(mobility / 0.5)))
       const hangs = Math.max(0, rig.hang[i3] * ux + rig.hang[i3 + 1] * uy + rig.hang[i3 + 2] * uz)
       const pendulum = (profile.gravity * gravity * hangs) / Math.max(0.05, rig.tetherLength[i])
       const kappa = (material * material + pendulum) * h * h
@@ -205,7 +207,8 @@ export class BossPhysics {
     // that also tells a fold from its mirror image (distance links alone let a dent pop through and stay there)
     for (let i = 0; i < N; i++) {
       const profile = profiles[rig.type[i]]
-      const kappa = (TAU * profile.bendHz * h) ** 2
+      // bending: the sculpted folds near the seam, limp out in the air
+      const kappa = (TAU * profile.bendHz * airFactor(profile.airSoftness, rig.mobility[i]) * h) ** 2
       this.matchFactor[i] = rig.pinned[i] ? 0 : kappa / (1 + kappa)
       const start = rig.neighbourStart[i], end = rig.neighbourStart[i + 1], size = end - start + 1
       let cx = rig.rest[i * 3], cy = rig.rest[i * 3 + 1], cz = rig.rest[i * 3 + 2]

@@ -16,10 +16,13 @@
  *    held in front of the chest (weapons), pieces hanging from the ankles;
  * 5. cords — rifle slings, ropes — are split out of the weapon or hand they are fused into (STRAND_RADIUS)
  *    and swing if they hang; cords, hair and dreads are marked livelier;
- * 6. pouches on the torso, hips and thighs swing a little (POUCH_SWING) from their top seam.
+ * 6. lumps on the body (pouches, pockets, buckles) stay on it: a pocket of the trousers or the jacket must never move
+ *    (owner, 11.10.2026: «должны двигаться только внешние детали»); the pouches that really hang are hint pieces.
  * 7. per-model hints (bossSwayHints.ts), measured on each model by hand, have the last word: weapons stay
  *    rigid whatever their shape, holsters/backpacks/buckles swing as one whole piece, antennas bend towards the
- *    tip, hair hangs from its roots.
+ *    tip, hair hangs from its roots. A piece or an antenna moves only the item itself: its weight grows along the
+ *    item's surface from where the item meets the body (0 there) and with how far it stands out of the body — the
+ *    jacket under a backpack and the trousers under a holster stay still, nothing tears at the edge of a hint box.
  * Coincident vertices (UV seams) always get the same weight, so the surface never cracks open.
  * Runs once per model, off the main thread (physics/rig.worker.ts): about 0.2–1.5 s for a 30k-vertex model.
  */
@@ -36,8 +39,6 @@ const PIN = 0.04
 const ATTACH_RADIUS = 0.12
 /** Radius of the second opening: lumps thinner than this on the body are pouches and pockets. */
 const POUCH_RADIUS = 0.034
-/** How far a pouch swings compared with cloth. */
-const POUCH_SWING = 0.45
 /** Strands thinner than this (radius, fraction of height) inside a weapon or a hand are cords (slings, ropes). */
 const STRAND_RADIUS = 0.013
 /** Distance along a cord or strand over which its weight reaches 1 (they are short but swing fully). */
@@ -46,8 +47,23 @@ const CORD_REACH = 0.07
 const HEAD_HEIGHT = 0.82
 /** Hint boxes fade out over this distance outside the box (fraction of height), so nothing tears at their edge. */
 const HINT_MARGIN = 0.014
-/** Whole pieces fade out faster: the leg or the back they sit on must not be dragged along. */
-const PIECE_MARGIN = 0.007
+/**
+ * A whole piece (backpack, holster) moves in full only this far along its own surface from where it meets the body
+ * (fraction of height); where it meets the body, and on the body inside its box, it does not move at all.
+ */
+const PIECE_BAND = 0.03
+/**
+ * …and only where it stands out of the body (fraction of height): from PIECE_RISE[0] above the body it starts to move,
+ * from PIECE_RISE[1] it moves in full. The body under a piece is the model with the piece's box taken out.
+ */
+const PIECE_RISE = [0.004, 0.045] as const
+/** Antennas likewise, from where they leave the radio (fraction of height). */
+const STRAND_BAND = 0.012
+/**
+ * Whatever swings fades in over this distance along the surface from every vertex that stays still — the body, a weapon
+ * held rigid, a lump — so a cape never tears where it lies against a rifle on the back (fraction of height).
+ */
+const STILL_FADE = 0.05
 
 export interface SwayOptions {
   coreRadius?: number
@@ -332,24 +348,10 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
   const raw = new Float32Array(n), lively = new Float32Array(n), kind = new Uint8Array(n), strand = new Uint8Array(n)
   const debugInfo: string[] = []
 
-  // 6. pouches and pockets: small lumps on the torso, hips and thighs swing a little from their top seam as
-  // if hung there (hands, forearms and weapons are larger, or sit in front of the chest or out at the sides)
+  // 6. lumps — pouches, pockets, buckles, hands, forearms, weapon parts — stay on the body: told apart from a pocket of
+  // the trousers only by hand (a hint piece), so none of them swings by itself
   const pouches = collect(MEDIUM, (c) => c === BODY)
-  for (const p of pouches.list) {
-    if (p.top < 0 || p.members.length < 12) continue
-    const extent = Math.max(p.box[3] - p.box[0], p.box[4] - p.box[1], p.box[5] - p.box[2]) / height
-    const { radial, front } = offset(p.top)
-    const inFront = front > 0.03 && p.topY > 0.58
-    if (extent > 0.14 || p.topY < 0.15 || p.topY > 0.8 || radial > ATTACH_RADIUS + 0.02 || inFront) { for (const m of p.members) kind[m] = 4; continue }
-    const topSeams = [...p.seams].filter((a) => position[a * 3 + 1] > position[p.top * 3 + 1] - 0.02 * height)
-    const from = walk(topSeams, MEDIUM)
-    const drop = Math.max(0.03 * height, position[p.top * 3 + 1] - p.box[1])
-    for (const m of p.members) {
-      const hang = smooth((position[p.top * 3 + 1] - position[m * 3 + 1]) / (0.02 * height))
-      raw[m] = POUCH_SWING * smooth(from[m] / drop) * hang
-      kind[m] = 3
-    }
-  }
+  for (const p of pouches.list) for (const m of p.members) kind[m] = 4
 
   // 7. thin pieces: cloth, straps, cords and strands hang from their highest seam
   const thins = collect(THIN, () => true)
@@ -495,7 +497,29 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
   }
   // 9. the model's hints: hair and antennas added, weapons held still, whole pieces swinging about a pivot
   const piece = new Int16Array(n).fill(-1)
-  const parts = options.hints ? applyHints(options.hints, { n, weld, position, w, live, kind, strand, piece, minY, height, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 }) : null
+  const thin = Uint8Array.from(cls, (c) => (c === THIN || c === STRAND ? 1 : 0))
+  const parts = options.hints
+    ? applyHints(options.hints, { n, weld, neighbours, thin, position, w, live, kind, strand, piece, minY, height, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, solid, grid: { ox, oy, oz, cell, nx, ny, nz } })
+    : null
+  // 10. nothing that swings is next to something that does not: from every still vertex the swing fades in along the
+  // surface (cloth and strands only; a whole piece moves as one with its own fade, hints.pieces)
+  {
+    const moving = (v: number) => w[v] > 0.002
+    const seeds: number[] = []
+    for (let i = 0; i < n; i++) if (weld[i] === i && !moving(i) && neighbours[i].some(moving)) seeds.push(i)
+    const fromStill = new Float32Array(n).fill(Infinity)
+    const heap = new MinHeap()
+    for (const a of seeds) { fromStill[a] = 0; heap.push(0, a) }
+    while (heap.size) {
+      const i = heap.pop()
+      for (const j of neighbours[i]) {
+        if (!moving(j)) continue
+        const d = fromStill[i] + edge(i, j)
+        if (d < fromStill[j] - 1e-9) { fromStill[j] = d; heap.push(d, j) }
+      }
+    }
+    for (let i = 0; i < n; i++) if (weld[i] === i && moving(i)) w[i] *= smooth(fromStill[i] / (STILL_FADE * height))
+  }
   const weights = new Float32Array(n * 2)
   let moving = 0
   for (let i = 0; i < n; i++) {
@@ -521,6 +545,13 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
 
 interface HintContext {
   n: number; weld: Int32Array; position: ArrayLike<number>
+  /** Mesh neighbours of every welded vertex. */
+  neighbours: number[][]
+  /** 1 where the vertex is on a thin part (sheet, strap, cord, strand), 0 on the body or a lump. */
+  thin: Uint8Array
+  /** The model's inside on the voxel grid (1 = inside). */
+  solid: Uint8Array
+  grid: { ox: number; oy: number; oz: number; cell: number; nx: number; ny: number; nz: number }
   /** Per welded vertex swing weight and liveliness (changed in place). */
   w: Float32Array; live: Float32Array; kind: Uint8Array
   /** STRAND_TYPE per welded vertex and the whole piece (hints.pieces index) it belongs to (changed in place). */
@@ -539,12 +570,60 @@ function outside(box: HintBox, x: number, y: number, z: number) {
  * (pivot xyz + amount per vertex), or null when the model has no whole pieces.
  */
 function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
-  const { n, weld, position, w, live, kind, strand, piece, minY, height, cx, cz } = c
+  const { n, weld, neighbours, thin, position, w, live, kind, strand, piece, minY, height, cx, cz, solid } = c
+  const { ox, oy, oz, cell, nx, ny, nz } = c.grid
   const parts = hints.pieces?.length ? new Float32Array(n * 4) : null
+  const at = (i: number) => [(position[i * 3] - cx) / height, (position[i * 3 + 1] - minY) / height, (position[i * 3 + 2] - cz) / height] as const
+  /** Distance along the surface (fraction of height) from the seeds through the vertices that `pass`. */
+  const along = (seeds: number[], pass: (v: number) => boolean) => {
+    const dist = new Float32Array(n).fill(Infinity)
+    const heap = new MinHeap()
+    for (const a of seeds) if (dist[a] !== 0) { dist[a] = 0; heap.push(0, a) }
+    while (heap.size) {
+      const i = heap.pop()
+      for (const j of neighbours[i]) {
+        if (!pass(j)) continue
+        const d = dist[i] + Math.hypot(position[i * 3] - position[j * 3], position[i * 3 + 1] - position[j * 3 + 1], position[i * 3 + 2] - position[j * 3 + 2]) / height
+        if (d < dist[j] - 1e-9) { dist[j] = d; heap.push(d, j) }
+      }
+    }
+    return dist
+  }
+  // whole pieces: how far each vertex in the box is, along the surface, from the body around the box (the jacket, the
+  // trousers it sits on); only the item itself is far from it
+  // and how far it stands out of the body under it: the model with the box taken out, on the voxel grid
+  const voxelOf = (i: number) => {
+    const x = Math.floor((position[i * 3] - ox) / cell), y = Math.floor((position[i * 3 + 1] - oy) / cell), z = Math.floor((position[i * 3 + 2] - oz) / cell)
+    return x < 0 || y < 0 || z < 0 || x >= nx || y >= ny || z >= nz ? -1 : x + y * nx + z * nx * ny
+  }
+  const pieceReach = (hints.pieces ?? []).map((hint) => {
+    const inside = new Uint8Array(n)
+    for (let i = 0; i < n; i++) if (weld[i] === i && outside(hint.box, ...at(i)) === 0) inside[i] = 1
+    const seeds: number[] = []
+    for (let i = 0; i < n; i++) if (weld[i] === i && !inside[i] && neighbours[i].some((j) => inside[j])) seeds.push(i)
+    const body = new Uint8Array(solid.length)
+    for (let k = 0; k < solid.length; k++) {
+      if (!solid[k]) continue
+      const x = (ox + (k % nx + 0.5) * cell - cx) / height, y = (oy + (Math.floor(k / nx) % ny + 0.5) * cell - minY) / height
+      const z = (oz + (Math.floor(k / (nx * ny)) + 0.5) * cell - cz) / height
+      if (outside(hint.box, x, y, z) > 0) body[k] = 1
+    }
+    const toBody = distanceTransform(body, 1, nx, ny, nz)
+    const rise = (i: number) => { const k = voxelOf(i); return k < 0 ? 0 : (Math.sqrt(toBody[k]) * cell) / height }
+    return { inside, reach: along(seeds, (v) => inside[v] === 1), rise }
+  })
+  // antennas: how far each thin vertex is, along the rod, from the radio or the back it grows from
+  let fromBody: Float32Array | null = null
+  if (hints.whips?.length) {
+    const seeds: number[] = []
+    for (let i = 0; i < n; i++) if (weld[i] === i && !thin[i] && neighbours[i].some((j) => thin[j])) seeds.push(i)
+    fromBody = along(seeds, (v) => thin[v] === 1)
+  }
   for (let i = 0; i < n; i++) {
     if (weld[i] !== i) continue
-    const x = (position[i * 3] - cx) / height, y = (position[i * 3 + 1] - minY) / height, z = (position[i * 3 + 2] - cz) / height
-    // hair: everything in the box hangs from its roots (the scalp line `root`) and swings like hair
+    const [x, y, z] = at(i)
+    // hair: everything in the box hangs from its roots (the scalp line `root`) and swings like hair — the whole mass of
+    // dreads as one (the box holds only hair; a strand told apart from its neighbour would tear the mass)
     for (const hair of hints.hair ?? []) {
       const fade = 1 - smooth(outside(hair.box, x, y, z) / HINT_MARGIN)
       if (fade <= 0) continue
@@ -552,12 +631,13 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
       const hang = smooth((hair.root - y) / (hair.reach ?? 0.07)) * fade * (hair.amount ?? 0.6)
       if (hang > w[i]) { w[i] = hang; live[i] = 0.3 * fade; kind[i] = 2; strand[i] = STRAND_TYPE.hair }
     }
-    // antennas: fixed at the bottom of the box, bending more and more towards the tip
+    // antennas: fixed at the bottom of the box, bending more and more towards the tip; the radio and the back stay
     for (const whip of hints.whips ?? []) {
+      if (!thin[i]) break
       const [x0, y0, z0, x1, y1, z1] = whip.box
       if (x < x0 || x > x1 || z < z0 || z > z1 || y < y0 || y > y1) continue
       const t = (y - y0) / Math.max(1e-6, y1 - y0)
-      const bend = t * t * (whip.amount ?? 0.6)
+      const bend = t * t * (whip.amount ?? 0.6) * smooth(fromBody![i] / STRAND_BAND)
       if (bend > w[i]) { w[i] = bend; live[i] = 1; kind[i] = 2; strand[i] = STRAND_TYPE.antenna }
     }
     for (const soft of hints.soften ?? []) {
@@ -568,18 +648,19 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
     let hold = 1
     for (const box of hints.rigid ?? []) hold = Math.min(hold, smooth(outside(box, x, y, z) / HINT_MARGIN))
     if (hold < 1) { w[i] *= hold; if (hold === 0) kind[i] = 4 }
-    // whole pieces: the piece turns about its pivot as one; its own cloth motion is replaced by that
+    // whole pieces: the piece turns about its pivot as one; its own cloth motion is replaced by that, and what of the
+    // body is in its box stays where it is
     if (parts) hints.pieces!.forEach((hint, index) => {
-      const d = outside(hint.box, x, y, z)
-      if (d >= PIECE_MARGIN) return
-      const fade = 1 - smooth(d / PIECE_MARGIN)
+      const { inside, reach, rise } = pieceReach[index]
+      if (!inside[i]) return
+      w[i] = 0
+      const standsOut = smooth((rise(i) - PIECE_RISE[0]) / (PIECE_RISE[1] - PIECE_RISE[0]))
+      const amount = smooth(reach[i] / PIECE_BAND) * standsOut * (hint.amount ?? 1) * hold
+      if (amount <= parts[i * 4 + 3] || amount < 0.002) return
       const b = hint.box
       const pivot = hint.pivot ?? [(b[0] + b[3]) / 2, b[4], (b[2] + b[5]) / 2]
-      const amount = fade * (hint.amount ?? 1) * hold
-      if (amount <= parts[i * 4 + 3]) return
       parts[i * 4] = pivot[0] * height + cx; parts[i * 4 + 1] = pivot[1] * height + minY; parts[i * 4 + 2] = pivot[2] * height + cz
       parts[i * 4 + 3] = amount
-      w[i] *= 1 - fade
       kind[i] = 5
       piece[i] = index
     })

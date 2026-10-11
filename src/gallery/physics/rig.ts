@@ -40,7 +40,7 @@ const PIN_MOBILITY = 0.04
  * A particle touching vertices that stay on the body (the element is fused there) is pinned up to this mobility: half
  * attached, it would hold back its free neighbours (the links stretch) and still tear the fused seam when it moves.
  */
-const ATTACHED_PIN = 0.35
+const ATTACHED_PIN = 0.5
 /** Vertices follow their particles fully from this swing weight on (below, they blend with the body). */
 const FULL_WEIGHT = 0.1
 /** Parts of one grid cell closer than this (× spacing) are one particle: both faces of a sheet, strands of a lock. */
@@ -366,14 +366,19 @@ export function buildPhysicsRig(position: ArrayLike<number>, sway: SwayInternals
   const pieceType = new Uint8Array(P), pivot = new Float32Array(P * 3), centroid = new Float32Array(P * 3)
   const outward = new Float32Array(P * 3), pieceRadius = new Float32Array(P), pieceAmount = new Float32Array(P)
   built.forEach((piece, j) => {
+    // the centre and the spread of what moves: weighted by how much each vertex follows the piece (the body it sits on,
+    // in its box with weight ~0, does not count)
+    const weightOf = (v: number) => (piece.fromParts ? input.parts![v * 4 + 3] : sway.w[v])
+    let total = 0
     const c: Vec3 = [0, 0, 0]
-    for (const v of piece.members) for (let k = 0; k < 3; k++) c[k] += at[v * 3 + k] / piece.members.length
+    for (const v of piece.members) { const k = weightOf(v); total += k; for (let d = 0; d < 3; d++) c[d] += at[v * 3 + d] * k }
+    for (let d = 0; d < 3; d++) c[d] /= Math.max(1e-9, total)
     let spread = 0
-    for (const v of piece.members) spread += (at[v * 3] - c[0]) ** 2 + (at[v * 3 + 1] - c[1]) ** 2 + (at[v * 3 + 2] - c[2]) ** 2
+    for (const v of piece.members) spread += weightOf(v) * ((at[v * 3] - c[0]) ** 2 + (at[v * 3 + 1] - c[1]) ** 2 + (at[v * 3 + 2] - c[2]) ** 2)
     pieceType[j] = piece.type
     pivot.set(piece.pivot, j * 3)
     centroid.set(c, j * 3)
-    pieceRadius[j] = Math.sqrt(spread / piece.members.length)
+    pieceRadius[j] = Math.sqrt(spread / Math.max(1e-9, total))
     pieceAmount[j] = piece.amount
     // away from the body axis at the pivot's height
     const axis = bodyAxis(field, piece.pivot[1])
@@ -403,7 +408,10 @@ export function buildPhysicsRig(position: ArrayLike<number>, sway: SwayInternals
       }
       const order = candidates.map((_, k) => k).sort((a, b) => scores[b] - scores[a]).slice(0, 3)
       const total = order.reduce((sum, k) => sum + scores[k], 0)
-      const share = smooth(sway.w[v] / FULL_WEIGHT)
+      // a vertex follows its particles as far as it is as free as they are: at the edge of an element, next to the body
+      // or a weapon, it stays nearly put while the particles beside it swing, so the surface never tears there
+      const free = order.reduce((sum, k) => sum + scores[k] * mobility[candidates[k]], 0) / total
+      const share = Math.min(1, sway.w[v] / Math.max(FULL_WEIGHT * 0.2, free)) * smooth(sway.w[v] / (FULL_WEIGHT * 0.2))
       skinWeight[o] = 1 - share
       order.forEach((k, c) => { skinIndex[o + 1 + c] = 1 + candidates[k]; skinWeight[o + 1 + c] = (share * scores[k]) / total })
       continue
