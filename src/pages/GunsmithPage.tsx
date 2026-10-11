@@ -75,7 +75,7 @@ function PartRow({ step, selected, playerLevel, onSelect }: { step: GunsmithStep
 }
 
 function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: number }) {
-  const { quest, build } = step
+  const { quest } = step
   const { locale } = useLocale()
   const description = quest.objectiveDetails?.find((objective) => objective.build)?.description
   return <section className="panel detail-panel gunsmith-detail">
@@ -85,8 +85,9 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
       <div className="quest-full-tags"><span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}</div>
     </div>
     {description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(description)}</p></div>}
-    {build
-      ? <GunsmithQuestPlan build={build} questId={step.quest.id} />
+    {step.builds.length
+      ? step.builds.map((entry, index) => <GunsmithQuestPlan key={`${entry.weaponId}-${index}`} build={entry} questId={step.quest.id}
+        weapon={step.builds.length > 1 ? { index, total: step.builds.length } : undefined} />)
       : <div className="detail-section"><p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p></div>}
     <div className="detail-section">
       <h4>{uiText('Награды')}</h4>
@@ -94,7 +95,7 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
         ? <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>
         : <p className="dim">{uiText('Награды на Wiki не указаны.')}</p>}
     </div>
-    {/* The wiki's parts table is already here (src/data/wikiGunsmith.ts): no link to it then (owner, 11.10.2026). */}
-    {quest.wikiLink && !build?.wikiParts?.length && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
+    {/* The guide's parts table is already here (src/data/tarkovHelpGunsmith.ts, wikiGunsmith.ts): no link to the wiki then. */}
+    {quest.wikiLink && !step.builds.some((entry) => entry.guide?.parts.length) && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
   </section>
 }

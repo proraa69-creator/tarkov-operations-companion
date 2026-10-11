@@ -8,11 +8,11 @@ const mod = (id: string, offers: GunPart['offers']) => [id, { id, name: id, shor
 describe('who sells each part of a Gunsmith build', () => {
   const build: WeaponBuildRequirement = {
     weaponId: 'w', partIds: ['rc2', 'rvg'], attributes: [],
-    wikiParts: [
+    guide: { source: 'wiki', parts: [
       { itemId: 'rc2', name: 'SOCOM556-RC2', sellers: [{ trader: 'peacekeeper', level: 4 }] },
       { itemId: 'barrel', name: '11 inch barrel', sellers: [{ trader: 'peacekeeper', level: 2, barter: true }, { trader: 'mechanic', level: 3 }] },
       { name: 'Unknown part', sellers: [{ trader: 'ref', level: 2 }] },
-    ],
+    ] },
   }
 
   it('takes the wiki’s traders, levels and barters when the mod data is not loaded', () => {

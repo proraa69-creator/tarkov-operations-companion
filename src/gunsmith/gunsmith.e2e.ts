@@ -28,6 +28,7 @@ const ITEMS: Array<[id: string, english: string, shortName: string, types: strin
   [FX.holo, 'EOTech EXPS3 holographic sight', 'EXPS3', ['mods'], 38000, 'Голографический прицел EOTech EXPS3'],
   [FX.akMuzzle, 'AK-74 6P20 muzzle brake', '6P20', ['mods'], 1800],
   [FX.stockMoe, 'AR-15 Magpul MOE stock', 'MOE', ['mods'], 6900, 'Приклад Magpul MOE для AR-15'],
+  [FX.foregripRvg, 'Magpul RVG foregrip', 'RVG', ['mods'], 4000, 'Тактическая рукоятка Magpul RVG'],
 ]
 
 const catalog: Record<string, unknown> = {
@@ -58,18 +59,27 @@ const catalog: Record<string, unknown> = {
   hideout: {},
 }
 
-// The task's English wiki page as the wiki API renders it: «Related Quest Items» with traders and loyalty levels.
-const wikiLink = (title: string) => `<a href="/wiki/${title.replace(/ /g, '_')}" title="${title}">${title}</a>`
-const wikiRow = (item: string, sellers: string, requirement = '') => `<tr><td><a href="/wiki/${item.replace(/ /g, '_')}" class="image" title="${item}"><img alt="" src="x.png"></a></td><td>${wikiLink(item)}</td><td>1</td><td>${requirement}</td><td>${sellers}</td></tr>`
-const WIKI_PAGES: Record<string, string> = {
-  'Gunsmith - M4A1': `<div class="mw-parser-output"><p>Hand the weapon over to ${wikiLink('Mechanic')}.</p><table class="wikitable"><tbody>
-<tr><th colspan="5">Related Quest Items</th></tr><tr><th>Icon</th><th>Item name</th><th>Amount</th><th>Requirement</th><th>Notes</th></tr>
-${wikiRow('Colt M4A1 5.56x45 assault rifle', `Can be purchased from ${wikiLink('Peacekeeper')} LL1.`, 'Has to be modified and handed over')}
-${wikiRow('SureFire SOCOM556-RC2 5.56x45 sound suppressor', `${wikiLink('Peacekeeper')} LL3`, 'Has to be installed')}
-${wikiRow('EOTech EXPS3 holographic sight', `${wikiLink('Mechanic')} LL2`, 'Has to be installed')}
-${wikiRow('AR-15 Magpul MOE stock', `${wikiLink('Mechanic')} LL1<br>${wikiLink('Skier')} LL2 (Barter)`)}
-</tbody></table></div>`,
+// tarkov.help as it serves its task pages (src/data/tarkovHelpGunsmith.ts): a Next.js page whose server-components payload
+// carries the task and its guide rendered to HTML — the build table (game item ids, trader portrait and loyalty level, or
+// «Цена в барахолке») and the screenshot of the finished build.
+const MINIO = 'https://minio.tarkov.help/production/img'
+const helpRow = (id: string, short: string, seller: string) => `<tr class="bb-item"><td><div class="item-wrapper"><a href="/ru/item/x"><div class="item-img-container"><span class="item-shortname">${short}</span><img class="item-img" src="${MINIO}/items/${id}.png" alt="${short}"/></div></a></div></td><td class="bb-table-trader text-center"><div class="bb-table-td-container"><div class="bb-trader-wrapper">${seller}</div></div></td></tr>`
+const helpTrader = (slug: string, level: number) => `<span class="bb-item-level"><img class="trader-unlock__level" src="${MINIO}/icons/loyalty/loyalty_${level}.svg" alt="wallet"/></span><div class="trader-wrapper"><img src="${MINIO}/traders/${slug}.png" height="84" width="84" alt=""/></div><div>10000 ₽</div>`
+const helpGuide = `<p>Требования: эргономика выше 48, глушитель, тактическая рукоятка</p><p><table class="bb-table _items"><tbody>
+${helpRow(FX.m4, 'M4A1', helpTrader('peacemaker', 1))}${helpRow(FX.suppressor, 'RC2', helpTrader('peacemaker', 3))}${helpRow(FX.holo, 'EXPS3', helpTrader('mechanic', 2))}
+${helpRow(FX.stockMoe, 'MOE', helpTrader('mechanic', 1))}${helpRow(FX.foregripRvg, 'RVG', '<span class="bb-item-level"> </span><div>Цена в барахолке: 4000 ₽</div>')}
+</tbody></table><br><div class="bb-image  " onclick="window.openLightbox('questLightbox', '${MINIO}/articles/m4-build.png')"><div class="bb-image__image"><img src="${MINIO}/articles/m4-build.png" alt="Оружейник" loading="lazy"/></div><div class="js-tooltip"><p class="bb-image__text"><span>Оружейник</span><div class="js-inner"><div class="bb-image__text-tooltip">Оружейник</div></div></p></div></div></p>`
+const helpPage = (name: string, guide: string) => {
+  const quest = { id: 110, name, seo_link: 'oruzhejnik-chast-7', guide: '$3c', guides: '', trader_slug: 'mechanic' }
+  const parts = [`3c:T${new TextEncoder().encode(guide).length.toString(16)},${guide}`, `39:["$","div",null,{"quest":${JSON.stringify(quest)}}]\n`]
+  return `<!DOCTYPE html><html><body>${parts.map((part) => `<script>self.__next_f.push(${JSON.stringify([1, part])})</script>`).join('')}</body></html>`
 }
+const HELP_PAGES: Record<string, string> = {
+  '/ru/trader/mechanic/quests': `<a href="/ru/quest/oruzhejnik-chast-7"><span>Оружейник. M4A1</span></a><a href="/ru/quest/oruzhejnik-chast-99"><span>Другое</span></a>`,
+  '/ru/quest/oruzhejnik-chast-7': helpPage('Оружейник. M4A1', helpGuide),
+}
+// The game's «Сборки оружия» screen with the build finished.
+const BUILD_SCREEN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1000"><rect width="1920" height="1000" fill="#0b0d0c"/><text x="960" y="70" fill="#e6ece7" font-family="sans-serif" font-size="44" text-anchor="middle">СБОРКИ ОРУЖИЯ</text><g fill="#4d5a50" stroke="#8c9a8f" stroke-width="4"><rect x="420" y="500" width="900" height="80" rx="10"/><rect x="1300" y="515" width="380" height="36" rx="8"/><rect x="900" y="570" width="70" height="170" rx="8"/><path d="M420 510 L260 480 L260 640 L420 590 Z"/><rect x="760" y="440" width="260" height="56" rx="8"/></g><g fill="#c9d2cb" font-family="sans-serif" font-size="26"><text x="40" y="700">ЭРГОНОМИКА 52</text><text x="40" y="745">ВЕРТ. ОТДАЧА 98</text><text x="40" y="790">ГОРИЗ. ОТДАЧА 181</text></g></svg>`
 
 const RIFLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 200"><g fill="#4d5a50" stroke="#8c9a8f" stroke-width="2"><rect x="40" y="88" width="300" height="34" rx="6"/><rect x="330" y="96" width="150" height="14" rx="4"/><rect x="250" y="120" width="26" height="54" rx="4"/><path d="M40 92 L4 84 L4 140 L40 124 Z"/></g></svg>`
 const TRADER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#3b3a33"/><circle cx="32" cy="26" r="13" fill="#b49a7c"/><path d="M8 64 C10 44 54 44 56 64 Z" fill="#4c5a4a"/></svg>`
@@ -83,10 +93,13 @@ async function openOverview(page: Page, { modsDown = false } = {}) {
       const endpoint = url.pathname.split('/').pop() ?? ''
       return route.fulfill({ json: { data: catalog[endpoint] ?? {} } })
     }
-    if (url.hostname === 'escapefromtarkov.fandom.com' && url.pathname === '/api.php' && url.searchParams.get('action') === 'parse') {
-      const html = WIKI_PAGES[url.searchParams.get('page') ?? '']
-      return route.fulfill({ json: html ? { parse: { text: html } } : { error: { code: 'missingtitle' } } })
+    if (url.hostname === 'tarkov.help') {
+      const html = HELP_PAGES[url.pathname]
+      return route.fulfill({ status: html ? 200 : 404, contentType: 'text/html; charset=utf-8', headers: { 'access-control-allow-origin': '*' }, body: html ?? 'Not found' })
     }
+    if (url.hostname === 'minio.tarkov.help') return route.fulfill({ contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: BUILD_SCREEN_SVG })
+    // The wiki has no page here: tarkov.help covers the task (the wiki only fills tasks it lacks).
+    if (url.hostname === 'escapefromtarkov.fandom.com') return route.fulfill({ json: { error: { code: 'missingtitle' } }, headers: { 'access-control-allow-origin': '*' } })
     if (url.hostname === 'api.tarkov.dev') {
       const body = JSON.parse(route.request().postData() ?? '{}') as { query?: string; variables?: { lang?: 'ru' | 'en' } }
       // The server has no mod data yet (owner, 11.10.2026: «Данные модулей сейчас недоступны»).
@@ -153,15 +166,22 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   for (const text of ['Эргономика', '≥ 48', 'Отдача', '≤ 200', 'Вместимость магазина', 'Эффективная дальность', 'Прочность', 'Тактическая рукоятка']) await expect(details).toContainText(text)
   // The stats the part does not ask for (0 upstream) are not listed.
   for (const text of ['Ширина', 'Высота', 'Точность', 'Начальная скорость']) await expect(details).not.toContainText(text)
-  // One block of modules: the ones the game checks and the wiki's build, each with its traders and loyalty level.
+  // tarkov.help's finished build: the game's «Сборки оружия» screen, full screen on a click, closed by Escape.
+  const buildImage = details.locator('.gs-build-image img')
+  await expect(buildImage).toHaveAttribute('src', `${MINIO}/articles/m4-build.png`, { timeout: 30_000 })
+  await expect(details).toContainText('Готовая сборка: tarkov.help')
+  await details.locator('.gs-build-image').click()
+  await expect(page.locator('.gs-lightbox img')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.gs-lightbox')).toHaveCount(0)
+  // One block of modules: tarkov.help's table without the weapon, in its order.
   // Peacekeeper sells the suppressor from level III, which the player (character level 20, nothing proves more) has not got.
   const modules = details.locator('.gs-block', { hasText: 'Обязательные модули' })
   await expect(modules).toHaveCount(1)
-  await expect(details).not.toContainText('Сборка с вики')
+  await expect(modules.locator('.gs-part strong')).toHaveText(['RC2', 'EXPS3', 'MOE', 'RVG'])
   const suppressorCard = modules.locator('.gs-part', { hasText: 'RC2' })
   // The cards hold only the picture, the name and the price; who sells it is in the hover window.
   await expect(modules.locator('.gs-trader')).toHaveCount(0)
-  for (const text of ['EXPS3', 'MOE']) await expect(modules).toContainText(text)
   // Hovering a module: what can go instead. The suppressor is asked for by the task itself.
   const required = await hoverWindow(page, suppressorCard)
   await expect(required).toContainText('Задание требует именно этот модуль')
@@ -181,20 +201,15 @@ test('«Оружейник»: Overview block and «Как собрать» from 
 
   await details.getByRole('link', { name: /Как собрать/ }).click()
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
-  await expect(page.getByText('Как собрать · пример сборки')).toBeVisible()
-  const levels = page.locator('.gs-levels')
-  await expect(levels).toBeVisible({ timeout: 30_000 })
-  // The player sets Peacekeeper's real level: the suppressor becomes available from him.
-  await levels.locator('.gs-level-button[title^="Миротворец"]').click()
-  await levels.getByRole('menuitemradio', { name: 'LL3' }).click()
-  const pageSuppressor = page.locator('main .gs-shop-row', { hasText: 'SOCOM556-RC2' })
-  await expect(pageSuppressor.locator('.gs-trader.is-chosen .gs-trader-level')).toHaveText('III')
-  await expect(pageSuppressor.locator('.gs-shop-price b')).toContainText('61')
-  await expect(levels.locator('.gs-level-button[title^="Миротворец"]')).toContainText('свой')
+  // The page: the finished build and its modules; no «Как собрать · пример сборки» section any more (owner, 11.10.2026).
+  await expect(page.locator('main .gs-build-image img')).toHaveAttribute('src', `${MINIO}/articles/m4-build.png`)
+  await expect(page.locator('main .gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part strong')).toHaveText(['RC2', 'EXPS3', 'MOE', 'RVG'])
+  await expect(page.getByText('Как собрать · пример сборки')).toHaveCount(0)
+  await expect(page.locator('main .gs-shop, main .gs-levels')).toHaveCount(0)
   await shot('gunsmith-page-ru.png')
 })
 
-test('«Оружейник»: the wiki’s traders and loyalty levels on every part, also without the mod data', async ({ page }, testInfo) => {
+test('«Оружейник»: tarkov.help’s traders and loyalty levels on every part, also without the mod data', async ({ page }, testInfo) => {
   test.setTimeout(120_000)
   await openOverview(page, { modsDown: true })
   const panel = page.locator('.gunsmith-panel')
@@ -202,24 +217,25 @@ test('«Оружейник»: the wiki’s traders and loyalty levels on every p
   await panel.getByRole('button', { name: /Оружейник\. M4A1/ }).click()
   const details = panel.locator('.gunsmith-details')
   await expect(details.locator('.gs-block', { hasText: 'Обязательные модули' })).toBeVisible({ timeout: 30_000 })
-  // Hovering a part shows who sells it and from which level, from the wiki: Peacekeeper III (locked: nothing proves it yet).
+  // Hovering a part shows who sells it and from which level, from tarkov.help: Peacekeeper III (locked: nothing proves it yet).
   await expect((await hoverWindow(page, details.locator('.gs-part', { hasText: 'RC2' }))).locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III')
   await expect((await hoverWindow(page, details.locator('.gs-part', { hasText: 'EXPS3' }))).locator('.gs-trader-level')).toHaveText('II')
-  // The rest of the wiki's build in the same block, with its barter.
+  // tarkov.help's «Цена в барахолке»: the flea only.
+  await expect(await hoverWindow(page, details.locator('.gs-part', { hasText: 'RVG' }))).toContainText('Продаётся только на барахолке')
+  // The rest of tarkov.help's build in the same block.
   const stock = details.locator('.gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part', { hasText: 'MOE' })
   const window = await hoverWindow(page, stock)
-  await expect(window.locator('.gs-trader')).toHaveCount(2)
-  await expect(window.locator('.gs-trader-barter')).toHaveCount(1)
-  await expect(window).toContainText('Лыжник — уровень 2 (бартер')
+  await expect(window.locator('.gs-trader')).toHaveCount(1)
+  await expect(window).toContainText('Механик — уровень 1')
   if (process.env.GUNSMITH_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-hover-sellers-ru.png` })
   await page.mouse.move(0, 0)
-  // Matched to the catalog item through upstream's English dictionary: its picture and Russian name, no availability text.
+  // The catalog's item by tarkov.help's game id: its picture and Russian name, no availability text.
   await expect(stock.locator('img').first()).toHaveAttribute('src', /MOE-icon/)
   await expect(details).not.toContainText('нет на барахолке')
   await panel.screenshot({ path: testInfo.outputPath('gunsmith-wiki-sellers-ru.png') })
   if (process.env.GUNSMITH_SCREENSHOT_DIR) await panel.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-wiki-sellers-ru.png` })
 
-  // The Gunsmith page: the wiki's table is here, so no button to the wiki.
+  // The Gunsmith page: the guide's table is here, so no button to the wiki.
   await details.getByRole('link', { name: /Как собрать/ }).click()
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
   // On the page the card also carries the item's full Russian name from the catalog.

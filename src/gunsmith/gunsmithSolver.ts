@@ -127,9 +127,9 @@ export function solveGunsmithBuild(requirement: WeaponBuildRequirement, catalog:
       if (placed) { build = placed.build; locked.push(placed.path); break }
     }
   }
-  // The wiki's build of this task (src/data/wikiGunsmith.ts): a set of parts known to pass, put in before the stats are
+  // The guide's build of this task (tarkov.help, else the wiki): a set of parts known to pass, put in before the stats are
   // tuned. Not locked: a part of it can still be swapped for a better one or a fitting alternative.
-  for (const partId of [...new Set((requirement.wikiParts ?? []).flatMap((part) => (part.itemId ? [part.itemId] : [])))]) {
+  for (const partId of [...new Set((requirement.guide?.parts ?? []).flatMap((part) => (part.itemId ? [part.itemId] : [])))]) {
     const part = catalog.mods.get(partId)
     if (!part || !buyable(part) || installedParts(build, catalog).some((entry) => entry.part.id === partId)) continue
     const placed = placePart(build, weapon, catalog, partId, locked, tryInstall, price)
@@ -191,7 +191,7 @@ export function solveGunsmithBuild(requirement: WeaponBuildRequirement, catalog:
   const input = { build, weapon, catalog, locked, toBuy, checks, attributes, tryInstall, buyable, price, access }
   const alternatives = slotAlternatives(input, { onlyCheaper: true, max: MAX_ALTERNATIVES })
   // For the module cards: the parts the build buys and the wiki's parts.
-  const focus = new Set([...toBuy.map((line) => line.part.id), ...(requirement.wikiParts ?? []).flatMap((part) => (part.itemId ? [part.itemId] : []))])
+  const focus = new Set([...toBuy.map((line) => line.part.id), ...(requirement.guide?.parts ?? []).flatMap((part) => (part.itemId ? [part.itemId] : []))])
   const fitting = slotAlternatives(input, { onlyCheaper: false, max: MAX_FITTING, focus })
   return { weapon, build, stats, checks, unplaced, cost, toBuy, alternatives, fitting }
 }

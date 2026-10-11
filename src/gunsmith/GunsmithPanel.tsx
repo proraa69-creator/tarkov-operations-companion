@@ -41,8 +41,9 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
           </button>
           <div id={detailsId} className={`gunsmith-details${open ? ' is-open' : ''}`} inert={!open}>
             <div className="gunsmith-details-inner">
-              {open && (step.build
-                ? <GunsmithQuestPlan build={step.build} questId={step.quest.id} compact />
+              {open && (step.builds.length
+                ? step.builds.map((build, index) => <GunsmithQuestPlan key={`${build.weaponId}-${index}`} build={build} questId={step.quest.id} compact
+                  weapon={step.builds.length > 1 ? { index, total: step.builds.length } : undefined} showLink={index === step.builds.length - 1} />)
                 : <p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p>)}
             </div>
           </div>

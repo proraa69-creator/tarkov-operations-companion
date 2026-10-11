@@ -12,7 +12,7 @@ import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
 import { belongsInQuestSection } from '../progression/questSections'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { StoryObjectivesPanel } from '../components/StoryObjectivesPanel'
-import { gunsmithHref, isGunsmithQuest, weaponBuildOf } from '../gunsmith/gunsmith'
+import { gunsmithHref, isGunsmithQuest, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import './storyObjectives.css'
 
@@ -60,7 +60,7 @@ export function QuestsPage() {
   const selectedStageIndex = selected ? currentStoryStageIndex(selected, progress) : 0
   const selectedStage = selected?.stages?.[selectedStageIndex]
   const mapTarget = selectedStage?.mapIds[0] ?? selected?.mapId ?? selected?.mapIds?.[0] ?? 'customs'
-  const selectedBuild = selected ? weaponBuildOf(selected) : undefined
+  const selectedBuilds = selected ? weaponBuildsOf(selected) : []
   const selectedGunsmith = selected ? isGunsmithQuest(selected) : false
   // «Оружейник» parts taken in the game live in their own block: a link instead of rows here.
   const gunsmithActive = statusFilter === 'active' ? data.quests.filter((quest) => isGunsmithQuest(quest) && availability.get(quest.id)?.status === 'active') : []
@@ -111,7 +111,7 @@ export function QuestsPage() {
         {isStoryQuest(selected) ? <StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /> : <>
         <div className="detail-section"><h4>{uiText("Задача")}</h4><p>{uiText(selected.description)}</p></div>
         <QuestObjectivesPanel quest={selected} />
-        {selectedBuild && <div className="detail-section"><h4>{uiText('Сборка оружия')}</h4><WeaponBuildDetails build={selectedBuild} />{selected && selectedGunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(selected)}>{uiText('Как собрать')}</Link>}</div>}
+        {selectedBuilds.length > 0 && <div className="detail-section"><h4>{uiText('Сборка оружия')}</h4>{selectedBuilds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} />)}{selected && selectedGunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(selected)}>{uiText('Как собрать')}</Link>}</div>}
         {uiText(selected.requiredItems?.length ? <div className="detail-section"><h4>{uiText("Требуемые предметы")}</h4>{uiText(selected.requiredItems.slice(0, 12).map((id) => { const item = data.items.find((entry) => entry.id === id); return item ? <Link className="item-row" key={id} to={`/flea?selected=${id}`}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.name)}</strong><small className="dim">{uiText(item.category)}</small></span></Link> : null }))}</div> : null)}
         <div className="detail-section"><h4>{uiText("Награды")}</h4>{uiText(selected.rewards.length ? selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>) : <p className="dim">{uiText("Награды на Wiki не указаны.")}</p>)}</div>
         <div className="detail-section stack">{uiText((selected.anyMap || selected.mapId || selected.mapIds?.length || selectedStage?.mapIds.length) && <Link className="button ghost" to={`/maps/${mapTarget}?quest=${selected.id}${isStoryQuest(selected) ? `&stage=${selectedStageIndex}` : ''}`}><MapPin size={15} />{uiText(" Показать на карте")}</Link>)}{uiText(selected.wikiLink && <a className="button ghost" href={selected.wikiLink} target="_blank" rel="noreferrer">{uiText("Страница на Wiki")}</a>)}</div>

@@ -11,7 +11,7 @@ import { followUpQuests, prerequisiteIds } from '../progression/questChronology'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import type { MapMarker, Quest, TaskProgressStatus } from '../domain/types'
 import { questStatusText } from '../shared/questStatus'
-import { gunsmithHref, isGunsmithQuest, weaponBuildOf } from '../gunsmith/gunsmith'
+import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import './traderQuests.css'
 
@@ -48,6 +48,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
   const firstMap = maps[0]?.id
   // «Оружейник»: the weapon and its parts get their own card, not item rows.
   const build = weaponBuildOf(quest)
+  const builds = weaponBuildsOf(quest)
   const gunsmith = isGunsmithQuest(quest)
 
   const previous = prerequisiteIds(quest).map((id) => data.quests.find((entry) => entry.id === id)).filter((entry): entry is Quest => Boolean(entry))
@@ -106,7 +107,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
 
     {build && <div className="detail-section">
       <h4>{uiText('Сборка оружия')}</h4>
-      <WeaponBuildDetails build={build} />
+      {builds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} />)}
       {gunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(quest)}>{uiText('Как собрать')} <ArrowUpRight size={13} /></Link>}
     </div>}
 

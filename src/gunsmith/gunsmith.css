@@ -25,8 +25,6 @@
 .gunsmith-current-name:hover, .gunsmith-current-name:focus-visible, .gunsmith-current.is-open .gunsmith-current-name { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); outline: none; }
 .gunsmith-current-name:hover strong, .gunsmith-current-name:focus-visible strong { color: var(--brass-strong); }
 .gunsmith-quest-plan.is-compact { margin-bottom: 14px; }
-.gunsmith-example.is-compact h4 { margin: 0 0 8px; color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-.gunsmith-prices-note { margin: 8px 2px 0 !important; font-size: 11.5px; }
 .gunsmith-details-title { display: grid; gap: 3px; margin-bottom: 10px; }
 .gunsmith-details-title strong { font-size: 13px; }
 .gunsmith-details-title small { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); }
@@ -103,16 +101,6 @@ span.gs-part { cursor: default; }
 .gunsmith-part-row.is-locked .gunsmith-part-copy strong { color: var(--text-muted); }
 
 .gunsmith-detail .detail-hero h2 { margin: 10px 0 10px; font-size: 24px; line-height: 1.15; }
-.gunsmith-example h5 { margin: 16px 0 8px; color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-.gunsmith-example h5:first-of-type { margin-top: 4px; }
-.gunsmith-warning { margin: 0 0 10px !important; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--amber, var(--brass)) 50%, var(--line)); border-radius: 8px; background: color-mix(in srgb, var(--amber, var(--brass)) 10%, transparent); color: var(--text) !important; font-size: 12px; }
-.gunsmith-tree { margin: 0; padding: 0; list-style: none; border-left: 1px solid var(--line); }
-.gunsmith-tree li { display: grid; grid-template-columns: minmax(110px, .9fr) minmax(0, 1.4fr); align-items: center; gap: 10px; padding: 4px 0 4px 10px; font-size: 12px; }
-.gunsmith-tree-slot { overflow: hidden; color: var(--text-dim); white-space: nowrap; text-overflow: ellipsis; }
-.gunsmith-tree-part { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; color: var(--text); white-space: nowrap; text-overflow: ellipsis; }
-.gunsmith-tree-part .gs-cells { flex: none; }
-.gunsmith-tree li.is-bought .gunsmith-tree-part { color: var(--brass-strong); }
-.gunsmith-note { margin-top: 12px !important; font-size: 11.5px; line-height: 1.5; }
 
 @media (max-width: 1100px) {
   .gunsmith-layout { grid-template-columns: 1fr; }
@@ -124,7 +112,6 @@ span.gs-part { cursor: default; }
   .gs-stat-actual { grid-column: 1 / -1; justify-content: flex-start; min-width: 0; }
   .gunsmith-part-row { grid-template-columns: 24px 44px minmax(0, 1fr); }
   .gunsmith-part-status { grid-column: 3; justify-self: start; }
-  .gunsmith-tree li { grid-template-columns: 1fr; gap: 2px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -143,3 +130,19 @@ span.gs-part { cursor: default; }
 .gs-sellers ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .gs-sellers li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 12px; }
 .gs-sellers-locked { color: var(--brass-strong); }
+
+/* The finished build from the guide (BuildImage.tsx): the game's «Сборки оружия» screen, full screen on click. */
+.gs-build-image { display: block; width: 100%; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: #050605; cursor: zoom-in; }
+/* The whole screenshot in its own proportions (they differ from guide to guide), nothing cut off; none of the preset
+   picture's frame and height limits above. */
+.gs-build .gs-weapon .gs-build-image img { display: block; width: 100%; height: auto; max-height: none; aspect-ratio: auto; padding: 0; border: 0; border-radius: 0; background: none; transition: transform .25s var(--ease-soft); }
+.gs-build .gs-build-image:hover img, .gs-build .gs-build-image:focus-visible img { transform: scale(1.015); }
+.gs-build-image:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.gs-weapon-credit { display: block; margin-top: 2px; }
+.gs-lightbox { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 24px; background: rgb(4 5 4 / 90%); cursor: zoom-out; }
+.gs-lightbox img { max-width: min(100%, 1920px); max-height: 100%; border-radius: 8px; box-shadow: 0 20px 60px rgb(0 0 0 / 60%); }
+.gs-lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }
+/* «Оружие 1 из 2»: on the page it lines up with the detail sections (pages.css .detail-section: 20px sides). */
+.gunsmith-weapon-count { margin: 0; padding: 18px 20px 0; color: var(--brass-strong); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.gunsmith-weapon-count.is-compact { margin: 10px 0 4px; padding: 0; }
+@media (prefers-reduced-motion: reduce) { .gs-build .gs-weapon .gs-build-image img { transition: none; } .gs-build .gs-build-image:hover img { transform: none; } }

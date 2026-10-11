@@ -350,19 +350,33 @@ export interface WeaponBuildRequirement {
   /** A part of each of these categories must be installed (containsCategory). */
   categories?: Array<{ id: string; name: string }>
   attributes: WeaponBuildAttribute[]
-  /** The parts of the task's wiki page («Related Quest Items»: a build that passes), src/data/wikiGunsmith.ts. */
-  wikiParts?: WikiBuildPart[]
+  /** A ready build of this weapon that passes the task: tarkov.help's guide, else the wiki's table (src/data/buildGuides.ts). */
+  guide?: BuildGuide
 }
 
-/** One part of a Gunsmith task's wiki table: the item, whether the wiki says it must be installed, who sells it. */
-export interface WikiBuildPart {
-  /** Catalog item id; missing when the catalog has no item by the wiki's name. */
+/** A build that passes a Gunsmith task, as a guide site lists it: the parts to put on the weapon and who sells them. */
+export interface BuildGuide {
+  source: 'tarkov.help' | 'wiki'
+  /** The guide's page. */
+  url?: string
+  /** The game's «Сборки оружия» screen with this build finished (tarkov.help). */
+  image?: string
+  parts: BuildGuidePart[]
+}
+
+/** One part of a build guide: the item, whether it must be installed, who sells it. */
+export interface BuildGuidePart {
+  /** Catalog item id; missing when the catalog has no item by the guide's name. */
   itemId?: string
-  /** The wiki's (English) item name. */
+  /** The guide's item name (the wiki's is English). */
   name: string
   required?: boolean
-  /** Trader key (tarkov.dev normalizedName, `flea-market` for the flea) and the loyalty level; `barter` for a barter. */
+  /** Trader key (tarkov.dev normalizedName) and the loyalty level; `barter` for a barter. */
   sellers: Array<{ trader: string; level: number; barter?: boolean }>
+  /** Sold on the flea only (tarkov.help «Цена в барахолке»). */
+  fleaOnly?: boolean
+  /** Not sold anywhere (tarkov.help «Нельзя купить»): found in raid or from a task. */
+  notSold?: boolean
 }
 
 export interface Quest {

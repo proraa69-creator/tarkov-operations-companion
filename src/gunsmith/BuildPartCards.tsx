@@ -13,14 +13,14 @@ import { formatPrice } from '../shared/format'
 import { useHoverCard } from '../components/useHoverCard'
 import type { GunsmithPlan, SlotAlternatives } from './gunsmithSolver'
 import { partSellers, type PartSeller } from './partSellers'
-import { TraderBadge } from './ShoppingTable'
+import { TraderBadge } from './TraderBadge'
 import { traderKey } from './traderLevels'
 
 /** Where the mod data is: the alternatives need it (src/arsenal/gunCatalog.ts). */
 export type ModsStatus = 'loading' | 'ready' | 'unavailable'
 
 type Role = 'required' | 'any-of' | 'build'
-interface Card { id?: string; name: string; role: Role }
+interface Card { id?: string; name: string; role: Role; fleaOnly?: boolean; notSold?: boolean }
 
 /**
  * «Обязательные модули» of a Gunsmith task (owner, 11.10.2026): one block — the parts the game checks and the rest of the
@@ -48,9 +48,12 @@ export function BuildPartCards({ build, compact, mods, access, plan, modsStatus 
       if (card.id) listed.add(card.id)
       out.push(card)
     }
-    for (const id of build.partIds) add({ id, name: items.get(id)?.name ?? id, role: 'required' })
-    for (const id of build.anyOfIds ?? []) add({ id, name: items.get(id)?.name ?? id, role: 'any-of' })
-    for (const part of build.wikiParts ?? []) add({ id: part.itemId, name: (part.itemId ? items.get(part.itemId)?.name : undefined) ?? part.name, role: 'build' })
+    const guide = new Map((build.guide?.parts ?? []).flatMap((part) => (part.itemId ? [[part.itemId, part] as const] : [])))
+    const notes = (id: string) => ({ ...(guide.get(id)?.fleaOnly ? { fleaOnly: true } : {}), ...(guide.get(id)?.notSold ? { notSold: true } : {}) })
+    for (const id of build.partIds) add({ id, name: items.get(id)?.name ?? id, role: 'required', ...notes(id) })
+    for (const id of build.anyOfIds ?? []) add({ id, name: items.get(id)?.name ?? id, role: 'any-of', ...notes(id) })
+    // The guide's build in its own order (tarkov.help's table, else the wiki's).
+    for (const part of build.guide?.parts ?? []) add({ id: part.itemId, name: (part.itemId ? items.get(part.itemId)?.name : undefined) ?? part.name, role: 'build', ...(part.fleaOnly ? { fleaOnly: true } : {}), ...(part.notSold ? { notSold: true } : {}) })
     return out
   }, [build, items])
   if (!cards.length) return null
@@ -81,7 +84,7 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
   const { data } = useTarkovData()
   const price = item ? displayPrice(item, mode) : undefined
   const hover = useHoverCard(<>
-    <Sellers sellers={sellers} traders={traders} access={access} locale={locale} />
+    <Sellers sellers={sellers} traders={traders} access={access} locale={locale} card={card} />
     <Alternatives card={card} fitting={fitting} plan={plan} modsStatus={modsStatus} locale={locale} items={data.items} />
   </>)
   // The card: picture, name, flea price. Who sells it and what can go instead are in the hover window.
@@ -102,12 +105,16 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
 }
 
 /** «Продают»: each trader with the loyalty level the part needs (I, II, III, a crown for 4), barters marked. */
-function Sellers({ sellers, traders, access, locale }: { sellers?: PartSeller[]; traders: Map<string, Trader>; access?: PurchaseAccess; locale: AppLocale }) {
-  if (!sellers?.length) return null
+function Sellers({ sellers, traders, access, locale, card }: { sellers?: PartSeller[]; traders: Map<string, Trader>; access?: PurchaseAccess; locale: AppLocale; card: Card }) {
+  // tarkov.help: «Цена в барахолке» (the flea only), «Нельзя купить» (found in raid or from a task).
+  const note = card.notSold ? (locale === 'en' ? 'Not sold: find it in raid or get it from a task.' : 'Купить нельзя: найдите в рейде или получите за задание.')
+    : card.fleaOnly && !sellers?.length ? (locale === 'en' ? 'Sold on the flea market only.' : 'Продаётся только на барахолке.') : ''
+  if (!sellers?.length && !note) return null
   return <div className="gs-sellers">
     <p className="hover-card-title">{locale === 'en' ? 'Sold by' : 'Продают'}</p>
+    {note && <p className="dim">{note}</p>}
     <ul>
-      {sellers.slice(0, 4).map((seller) => {
+      {(sellers ?? []).slice(0, 4).map((seller) => {
         const trader = traders.get(seller.trader)
         const name = trader?.name ?? seller.trader
         const have = access?.traderLevels?.[seller.trader]

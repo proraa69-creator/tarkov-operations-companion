@@ -79,7 +79,7 @@ describe('«Оружейник»: parts from the task’s wiki page', () => {
     const [result] = withWikiBuilds([quest], new Map([['Hell on Earth - Part 1', parseWikiBuildTable(HELL_ON_EARTH)]]), resolve)
     expect(result.objectiveDetails?.[0].build).toEqual({
       weaponId: 'mp43', partIds: ['b510'], attributes: [],
-      wikiParts: [{ itemId: 'b510', name: 'MP-43-1C 12ga 510mm barrel', required: true, sellers: [{ trader: 'jaeger', level: 1 }] }],
+      guide: { source: 'wiki', url: 'https://escapefromtarkov.fandom.com/wiki/Hell_on_Earth_-_Part_1', parts: [{ itemId: 'b510', name: 'MP-43-1C 12ga 510mm barrel', required: true, sellers: [{ trader: 'jaeger', level: 1 }] }] },
     })
   })
 

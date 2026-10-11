@@ -37,17 +37,24 @@ export function weaponBuildOf(quest: Partial<Pick<Quest, 'objectiveDetails'>>): 
   return quest.objectiveDetails?.find((objective) => objective.build)?.build
 }
 
+/** Every weapon a quest asks to build (some later Gunsmith parts take two or three), in the objectives' order. */
+export function weaponBuildsOf(quest: Partial<Pick<Quest, 'objectiveDetails'>>): WeaponBuildRequirement[] {
+  return (quest.objectiveDetails ?? []).flatMap((objective) => (objective.build ? [objective.build] : []))
+}
+
 export interface GunsmithStep {
   quest: Quest
   /** Place in the chain, from 1. */
   part: number
   status: TaskProgressStatus
   build?: WeaponBuildRequirement
+  /** All the weapons the part asks to build (`build` is the first). */
+  builds: WeaponBuildRequirement[]
 }
 
 /**
  * Every Gunsmith task of this mode's catalog in chain order with its status. The order is the chain itself (each part
- * needs the one before), then a part number when the name has one, then the level.
+ * needs the one before), then the level the part opens at, then a part number when the name has one («Мастер. Часть 3»).
  */
 export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined): GunsmithStep[] {
   const byName = new Map<string, Quest>()
@@ -76,8 +83,8 @@ export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => Ta
   const number = (quest: Quest) => Number(PART_NUMBER.exec(quest.name)?.[1] ?? /-part-(\d+)/.exec(quest.normalizedName ?? '')?.[1] ?? Number.POSITIVE_INFINITY)
   return [...chain.values()]
     .map((quest) => ({ quest, depth: depthOf(quest, new Set()), number: number(quest) }))
-    .sort((a, b) => a.depth - b.depth || a.number - b.number || a.quest.level - b.quest.level || a.quest.name.localeCompare(b.quest.name))
-    .map(({ quest }, index) => ({ quest, part: index + 1, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest) }))
+    .sort((a, b) => a.depth - b.depth || a.quest.level - b.quest.level || a.number - b.number || a.quest.name.localeCompare(b.quest.name))
+    .map(({ quest }, index) => ({ quest, part: index + 1, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest), builds: weaponBuildsOf(quest) }))
 }
 
 /** What the Overview block shows: the parts taken in the game, else the next one to take, and the chain progress. */

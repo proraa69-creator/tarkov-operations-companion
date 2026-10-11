@@ -8,6 +8,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { attributeHint, attributeLabel, formatTarget, formatValue } from './gunsmith'
 import type { AttributeCheck, GunsmithPlan } from './gunsmithSolver'
+import { BuildImage } from './BuildImage'
 import { BuildPartCards, type ModsStatus } from './BuildPartCards'
 import './gunsmith.css'
 
@@ -41,11 +42,15 @@ export function WeaponBuildDetails({ build, checks, compact, weaponImage, mods, 
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
-    <figure className="gs-weapon">
-      {image ? <img src={image} alt={uiText(weapon?.name ?? '')} loading="lazy" /> : <span className="gs-weapon-empty"><Crosshair size={28} /></span>}
+    <figure className={`gs-weapon${build.guide?.image ? ' has-build-image' : ''}`}>
+      {/* The finished build from the guide (the game's «Сборки оружия» screen), else the weapon's default preset. */}
+      {build.guide?.image
+        ? <BuildImage src={build.guide.image} alt={uiText(weapon?.name ?? 'Оружие из задания')} />
+        : image ? <img src={image} alt={uiText(weapon?.name ?? '')} loading="lazy" /> : <span className="gs-weapon-empty"><Crosshair size={28} /></span>}
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
+        {build.guide?.image && build.guide.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
     </figure>
 

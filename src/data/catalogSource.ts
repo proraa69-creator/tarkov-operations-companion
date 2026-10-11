@@ -7,6 +7,7 @@ import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
+import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
@@ -66,18 +67,12 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
   const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items))
-  // «Оружейник»: every weapon-build task gets the parts table of its wiki page (who sells each part, from which level).
-  const buildPages = taskRows.flatMap((quest) => {
-    const title = quest.objectiveDetails?.some((objective) => objective.build) ? wikiPageTitle(quest.wikiLink) : undefined
-    return title ? [title] : []
+  const withBuilds = await withBuildGuides(taskRows, tasks, traderById, itemById, locale, async () => {
+    // English names for the wiki's tables: the `_en` dictionary (the English catalog has its own already).
+    const english = locale === 'en' ? rawItems.dictionary ?? {}
+      : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
+    return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const buildTables = buildPages.length ? await fetchWikiBuildTables(buildPages) : new Map<string, never>()
-  // English names: the `_en` dictionary (the Russian catalog fetches it only when there is a wiki table to match).
-  const englishDictionary = !buildTables.size ? {} : locale === 'en' ? rawItems.dictionary ?? {}
-    : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
-  const withBuilds = buildTables.size
-    ? withWikiBuilds(taskRows, buildTables, englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), englishDictionary)))
-    : taskRows
   const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
@@ -110,6 +105,35 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       },
     },
   }
+}
+
+/**
+ * «Оружейник»: a ready build for every weapon-build task — tarkov.help's (its items table, who sells each part from which
+ * loyalty level, the screenshot of the finished build, src/data/tarkovHelpGunsmith.ts), else the wiki's parts table
+ * (src/data/wikiGunsmith.ts). Only the Russian catalog: the English one only lends its texts to it (src/i18n/englishDataset.ts).
+ */
+async function withBuildGuides(
+  quests: Quest[],
+  tasksRoot: JsonRecord,
+  traders: Map<string, Trader>,
+  items: Map<string, Item>,
+  locale: AppLocale,
+  englishResolver: () => Promise<(name: string) => string | undefined>,
+): Promise<Quest[]> {
+  const isBuild = (quest: Quest) => quest.objectiveDetails?.some((objective) => objective.build) ?? false
+  if (locale !== 'ru' || !quests.some(isBuild)) return quests
+  const rawTasks = asRecord(tasksRoot.tasks)
+  const traderOf = (quest: Quest) => traders.get(text(asRecord(rawTasks[quest.id]).trader))?.normalizedName
+  const help = await fetchTarkovHelpGuides(quests.filter(isBuild).map((quest) => ({ id: quest.id, name: quest.name, trader: traderOf(quest) })))
+  const isWeapon = (itemId: string) => (items.get(itemId)?.types ?? []).some((type) => type === 'gun' || type === 'preset')
+  const guided = withHelpGuides(quests, help, isWeapon)
+  // The wiki only for the tasks tarkov.help has no build for.
+  const pages = guided.flatMap((quest) => {
+    const title = quest.objectiveDetails?.some((objective) => objective.build && !objective.build.guide) ? wikiPageTitle(quest.wikiLink) : undefined
+    return title ? [title] : []
+  })
+  const tables = pages.length ? await fetchWikiBuildTables(pages) : new Map<string, never>()
+  return tables.size ? withWikiBuilds(guided, tables, await englishResolver()) : guided
 }
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
