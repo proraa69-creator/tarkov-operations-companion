@@ -6,7 +6,7 @@ import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails } from './wikiQuestCatalog'
-import { englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
+import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
@@ -42,11 +42,12 @@ interface Envelope {
 export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const taskVersion: { version?: string } = {}
-  // The items with their English names too: the wiki's Gunsmith tables name parts in English (src/data/wikiGunsmith.ts).
-  const englishItems: { data?: unknown } = {}
+  // The items as upstream stores them (names are translation keys) and their dictionary: the wiki's Gunsmith tables name
+  // parts in English (src/data/wikiGunsmith.ts).
+  const rawItems: RawEndpoint = {}
   const [tasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher),
-    fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, englishItems),
+    fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
     fetchTranslated(upstreamMode, 'traders', locale, undefined, fetcher),
     fetchTranslated(upstreamMode, 'hideout', locale, undefined, fetcher),
@@ -71,7 +72,12 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     return title ? [title] : []
   })
   const buildTables = buildPages.length ? await fetchWikiBuildTables(buildPages) : new Map<string, never>()
-  const withBuilds = withWikiBuilds(taskRows, buildTables, englishItemResolver(recordValues(asRecord(asRecord(englishItems.data).items))))
+  // English names: the `_en` dictionary (the Russian catalog fetches it only when there is a wiki table to match).
+  const englishDictionary = !buildTables.size ? {} : locale === 'en' ? rawItems.dictionary ?? {}
+    : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
+  const withBuilds = buildTables.size
+    ? withWikiBuilds(taskRows, buildTables, englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), englishDictionary)))
+    : taskRows
   const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
@@ -106,15 +112,18 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   }
 }
 
-async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch, untranslated?: { data?: unknown }): Promise<JsonRecord> {
+/** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
+interface RawEndpoint { data?: unknown; dictionary?: JsonRecord }
+
+async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch, raw?: RawEndpoint): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`
   const [base, translations] = await Promise.all([
     fetchEnvelope(`${BASE_URL}/${path}`, fetcher),
     fetchEnvelope(`${BASE_URL}/${path}_${locale}`, fetcher),
   ])
   if (version && base.version) version.version = base.version
-  if (untranslated) untranslated.data = base.data
   const dictionary = asRecord(translations.data)
+  if (raw) { raw.data = base.data; raw.dictionary = dictionary }
   return asRecord(translateDeep(base.data, dictionary))
 }
 

@@ -30,6 +30,11 @@ export interface GunsmithPlan {
   toBuy: CostLine[]
   /** Cheaper parts for the bought ones that keep every requirement the example meets (by slot). */
   alternatives: SlotAlternatives[]
+  /**
+   * Every part that can go instead of each replaceable part of the build and keeps the requirements (cheapest first): the
+   * module cards' hover window. A slot that changes a stat the app does not compute is listed with `uncomputed`.
+   */
+  fitting: SlotAlternatives[]
 }
 
 export interface PartAlternative {
@@ -45,6 +50,8 @@ export interface SlotAlternatives {
   path: string[]
   part: GunPart
   options: PartAlternative[]
+  /** The slot changes a stat checked only in the game (effective distance, accuracy, size): no replacement is offered. */
+  uncomputed?: boolean
 }
 
 type Catalog = Pick<GunCatalog, 'weapons' | 'mods'>
@@ -120,6 +127,14 @@ export function solveGunsmithBuild(requirement: WeaponBuildRequirement, catalog:
       if (placed) { build = placed.build; locked.push(placed.path); break }
     }
   }
+  // The wiki's build of this task (src/data/wikiGunsmith.ts): a set of parts known to pass, put in before the stats are
+  // tuned. Not locked: a part of it can still be swapped for a better one or a fitting alternative.
+  for (const partId of [...new Set((requirement.wikiParts ?? []).flatMap((part) => (part.itemId ? [part.itemId] : [])))]) {
+    const part = catalog.mods.get(partId)
+    if (!part || !buyable(part) || installedParts(build, catalog).some((entry) => entry.part.id === partId)) continue
+    const placed = placePart(build, weapon, catalog, partId, locked, tryInstall, price)
+    if (placed && !missingRequired(placed.build, weapon, catalog).length) build = placed.build
+  }
   build = fillRequired(build, weapon, catalog, tryInstall, buyable, price)
 
   const attributes = requirement.attributes
@@ -173,8 +188,12 @@ export function solveGunsmithBuild(requirement: WeaponBuildRequirement, catalog:
     presetLeft.splice(index, 1)
     return false
   })
-  const alternatives = cheaperAlternatives({ build, weapon, catalog, locked, toBuy, checks, attributes, tryInstall, buyable, price, access })
-  return { weapon, build, stats, checks, unplaced, cost, toBuy, alternatives }
+  const input = { build, weapon, catalog, locked, toBuy, checks, attributes, tryInstall, buyable, price, access }
+  const alternatives = slotAlternatives(input, { onlyCheaper: true, max: MAX_ALTERNATIVES })
+  // For the module cards: the parts the build buys and the wiki's parts.
+  const focus = new Set([...toBuy.map((line) => line.part.id), ...(requirement.wikiParts ?? []).flatMap((part) => (part.itemId ? [part.itemId] : []))])
+  const fitting = slotAlternatives(input, { onlyCheaper: false, max: MAX_FITTING, focus })
+  return { weapon, build, stats, checks, unplaced, cost, toBuy, alternatives, fitting }
 }
 
 /** Slots that also change a stat the app does not compute: left alone, so an alternative never breaks it unseen. */
@@ -188,15 +207,16 @@ function touchesUncomputed(slotNameId: string, attributes: WeaponBuildAttribute[
 }
 
 const MAX_ALTERNATIVES = 3
+const MAX_FITTING = 8
 
 /**
  * «Дешёвые аналоги» (owner, 11.10.2026): for every bought part that is not required, the parts of the same slot that
  * make the whole build cheaper and still meet every requirement the example meets (computed stats, magazine). Cheapest first.
  */
-function cheaperAlternatives(input: {
+function slotAlternatives(input: {
   build: Build; weapon: Weapon; catalog: Catalog; locked: string[][]; toBuy: CostLine[]; checks: AttributeCheck[]; attributes: WeaponBuildAttribute[]
   tryInstall: TryInstall; buyable: (part: GunPart) => boolean; price: (part: GunPart) => number; access: PurchaseAccess
-}): SlotAlternatives[] {
+}, mode: { onlyCheaper: boolean; max: number; focus?: Set<string> }): SlotAlternatives[] {
   const { build, weapon, catalog, locked, toBuy, checks, attributes, tryInstall, buyable, price, access } = input
   const bought = new Set(toBuy.map((line) => line.part.id))
   const keep = checks.filter((check) => check.met === true).map((check) => check.attribute)
@@ -207,11 +227,18 @@ function cheaperAlternatives(input: {
   const out: SlotAlternatives[] = []
   for (const ref of slotsOf(build, weapon, catalog)) {
     const current = ref.child ? catalog.mods.get(ref.child.itemId) : undefined
-    if (!current || !bought.has(current.id) || isLocked(ref.path, locked) || touchesUncomputed(ref.slot.nameId, attributes)) continue
+    if (!current || isLocked(ref.path, locked) || (mode.onlyCheaper && !bought.has(current.id)) || (mode.focus && !mode.focus.has(current.id))) continue
+    if (touchesUncomputed(ref.slot.nameId, attributes)) {
+      if (!mode.onlyCheaper) out.push({ path: ref.path, part: current, options: [], uncomputed: true })
+      continue
+    }
     const options: PartAlternative[] = []
-    for (const id of ref.slot.allowed) {
+    // The fitting list: the cheapest first, and only as many as it shows.
+    const candidates = mode.onlyCheaper ? ref.slot.allowed : [...ref.slot.allowed].sort((a, b) => price(catalog.mods.get(a) ?? current) - price(catalog.mods.get(b) ?? current))
+    for (const id of candidates) {
+      if (!mode.onlyCheaper && options.length >= mode.max) break
       const part = catalog.mods.get(id)
-      if (!part || id === current.id || !buyable(part) || price(part) >= price(current)) continue
+      if (!part || id === current.id || !buyable(part) || (mode.onlyCheaper && price(part) >= price(current))) continue
       const installed = tryInstall(build, ref.path, ref.slot, id)
       const next = installed && fillRequired(installed, weapon, catalog, tryInstall, buyable, price)
       if (!next || missingRequired(next, weapon, catalog).length) continue
@@ -223,9 +250,9 @@ function cheaperAlternatives(input: {
         const actual = check.actual === undefined ? undefined : statValue(check.attribute.name, stats, next, catalog)
         return actual === undefined ? [] : [{ attribute: check.attribute, actual }]
       })
-      if (saving > 0) options.push({ part, offer: cheapestOffer(part, access), saving, values })
+      if (saving > 0 || !mode.onlyCheaper) options.push({ part, offer: cheapestOffer(part, access), saving, values })
     }
-    if (options.length) out.push({ path: ref.path, part: current, options: options.sort((a, b) => b.saving - a.saving).slice(0, MAX_ALTERNATIVES) })
+    if (options.length || !mode.onlyCheaper) out.push({ path: ref.path, part: current, options: mode.onlyCheaper ? options.sort((a, b) => b.saving - a.saving).slice(0, mode.max) : options })
   }
   return out
 }

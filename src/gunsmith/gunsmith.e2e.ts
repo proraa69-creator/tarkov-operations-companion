@@ -20,6 +20,16 @@ const task = (id: string, part: number, level: number, previous: string | undefi
   objectives: [{ id: `${id}-o`, type: 'buildWeapon', description: `Modify the weapon (Part ${part}) to comply with the given specifications`, optional: false, maps: [], ...objective }],
 })
 
+const ITEMS: Array<[id: string, english: string, shortName: string, types: string[], price: number, russian?: string]> = [
+  [FX.m4, 'Colt M4A1 5.56x45 assault rifle', 'M4A1', ['gun'], 34000, 'Штурмовая винтовка Colt M4A1 5.56x45'],
+  [FX.ak, 'Kalashnikov AK-74N 5.45x39 assault rifle', 'AK-74N', ['gun'], 29000],
+  [FX.mp7, 'HK MP7A1 4.6x30 submachine gun', 'MP7A1', ['gun'], 41000],
+  [FX.suppressor, 'SureFire SOCOM556-RC2 5.56x45 sound suppressor', 'RC2', ['mods'], 0, 'Глушитель SureFire SOCOM556-RC2 5.56x45'],
+  [FX.holo, 'EOTech EXPS3 holographic sight', 'EXPS3', ['mods'], 38000, 'Голографический прицел EOTech EXPS3'],
+  [FX.akMuzzle, 'AK-74 6P20 muzzle brake', '6P20', ['mods'], 1800],
+  [FX.stockMoe, 'AR-15 Magpul MOE stock', 'MOE', ['mods'], 6900, 'Приклад Magpul MOE для AR-15'],
+]
+
 const catalog: Record<string, unknown> = {
   tasks: {
     tasks: {
@@ -37,16 +47,14 @@ const catalog: Record<string, unknown> = {
     .map(([id, name, key]) => [id, { id, name, normalizedName: key, imageLink: `https://assets.tarkov.dev/${key}-trader.webp`, levels: [1, 15, 26, 36].map((player, index) => ({ level: index + 1, requiredPlayerLevel: player })) }])),
   traders_ru: { Mechanic: 'Механик', Peacekeeper: 'Миротворец', Skier: 'Лыжник', Prapor: 'Прапор' },
   maps: { maps: {} },
+  // Upstream keeps translation keys in the data («<id> Name») and the texts in `items_en` / `items_ru` (the Russian one
+  // falls back to English where it has no translation), as tarkov-data-manager writes them.
   items: {
-    items: Object.fromEntries([
-      [FX.m4, 'Colt M4A1 5.56x45 assault rifle', 'M4A1', ['gun'], 34000], [FX.ak, 'Kalashnikov AK-74N 5.45x39 assault rifle', 'AK-74N', ['gun'], 29000],
-      [FX.mp7, 'HK MP7A1 4.6x30 submachine gun', 'MP7A1', ['gun'], 41000], [FX.suppressor, 'SureFire SOCOM556-RC2 5.56x45 sound suppressor', 'RC2', ['mods'], 0],
-      [FX.holo, 'EOTech EXPS3 holographic sight', 'EXPS3', ['mods'], 38000], [FX.akMuzzle, 'AK-74 6P20 muzzle brake', '6P20', ['mods'], 1800],
-      [FX.stockMoe, 'AR-15 Magpul MOE stock', 'MOE', ['mods'], 6900],
-    ].map(([id, name, shortName, types, price]) => [id, { id, name, shortName, types, iconLink: `https://assets.tarkov.dev/${shortName}-icon.webp`, lastLowPrice: price }])),
+    items: Object.fromEntries(ITEMS.map(([id, , shortName, types, price]) => [id, { id, name: `${id} Name`, shortName: `${id} ShortName`, types, iconLink: `https://assets.tarkov.dev/${shortName}-icon.webp`, lastLowPrice: price }])),
     itemCategories: { [FX_CATEGORY.foregrip]: { id: FX_CATEGORY.foregrip, name: 'Foregrip', normalizedName: 'foregrip', parent: FX_CATEGORY.mod, children: [] } },
   },
-  items_ru: { Foregrip: 'Тактическая рукоятка', 'Colt M4A1 5.56x45 assault rifle': 'Штурмовая винтовка Colt M4A1 5.56x45', 'SureFire SOCOM556-RC2 5.56x45 sound suppressor': 'Глушитель SureFire SOCOM556-RC2 5.56x45', 'EOTech EXPS3 holographic sight': 'Голографический прицел EOTech EXPS3', 'AR-15 Magpul MOE stock': 'Приклад Magpul MOE для AR-15' },
+  items_en: { Foregrip: 'Foregrip', ...Object.fromEntries(ITEMS.flatMap(([id, name, shortName]) => [[`${id} Name`, name], [`${id} ShortName`, shortName]])) },
+  items_ru: { Foregrip: 'Тактическая рукоятка', ...Object.fromEntries(ITEMS.flatMap(([id, name, shortName, , , russian]) => [[`${id} Name`, russian ?? name], [`${id} ShortName`, shortName]])) },
   hideout: {},
 }
 
@@ -130,19 +138,29 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   for (const text of ['Эргономика', '≥ 48', 'Отдача', '≤ 200', 'Вместимость магазина', 'Эффективная дальность', 'Прочность', 'Тактическая рукоятка']) await expect(details).toContainText(text)
   // The stats the part does not ask for (0 upstream) are not listed.
   for (const text of ['Ширина', 'Высота', 'Точность', 'Начальная скорость']) await expect(details).not.toContainText(text)
-  // What to buy: pictures, traders with the loyalty level, prices. Peacekeeper sells the suppressor from level III,
-  // which the player (character level 20, nothing proves more) has not got: locked, and it is not on the flea.
-  const shop = details.locator('.gs-shop')
-  await expect(shop).toContainText('SOCOM556-RC2', { timeout: 30_000 })
-  for (const text of ['EXPS3', 'RVG', 'Штурмовая винтовка Colt M4A1']) await expect(shop).toContainText(text)
-  const suppressor = shop.locator('.gs-shop-row', { hasText: 'SOCOM556-RC2' })
-  await expect(suppressor.locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III')
-  await expect(suppressor).toContainText('нужен уровень 3')
+  // One block of modules: the ones the game checks and the wiki's build, each with its traders and loyalty level.
+  // Peacekeeper sells the suppressor from level III, which the player (character level 20, nothing proves more) has not got.
+  const modules = details.locator('.gs-block', { hasText: 'Обязательные модули' })
+  await expect(modules).toHaveCount(1)
+  await expect(details).not.toContainText('Сборка с вики')
+  const suppressorCard = modules.locator('.gs-part', { hasText: 'RC2' })
+  await expect(suppressorCard.locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III', { timeout: 30_000 })
+  for (const text of ['EXPS3', 'MOE']) await expect(modules).toContainText(text)
+  // Hovering a module: what can go instead. The suppressor is asked for by the task itself.
+  await suppressorCard.hover()
+  await expect(page.locator('.hover-card')).toContainText('Задание требует именно этот модуль')
+  await modules.locator('.gs-part', { hasText: 'MOE' }).hover()
+  const window = page.locator('.hover-card')
+  await expect(window).toContainText('Можно поставить вместо')
+  await expect(window.locator('li').first()).toBeVisible({ timeout: 30_000 })
+  await expect(window).toContainText(/Приклад|stock/)
   const shot = async (name: string, target = page.locator('main')) => {
     await target.screenshot({ path: testInfo.outputPath(name) })
     if (process.env.GUNSMITH_SCREENSHOT_DIR) await target.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/${name}` })
   }
   await shot('gunsmith-overview-ru.png', panel)
+  if (process.env.GUNSMITH_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-hover-ru.png` })
+  await page.mouse.move(0, 0)
 
   await details.getByRole('link', { name: /Как собрать/ }).click()
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
@@ -166,24 +184,30 @@ test('«Оружейник»: the wiki’s traders and loyalty levels on every p
   await expect(panel).toBeVisible({ timeout: 45_000 })
   await panel.getByRole('button', { name: /Оружейник\. M4A1/ }).click()
   const details = panel.locator('.gunsmith-details')
-  await expect(details).toContainText('Данные модулей сейчас недоступны', { timeout: 30_000 })
+  await expect(details.locator('.gs-block', { hasText: 'Обязательные модули' })).toBeVisible({ timeout: 30_000 })
   // Each required part shows who sells it and from which level: Peacekeeper III (locked: nothing proves it yet).
   const suppressor = details.locator('.gs-part', { hasText: 'RC2' })
   await expect(suppressor.locator('.gs-trader .gs-trader-level')).toHaveText('III')
   await expect(suppressor.locator('.gs-trader')).toHaveClass(/is-locked/)
   await expect(details.locator('.gs-part', { hasText: 'EXPS3' }).locator('.gs-trader-level')).toHaveText('II')
-  // The rest of the wiki's build, with its barter.
-  const wiki = details.locator('.gs-block', { hasText: 'Сборка с вики' })
-  const stock = wiki.locator('.gs-part', { hasText: 'MOE' })
+  // The rest of the wiki's build in the same block, with its barter.
+  const stock = details.locator('.gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part', { hasText: 'MOE' })
   await expect(stock.locator('.gs-trader')).toHaveCount(2)
   await expect(stock.locator('.gs-trader-barter')).toHaveCount(1)
+  // Matched to the catalog item through upstream's English dictionary: its picture and Russian name, no availability text.
+  await expect(stock.locator('img').first()).toHaveAttribute('src', /MOE-icon/)
+  await expect(details).not.toContainText('нет на барахолке')
   await panel.screenshot({ path: testInfo.outputPath('gunsmith-wiki-sellers-ru.png') })
   if (process.env.GUNSMITH_SCREENSHOT_DIR) await panel.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-wiki-sellers-ru.png` })
 
   // The Gunsmith page: the wiki's table is here, so no button to the wiki.
   await details.getByRole('link', { name: /Как собрать/ }).click()
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
-  await expect(page.locator('main .gs-block', { hasText: 'Сборка с вики' })).toBeVisible()
+  // On the page the card also carries the item's full Russian name from the catalog.
+  await expect(page.locator('main .gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part', { hasText: 'Приклад Magpul MOE для AR-15' })).toBeVisible()
+  // Without the mod data the hover window says when the alternatives come.
+  await page.locator('main .gs-part', { hasText: 'MOE' }).hover()
+  await expect(page.locator('.hover-card')).toContainText('Аналоги появятся, когда загрузятся данные модулей')
   await expect(page.getByRole('link', { name: /Страница на Wiki/ })).toHaveCount(0)
   if (process.env.GUNSMITH_SCREENSHOT_DIR) await page.locator('main').screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-wiki-page-ru.png` })
 })

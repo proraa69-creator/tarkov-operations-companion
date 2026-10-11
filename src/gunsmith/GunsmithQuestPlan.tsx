@@ -35,36 +35,35 @@ export function GunsmithQuestPlan({ build, questId, compact }: { build: WeaponBu
   }, [build, catalog.data])
   const plan = result && result.build === build && result.catalog === catalog.data ? result.plan : undefined
   const preset = plan?.weapon.defaultPreset
+  const modsStatus = catalog.data ? 'ready' : catalog.isLoading ? 'loading' : 'unavailable'
 
   return <>
     <div className={compact ? 'gunsmith-quest-plan is-compact' : 'detail-section'}>
-      <WeaponBuildDetails build={build} checks={plan?.checks} compact={compact} weaponImage={preset?.imageLink ?? plan?.weapon.imageLink} hideParts={Boolean(plan)} mods={catalog.data?.mods} access={shop.access} />
+      <WeaponBuildDetails build={build} checks={plan?.checks} compact={compact} weaponImage={preset?.imageLink ?? plan?.weapon.imageLink} mods={catalog.data?.mods} access={shop.access} plan={plan} modsStatus={modsStatus} />
     </div>
-    <div className={compact ? 'gunsmith-example is-compact' : 'detail-section gunsmith-example'}>
-      <h4>{uiText(compact ? 'Что купить' : 'Как собрать · пример сборки')}</h4>
-      {(catalog.isLoading || (catalog.data && plan === undefined)) && <p className="dim">{uiText('Подбираю сборку по актуальным данным модулей…')}</p>}
-      {!catalog.isLoading && !catalog.data && <p className="dim">{uiText('Данные модулей сейчас недоступны — попробуйте позже.')}</p>}
-      {catalog.data && plan === null && <p className="dim">{uiText('Этого оружия нет в данных модулей: соберите по требованиям выше.')}</p>}
-      {catalog.data && plan && <div className="gunsmith-plan">
-        {!compact && <TraderLevelsStrip infos={shop.infos} mode={shop.mode} onSet={shop.setLevel} />}
-        <Warnings plan={plan} catalog={catalog.data} />
-        {!compact && <h5>{uiText('Что купить')}</h5>}
-        <ShoppingTable plan={plan} requirement={build} access={shop.access} traders={shop.traders} questName={shop.questName} compact={compact} />
-        {compact
-          ? <p className="dim gunsmith-prices-note">{uiText('Цены — по вашим уровням торговцев.')}</p>
-          : <>
-            <h5>{uiText('Сборка целиком')}</h5>
-            <ul className="gunsmith-tree">
-              {buildRows(plan, catalog.data).map((row) => <li key={row.key} style={{ paddingLeft: `${row.depth * 14}px` }} className={row.bought ? 'is-bought' : ''}>
-                <span className="gunsmith-tree-slot">{uiText(row.slot)}</span>
-                <span className="gunsmith-tree-part"><ItemCells part={row.part} small />{uiText(row.part.shortName || row.part.name)}</span>
-              </li>)}
-            </ul>
-          </>}
-        <p className="dim gunsmith-note">{uiText('Сборка подобрана автоматически по данным tarkov.dev. Перед сдачей проверьте характеристики в игре (осмотр оружия): игра считает их сама.')}</p>
+    {/* The Overview: the module cards above are the shopping list (picture, price, traders, alternatives on hover). */}
+    {compact
+      ? <div className="gunsmith-example is-compact"><Link to={gunsmithHref({ id: questId })} className="button small gunsmith-how">{uiText('Как собрать')} <ChevronRight size={13} /></Link></div>
+      : <div className="detail-section gunsmith-example">
+        <h4>{uiText('Как собрать · пример сборки')}</h4>
+        {(catalog.isLoading || (catalog.data && plan === undefined)) && <p className="dim">{uiText('Подбираю сборку по актуальным данным модулей…')}</p>}
+        {!catalog.isLoading && !catalog.data && <p className="dim">{uiText('Данные модулей сейчас недоступны — попробуйте позже.')}</p>}
+        {catalog.data && plan === null && <p className="dim">{uiText('Этого оружия нет в данных модулей: соберите по требованиям выше.')}</p>}
+        {catalog.data && plan && <div className="gunsmith-plan">
+          <TraderLevelsStrip infos={shop.infos} mode={shop.mode} onSet={shop.setLevel} />
+          <Warnings plan={plan} catalog={catalog.data} />
+          <h5>{uiText('Что купить')}</h5>
+          <ShoppingTable plan={plan} requirement={build} access={shop.access} traders={shop.traders} questName={shop.questName} />
+          <h5>{uiText('Сборка целиком')}</h5>
+          <ul className="gunsmith-tree">
+            {buildRows(plan, catalog.data).map((row) => <li key={row.key} style={{ paddingLeft: `${row.depth * 14}px` }} className={row.bought ? 'is-bought' : ''}>
+              <span className="gunsmith-tree-slot">{uiText(row.slot)}</span>
+              <span className="gunsmith-tree-part"><ItemCells part={row.part} small />{uiText(row.part.shortName || row.part.name)}</span>
+            </li>)}
+          </ul>
+          <p className="dim gunsmith-note">{uiText('Сборка подобрана автоматически по данным tarkov.dev. Перед сдачей проверьте характеристики в игре (осмотр оружия): игра считает их сама.')}</p>
+        </div>}
       </div>}
-      {compact && <Link to={gunsmithHref({ id: questId })} className="button small gunsmith-how">{uiText('Как собрать')} <ChevronRight size={13} /></Link>}
-    </div>
   </>
 }
 

@@ -141,3 +141,9 @@ span.gs-part { cursor: default; }
 
 /* «Текущие задания» page: a Gunsmith part taken in the game is a link to its block, not a task row. */
 .catalog-card.gunsmith-link-card { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 8px; border-style: dashed; text-decoration: none; }
+
+/* The module cards' hover window (BuildPartCards.tsx): the parts that can go instead. */
+.gs-alternatives { min-width: 240px; }
+.gs-alternatives .hover-card-items strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.gs-alternatives .hover-card-items small { display: block; font-size: 11px; }
+.gs-alternatives p.dim { margin: 0; }

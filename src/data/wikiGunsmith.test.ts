@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
-import { englishItemResolver, fetchWikiBuildTables, parseWikiBuildTable, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
+import { englishItemNames, englishItemResolver, fetchWikiBuildTables, parseWikiBuildTable, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 
 const a = (title: string, text = title) => `<a href="/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}" title="${title.replace(/"/g, '&quot;')}">${text}</a>`
 const icon = (title: string) => `<a href="/wiki/${title.replace(/ /g, '_')}" class="image" title="${title}"><img alt="${title}" src="x.png"></a>`
@@ -81,6 +81,21 @@ describe('«Оружейник»: parts from the task’s wiki page', () => {
       weaponId: 'mp43', partIds: ['b510'], attributes: [],
       wikiParts: [{ itemId: 'b510', name: 'MP-43-1C 12ga 510mm barrel', required: true, sellers: [{ trader: 'jaeger', level: 1 }] }],
     })
+  })
+
+  it('takes the English names from upstream’s dictionary (the data holds translation keys)', () => {
+    const raw = [
+      { id: 'mp5sd-upper', name: 'mp5sd-upper Name', shortName: 'mp5sd-upper ShortName' },
+      { id: 'ncstar', name: 'ncstar Name', shortName: 'ncstar ShortName' },
+      { id: 'plain', name: 'Plain name already', shortName: 'PLN' },
+    ]
+    const english = { 'mp5sd-upper Name': 'HK MP5SD 9x19 upper receiver', 'mp5sd-upper ShortName': 'MP5SD upper', 'ncstar Name': 'NcSTAR Tactical blue laser LAM-Module', 'ncstar ShortName': 'NcSTAR' }
+    const resolve = englishItemResolver(englishItemNames(raw, english))
+    expect(resolve('HK MP5SD 9x19 upper receiver')).toBe('mp5sd-upper')
+    // Case and punctuation do not matter; a name the wiki shortens is still found when only one item has it.
+    expect(resolve('NcSTAR Tactical Blue Laser LAM-Module')).toBe('ncstar')
+    expect(resolve('NcSTAR Tactical blue laser')).toBe('ncstar')
+    expect(resolve('Plain name already')).toBe('plain')
   })
 
   it('asks the wiki API for the rendered page and keeps going when a page fails', async () => {

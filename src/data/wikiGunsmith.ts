@@ -232,7 +232,19 @@ export function withWikiBuilds(quests: Quest[], tables: Map<string, WikiBuildRow
   })
 }
 
-/** Finds an item by its English name, else its short name (one item only), ignoring case, spaces and punctuation. */
+/**
+ * The items' English names: upstream (json.tarkov.dev) stores translation keys («<id> Name») in the data and the texts in
+ * the `_en` / `_ru` dictionaries, so the key is looked up; a plain name (no dictionary entry) is kept as it is.
+ */
+export function englishItemNames(items: Array<Record<string, unknown>>, english: Record<string, unknown>) {
+  const say = (value: unknown) => (typeof value === 'string' && typeof english[value] === 'string' ? english[value] as string : value)
+  return items.map((item) => ({ id: item.id, name: say(item.name), shortName: say(item.shortName) }))
+}
+
+/**
+ * Finds an item by its English name, else its short name (one item only), ignoring case, spaces and punctuation; then the
+ * one item whose name contains the wiki's name or the other way round (the wiki shortens or extends a name now and then).
+ */
 export function englishItemResolver(items: Array<{ id?: unknown; name?: unknown; shortName?: unknown }>) {
   const key = (value: unknown) => (typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]+/g, '') : '')
   const index = (field: 'name' | 'shortName') => {
@@ -247,5 +259,14 @@ export function englishItemResolver(items: Array<{ id?: unknown; name?: unknown;
   }
   const byName = index('name')
   const byShortName = index('shortName')
-  return (name: string) => byName.get(key(name)) ?? byShortName.get(key(name)) ?? undefined
+  const names = [...byName.entries()].filter((entry): entry is [string, string] => entry[1] !== null)
+  return (name: string) => {
+    const k = key(name)
+    if (!k) return undefined
+    const exact = byName.get(k) ?? byShortName.get(k)
+    if (exact) return exact
+    if (k.length < 10) return undefined
+    const close = [...new Set(names.filter(([candidate]) => candidate.includes(k) || (candidate.length >= 10 && k.includes(candidate))).map(([, id]) => id))]
+    return close.length === 1 ? close[0] : undefined
+  }
 }
