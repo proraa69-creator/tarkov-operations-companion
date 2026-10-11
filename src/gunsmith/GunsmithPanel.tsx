@@ -27,7 +27,9 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
     </div>
     <div className="panel-body">
       {!steps.length && <p className="muted">{uiText('Заданий «Оружейник» в базе этого режима пока нет.')}</p>}
-      {steps.length > 0 && !current.length && <p className="muted">{uiText('Вся цепочка «Оружейник» выполнена.')}</p>}
+      {steps.length > 0 && !current.length && <p className="muted">{uiText(summary.unknown
+        ? 'В логах игры нет взятой части «Оружейника». Возьмите её у Механика — она появится здесь.'
+        : 'Вся цепочка «Оружейник» выполнена.')}</p>}
       {current.map((step) => {
         const open = openPart === step.part
         const detailsId = `${baseId}-${step.part}`

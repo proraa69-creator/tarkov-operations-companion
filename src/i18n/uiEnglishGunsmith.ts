@@ -4,7 +4,7 @@
  */
 export const GUNSMITH_PHRASES: Array<[string, string]> = [
   ['Оружейник', 'Gunsmith'], ['Посмотреть все', 'View all'], ['Части цепочки «Оружейник»', 'Parts of the Gunsmith chain'],
-  ['Вся цепочка «Оружейник» выполнена.', 'The whole Gunsmith chain is done.'], ['Заданий «Оружейник» в базе этого режима пока нет.', 'No Gunsmith tasks in this mode’s task database yet.'], ['Следующая часть', 'Next part'],
+  ['Вся цепочка «Оружейник» выполнена.', 'The whole Gunsmith chain is done.'], ['В логах игры нет взятой части «Оружейника». Возьмите её у Механика — она появится здесь.', 'The game logs show no Gunsmith part taken. Take one from Mechanic and it will show up here.'], ['Нет в логах', 'Not in the logs'], ['Заданий «Оружейник» в базе этого режима пока нет.', 'No Gunsmith tasks in this mode’s task database yet.'], ['Следующая часть', 'Next part'],
   ['Подробных требований к сборке в данных пока нет.', 'The data has no build requirements for this part yet.'], ['Как собрать', 'How to build'],
   ['нет на барахолке', 'not on the flea'], ['Оружие из задания', 'The task’s weapon'], ['Готовая сборка: tarkov.help', 'Finished build: tarkov.help'], ['Проверьте в игре', 'Check in the game'],
   ['В примере сборки', 'In the example build'], ['в игре', 'in game'], ['Обязательные модули', 'Required mods'],

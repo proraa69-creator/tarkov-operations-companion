@@ -1,4 +1,5 @@
 import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus, TaskRequirement } from '../domain/types'
+import { gunsmithSteps } from '../gunsmith/gunsmith'
 
 export interface TaskAvailability {
   status: TaskProgressStatus
@@ -53,7 +54,11 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
   // Logs reliably expose currently held quests, but older completed rows are
   // often absent in PvE. A current/completed quest proves every mandatory,
   // completion-only prerequisite in its chain. Alternative groups are skipped.
+  // Not into the «Оружейник» chain: its parts come from the logs only (gunsmithFromLogs below).
   const byId = new Map(quests.map((quest) => [quest.id, quest]))
+  const steps = gunsmithSteps(quests, () => undefined)
+  const gunsmith = new Set(steps.map((step) => step.quest.id))
+  const logged = { ...verified.taskProgress }
   const queue = Object.values(verified.taskProgress)
     .filter((record) => record.status === 'active' || record.status === 'completed')
     .map((record) => record.taskId)
@@ -66,7 +71,7 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
     if (!quest) continue
     for (const requirement of questRequirements(quest)) {
       const completionOnly = requirement.allowedStatuses.length === 0 || requirement.allowedStatuses.every((status) => status === 'complete')
-      if (requirement.group || !completionOnly || verified.taskProgress[requirement.taskId]) continue
+      if (requirement.group || !completionOnly || verified.taskProgress[requirement.taskId] || gunsmith.has(requirement.taskId)) continue
       verified.taskProgress[requirement.taskId] = {
         taskId: requirement.taskId,
         status: 'completed',
@@ -77,7 +82,43 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
       queue.push(requirement.taskId)
     }
   }
-  return new Map(quests.map((quest) => [quest.id, evaluateTaskAvailability(quest, verified)]))
+  const availability = new Map(quests.map((quest) => [quest.id, evaluateTaskAvailability(quest, verified)]))
+  gunsmithFromLogs(byId, steps, logged, availability)
+  return availability
+}
+
+const completionOnly = (requirement: TaskRequirement) => !requirement.group && (requirement.allowedStatuses.length === 0 || requirement.allowedStatuses.every((status) => status === 'complete'))
+
+/**
+ * «Оружейник» from the game logs only (owner, 11.10.2026: «не бери это правило по квестам за основу, лучше читай логи
+ * квестов оружейника»). BSG rebuilt the chain and kept the old tasks' ids (the old «Часть 1…25» are now the weapon parts
+ * and «Мастер. Часть 1…13»), so a part held now proves nothing about the parts before it: «Мастер. Часть 13» and
+ * «Часть 10» can both be taken while «Часть 11» is locked. A part shows what the logs say about it. One the logs do not
+ * mention, for a player whose quests began before the oldest log (a logged quest needs one the logs never saw — the game
+ * keeps its logs a few weeks), is «нет в логах» (unknown) rather than a guess; it is locked only when the logs show the
+ * part before it held or failed right now and no logged quest needs it. A player whose whole history is in the logs (a
+ * new account, a wipe) gets the usual available / locked.
+ */
+function gunsmithFromLogs(byId: Map<string, Quest>, steps: ReturnType<typeof gunsmithSteps>, logged: Record<string, TaskProgressRecord>, availability: Map<string, TaskAvailability>) {
+  const tracked = (taskId: string) => {
+    const record = logged[taskId]
+    return record && TRACKED_SOURCES.has(record.source) ? record : undefined
+  }
+  const held = Object.values(logged).filter((record) => TRACKED_SOURCES.has(record.source) && (record.status === 'active' || record.status === 'completed'))
+  const needed = new Set(held.flatMap((record) => questRequirements(byId.get(record.taskId) ?? {}).filter(completionOnly).map((requirement) => requirement.taskId)))
+  const olderThanLogs = [...needed].some((taskId) => byId.has(taskId) && !tracked(taskId))
+  if (!olderThanLogs) return
+  const locked = new Set<string>()
+  // in chain order: a part's previous parts are decided before it
+  for (const { quest } of steps) {
+    if (tracked(quest.id)) continue
+    const before = questRequirements(quest).filter(completionOnly).map((requirement) => requirement.taskId)
+    const blocked = before.some((taskId) => locked.has(taskId) || tracked(taskId)?.status === 'active' || tracked(taskId)?.status === 'failed')
+    if (blocked && !needed.has(quest.id)) {
+      locked.add(quest.id)
+      availability.set(quest.id, { status: 'locked', blockers: availability.get(quest.id)?.blockers ?? [] })
+    } else availability.set(quest.id, { status: 'unknown', blockers: [] })
+  }
 }
 
 /** Completed trader quests proven by logs or by a mandatory prerequisite chain. */
@@ -129,7 +170,7 @@ export function currentStoryStageIndex(quest: Quest, progress: ModeProgress) {
  * tarkov.dev, but its wiki chain made 9 Jaeger quests «completed» for an account that had done 2. Only quests without
  * tarkov.dev data (wiki pages) use `previous`.
  */
-export function questRequirements(quest: Quest): TaskRequirement[] {
+export function questRequirements(quest: Pick<Quest, 'requirements' | 'previous'>): TaskRequirement[] {
   if (quest.requirements) return quest.requirements
   return (quest.previous ?? []).map((taskId) => ({
     taskId,

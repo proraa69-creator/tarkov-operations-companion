@@ -87,12 +87,16 @@ export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => Ta
     .map(({ quest }, index) => ({ quest, part: index + 1, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest), builds: weaponBuildsOf(quest) }))
 }
 
-/** What the Overview block shows: the parts taken in the game, else the next one to take, and the chain progress. */
+/**
+ * What the Overview block shows: the parts taken in the game, else the next one to take, and the chain progress. A part
+ * the logs say nothing about (status unknown, requirementEngine.ts) is never offered as the next one.
+ */
 export function gunsmithSummary(steps: GunsmithStep[]) {
   const active = steps.filter((step) => step.status === 'active')
   const done = steps.filter((step) => step.status === 'completed').length
-  const next = active.length ? undefined : steps.find((step) => step.status !== 'completed')
-  return { active, next, done, total: steps.length }
+  const unknown = steps.filter((step) => step.status === 'unknown').length
+  const next = active.length ? undefined : steps.find((step) => step.status !== 'completed' && step.status !== 'unknown')
+  return { active, next, done, unknown, total: steps.length }
 }
 
 interface AttributeInfo { ru: string; en: string; unit?: { ru: string; en: string }; hint?: { ru: string; en: string } }
@@ -169,6 +173,7 @@ export function stepStatus(step: GunsmithStep, playerLevel: number, locale: AppL
   if (step.status === 'active') return en ? 'taken in the game' : 'принято в игре'
   if (step.status === 'failed') return en ? 'failed' : 'провалено'
   if (step.status === 'available') return en ? 'available from Mechanic' : 'доступно у Механика'
+  if (step.status === 'unknown') return en ? 'not in the game logs' : 'нет в логах игры'
   if (playerLevel < step.quest.level) return en ? `from level ${step.quest.level}` : `с ${step.quest.level} уровня`
   return en ? 'after the previous part' : 'после предыдущей части'
 }
