@@ -1,5 +1,6 @@
 import { Compass } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { tr } from '../i18n'
 
 export function NotFoundPage() {
   return (
@@ -7,10 +8,10 @@ export function NotFoundPage() {
       <div className="panel center-state">
         <Compass aria-hidden="true" />
         <div>
-          <h1 style={{ margin: '0 0 6px', fontSize: 26 }}>Страница не найдена</h1>
-          <p style={{ margin: 0 }}>Похоже, эта точка не отмечена на карте.</p>
+          <h1 style={{ margin: '0 0 6px', fontSize: 26 }}>{tr('Страница не найдена')}</h1>
+          <p style={{ margin: 0 }}>{tr('Похоже, эта точка не отмечена на карте.')}</p>
         </div>
-        <Link to="/" className="button primary">На главную</Link>
+        <Link to="/" className="button primary">{tr('На главную')}</Link>
       </div>
     </div>
   )

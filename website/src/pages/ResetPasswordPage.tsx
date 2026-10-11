@@ -1,9 +1,17 @@
 import { LoaderCircle } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { useAuthConfig } from '../components/authConfig'
 import { EmailSignIn } from '../components/EmailAuth'
 import { Notice } from '../components/Notice'
+import { tr } from '../i18n'
+
+/** A translated sentence with a link in it: `{link}` in the phrase marks where the link goes. */
+function withLink(text: string, link: ReactNode) {
+  const [before, after = ''] = text.split('{link}')
+  return <>{before}{link}{after}</>
+}
 
 /**
  * «Забыли пароль?»: a code to the account's e-mail (server/src/routes/email.ts) → new password. Every session of the
@@ -22,18 +30,18 @@ export function ResetPasswordPage() {
   return (
     <div className="container auth-wrap page-in">
       <div className="panel auth-card">
-        <div className="eyebrow">Аккаунт</div>
-        <h1>Восстановление пароля</h1>
+        <div className="eyebrow">{tr('Аккаунт')}</div>
+        <h1>{tr('Восстановление пароля')}</h1>
         {!config && <LoaderCircle className="spinner" aria-hidden="true" />}
         {config && !email && <>
-          <Notice tone="info">Восстановление пароля по коду из письма на этом сервере сейчас недоступно.</Notice>
-          <p className="lead">Напишите в поддержку с e-mail, на который зарегистрирован аккаунт: контакты — на странице <Link to="/legal">«Реквизиты и документы»</Link>.</p>
+          <Notice tone="info">{tr('Восстановление пароля по коду из письма на этом сервере сейчас недоступно.')}</Notice>
+          <p className="lead">{withLink(tr('Напишите в поддержку с e-mail, на который зарегистрирован аккаунт: контакты — на странице {link}.'), <Link to="/legal">{tr('«Реквизиты и документы»')}</Link>)}</p>
         </>}
         {email && <>
           <EmailSignIn purpose="reset" onDone={done} />
-          <p className="auth-switch">Нет доступа к почте? Напишите в поддержку: контакты — на странице <Link to="/legal">«Реквизиты и документы»</Link>.</p>
+          <p className="auth-switch">{withLink(tr('Нет доступа к почте? Напишите в поддержку: контакты — на странице {link}.'), <Link to="/legal">{tr('«Реквизиты и документы»')}</Link>)}</p>
         </>}
-        <p className="auth-switch">Вспомнили пароль? <Link to="/login">Войти</Link></p>
+        <p className="auth-switch">{tr('Вспомнили пароль?')} <Link to="/login">{tr('Войти')}</Link></p>
       </div>
     </div>
   )

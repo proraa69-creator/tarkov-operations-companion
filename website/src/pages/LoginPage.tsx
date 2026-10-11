@@ -7,6 +7,7 @@ import { Notice } from '../components/Notice'
 import { LoginQr } from '../components/LoginQr'
 import { useAuthConfig } from '../components/authConfig'
 import { EmailSignIn } from '../components/EmailAuth'
+import { tr } from '../i18n'
 import { qrLogin, type QrLoginRequest } from '../qrLogin'
 import '../qrLogin.css'
 
@@ -39,12 +40,12 @@ export function LoginPage() {
   return (
     <div className="container auth-wrap page-in">
       <div className="panel auth-card">
-        <div className="eyebrow">Аккаунт</div>
-        <h1>Вход</h1>
+        <div className="eyebrow">{tr('Аккаунт')}</div>
+        <h1>{tr('Вход')}</h1>
         {method === 'qr' && <QrSignIn onBack={() => setMethod('password')} />}
         {method === 'email' && <EmailSignIn purpose="login" onDone={() => navigate('/cabinet', { replace: true })} onBack={() => setMethod('password')} />}
         {method === 'password' && <>
-          <p className="lead">Войдите, чтобы открыть личный кабинет.</p>
+          <p className="lead">{tr('Войдите, чтобы открыть личный кабинет.')}</p>
           <form className="form" onSubmit={submit} noValidate={false}>
             {error !== null && (
               <Notice tone={error instanceof ApiError && error.network ? 'offline' : 'error'}>{errorMessage(error)}</Notice>
@@ -54,20 +55,20 @@ export function LoginPage() {
               <input className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
             </label>
             <label className="field">
-              <span className="field-label">Пароль</span>
+              <span className="field-label">{tr('Пароль')}</span>
               <input className="input" type="password" autoComplete="current-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
-              <span className="field-hint"><Link to="/reset">Забыли пароль?</Link></span>
+              <span className="field-hint"><Link to="/reset">{tr('Забыли пароль?')}</Link></span>
             </label>
             <button type="submit" className="button primary large block" disabled={busy}>
               {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}
-              {busy ? 'Входим…' : 'Войти'}
+              {busy ? tr('Входим…') : tr('Войти')}
             </button>
           </form>
-          <div className="auth-divider">или</div>
-          <button type="button" className="button large block" onClick={() => setMethod('qr')}><QrCode aria-hidden="true" />Войти по QR-коду</button>
-          {config?.emailEnabled && <button type="button" className="button large block" style={{ marginTop: 10 }} onClick={() => setMethod('email')}><Mail aria-hidden="true" />Войти по коду из письма</button>}
+          <div className="auth-divider">{tr('или')}</div>
+          <button type="button" className="button large block" onClick={() => setMethod('qr')}><QrCode aria-hidden="true" />{tr('Войти по QR-коду')}</button>
+          {config?.emailEnabled && <button type="button" className="button large block" style={{ marginTop: 10 }} onClick={() => setMethod('email')}><Mail aria-hidden="true" />{tr('Войти по коду из письма')}</button>}
         </>}
-        <p className="auth-switch">Нет аккаунта? <Link to="/register">Зарегистрироваться</Link></p>
+        <p className="auth-switch">{tr('Нет аккаунта?')} <Link to="/register">{tr('Зарегистрироваться')}</Link></p>
       </div>
     </div>
   )
@@ -122,21 +123,21 @@ function QrSignIn({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="qr-login">
-      <p className="lead" style={{ margin: 0 }}>Отсканируйте QR-код телефоном, на котором открыто приложение Raid OS с вашим аккаунтом, или введите код в приложении для Windows.</p>
+      <p className="lead" style={{ margin: 0 }}>{tr('Отсканируйте QR-код телефоном, на котором открыто приложение Raid OS с вашим аккаунтом, или введите код в приложении для Windows.')}</p>
       {error !== null && <Notice tone={error instanceof ApiError && error.network ? 'offline' : 'error'}>{errorMessage(error)}</Notice>}
       {request ? (
         <>
-          <div className={`qr-login-frame${expired ? ' is-expired' : ''}`}><LoginQr value={approveUrl} label="QR-код для входа" /></div>
-          <div className="qr-login-code" aria-label="Код для приложения">{request.code}</div>
-          <div className="qr-login-timer">{expired ? 'Код истёк' : `Код действует ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} · ждём подтверждения…`}</div>
+          <div className={`qr-login-frame${expired ? ' is-expired' : ''}`}><LoginQr value={approveUrl} label={tr('QR-код для входа')} /></div>
+          <div className="qr-login-code" aria-label={tr('Код для приложения')}>{request.code}</div>
+          <div className="qr-login-timer">{expired ? tr('Код истёк') : tr('Код действует {time} · ждём подтверждения…', { time: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` })}</div>
         </>
       ) : error === null && <LoaderCircle className="spinner" aria-hidden="true" />}
-      {(expired || error !== null) && <button type="button" className="button primary block" onClick={renew}><RefreshCw aria-hidden="true" />Новый QR-код</button>}
+      {(expired || error !== null) && <button type="button" className="button primary block" onClick={renew}><RefreshCw aria-hidden="true" />{tr('Новый QR-код')}</button>}
       <ol className="qr-login-steps">
-        <li>Телефон: наведите камеру на QR-код. В приложении нажмите «Разрешить вход»; на сайте введите код с этого экрана и нажмите «Подтвердить».</li>
-        <li>Компьютер: приложение Raid OS → Профиль оператора → «Подтвердить вход на сайте» → введите код.</li>
+        <li>{tr('Телефон: наведите камеру на QR-код. В приложении нажмите «Разрешить вход»; на сайте введите код с этого экрана и нажмите «Подтвердить».')}</li>
+        <li>{tr('Компьютер: приложение Raid OS → Профиль оператора → «Подтвердить вход на сайте» → введите код.')}</li>
       </ol>
-      <button type="button" className="button ghost block" onClick={onBack}><LogIn aria-hidden="true" />Войти по e-mail и паролю</button>
+      <button type="button" className="button ghost block" onClick={onBack}><LogIn aria-hidden="true" />{tr('Войти по e-mail и паролю')}</button>
     </div>
   )
 }

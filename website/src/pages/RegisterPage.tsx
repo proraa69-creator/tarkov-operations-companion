@@ -6,6 +6,7 @@ import { useAuth } from '../auth'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
 import { Notice } from '../components/Notice'
 import { RegistrationCodeStep } from '../components/EmailAuth'
+import { tr } from '../i18n'
 import { LEGAL_VERSION } from '../legal/documents'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 
@@ -39,8 +40,8 @@ export function RegisterPage() {
     return (
       <div className="container auth-wrap page-in">
         <div className="panel auth-card">
-          <div className="eyebrow">Регистрация · подтверждение e-mail</div>
-          <h1>Проверьте почту</h1>
+          <div className="eyebrow">{tr('Регистрация · подтверждение e-mail')}</div>
+          <h1>{tr('Проверьте почту')}</h1>
           <RegistrationCodeStep email={pending.email} pending={pending.registration}
             onDone={({ token, referralApplied }) => { const code = pending.code; setPending(null); finished(token, referralApplied, code) }}
             onBack={() => setPending(null)} />
@@ -55,10 +56,10 @@ export function RegisterPage() {
     event.preventDefault()
     setError(null)
     const code = normalizeReferralCode(referral)
-    if (password.length < 8) { setLocalError('Пароль должен быть не короче 8 символов.'); return }
-    if (password !== repeat) { setLocalError('Пароли не совпадают.'); return }
-    if (code && !REFERRAL_CODE_PATTERN.test(code)) { setLocalError('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».'); return }
-    if (!consent) { setLocalError('Отметьте согласие с офертой и на обработку персональных данных.'); return }
+    if (password.length < 8) { setLocalError(tr('Пароль должен быть не короче 8 символов.')); return }
+    if (password !== repeat) { setLocalError(tr('Пароли не совпадают.')); return }
+    if (code && !REFERRAL_CODE_PATTERN.test(code)) { setLocalError(tr('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')); return }
+    if (!consent) { setLocalError(tr('Отметьте согласие с офертой и на обработку персональных данных.')); return }
     setLocalError(null)
     setBusy(true)
     try {
@@ -76,9 +77,9 @@ export function RegisterPage() {
   return (
     <div className="container auth-wrap page-in">
       <div className="panel auth-card">
-        <div className="eyebrow">Аккаунт</div>
-        <h1>Регистрация</h1>
-        <p className="lead">Один аккаунт для сайта и приложения.</p>
+        <div className="eyebrow">{tr('Аккаунт')}</div>
+        <h1>{tr('Регистрация')}</h1>
+        <p className="lead">{tr('Один аккаунт для сайта и приложения.')}</p>
         <form className="form" onSubmit={submit}>
           {localError && <Notice tone="error">{localError}</Notice>}
           {error !== null && (
@@ -89,35 +90,35 @@ export function RegisterPage() {
             <input className="input" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
           </label>
           <label className="field">
-            <span className="field-label">Пароль</span>
+            <span className="field-label">{tr('Пароль')}</span>
             <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} />
-            <span className="field-hint">Не короче 8 символов.</span>
+            <span className="field-hint">{tr('Не короче 8 символов.')}</span>
           </label>
           <label className="field">
-            <span className="field-label">Повторите пароль</span>
+            <span className="field-label">{tr('Повторите пароль')}</span>
             <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
           </label>
           {linkCode && !showCode ? (
             <div className="notice success" role="status">
               <Gift aria-hidden="true" />
-              <div><strong>Вы пришли по приглашению · {linkCode}</strong>Код применится автоматически — вводить ничего не нужно. Скидка 20 % действует на первый месяц по ссылке друга.</div>
+              <div><strong>{tr('Вы пришли по приглашению · {code}', { code: linkCode })}</strong>{tr('Код применится автоматически — вводить ничего не нужно. Скидка 20 % действует на первый месяц по ссылке друга.')}</div>
             </div>
           ) : showCode || referral.trim() ? (
             <label className="field">
-              <span className="field-label">Код приглашения <span className="dim">(необязательно)</span></span>
+              <span className="field-label">{tr('Код приглашения')} <span className="dim">{tr('(необязательно)')}</span></span>
               <input className="input code" autoComplete="off" spellCheck={false} maxLength={24} value={referral} onChange={(e) => setReferral(e.target.value)} placeholder="RAID-XXXXX" />
-              <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Код друга даёт скидку 20 % на первый месяц.</span>
+              <span className="field-hint"><Gift size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />{tr('Код друга даёт скидку 20 % на первый месяц.')}</span>
             </label>
           ) : (
-            <button type="button" className="button ghost small" style={{ justifySelf: 'start' }} onClick={() => setShowCode(true)}><Gift aria-hidden="true" />У меня есть код приглашения</button>
+            <button type="button" className="button ghost small" style={{ justifySelf: 'start' }} onClick={() => setShowCode(true)}><Gift aria-hidden="true" />{tr('У меня есть код приглашения')}</button>
           )}
           <ConsentCheckbox checked={consent} onChange={setConsent} id="register-consent" />
           <button type="submit" className="button primary large block" disabled={busy || !consent}>
             {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
-            {busy ? 'Создаём аккаунт…' : 'Зарегистрироваться'}
+            {busy ? tr('Создаём аккаунт…') : tr('Зарегистрироваться')}
           </button>
         </form>
-        <p className="auth-switch">Уже есть аккаунт? <Link to="/login">Войти</Link></p>
+        <p className="auth-switch">{tr('Уже есть аккаунт?')} <Link to="/login">{tr('Войти')}</Link></p>
       </div>
     </div>
   )

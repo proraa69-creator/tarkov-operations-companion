@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { api, errorMessage } from '../api'
 import { useAuth } from '../auth'
+import { tr } from '../i18n'
 import { Notice } from './Notice'
 import '../payments.css'
 
@@ -13,11 +14,11 @@ export function DeleteAccountPanel() {
   return (
     <section className="panel" aria-labelledby="delete-account-title">
       <div className="panel-header">
-        <div className="panel-title" id="delete-account-title"><Trash2 aria-hidden="true" />Удаление аккаунта</div>
+        <div className="panel-title" id="delete-account-title"><Trash2 aria-hidden="true" />{tr('Удаление аккаунта')}</div>
       </div>
       <div className="panel-body form">
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Почта, никнеймы, прогресс, друзья и настройки удаляются без возможности восстановления. Оплаченный срок подписки сгорает.</p>
-        <div><button type="button" className="button account-delete" onClick={() => setOpen(true)}><Trash2 aria-hidden="true" />Удалить аккаунт</button></div>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Почта, никнеймы, прогресс, друзья и настройки удаляются без возможности восстановления. Оплаченный срок подписки сгорает.')}</p>
+        <div><button type="button" className="button account-delete" onClick={() => setOpen(true)}><Trash2 aria-hidden="true" />{tr('Удалить аккаунт')}</button></div>
       </div>
       {open && <DeleteAccountDialog onClose={() => setOpen(false)} />}
     </section>
@@ -32,6 +33,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [noteBefore, noteAfter] = tr('Аккаунт {email} будет удалён сразу и навсегда. Записи об оплатах сохраняются обезличенно — их требует бухгалтерский учёт.').split('{email}')
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) onClose() }
@@ -60,22 +62,22 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
       <div className="pay-dialog password-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog}>
         <div className="pay-dialog-head">
           <div>
-            <div className="eyebrow">Аккаунт</div>
-            <h2 id={titleId}>Удалить аккаунт?</h2>
+            <div className="eyebrow">{tr('Аккаунт')}</div>
+            <h2 id={titleId}>{tr('Удалить аккаунт?')}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label="Закрыть" disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
+          <button type="button" className="icon-button" aria-label={tr('Закрыть')} disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </div>
         <form className="form" onSubmit={(event) => void submit(event)}>
-          <p className="pay-dialog-note">Аккаунт <strong style={{ color: 'var(--text)' }}>{auth.account?.email}</strong> будет удалён сразу и навсегда. Записи об оплатах сохраняются обезличенно — их требует бухгалтерский учёт.</p>
+          <p className="pay-dialog-note">{noteBefore}<strong style={{ color: 'var(--text)' }}>{auth.account?.email}</strong>{noteAfter}</p>
           <label className="field">
-            <span className="field-label">Пароль для подтверждения</span>
+            <span className="field-label">{tr('Пароль для подтверждения')}</span>
             <input className="input" type="password" autoComplete="current-password" required maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
-          {error && <Notice tone="error">{error}</Notice>}
+          {error && <Notice tone="error">{tr(error)}</Notice>}
           <div className="pay-dialog-actions">
-            <button type="button" className="button ghost" disabled={busy} onClick={onClose}>Отмена</button>
+            <button type="button" className="button ghost" disabled={busy} onClick={onClose}>{tr('Отмена')}</button>
             <button type="submit" className="button account-delete" disabled={busy || !password}>
-              {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}Удалить навсегда
+              {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}{tr('Удалить навсегда')}
             </button>
           </div>
         </form>

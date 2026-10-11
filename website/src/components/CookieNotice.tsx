@@ -1,6 +1,7 @@
 import { Cookie } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { tr } from '../i18n'
 import '../extras.css'
 
 const KEY = 'toc.cookie-notice'
@@ -17,10 +18,10 @@ export function CookieNotice() {
     setHidden(true)
   }
   return (
-    <div className="cookie-notice" role="region" aria-label="Уведомление о хранилище браузера">
+    <div className="cookie-notice" role="region" aria-label={tr('Уведомление о хранилище браузера')}>
       <Cookie aria-hidden="true" />
-      <p>Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения. <Link to="/legal/cookies">Подробнее</Link></p>
-      <button type="button" className="button small" onClick={close}>Понятно</button>
+      <p>{tr('Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения.')} <Link to="/legal/cookies">{tr('Подробнее')}</Link></p>
+      <button type="button" className="button small" onClick={close}>{tr('Понятно')}</button>
     </div>
   )
 }

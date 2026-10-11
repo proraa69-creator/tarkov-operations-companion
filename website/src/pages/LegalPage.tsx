@@ -3,15 +3,18 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { api, type PlansResponse } from '../api'
 import { LEGAL_DOCUMENTS, LEGAL_VERSION_LABEL, legalDocument, SELLER_DETAILS } from '../legal/documents'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
+import { siteLocale, tr } from '../i18n'
 import '../extras.css'
 
 function LegalNav({ current }: { current?: string }) {
-  return (
+  return (<>
+    {/* Terms and documents stay in Russian (owner, 11.10.2026): the English site says so here. */}
+    {siteLocale() === 'en' && <p className="legal-language-note" lang="en">{tr('Условия и документы доступны только на русском языке: они составлены по законодательству РФ.')}</p>}
     <nav className="legal-nav" aria-label="Документы">
       <Link to="/legal" className={!current ? 'active' : undefined}>Тарифы, оплата и возврат</Link>
       {LEGAL_DOCUMENTS.map((doc) => <Link key={doc.slug} to={`/legal/${doc.slug}`} className={current === doc.slug ? 'active' : undefined}>{doc.short}</Link>)}
     </nav>
-  )
+  </>)
 }
 
 /** /legal — the buyer's page (tariffs, payment, access, refund, contacts, seller); /legal/:slug — one document. */
@@ -90,9 +93,9 @@ function BuyerInfo() {
                     return (
                       <tr key={plan.id}>
                         <td>{PLAN_LABELS[plan.id]}{plan.discountPercent > 0 && <span className="tag brass tag-mini">−{plan.discountPercent} %</span>}</td>
-                        <td className="mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}{saving && <> <span className="legal-saving-full">вместо {formatMoney(saving.full, plan.currency)}</span></>}</td>
-                        <td className="mono">{saving ? formatMoney(saving.saving, plan.currency) : '—'}</td>
-                        <td className="mono">{plan.price === null ? '—' : formatMoney(Math.round(plan.price / plan.months), plan.currency)}</td>
+                        <td className="mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency, 'ru-RU')}{saving && <> <span className="legal-saving-full">вместо {formatMoney(saving.full, plan.currency, 'ru-RU')}</span></>}</td>
+                        <td className="mono">{saving ? formatMoney(saving.saving, plan.currency, 'ru-RU') : '—'}</td>
+                        <td className="mono">{plan.price === null ? '—' : formatMoney(Math.round(plan.price / plan.months), plan.currency, 'ru-RU')}</td>
                       </tr>
                     )
                   })}

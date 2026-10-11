@@ -4,7 +4,8 @@ import { Check, Crown, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, type PlansResponse } from '../api'
 import { useAuth } from '../auth'
-import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
+import { tr } from '../i18n'
+import { formatMoney, planLabel, planSaving, visiblePlans } from '../plans'
 import { PlanSaving } from './PlanSaving'
 import '../payments.css'
 
@@ -56,13 +57,13 @@ export function SubscriptionDialog({ onClose }: { onClose: () => void }) {
         <div className="pay-dialog-head">
           <div>
             <div className="eyebrow">Raid OS</div>
-            <h2 id={titleId}>Подписка</h2>
+            <h2 id={titleId}>{tr('Подписка')}</h2>
           </div>
-          <button ref={closeRef} type="button" className="icon-button" aria-label="Закрыть" onClick={onClose}><X aria-hidden="true" /></button>
+          <button ref={closeRef} type="button" className="icon-button" aria-label={tr('Закрыть')} onClick={onClose}><X aria-hidden="true" /></button>
         </div>
 
         <ul className="subscription-included">
-          {INCLUDED.map((line) => <li key={line}><Check aria-hidden="true" />{line}</li>)}
+          {INCLUDED.map((line) => <li key={line}><Check aria-hidden="true" />{tr(line)}</li>)}
         </ul>
 
         <div className="plan-grid subscription-plans">
@@ -71,26 +72,26 @@ export function SubscriptionDialog({ onClose }: { onClose: () => void }) {
             return (
               <div key={plan.id} className={`plan-card${plan.id === '12m' ? ' is-best' : ''}`}>
                 {plan.discountPercent > 0 && <span className="tag brass plan-badge">−{plan.discountPercent} %</span>}
-                <span className="stat-label">{PLAN_LABELS[plan.id]}</span>
+                <span className="stat-label">{planLabel(plan.id)}</span>
                 <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
                 {saving && <PlanSaving {...saving} currency={plan.currency} />}
-                <div className="stat-meta">{plan.price === null ? '' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
+                <div className="stat-meta">{plan.price === null ? '' : plan.months > 1 ? tr('≈ {price} в месяц', { price: formatMoney(Math.round(plan.price / plan.months), plan.currency) }) : tr('помесячно')}</div>
               </div>
             )
           })}
         </div>
 
         <ul className="subscription-terms">
-          <li><strong>Оплата</strong> — на защищённой странице ЮKassa через доступный способ: СБП, SberPay или T-Pay. Автопродление включается только отдельной галочкой, если оно подключено для магазина.</li>
-          <li><strong>Доступ</strong> открывается сразу после оплаты в приложении для Windows, на телефоне и на сайте.</li>
-          <li><strong>Возврат</strong> — в любой момент за неиспользованные дни, без удержания комиссий.</li>
+          <li><strong>{tr('Оплата')}</strong> {tr('— на защищённой странице ЮKassa через доступный способ: СБП, SberPay или T-Pay. Автопродление включается только отдельной галочкой, если оно подключено для магазина.')}</li>
+          <li><strong>{tr('Доступ')}</strong> {tr('открывается сразу после оплаты в приложении для Windows, на телефоне и на сайте.')}</li>
+          <li><strong>{tr('Возврат')}</strong> {tr('— в любой момент за неиспользованные дни, без удержания комиссий.')}</li>
         </ul>
 
         <div className="pay-dialog-actions">
-          <Link to="/legal" className="button" onClick={onClose}>Условия и документы</Link>
-          <button type="button" className="button primary" onClick={subscribe}><Crown aria-hidden="true" />Оформить подписку</button>
+          <Link to="/legal" className="button" onClick={onClose}>{tr('Условия и документы')}</Link>
+          <button type="button" className="button primary" onClick={subscribe}><Crown aria-hidden="true" />{tr('Оформить подписку')}</button>
         </div>
-        {!account && <p className="pay-dialog-note">Сначала зарегистрируйтесь по e-mail — после регистрации откроется личный кабинет, где можно оплатить подписку.</p>}
+        {!account && <p className="pay-dialog-note">{tr('Сначала зарегистрируйтесь по e-mail — после регистрации откроется личный кабинет, где можно оплатить подписку.')}</p>}
       </div>
     </div>,
     document.body,

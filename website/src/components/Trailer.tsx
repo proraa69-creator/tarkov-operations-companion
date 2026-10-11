@@ -1,6 +1,7 @@
 import { Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { prefersReducedMotion } from '../hooks/motion'
+import { tr } from '../i18n'
 
 /**
  * Product trailer — the centrepiece of the home page.
@@ -68,7 +69,7 @@ export function Trailer() {
         muted
         playsInline
         preload={reducedMotion ? 'metadata' : 'auto'}
-        aria-label="Трейлер Raid OS"
+        aria-label={tr('Трейлер Raid OS')}
         onLoadedData={() => setStatus('ready')}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -84,30 +85,30 @@ export function Trailer() {
             onError={index === TRAILER_SOURCES.length - 1 ? () => setStatus('missing') : undefined}
           />
         ))}
-        Ваш браузер не поддерживает встроенное видео.
+        {tr('Ваш браузер не поддерживает встроенное видео.')}
       </video>
 
       <div className="trailer-vignette" aria-hidden="true" />
 
       {missing ? (
         <div className="trailer-overlay">
-          <span className="trailer-note">Трейлер готовится к публикации — скоро он появится здесь.</span>
+          <span className="trailer-note">{tr('Трейлер готовится к публикации — скоро он появится здесь.')}</span>
         </div>
       ) : (
         <>
           {!playing && (status === 'ready' || reducedMotion) && (
-            <button type="button" className="trailer-overlay" onClick={togglePlay} aria-label="Смотреть трейлер">
+            <button type="button" className="trailer-overlay" onClick={togglePlay} aria-label={tr('Смотреть трейлер')}>
               <span className="play-button" aria-hidden="true"><Play fill="currentColor" /></span>
-              <span className="trailer-caption">Смотреть трейлер</span>
+              <span className="trailer-caption">{tr('Смотреть трейлер')}</span>
             </button>
           )}
           <div className="trailer-controls">
-            <button type="button" className="ctrl-button" onClick={togglePlay} aria-label={playing ? 'Пауза' : 'Воспроизвести'}>
+            <button type="button" className="ctrl-button" onClick={togglePlay} aria-label={tr(playing ? 'Пауза' : 'Воспроизвести')}>
               {playing ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
             </button>
-            <button type="button" className="ctrl-button" onClick={toggleMute} aria-label={muted ? 'Включить звук' : 'Выключить звук'} aria-pressed={!muted}>
+            <button type="button" className="ctrl-button" onClick={toggleMute} aria-label={tr(muted ? 'Включить звук' : 'Выключить звук')} aria-pressed={!muted}>
               {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
-              <span className="ctrl-label">{muted ? 'Включить звук' : 'Выключить звук'}</span>
+              <span className="ctrl-label">{tr(muted ? 'Включить звук' : 'Выключить звук')}</span>
             </button>
           </div>
         </>

@@ -1,7 +1,6 @@
 /** «Пригласи друга»: ranks, wording and statuses shared by the cabinet panel and the home page (InviteFriendsPanel.tsx). */
 import type { InviteProgram, InviteRank, InviteReward, InviteRewardStatus } from '../api'
-
-const releaseFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' })
+import { localeTag, tr } from '../i18n'
 
 /** The ranks of «Пригласи друга» (mirrors RANKS in server/src/services/invites.ts): used before the program loads and on the home page. */
 export const INVITE_RANKS: InviteRank[] = [
@@ -21,22 +20,33 @@ export function plural(count: number, one: string, few: string, many: string) {
   return many
 }
 
+export const DAY_WORDS = { ru: ['день', 'дня', 'дней'], en: ['day', 'days'] } as const
+export const MONTH_WORDS = { ru: ['месяц', 'месяца', 'месяцев'], en: ['month', 'months'] } as const
+export const PAYMENT_WORDS = { ru: ['оплата', 'оплаты', 'оплат'], en: ['payment', 'payments'] } as const
+
+/** «5 дней» in Russian, «5 days» in English (the site's language, src/i18n). */
+export function countText(count: number, words: { ru: readonly [string, string, string]; en: readonly [string, string] }) {
+  if (localeTag() === 'en-US') return `${count} ${count === 1 ? words.en[0] : words.en[1]}`
+  return `${count} ${plural(count, ...words.ru)}`
+}
+
 /** «месяц», «3 месяца», «год», «Premium навсегда», «7 дней». */
 export function bonusText(days: number | 'lifetime') {
-  if (days === 'lifetime') return 'Premium навсегда'
-  if (days === 365) return 'год'
-  if (days === 30) return 'месяц'
-  if (days > 0 && days % 30 === 0) return `${days / 30} ${plural(days / 30, 'месяц', 'месяца', 'месяцев')}`
-  return `${days} ${plural(days, 'день', 'дня', 'дней')}`
+  if (days === 'lifetime') return tr('Premium навсегда')
+  if (days === 365) return tr('год')
+  if (days === 30) return tr('месяц')
+  if (days > 0 && days % 30 === 0) return countText(days / 30, MONTH_WORDS)
+  return countText(days, DAY_WORDS)
 }
 
 /** What a rank gives: Scout — the per-friend days, the others — their one-off bonus. */
 export function rankReward(rank: InviteRank, rewardDays = 7) {
-  if (rank.bonusDays === 'lifetime') return 'Premium навсегда'
-  if (rank.bonusDays === 0) return `${bonusText(rewardDays)} за друга`
+  if (rank.bonusDays === 'lifetime') return tr('Premium навсегда')
+  if (rank.bonusDays === 0) return tr('{bonus} за друга', { bonus: bonusText(rewardDays) })
   return `+${bonusText(rank.bonusDays)}`
 }
 
+/** The labels are Russian source texts: show them through tr() (rewardStatusText does). */
 export const REWARD_STATUS: Record<InviteRewardStatus, { label: string; tone: string }> = {
   pending: { label: 'На проверке', tone: '' },
   review: { label: 'Проверяет администрация', tone: 'brass' },
@@ -45,18 +55,21 @@ export const REWARD_STATUS: Record<InviteRewardStatus, { label: string; tone: st
 }
 
 export function rewardStatusText(reward: InviteReward) {
-  if (reward.status === 'pending' && reward.waitingEft) return 'Ожидает привязку'
-  if (reward.status === 'pending' && reward.releaseAt) return `На проверке до ${releaseFormat.format(new Date(reward.releaseAt))}`
-  return REWARD_STATUS[reward.status]?.label ?? reward.status
+  if (reward.status === 'pending' && reward.waitingEft) return tr('Ожидает привязку')
+  if (reward.status === 'pending' && reward.releaseAt) {
+    const date = new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'short' }).format(new Date(reward.releaseAt))
+    return tr('На проверке до {date}', { date })
+  }
+  return tr(REWARD_STATUS[reward.status]?.label ?? reward.status)
 }
 
 /** «Ещё 2 оплаты до Operator — +1 месяц Premium». */
 export function progressText(program: Pick<InviteProgram, 'confirmed' | 'next' | 'rewardDays'>) {
   const next = program.next
-  if (!next) return 'Высший ранг получен — Premium навсегда. Спасибо, что зовёте друзей!'
+  if (!next) return tr('Высший ранг получен — Premium навсегда. Спасибо, что зовёте друзей!')
   const left = Math.max(next.friends - program.confirmed, 0)
-  const reward = next.bonusDays === 'lifetime' ? 'Premium навсегда'
-    : next.bonusDays === 0 ? `${bonusText(program.rewardDays)} Premium за каждого друга`
-      : `+${next.bonusDays === 30 ? '1 месяц' : next.bonusDays === 365 ? '1 год' : bonusText(next.bonusDays)} Premium`
-  return `Ещё ${left} ${plural(left, 'оплата', 'оплаты', 'оплат')} до ${next.title} — ${reward}`
+  const reward = next.bonusDays === 'lifetime' ? tr('Premium навсегда')
+    : next.bonusDays === 0 ? tr('{bonus} Premium за каждого друга', { bonus: bonusText(program.rewardDays) })
+      : tr('+{bonus} Premium', { bonus: next.bonusDays === 30 ? tr('1 месяц') : next.bonusDays === 365 ? tr('1 год') : bonusText(next.bonusDays) })
+  return tr('Ещё {payments} до {rank} — {reward}', { payments: countText(left, PAYMENT_WORDS), rank: next.title, reward })
 }

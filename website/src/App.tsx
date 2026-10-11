@@ -15,6 +15,7 @@ import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { StreamerInvitePage } from './pages/StreamerInvitePage'
 import { SquadLinkPage } from './pages/SquadLinkPage'
+import { tr, useSiteLocale } from './i18n'
 
 const TITLES: Record<string, string> = {
   '/': 'Raid OS',
@@ -34,13 +35,15 @@ const TITLES: Record<string, string> = {
 
 export function App() {
   const { pathname } = useLocation()
+  const locale = useSiteLocale()
   useEffect(() => {
-    document.title = TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Raid OS' : pathname.startsWith('/squad/') ? 'Приглашение в отряд — Raid OS' : pathname.startsWith('/friend/') ? 'Приглашение в друзья — Raid OS' : 'Raid OS')
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-  }, [pathname])
+    document.title = tr(TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Raid OS' : pathname.startsWith('/squad/') ? 'Приглашение в отряд — Raid OS' : pathname.startsWith('/friend/') ? 'Приглашение в друзья — Raid OS' : 'Raid OS'))
+  }, [pathname, locale])
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) }, [pathname])
 
+  // RU / EN: the whole site renders again in the chosen language (src/i18n/index.ts); the account session stays.
   return (
-    <Routes>
+    <Routes key={locale}>
       <Route element={<SiteLayout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />

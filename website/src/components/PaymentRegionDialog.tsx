@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import type { Autopay, Plan, YooKassaPaymentMethod } from '../api'
+import { localeTag, tr } from '../i18n'
 import { Notice } from './Notice'
 import '../payments.css'
 
@@ -16,7 +17,13 @@ const METHOD_TEXT: Record<YooKassaPaymentMethod, { title: string; detail: string
 
 function formatMoney(amount: number, currency: string) {
   const digits = Number.isInteger(amount) ? 0 : 2
-  try { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(amount) } catch { return `${amount} ${currency}` }
+  try { return new Intl.NumberFormat(localeTag(), { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(amount) } catch { return `${amount} ${currency}` }
+}
+
+/** The server's name of a saved payment method («Карта *4444», «СБП», «SberPay»…) in the site language. */
+function methodLabel(method: string) {
+  const card = /^Карта \*(\d{4})$/.exec(method)
+  return card ? tr('Карта *{last4}', { last4: card[1] ?? '' }) : tr(method)
 }
 
 /** Confirmation before leaving for the hosted YooKassa page. No bank details are collected by Raid OS. */
@@ -47,19 +54,19 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
       <div className="pay-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog}>
         <div className="pay-dialog-head">
           <div>
-            <div className="eyebrow">Способ оплаты</div>
-            <h2 id={titleId}>{PLAN_TEXT[plan.id]} · {plan.price === null ? '' : formatMoney(plan.price, 'RUB')}</h2>
+            <div className="eyebrow">{tr('Способ оплаты')}</div>
+            <h2 id={titleId}>{tr(PLAN_TEXT[plan.id])} · {plan.price === null ? '' : formatMoney(plan.price, 'RUB')}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label="Закрыть" disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
+          <button type="button" className="icon-button" aria-label={tr('Закрыть')} disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </div>
 
         <fieldset className="pay-regions">
-          <legend>Выберите способ</legend>
+          <legend>{tr('Выберите способ')}</legend>
           {methods.map((item) => (
             <label key={item} className={`pay-region${method === item ? ' is-selected' : ''}`}>
               <input type="radio" name="payment-method" value={item} checked={method === item} disabled={busy} onChange={() => { setMethod(item); setAutoRenew(false) }} />
               <CreditCard aria-hidden="true" />
-              <span className="pay-region-text"><strong>{METHOD_TEXT[item].title}</strong><small>{METHOD_TEXT[item].detail}</small></span>
+              <span className="pay-region-text"><strong>{tr(METHOD_TEXT[item].title)}</strong><small>{tr(METHOD_TEXT[item].detail)}</small></span>
               <span className="pay-region-price mono">{plan.price === null ? '' : formatMoney(plan.price, 'RUB')}</span>
             </label>
           ))}
@@ -67,29 +74,32 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
 
         <label className="consent pay-autopay" htmlFor="pay-legal-consent">
           <input id="pay-legal-consent" type="checkbox" checked={consent} disabled={busy} onChange={(event) => setConsent(event.target.checked)} />
-          <span>Я принимаю условия <Link to="/legal/offer" target="_blank" rel="noopener">публичной оферты</Link> и даю <Link to="/legal/consent" target="_blank" rel="noopener">согласие на обработку персональных данных</Link>.</span>
+          <span>{tr('Я принимаю условия')} <Link to="/legal/offer" target="_blank" rel="noopener">{tr('публичной оферты')}</Link> {tr('и даю')} <Link to="/legal/consent" target="_blank" rel="noopener">{tr('согласие на обработку персональных данных')}</Link>.</span>
         </label>
 
         {autopayAvailable && (
           <label className="consent pay-autopay" htmlFor="pay-auto-renew">
             <input id="pay-auto-renew" type="checkbox" checked={autoRenew} disabled={busy} onChange={(event) => setAutoRenew(event.target.checked)} />
-            <span>Включить автопродление</span>
+            <span>{tr('Включить автопродление')}</span>
           </label>
         )}
 
         <p className="pay-dialog-note">
           {autoRenew
-            ? `После первого подтверждения выбранный способ оплаты сохранится в ЮKassa. Затем с него будет списываться ${plan.price === null ? 'стоимость тарифа' : formatMoney(plan.price, 'RUB')} ${PERIOD_TEXT[plan.id]} до отмены. Перед каждым списанием мы уведомим вас. Отключить автопродление можно в личном кабинете.`
-            : 'Платёж разовый. Автоматических повторных списаний нет.'}{' '}
-          Raid OS не получает и не хранит реквизиты вашего банковского счёта.
+            ? tr('После первого подтверждения выбранный способ оплаты сохранится в ЮKassa. Затем с него будет списываться {amount} {period} до отмены. Перед каждым списанием мы уведомим вас. Отключить автопродление можно в личном кабинете.', {
+              amount: plan.price === null ? tr('стоимость тарифа') : formatMoney(plan.price, 'RUB'),
+              period: tr(PERIOD_TEXT[plan.id]),
+            })
+            : tr('Платёж разовый. Автоматических повторных списаний нет.')}{' '}
+          {tr('Raid OS не получает и не хранит реквизиты вашего банковского счёта.')}
         </p>
-        {error && <Notice tone={error.offline ? 'offline' : 'error'} title="Оплата не началась">{error.message}</Notice>}
+        {error && <Notice tone={error.offline ? 'offline' : 'error'} title={tr('Оплата не началась')}>{error.message}</Notice>}
 
         <div className="pay-dialog-actions">
-          <button type="button" className="button ghost" disabled={busy} onClick={onClose}>Отмена</button>
+          <button type="button" className="button ghost" disabled={busy} onClick={onClose}>{tr('Отмена')}</button>
           <button type="button" className="button primary" disabled={!consent || busy} onClick={() => onPay(method, autoRenew)}>
             {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CreditCard aria-hidden="true" />}
-            Перейти к оплате
+            {tr('Перейти к оплате')}
           </button>
         </div>
       </div>
@@ -100,21 +110,21 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
 
 /** The cabinet's autopayment block: amount, period, next charge and «Отменить автопродление» (one click). */
 export function AutopayCard({ autopay, busy, error, onCancel }: { autopay: Autopay; busy: boolean; error: string | null; onCancel: () => void }) {
-  const date = (iso?: string) => (iso ? new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso)) : '')
-  const via = autopay.provider === 'lava' ? 'Lava.top' : autopay.method ?? 'ЮKassa'
+  const date = (iso?: string) => (iso ? new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso)) : '')
+  const via = autopay.provider === 'lava' ? 'Lava.top' : autopay.method ? methodLabel(autopay.method) : tr('ЮKassa')
   const amount = formatMoney(autopay.amount, autopay.currency)
   if (autopay.status === 'active') {
     return (
       <div className="autopay-card is-active">
         <Repeat aria-hidden="true" />
         <div className="autopay-text">
-          <strong>Автопродление включено</strong>
-          <span>{amount} {PERIOD_TEXT[autopay.plan]} · {via}</span>
-          {autopay.nextChargeAt && <span className="dim">Следующее списание — около {date(autopay.nextChargeAt)}</span>}
+          <strong>{tr('Автопродление включено')}</strong>
+          <span>{amount} {tr(PERIOD_TEXT[autopay.plan])} · {via}</span>
+          {autopay.nextChargeAt && <span className="dim">{tr('Следующее списание — около {date}', { date: date(autopay.nextChargeAt) })}</span>}
           {error && <span className="autopay-error">{error}</span>}
         </div>
         <button type="button" className="button" disabled={busy} onClick={onCancel}>
-          {busy && <LoaderCircle className="spinner" aria-hidden="true" />}Отменить автопродление
+          {busy && <LoaderCircle className="spinner" aria-hidden="true" />}{tr('Отменить автопродление')}
         </button>
       </div>
     )
@@ -123,8 +133,8 @@ export function AutopayCard({ autopay, busy, error, onCancel }: { autopay: Autop
     <div className="autopay-card">
       <Repeat aria-hidden="true" />
       <div className="autopay-text">
-        <strong>{autopay.status === 'failed' ? 'Автопродление остановлено: списание не прошло' : 'Автопродление отключено'}</strong>
-        <span>{autopay.paidUntil ? `Подписка действует до ${date(autopay.paidUntil).replace(/\.$/, '')}. ` : ''}Больше ничего не спишется{autopay.provider === 'yookassa' ? ', сохранённый способ оплаты удалён' : ''}.</span>
+        <strong>{tr(autopay.status === 'failed' ? 'Автопродление остановлено: списание не прошло' : 'Автопродление отключено')}</strong>
+        <span>{autopay.paidUntil ? `${tr('Подписка действует до {date}.', { date: date(autopay.paidUntil).replace(/\.$/, '') })} ` : ''}{tr(autopay.provider === 'yookassa' ? 'Больше ничего не спишется, сохранённый способ оплаты удалён.' : 'Больше ничего не спишется.')}</span>
       </div>
     </div>
   )

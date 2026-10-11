@@ -1,7 +1,8 @@
 import { KeyRound, LoaderCircle, LogIn, Mail, MailCheck, RefreshCw } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { ApiError, api, errorMessage, type PendingRegistration, type CodeChallenge } from '../api'
 import { useAuth } from '../auth'
+import { tr } from '../i18n'
 import { Notice } from './Notice'
 import { useAuthConfig } from './authConfig'
 
@@ -10,6 +11,12 @@ import { useAuthConfig } from './authConfig'
  * code from the e-mail, «Забыли пароль?» by e-mail, and «Подтвердите e-mail» in the cabinet. Hidden while the server
  * has no e-mail provider (GET /v1/accounts/auth-config → emailEnabled: false); registration then works without codes.
  */
+
+/** A translated sentence with an element in it: `{slot}` in the phrase marks where the element goes. */
+function withSlot(text: string, element: ReactNode) {
+  const [before, after = ''] = text.split('{slot}')
+  return <>{before}{element}{after}</>
+}
 
 function useSecondsLeft(until: number) {
   const [now, setNow] = useState(() => Date.now())
@@ -31,9 +38,9 @@ export const failure = (error: unknown) => error !== null && <Notice tone={error
 export function EmailCodeField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <label className="field">
-      <span className="field-label">Код из письма</span>
+      <span className="field-label">{tr('Код из письма')}</span>
       <input className="input code" inputMode="numeric" autoComplete="one-time-code" required maxLength={7} value={value} onChange={(e) => onChange(e.target.value.replace(/[^\d]/g, '').slice(0, 6))} placeholder="000000" autoFocus />
-      <span className="field-hint">6 цифр. Код действует 10 минут, после 5 неверных попыток нужен новый. Письма нет — проверьте папку «Спам».</span>
+      <span className="field-hint">{tr('6 цифр. Код действует 10 минут, после 5 неверных попыток нужен новый. Письма нет — проверьте папку «Спам».')}</span>
     </label>
   )
 }
@@ -42,7 +49,7 @@ export function ResendButton({ until, busy, onClick }: { until: number; busy: bo
   const left = useSecondsLeft(until)
   return (
     <button type="button" className="button ghost small" disabled={busy || left > 0} onClick={onClick}>
-      <RefreshCw aria-hidden="true" />{left > 0 ? `Отправить код ещё раз через ${left} с` : 'Отправить код ещё раз'}
+      <RefreshCw aria-hidden="true" />{left > 0 ? tr('Отправить код ещё раз через {seconds} с', { seconds: left }) : tr('Отправить код ещё раз')}
     </button>
   )
 }
@@ -88,18 +95,18 @@ export function RegistrationCodeStep({ email, pending, onDone, onBack }: { email
 
   return (
     <form className="form" onSubmit={confirm}>
-      <Notice tone="info" title="Мы отправили код на e-mail">Введите код из письма, отправленного на <strong>{email}</strong>, чтобы завершить регистрацию. Аккаунт появится после подтверждения.</Notice>
-      {resent && <Notice tone="success">Новый код отправлен. Предыдущий больше не действует.</Notice>}
+      <Notice tone="info" title={tr('Мы отправили код на e-mail')}>{withSlot(tr('Введите код из письма, отправленного на {slot}, чтобы завершить регистрацию. Аккаунт появится после подтверждения.'), <strong>{email}</strong>)}</Notice>
+      {resent && <Notice tone="success">{tr('Новый код отправлен. Предыдущий больше не действует.')}</Notice>}
       {failure(error)}
       <EmailCodeField value={code} onChange={setCode} />
       <button type="submit" className="button primary large block" disabled={busy || code.length !== 6}>
-        {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <MailCheck aria-hidden="true" />}Подтвердить и войти
+        {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <MailCheck aria-hidden="true" />}{tr('Подтвердить и войти')}
       </button>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <ResendButton until={resendAt} busy={busy} onClick={() => void resend()} />
-        <button type="button" className="button ghost small" onClick={onBack}>Изменить e-mail</button>
+        <button type="button" className="button ghost small" onClick={onBack}>{tr('Изменить e-mail')}</button>
       </div>
-      <p className="field-hint" style={{ margin: 0 }}>Если на этот адрес уже есть аккаунт, новый не создаётся — войдите с паролем или воспользуйтесь «Забыли пароль?».</p>
+      <p className="field-hint" style={{ margin: 0 }}>{tr('Если на этот адрес уже есть аккаунт, новый не создаётся — войдите с паролем или воспользуйтесь «Забыли пароль?».')}</p>
     </form>
   )
 }
@@ -108,7 +115,7 @@ export function RegistrationCodeStep({ email, pending, onDone, onBack }: { email
  * Sign-in by e-mail code (purpose 'login') or the password reset (purpose 'reset'): e-mail → code (→ new password).
  * The server answers the same for any address, so the page never says whether the address is registered.
  */
-export function EmailSignIn({ purpose, onDone, onBack, backLabel = 'Войти по e-mail и паролю' }: { purpose: 'login' | 'reset'; onDone: () => void; onBack?: () => void; backLabel?: string }) {
+export function EmailSignIn({ purpose, onDone, onBack, backLabel = tr('Войти по e-mail и паролю') }: { purpose: 'login' | 'reset'; onDone: () => void; onBack?: () => void; backLabel?: string }) {
   const auth = useAuth()
   const [email, setEmail] = useState('')
   const [challenge, setChallenge] = useState<CodeChallenge | null>(null)
@@ -141,8 +148,8 @@ export function EmailSignIn({ purpose, onDone, onBack, backLabel = 'Войти �
     event.preventDefault()
     if (!challenge) return
     if (purpose === 'reset') {
-      if (password.length < 8) { setLocalError('Пароль должен быть не короче 8 символов.'); return }
-      if (password !== repeat) { setLocalError('Пароли не совпадают.'); return }
+      if (password.length < 8) { setLocalError(tr('Пароль должен быть не короче 8 символов.')); return }
+      if (password !== repeat) { setLocalError(tr('Пароли не совпадают.')); return }
     }
     setBusy(true); setError(null); setLocalError('')
     try {
@@ -165,15 +172,15 @@ export function EmailSignIn({ purpose, onDone, onBack, backLabel = 'Войти �
     return (
       <form className="form" onSubmit={requestCode}>
         <p className="lead" style={{ margin: 0 }}>{purpose === 'login'
-          ? 'Введите e-mail аккаунта. Мы пришлём на него код для входа — пароль не нужен.'
-          : 'Введите e-mail аккаунта. Мы пришлём на него код, после него задайте новый пароль.'}</p>
+          ? tr('Введите e-mail аккаунта. Мы пришлём на него код для входа — пароль не нужен.')
+          : tr('Введите e-mail аккаунта. Мы пришлём на него код, после него задайте новый пароль.')}</p>
         {notices}
         <label className="field">
           <span className="field-label">E-mail</span>
           <input className="input" type="email" autoComplete="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoFocus />
         </label>
         <button type="submit" className="button primary large block" disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}>
-          {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}Получить код
+          {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}{tr('Получить код')}
         </button>
         {onBack && <button type="button" className="button ghost block" onClick={onBack}><LogIn aria-hidden="true" />{backLabel}</button>}
       </form>
@@ -182,27 +189,27 @@ export function EmailSignIn({ purpose, onDone, onBack, backLabel = 'Войти �
 
   return (
     <form className="form" onSubmit={confirm}>
-      <Notice tone="info">Если для {email.trim()} есть аккаунт, на этот адрес придёт письмо с кодом. Не сообщайте код никому, даже «поддержке».</Notice>
+      <Notice tone="info">{tr('Если для {email} есть аккаунт, на этот адрес придёт письмо с кодом. Не сообщайте код никому, даже «поддержке».', { email: email.trim() })}</Notice>
       {notices}
       <EmailCodeField value={code} onChange={setCode} />
       {purpose === 'reset' && <>
         <label className="field">
-          <span className="field-label">Новый пароль</span>
+          <span className="field-label">{tr('Новый пароль')}</span>
           <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} />
-          <span className="field-hint">Не короче 8 символов. Все входы на других устройствах будут завершены.</span>
+          <span className="field-hint">{tr('Не короче 8 символов. Все входы на других устройствах будут завершены.')}</span>
         </label>
         <label className="field">
-          <span className="field-label">Повторите пароль</span>
+          <span className="field-label">{tr('Повторите пароль')}</span>
           <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
         </label>
       </>}
       <button type="submit" className="button primary large block" disabled={busy || code.length !== 6}>
         {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : purpose === 'login' ? <LogIn aria-hidden="true" /> : <KeyRound aria-hidden="true" />}
-        {purpose === 'login' ? 'Войти' : 'Сохранить новый пароль'}
+        {purpose === 'login' ? tr('Войти') : tr('Сохранить новый пароль')}
       </button>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <ResendButton until={resendAt} busy={busy} onClick={() => void requestCode()} />
-        <button type="button" className="button ghost small" onClick={() => { setChallenge(null); setError(null) }}>Другой e-mail</button>
+        <button type="button" className="button ghost small" onClick={() => { setChallenge(null); setError(null) }}>{tr('Другой e-mail')}</button>
       </div>
     </form>
   )
@@ -222,7 +229,7 @@ export function EmailVerifyBanner() {
   const [error, setError] = useState<unknown>(null)
   const [done, setDone] = useState(false)
 
-  if (done) return <Notice tone="success" title="E-mail подтверждён">Спасибо! Теперь по этому адресу можно восстановить доступ к аккаунту.</Notice>
+  if (done) return <Notice tone="success" title={tr('E-mail подтверждён')}>{tr('Спасибо! Теперь по этому адресу можно восстановить доступ к аккаунту.')}</Notice>
   if (!config?.emailEnabled || !auth.account || auth.account.emailVerifiedAt) return null
 
   async function start() {
@@ -258,19 +265,19 @@ export function EmailVerifyBanner() {
   return (
     <section className="panel email-verify" aria-labelledby="email-verify-title" style={{ marginBottom: 16 }}>
       <div className="panel-header">
-        <div className="panel-title" id="email-verify-title"><Mail aria-hidden="true" />Подтвердите e-mail</div>
-        <span className="tag">Не подтверждён</span>
+        <div className="panel-title" id="email-verify-title"><Mail aria-hidden="true" />{tr('Подтвердите e-mail')}</div>
+        <span className="tag">{tr('Не подтверждён')}</span>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 12 }}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Мы пришлём на <strong style={{ color: 'var(--text)' }}>{auth.account.email}</strong> код из 6 цифр. Подтверждённый e-mail нужен, чтобы восстановить доступ к аккаунту, если вы забудете пароль.</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{withSlot(tr('Мы пришлём на {slot} код из 6 цифр. Подтверждённый e-mail нужен, чтобы восстановить доступ к аккаунту, если вы забудете пароль.'), <strong style={{ color: 'var(--text)' }}>{auth.account.email}</strong>)}</p>
         {failure(error)}
         {!challenge ? (
-          <div><button type="button" className="button primary" disabled={busy} onClick={() => void start()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}Отправить код</button></div>
+          <div><button type="button" className="button primary" disabled={busy} onClick={() => void start()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}{tr('Отправить код')}</button></div>
         ) : (
           <form className="form" onSubmit={confirm}>
             <EmailCodeField value={code} onChange={setCode} />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="submit" className="button primary" disabled={busy || code.length !== 6}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <MailCheck aria-hidden="true" />}Подтвердить</button>
+              <button type="submit" className="button primary" disabled={busy || code.length !== 6}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <MailCheck aria-hidden="true" />}{tr('Подтвердить')}</button>
               <ResendButton until={resendAt} busy={busy} onClick={() => void start()} />
             </div>
           </form>

@@ -2,13 +2,13 @@ import { Download, Link2, QrCode, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { api, type CampaignStats } from '../api'
 import { useAuth } from '../auth'
+import { localeTag, tr } from '../i18n'
 import { CopyButton } from './CopyButton'
 import { encodeQr, qrPath } from './qrCode'
 import '../extras.css'
 
 const PRESETS = ['youtube', 'twitch', 'vk', 'telegram', 'shorts']
 const CAMPAIGN = /^[a-z0-9_-]{1,32}$/
-const numberFormat = new Intl.NumberFormat('ru-RU')
 
 /** `/r/CODE` or `/r/CODE?c=label` on this site. */
 export function audienceLink(code: string, campaign = '') {
@@ -67,46 +67,47 @@ export function AudienceLinks({ code }: { code: string }) {
   function generate(event?: FormEvent, preset?: string) {
     event?.preventDefault()
     const campaign = (preset ?? label).trim().toLowerCase()
-    if (campaign && !CAMPAIGN.test(campaign)) { setError('Метка: латиница, цифры, «_» или «-», до 32 символов. Например: youtube, twitch_overlay.'); return }
+    if (campaign && !CAMPAIGN.test(campaign)) { setError(tr('Метка: латиница, цифры, «_» или «-», до 32 символов. Например: youtube, twitch_overlay.')); return }
     if (preset !== undefined) setLabel(preset)
     setError(null)
     setGenerated({ link: audienceLink(code, campaign), campaign })
   }
 
+  const numberFormat = new Intl.NumberFormat(localeTag())
   return (
     <div className="audience">
       <div className="audience-head">
-        <div className="field-label"><Link2 size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Ссылки для аудитории</div>
-        <span className="dim" style={{ fontSize: 12 }}>Зрителям не нужно вводить промокод — код применится сам при регистрации.</span>
+        <div className="field-label"><Link2 size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />{tr('Ссылки для аудитории')}</div>
+        <span className="dim" style={{ fontSize: 12 }}>{tr('Зрителям не нужно вводить промокод — код применится сам при регистрации.')}</span>
       </div>
       <form className="audience-form" onSubmit={generate}>
         <label className="field" style={{ flex: 1, minWidth: 0 }}>
-          <span className="field-hint">Метка кампании (необязательно) — чтобы видеть, откуда пришли зрители</span>
-          <input className="input" value={label} maxLength={32} spellCheck={false} autoComplete="off" placeholder="например, youtube" onChange={(e) => setLabel(e.target.value)} aria-label="Метка кампании" />
+          <span className="field-hint">{tr('Метка кампании (необязательно) — чтобы видеть, откуда пришли зрители')}</span>
+          <input className="input" value={label} maxLength={32} spellCheck={false} autoComplete="off" placeholder={tr('например, youtube')} onChange={(e) => setLabel(e.target.value)} aria-label={tr('Метка кампании')} />
         </label>
-        <button type="submit" className="button primary"><Sparkles aria-hidden="true" />Сгенерировать ссылку для аудитории</button>
+        <button type="submit" className="button primary"><Sparkles aria-hidden="true" />{tr('Сгенерировать ссылку для аудитории')}</button>
       </form>
-      <div className="chip-row" aria-label="Готовые метки">
+      <div className="chip-row" aria-label={tr('Готовые метки')}>
         {PRESETS.map((preset) => <button key={preset} type="button" className={`chip${generated?.campaign === preset ? ' is-on' : ''}`} onClick={() => generate(undefined, preset)}>{preset}</button>)}
       </div>
       {error && <div className="field-hint" style={{ color: 'var(--danger)' }} role="alert">{error}</div>}
       {generated && (
         <div className="audience-result">
-          <QrImage value={generated.link} label={`QR-код ссылки ${generated.link}`} />
+          <QrImage value={generated.link} label={tr('QR-код ссылки {link}', { link: generated.link })} />
           <div className="audience-result-text">
-            <span className="field-label">{generated.campaign ? <>Ссылка с меткой <span className="mono" style={{ color: 'var(--brass-strong)' }}>{generated.campaign}</span></> : 'Ссылка без метки'}</span>
+            <span className="field-label">{generated.campaign ? <>{tr('Ссылка с меткой')} <span className="mono" style={{ color: 'var(--brass-strong)' }}>{generated.campaign}</span></> : tr('Ссылка без метки')}</span>
             <div className="copy-row"><code title={generated.link}>{generated.link}</code><CopyButton value={generated.link} /></div>
             <div className="audience-actions">
-              <button type="button" className="button small" onClick={() => downloadQrPng(generated.link, `qr-${code}${generated.campaign ? `-${generated.campaign}` : ''}.png`)}><Download aria-hidden="true" />Скачать QR (PNG)</button>
+              <button type="button" className="button small" onClick={() => downloadQrPng(generated.link, `qr-${code}${generated.campaign ? `-${generated.campaign}` : ''}.png`)}><Download aria-hidden="true" />{tr('Скачать QR (PNG)')}</button>
             </div>
-            <span className="field-hint"><QrCode size={12} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 5 }} />QR-код можно поставить на оверлей стрима: зритель наведёт камеру телефона и откроет ссылку.</span>
+            <span className="field-hint"><QrCode size={12} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 5 }} />{tr('QR-код можно поставить на оверлей стрима: зритель наведёт камеру телефона и откроет ссылку.')}</span>
           </div>
         </div>
       )}
       {campaigns && campaigns.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table">
-            <thead><tr><th scope="col">Метка</th><th scope="col" className="num">Переходы за 30 дней</th><th scope="col" className="num">Всего</th></tr></thead>
+            <thead><tr><th scope="col">{tr('Метка')}</th><th scope="col" className="num">{tr('Переходы за 30 дней')}</th><th scope="col" className="num">{tr('Всего')}</th></tr></thead>
             <tbody>{campaigns.map((item) => (
               <tr key={item.campaign}><td className="mono">{item.campaign}</td><td className="num mono">{numberFormat.format(item.visits30d)}</td><td className="num mono">{numberFormat.format(item.visits)}</td></tr>
             ))}</tbody>

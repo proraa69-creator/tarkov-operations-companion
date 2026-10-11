@@ -1,4 +1,5 @@
 import { API_URL } from './config'
+import { siteLocale, tr } from './i18n'
 
 export type AccountKind = 'user' | 'streamer'
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
@@ -61,6 +62,11 @@ export class ApiError extends Error {
   }
 }
 
+const SERVER_OUTDATED = 'Сервер ответил {status} — возможно, на сервере старая версия. Обновите и перезапустите приложение-сервер.'
+const SERVER_DOWN = 'Сервер ответил {status} — сервер аккаунтов не запущен или перезапускается. Попробуйте через минуту.'
+const SERVER_FAILED = 'На сервере произошла ошибка (HTTP {status}). Попробуйте позже.'
+const REQUEST_FAILED = 'Не удалось выполнить запрос (HTTP {status})'
+
 /**
  * The message for an error answer without the server's own text: always with the HTTP status and a hint, so the owner
  * can tell an old server version (404) from a server that is not running (502/503/504).
@@ -68,10 +74,36 @@ export class ApiError extends Error {
 export function fallbackMessage(status: number) {
   if (status === 401) return 'Требуется вход в аккаунт'
   if (status === 429) return 'Слишком много попыток. Подождите немного и попробуйте снова.'
-  if (status === 404 || status === 405) return `Сервер ответил ${status} — возможно, на сервере старая версия. Обновите и перезапустите приложение-сервер.`
-  if (status === 502 || status === 503 || status === 504 || status === 530) return `Сервер ответил ${status} — сервер аккаунтов не запущен или перезапускается. Попробуйте через минуту.`
-  if (status >= 500) return `На сервере произошла ошибка (HTTP ${status}). Попробуйте позже.`
-  return `Не удалось выполнить запрос (HTTP ${status})`
+  const fill = (template: string) => template.replace('{status}', String(status))
+  if (status === 404 || status === 405) return fill(SERVER_OUTDATED)
+  if (status === 502 || status === 503 || status === 504 || status === 530) return fill(SERVER_DOWN)
+  if (status >= 500) return fill(SERVER_FAILED)
+  return fill(REQUEST_FAILED)
+}
+
+/**
+ * Error texts with a value in them (the fallbacks above and the server's own, server/src/services/*.ts). Errors keep the
+ * Russian text (EmailAuth's retryAfter reads «через N с» from it); the English is looked up by these templates when
+ * the error is shown (src/i18n/phrasesAuth.ts).
+ */
+const ERROR_TEMPLATES = [SERVER_OUTDATED, SERVER_DOWN, SERVER_FAILED, REQUEST_FAILED, 'Новый код можно запросить через {seconds} с.', 'Код {code} уже занят']
+  .map((template) => {
+    const names: string[] = []
+    const source = template.split(/\{(\w+)\}/).map((part, index) => {
+      if (index % 2) { names.push(part); return '(.+?)' }
+      return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }).join('')
+    return { template, pattern: new RegExp(`^${source}$`), names }
+  })
+
+/** A Russian error text (the server's or this file's) in the site's language. */
+function translateError(message: string) {
+  if (siteLocale() === 'ru') return message
+  for (const { template, pattern, names } of ERROR_TEMPLATES) {
+    const match = pattern.exec(message)
+    if (match) return tr(template, Object.fromEntries(names.map((name, index) => [name, match[index + 1]])))
+  }
+  return tr(message)
 }
 
 /** Per-mode data the app sent to the server (GET /v1/me/summary, mirrors server/src/routes/me.ts). */
@@ -460,6 +492,7 @@ export const squadApi = {
   friendRequest: (token: string, code: string) => request<{ status: 'sent' | 'friends' }>('/requests', { method: 'POST', token, root: '/v1/friends', body: { code } }),
 }
 
+/** The text to show for a failed request, in the site's language (src/i18n): the server answers in Russian. */
 export function errorMessage(error: unknown) {
-  return error instanceof ApiError ? error.message : 'Что-то пошло не так. Обновите страницу и попробуйте снова.'
+  return error instanceof ApiError ? translateError(error.message) : tr('Что-то пошло не так. Обновите страницу и попробуйте снова.')
 }

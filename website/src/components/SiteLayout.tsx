@@ -6,6 +6,8 @@ import { APP_VERSION, PRODUCT_NAME } from '../config'
 import { useHashScroll } from '../hooks/hashScroll'
 import { useRipple } from '../hooks/motion'
 import { CookieNotice } from './CookieNotice'
+import { LanguageSwitch } from './LanguageSwitch'
+import { siteLocale, tr } from '../i18n'
 import { SubscriptionDialog } from './SubscriptionDialog'
 import '../brand.css'
 
@@ -16,11 +18,11 @@ const NAV = [
 
 export function Brand() {
   return (
-    <Link to="/" className="brand" aria-label="Raid OS — на главную">
+    <Link to="/" className="brand" aria-label={tr('Raid OS — на главную')}>
       <img className="brand-mark brand-logo-tile" src="/brand/icon.svg" alt="" aria-hidden="true" />
       <span className="brand-text">
         <img className="brand-name brand-logo-name" src="/brand/name.svg" alt="Raid OS" />
-        <span className="brand-sub">ПОЛЕВОЙ КОМПАНЬОН</span>
+        <span className="brand-sub">{tr('ПОЛЕВОЙ КОМПАНЬОН')}</span>
       </span>
     </Link>
   )
@@ -41,26 +43,28 @@ export function SiteLayout() {
       <header className="site-header">
         <div className="container">
           <Brand />
-          <nav className="site-nav" aria-label="Основная навигация">
-            {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>)}
+          <nav className="site-nav" aria-label={tr('Основная навигация')}>
+            {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{tr(item.label)}</NavLink>)}
           </nav>
           <div className="header-actions">
             <button type="button" className="button header-subscription" aria-haspopup="dialog" onClick={() => setSubscriptionOpen(true)}>
               <Crown aria-hidden="true" />
-              <span className="label-long">Подписка</span>
-              <span className="label-short">Подписка</span>
+              <span className="label-long">{tr('Подписка')}</span>
+              <span className="label-short">{siteLocale() === 'en' ? 'Plans' : 'Подписка'}</span>
             </button>
             <Link to="/download" className="button primary">
               <Download aria-hidden="true" />
-              <span className="label-long">Скачать приложение</span>
-              <span className="label-short">Скачать</span>
+              <span className="label-long">{tr('Скачать приложение')}</span>
+              <span className="label-short">{tr('Скачать')}</span>
             </Link>
             <Link to="/cabinet" className="button header-cabinet" title={account ? account.email : undefined}>
               <UserRound aria-hidden="true" />
-              <span className="label-long">Личный кабинет</span>
-              <span className="label-short">Кабинет</span>
+              <span className="label-long">{tr('Личный кабинет')}</span>
+              <span className="label-short">{tr('Кабинет')}</span>
             </Link>
-            <button type="button" className="icon-button menu-toggle" aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'} aria-expanded={menuOpen} aria-controls="mobile-nav" onClick={() => setMenuOpenOn(menuOpen ? null : pathname)}>
+            {/* RU / EN right of «Личный кабинет», on the phone too (owner, 11.10.2026). */}
+            <LanguageSwitch />
+            <button type="button" className="icon-button menu-toggle" aria-label={tr(menuOpen ? 'Закрыть меню' : 'Открыть меню')} aria-expanded={menuOpen} aria-controls="mobile-nav" onClick={() => setMenuOpenOn(menuOpen ? null : pathname)}>
               <span className={`menu-icon${menuOpen ? ' is-open' : ''}`} aria-hidden="true">
                 <Menu size={18} />
                 <X size={18} />
@@ -68,11 +72,11 @@ export function SiteLayout() {
             </button>
           </div>
         </div>
-        <nav id="mobile-nav" className={`mobile-nav${menuOpen ? ' is-open' : ''}`} inert={!menuOpen} aria-hidden={!menuOpen} aria-label="Мобильная навигация">
-          {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{item.label}</NavLink>)}
-          <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>Подписка</button>
-          <NavLink to="/download">Скачать приложение</NavLink>
-          <NavLink to="/cabinet">Личный кабинет</NavLink>
+        <nav id="mobile-nav" className={`mobile-nav${menuOpen ? ' is-open' : ''}`} inert={!menuOpen} aria-hidden={!menuOpen} aria-label={tr('Мобильная навигация')}>
+          {NAV.map((item) => <NavLink key={item.to} to={item.to} end={item.end}>{tr(item.label)}</NavLink>)}
+          <button type="button" className="mobile-nav-button" onClick={() => { setMenuOpenOn(null); setSubscriptionOpen(true) }}>{tr('Подписка')}</button>
+          <NavLink to="/download">{tr('Скачать приложение')}</NavLink>
+          <NavLink to="/cabinet">{tr('Личный кабинет')}</NavLink>
         </nav>
       </header>
       {menuOpen && <div className="menu-scrim" aria-hidden="true" onClick={() => setMenuOpenOn(null)} />}
@@ -87,20 +91,21 @@ export function SiteLayout() {
       <footer className="site-footer">
         <div className="container">
           <div>
-            <div>© {new Date().getFullYear()} {PRODUCT_NAME} · версия {APP_VERSION}</div>
-            <div>Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.</div>
+            <div>© {new Date().getFullYear()} {PRODUCT_NAME} · {tr('версия {version}', { version: APP_VERSION })}</div>
+            <div>{tr('Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.')}</div>
           </div>
-          <nav aria-label="Ссылки в подвале">
-            <Link to="/about">О нас</Link>
-            <Link to="/download">Скачать</Link>
-            <Link to="/cabinet">Личный кабинет</Link>
+          <nav aria-label={tr('Ссылки в подвале')}>
+            <Link to="/about">{tr('О нас')}</Link>
+            <Link to="/download">{tr('Скачать')}</Link>
+            <Link to="/cabinet">{tr('Личный кабинет')}</Link>
           </nav>
-          <nav className="legal-links" aria-label="Документы">
-            <Link to="/legal/offer">Публичная оферта</Link>
-            <Link to="/legal/privacy">Политика конфиденциальности</Link>
-            <Link to="/legal/consent">Согласие на обработку ПД</Link>
+          {/* The documents themselves stay in Russian (owner, 11.10.2026); only their names are translated. */}
+          <nav className="legal-links" aria-label={tr('Документы')}>
+            <Link to="/legal/offer">{tr('Публичная оферта')}</Link>
+            <Link to="/legal/privacy">{tr('Политика конфиденциальности')}</Link>
+            <Link to="/legal/consent">{tr('Согласие на обработку ПД')}</Link>
             <Link to="/legal/cookies">Cookie</Link>
-            <Link to="/legal">Тарифы, оплата и возврат</Link>
+            <Link to="/legal">{tr('Тарифы, оплата и возврат')}</Link>
           </nav>
         </div>
       </footer>

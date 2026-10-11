@@ -1,6 +1,9 @@
 import type { Plan, PlanId, PlansResponse } from './api'
+import { localeTag, tr } from './i18n'
 
 export const PLAN_LABELS: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
+/** The plan name in the site language (PLAN_LABELS stays the Russian source: module constants are evaluated once). */
+export const planLabel = (id: PlanId) => tr(PLAN_LABELS[id])
 
 /** The tariff grid when the server has no price for a plan (or is not reachable): the cabinet and the «Покупателям» page. */
 export const SUBSCRIPTION_PREVIEW: PlansResponse['plans'] = [
@@ -30,7 +33,8 @@ export function planSaving(plan: Plan, plans: readonly Plan[]): { full: number; 
   return saving > 0 ? { full, saving } : null
 }
 
-export function formatMoney(amount: number, currency: string) {
+/** Money in the site language; the Russian-only documents (/legal) pass 'ru-RU'. */
+export function formatMoney(amount: number, currency: string, locale = localeTag()) {
   const digits = Number.isInteger(amount) ? 0 : 2
-  try { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(amount) } catch { return `${amount} ${currency}` }
+  try { return new Intl.NumberFormat(locale, { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: 2 }).format(amount) } catch { return `${amount} ${currency}` }
 }

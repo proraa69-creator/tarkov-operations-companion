@@ -1,6 +1,7 @@
 import { Archive, BookOpen, Crosshair, Download, Layers, LayoutDashboard, MonitorSmartphone, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { tr } from '../../i18n'
 import { Reveal } from '../Reveal'
 import {
   BallisticsVisual, BossesVisual, CollectorVisual, ItemPriceVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual,
@@ -162,11 +163,11 @@ function FeatureSection({ feature, index }: { feature: Feature; index: number })
   return (
     <section className={`feature${index % 2 ? ' is-flip' : ''}`} id={feature.id} aria-labelledby={`${feature.id}-title`}>
       <Reveal className="feature-text">
-        <div className="feature-eyebrow"><span className="feature-icon" aria-hidden="true">{feature.icon}</span><span className="feature-num">{number}</span>{feature.eyebrow}</div>
-        <h2 className="feature-title" id={`${feature.id}-title`}>{feature.title}</h2>
-        <p className="feature-lead">{feature.lead}</p>
-        <ul className="feature-points">{feature.points.map((point) => <li key={point}>{point}</li>)}</ul>
-        {feature.note && <p className="feature-note">{feature.note}</p>}
+        <div className="feature-eyebrow"><span className="feature-icon" aria-hidden="true">{feature.icon}</span><span className="feature-num">{number}</span>{tr(feature.eyebrow)}</div>
+        <h2 className="feature-title" id={`${feature.id}-title`}>{tr(feature.title)}</h2>
+        <p className="feature-lead">{tr(feature.lead)}</p>
+        <ul className="feature-points">{feature.points.map((point) => <li key={point}>{tr(point)}</li>)}</ul>
+        {feature.note && <p className="feature-note">{tr(feature.note)}</p>}
       </Reveal>
       <Reveal className="feature-visual" delay={120}>{feature.visual}</Reveal>
     </section>
@@ -178,9 +179,9 @@ export function Presentation() {
     <div className="promo">
       <div className="container">
         <Reveal className="promo-intro">
-          <div className="eyebrow">Что внутри</div>
-          <h2 className="promo-intro-title">Десять причин держать Raid&nbsp;OS открытым</h2>
-          <p className="promo-intro-lead">Квесты, карты, цены и отряд — в одном окне рядом с игрой.</p>
+          <div className="eyebrow">{tr('Что внутри')}</div>
+          <h2 className="promo-intro-title">{tr('Десять причин держать Raid\u00a0OS открытым')}</h2>
+          <p className="promo-intro-lead">{tr('Квесты, карты, цены и отряд — в одном окне рядом с игрой.')}</p>
         </Reveal>
         {FEATURES.map((feature, index) => <FeatureSection key={feature.id} feature={feature} index={index} />)}
       </div>
@@ -188,16 +189,16 @@ export function Presentation() {
       <section className="promo-final" aria-labelledby="final-title">
         <div className="container">
           <Reveal className="final-card panel">
-            <div className="eyebrow">Готовы к рейду?</div>
-            <h2 className="final-title" id="final-title">Следующий рейд — уже с планом</h2>
-            <p className="final-lead">Скачайте Raid OS для Windows, войдите в аккаунт — и квесты, карты и цены будут под рукой с первого захода.</p>
+            <div className="eyebrow">{tr('Готовы к рейду?')}</div>
+            <h2 className="final-title" id="final-title">{tr('Следующий рейд — уже с планом')}</h2>
+            <p className="final-lead">{tr('Скачайте Raid OS для Windows, войдите в аккаунт — и квесты, карты и цены будут под рукой с первого захода.')}</p>
             <div className="hero-actions center">
-              <Link to="/download" className="button primary large"><Download aria-hidden="true" />Скачать для Windows</Link>
-              <Link to="/cabinet" className="button large"><UserRound aria-hidden="true" />Личный кабинет и подписка</Link>
+              <Link to="/download" className="button primary large"><Download aria-hidden="true" />{tr('Скачать для Windows')}</Link>
+              <Link to="/cabinet" className="button large"><UserRound aria-hidden="true" />{tr('Личный кабинет и подписка')}</Link>
             </div>
             <ul className="final-trust">
-              <li><ShieldCheck aria-hidden="true" /><span><strong>Честная игра.</strong> Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.</span></li>
-              <li><MonitorSmartphone aria-hidden="true" /><span><strong>Работает рядом с игрой.</strong> Отдельное окно и оверлей поверх игры, Windows 10 и 11.</span></li>
+              <li><ShieldCheck aria-hidden="true" /><span><strong>{tr('Честная игра.')}</strong> {tr('Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.')}</span></li>
+              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Работает рядом с игрой.')}</strong> {tr('Отдельное окно и оверлей поверх игры, Windows 10 и 11.')}</span></li>
             </ul>
           </Reveal>
         </div>

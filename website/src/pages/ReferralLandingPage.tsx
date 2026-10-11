@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, api } from '../api'
 import { useAuth } from '../auth'
+import { tr } from '../i18n'
 import { normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { HomePage } from './HomePage'
 
@@ -55,30 +56,30 @@ export function ReferralLandingPage() {
     <div className="panel referral-banner">
       <Gift aria-hidden="true" />
       <div className="text">
-        <strong>Код приглашения «{code}» не найден</strong>
-        <span>Проверьте ссылку у автора. Зарегистрироваться можно и без кода.</span>
+        <strong>{tr('Код приглашения «{code}» не найден', { code })}</strong>
+        <span>{tr('Проверьте ссылку у автора. Зарегистрироваться можно и без кода.')}</span>
       </div>
     </div>
   ) : kind === 'friend' ? (
     <div className="panel referral-banner">
       <Users aria-hidden="true" />
       <div className="text">
-        <strong>Друг пригласил вас в Raid OS · код <span className="mono" style={{ color: 'var(--brass-strong)', fontSize: 'inherit' }}>{code}</span></strong>
-        <span>{account ? 'Код можно указать в личном кабинете до первой оплаты — скидка 20 % на первый месяц.' : 'Зарегистрируйтесь — скидка 20 % на первый месяц.'}</span>
+        <strong>{tr('Друг пригласил вас в Raid OS · код')} <span className="mono" style={{ color: 'var(--brass-strong)', fontSize: 'inherit' }}>{code}</span></strong>
+        <span>{account ? tr('Код можно указать в личном кабинете до первой оплаты — скидка 20 % на первый месяц.') : tr('Зарегистрируйтесь — скидка 20 % на первый месяц.')}</span>
       </div>
       <Link to={account ? '/cabinet' : '/register'} className="button primary">
-        <UserPlus aria-hidden="true" />{account ? 'Открыть кабинет' : 'Зарегистрироваться'}
+        <UserPlus aria-hidden="true" />{account ? tr('Открыть кабинет') : tr('Зарегистрироваться')}
       </Link>
     </div>
   ) : (
     <div className="panel referral-banner">
       <Gift aria-hidden="true" />
       <div className="text">
-        <strong>Вас пригласили · код <span className="mono" style={{ color: 'var(--brass-strong)', fontSize: 'inherit' }}>{code}</span></strong>
-        <span>{account ? 'Код можно указать в личном кабинете, если он ещё не указан.' : kind === 'streamer' ? 'Зарегистрируйтесь по приглашению.' : 'Зарегистрируйтесь по приглашению — скидка 20 % на первый месяц применится сама.'}</span>
+        <strong>{tr('Вас пригласили · код')} <span className="mono" style={{ color: 'var(--brass-strong)', fontSize: 'inherit' }}>{code}</span></strong>
+        <span>{account ? tr('Код можно указать в личном кабинете, если он ещё не указан.') : kind === 'streamer' ? tr('Зарегистрируйтесь по приглашению.') : tr('Зарегистрируйтесь по приглашению — скидка 20 % на первый месяц применится сама.')}</span>
       </div>
       <Link to={account ? '/cabinet' : '/register'} className="button primary">
-        <UserPlus aria-hidden="true" />{account ? 'Открыть кабинет' : 'Зарегистрироваться'}
+        <UserPlus aria-hidden="true" />{account ? tr('Открыть кабинет') : tr('Зарегистрироваться')}
       </Link>
     </div>
   )

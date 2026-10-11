@@ -1,7 +1,7 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
+import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
@@ -20,10 +20,18 @@ import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { PlanSaving } from '../components/PlanSaving'
 import { LEGAL_VERSION } from '../legal/documents'
+import { localeTag, tr } from '../i18n'
 import '../invites.css'
 
-const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-const numberFormat = new Intl.NumberFormat('ru-RU')
+/** «12 октября 2026» / «October 12, 2026»: dates and numbers in the site's language (src/i18n). */
+const formatDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value))
+const formatNumber = (value: number) => new Intl.NumberFormat(localeTag()).format(value)
+
+/** «3 месяца» / «3 months» for a plan; «N мес.» for a plan the labels do not know. */
+function planLabel(plan: { id: PlanId; months: number }) {
+  const label = PLAN_LABELS[plan.id]
+  return label ? tr(label) : tr('{months} мес.', { months: plan.months })
+}
 
 export function CabinetPage() {
   const auth = useAuth()
@@ -35,7 +43,7 @@ export function CabinetPage() {
   if (auth.status === 'loading' || (auth.status === 'ready' && !auth.account)) {
     return (
       <div className="container page">
-        <div className="panel center-state"><LoaderCircle className="spinner" aria-hidden="true" /><div>Загружаем личный кабинет…</div></div>
+        <div className="panel center-state"><LoaderCircle className="spinner" aria-hidden="true" /><div>{tr('Загружаем личный кабинет…')}</div></div>
       </div>
     )
   }
@@ -47,12 +55,12 @@ export function CabinetPage() {
         <div className="panel center-state" style={{ padding: 24 }}>
           {offline ? <WifiOff aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}
           <div style={{ maxWidth: 460 }}>
-            <h1 style={{ margin: '0 0 8px', fontSize: 24, color: 'var(--text)' }}>{offline ? 'Нет связи с сервером' : 'Не удалось открыть кабинет'}</h1>
-            <p style={{ margin: 0 }}>{auth.error?.message ?? 'Попробуйте ещё раз.'}</p>
+            <h1 style={{ margin: '0 0 8px', fontSize: 24, color: 'var(--text)' }}>{offline ? tr('Нет связи с сервером') : tr('Не удалось открыть кабинет')}</h1>
+            <p style={{ margin: 0 }}>{auth.error ? tr(errorMessage(auth.error)) : tr('Попробуйте ещё раз.')}</p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button type="button" className="button primary" onClick={auth.reload}><RefreshCw aria-hidden="true" />Повторить</button>
-            <button type="button" className="button ghost" onClick={() => void auth.logout()}><LogOut aria-hidden="true" />Выйти</button>
+            <button type="button" className="button primary" onClick={auth.reload}><RefreshCw aria-hidden="true" />{tr('Повторить')}</button>
+            <button type="button" className="button ghost" onClick={() => void auth.logout()}><LogOut aria-hidden="true" />{tr('Выйти')}</button>
           </div>
         </div>
       </div>
@@ -65,19 +73,19 @@ export function CabinetPage() {
       <div className="container">
         <div className="page-header">
           <div style={{ minWidth: 0 }}>
-            <div className="eyebrow">Личный кабинет</div>
+            <div className="eyebrow">{tr('Личный кабинет')}</div>
             <h1 className="page-title">{account.email}</h1>
-            <p className="page-subtitle">Аккаунт создан {dateFormat.format(new Date(account.createdAt))}</p>
+            <p className="page-subtitle">{tr('Аккаунт создан {date}', { date: formatDate(account.createdAt) })}</p>
           </div>
-          <button type="button" className="button ghost" onClick={() => void auth.logout()}><LogOut aria-hidden="true" />Выйти</button>
+          <button type="button" className="button ghost" onClick={() => void auth.logout()}><LogOut aria-hidden="true" />{tr('Выйти')}</button>
         </div>
 
         {(state.welcome || state.referralRejected || state.streamerWelcome || state.passwordReset) && (
           <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
-            {state.streamerWelcome && <Notice tone="success" title="Вы стример">Код {state.streamerWelcome} привязан к аккаунту. Ниже — ваша ссылка для зрителей и статистика.</Notice>}
-            {state.welcome && !state.streamerWelcome && <Notice tone="success" title="Аккаунт создан">Добро пожаловать! Скачайте приложение и запустите его на ПК с игрой — ник в Escape from Tarkov оно возьмёт из логов игры само и добавит в аккаунт.</Notice>}
-            {state.passwordReset && <Notice tone="success" title="Пароль изменён">Новый пароль сохранён. Входы на других устройствах завершены — там войдите заново.</Notice>}
-            {state.referralRejected && <Notice tone="warn" title="Код приглашения не применён">Такой код не найден. Проверьте его и укажите ниже, в блоке «Код приглашения».</Notice>}
+            {state.streamerWelcome && <Notice tone="success" title={tr('Вы стример')}>{tr('Код {code} привязан к аккаунту. Ниже — ваша ссылка для зрителей и статистика.', { code: state.streamerWelcome })}</Notice>}
+            {state.welcome && !state.streamerWelcome && <Notice tone="success" title={tr('Аккаунт создан')}>{tr('Добро пожаловать! Скачайте приложение и запустите его на ПК с игрой — ник в Escape from Tarkov оно возьмёт из логов игры само и добавит в аккаунт.')}</Notice>}
+            {state.passwordReset && <Notice tone="success" title={tr('Пароль изменён')}>{tr('Новый пароль сохранён. Входы на других устройствах завершены — там войдите заново.')}</Notice>}
+            {state.referralRejected && <Notice tone="warn" title={tr('Код приглашения не применён')}>{tr('Такой код не найден. Проверьте его и укажите ниже, в блоке «Код приглашения».')}</Notice>}
           </div>
         )}
 
@@ -86,12 +94,12 @@ export function CabinetPage() {
         {account.owner && (
           <section className="panel owner-panel" style={{ marginBottom: 16 }} aria-labelledby="owner-title">
             <div className="panel-header">
-              <div className="panel-title" id="owner-title"><Crown aria-hidden="true" />Раздел владельца</div>
-              <span className="tag brass">Владелец</span>
+              <div className="panel-title" id="owner-title"><Crown aria-hidden="true" />{tr('Раздел владельца')}</div>
+              <span className="tag brass">{tr('Владелец')}</span>
             </div>
             <div className="panel-body" style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <span className="muted" style={{ fontSize: 14, maxWidth: 640 }}>Статистика, платежи, пользователи, стримеры, выплаты, настройки продаж и журнал действий — в админ-панели.</span>
-              <Link to="/admin" className="button primary"><LayoutDashboard aria-hidden="true" />Открыть админ-панель</Link>
+              <span className="muted" style={{ fontSize: 14, maxWidth: 640 }}>{tr('Статистика, платежи, пользователи, стримеры, выплаты, настройки продаж и журнал действий — в админ-панели.')}</span>
+              <Link to="/admin" className="button primary"><LayoutDashboard aria-hidden="true" />{tr('Открыть админ-панель')}</Link>
             </div>
           </section>
         )}
@@ -116,6 +124,7 @@ export function CabinetPage() {
   )
 }
 
+/** The labels are Russian source texts, shown through tr(). */
 const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },
@@ -125,7 +134,7 @@ const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
 const PAYMENT_ID_PATTERN = /^[a-f0-9]{24}$/
 const PAYMENT_POLL_MS = 1_500
 const PAYMENT_POLL_LIMIT_MS = 120_000
-const shortDateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
+const formatShortDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(value))
 
 type PaymentCheck =
   | { phase: 'checking' }
@@ -204,17 +213,17 @@ function PaymentCheckNotice({ check }: { check: PaymentCheck }) {
       return (
         <div className="notice info" role="status">
           <LoaderCircle className="spinner" aria-hidden="true" />
-          <div><strong>Проверяем предыдущую оплату…</strong>Можно сразу выбрать тариф и начать новую оплату другим способом.</div>
+          <div><strong>{tr('Проверяем предыдущую оплату…')}</strong>{tr('Можно сразу выбрать тариф и начать новую оплату другим способом.')}</div>
         </div>
       )
     case 'succeeded':
-      return <Notice tone="success" title="Оплата прошла">{check.paidUntil ? `Подписка активна до ${dateFormat.format(new Date(check.paidUntil))}` : 'Подписка активна.'}</Notice>
+      return <Notice tone="success" title={tr('Оплата прошла')}>{check.paidUntil ? tr('Подписка активна до {date}', { date: formatDate(check.paidUntil) }) : tr('Подписка активна.')}</Notice>
     case 'canceled':
-      return <Notice tone="warn" title="Оплата отменена">Деньги не списаны. Можно выбрать тариф и попробовать снова.</Notice>
+      return <Notice tone="warn" title={tr('Оплата отменена')}>{tr('Деньги не списаны. Можно выбрать тариф и попробовать снова.')}</Notice>
     case 'timeout':
-      return <Notice tone="warn" title="Оплата ещё обрабатывается">Платёжная система пока не подтвердила платёж. Обновите страницу через пару минут — статус появится в истории платежей.</Notice>
+      return <Notice tone="warn" title={tr('Оплата ещё обрабатывается')}>{tr('Платёжная система пока не подтвердила платёж. Обновите страницу через пару минут — статус появится в истории платежей.')}</Notice>
     case 'error':
-      return <Notice tone="error" title="Не удалось проверить оплату">{check.message}</Notice>
+      return <Notice tone="error" title={tr('Не удалось проверить оплату')}>{tr(check.message)}</Notice>
   }
 }
 
@@ -290,13 +299,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
     return (
       <section className="panel" id="subscription" aria-labelledby="sub-title">
         <div className="panel-header">
-          <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />Подписка</div>
-          <span className="tag green">Активна</span>
+          <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />{tr('Подписка')}</div>
+          <span className="tag green">{tr('Активна')}</span>
         </div>
         <div className="panel-body">
           <div className="lifetime">
-            <strong>Бесплатно навсегда (стример)</strong>
-            <span>Для стримеров все функции открыты без оплаты и без срока. Ничего оплачивать не нужно.</span>
+            <strong>{tr('Бесплатно навсегда (стример)')}</strong>
+            <span>{tr('Для стримеров все функции открыты без оплаты и без срока. Ничего оплачивать не нужно.')}</span>
           </div>
         </div>
       </section>
@@ -304,10 +313,10 @@ function SubscriptionPanel({ account }: { account: Account }) {
   }
   const active = status === 'active'
   const trial = status === 'trial'
-  const title = active && paidUntil ? `Активна до ${dateFormat.format(new Date(paidUntil))}`
-    : trial && trialEndsAt ? `Пробный период до ${dateFormat.format(new Date(trialEndsAt))}`
-      : 'Не активна'
-  const hint = active ? 'Ваша подписка продолжает действовать.' : trial ? 'Бесплатный доступ по приглашению.' : ''
+  const title = active && paidUntil ? tr('Активна до {date}', { date: formatDate(paidUntil) })
+    : trial && trialEndsAt ? tr('Пробный период до {date}', { date: formatDate(trialEndsAt) })
+      : tr('Не активна')
+  const hint = active ? tr('Ваша подписка продолжает действовать.') : trial ? tr('Бесплатный доступ по приглашению.') : ''
   const shownPlans = visiblePlans(plans)
   const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
     ? { ...selectedPlan, price: Math.round(selectedPlan.price * (100 - friendDiscount.percent)) / 100 }
@@ -317,12 +326,12 @@ function SubscriptionPanel({ account }: { account: Account }) {
     <>
     <section className="panel" id="subscription" aria-labelledby="sub-title">
       <div className="panel-header">
-        <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />Подписка</div>
-        {active ? <span className="tag green">Активна</span> : trial ? <span className="tag brass">Пробный период</span> : <span className="tag">Не активна</span>}
+        <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />{tr('Подписка')}</div>
+        {active ? <span className="tag green">{tr('Активна')}</span> : trial ? <span className="tag brass">{tr('Пробный период')}</span> : <span className="tag">{tr('Не активна')}</span>}
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 16 }}>
         {check && <PaymentCheckNotice check={check} />}
-        {autopay && <AutopayCard autopay={autopay} busy={cancelling} error={cancelError} onCancel={() => void cancelAutopay()} />}
+        {autopay && <AutopayCard autopay={autopay} busy={cancelling} error={cancelError && tr(cancelError)} onCancel={() => void cancelAutopay()} />}
         <div className="sub-status">
           <CalendarClock aria-hidden="true" size={28} style={{ color: active ? 'var(--success)' : trial ? 'var(--brass)' : 'var(--text-dim)', flex: '0 0 auto' }} />
           <div style={{ minWidth: 0 }}>
@@ -339,60 +348,67 @@ function SubscriptionPanel({ account }: { account: Account }) {
                 // The same rounding as the server (kopecks): server/src/services/paymentStore.ts create().
                 const friendPrice = friend && plan.price !== null ? Math.round(plan.price * (100 - friend)) / 100 : null
                 const saving = planSaving(plan, shownPlans)
+                const label = planLabel(plan)
                 return (
                   <div key={plan.id} className={`plan-card has-pay${best ? ' is-best' : ''}`}>
                     {best && <span className="tag brass plan-badge">−{friend || plan.discountPercent}%</span>}
                     <div className="plan-head">
-                      <span className="stat-label">{PLAN_LABELS[plan.id] ?? `${plan.months} мес.`}</span>
+                      <span className="stat-label">{label}</span>
                     </div>
                     {friendPrice !== null && plan.price !== null ? (
                       <>
-                        <div className="plan-price mono"><s className="plan-old" aria-label={`Без скидки ${formatMoney(plan.price, plan.currency)}`}>{formatMoney(plan.price, plan.currency)}</s> {formatMoney(friendPrice, plan.currency)}</div>
-                        <div className="plan-friend-note">−{friend} % по приглашению, только первый месяц</div>
+                        <div className="plan-price mono"><s className="plan-old" aria-label={tr('Без скидки {price}', { price: formatMoney(plan.price, plan.currency) })}>{formatMoney(plan.price, plan.currency)}</s> {formatMoney(friendPrice, plan.currency)}</div>
+                        <div className="plan-friend-note">{tr('−{percent} % по приглашению, только первый месяц', { percent: friend })}</div>
                       </>
                     ) : (
                       <>
                         <div className="plan-price mono">{plan.price === null ? '—' : formatMoney(plan.price, plan.currency)}</div>
                         {saving && <PlanSaving {...saving} currency={plan.currency} />}
-                        <div className="stat-meta">{plan.price === null ? 'цена на странице оплаты' : plan.months > 1 ? `≈ ${formatMoney(Math.round(plan.price / plan.months), plan.currency)} в месяц` : 'помесячно'}</div>
+                        <div className="stat-meta">{plan.price === null ? tr('цена на странице оплаты') : plan.months > 1 ? tr('≈ {price} в месяц', { price: formatMoney(Math.round(plan.price / plan.months), plan.currency) }) : tr('помесячно')}</div>
                       </>
                     )}
-                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={!plans?.providers?.yookassa || paying} onClick={() => { setPayError(null); setSelectedPlan(plan) }} aria-label={`Оплатить ${PLAN_LABELS[plan.id]}`}>
-                      <CreditCard aria-hidden="true" />Оплатить
+                    <button type="button" className={`button block ${best ? 'primary' : ''}`} disabled={!plans?.providers?.yookassa || paying} onClick={() => { setPayError(null); setSelectedPlan(plan) }} aria-label={tr('Оплатить {plan}', { plan: label })}>
+                      <CreditCard aria-hidden="true" />{tr('Оплатить')}
                     </button>
                   </div>
                 )
               })}
             </div>
-            {!plans?.providers?.yookassa && <Notice tone="info" title="Оплата временно недоступна">Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.</Notice>}
+            {!plans?.providers?.yookassa && <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.')}</Notice>}
           </>
 
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>
     </section>
-    {checkoutPlan && <YooKassaPaymentDialog plan={checkoutPlan} methods={plans?.providers?.methods ?? ['sbp']} autopayAvailable={plans?.providers?.autopay === true} busy={paying} error={payError} onClose={() => { if (!paying) { setSelectedPlan(null); setPayError(null) } }} onPay={(method, autoRenew) => void pay(method, autoRenew)} />}
+    {checkoutPlan && <YooKassaPaymentDialog plan={checkoutPlan} methods={plans?.providers?.methods ?? ['sbp']} autopayAvailable={plans?.providers?.autopay === true} busy={paying} error={payError && { ...payError, message: tr(payError.message) }} onClose={() => { if (!paying) { setSelectedPlan(null); setPayError(null) } }} onPay={(method, autoRenew) => void pay(method, autoRenew)} />}
     </>
   )
+}
+
+/** «3 мес.» in the payment history (the month count of the plan's label); an unknown plan as its id. */
+function shortPlanLabel(plan: PlanId) {
+  const months = PLAN_LABELS[plan]?.match(/^(\d+) (месяц|месяца|месяцев)$/)?.[1]
+  return months ? tr('{months} мес.', { months }) : PLAN_LABELS[plan] ? tr(PLAN_LABELS[plan]) : plan
 }
 
 function PaymentHistory({ payments }: { payments: Payment[] }) {
   return (
     <div className="pay-history">
-      <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Receipt size={13} aria-hidden="true" />История платежей</div>
+      <div className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Receipt size={13} aria-hidden="true" />{tr('История платежей')}</div>
       <div className="table-scroll">
         <table className="pay-table">
           <thead>
-            <tr><th scope="col">Дата</th><th scope="col">Тариф</th><th scope="col" className="num">Сумма</th><th scope="col">Статус</th></tr>
+            <tr><th scope="col">{tr('Дата')}</th><th scope="col">{tr('Тариф')}</th><th scope="col" className="num">{tr('Сумма')}</th><th scope="col">{tr('Статус')}</th></tr>
           </thead>
           <tbody>
             {payments.map((payment) => {
               const status = PAYMENT_STATUS[payment.status] ?? { label: payment.status, tone: '' }
               return (
                 <tr key={payment.id}>
-                  <td className="mono">{shortDateFormat.format(new Date(payment.paidAt ?? payment.createdAt))}</td>
-                  <td>{PLAN_LABELS[payment.plan]?.replace(/ (месяц|месяца|месяцев)$/, ' мес.') ?? payment.plan}{payment.renewal ? ' · автопродление' : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}{payment.discountPercent ? <span className="tag brass tag-mini">скидка {payment.discountPercent} %</span> : null}</td>
+                  <td className="mono">{formatShortDate(payment.paidAt ?? payment.createdAt)}</td>
+                  <td>{shortPlanLabel(payment.plan)}{payment.renewal ? ` · ${tr('автопродление')}` : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}{payment.discountPercent ? <span className="tag brass tag-mini">{tr('скидка {percent} %', { percent: payment.discountPercent })}</span> : null}</td>
                   <td className="num mono">{formatMoney(payment.amount, payment.currency)}</td>
-                  <td><span className={`tag ${status.tone}`}>{status.label}</span></td>
+                  <td><span className={`tag ${status.tone}`}>{tr(status.label)}</span></td>
                 </tr>
               )
             })}
@@ -410,9 +426,9 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   const link = audienceLink(code)
   const stats = { visits: 0, registrations: 0, activeSubscriptions: 0, ...account.stats }
   const counters = [
-    { icon: MousePointerClick, label: 'Переходы', value: numberFormat.format(stats.visits), meta: 'по вашим ссылкам' },
-    { icon: UserPlus, label: 'Регистрации', value: numberFormat.format(stats.registrations), meta: 'по вашему коду' },
-    { icon: BadgeCheck, label: 'Подписки', value: numberFormat.format(stats.activeSubscriptions), meta: 'активные сейчас' },
+    { icon: MousePointerClick, label: tr('Переходы'), value: formatNumber(stats.visits), meta: tr('по вашим ссылкам') },
+    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations), meta: tr('по вашему коду') },
+    { icon: BadgeCheck, label: tr('Подписки'), value: formatNumber(stats.activeSubscriptions), meta: tr('активные сейчас') },
   ]
   const loadSeries = useCallback((period: StatsPeriod) => {
     if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))
@@ -421,17 +437,17 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   return (
     <section className="panel streamer-panel" aria-labelledby="ref-title">
       <div className="panel-header">
-        <div className="panel-title" id="ref-title"><Radio aria-hidden="true" />Кабинет стримера</div>
-        <span className="tag brass">Стример</span>
+        <div className="panel-title" id="ref-title"><Radio aria-hidden="true" />{tr('Кабинет стримера')}</div>
+        <span className="tag brass">{tr('Стример')}</span>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 16 }}>
         <div className="ref-top" style={{ marginBottom: 0 }}>
           <div className="field">
-            <span className="field-label">Ваш код</span>
+            <span className="field-label">{tr('Ваш код')}</span>
             <div className="copy-row"><code>{code}</code><CopyButton value={code} /></div>
           </div>
           <div className="field">
-            <span className="field-label"><Link2 size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Ваша ссылка</span>
+            <span className="field-label"><Link2 size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />{tr('Ваша ссылка')}</span>
             <div className="copy-row"><code title={link}>{link}</code><CopyButton value={link} /></div>
           </div>
         </div>
@@ -448,11 +464,11 @@ function ReferralProgramPanel({ account }: { account: Account }) {
         <StreamerPayouts />
         <ReferralStatsTable load={loadSeries} />
         <div className="how-it-works">
-          <div className="field-label">Как это работает</div>
+          <div className="field-label">{tr('Как это работает')}</div>
           <ol className="steps">
-            <li><span><strong>Поделитесь ссылкой или QR-кодом.</strong> Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат 3 дня бесплатного доступа.</span></li>
-            <li><span><strong>Приглашённые оформляют подписку.</strong> С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только подтверждённые платежи.</span></li>
-            <li><span><strong>Выплаты.</strong> Запросите выплату любой суммы от минимальной до доступной или включите автовыплату — раз в несколько дней заявка создастся сама.</span></li>
+            <li><span><strong>{tr('Поделитесь ссылкой или QR-кодом.')}</strong> {tr('Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат 3 дня бесплатного доступа.')}</span></li>
+            <li><span><strong>{tr('Приглашённые оформляют подписку.')}</strong> {tr('С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только подтверждённые платежи.')}</span></li>
+            <li><span><strong>{tr('Выплаты.')}</strong> {tr('Запросите выплату любой суммы от минимальной до доступной или включите автовыплату — раз в несколько дней заявка создастся сама.')}</span></li>
           </ol>
         </div>
       </div>
@@ -474,11 +490,11 @@ function NicknamesPanel({ account }: { account: Account }) {
   return (
     <section className="panel" aria-labelledby="nick-title">
       <div className="panel-header">
-        <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />Ник в Escape from Tarkov</div>
+        <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />{tr('Ник в Escape from Tarkov')}</div>
       </div>
       <div className="panel-body form">
-        <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">Ещё не найден</span>}</p>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.</p>
+        <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.')}</p>
       </div>
     </section>
   )
@@ -488,13 +504,13 @@ function AppPanel() {
   return (
     <section className="panel" aria-labelledby="app-title">
       <div className="panel-header">
-        <div className="panel-title" id="app-title"><Download aria-hidden="true" />Приложение</div>
+        <div className="panel-title" id="app-title"><Download aria-hidden="true" />{tr('Приложение')}</div>
         <span className="tag brass">v{APP_VERSION}</span>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
         <DownloadButton large={false} />
-        <p className="dim" style={{ margin: 0, fontSize: 13 }}>Для мини-карты поверх игры включите в Tarkov режим экрана «Оконный без рамки».</p>
+        <p className="dim" style={{ margin: 0, fontSize: 13 }}>{tr('Для мини-карты поверх игры включите в Tarkov режим экрана «Оконный без рамки».')}</p>
       </div>
     </section>
   )
@@ -509,7 +525,7 @@ function InviteCodePanel({ account }: { account: Account }) {
   async function apply(event: FormEvent) {
     event.preventDefault()
     const normalized = normalizeReferralCode(code)
-    if (!REFERRAL_CODE_PATTERN.test(normalized)) { setError({ message: 'Код: 3–24 символа, латиница, цифры, «_» или «-».', offline: false }); return }
+    if (!REFERRAL_CODE_PATTERN.test(normalized)) { setError({ message: tr('Код: 3–24 символа, латиница, цифры, «_» или «-».'), offline: false }); return }
     if (!auth.token) return
     setBusy(true)
     setError(null)
@@ -526,23 +542,23 @@ function InviteCodePanel({ account }: { account: Account }) {
   return (
     <section className="panel" aria-labelledby="invite-title">
       <div className="panel-header">
-        <div className="panel-title" id="invite-title"><Gift aria-hidden="true" />Код приглашения</div>
+        <div className="panel-title" id="invite-title"><Gift aria-hidden="true" />{tr('Код приглашения')}</div>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 12 }}>
         {account.referredBy ? (
           <dl className="kv">
-            <div><dt>Вы приглашены по коду</dt><dd className="mono" style={{ color: 'var(--brass-strong)' }}>{account.referredBy}</dd></div>
+            <div><dt>{tr('Вы приглашены по коду')}</dt><dd className="mono" style={{ color: 'var(--brass-strong)' }}>{account.referredBy}</dd></div>
           </dl>
         ) : account.invitedByFriend ? (
-          <p className="muted" style={{ margin: 0, fontSize: 14 }}>Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.</p>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.')}</p>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
-            <p className="muted" style={{ margin: 0, fontSize: 14 }}>Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.</p>
+            <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.')}</p>
             <div className="inline-form">
-              <input className="input code" aria-label="Код приглашения" value={code} maxLength={24} spellCheck={false} autoComplete="off" placeholder="КОД" onChange={(e) => setCode(e.target.value)} />
-              <button type="submit" className="button primary" disabled={busy || !code.trim()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}Применить</button>
+              <input className="input code" aria-label={tr('Код приглашения')} value={code} maxLength={24} spellCheck={false} autoComplete="off" placeholder={tr('КОД')} onChange={(e) => setCode(e.target.value)} />
+              <button type="submit" className="button primary" disabled={busy || !code.trim()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}{tr('Применить')}</button>
             </div>
-            {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
+            {error && <Notice tone={error.offline ? 'offline' : 'error'}>{tr(error.message)}</Notice>}
           </form>
         )}
       </div>

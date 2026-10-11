@@ -1,0 +1,52 @@
+/* RU / EN in the header (src/components/LanguageSwitch.tsx): the same height and frame as the header buttons. */
+.lang-switch {
+  display: inline-flex; align-items: stretch; flex: none; min-height: 40px; padding: 3px; gap: 2px;
+  border: 1px solid var(--line-strong); border-radius: 9px; background: var(--panel-2);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 6px 16px rgb(0 0 0 / 22%);
+}
+.lang-switch button {
+  min-width: 32px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim, #8f9b92);
+  font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .04em; cursor: pointer;
+  transition: background-color .2s var(--ease-soft), color .2s var(--ease-soft);
+}
+.lang-switch button:hover { color: var(--text); background: var(--panel-3); }
+.lang-switch button.is-active { background: color-mix(in srgb, var(--brass) 24%, transparent); color: var(--brass-strong); cursor: default; }
+.lang-switch button:focus-visible, .lang-toggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+
+/* Phone: one 36 px square, both codes stacked, the active one lit; a tap switches to the other language. */
+.lang-toggle {
+  display: none; flex: none; width: 36px; height: 36px; padding: 0; place-content: center; gap: 1px;
+  border: 1px solid var(--line-strong); border-radius: 9px; background: var(--panel-2); color: var(--text-dim, #8f9b92);
+  font: inherit; font-size: 10px; font-weight: 800; line-height: 1.15; letter-spacing: .04em; cursor: pointer;
+}
+.lang-toggle span { padding: 0 3px; border-radius: 4px; }
+.lang-toggle span.is-active { background: color-mix(in srgb, var(--brass) 24%, transparent); color: var(--brass-strong); }
+
+/* The header gets busy below a wide desktop: short button labels from 1100 px down (it overflowed at tablet widths). */
+@media (max-width: 1100px) {
+  .site-header .header-actions .button { padding: 0 12px; }
+  .site-header .header-actions .button .label-long { display: none; }
+  .site-header .header-actions .button .label-short { display: inline; }
+  .site-header .site-nav a { white-space: nowrap; }
+}
+@media (max-width: 1000px) {
+  .site-header .brand-sub { display: none; }
+}
+/* Phones and narrow tablets: the compact header of the phone, «Личный кабинет» as its icon (it is in the menu too), and
+   the one-button language switch, so everything fits next to each other. */
+@media (max-width: 800px) {
+  .lang-switch { display: none; }
+  .lang-toggle { display: grid; }
+  .site-header .header-actions { gap: 4px; }
+  .site-header .header-actions .button { min-height: 36px; padding: 0 9px; gap: 5px; font-size: 12px; }
+  .site-header .header-actions .button svg { width: 14px; height: 14px; }
+  .site-header .header-actions .header-cabinet svg { display: inline-block; }
+  .site-header .header-actions .header-cabinet .label-short { display: none; }
+}
+@media (max-width: 349px) {
+  .site-header .header-actions .button.primary svg { display: inline-block; }
+  .site-header .header-actions .button.primary .label-short { display: none; }
+}
+
+/* /legal in English: the documents are Russian only. */
+.legal-language-note { margin: 0 0 12px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 9px; background: color-mix(in srgb, var(--brass) 9%, transparent); color: var(--text); font-size: 13px; line-height: 1.5; }

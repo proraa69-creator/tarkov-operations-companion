@@ -10,6 +10,7 @@
  */
 import { ApiError, fallbackMessage, NETWORK_ERROR_MESSAGE, type Account } from './api'
 import { API_URL } from './config'
+import { localeTag, tr } from './i18n'
 
 export interface QrLoginRequest { requestId: string; pollSecret: string; code: string; expiresAt: string }
 /** Who asks to sign in: the browser, when, and roughly where from (masked network «203.0.113.x», Cloudflare's country). */
@@ -77,7 +78,7 @@ export function appDeepLink(action: 'login' | 'approve', code: string, fallback:
 
 /** «Chrome · Windows» from a user agent, so a person sees what asks to sign in. */
 export function describeAgent(agent: string) {
-  const browser = /Edg\//.test(agent) ? 'Edge' : /OPR\//.test(agent) ? 'Opera' : /YaBrowser\//.test(agent) ? 'Яндекс Браузер' : /Firefox\//.test(agent) ? 'Firefox' : /Chrome\//.test(agent) ? 'Chrome' : /Safari\//.test(agent) ? 'Safari' : 'Браузер'
+  const browser = /Edg\//.test(agent) ? 'Edge' : /OPR\//.test(agent) ? 'Opera' : /YaBrowser\//.test(agent) ? tr('Яндекс Браузер') : /Firefox\//.test(agent) ? 'Firefox' : /Chrome\//.test(agent) ? 'Chrome' : /Safari\//.test(agent) ? 'Safari' : tr('Браузер')
   const system = /Windows/.test(agent) ? 'Windows' : /Android/.test(agent) ? 'Android' : /iPhone|iPad/.test(agent) ? 'iOS' : /Mac OS X/.test(agent) ? 'macOS' : /Linux/.test(agent) ? 'Linux' : ''
   return system ? `${browser} · ${system}` : browser
 }
@@ -85,7 +86,7 @@ export function describeAgent(agent: string) {
 /** «Нидерланды · IP 203.0.113.x» — where the sign-in request came from, approximately; '' when unknown. */
 export function describePlace(info: { ip?: string; country?: string }) {
   let country = info.country ?? ''
-  if (country) { try { country = new Intl.DisplayNames(['ru'], { type: 'region' }).of(country) ?? country } catch { /* keep the code */ } }
+  if (country) { try { country = new Intl.DisplayNames([localeTag()], { type: 'region' }).of(country) ?? country } catch { /* keep the code */ } }
   return [country, info.ip ? `IP ${info.ip}` : ''].filter(Boolean).join(' · ')
 }
 

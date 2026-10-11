@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { errorMessage } from '../api'
 import { useAuth } from '../auth'
 import { Notice } from '../components/Notice'
+import { localeTag, tr } from '../i18n'
 import { appDeepLink, describeAgent, describePlace, normalizeLoginCode, qrLogin, type QrRequester } from '../qrLogin'
 import '../qrLogin.css'
 
@@ -34,13 +35,13 @@ export function AppLoginPage() {
   return (
     <div className="container auth-wrap page-in">
       <div className="panel auth-card">
-        <div className="eyebrow">Вход по QR-коду</div>
+        <div className="eyebrow">{tr('Вход по QR-коду')}</div>
         {target?.kind === 'login' && <SignInHere code={target.code} />}
         {target?.kind === 'approve' && <ApproveHere code={target.code} />}
         {!target && <>
-          <h1>Ссылка устарела</h1>
-          <Notice tone="warn">В ссылке нет кода входа или он повреждён. Создайте новый QR-код.</Notice>
-          <p className="auth-switch"><Link to="/login">Войти</Link></p>
+          <h1>{tr('Ссылка устарела')}</h1>
+          <Notice tone="warn">{tr('В ссылке нет кода входа или он повреждён. Создайте новый QR-код.')}</Notice>
+          <p className="auth-switch"><Link to="/login">{tr('Войти')}</Link></p>
         </>}
       </div>
     </div>
@@ -69,16 +70,16 @@ function SignInHere({ code }: { code: string }) {
   }
 
   return <>
-    <h1>Вход в приложение</h1>
-    <p className="lead">Приложение Raid OS на компьютере прислало одноразовый код входа. Он действует 2 минуты и срабатывает один раз.</p>
+    <h1>{tr('Вход в приложение')}</h1>
+    <p className="lead">{tr('Приложение Raid OS на компьютере прислало одноразовый код входа. Он действует 2 минуты и срабатывает один раз.')}</p>
     {error !== null && <Notice tone="error">{errorMessage(error)}</Notice>}
     <div className="app-login-actions">
-      <a className="button primary large block" href={appDeepLink('login', code, fallback)}><Smartphone aria-hidden="true" />Открыть в приложении</a>
+      <a className="button primary large block" href={appDeepLink('login', code, fallback)}><Smartphone aria-hidden="true" />{tr('Открыть в приложении')}</a>
       <button type="button" className="button large block" disabled={busy} onClick={() => void signIn()}>
-        {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}Войти на сайте
+        {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}{tr('Войти на сайте')}
       </button>
     </div>
-    <p className="auth-switch">Приложения на телефоне ещё нет? Нажмите «Войти на сайте»: откроется личный кабинет.</p>
+    <p className="auth-switch">{tr('Приложения на телефоне ещё нет? Нажмите «Войти на сайте»: откроется личный кабинет.')}</p>
   </>
 }
 
@@ -121,34 +122,34 @@ function ApproveHere({ code }: { code: string }) {
   }
 
   return <>
-    <h1>{done ? 'Готово' : 'Подтвердить вход'}</h1>
-    <p className="lead">Браузер на другом устройстве просит войти в ваш аккаунт.</p>
+    <h1>{done ? tr('Готово') : tr('Подтвердить вход')}</h1>
+    <p className="lead">{tr('Браузер на другом устройстве просит войти в ваш аккаунт.')}</p>
     {error !== null && <Notice tone="error">{errorMessage(error)}</Notice>}
-    {done ? <Notice tone="success">Браузер вошёл в ваш аккаунт. Эту страницу можно закрыть.</Notice> : <>
+    {done ? <Notice tone="success">{tr('Браузер вошёл в ваш аккаунт. Эту страницу можно закрыть.')}</Notice> : <>
       <div className="app-login-actions">
-        <a className="button primary large block" href={appDeepLink('approve', code, fallback)}><Smartphone aria-hidden="true" />Открыть в приложении</a>
+        <a className="button primary large block" href={appDeepLink('approve', code, fallback)}><Smartphone aria-hidden="true" />{tr('Открыть в приложении')}</a>
       </div>
       {auth.status === 'ready' && auth.account && <>
-        <div className="auth-divider">или здесь</div>
+        <div className="auth-divider">{tr('или здесь')}</div>
         {info && <div className="app-login-info">
-          <strong>Вход запрашивает: {describeAgent(info.agent)}</strong>
-          <small>Откуда: {describePlace(info) || 'неизвестно'}</small>
-          <small>Когда: код создан в {new Date(info.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</small>
-          <small>Аккаунт: {auth.account.email}</small>
+          <strong>{tr('Вход запрашивает: {agent}', { agent: describeAgent(info.agent) })}</strong>
+          <small>{tr('Откуда: {place}', { place: describePlace(info) || tr('неизвестно') })}</small>
+          <small>{tr('Когда: код создан в {time}', { time: new Date(info.createdAt).toLocaleTimeString(localeTag(), { hour: '2-digit', minute: '2-digit' }) })}</small>
+          <small>{tr('Аккаунт: {email}', { email: auth.account.email })}</small>
         </div>}
-        <Notice tone="error">Подтверждайте, только если вы сами сейчас входите на другом устройстве. Никогда не подтверждайте вход по ссылке, которую вам прислали.</Notice>
+        <Notice tone="error">{tr('Подтверждайте, только если вы сами сейчас входите на другом устройстве. Никогда не подтверждайте вход по ссылке, которую вам прислали.')}</Notice>
         <form className="app-login-confirm" onSubmit={(event) => void approve(event)}>
           <label className="field">
-            <span className="field-label">Код с экрана, на котором вы входите</span>
+            <span className="field-label">{tr('Код с экрана, на котором вы входите')}</span>
             <input className="input code" value={typed} onChange={(event) => setTyped(event.target.value)} placeholder="XXXX-XXXX" maxLength={9} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
           </label>
-          {complete && !matches && <div className="field-hint app-login-mismatch" role="alert">Код не совпадает. Введите код, который показан под QR-кодом на экране, где вы входите.</div>}
+          {complete && !matches && <div className="field-hint app-login-mismatch" role="alert">{tr('Код не совпадает. Введите код, который показан под QR-кодом на экране, где вы входите.')}</div>}
           <button type="submit" className="button large block app-login-approve" disabled={busy || !info || !matches}>
-            {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Check aria-hidden="true" />}Подтвердить
+            {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Check aria-hidden="true" />}{tr('Подтвердить')}
           </button>
         </form>
       </>}
-      {auth.status !== 'ready' && <p className="auth-switch">Нет приложения? <Link to="/login">Войдите на сайте</Link> на этом телефоне и отсканируйте код ещё раз.</p>}
+      {auth.status !== 'ready' && <p className="auth-switch">{tr('Нет приложения?')} <Link to="/login">{tr('Войдите на сайте')}</Link> {tr('на этом телефоне и отсканируйте код ещё раз.')}</p>}
     </>}
   </>
 }

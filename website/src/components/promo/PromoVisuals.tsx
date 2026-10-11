@@ -1,5 +1,6 @@
 import { Globe, Monitor, Server, Smartphone } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { tr } from '../../i18n'
 import { LoginQr } from '../LoginQr'
 import { Platforms } from '../Platforms'
 import overviewShot from '../../assets/promo/overview.webp'
@@ -41,7 +42,7 @@ function Caption({ children }: { children: ReactNode }) {
 export function OverviewVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={overviewShot} width={1200} height={638} title="Raid OS · Обзор" alt="Вкладка «Обзор» в Raid OS: план рейда на Таможню, текущие задания, приоритет карт и прогресс Каппы" />
+      <Shot src={overviewShot} width={1200} height={638} title={tr('Raid OS · Обзор')} alt={tr('Вкладка «Обзор» в Raid OS: план рейда на Таможню, текущие задания, приоритет карт и прогресс Каппы')} />
     </figure>
   )
 }
@@ -53,10 +54,10 @@ export function ItemPriceVisual() {
         <div className="stash-grid" aria-hidden="true">
           {Array.from({ length: 40 }, (_, index) => <span key={index} className={index === 13 ? 'is-hover' : undefined} />)}
         </div>
-        <div className="key-hint" aria-hidden="true"><span>наведите курсор</span><kbd>;</kbd></div>
-        <img className="item-card-shot" src={itemKappa} width={560} height={149} loading="lazy" decoding="async" alt="Карточка предмета в рейде: «Потрёпанная старинная книга», пометка «Каппа», цены барахолки и Терапевта" />
+        <div className="key-hint" aria-hidden="true"><span>{tr('наведите курсор')}</span><kbd>;</kbd></div>
+        <img className="item-card-shot" src={itemKappa} width={560} height={149} loading="lazy" decoding="async" alt={tr('Карточка предмета в рейде: «Потрёпанная старинная книга», пометка «Каппа», цены барахолки и Терапевта')} />
       </div>
-      <Caption>«Потрёпанная старинная книга» — один из предметов для задания «Коллекционер». Цены на картинке — пример.</Caption>
+      <Caption>{tr('«Потрёпанная старинная книга» — один из предметов для задания «Коллекционер». Цены на картинке — пример.')}</Caption>
     </figure>
   )
 }
@@ -64,7 +65,7 @@ export function ItemPriceVisual() {
 export function StoryVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={storyShot} width={1200} height={742} title="Задания · сюжет" alt="Сюжетные квесты в Raid OS: глава «Тур», актуальный этап 1 из 22 и список этапов главы" />
+      <Shot src={storyShot} width={1200} height={742} title={tr('Задания · сюжет')} alt={tr('Сюжетные квесты в Raid OS: глава «Тур», актуальный этап 1 из 22 и список этапов главы')} />
     </figure>
   )
 }
@@ -72,7 +73,7 @@ export function StoryVisual() {
 export function CollectorVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={kappaShot} width={1200} height={251} title="Предметы для «Коллекционера»" className="is-strip" alt="Чек-лист предметов для «Коллекционера»: собрано 4 из 10, кнопка «Сканировать»" />
+      <Shot src={kappaShot} width={1200} height={251} title={tr('Предметы для «Коллекционера»')} className="is-strip" alt={tr('Чек-лист предметов для «Коллекционера»: собрано 4 из 10, кнопка «Сканировать»')} />
     </figure>
   )
 }
@@ -82,10 +83,10 @@ const MODES = ['PvP', 'PvE', 'Сезон']
 export function ModesVisual() {
   return (
     <figure className="promo-figure">
-      <div className="modes-mock" role="img" aria-label="Переключатель режимов PvP, PvE и Сезон">
-        <div className="modes-switch" aria-hidden="true">{MODES.map((mode, index) => <span key={mode} className={index === 0 ? 'is-on' : undefined}>{mode}</span>)}</div>
+      <div className="modes-mock" role="img" aria-label={tr('Переключатель режимов PvP, PvE и Сезон')}>
+        <div className="modes-switch" aria-hidden="true">{MODES.map((mode, index) => <span key={mode} className={index === 0 ? 'is-on' : undefined}>{tr(mode)}</span>)}</div>
       </div>
-      <Caption>Переключатель режимов в верхней панели приложения меняет все разделы сразу.</Caption>
+      <Caption>{tr('Переключатель режимов в верхней панели приложения меняет все разделы сразу.')}</Caption>
     </figure>
   )
 }
@@ -105,14 +106,14 @@ const BOSSES = [
 export function BossesVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={bossShot} width={1200} height={921} title="Галерея · Килла" alt="Карточка босса Киллы: 3D-модель, локации Развязка, Лабиринт и Терминал, здоровье по частям тела — 890 HP рядом с цифрами ЧВК" />
-      <ul className="boss-grid" aria-label="Основные боссы">
+      <Shot src={bossShot} width={1200} height={921} title={tr('Галерея · Килла')} alt={tr('Карточка босса Киллы: 3D-модель, локации Развязка, Лабиринт и Терминал, здоровье по частям тела — 890 HP рядом с цифрами ЧВК')} />
+      <ul className="boss-grid" aria-label={tr('Основные боссы')}>
         {BOSSES.map((boss) => (
           <li key={boss.name}>
-            <img src={boss.src} width={128} height={128} loading="lazy" decoding="async" alt={`Бюст босса ${boss.name}`} />
-            <strong>{boss.name}</strong>
+            <img src={boss.src} width={128} height={128} loading="lazy" decoding="async" alt={tr('Бюст босса {name}', { name: tr(boss.name) })} />
+            <strong>{tr(boss.name)}</strong>
             <span className="boss-hp">{boss.hp} HP</span>
-            <span className="boss-maps">{boss.maps}</span>
+            <span className="boss-maps">{tr(boss.maps)}</span>
           </li>
         ))}
       </ul>
@@ -123,8 +124,8 @@ export function BossesVisual() {
 export function BallisticsVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={ballisticsShot} width={1200} height={1229} title="Арсенал · Баллистика" className="is-narrow" alt="Баллистика в Raid OS: график пробития и урона патронов по калибрам и таблица «Против брони» для 7.62×39 BP — шанс пробить броню 1–6 класса и число выстрелов" />
-      <Caption>7.62×39 BP против брони 1–6 класса. На картинке — часть патронов, в приложении — все патроны игры.</Caption>
+      <Shot src={ballisticsShot} width={1200} height={1229} title={tr('Арсенал · Баллистика')} className="is-narrow" alt={tr('Баллистика в Raid OS: график пробития и урона патронов по калибрам и таблица «Против брони» для 7.62×39 BP — шанс пробить броню 1–6 класса и число выстрелов')} />
+      <Caption>{tr('7.62×39 BP против брони 1–6 класса. На картинке — часть патронов, в приложении — все патроны игры.')}</Caption>
     </figure>
   )
 }
@@ -133,12 +134,12 @@ export function PhoneVisual() {
   return (
     <figure className="promo-figure phone-figure">
       <div className="phone-frame">
-        <span className="phone-badge">скоро</span>
-        <img src={phoneShot} width={520} height={1125} loading="lazy" decoding="async" alt="Мобильная раскладка Raid OS: переключатель PvP, PvE и Сезон, текущие задания и прогресс Каппы, нижнее меню «Обзор», «Задания», «Карты», «Мини Карта»" />
+        <span className="phone-badge">{tr('скоро')}</span>
+        <img src={phoneShot} width={520} height={1125} loading="lazy" decoding="async" alt={tr('Мобильная раскладка Raid OS: переключатель PvP, PvE и Сезон, текущие задания и прогресс Каппы, нижнее меню «Обзор», «Задания», «Карты», «Мини Карта»')} />
       </div>
       <div className="phone-side">
         <Platforms align="start" />
-        <p>Мобильная версия собрана из того же кода, что и приложение для ПК. В App Store и Google Play её пока нет — когда появится, ссылки будут на странице загрузки.</p>
+        <p>{tr('Мобильная версия собрана из того же кода, что и приложение для ПК. В App Store и Google Play её пока нет — когда появится, ссылки будут на странице загрузки.')}</p>
       </div>
     </figure>
   )
@@ -149,15 +150,15 @@ export function SyncVisual() {
   return (
     <figure className="promo-figure">
       <div className="sync-mock">
-        <div className="sync-devices" role="img" aria-label="Схема: приложение для ПК, сайт и телефон связаны через один аккаунт на сервере Raid OS">
-          <div className="sync-node"><Monitor aria-hidden="true" /><strong>ПК</strong><span>квесты, сюжет, Каппа</span></div>
-          <div className="sync-node"><Globe aria-hidden="true" /><strong>Сайт</strong><span>кабинет и подписка</span></div>
-          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>Телефон</strong><span>прогресс и мини-карта</span></div>
-          <div className="sync-hub"><Server aria-hidden="true" /><strong>Один аккаунт</strong></div>
+        <div className="sync-devices" role="img" aria-label={tr('Схема: приложение для ПК, сайт и телефон связаны через один аккаунт на сервере Raid OS')}>
+          <div className="sync-node"><Monitor aria-hidden="true" /><strong>{tr('ПК')}</strong><span>{tr('квесты, сюжет, Каппа')}</span></div>
+          <div className="sync-node"><Globe aria-hidden="true" /><strong>{tr('Сайт')}</strong><span>{tr('кабинет и подписка')}</span></div>
+          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>{tr('Телефон')}</strong><span>{tr('прогресс и мини-карта')}</span></div>
+          <div className="sync-hub"><Server aria-hidden="true" /><strong>{tr('Один аккаунт')}</strong></div>
         </div>
         <div className="sync-qr">
-          <LoginQr value={downloadUrl} size={132} label="QR-код со ссылкой на страницу загрузки Raid OS" />
-          <p><strong>Вход по QR</strong>В приложении так входят на телефоне: код живёт 2 минуты и срабатывает один раз. Этот код — просто ссылка на страницу загрузки.</p>
+          <LoginQr value={downloadUrl} size={132} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} />
+          <p><strong>{tr('Вход по QR')}</strong>{tr('В приложении так входят на телефоне: код живёт 2 минуты и срабатывает один раз. Этот код — просто ссылка на страницу загрузки.')}</p>
         </div>
       </div>
     </figure>
@@ -179,23 +180,23 @@ export function SquadVisual() {
   return (
     <figure className="promo-figure">
       <div className="squad-mock">
-        <div className="squad-card" role="img" aria-label="Пример отряда из трёх игроков и приоритет карт: Таможня — больше всего общих заданий">
-          <div className="squad-card-head" aria-hidden="true"><strong>Отряд</strong><span>PvP</span></div>
+        <div className="squad-card" role="img" aria-label={tr('Пример отряда из трёх игроков и приоритет карт: Таможня — больше всего общих заданий')}>
+          <div className="squad-card-head" aria-hidden="true"><strong>{tr('Отряд')}</strong><span>PvP</span></div>
           <ul aria-hidden="true">
             {SQUAD.map((member) => (
-              <li key={member.name}><span className={`squad-avatar hue-${member.hue}`}>{member.name[0]}</span><b>{member.name}</b><small>{member.note}</small></li>
+              <li key={member.name}><span className={`squad-avatar hue-${member.hue}`}>{tr(member.name)[0]}</span><b>{tr(member.name)}</b><small>{tr(member.note)}</small></li>
             ))}
           </ul>
           <div className="squad-priority" aria-hidden="true">
-            <span className="squad-priority-title">Приоритет карт для группы</span>
+            <span className="squad-priority-title">{tr('Приоритет карт для группы')}</span>
             {PRIORITY.map((row) => (
-              <div key={row.map} className="squad-bar"><span>{row.map}</span><i style={{ width: `${(row.value / 9) * 100}%` }} /><em>{row.value}</em></div>
+              <div key={row.map} className="squad-bar"><span>{tr(row.map)}</span><i style={{ width: `${(row.value / 9) * 100}%` }} /><em>{row.value}</em></div>
             ))}
           </div>
         </div>
-        <img className="mate-card" src={itemMate} width={428} height={178} loading="lazy" decoding="async" alt="Карточка предмета «Аптечка Salewa» с фиолетовой меткой MATE: предмет нужен товарищу по отряду" />
+        <img className="mate-card" src={itemMate} width={428} height={178} loading="lazy" decoding="async" alt={tr('Карточка предмета «Аптечка Salewa» с фиолетовой меткой MATE: предмет нужен товарищу по отряду')} />
       </div>
-      <Caption>Пример отряда. Метка MATE — без имён: просто знак, что предмет кому-то из своих нужен.</Caption>
+      <Caption>{tr('Пример отряда. Метка MATE — без имён: просто знак, что предмет кому-то из своих нужен.')}</Caption>
     </figure>
   )
 }

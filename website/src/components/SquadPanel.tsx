@@ -3,11 +3,17 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { errorMessage, squadApi, SQUAD_CODE_PATTERN, type AccountMode, type SquadMine, type SquadOverview } from '../api'
 import { useAuth } from '../auth'
+import { tr } from '../i18n'
 import { CopyButton } from './CopyButton'
 import { Notice } from './Notice'
 import { readPendingSquadCode, savePendingSquadCode } from '../storage'
 
+/** The labels are Russian source texts, shown through tr(). */
 const MODES: Array<{ id: AccountMode; label: string }> = [{ id: 'pvp', label: 'PvP' }, { id: 'pve', label: 'PvE' }, { id: 'seasonal', label: 'Сезон' }]
+const DEFAULT_SQUAD_NAME = 'Отряд'
+
+/** A squad's name; the server's default «Отряд» (POST /v1/squads without a name) and an empty one in the site's language. */
+const squadName = (name: string | undefined) => (name && name !== DEFAULT_SQUAD_NAME ? name : tr(DEFAULT_SQUAD_NAME))
 
 /**
  * Cabinet «Отряд»: the squad for the chosen mode (members by that mode's nickname only), invitations, joining by code
@@ -65,48 +71,48 @@ export function SquadPanel() {
   return (
     <section className="panel squad-panel" id="squad" aria-labelledby="squad-title">
       <div className="panel-header">
-        <div className="panel-title" id="squad-title"><Users aria-hidden="true" />Отряд</div>
-        <div className="squad-modes" role="tablist" aria-label="Режим">
-          {MODES.map((entry) => <button key={entry.id} type="button" role="tab" aria-selected={mode === entry.id} className={`button small ${mode === entry.id ? 'primary' : 'ghost'}`} onClick={() => setMode(entry.id)}>{entry.label}</button>)}
+        <div className="panel-title" id="squad-title"><Users aria-hidden="true" />{tr('Отряд')}</div>
+        <div className="squad-modes" role="tablist" aria-label={tr('Режим')}>
+          {MODES.map((entry) => <button key={entry.id} type="button" role="tab" aria-selected={mode === entry.id} className={`button small ${mode === entry.id ? 'primary' : 'ghost'}`} onClick={() => setMode(entry.id)}>{tr(entry.label)}</button>)}
         </div>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
-        {error && <Notice tone="error">{error}</Notice>}
+        {error && <Notice tone="error">{tr(error)}</Notice>}
         {!mine ? (
-          <div className="muted" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{error ? <button type="button" className="button small" onClick={() => void load()}><RefreshCw aria-hidden="true" />Повторить</button> : <><LoaderCircle className="spinner" size={16} aria-hidden="true" />Загружаем отряд…</>}</div>
+          <div className="muted" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{error ? <button type="button" className="button small" onClick={() => void load()}><RefreshCw aria-hidden="true" />{tr('Повторить')}</button> : <><LoaderCircle className="spinner" size={16} aria-hidden="true" />{tr('Загружаем отряд…')}</>}</div>
         ) : (
           <>
             {!mine.access && (
-              <Notice tone="warn" title="Отряд — функция подписки">
-                <ShieldAlert size={14} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 4 }} />Создать отряд, вступить и видеть общие задания можно с активной подпиской. Покинуть отряд можно всегда.
+              <Notice tone="warn" title={tr('Отряд — функция подписки')}>
+                <ShieldAlert size={14} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 4 }} />{tr('Создать отряд, вступить и видеть общие задания можно с активной подпиской. Покинуть отряд можно всегда.')}
               </Notice>
             )}
             {!squad && mine.invitations.map((invitation) => (
               <div key={invitation.invitationId} className="squad-member">
                 <Users size={16} aria-hidden="true" />
-                <span className="squad-member-main"><strong>{invitation.squadName}</strong><small className="muted">Приглашение · командир {invitation.from ?? 'без ника'} · {invitation.members} / 5</small></span>
-                <button type="button" className="button small primary" disabled={busy || !mine.access} onClick={() => token && void act(() => squadApi.answerInvitation(token, invitation.invitationId, true))}>Вступить</button>
-                <button type="button" className="button small ghost" disabled={busy} onClick={() => token && void act(() => squadApi.answerInvitation(token, invitation.invitationId, false))}>Отклонить</button>
+                <span className="squad-member-main"><strong>{squadName(invitation.squadName)}</strong><small className="muted">{tr('Приглашение · командир {commander} · {members} / 5', { commander: invitation.from ?? tr('без ника'), members: invitation.members })}</small></span>
+                <button type="button" className="button small primary" disabled={busy || !mine.access} onClick={() => token && void act(() => squadApi.answerInvitation(token, invitation.invitationId, true))}>{tr('Вступить')}</button>
+                <button type="button" className="button small ghost" disabled={busy} onClick={() => token && void act(() => squadApi.answerInvitation(token, invitation.invitationId, false))}>{tr('Отклонить')}</button>
               </div>
             ))}
             {squad ? (
               <>
                 <div className="squad-summary">
-                  <strong>{squad.name || 'Отряд'}</strong>
+                  <strong>{squadName(squad.name)}</strong>
                   <span className="tag">{squad.members.length} / {squad.maxMembers}</span>
-                  {squad.isOwner && <span className="tag brass"><Crown size={11} aria-hidden="true" />Вы командир</span>}
-                  {overview && <span className="tag green">Общих заданий: {overview.sharedQuests.length}</span>}
+                  {squad.isOwner && <span className="tag brass"><Crown size={11} aria-hidden="true" />{tr('Вы командир')}</span>}
+                  {overview && <span className="tag green">{tr('Общих заданий: {count}', { count: overview.sharedQuests.length })}</span>}
                 </div>
                 <ul className="squad-members">
                   {squad.members.map((member, index) => (
                     <li key={member.memberId} className="squad-member">
                       <span className={`squad-avatar hue-${index % 5}`} aria-hidden="true">{(member.nickname ?? '?').slice(0, 1).toUpperCase()}</span>
                       <span className="squad-member-main">
-                        <strong>{member.nickname ?? `Боец ${index + 1}`}{member.isYou && <span className="muted"> · вы</span>}</strong>
+                        <strong>{member.nickname ?? tr('Боец {number}', { number: index + 1 })}{member.isYou && <span className="muted"> · {tr('вы')}</span>}</strong>
                         <small className="muted">
-                          {member.isOwner && 'Командир · '}
-                          {member.hidden ? <><EyeOff size={11} aria-hidden="true" /> скрыл прогресс</> : member.activeQuestIds ? `активных заданий: ${member.activeQuestIds.length}` : ''}
-                          {!member.nickname && ' · ник ещё не найден'}
+                          {member.isOwner && `${tr('Командир')} · `}
+                          {member.hidden ? <><EyeOff size={11} aria-hidden="true" /> {tr('скрыл прогресс')}</> : member.activeQuestIds ? tr('активных заданий: {count}', { count: member.activeQuestIds.length }) : ''}
+                          {!member.nickname && ` · ${tr('ник ещё не найден')}`}
                         </small>
                       </span>
                     </li>
@@ -116,32 +122,32 @@ export function SquadPanel() {
                   <div className="squad-invite">
                     <div className="copy-row"><code>{invite.code}</code><CopyButton value={invite.code} /></div>
                     <div className="copy-row"><code>{link}</code><CopyButton value={link} /></div>
-                    <small className="muted">Действует 24 часа; новый код отменяет прежний.</small>
+                    <small className="muted">{tr('Действует 24 часа; новый код отменяет прежний.')}</small>
                   </div>
                 )}
                 {confirm ? (
                   <div className="squad-actions">
-                    <span className="muted">{confirm === 'leave' ? 'Покинуть отряд?' : 'Распустить отряд для всех?'}</span>
-                    <button type="button" className="button small danger" disabled={busy} onClick={() => { const action = confirm; setConfirm(''); if (token) void act(() => (action === 'leave' ? squadApi.leave(token, squad.id) : squadApi.disband(token, squad.id))) }}>{confirm === 'leave' ? 'Покинуть' : 'Распустить'}</button>
-                    <button type="button" className="button small ghost" onClick={() => setConfirm('')}>Отмена</button>
+                    <span className="muted">{confirm === 'leave' ? tr('Покинуть отряд?') : tr('Распустить отряд для всех?')}</span>
+                    <button type="button" className="button small danger" disabled={busy} onClick={() => { const action = confirm; setConfirm(''); if (token) void act(() => (action === 'leave' ? squadApi.leave(token, squad.id) : squadApi.disband(token, squad.id))) }}>{confirm === 'leave' ? tr('Покинуть') : tr('Распустить')}</button>
+                    <button type="button" className="button small ghost" onClick={() => setConfirm('')}>{tr('Отмена')}</button>
                   </div>
                 ) : (
                   <div className="squad-actions">
-                    {squad.isOwner && <button type="button" className="button small" disabled={busy || !mine.access} onClick={() => token && void act(async () => setInvite(await squadApi.invite(token, squad.id)))}>Пригласить по ссылке</button>}
-                    <button type="button" className="button small ghost" disabled={busy} onClick={() => setConfirm('leave')}><DoorOpen size={14} aria-hidden="true" />Покинуть</button>
-                    {squad.isOwner && <button type="button" className="button small ghost" disabled={busy} onClick={() => setConfirm('disband')}><Trash2 size={14} aria-hidden="true" />Распустить</button>}
+                    {squad.isOwner && <button type="button" className="button small" disabled={busy || !mine.access} onClick={() => token && void act(async () => setInvite(await squadApi.invite(token, squad.id)))}>{tr('Пригласить по ссылке')}</button>}
+                    <button type="button" className="button small ghost" disabled={busy} onClick={() => setConfirm('leave')}><DoorOpen size={14} aria-hidden="true" />{tr('Покинуть')}</button>
+                    {squad.isOwner && <button type="button" className="button small ghost" disabled={busy} onClick={() => setConfirm('disband')}><Trash2 size={14} aria-hidden="true" />{tr('Распустить')}</button>}
                   </div>
                 )}
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>Общие задания по картам, кому что нужно и план рейда — в приложении Raid OS, раздел «Отряд».</p>
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>{tr('Общие задания по картам, кому что нужно и план рейда — в приложении Raid OS, раздел «Отряд».')}</p>
               </>
             ) : (
               <form className="form squad-join" onSubmit={join}>
                 <label className="field">
-                  <span className="field-label">Код приглашения</span>
+                  <span className="field-label">{tr('Код приглашения')}</span>
                   <input className="input mono" value={code} onChange={(event) => setCode(event.target.value)} placeholder="XXXXX-XXXXX" autoCapitalize="characters" spellCheck={false} />
                 </label>
-                <button type="submit" className="button primary" disabled={busy || !mine.access || !SQUAD_CODE_PATTERN.test(code.trim())}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}Вступить в отряд</button>
-                <span className="field-hint">Создать отряд можно в приложении или здесь: <button type="button" className="link-button" disabled={busy || !mine.access} onClick={() => token && void act(() => squadApi.create(token, ''))}>создать отряд</button>. <Link to="/download">Скачать приложение</Link></span>
+                <button type="submit" className="button primary" disabled={busy || !mine.access || !SQUAD_CODE_PATTERN.test(code.trim())}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}{tr('Вступить в отряд')}</button>
+                <span className="field-hint">{tr('Создать отряд можно в приложении или здесь:')} <button type="button" className="link-button" disabled={busy || !mine.access} onClick={() => token && void act(() => squadApi.create(token, ''))}>{tr('создать отряд')}</button>. <Link to="/download">{tr('Скачать приложение')}</Link></span>
               </form>
             )}
           </>

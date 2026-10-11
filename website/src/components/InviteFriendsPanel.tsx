@@ -6,16 +6,20 @@ import { normalizeReferralCode, REFERRAL_CODE_PATTERN } from '../storage'
 import { audienceLink } from './AudienceLinks'
 import { CopyButton } from './CopyButton'
 import { Notice } from './Notice'
-import { bonusText, INVITE_RANKS, plural, progressText, rankReward, REWARD_STATUS, rewardStatusText } from './inviteProgram'
+import { bonusText, countText, DAY_WORDS, INVITE_RANKS, PAYMENT_WORDS, progressText, rankReward, REWARD_STATUS, rewardStatusText } from './inviteProgram'
+import { localeTag, tr } from '../i18n'
 import '../invites.css'
 
-const numberFormat = new Intl.NumberFormat('ru-RU')
-const createdFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
+const formatNumber = (value: number) => new Intl.NumberFormat(localeTag()).format(value)
+const formatCreated = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date(value))
+
+/** «засчитаются после 1 дня / 2 дней / 5 дней» — the genitive after «после». */
+const HOLD_DAY_WORDS = { ru: ['дня', 'дней', 'дней'], en: DAY_WORDS.en } as const
 
 /** The ranks ladder; `confirmed` marks reached ranks (cabinet), without it the ladder is just the list (home page). */
 export function RankLadder({ ranks = INVITE_RANKS, confirmed, rewardDays = 7, compact = false }: { ranks?: InviteRank[]; confirmed?: number; rewardDays?: number; compact?: boolean }) {
   return (
-    <ol className={`rank-ladder${compact ? ' is-compact' : ''}`} aria-label="Ранги за друзей">
+    <ol className={`rank-ladder${compact ? ' is-compact' : ''}`} aria-label={tr('Ранги за друзей')}>
       {ranks.map((rank) => {
         const reached = confirmed !== undefined && confirmed >= rank.friends
         return (
@@ -25,7 +29,7 @@ export function RankLadder({ ranks = INVITE_RANKS, confirmed, rewardDays = 7, co
               <strong>{rank.title}</strong>
               <span>{rankReward(rank, rewardDays)}</span>
             </span>
-            {reached && <BadgeCheck className="rank-check" aria-label="получен" />}
+            {reached && <BadgeCheck className="rank-check" aria-label={tr('получен')} />}
           </li>
         )
       })}
@@ -34,12 +38,12 @@ export function RankLadder({ ranks = INVITE_RANKS, confirmed, rewardDays = 7, co
 }
 
 function rewardTitle(reward: InviteReward, ranks: InviteRank[]) {
-  if (reward.kind === 'friend') return reward.friend ? `Друг ${reward.friend}` : 'Друг оплатил подписку'
-  return `Ранг ${ranks.find((rank) => rank.id === reward.kind)?.title ?? reward.kind}`
+  if (reward.kind === 'friend') return reward.friend ? tr('Друг {friend}', { friend: reward.friend }) : tr('Друг оплатил подписку')
+  return tr('Ранг {rank}', { rank: ranks.find((rank) => rank.id === reward.kind)?.title ?? reward.kind })
 }
 
 function rewardDaysText(days: number | 'lifetime') {
-  return days === 'lifetime' ? 'Premium навсегда' : `+${days} ${plural(days, 'день', 'дня', 'дней')}`
+  return days === 'lifetime' ? tr('Premium навсегда') : `+${countText(days, DAY_WORDS)}`
 }
 
 /**
@@ -73,17 +77,21 @@ export function InviteFriendsPanel() {
   return (
     <section className="panel invite-panel" aria-labelledby="friends-title">
       <div className="panel-header">
-        <div className="panel-title" id="friends-title"><Users aria-hidden="true" />Пригласи друга</div>
-        {program?.rank ? <span className={`tag brass rank-badge rank-${program.rank.id}`}><Trophy aria-hidden="true" />{program.rank.title}</span> : <span className="tag">Без ранга</span>}
+        <div className="panel-title" id="friends-title"><Users aria-hidden="true" />{tr('Пригласи друга')}</div>
+        {program?.rank ? <span className={`tag brass rank-badge rank-${program.rank.id}`}><Trophy aria-hidden="true" />{program.rank.title}</span> : <span className="tag">{tr('Без ранга')}</span>}
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 16 }}>
-        {error && <Notice tone={error.offline ? 'offline' : 'error'} title="Не удалось загрузить программу">{error.message}</Notice>}
-        {!program && !error && <div className="muted" style={{ fontSize: 14 }}><LoaderCircle className="spinner" size={14} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />Загружаем ваш код…</div>}
+        {error && <Notice tone={error.offline ? 'offline' : 'error'} title={tr('Не удалось загрузить программу')}>{tr(error.message)}</Notice>}
+        {!program && !error && <div className="muted" style={{ fontSize: 14 }}><LoaderCircle className="spinner" size={14} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 6 }} />{tr('Загружаем ваш код…')}</div>}
         {program && <ProgramView program={program} onChange={setProgram} />}
         <div className="how-it-works">
-          <div className="field-label">Правила</div>
+          <div className="field-label">{tr('Правила')}</div>
           <p className="invite-rules">
-            Друг получает скидку {program?.discountPercent ?? 20} % на первый месяц. Вы — {bonusText(program?.rewardDays ?? 7)} Premium за каждого друга, который оплатил подписку; дни начисляются после проверки ({program?.holdDays ?? 14} {plural(program?.holdDays ?? 14, 'день', 'дня', 'дней')}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.
+            {tr('Друг получает скидку {discount} % на первый месяц. Вы — {bonus} Premium за каждого друга, который оплатил подписку; дни начисляются после проверки ({hold}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.', {
+              discount: program?.discountPercent ?? 20,
+              bonus: bonusText(program?.rewardDays ?? 7),
+              hold: countText(program?.holdDays ?? 14, DAY_WORDS),
+            })}
           </p>
         </div>
       </div>
@@ -98,19 +106,19 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
   const share = program.next ? Math.min(Math.max((program.confirmed - previous) / Math.max(program.next.friends - previous, 1), 0), 1) : 1
   const waiting = Math.max(program.paid - program.confirmed, 0)
   const counters = [
-    { icon: UserPlus, label: 'Зарегистрировались', value: program.invited, meta: 'по вашему коду' },
-    { icon: CreditCard, label: 'Оплатили', value: program.paid, meta: 'первую подписку' },
-    { icon: ShieldCheck, label: 'Подтверждено', value: program.confirmed, meta: 'после проверки' },
+    { icon: UserPlus, label: tr('Зарегистрировались'), value: program.invited, meta: tr('по вашему коду') },
+    { icon: CreditCard, label: tr('Оплатили'), value: program.paid, meta: tr('первую подписку') },
+    { icon: ShieldCheck, label: tr('Подтверждено'), value: program.confirmed, meta: tr('после проверки') },
   ]
   return (
     <>
       <div className="ref-top" style={{ marginBottom: 0 }}>
         <div className="field">
-          <span className="field-label">Ваш код</span>
+          <span className="field-label">{tr('Ваш код')}</span>
           <div className="copy-row"><code data-testid="invite-code">{program.code}</code><CopyButton value={program.code} /></div>
         </div>
         <div className="field">
-          <span className="field-label"><Link2 size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />Ссылка для друга</span>
+          <span className="field-label"><Link2 size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 5 }} />{tr('Ссылка для друга')}</span>
           <div className="copy-row"><code title={link}>{link}</code><CopyButton value={link} /></div>
         </div>
       </div>
@@ -120,7 +128,7 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
         {counters.map(({ icon: Icon, label, value, meta }) => (
           <div key={label} className="stat-card">
             <div className="stat-label"><Icon aria-hidden="true" />{label}</div>
-            <div className="stat-value mono">{numberFormat.format(value)}</div>
+            <div className="stat-value mono">{formatNumber(value)}</div>
             <div className="stat-meta">{meta}</div>
           </div>
         ))}
@@ -129,20 +137,20 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
       <div className="invite-progress">
         <div className="invite-progress-head">
           <span className="invite-progress-text">{progressText(program)}</span>
-          {program.next && <span className="mono dim">{numberFormat.format(program.confirmed)} / {numberFormat.format(program.next.friends)}</span>}
+          {program.next && <span className="mono dim">{formatNumber(program.confirmed)} / {formatNumber(program.next.friends)}</span>}
         </div>
-        <div className="invite-bar" role="progressbar" aria-label="Прогресс до следующего ранга" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}>
+        <div className="invite-bar" role="progressbar" aria-label={tr('Прогресс до следующего ранга')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}>
           <span style={{ transform: `scaleX(${share})` }} />
         </div>
-        {waiting > 0 && <span className="field-hint">Ещё {waiting} {plural(waiting, 'оплата', 'оплаты', 'оплат')} на проверке — засчитаются после {program.holdDays} {plural(program.holdDays, 'дня', 'дней', 'дней')}.</span>}
+        {waiting > 0 && <span className="field-hint">{tr('Ещё {payments} на проверке — засчитаются после {days}.', { payments: countText(waiting, PAYMENT_WORDS), days: countText(program.holdDays, HOLD_DAY_WORDS) })}</span>}
       </div>
 
       <RankLadder ranks={ranks} confirmed={program.confirmed} rewardDays={program.rewardDays} />
 
       <div className="invite-rewards">
-        <div className="field-label">Награды</div>
+        <div className="field-label">{tr('Награды')}</div>
         {program.rewards.length === 0 ? (
-          <div className="muted" style={{ fontSize: 14 }}>Пока наград нет. Поделитесь ссылкой — как только друг оплатит подписку, здесь появится {bonusText(program.rewardDays)} Premium.</div>
+          <div className="muted" style={{ fontSize: 14 }}>{tr('Пока наград нет. Поделитесь ссылкой — как только друг оплатит подписку, здесь появится {bonus} Premium.', { bonus: bonusText(program.rewardDays) })}</div>
         ) : (
           <ul className="reward-list">
             {program.rewards.map((reward) => {
@@ -151,7 +159,7 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
                 <li key={reward.id} className="reward-item">
                   <div className="reward-main">
                     <strong>{rewardTitle(reward, ranks)}</strong>
-                    <span className="dim mono">{createdFormat.format(new Date(reward.createdAt))} · {rewardDaysText(reward.days)}</span>
+                    <span className="dim mono">{formatCreated(reward.createdAt)} · {rewardDaysText(reward.days)}</span>
                   </div>
                   <span className={`tag ${status.tone}`}>{rewardStatusText(reward)}</span>
                 </li>
@@ -174,7 +182,7 @@ function ChangeCode({ code, onChange }: { code: string; onChange: (next: InviteP
   async function save(event: FormEvent) {
     event.preventDefault()
     const normalized = normalizeReferralCode(value)
-    if (!REFERRAL_CODE_PATTERN.test(normalized)) { setError('Код: 3–24 символа, латиница, цифры, «_» или «-».'); return }
+    if (!REFERRAL_CODE_PATTERN.test(normalized)) { setError(tr('Код: 3–24 символа, латиница, цифры, «_» или «-».')); return }
     if (normalized === code) { setOpen(false); return }
     if (!auth.token) return
     setBusy(true)
@@ -192,20 +200,20 @@ function ChangeCode({ code, onChange }: { code: string; onChange: (next: InviteP
   if (!open) {
     return (
       <div className="invite-change">
-        <button type="button" className="button ghost small" onClick={() => { setValue(code); setError(null); setOpen(true) }}><Pencil aria-hidden="true" />Изменить код</button>
-        <span className="field-hint">Сменить код можно, пока по нему никто не зарегистрировался.</span>
+        <button type="button" className="button ghost small" onClick={() => { setValue(code); setError(null); setOpen(true) }}><Pencil aria-hidden="true" />{tr('Изменить код')}</button>
+        <span className="field-hint">{tr('Сменить код можно, пока по нему никто не зарегистрировался.')}</span>
       </div>
     )
   }
   return (
     <form className="invite-change" onSubmit={save} style={{ display: 'grid', gap: 8 }}>
       <div className="inline-form">
-        <input className="input code" aria-label="Новый код" value={value} maxLength={24} spellCheck={false} autoComplete="off" placeholder="RAID-ARTEM" onChange={(e) => setValue(e.target.value.toUpperCase())} />
-        <button type="submit" className="button primary" disabled={busy || value.trim().length < 3}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Save aria-hidden="true" />}Сохранить</button>
-        <button type="button" className="button ghost" disabled={busy} onClick={() => setOpen(false)}><X aria-hidden="true" />Отмена</button>
+        <input className="input code" aria-label={tr('Новый код')} value={value} maxLength={24} spellCheck={false} autoComplete="off" placeholder="RAID-ARTEM" onChange={(e) => setValue(e.target.value.toUpperCase())} />
+        <button type="submit" className="button primary" disabled={busy || value.trim().length < 3}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Save aria-hidden="true" />}{tr('Сохранить')}</button>
+        <button type="button" className="button ghost" disabled={busy} onClick={() => setOpen(false)}><X aria-hidden="true" />{tr('Отмена')}</button>
       </div>
-      <span className="field-hint">3–24 символа: латиница, цифры, «_» или «-». Старый код перестанет работать.</span>
-      {error && <Notice tone="error">{error}</Notice>}
+      <span className="field-hint">{tr('3–24 символа: латиница, цифры, «_» или «-». Старый код перестанет работать.')}</span>
+      {error && <Notice tone="error">{tr(error)}</Notice>}
     </form>
   )
 }

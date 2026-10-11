@@ -1,3 +1,5 @@
+import { tr } from '../i18n'
+
 /**
  * Platform line under the download buttons: Windows is available now, the phone apps (iOS / Android, the
  * Capacitor build in android/ and ios/) are not published yet, so they are marked «скоро».
@@ -22,10 +24,10 @@ function AndroidIcon() {
 
 export function Platforms({ align = 'center' }: { align?: 'center' | 'start' }) {
   return (
-    <ul className={`platforms ${align === 'start' ? 'is-start' : ''}`} aria-label="Платформы">
-      <li className="is-ready"><WindowsIcon /><span>Windows</span><em>доступно</em></li>
-      <li><AppleIcon /><span>iOS</span><em>скоро</em></li>
-      <li><AndroidIcon /><span>Android</span><em>скоро</em></li>
+    <ul className={`platforms ${align === 'start' ? 'is-start' : ''}`} aria-label={tr('Платформы')}>
+      <li className="is-ready"><WindowsIcon /><span>Windows</span><em>{tr('доступно')}</em></li>
+      <li><AppleIcon /><span>iOS</span><em>{tr('скоро')}</em></li>
+      <li><AndroidIcon /><span>Android</span><em>{tr('скоро')}</em></li>
     </ul>
   )
 }

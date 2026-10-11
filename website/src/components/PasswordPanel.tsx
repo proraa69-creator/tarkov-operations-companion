@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { api, type CodeChallenge } from '../api'
 import { useAuth } from '../auth'
+import { tr } from '../i18n'
 import { useAuthConfig } from './authConfig'
 import { EmailCodeField, failure, ResendButton, retryAfter } from './EmailAuth'
 import { Notice } from './Notice'
@@ -16,13 +17,13 @@ export function PasswordPanel() {
   return (
     <section className="panel" aria-labelledby="password-title">
       <div className="panel-header">
-        <div className="panel-title" id="password-title"><KeyRound aria-hidden="true" />Пароль</div>
+        <div className="panel-title" id="password-title"><KeyRound aria-hidden="true" />{tr('Пароль')}</div>
       </div>
       <div className="panel-body form">
         {changed
-          ? <Notice tone="success">Пароль изменён. Входы на других устройствах завершены.</Notice>
-          : <p className="muted" style={{ margin: 0, fontSize: 14 }}>Новый пароль подтверждается кодом из письма на почту аккаунта.</p>}
-        <div><button type="button" className="button" onClick={() => { setChanged(false); setOpen(true) }}><KeyRound aria-hidden="true" />Изменить пароль</button></div>
+          ? <Notice tone="success">{tr('Пароль изменён. Входы на других устройствах завершены.')}</Notice>
+          : <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Новый пароль подтверждается кодом из письма на почту аккаунта.')}</p>}
+        <div><button type="button" className="button" onClick={() => { setChanged(false); setOpen(true) }}><KeyRound aria-hidden="true" />{tr('Изменить пароль')}</button></div>
       </div>
       {open && <PasswordDialog onClose={() => setOpen(false)} onDone={() => { setOpen(false); setChanged(true) }} />}
     </section>
@@ -79,8 +80,8 @@ function PasswordDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
   async function save(event: FormEvent) {
     event.preventDefault()
     if (!auth.token) return
-    if (next.length < 8) { setLocalError('Новый пароль должен быть не короче 8 символов.'); return }
-    if (next !== repeat) { setLocalError('Пароли не совпадают.'); return }
+    if (next.length < 8) { setLocalError(tr('Новый пароль должен быть не короче 8 символов.')); return }
+    if (next !== repeat) { setLocalError(tr('Пароли не совпадают.')); return }
     setBusy(true); setError(null); setLocalError('')
     try {
       const answer = challenge
@@ -102,12 +103,12 @@ function PasswordDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
 
   const passwordFields = <>
     <label className="field">
-      <span className="field-label">Новый пароль</span>
+      <span className="field-label">{tr('Новый пароль')}</span>
       <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={next} onChange={(e) => setNext(e.target.value)} />
-      <span className="field-hint">Не короче 8 символов. Входы на других устройствах будут завершены.</span>
+      <span className="field-hint">{tr('Не короче 8 символов. Входы на других устройствах будут завершены.')}</span>
     </label>
     <label className="field">
-      <span className="field-label">Повторите новый пароль</span>
+      <span className="field-label">{tr('Повторите новый пароль')}</span>
       <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
     </label>
   </>
@@ -116,23 +117,25 @@ function PasswordDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
   if (!config) {
     body = <div className="center-state"><LoaderCircle className="spinner" aria-hidden="true" /></div>
   } else if (byEmail && !challenge) {
+    const [before, after] = tr('Мы отправим код подтверждения на почту аккаунта {email}.').split('{email}')
     body = <>
-      <p className="pay-dialog-note">Мы отправим код подтверждения на почту аккаунта <strong style={{ color: 'var(--text)' }}>{email}</strong>.</p>
+      <p className="pay-dialog-note">{before}<strong style={{ color: 'var(--text)' }}>{email}</strong>{after}</p>
       {notices}
       <div className="pay-dialog-actions">
-        <button type="button" className="button ghost" disabled={busy} onClick={onClose}>Отмена</button>
+        <button type="button" className="button ghost" disabled={busy} onClick={onClose}>{tr('Отмена')}</button>
         <button type="button" className="button primary" disabled={busy || !email} onClick={() => void sendCode()}>
-          {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}Отправить код
+          {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}{tr('Отправить код')}
         </button>
       </div>
     </>
   } else {
+    const [sentBefore, sentAfter] = tr('Код отправлен на {email}. Не сообщайте его никому.').split('{email}')
     body = (
       <form className="form" onSubmit={save}>
         {challenge
-          ? <p className="pay-dialog-note">Код отправлен на <strong style={{ color: 'var(--text)' }}>{email}</strong>. Не сообщайте его никому.</p>
+          ? <p className="pay-dialog-note">{sentBefore}<strong style={{ color: 'var(--text)' }}>{email}</strong>{sentAfter}</p>
           : <label className="field">
-              <span className="field-label">Текущий пароль</span>
+              <span className="field-label">{tr('Текущий пароль')}</span>
               <input className="input" type="password" autoComplete="current-password" required maxLength={128} value={current} onChange={(e) => setCurrent(e.target.value)} />
             </label>}
         {notices}
@@ -140,9 +143,9 @@ function PasswordDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
         {passwordFields}
         {challenge && <div><ResendButton until={resendAt} busy={busy} onClick={() => void sendCode()} /></div>}
         <div className="pay-dialog-actions">
-          <button type="button" className="button ghost" disabled={busy} onClick={onClose}>Отмена</button>
+          <button type="button" className="button ghost" disabled={busy} onClick={onClose}>{tr('Отмена')}</button>
           <button type="submit" className="button primary" disabled={busy || !next || (challenge ? code.length !== 6 : !current)}>
-            {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <KeyRound aria-hidden="true" />}Сохранить
+            {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <KeyRound aria-hidden="true" />}{tr('Сохранить')}
           </button>
         </div>
       </form>
@@ -155,10 +158,10 @@ function PasswordDialog({ onClose, onDone }: { onClose: () => void; onDone: () =
       <div className="pay-dialog password-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog}>
         <div className="pay-dialog-head">
           <div>
-            <div className="eyebrow">Аккаунт</div>
-            <h2 id={titleId}>Изменить пароль</h2>
+            <div className="eyebrow">{tr('Аккаунт')}</div>
+            <h2 id={titleId}>{tr('Изменить пароль')}</h2>
           </div>
-          <button type="button" className="icon-button" aria-label="Закрыть" disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
+          <button type="button" className="icon-button" aria-label={tr('Закрыть')} disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </div>
         {body}
       </div>

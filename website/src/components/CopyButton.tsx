@@ -1,5 +1,6 @@
 import { Check, Copy } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { tr } from '../i18n'
 
 export function CopyButton({ value, label = 'Копировать' }: { value: string; label?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
@@ -21,7 +22,7 @@ export function CopyButton({ value, label = 'Копировать' }: { value: s
   return (
     <button type="button" className="button small" onClick={copy} aria-live="polite">
       {state === 'copied' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-      {state === 'copied' ? 'Скопировано' : state === 'failed' ? 'Выделите вручную' : label}
+      {tr(state === 'copied' ? 'Скопировано' : state === 'failed' ? 'Выделите вручную' : label)}
     </button>
   )
 }
