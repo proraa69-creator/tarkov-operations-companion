@@ -73,6 +73,7 @@ ${wikiRow('AR-15 Magpul MOE stock', `${wikiLink('Mechanic')} LL1<br>${wikiLink('
 
 const RIFLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 200"><g fill="#4d5a50" stroke="#8c9a8f" stroke-width="2"><rect x="40" y="88" width="300" height="34" rx="6"/><rect x="330" y="96" width="150" height="14" rx="4"/><rect x="250" y="120" width="26" height="54" rx="4"/><path d="M40 92 L4 84 L4 140 L40 124 Z"/></g></svg>`
 const TRADER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#3b3a33"/><circle cx="32" cy="26" r="13" fill="#b49a7c"/><path d="M8 64 C10 44 54 44 56 64 Z" fill="#4c5a4a"/></svg>`
+const itemIcon = (label: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="4" fill="#1d2420" stroke="#56645a"/><path d="M12 40 L46 26 L52 30 L18 46 Z" fill="#8e9b91"/><circle cx="22" cy="40" r="5" fill="#5d6a60"/><text x="60" y="12" font-family="sans-serif" font-size="9" font-weight="700" fill="#e6ece7" text-anchor="end">${label.replace(/[<&]/g, '')}</text></svg>`
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="8" fill="#26302a" stroke="#56645a"/><path d="M14 40 L50 24" stroke="#a9b6ac" stroke-width="6" stroke-linecap="round"/></svg>`
 
 async function openOverview(page: Page, { modsDown = false } = {}) {
@@ -94,7 +95,11 @@ async function openOverview(page: Page, { modsDown = false } = {}) {
       const payload = body.query?.includes('RaidOsGuns') ? gunsPayload(lang) : body.query?.includes('RaidOsMods') ? modsPayload(lang) : body.query?.includes('RaidOsAmmo') ? ammoPayload(lang) : { data: {} }
       return route.fulfill({ json: payload })
     }
-    if (url.hostname === 'assets.tarkov.dev') return route.fulfill({ contentType: 'image/svg+xml', body: /trader/.test(url.pathname) ? TRADER_SVG : /512|preset/.test(url.pathname) ? RIFLE_SVG : ICON_SVG })
+    if (url.hostname === 'assets.tarkov.dev') {
+      // Each item its own picture, labelled with its short name like the game's inventory icons.
+      const icon = /^\/(.+)-icon\.webp$/.exec(url.pathname)
+      return route.fulfill({ contentType: 'image/svg+xml', body: /trader/.test(url.pathname) ? TRADER_SVG : /512|preset/.test(url.pathname) ? RIFLE_SVG : icon ? itemIcon(decodeURIComponent(icon[1])) : ICON_SVG })
+    }
     return route.abort()
   })
   const profile = createLocalProfile('Оператор', 'gunsmith-e2e')
@@ -116,6 +121,16 @@ async function openOverview(page: Page, { modsDown = false } = {}) {
   }, { ...profile, modes: { ...profile.modes, pvp } })
   await page.setViewportSize({ width: 1600, height: 1300 })
   await page.goto('/#/')
+}
+
+/** Hovers a module card once the previous hover window has closed; returns the window. */
+async function hoverWindow(page: Page, target: ReturnType<Page['locator']>) {
+  await page.mouse.move(0, 0)
+  await expect(page.locator('.hover-card')).toHaveCount(0)
+  await target.hover()
+  const window = page.locator('.hover-card')
+  await expect(window).toHaveCount(1)
+  return window
 }
 
 test('«Оружейник»: Overview block and «Как собрать» from json.tarkov.dev data', async ({ page }, testInfo) => {
@@ -144,13 +159,15 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   await expect(modules).toHaveCount(1)
   await expect(details).not.toContainText('Сборка с вики')
   const suppressorCard = modules.locator('.gs-part', { hasText: 'RC2' })
-  await expect(suppressorCard.locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III', { timeout: 30_000 })
+  // The cards hold only the picture, the name and the price; who sells it is in the hover window.
+  await expect(modules.locator('.gs-trader')).toHaveCount(0)
   for (const text of ['EXPS3', 'MOE']) await expect(modules).toContainText(text)
   // Hovering a module: what can go instead. The suppressor is asked for by the task itself.
-  await suppressorCard.hover()
-  await expect(page.locator('.hover-card')).toContainText('Задание требует именно этот модуль')
-  await modules.locator('.gs-part', { hasText: 'MOE' }).hover()
-  const window = page.locator('.hover-card')
+  const required = await hoverWindow(page, suppressorCard)
+  await expect(required).toContainText('Задание требует именно этот модуль')
+  await expect(required.locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III', { timeout: 30_000 })
+  await expect(required).toContainText('Миротворец — уровень 3 (у вас 1)')
+  const window = await hoverWindow(page, modules.locator('.gs-part', { hasText: 'MOE' }))
   await expect(window).toContainText('Можно поставить вместо')
   await expect(window.locator('li').first()).toBeVisible({ timeout: 30_000 })
   await expect(window).toContainText(/Приклад|stock/)
@@ -185,15 +202,17 @@ test('«Оружейник»: the wiki’s traders and loyalty levels on every p
   await panel.getByRole('button', { name: /Оружейник\. M4A1/ }).click()
   const details = panel.locator('.gunsmith-details')
   await expect(details.locator('.gs-block', { hasText: 'Обязательные модули' })).toBeVisible({ timeout: 30_000 })
-  // Each required part shows who sells it and from which level: Peacekeeper III (locked: nothing proves it yet).
-  const suppressor = details.locator('.gs-part', { hasText: 'RC2' })
-  await expect(suppressor.locator('.gs-trader .gs-trader-level')).toHaveText('III')
-  await expect(suppressor.locator('.gs-trader')).toHaveClass(/is-locked/)
-  await expect(details.locator('.gs-part', { hasText: 'EXPS3' }).locator('.gs-trader-level')).toHaveText('II')
+  // Hovering a part shows who sells it and from which level, from the wiki: Peacekeeper III (locked: nothing proves it yet).
+  await expect((await hoverWindow(page, details.locator('.gs-part', { hasText: 'RC2' }))).locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III')
+  await expect((await hoverWindow(page, details.locator('.gs-part', { hasText: 'EXPS3' }))).locator('.gs-trader-level')).toHaveText('II')
   // The rest of the wiki's build in the same block, with its barter.
   const stock = details.locator('.gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part', { hasText: 'MOE' })
-  await expect(stock.locator('.gs-trader')).toHaveCount(2)
-  await expect(stock.locator('.gs-trader-barter')).toHaveCount(1)
+  const window = await hoverWindow(page, stock)
+  await expect(window.locator('.gs-trader')).toHaveCount(2)
+  await expect(window.locator('.gs-trader-barter')).toHaveCount(1)
+  await expect(window).toContainText('Лыжник — уровень 2 (бартер')
+  if (process.env.GUNSMITH_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-hover-sellers-ru.png` })
+  await page.mouse.move(0, 0)
   // Matched to the catalog item through upstream's English dictionary: its picture and Russian name, no availability text.
   await expect(stock.locator('img').first()).toHaveAttribute('src', /MOE-icon/)
   await expect(details).not.toContainText('нет на барахолке')
@@ -206,8 +225,7 @@ test('«Оружейник»: the wiki’s traders and loyalty levels on every p
   // On the page the card also carries the item's full Russian name from the catalog.
   await expect(page.locator('main .gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part', { hasText: 'Приклад Magpul MOE для AR-15' })).toBeVisible()
   // Without the mod data the hover window says when the alternatives come.
-  await page.locator('main .gs-part', { hasText: 'MOE' }).hover()
-  await expect(page.locator('.hover-card')).toContainText('Аналоги появятся, когда загрузятся данные модулей')
+  await expect(await hoverWindow(page, page.locator('main .gs-part', { hasText: 'MOE' }))).toContainText('Аналоги появятся, когда загрузятся данные модулей')
   await expect(page.getByRole('link', { name: /Страница на Wiki/ })).toHaveCount(0)
   if (process.env.GUNSMITH_SCREENSHOT_DIR) await page.locator('main').screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-wiki-page-ru.png` })
 })

@@ -80,7 +80,11 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
   const mode = useAppState().raidMode
   const { data } = useTarkovData()
   const price = item ? displayPrice(item, mode) : undefined
-  const hover = useHoverCard(<Alternatives card={card} fitting={fitting} plan={plan} modsStatus={modsStatus} locale={locale} items={data.items} />)
+  const hover = useHoverCard(<>
+    <Sellers sellers={sellers} traders={traders} access={access} locale={locale} />
+    <Alternatives card={card} fitting={fitting} plan={plan} modsStatus={modsStatus} locale={locale} items={data.items} />
+  </>)
+  // The card: picture, name, flea price. Who sells it and what can go instead are in the hover window.
   const body = <>
     {item?.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span className="gs-part-empty"><Package size={18} /></span>}
     <span>
@@ -88,18 +92,6 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
       {!compact && <small>{uiText(item?.name ?? card.name)}</small>}
       {price?.kind === 'flea' && <small className="gs-part-price">{formatPrice(price.price)}</small>}
     </span>
-    {sellers?.length ? <span className="gs-part-sellers">
-      {sellers.slice(0, 3).map((seller) => {
-        const trader = traders.get(seller.trader)
-        const name = trader?.name ?? seller.trader
-        const have = access?.traderLevels?.[seller.trader]
-        const locked = have !== undefined && have < seller.level
-        const title = locale === 'en'
-          ? `${name}: loyalty ${seller.level}${seller.barter ? ', barter' : ''}${locked ? ` (you have ${have})` : ''}`
-          : `${name}: уровень ${seller.level}${seller.barter ? ', бартер' : ''}${locked ? ` (у вас ${have})` : ''}`
-        return <TraderBadge key={`${seller.trader}-${seller.level}-${seller.barter ? 'b' : 'c'}`} trader={trader} name={name} level={seller.level} barter={seller.barter} locked={locked} title={title} small />
-      })}
-    </span> : null}
   </>
   return <>
     {card.id
@@ -107,6 +99,28 @@ function PartCard({ card, item, compact, sellers, traders, access, fitting, plan
       : <span className="gs-part" tabIndex={0} {...hover.anchorProps}>{body}</span>}
     {hover.card}
   </>
+}
+
+/** «Продают»: each trader with the loyalty level the part needs (I, II, III, a crown for 4), barters marked. */
+function Sellers({ sellers, traders, access, locale }: { sellers?: PartSeller[]; traders: Map<string, Trader>; access?: PurchaseAccess; locale: AppLocale }) {
+  if (!sellers?.length) return null
+  return <div className="gs-sellers">
+    <p className="hover-card-title">{locale === 'en' ? 'Sold by' : 'Продают'}</p>
+    <ul>
+      {sellers.slice(0, 4).map((seller) => {
+        const trader = traders.get(seller.trader)
+        const name = trader?.name ?? seller.trader
+        const have = access?.traderLevels?.[seller.trader]
+        const locked = have !== undefined && have < seller.level
+        const level = locale === 'en' ? `loyalty ${seller.level}` : `уровень ${seller.level}`
+        const extra = [seller.barter ? (locale === 'en' ? 'barter' : 'бартер') : '', locked ? (locale === 'en' ? `you have ${have}` : `у вас ${have}`) : ''].filter(Boolean).join(', ')
+        return <li key={`${seller.trader}-${seller.level}-${seller.barter ? 'b' : 'c'}`}>
+          <TraderBadge trader={trader} name={name} level={seller.level} barter={seller.barter} locked={locked} small />
+          <span><strong>{uiText(name)}</strong> — {level}{extra ? <span className={locked ? 'gs-sellers-locked' : 'dim'}> ({extra})</span> : null}</span>
+        </li>
+      })}
+    </ul>
+  </div>
 }
 
 const MESSAGES: Record<string, { ru: string; en: string }> = {

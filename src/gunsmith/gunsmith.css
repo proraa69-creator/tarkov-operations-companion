@@ -65,14 +65,6 @@
   border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); color: var(--text); text-decoration: none;
   transition: border-color .15s var(--ease-soft), background .15s var(--ease-soft);
 }
-.gs-part:has(.gs-part-sellers) { grid-template-columns: 44px minmax(0, 1fr) auto; }
-.gs-part-sellers { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: 3px; max-width: 84px; }
-/* On the page: the portraits a little bigger, the cards wide enough for the name. */
-.gs-build:not(.is-compact) .gs-parts:has(.gs-part-sellers) { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
-.gs-build:not(.is-compact) .gs-part-sellers .gs-trader.is-small { width: 30px; height: 30px; }
-/* The Overview's narrow cards: the traders under the name, not beside it. */
-.gs-build.is-compact .gs-part:has(.gs-part-sellers) { grid-template-columns: 44px minmax(0, 1fr); }
-.gs-build.is-compact .gs-part-sellers { grid-column: 1 / -1; justify-content: flex-start; max-width: none; }
 span.gs-part { cursor: default; }
 .gs-part:hover, .gs-part:focus-visible { border-color: var(--brass); background: var(--panel-3); outline: none; }
 .gs-part img, .gs-part-empty { width: 44px; height: 44px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0); object-fit: contain; }
@@ -147,3 +139,7 @@ span.gs-part { cursor: default; }
 .gs-alternatives .hover-card-items strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-alternatives .hover-card-items small { display: block; font-size: 11px; }
 .gs-alternatives p.dim { margin: 0; }
+.gs-sellers { margin-bottom: 10px; }
+.gs-sellers ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.gs-sellers li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 12px; }
+.gs-sellers-locked { color: var(--brass-strong); }
