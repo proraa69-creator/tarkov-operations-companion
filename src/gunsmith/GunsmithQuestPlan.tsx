@@ -46,7 +46,7 @@ export function GunsmithQuestPlan({ build, questId, compact, weapon, showLink = 
   return <>
     {weapon && <p className={`gunsmith-weapon-count${compact ? ' is-compact' : ''}`}>{locale === 'en' ? `Weapon ${weapon.index + 1} of ${weapon.total}` : `Оружие ${weapon.index + 1} из ${weapon.total}`}</p>}
     <div className={compact ? 'gunsmith-quest-plan is-compact' : 'detail-section'}>
-      <WeaponBuildDetails build={build} checks={plan?.checks} compact={compact} weaponImage={preset?.imageLink ?? plan?.weapon.imageLink} mods={catalog.data?.mods} access={shop.access} plan={plan} modsStatus={modsStatus} />
+      <WeaponBuildDetails build={build} questId={questId} checks={plan?.checks} compact={compact} weaponImage={preset?.imageLink ?? plan?.weapon.imageLink} mods={catalog.data?.mods} access={shop.access} plan={plan} modsStatus={modsStatus} />
     </div>
     {/* The Overview: a link to the part's page (owner, 11.10.2026: the page has no «Как собрать · пример сборки» section
         any more — the guide's finished build and its modules above are the build). */}

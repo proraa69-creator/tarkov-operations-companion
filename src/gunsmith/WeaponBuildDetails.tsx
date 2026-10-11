@@ -9,11 +9,14 @@ import { uiText } from '../i18n/renderText'
 import { attributeHint, attributeLabel, formatTarget, formatValue } from './gunsmith'
 import type { AttributeCheck, GunsmithPlan } from './gunsmithSolver'
 import { BuildImage } from './BuildImage'
+import { buildScreenshot } from './buildScreenshots'
 import { BuildPartCards, type ModsStatus } from './BuildPartCards'
 import './gunsmith.css'
 
 interface WeaponBuildDetailsProps {
   build: WeaponBuildRequirement
+  /** The task (tarkov.dev id): its build has the owner's own screenshot (src/gunsmith/buildScreenshots.ts). */
+  questId?: string
   /** The example build's values next to the targets (src/gunsmith/gunsmithSolver.ts). */
   checks?: AttributeCheck[]
   /** The Overview block: smaller picture, no hints. */
@@ -34,26 +37,28 @@ interface WeaponBuildDetailsProps {
  * stats (every one named — «Эффективная дальность», not «effectiveDistance») and the parts it must hold, with pictures
  * and the flea price.
  */
-export function WeaponBuildDetails({ build, checks, compact, weaponImage, mods, access, plan, modsStatus }: WeaponBuildDetailsProps) {
+export function WeaponBuildDetails({ build, questId, checks, compact, weaponImage, mods, access, plan, modsStatus }: WeaponBuildDetailsProps) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const weapon = items.get(build.weaponId)
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
-  // A screenshot that does not load (owner, 11.10.2026: «ни одна картинка не открывается») gives way to the weapon.
-  const [failedImage, setFailedImage] = useState<string>()
-  const buildImage = build.guide?.image && build.guide.image !== failedImage ? build.guide.image : undefined
+  // The finished build: the owner's own screenshot, else the guide's. One that does not load (owner, 11.10.2026: «ни одна
+  // картинка не открывается») gives way to the next, the last to the weapon.
+  const [failedImages, setFailedImages] = useState<string[]>([])
+  const buildImage = [buildScreenshot(questId, build.weaponId), build.guide?.image].find((src) => src && !failedImages.includes(src))
+  const fromGuide = buildImage !== undefined && buildImage === build.guide?.image
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
     <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
-      {/* The finished build from the guide (the game's «Сборки оружия» screen), else the weapon's default preset. */}
+      {/* The finished build (the game's «Сборки оружия» screen), else the weapon's default preset. */}
       {buildImage
-        ? <BuildImage src={buildImage} alt={uiText(weapon?.name ?? 'Оружие из задания')} onError={() => setFailedImage(buildImage)} />
+        ? <BuildImage key={buildImage} src={buildImage} alt={uiText(weapon?.name ?? 'Оружие из задания')} onError={() => setFailedImages((failed) => [...failed, buildImage])} />
         : image ? <img src={image} alt={uiText(weapon?.name ?? '')} loading="lazy" /> : <span className="gs-weapon-empty"><Crosshair size={28} /></span>}
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
-        {buildImage && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
+        {fromGuide && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
     </figure>
 

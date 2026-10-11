@@ -18,6 +18,13 @@ const quests: Quest[] = [1, 2, 3].map((n) => ({
     build: { weaponId: FX.m4, partIds: [FX.suppressor, FX.holo], attributes: [{ name: 'recoil', compare: '<=', value: 220 }, { name: 'effectiveDistance', compare: '>=', value: 300 }],
       ...(n === 3 ? { guide: { source: 'tarkov.help' as const, image: GUIDE_IMAGE, parts: [] } } : {}) } }],
 }))
+// «Оружейник. М4A1» as tarkov.dev has it: the owner's own screenshot of its build ships with the app.
+const M4A1_PART = '5ac244eb86f7741356335af1'
+quests.push({
+  id: M4A1_PART, name: 'Оружейник. М4A1', normalizedName: 'gunsmith-m4a1', trader: 'Механик', level: 26, kappa: true, description: '', objectives: [], rewards: [],
+  objectiveDetails: [{ id: 'o-m4a1', type: 'buildWeapon', description: 'Модифицировать M4A1 в соответствии с требуемой спецификацией', count: 1,
+    build: { weaponId: '5447a9cd4bdc2dbd208b4567', partIds: [], attributes: [{ name: 'magazineCapacity', compare: '>=', value: 60 }], guide: { source: 'tarkov.help', image: GUIDE_IMAGE, parts: [] } } }],
+})
 const items: Item[] = [
   { id: FX.m4, name: 'Colt M4A1', shortName: 'M4A1', category: 'Оружие', description: '', prices: [] },
   { id: FX.suppressor, name: 'Глушитель SureFire SOCOM556-RC2 5.56x45', shortName: 'RC2', category: 'Оружие', description: '', prices: [] },
@@ -57,5 +64,19 @@ describe('«Оружейник → Посмотреть все»', () => {
     expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
     // The whole rifle: its default preset's picture from the mod data.
     await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toMatch(/m4/))
+  })
+
+  it('shows the owner\'s own screenshot of the build instead of tarkov.help\'s, which stays as the fallback', () => {
+    render(<LocaleProvider><MemoryRouter initialEntries={[`/gunsmith?quest=${M4A1_PART}`]}><GunsmithPage /></MemoryRouter></LocaleProvider>)
+    expect(screen.getByRole('heading', { level: 2, name: 'Оружейник. М4A1' })).toBeInTheDocument()
+    const own = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
+    expect(own.getAttribute('src')).toMatch(/gunsmith-m4a1[^/]*\.webp$/)
+    expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
+    fireEvent.error(own)
+    const guide = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
+    expect(guide.getAttribute('src')).toBe(GUIDE_IMAGE)
+    expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
+    fireEvent.error(guide)
+    expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
   })
 })

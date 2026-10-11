@@ -107,7 +107,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
 
     {build && <div className="detail-section">
       <h4>{uiText('Сборка оружия')}</h4>
-      {builds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} />)}
+      {builds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} questId={quest.id} />)}
       {gunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(quest)}>{uiText('Как собрать')} <ArrowUpRight size={13} /></Link>}
     </div>}
 
