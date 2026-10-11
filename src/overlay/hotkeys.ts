@@ -34,7 +34,17 @@ Object.assign(table, {
   End: { label: 'End', vk: 0x23, hook: 'End' },
   PageUp: { label: 'PageUp', vk: 0x21, hook: 'PageUp' },
   PageDown: { label: 'PageDown', vk: 0x22, hook: 'PageDown' },
+  // Extra mouse buttons (owner, 10.10.2026: «кнопки наших функций на доп. кнопки мышки»): caught by the native key
+  // polling (GetAsyncKeyState reads mouse buttons too), not by the keyboard hook — hence no `hook` name.
+  Mouse4: { label: 'Мышь 4', vk: 0x05, hook: '' },
+  Mouse5: { label: 'Мышь 5', vk: 0x06, hook: '' },
+  MouseMiddle: { label: 'Колесо мыши', vk: 0x04, hook: '' },
 })
+
+/** A mouse button of a mousedown event as a hotkey code (only the middle and the two side buttons), or null. */
+export function mouseHotkey(button: number): string | null {
+  return button === 1 ? 'MouseMiddle' : button === 3 ? 'Mouse4' : button === 4 ? 'Mouse5' : null
+}
 
 export const HOTKEYS: Readonly<Record<string, HotkeyDefinition>> = table
 export const DEFAULT_ITEM_KEY = 'Semicolon'

@@ -1,9 +1,9 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, Maximize2, ShieldAlert } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
-import { hotkeyLabel, isKnownHotkey } from '../overlay/hotkeys'
+import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
 import './experimentalPage.css'
 
@@ -22,6 +22,16 @@ const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: s
 ]
 
 /** Which screenshot key is used and where it came from, in one short line. */
+/** «Безрамочный режим в игре»: what it does and what happened with the game's settings file. */
+function screenModeHint(result: ExperimentalStatus['screenMode'], on: boolean) {
+  if (on && result === 'game-running') return 'Игра запущена: режим переключится, как только вы её закроете (игра перезаписывает настройки при выходе).'
+  if (on && (result === 'applied' || result === 'already')) return 'В настройках игры стоит «Оконный без рамки» — мини-карта и карточка предмета видны поверх игры.'
+  if (on && result === 'no-file') return 'Не нашли файл настроек игры — запустите Escape from Tarkov один раз и вернитесь.'
+  if (on && result === 'no-setting') return 'В файле настроек игры нет режима экрана — выберите «Оконный без рамки» в игре вручную.'
+  if (on && result === 'error') return 'Не удалось изменить настройки игры — выберите «Оконный без рамки» в игре вручную.'
+  return 'Ставит в игре режим «Оконный без рамки», чтобы мини-карта и карточка предмета были видны поверх игры. Меняет только этот режим, когда игра закрыта; выключите — вернётся ваш прежний.'
+}
+
 function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined) {
   if (!key) return uiText('Определяю клавишу скриншота…')
   if (key.unbound) return uiText('В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот»).')
@@ -151,6 +161,13 @@ export function ExperimentalPage() {
                   taken={[settings?.itemKey, settings?.collectorKey]}
                   onChange={(minimapKey) => update({ minimapKey })}
                 />
+                <Toggle
+                  icon={<Maximize2 size={16} />}
+                  title="Безрамочный режим в игре"
+                  hint={screenModeHint(status?.screenMode, Boolean(settings?.borderless))}
+                  on={Boolean(settings?.borderless)}
+                  onChange={(borderless) => update({ borderless })}
+                />
                 <div className="setting-row">
                   <span><strong>{uiText('Размер мини-карты')}</strong><small>{settings?.minimapWidth ?? 420} px</small></span>
                   <input type="range" min={280} max={720} step={20} value={settings?.minimapWidth ?? 420} aria-label={uiText('Размер мини-карты')} onChange={(event) => update({ minimapWidth: Number(event.target.value) })} />
@@ -231,25 +248,45 @@ function HotkeyRow({ label, hint, value, taken = [], onChange }: { label: string
 
   useEffect(() => {
     if (!listening) return
+    const pick = (code: string) => {
+      if (taken.includes(code)) { setError('Эта клавиша уже занята другой функцией.'); return }
+      setError('')
+      setListening(false)
+      onChange(code)
+    }
     const onKey = (event: KeyboardEvent) => {
       event.preventDefault()
       event.stopPropagation()
       if (event.code === 'Escape') { setListening(false); setError(''); return }
-      if (!isKnownHotkey(event.code)) { setError('Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12 и знаки.'); return }
-      if (taken.includes(event.code)) { setError('Эта клавиша уже занята другой функцией.'); return }
-      setError('')
-      setListening(false)
-      onChange(event.code)
+      if (!isKnownHotkey(event.code)) { setError('Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши 4, 5 и колесо.'); return }
+      pick(event.code)
     }
+    // Extra mouse buttons: the side buttons 4 / 5 and the wheel click (left and right stay for the page).
+    const onMouse = (event: MouseEvent) => {
+      const code = mouseHotkey(event.button)
+      if (!code) return
+      event.preventDefault()
+      event.stopPropagation()
+      pick(code)
+    }
+    const swallow = (event: MouseEvent) => { if (mouseHotkey(event.button)) { event.preventDefault(); event.stopPropagation() } }
     window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
+    window.addEventListener('mousedown', onMouse, true)
+    window.addEventListener('mouseup', swallow, true)
+    window.addEventListener('auxclick', swallow, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('mousedown', onMouse, true)
+      window.removeEventListener('mouseup', swallow, true)
+      window.removeEventListener('auxclick', swallow, true)
+    }
   }, [listening, taken, onChange])
 
   return (
     <div className="setting-row exp-hotkey">
       <span>
         <strong>{uiText(label)}</strong>
-        <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите нужную клавишу · Esc — отмена' : hint))}</small>
+        <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена' : hint))}</small>
       </span>
       <button type="button" className={`button ${listening ? 'primary' : 'ghost'} hotkey-button`} onClick={() => { setError(''); setListening((state) => !state) }}>
         <kbd>{listening ? '…' : value ? hotkeyLabel(value) : uiText('не назначена')}</kbd>
