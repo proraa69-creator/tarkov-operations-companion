@@ -398,3 +398,17 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Проверено: тест `searchTags.test.ts`, фразы сайта, сборка сайта (JSON-LD разбирается), в браузере: `/?lang=ru` — русские заголовок и описание, `/?lang=en` — английские, `/cabinet` — `noindex`.
 - Gate в чистом worktree на `3ea2588`: typecheck, electron tsc, vitest (все), cache, server 269/269, сайт, release-policy, deploy-paths (`6ba8801..HEAD` 13 файлов, 0 отклонено), eslint. `3ea2588` → `release/production` (fast-forward от `6ba8801`). GitHub «RaidOS Production Gate» и «RaidOS iOS IPA» на `3ea2588` — success (18:40–18:41 UTC).
 - Владельцу остаётся: добавить сайт в Google Search Console и Яндекс.Вебмастер (подтверждение — DNS-запись или meta-тег, его код можно прислать) и отправить там `https://raidos.app/sitemap.xml`. Настоящий рост в поиске дадут открытые страницы с содержимым (например, справочник квестов / «Оружейника» на сайте) — предложено отдельно.
+
+## 2026-10-11 — Claude: 0.6.0.12 — скриншоты готовых сборок «Оружейника» с нашего сервера
+
+- Владелец на 0.6.0.10 (скриншот «Оружейник - Мастер. Часть 12»): «ни одна картинка не открывается», затем «скачай эти картинки нам на сервер и бери их оттуда».
+- Причина: собранное приложение показывает картинки только с `raidos.app` (`src/app/contentSecurityPolicy.ts`, `img-src`), а гайды ссылались на хранилище tarkov.help (`minio.tarkov.help`). В e2e (dev-сервер без этой CSP) картинки грузились.
+- `d441d60`, `5d49ed6` (версия 0.6.0-12):
+  - `server/src/services/guideImages.ts` (+ тест, новый): `GuideImageMirror` — ссылки каталога на `https://minio.tarkov.help/production/img/articles/<uuid>.(jpg|png|webp)` заменяются на `https://raidos.app/v1/guide-images/<uuid>.…`; файл скачивается один раз (когда каталог его впервые называет, в фоне, или при первом запросе) в `<RAIDOS_MIRROR_DIR>/images/guides` рядом с картинками предметов. Скачиваются только файлы, которые называет каталог; только PNG / JPEG / WebP по сигнатуре, до 10 МБ, 20 с на файл, после ошибки — не раньше чем через 30 мин; запись через временный файл.
+  - `server/src/routes/guideImages.ts` (новый): `GET /v1/guide-images/:file` — публичный, как `/v1/item-images`, `Cache-Control: immutable` (имена — UUID).
+  - `server/src/services/catalogService.ts` (`configureGuideImages`, переписывание в `getCatalogSnapshot`), `server/src/index.ts`, `server/src/app.ts`, `server/package.json` (тест в списке).
+  - `src/gunsmith/WeaponBuildDetails.tsx`, `BuildImage.tsx`: скриншот, который не загрузился, заменяется картинкой оружия (вместо пустой чёрной полосы); тест в `GunsmithPage.test.tsx`.
+- Уже установленная 0.6.0.10 получит новые ссылки со следующим каталогом (CSP пропускает `raidos.app`) — обновлять приложение для этого не нужно.
+- Проверено: сервер `guideImages.test.ts` 3/3 (три прогона), настоящие файлы tarkov.help скачиваются (458 442 / 88 124 / 86 104 байт, как у источника), typecheck приложения и сервера, eslint, vitest «Оружейника», e2e 2/2.
+- Gate в чистом worktree на `5d49ed6`: typecheck, electron tsc, vitest (все), cache, server 272/272, сайт, release-policy, deploy-paths (`3ea2588..HEAD` 14 файлов, 0 отклонено), eslint. `5d49ed6` → `release/production` (fast-forward от `3ea2588`). GitHub «RaidOS Production Gate» и «RaidOS iOS IPA» на `5d49ed6` — success (19:09 UTC).
+- Риски: файлы в `images/guides` не чистятся (≈30 картинок, ≈10 МБ); если tarkov.help сменит хранилище, новые ссылки не будут переписаны и в приложении покажется картинка оружия.
