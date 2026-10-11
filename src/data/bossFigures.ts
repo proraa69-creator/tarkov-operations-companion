@@ -3,12 +3,17 @@
  * the pre-rendered figure images (src/assets/boss-figures, made by scripts/bosses/render-figures.mjs from
  * the owner's models). A boss without an image yet is simply skipped, so new models can be added one by one.
  */
+import figureFrames from '../assets/boss-figures/frames.json'
 import figureSizes from '../assets/boss-figures/sizes.json'
 
 const images = import.meta.glob<string>('../assets/boss-figures/*.webp', { eager: true, import: 'default' })
 const byKey = new Map(Object.entries(images).map(([path, url]) => [path.replace(/^.*\/|\.webp$/g, ''), url]))
 /** Height of each still in body heights (feet to the top of the head = 1; a raised rifle or antlers add to it). */
 const SIZES: Record<string, number> = figureSizes
+/** Where each still sits in the Gallery viewer's start view: [left of its centre, top, width, height] in view heights. */
+const FRAMES = figureFrames as Record<string, StillFrame>
+
+export type StillFrame = readonly [left: number, top: number, width: number, height: number]
 
 export interface BossFigure {
   key: string
@@ -17,6 +22,8 @@ export interface BossFigure {
   /** Still height in body heights: every still is drawn at the same scale per body, so sizing by this keeps
    * bosses standing together at one real-world scale. */
   height: number
+  /** Where the still stands in the Gallery viewer's start view (scripts/bosses/render-figures.mjs --frames). */
+  frame?: StillFrame
 }
 
 /** RU/EN display names by boss key (also used by the Gallery). */
@@ -112,7 +119,7 @@ export function bossFiguresFor(mapId: string, mode?: FigureMode): BossFigure[] {
 export function allBossFigures(): BossFigure[] {
   return Object.keys(BOSS_NAMES).flatMap((key) => {
     const url = byKey.get(key)
-    return url ? [{ key, name: BOSS_NAMES[key], url, height: SIZES[key] ?? 1 }] : []
+    return url ? [{ key, name: BOSS_NAMES[key], url, height: SIZES[key] ?? 1, ...(FRAMES[key] ? { frame: FRAMES[key] } : {}) }] : []
   })
 }
 

@@ -15,6 +15,7 @@ import {
 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import type { BossModelFix } from '../data/bossModels'
+import { FOV, LOOK_AT_Y, START_DISTANCE, START_PITCH, START_YAW_DEG, headTop } from './bossFraming'
 import { applyBossLighting, gradeBossMaterial } from './bossLook'
 import type { BossSwayHints } from './bossSwayHints'
 import { rigFromMesh, type PhysicsRig } from './physics/rig'
@@ -32,11 +33,12 @@ export interface BossViewerHandle {
 }
 
 const DEG = Math.PI / 180
-const START_YAW = -18 * DEG
-const START_PITCH = 4 * DEG
+// The start view is the stills' camera (bossFraming.ts), so the still shown while a model loads is exactly where the
+// model appears; distances are in body heights.
+const START_YAW = START_YAW_DEG * DEG
 const PITCH_LIMIT = 18 * DEG
-const DIST_MIN = 1.7, DIST_MAX = 4.2, DIST_START = 3.1
-const TARGET = new Vector3(0, 0.5, 0)
+const DIST_START = START_DISTANCE, DIST_MIN = 0.55 * DIST_START, DIST_MAX = 1.35 * DIST_START
+const TARGET = new Vector3(0, LOOK_AT_Y, 0)
 const SPIN_SPEED = 0.35 // rad/s
 const SPIN_FRAME_MS = 1000 / 30
 /** An arrow key turns by KEY_TURN in KEY_TURN_MS and a reset eases back in RESET_MS: real turns the cloth follows. */
@@ -58,7 +60,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   const scene = new Scene()
   const disposeLighting = applyBossLighting(renderer, scene)
 
-  const camera = new PerspectiveCamera(22, 1, 0.05, 50)
+  const camera = new PerspectiveCamera(FOV, 1, 0.05, 50)
   // The turntable: the model turns (so the lights stay put relative to the viewer), the camera tilts and zooms.
   const turntable = new Group()
   scene.add(turntable)
@@ -279,7 +281,8 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
         mesh.parent!.remove(mesh)
         skinned.push(physicsMesh)
       }
-      // Straighten first (about the feet), then stand the result on the floor, centred, 1 unit tall.
+      // Straighten first (about the feet), then stand the result on the floor, centred, one body height tall (feet to
+      // the top of the head, as the stills: a raised rifle or antlers do not shrink the figure).
       const upright = new Group()
       upright.add(model)
       upright.rotation.z = (fix?.rollDeg ?? 0) * DEG
@@ -287,11 +290,17 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       const box = new Box3().setFromObject(upright)
       const size = box.getSize(new Vector3())
       const centre = box.getCenter(new Vector3())
+      const body = headTop(points(upright), box.min.y, size.y) / (fix?.seated ?? 1)
       const holder = new Group()
       upright.position.set(-centre.x, -box.min.y, -centre.z)
       holder.add(upright)
-      holder.scale.setScalar(1 / Math.max(size.y, 1e-6))
+      holder.scale.setScalar(1 / Math.max(body, 1e-6))
       turntable.add(holder)
+      // every model is first seen from the start view, where its still stood while it loaded: no jump on switching
+      yaw = START_YAW; pitch = START_PITCH; dist = DIST_START
+      yawVelocity = 0
+      turn = null
+      turntable.rotation.y = yaw
       turntable.updateMatrixWorld(true)
       for (const mesh of skinned) {
         // up in the mesh's own space as the model stands here: the model was sculpted hanging under the opposite gravity
@@ -306,6 +315,8 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
           invalidate()
         }, () => { /* no rig: the model simply stays rigid */ })
       }
+      // drawn before the canvas shows again, so it never flashes the previous model
+      draw()
       options.onLoading?.(false)
       invalidate()
     }, undefined, () => {
@@ -391,6 +402,24 @@ function createRigSolver() {
       pending.clear()
     },
   }
+}
+
+/** World-space vertices (x, y, z) of every mesh under root. */
+function points(root: Object3D): Float32Array {
+  root.updateMatrixWorld(true)
+  const meshes: Mesh[] = []
+  root.traverse((object) => { if ((object as Mesh).isMesh) meshes.push(object as Mesh) })
+  const out = new Float32Array(meshes.reduce((sum, mesh) => sum + mesh.geometry.getAttribute('position').count * 3, 0))
+  const v = new Vector3()
+  let k = 0
+  for (const mesh of meshes) {
+    const position = mesh.geometry.getAttribute('position')
+    for (let i = 0; i < position.count; i++, k += 3) {
+      v.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld)
+      out[k] = v.x; out[k + 1] = v.y; out[k + 2] = v.z
+    }
+  }
+  return out
 }
 
 /** Frees the GPU buffers and textures of a loaded model. */

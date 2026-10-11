@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Loader2, RotateCw, Store, X } from 'lucide-react'
 import { allBossFigures, bossMapIds, type BossFigure } from '../data/bossFigures'
@@ -102,8 +102,16 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const handleRef = useRef<BossViewerHandle | null>(null)
   const [ready, setReady] = useState(false)
-  const [loading, setLoading] = useState(true)
+  /** The boss whose model is on screen; until it is the one asked for, his still stands in for it. */
+  const [shown, setShown] = useState<string | null>(null)
+  const requested = useRef<string | null>(null)
   const [failed, setFailed] = useState(false)
+  // Switching (even straight back to the boss on screen) shows the still at once, never the previous view for a frame.
+  const [switchedTo, setSwitchedTo] = useState(bossKey)
+  if (switchedTo !== bossKey) {
+    setSwitchedTo(bossKey)
+    setShown(null)
+  }
   const [spin, setSpin] = useState(readSpin)
   const spinRef = useRef(spin)
   const figure = figures.find((entry) => entry.key === bossKey)
@@ -118,22 +126,28 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
     import('../gallery/bossViewer3d')
       .then(({ mountBossViewer }) => {
         if (cancelled) return
-        handleRef.current = mountBossViewer(canvas, { reduced, onLoading: (busy) => { setLoading(busy); if (busy) setFailed(false) }, onError: () => setFailed(true) })
+        handleRef.current = mountBossViewer(canvas, { reduced, onLoading: (busy) => {
+          if (!busy) { setShown(requested.current); return }
+          setFailed(false)
+          setShown(null)
+        }, onError: () => setFailed(true) })
         handleRef.current.setSpin(spinRef.current)
         setReady(true)
       })
-      .catch(() => { setFailed(true); setLoading(false) })
+      .catch(() => setFailed(true))
     return () => {
       cancelled = true
       handleRef.current?.dispose()
       handleRef.current = null
       setReady(false)
+      setShown(null)
     }
   }, [reduced])
 
   useEffect(() => {
     const url = bossModelUrl(bossKey)
     if (!ready || !url) return
+    requested.current = bossKey
     handleRef.current?.load(url, BOSS_MODEL_FIX[bossKey], BOSS_SWAY_HINTS[bossKey])
   }, [bossKey, ready])
 
@@ -154,6 +168,10 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
   }, [onKey])
 
   const basedOn = info?.basedOn ? withModel.get(info.basedOn)?.name[locale] : undefined
+  const loading = shown !== bossKey && !failed
+  // The still stands exactly where the model will appear (the viewer's start view), so the swap is seamless.
+  const frame = figure?.frame
+  const stillStyle = frame ? { '--still-left': frame[0], '--still-top': frame[1], '--still-width': frame[2], '--still-height': frame[3] } as CSSProperties : undefined
   // Portalled to <body>: the page's entry animation would otherwise trap position: fixed inside it.
   return createPortal(<div className="gallery-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="gallery-viewer panel" role="dialog" aria-modal="true" aria-label={figure?.name[locale]}>
@@ -167,7 +185,7 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
       <div className="gallery-viewer-body">
         <div className="gallery-viewer-stage">
           {/* The still shows instantly and stays until the model is on screen. */}
-          {figure && (loading || failed) && <img className="gallery-viewer-still" src={figure.url} alt="" />}
+          {figure && (loading || failed) && <img className={`gallery-viewer-still${frame ? ' has-frame' : ''}`} style={stillStyle} src={figure.url} alt="" />}
           <canvas ref={canvasRef} tabIndex={0} aria-label={uiText('3D модель: перетащите, чтобы повернуть')} className={loading || failed ? 'is-hidden' : ''} />
           {loading && !failed && <span className="gallery-viewer-status"><Loader2 size={14} className="spin" /> {uiText('Загрузка модели…')}</span>}
           {failed && <span className="gallery-viewer-status is-error">{uiText('Не удалось загрузить 3D модель')}</span>}

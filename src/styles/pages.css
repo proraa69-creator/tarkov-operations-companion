@@ -1029,6 +1029,9 @@ a.quest-stage:hover { color: var(--text); }
 .gallery-viewer-stage canvas:active { cursor: grabbing; }
 .gallery-viewer-stage canvas.is-hidden { visibility: hidden; }
 .gallery-viewer-still { position: absolute; left: 50%; bottom: 6%; height: 84%; transform: translateX(-50%); opacity: .55; pointer-events: none; }
+/* Exactly where the model appears in the viewer's start view (frames.json, in heights of the stage, left from its
+   centre): the still and the model swap without a jump. */
+.gallery-viewer-still.has-frame { top: calc(var(--still-top) * 100%); bottom: auto; height: calc(var(--still-height) * 100%); max-width: none; transform: translateX(calc(var(--still-left) / var(--still-width) * 100%)); opacity: 1; }
 .gallery-viewer-status { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text-muted); font-size: 12px; }
 .gallery-viewer-status.is-error { color: var(--danger); }
 .gallery-viewer-step { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 56px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text-muted); cursor: pointer; }
