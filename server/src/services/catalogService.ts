@@ -3,6 +3,7 @@ import { fetchLiveCatalog } from '../../../src/data/catalogSource'
 import { resolvePlayerByNickname } from '../../../electron/playerProfileService'
 import { createCatalogCache, type CatalogLocale } from './catalogCache.js'
 import { withCachedItemImages } from './itemImageCache.js'
+import type { GuideImageMirror } from './guideImages.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -11,7 +12,13 @@ import type { PriceSnapshot } from './priceMirror.js'
 /** Refresh period, last-good fallback and back-off: services/catalogCache.ts. */
 let catalogLoader = fetchLiveCatalog
 let mirrorStorage: MirrorStorage | undefined
+let guideImages: GuideImageMirror | undefined
 const catalogCache = createCatalogCache((mode, locale) => catalogLoader(mode, locale))
+
+/** «Оружейник»: the guides' screenshots from our server instead of tarkov.help (services/guideImages.ts). */
+export function configureGuideImages(mirror: GuideImageMirror | undefined) {
+  guideImages = mirror
+}
 
 /** Make the server-owned catalog read tarkov.dev datasets from RaidNVMe instead of the network. */
 export function configureCatalogMirror(storage: MirrorStorage) {
@@ -56,7 +63,8 @@ async function withMirroredPrices(catalog: AppDataset, mode: RaidMode) {
 
 /** The catalog of one mode, Russian (with the wiki details) or English (tarkov.dev's own English text). */
 export async function getCatalogSnapshot(mode: RaidMode, locale: CatalogLocale = 'ru'): Promise<AppDataset> {
-  return withCachedItemImages(await withMirroredPrices(await catalogCache.get(mode, locale), mode))
+  const catalog = withCachedItemImages(await withMirroredPrices(await catalogCache.get(mode, locale), mode))
+  return guideImages ? guideImages.rewrite(catalog) : catalog
 }
 /**
  * Non-blocking read for summaries: the last snapshot (even if older than the cache window), or undefined.

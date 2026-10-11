@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,10 +10,13 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { GunsmithPage } from './GunsmithPage'
 
 const catalog = { weapons: adaptWeapons(gunsPayload('ru')), mods: adaptMods(modsPayload('ru')), ammo: [], loadedAt: '', source: 'live' as const }
-const quests: Quest[] = [1, 2].map((n) => ({
+// The third part has tarkov.help's finished build, kept on our server.
+const GUIDE_IMAGE = 'https://raidos.app/v1/guide-images/01237903-b29f-417c-83f3-671060fb220b.jpg'
+const quests: Quest[] = [1, 2, 3].map((n) => ({
   id: `gs${n}`, name: `Оружейник. Часть ${n}`, normalizedName: `gunsmith-part-${n}`, trader: 'Механик', level: 2 + n, kappa: true, description: '', objectives: [], rewards: ['5 000 опыта'],
   objectiveDetails: [{ id: `o${n}`, type: 'buildWeapon', description: 'Модифицировать M4A1 в соответствии с требуемой спецификацией', count: 1,
-    build: { weaponId: FX.m4, partIds: [FX.suppressor, FX.holo], attributes: [{ name: 'recoil', compare: '<=', value: 220 }, { name: 'effectiveDistance', compare: '>=', value: 300 }] } }],
+    build: { weaponId: FX.m4, partIds: [FX.suppressor, FX.holo], attributes: [{ name: 'recoil', compare: '<=', value: 220 }, { name: 'effectiveDistance', compare: '>=', value: 300 }],
+      ...(n === 3 ? { guide: { source: 'tarkov.help' as const, image: GUIDE_IMAGE, parts: [] } } : {}) } }],
 }))
 const items: Item[] = [
   { id: FX.m4, name: 'Colt M4A1', shortName: 'M4A1', category: 'Оружие', description: '', prices: [] },
@@ -42,5 +45,17 @@ describe('«Оружейник → Посмотреть все»', () => {
     const window = await screen.findByRole('tooltip')
     expect(window.textContent).toContain('Задание требует именно этот модуль')
     expect(window.querySelector('.gs-trader.is-locked .gs-trader-level')?.textContent).toBe('III')
+  })
+
+  it('shows the weapon instead of a finished-build screenshot that does not load', async () => {
+    render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith?quest=gs3']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
+    const screenshot = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
+    expect(screenshot.getAttribute('src')).toBe(GUIDE_IMAGE)
+    expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
+    fireEvent.error(screenshot)
+    expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
+    expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
+    // The whole rifle: its default preset's picture from the mod data.
+    await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toMatch(/m4/))
   })
 })

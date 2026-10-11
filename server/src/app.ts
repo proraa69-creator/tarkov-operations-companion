@@ -31,6 +31,8 @@ import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
 import { createDataMirrorRouter } from './routes/dataMirror.js'
 import { createItemImagesRouter } from './routes/itemImages.js'
+import { createGuideImagesRouter } from './routes/guideImages.js'
+import type { GuideImageMirror } from './services/guideImages.js'
 import type { MapMirror } from './services/mapMirror.js'
 import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
@@ -71,6 +73,8 @@ export interface ApiOptions {
   legacyGraphql?: LegacyGraphqlBuilder
   priceHistory?: PriceHistoryMirror
   itemImageDir?: string
+  /** «Оружейник»: the guides' screenshots kept on the server (services/guideImages.ts). */
+  guideImages?: GuideImageMirror
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
@@ -207,6 +211,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapTilesRouter(options.mapMirror))
   app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory }))
   app.use(createItemImagesRouter(options.itemImageDir))
+  app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))

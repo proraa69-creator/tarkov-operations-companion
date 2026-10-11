@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, CircleHelp, Crosshair, X } from 'lucide-react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
 import type { GunPart } from '../arsenal/gunTypes'
@@ -41,16 +41,19 @@ export function WeaponBuildDetails({ build, checks, compact, weaponImage, mods, 
   const weapon = items.get(build.weaponId)
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
+  // A screenshot that does not load (owner, 11.10.2026: «ни одна картинка не открывается») gives way to the weapon.
+  const [failedImage, setFailedImage] = useState<string>()
+  const buildImage = build.guide?.image && build.guide.image !== failedImage ? build.guide.image : undefined
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
-    <figure className={`gs-weapon${build.guide?.image ? ' has-build-image' : ''}`}>
+    <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
       {/* The finished build from the guide (the game's «Сборки оружия» screen), else the weapon's default preset. */}
-      {build.guide?.image
-        ? <BuildImage src={build.guide.image} alt={uiText(weapon?.name ?? 'Оружие из задания')} />
+      {buildImage
+        ? <BuildImage src={buildImage} alt={uiText(weapon?.name ?? 'Оружие из задания')} onError={() => setFailedImage(buildImage)} />
         : image ? <img src={image} alt={uiText(weapon?.name ?? '')} loading="lazy" /> : <span className="gs-weapon-empty"><Crosshair size={28} /></span>}
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
-        {build.guide?.image && build.guide.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
+        {buildImage && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
     </figure>
 

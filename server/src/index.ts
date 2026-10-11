@@ -22,7 +22,8 @@ import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
-import { configureCatalogMirror } from './services/catalogService.js'
+import { configureCatalogMirror, configureGuideImages } from './services/catalogService.js'
+import { GuideImageMirror } from './services/guideImages.js'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -71,6 +72,13 @@ if (itemImageDir) {
   process.env.RAIDOS_ITEM_IMAGE_DIR ||= itemImageDir
   process.env.RAIDOS_ITEM_IMAGE_URL ||= `${(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app').replace(/\/$/, '')}/v1/item-images`
 }
+// «Оружейник»: tarkov.help's finished-build screenshots kept next to the item images and served at /v1/guide-images.
+const guideImages = mirrorEnabled ? new GuideImageMirror({
+  directory: join(mirrorRoot, 'images', 'guides'),
+  publicBase: `${(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app').replace(/\/$/, '')}/v1/guide-images`,
+  log: (message) => console.log(message),
+}) : undefined
+configureGuideImages(guideImages)
 const dataMirror = mirrorStorage ? new TarkovDataMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
@@ -85,7 +93,7 @@ priceHistory?.start()
 const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1', priceHistory })
 const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 legacyGraphql?.start()
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, data })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
