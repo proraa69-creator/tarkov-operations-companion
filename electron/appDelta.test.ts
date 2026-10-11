@@ -112,12 +112,14 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     }
   })
 
-  it('stops on a damaged download, a release that does not match its manifest, or a players\' copy', async () => {
+  it('stops on a damaged download, a release that does not match its manifest, or a players\' copy without archive hashes', async () => {
     const { local, info, source, outDir } = await scene()
     const damaged: DeltaSource = { ...source, range: async (start, end) => { const data = Buffer.from(await source.range(start, end)); if (end - start > 100) data[data.length - 1] ^= 0xff; return data } }
     await expect(stageDelta({ fs, info, source: damaged, localAsar: local, localBuildInfo: OWNER_INFO, outDir })).rejects.toThrow('не совпадает с обновлением')
     await expect(stageDelta({ fs, info: { ...info, build: info.build + 1 }, source, localAsar: local, localBuildInfo: OWNER_INFO, outDir })).rejects.toThrow('build-info.json обновления')
-    await expect(stageDelta({ fs, info, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'client' }, outDir })).rejects.toThrow('только для версии владельца')
+    // A players' copy takes only a release whose archive hashes info.json carries (signed, electron/deltaInfo.ts).
+    await expect(stageDelta({ fs, info, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'client' }, outDir })).rejects.toThrow('нет контрольных сумм')
+    await expect(stageDelta({ fs, info, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'other' }, outDir })).rejects.toThrow('неизвестная версия')
   })
 
   it('needs the same Electron and the same files outside the archive', () => {
