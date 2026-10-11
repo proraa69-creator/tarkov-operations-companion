@@ -239,6 +239,8 @@ export interface DataGatewayOptions {
   maxInFlightPerAccount?: number
   /** Persistent server-owned mirror. Missing snapshots fall back to the guarded upstream path during bootstrap. */
   mirror?: MirrorStorage
+  /** Never contact upstream while serving an app request. A missing disk snapshot is a controlled 503. */
+  strict?: boolean
 }
 
 /** Who asks (routes/data.ts passes the signed-in account): counted against the per-account in-flight cap. */
@@ -258,6 +260,7 @@ export class DataGateway {
   private readonly maxInFlight: number
   private readonly maxInFlightPerAccount: number
   private readonly mirror?: MirrorStorage
+  private readonly strict: boolean
   private inFlight = 0
   private readonly inFlightByAccount = new Map<string, number>()
   /** Upstream calls made (tests and the owner's statistics). */
@@ -272,6 +275,7 @@ export class DataGateway {
     this.maxInFlight = Math.max(1, options.maxInFlight ?? MAX_UPSTREAM_IN_FLIGHT)
     this.maxInFlightPerAccount = Math.max(1, options.maxInFlightPerAccount ?? MAX_UPSTREAM_PER_ACCOUNT)
     this.mirror = options.mirror
+    this.strict = options.strict ?? process.env.RAIDOS_DATA_STRICT === '1'
   }
 
   /** Upstream calls running now (tests, diagnostics). */
@@ -291,18 +295,29 @@ export class DataGateway {
     // Without aliases: the same data asked under other names is one cache entry and one upstream call.
     const canonical = canonicalQuery(query)
     // gameMode is part of the variables or of the query text itself: both are in the key.
-    const key = `gql:${createHash('sha256').update(canonical).update('\u0000').update(varsText).digest('hex')}`
+    const hash = createHash('sha256').update(canonical).update('\u0000').update(varsText).digest('hex')
+    const key = `gql:${hash}`
+    const slot = `graphql-${hash}`
     const ttl = shape.fields.some((field) => SHORT_FIELDS.has(field)) ? SHORT_TTL_MS : shape.fields.some((field) => PRICE_FIELDS.has(field)) ? PRICE_TTL_MS : STATIC_TTL_MS
+    const persisted = this.mirror ? await this.mirror.read(slot, 'response.json') : undefined
+    if (this.strict) {
+      if (persisted) return persisted.toString('utf8')
+      throw new GatewayError(503, 'Данные ещё не подготовлены на сервере. Повторите позже.', 60)
+    }
     return this.cached(key, ttl, async () => {
       const body = await this.upstream(GRAPHQL_UPSTREAM, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query: canonical, ...(Object.keys(vars).length ? { variables: vars } : {}) }) })
       // The usual answer {"data":{…}} is passed on as text: parsing tens of megabytes only to look at one key would
       // hold the whole object tree in memory as well. Anything else (errors, odd shapes) is parsed and checked.
-      if (/^\s*\{\s*"data"\s*:\s*[{[]/.test(body.slice(0, 64)) && /[}\]]\s*\}\s*$/.test(body.slice(-64))) return body
+      if (/^\s*\{\s*"data"\s*:\s*[{[]/.test(body.slice(0, 64)) && /[}\]]\s*\}\s*$/.test(body.slice(-64))) {
+        await this.persistGraphql(slot, body, { query: canonical, variables: vars, fields: shape.fields })
+        return body
+      }
       let parsed: { data?: unknown; errors?: unknown }
       try { parsed = JSON.parse(body) as typeof parsed } catch { throw new GatewayError(502, 'Источник данных вернул некорректный ответ') }
       if (!parsed || typeof parsed !== 'object' || parsed.data == null) throw new GatewayError(502, 'Источник данных временно недоступен')
+      await this.persistGraphql(slot, body, { query: canonical, variables: vars, fields: shape.fields })
       return body
-    }, caller)
+    }, caller, persisted?.toString('utf8'))
   }
 
   /** JSON text of a json.tarkov.dev endpoint (cached). */
@@ -313,6 +328,7 @@ export class DataGateway {
       const mirrored = await this.mirror.read(`dataset-${match[1]}`, `${match[2]}${match[3] ? `_${match[3]}` : ''}.json`)
       if (mirrored) return mirrored.toString('utf8')
     }
+    if (this.strict) throw new GatewayError(503, 'Данные ещё не подготовлены на сервере. Повторите позже.', 60)
     const ttl = (!match[3] && JSON_PRICE_ENDPOINTS.has(match[2]!)) || JSON_CONTENT_ENDPOINTS.has(match[2]!) ? PRICE_TTL_MS : STATIC_TTL_MS
     return this.cached(`json:${path}`, ttl, async () => {
       const body = await this.upstream(`${JSON_UPSTREAM}/${path}`, { headers: { accept: 'application/json' } })
@@ -321,7 +337,23 @@ export class DataGateway {
     }, caller)
   }
 
-  private async cached(key: string, ttl: number, load: () => Promise<string>, caller: GatewayCaller = {}) {
+  private async persistGraphql(slot: string, body: string, metadata: Record<string, unknown>) {
+    if (!this.mirror) return
+    const transaction = await this.mirror.begin(slot)
+    try {
+      await transaction.write('response.json', body)
+      await transaction.publish(metadata, async () => {
+        const active = await this.mirror!.read(slot, 'response.json')
+        const parsed = active ? JSON.parse(active.toString('utf8')) as { data?: unknown } : null
+        if (!parsed || parsed.data == null) throw new Error('published GraphQL snapshot failed smoke check')
+      })
+    } catch (error) {
+      await transaction.abort()
+      throw error
+    }
+  }
+
+  private async cached(key: string, ttl: number, load: () => Promise<string>, caller: GatewayCaller = {}, diskFallback?: string) {
     const entry = this.cache.get(key)
     if (entry && entry.expires > this.now()) return entry.body
     const running = this.pending.get(key)
@@ -330,10 +362,12 @@ export class DataGateway {
     const account = caller.accountId
     if (this.inFlight >= this.maxInFlight) {
       if (entry) return entry.body
+      if (diskFallback) return diskFallback
       throw new GatewayError(503, 'Источник данных сейчас занят. Повторите через несколько секунд.', 5)
     }
     if (account && (this.inFlightByAccount.get(account) ?? 0) >= this.maxInFlightPerAccount) {
       if (entry) return entry.body
+      if (diskFallback) return diskFallback
       throw new GatewayError(429, 'Слишком много одновременных запросов данных. Повторите через несколько секунд.', 2)
     }
     this.inFlight += 1
@@ -353,6 +387,7 @@ export class DataGateway {
     }).catch((error: unknown) => {
       // An expired copy is better than nothing while tarkov.dev is down.
       if (entry) return entry.body
+      if (diskFallback) return diskFallback
       throw error
     }).finally(() => this.pending.delete(key))
     this.pending.set(key, request)

@@ -15,6 +15,7 @@ import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './ser
 import { dirname, join } from 'node:path'
 import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
+import { GraphqlPrewarm } from './services/graphqlPrewarm.js'
 import { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
@@ -73,18 +74,20 @@ const dataMirror = mirrorStorage ? new TarkovDataMirror({ storage: mirrorStorage
 const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
   // Keep the existing layout: maps.json at the mirror root, tiles below root/maps/*.
-  ? new MapMirror({ dir: mirrorRoot, log: (message) => console.log(message) })
+  ? new MapMirror({ dir: mirrorRoot, storage: mirrorStorage, log: (message) => console.log(message) })
   : undefined
 mapMirror?.start()
 dataMirror?.start()
 priceMirror?.start()
-const data = new DataGateway({ mirror: mirrorStorage })
+const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1' })
+const graphqlPrewarm = mirrorStorage ? new GraphqlPrewarm(new DataGateway({ mirror: mirrorStorage, strict: false }), (message) => console.log(message)) : undefined
+graphqlPrewarm?.start()
 const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, itemImageDir, data })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
 const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
-  dataMirror?.stop(); priceMirror?.stop()
+  dataMirror?.stop(); priceMirror?.stop(); graphqlPrewarm?.stop()
   listener.close(() => { db.close(); process.exit(0) })
 })

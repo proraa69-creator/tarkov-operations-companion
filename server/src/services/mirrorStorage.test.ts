@@ -32,6 +32,59 @@ test('mirror storage: aborted and unfinished staging never changes current', asy
   assert.equal((await storage.read('dataset-regular', 'items.json'))?.toString(), '{"ok":true}')
 })
 
+test('mirror storage: skips a generation when file content is unchanged', async (t) => {
+  const storage = await temporary(t)
+  const first = await storage.begin('dataset-regular'); await first.write('items.json', '{"ok":true}'); const published = await first.publish({ revision: 1 })
+  const duplicate = await storage.begin('dataset-regular'); await duplicate.write('items.json', '{"ok":true}'); const skipped = await duplicate.publish({ revision: 2 })
+  assert.equal(published.published, true)
+  assert.equal(skipped.published, false)
+  assert.equal(skipped.id, published.id)
+  assert.deepEqual((await storage.active()).slots['dataset-regular'], { current: published.id })
+})
+
+test('mirror storage: verifies hashes and rejects corrupted generations', async (t) => {
+  const storage = await temporary(t)
+  const tx = await storage.begin('dataset-regular'); await tx.write('items.json', '{"ok":true}'); const generation = await tx.publish()
+  const { writeFile } = await import('node:fs/promises')
+  await writeFile(join(storage.root, 'snapshots', 'generations', generation.id, 'items.json'), '{"ok":false}')
+  await assert.rejects(storage.verify('dataset-regular'), (error: unknown) => error instanceof MirrorStorageError && error.code === 'invalid-manifest')
+})
+
+test('mirror storage: restores active state when publish smoke check fails', async (t) => {
+  const storage = await temporary(t)
+  const first = await storage.begin('dataset-regular'); await first.write('items.json', '{"version":1}'); const good = await first.publish()
+  const second = await storage.begin('dataset-regular'); await second.write('items.json', '{"version":2}')
+  await assert.rejects(second.publish({}, async () => { throw new Error('smoke failed') }), /smoke failed/)
+  assert.deepEqual((await storage.active()).slots['dataset-regular'], { current: good.id })
+  assert.equal((await storage.read('dataset-regular', 'items.json'))?.toString(), '{"version":1}')
+})
+
+test('mirror storage: rolls back to a verified previous generation', async (t) => {
+  const storage = await temporary(t)
+  const first = await storage.begin('dataset-regular'); await first.write('items.json', '{"version":1}'); const one = await first.publish()
+  const second = await storage.begin('dataset-regular'); await second.write('items.json', '{"version":2}'); const two = await second.publish()
+  const rolledBack = await storage.rollback('dataset-regular')
+  assert.equal(rolledBack.id, one.id)
+  assert.deepEqual((await storage.active()).slots['dataset-regular'], { current: one.id, previous: two.id })
+  assert.equal((await storage.read('dataset-regular', 'items.json'))?.toString(), '{"version":1}')
+})
+
+test('mirror storage: publish and rollback share one lock', async (t) => {
+  const storage = await temporary(t)
+  const first = await storage.begin('dataset-regular'); await first.write('items.json', '{"version":1}'); await first.publish()
+  const second = await storage.begin('dataset-regular'); await second.write('items.json', '{"version":2}'); const current = await second.publish()
+  const third = await storage.begin('prices-regular'); await third.write('prices.json', '{"price":3}')
+  let releaseSmoke!: () => void
+  const smoke = new Promise<void>((resolve) => { releaseSmoke = resolve })
+  const publishing = third.publish({}, async () => smoke)
+  const rollingBack = storage.rollback('dataset-regular')
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  assert.equal((await storage.active()).slots['dataset-regular']?.current, current.id)
+  releaseSmoke()
+  await Promise.all([publishing, rollingBack])
+  assert.notEqual((await storage.active()).slots['dataset-regular']?.current, current.id)
+})
+
 test('mirror storage: concurrent publications keep every slot', async (t) => {
   const storage = await temporary(t)
   const data = await storage.begin('dataset-regular')

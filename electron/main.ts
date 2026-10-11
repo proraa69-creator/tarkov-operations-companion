@@ -71,7 +71,7 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
  * RAIDOS_DATA_GATEWAY=1 turns the same data routing on in a development run of the client edition.
  */
 const releaseClient = isReleaseClient(app.isPackaged)
-const dataGatewayOnly = !isOwnerBuild() && (app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1')
+const dataGatewayOnly = app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1'
 
 /** Release client: DevTools closed at once and the reload / DevTools keys ignored, in every window and webview. */
 function lockDevTools(contents: WebContents) {
@@ -163,8 +163,8 @@ app.whenReady().then(async () => {
   const serverMode = ownerBuild && isServerMode()
   if (releaseClient) Menu.setApplicationMenu(null)
   // Paid data never goes to tarkov.dev straight from the pages: the renderer routes it through the server
-  // (src/data/tarkovApi.ts); anything that slips past is cancelled here. Images (assets.tarkov.dev) stay allowed.
-  if (dataGatewayOnly) session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*'] }, (_details, callback) => callback({ cancel: true }))
+  // (src/data/tarkovApi.ts); anything that slips past, including an image URL, is cancelled here.
+  if (dataGatewayOnly) session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] }, (_details, callback) => callback({ cancel: true }))
   // The signed entitlement is renewed every few hours while the app runs (electron/entitlement.ts).
   if (!ownerBuild) setInterval(() => { void refreshEntitlement().catch(() => undefined) }, ENTITLEMENT_REFRESH_MS).unref()
   // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
@@ -553,8 +553,7 @@ function registerIpc() {
       const scan = discovered?.logsFolder ? await scanLogFolderBySession(discovered.logsFolder).catch(() => null) : null
       const logAccountId = scan?.latestAccountIdByMode[mode]
       const body = { mode, nickname, ...(logAccountId ? { accountId: logAccountId } : {}) }
-      // The server resolves through its shared cache; if it is not running or fails, resolve locally.
-      // The players' exe asks only the server (subscription required, docs/subscription-protection.md).
+      // Every packaged edition asks only the server (subscription required, docs/subscription-protection.md).
       if (dataGatewayOnly) return await serviceRequest('POST', '/v1/players/resolve', body)
       const remote = await serviceRequest('POST', '/v1/players/resolve', body).catch(() => null)
       if (remote) return remote

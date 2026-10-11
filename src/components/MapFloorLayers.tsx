@@ -5,10 +5,6 @@ import { toLeafletBounds } from './mapCrs'
 import { mainFloor } from '../data/mapProjection'
 import type { MapLayerPlan } from '../data/mapView'
 import type { GameMap, MapFloorLayer } from '../domain/types'
-import { retryTileFromMirror } from '../data/mapMirror'
-
-/** A tile tarkov.dev does not give is asked once more from our server's copy (data/mapMirror.ts). */
-const MIRROR_FALLBACK = { tileerror: retryTileFromMirror } as const
 
 /** One array for maps without layers: a new `[]` on every render would make FloorSvgOverlay redo its picture. */
 const NO_LAYERS: MapFloorLayer[] = []
@@ -50,7 +46,6 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
         <TileLayer
           key={tileUrl}
           url={tileUrl}
-          eventHandlers={MIRROR_FALLBACK}
           opacity={baseOpacity}
           bounds={bounds}
           tileSize={map.tileSize ?? 256}
@@ -65,7 +60,6 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
         <TileLayer
           key={floorTileUrl}
           url={floorTileUrl}
-          eventHandlers={MIRROR_FALLBACK}
           bounds={bounds}
           tileSize={map.tileSize ?? 256}
           minZoom={-5}

@@ -14,18 +14,7 @@
  */
 
 /** Hosts the desktop renderer fetches from directly (see the comments for who uses each). */
-export const DESKTOP_CONNECT_HOSTS = [
-  // tarkov.dev GraphQL / JSON (owner's app and development; the players' app goes through the server, and the main
-  // process cancels these requests there — electron/main.ts).
-  'https://api.tarkov.dev',
-  'https://json.tarkov.dev',
-  // Map SVG layers and tiles (src/components/FloorSvgOverlay.tsx; tilePath / svgPath of maps.json).
-  'https://assets.tarkov.dev',
-  // tarkov.dev map configuration (src/data/mapConfigClient.ts).
-  'https://raw.githubusercontent.com',
-  // Fandom wiki API for the quest catalogue (src/data/wikiQuestCatalog.ts).
-  'https://escapefromtarkov.fandom.com',
-]
+export const DESKTOP_CONNECT_HOSTS: string[] = []
 
 function origin(raw: unknown) {
   if (typeof raw !== 'string' || !raw.trim()) return ''
@@ -47,8 +36,8 @@ export function desktopContentSecurityPolicy(extraConnect: unknown[] = []) {
     "worker-src 'self' blob:",
     // React style props and Leaflet's inline positioning.
     "style-src 'self' 'unsafe-inline'",
-    // Item icons, map tiles and wiki pictures come from several CDNs; blob: map layers, data: icons from CSS.
-    "img-src 'self' data: blob: https:",
+    // Game images and map tiles are served by Raid OS; blob: map layers, data: icons from CSS.
+    "img-src 'self' data: blob: https://raidos.app",
     "media-src 'self' data: blob:",
     "font-src 'self' data:",
     // data: / blob: for small inlined assets and glTF textures.

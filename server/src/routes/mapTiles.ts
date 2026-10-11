@@ -21,7 +21,7 @@ export function createMapTilesRouter(mirror: MapMirror | undefined) {
     res.json(mirror ? mirror.status() : { state: 'off' })
   })
 
-  router.get(/^\/v1\/map-tiles\/(.+)$/, (req, res) => {
+  router.get(/^\/v1\/map-tiles\/(.+)$/, async (req, res, next) => {
     const path = String((req.params as Record<string, string>)[0] ?? '')
     const kind = path === 'maps.json' ? 'json' : TILE_PATH.test(path) ? 'tile' : SVG_PATH.test(path) ? 'svg' : null
     if (!mirror || !kind) { res.status(404).end(); return }
@@ -32,9 +32,15 @@ export function createMapTilesRouter(mirror: MapMirror | undefined) {
       ...(kind === 'svg' ? { 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" } : {}),
     })
     res.type(kind === 'json' ? 'application/json' : kind === 'svg' ? 'image/svg+xml' : 'image/png')
-    res.sendFile(join(mirror.dir, path), { dotfiles: 'deny' }, (error) => {
-      if (error && !res.headersSent) res.status(404).end()
-    })
+    if (kind === 'tile') {
+      res.sendFile(join(mirror.dir, path), { dotfiles: 'deny' }, (error) => { if (error && !res.headersSent) res.status(404).end() })
+      return
+    }
+    try {
+      const bytes = await mirror.read(path)
+      if (!bytes) { res.status(404).end(); return }
+      res.send(bytes)
+    } catch (error) { next(error) }
   })
 
   return router

@@ -16,19 +16,20 @@ const catalogCache = createCatalogCache((mode, locale) => catalogLoader(mode, lo
 /** Make the server-owned catalog read tarkov.dev datasets from RaidNVMe instead of the network. */
 export function configureCatalogMirror(storage: MirrorStorage) {
   mirrorStorage = storage
+  const strict = process.env.RAIDOS_DATA_STRICT === '1'
   const mirroredFetch: typeof fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     if (url.hostname === 'json.tarkov.dev') {
       const match = /^\/(regular|pve|pvp-season)\/([a-z]+(?:_(?:ru|en))?)$/.exec(url.pathname)
       const name = match?.[2]
       const bytes = match && name ? await storage.read(`dataset-${match[1]}`, `${name}.json`) : undefined
-      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : fetch(input, init)
+      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : strict ? new Response('Mirror snapshot unavailable', { status: 503 }) : fetch(input, init)
     }
     if ((url.hostname === 'raidos.app' && url.pathname === '/v1/map-tiles/maps.json') || (url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/src/data/maps.json'))) {
       const bytes = await readFile(join(storage.root, 'maps.json')).catch(() => undefined)
-      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : fetch(input, init)
+      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : strict ? new Response('Mirror snapshot unavailable', { status: 503 }) : fetch(input, init)
     }
-    return fetch(input, init)
+    return strict ? new Response('External catalog source disabled', { status: 503 }) : fetch(input, init)
   }
   catalogLoader = (mode, locale) => fetchLiveCatalog(mode, locale, mirroredFetch)
 }

@@ -152,7 +152,12 @@ export class TarkovDataMirror {
         validators[name] = { ...(response.headers.get('etag') ? { etag: response.headers.get('etag')! } : prior?.etag ? { etag: prior.etag } : {}), ...(response.headers.get('last-modified') ? { modified: response.headers.get('last-modified')! } : prior?.modified ? { modified: prior.modified } : {}) }
         await transaction.write(`${name}.json`, body)
       }
-      await transaction.publish({ mode, validators, counts, downloadedBytes })
+      await transaction.publish({ mode, validators, counts, downloadedBytes }, async () => {
+        for (const endpoint of ['items', 'tasks', 'maps']) {
+          const active = await this.options.storage.read(slot, `${endpoint}.json`)
+          if (!active || collectionCount(JSON.parse(active.toString('utf8')), endpoint) < (this.minimums[endpoint] ?? 0)) throw new Error(`published ${endpoint} failed smoke check`)
+        }
+      })
       return downloadedBytes
     } catch (error) {
       await transaction.abort()

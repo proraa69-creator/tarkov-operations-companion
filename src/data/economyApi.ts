@@ -3,6 +3,8 @@ import { readGameCache, writeGameCache } from './gameDataCache'
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { DEFAULT_OFFER_FEE_RATE, DEFAULT_REQUIREMENT_FEE_RATE } from '../domain/fleaFee'
+export { economyQueries, economyQuery } from './economyQueries'
+import { economyQueries } from './economyQueries'
 
 /**
  * Barters, hideout crafts and per-mode prices from the tarkov.dev GraphQL API (https://api.tarkov.dev/graphql,
@@ -92,50 +94,6 @@ export interface EconomySnapshot {
 }
 
 export interface PricePoint { timestamp: number; price: number; priceMin?: number }
-
-const VENDOR_FIELDS = `priceRUB vendor { name normalizedName ... on TraderOffer { trader { id } minTraderLevel buyLimit taskUnlock { id name } } }`
-const COUNT_FIELDS = 'item { id } count'
-
-/**
- * The barter and craft pages need prices, barters and crafts. They are three separate requests (`economyQueries`):
- * the single combined one — every item with every offer plus all barters and crafts — was too heavy for tarkov.dev
- * and failed as a whole («tarkov.dev недоступен» on both pages). Enum values are inlined (no variable types).
- */
-export function economyQueries(gameMode: 'regular' | 'pve', lang: AppLocale): { prices: string; barters: string; crafts: string } {
-  return {
-    prices: `{
-  fleaMarket(gameMode: ${gameMode}) { enabled sellOfferFeeRate sellRequirementFeeRate }
-  items(gameMode: ${gameMode}, lang: ${lang}) {
-    id name shortName iconLink basePrice avg24hPrice low24hPrice lastLowPrice types
-    buyFor { ${VENDOR_FIELDS} }
-    sellFor { ${VENDOR_FIELDS} }
-  }
-}`,
-    barters: `{
-  barters(gameMode: ${gameMode}, lang: ${lang}) {
-    id level buyLimit
-    trader { id name normalizedName }
-    taskUnlock { id name }
-    requiredItems { ${COUNT_FIELDS} }
-    rewardItems { ${COUNT_FIELDS} }
-  }
-}`,
-    crafts: `{
-  crafts(gameMode: ${gameMode}, lang: ${lang}) {
-    id level duration
-    station { id name normalizedName }
-    taskUnlock { id name }
-    requiredItems { ${COUNT_FIELDS} }
-    rewardItems { ${COUNT_FIELDS} }
-  }
-}`,
-  }
-}
-
-/** All three requests as one text (tests, schema checks). */
-export function economyQuery(gameMode: 'regular' | 'pve', lang: AppLocale): string {
-  return Object.values(economyQueries(gameMode, lang)).join('\n')
-}
 
 export function priceHistoryQuery(itemId: string, gameMode: 'regular' | 'pve', days = 30): string {
   return `{ historicalItemPrices(id: ${JSON.stringify(itemId)}, days: ${Math.max(1, Math.round(days))}, gameMode: ${gameMode}) { price priceMin timestamp } }`
@@ -269,6 +227,27 @@ const envelopeData = (value: unknown) => {
   return outer.data === undefined ? outer : outer.data
 }
 
+function withMinutePrices(snapshot: EconomySnapshot, value: unknown): EconomySnapshot {
+  const prices = asRecord(value) as SeasonalPrices
+  if (!prices.items) return snapshot
+  const items = Object.fromEntries(Object.entries(snapshot.items).map(([id, item]) => {
+    const quote = prices.items?.[id]
+    if (!quote) return [id, item]
+    const lastLowPrice = positive(quote.lastLowPrice) ?? item.lastLowPrice
+    const avg24hPrice = positive(quote.avg24hPrice) ?? item.avg24hPrice
+    const low24hPrice = positive(quote.low24hPrice) ?? item.low24hPrice
+    return [id, {
+      ...item, lastLowPrice, avg24hPrice, low24hPrice,
+      sellFor: item.sellFor.map((offer) => offer.kind === 'flea' && (lastLowPrice ?? avg24hPrice) ? { ...offer, price: (lastLowPrice ?? avg24hPrice)! } : offer),
+    }]
+  }))
+  const flea = prices.fleaMarket
+  return {
+    ...snapshot, items,
+    flea: flea ? { enabled: flea.enabled !== false, offerFeeRate: num(flea.sellOfferFeeRate) ?? snapshot.flea.offerFeeRate, requirementFeeRate: num(flea.sellRequirementFeeRate) ?? snapshot.flea.requirementFeeRate } : snapshot.flea,
+  }
+}
+
 /** Season exists in json.tarkov.dev but not in its GraphQL enum. Build the same app snapshot from our mirrored JSON. */
 async function fetchSeasonalEconomy(locale: AppLocale): Promise<EconomySnapshot> {
   const [itemsPayload, namesPayload, bartersPayload, craftsPayload, mirrored] = await Promise.all([
@@ -355,11 +334,14 @@ export async function fetchEconomySnapshot(mode: RaidMode, locale: AppLocale): P
   try {
     const queries = economyQueries(gameMode, locale)
     // Prices are required; barters or crafts alone may fail (that page then says so) without hiding the other one.
-    const [prices, barters, crafts] = await Promise.allSettled([graphql(queries.prices), graphql(queries.barters), graphql(queries.crafts)])
+    const [prices, barters, crafts, minutePrices] = await Promise.allSettled([
+      graphql(queries.prices), graphql(queries.barters), graphql(queries.crafts),
+      usesDataGateway() ? gatewayRequest('GET', `/v1/data/prices/${mode}`) : Promise.resolve(undefined),
+    ])
     if (prices.status === 'rejected') throw prices.reason
     if (barters.status === 'rejected' && crafts.status === 'rejected') throw barters.reason
     const data = { ...asRecord(prices.value), ...(barters.status === 'fulfilled' ? asRecord(barters.value) : {}), ...(crafts.status === 'fulfilled' ? asRecord(crafts.value) : {}) }
-    const snapshot = parseEconomyResponse(data, mode)
+    const snapshot = withMinutePrices(parseEconomyResponse(data, mode), minutePrices.status === 'fulfilled' ? minutePrices.value : undefined)
     if (!snapshot.barters.length && !snapshot.crafts.length) throw new Error('Сервер данных: нет бартеров и крафтов')
     await writeGameCache(cacheKey, snapshot, ECONOMY_CACHE_MS)
     return { ...snapshot, source: 'live' }

@@ -12,9 +12,9 @@ test('only successful exact production push from this repository authorizes rele
   for (const change of [{ head_sha: 'b'.repeat(40) }, { event: 'pull_request' }, { conclusion: 'failure' }, { status: 'in_progress' }, { head_repository: { full_name: 'fork/repo' } }, { path: '.github/workflows/other.yml' }]) assert.equal(approvedRun({ ...run, ...change }, sha, 'owner/repo', 'release/production'), false)
 })
 test('source allowlist refuses credentials, traversal and unknown ownership boundaries', () => {
-  for (const file of ['src/App.tsx', 'server/src/app.ts', 'website/src/main.tsx', 'package-lock.json']) assert.equal(deployPath(file), true)
+  for (const file of ['src/App.tsx', 'server/src/app.ts', 'website/src/main.tsx', 'package-lock.json', 'deploy/linux/install.sh']) assert.equal(deployPath(file), true)
   assert.equal(deployPath('docs/coordination/WORK_LOG.md'), false)
-  for (const file of ['../a', '/etc/passwd', 'src/../../a', 'src/secret.pem', 'server/.env', 'server/src/a.sqlite', 'unmanaged/file']) assert.throws(() => deployPath(file))
+  for (const file of ['../a', '/etc/passwd', 'src/../../a', 'src/secret.pem', 'server/.env', 'server/src/a.sqlite', 'deploy/linux/unknown.sh', 'unmanaged/file']) assert.throws(() => deployPath(file))
 })
 test('symlink ancestors are refused, including dangling symlinks', async () => {
   const root = await mkdtemp(join(tmpdir(), 'raidos-release-'))

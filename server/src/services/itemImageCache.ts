@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppDataset } from '../../../src/domain/types'
+import { activeItemImageDirectory } from './itemImageDirectory.js'
 
 let loaded = { path: '', mtime: 0, icons: new Map<string, string>(), grids: new Map<string, string>() }
 
@@ -10,7 +11,8 @@ export function withCachedItemImages(catalog: AppDataset): AppDataset {
   const base = process.env.RAIDOS_ITEM_IMAGE_URL
   if (!directory || !base || !/^https:\/\/[^\s?#]+$/.test(base)) return catalog
   try {
-    const path = join(directory, 'manifest.json')
+    const activeDirectory = activeItemImageDirectory(directory)
+    const path = join(activeDirectory, 'manifest.json')
     const mtime = statSync(path).mtimeMs
     if (loaded.path !== path || loaded.mtime !== mtime) {
       const manifest = JSON.parse(readFileSync(path, 'utf8')) as { items: Record<string, { images?: { icon?: { file?: string }; grid?: { file?: string } } }> }

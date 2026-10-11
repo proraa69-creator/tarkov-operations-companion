@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AppDataset } from '../../../src/domain/types'
@@ -33,5 +33,22 @@ test('replaces only verified ID images and preserves uncached links and prices',
     if (oldDir === undefined) delete process.env.RAIDOS_ITEM_IMAGE_DIR; else process.env.RAIDOS_ITEM_IMAGE_DIR = oldDir
     if (oldUrl === undefined) delete process.env.RAIDOS_ITEM_IMAGE_URL; else process.env.RAIDOS_ITEM_IMAGE_URL = oldUrl
     if (dir.startsWith(join(tmpdir(), 'raidos-item-cache-test-'))) await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('catalog image rewriting follows the active image generation', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'raidos-item-generation-')); t.after(() => rm(dir, { recursive: true, force: true }))
+  const id = '5447a9cd4bdc2dbd208b4567', generation = 'images-current1'
+  await mkdir(join(dir, 'generations', generation), { recursive: true })
+  await writeFile(join(dir, 'generations', generation, 'manifest.json'), JSON.stringify({ items: { [id]: { images: { icon: { file: `${id}-icon.webp` } } } } }))
+  await writeFile(join(dir, 'active.json'), JSON.stringify({ version: 1, current: generation }))
+  const oldDir = process.env.RAIDOS_ITEM_IMAGE_DIR, oldUrl = process.env.RAIDOS_ITEM_IMAGE_URL
+  process.env.RAIDOS_ITEM_IMAGE_DIR = dir; process.env.RAIDOS_ITEM_IMAGE_URL = 'https://raidos.app/v1/item-images'
+  try {
+    const result = withCachedItemImages({ items: [{ id, prices: [] }] } as unknown as AppDataset)
+    assert.equal(result.items[0]!.iconUrl, `https://raidos.app/v1/item-images/${id}-icon.webp`)
+  } finally {
+    if (oldDir === undefined) delete process.env.RAIDOS_ITEM_IMAGE_DIR; else process.env.RAIDOS_ITEM_IMAGE_DIR = oldDir
+    if (oldUrl === undefined) delete process.env.RAIDOS_ITEM_IMAGE_URL; else process.env.RAIDOS_ITEM_IMAGE_URL = oldUrl
   }
 })

@@ -20,7 +20,7 @@ describe('desktop Content-Security-Policy (M2)', () => {
 
   it('network only to the hosts the renderer uses (+ build-time service addresses)', () => {
     const connect = directive(desktopContentSecurityPolicy(['https://api.example.com/v1', 'javascript:alert(1)', undefined, '']), 'connect-src')
-    expect(connect).toBe("connect-src 'self' data: blob: https://api.tarkov.dev https://json.tarkov.dev https://assets.tarkov.dev https://raw.githubusercontent.com https://escapefromtarkov.fandom.com https://api.example.com")
+    expect(connect).toBe("connect-src 'self' data: blob: https://api.example.com")
     expect(connect).not.toMatch(/ https: | \*/)
   })
 
@@ -37,7 +37,7 @@ describe('desktop Content-Security-Policy (M2)', () => {
 
   it('src/main.tsx imports it before anything else; index.html keeps the common part', () => {
     const main = readFileSync(join(__dirname, '..', 'main.tsx'), 'utf8')
-    expect(main.split('\n').find((line) => line.startsWith('import '))).toBe("import './app/contentSecurityPolicy'")
+    expect(main.split('\n').find((line) => line.startsWith('import '))?.trimEnd()).toBe("import './app/contentSecurityPolicy'")
     const html = readFileSync(join(__dirname, '..', '..', 'index.html'), 'utf8')
     expect(html).toContain(`<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'none'" />`)
   })

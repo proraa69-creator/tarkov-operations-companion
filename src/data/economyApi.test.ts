@@ -7,7 +7,7 @@ let answer: (query: string) => unknown = () => ({})
 vi.mock('./tarkovApi', () => ({
   tarkovGraphql: vi.fn(async (query: string) => { graphqlCalls.push(query); return { data: answer(query) } }),
   usesDataGateway: vi.fn(() => true),
-  gatewayRequest: vi.fn(async () => ({ fleaMarket: { enabled: true }, items: { gpu: { lastLowPrice: 777000, avg24hPrice: 800000 } } })),
+  gatewayRequest: vi.fn(async (_method: string, path: string) => ({ fleaMarket: { enabled: true }, items: { gpu: { lastLowPrice: path.endsWith('/pve') ? 420000 : path.endsWith('/pvp') ? 610000 : 777000, avg24hPrice: 800000 } } })),
   tarkovJson: vi.fn(async (path: string) => {
     if (path === 'pvp-season/items') return { data: { items: { gpu: { id: 'gpu', basePrice: 100000, lastLowPrice: 700000, types: [] } }, fleaMarket: { enabled: true } } }
     if (path === 'pvp-season/items_ru') return { data: { 'gpu Name': 'Видеокарта', 'gpu ShortName': 'GPU' } }
@@ -53,8 +53,8 @@ describe('economy data per mode', () => {
   it('PvP and PvE snapshots are fetched and cached apart; a cached copy of another mode is never served', async () => {
     const pvp = await fetchEconomySnapshot('pvp', 'ru')
     const pve = await fetchEconomySnapshot('pve', 'ru')
-    expect([pvp.mode, pvp.items.gpu?.lastLowPrice]).toEqual(['pvp', 600000])
-    expect([pve.mode, pve.items.gpu?.lastLowPrice]).toEqual(['pve', 410000])
+    expect([pvp.mode, pvp.items.gpu?.lastLowPrice]).toEqual(['pvp', 610000])
+    expect([pve.mode, pve.items.gpu?.lastLowPrice]).toEqual(['pve', 420000])
     expect([...cache.keys()]).toEqual(['tarkov-operations-economy-v1-pvp-ru', 'tarkov-operations-economy-v1-pve-ru'])
     expect(graphqlCalls.slice(0, 3).every((query) => !/gameMode: pve/.test(query))).toBe(true)
     expect(graphqlCalls.slice(3).every((query) => /gameMode: pve/.test(query))).toBe(true)
