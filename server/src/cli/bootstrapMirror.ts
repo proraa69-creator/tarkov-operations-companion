@@ -27,7 +27,7 @@ export async function bootstrapWorkers(workers: BootstrapWorkers) {
   return result
 }
 
-export async function main(_argv = process.argv.slice(2), env = process.env) {
+export async function main(env = process.env) {
   const root = env.RAIDOS_MIRROR_DIR || '/var/lib/raidos/map-mirror'
   const storage = new MirrorStorage({ root, requireMount: env.RAIDOS_MIRROR_REQUIRE_MOUNT === '1' })
   const log = (message: string) => console.error(message)

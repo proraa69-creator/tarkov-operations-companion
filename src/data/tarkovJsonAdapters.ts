@@ -245,7 +245,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
 }
 
 export function buildLegacyTraders(bundle: TarkovJsonBundle) {
-  return tarkovRecords(bundle.traders, 'traders').map((row) => ({ id: text(row.id), name: text(row.name), normalizedName: text(row.normalizedName), resetTime: row.resetTime, imageLink: row.imageLink }))
+  return tarkovRecords(bundle.traders, 'traders').map((row) => ({ id: text(row.id), name: text(row.name), normalizedName: text(row.normalizedName), resetTime: row.resetTime, imageLink: undefined }))
 }
 
 export function buildLegacyBarters(bundle: TarkovJsonBundle, mode: RaidMode = 'pvp', locale: AppLocale = 'ru') {

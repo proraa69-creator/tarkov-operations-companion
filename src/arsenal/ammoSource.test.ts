@@ -31,7 +31,7 @@ describe('tarkov.dev ammo adapter', () => {
 
   it('loads ammo from the selected mirrored JSON dataset', async () => {
     const id = '54527ac44bdc2d36668b4567'
-    const loader = vi.fn(async (_mode: string, _locale: string) => ({ items: { data: { items: { [id]: { id, name: 'M855A1', shortName: 'M855A1', types: ['ammo'], lastLowPrice: 1200, properties: { propertiesType: 'ItemPropertiesAmmo', caliber: 'Caliber556x45NATO', ammoType: 'bullet', damage: 49, penetrationPower: 44 } } } } }, mode: 'pvp' as const }))
+    const loader = vi.fn(async () => ({ items: { data: { items: { [id]: { id, name: 'M855A1', shortName: 'M855A1', types: ['ammo'], lastLowPrice: 1200, properties: { propertiesType: 'ItemPropertiesAmmo', caliber: 'Caliber556x45NATO', ammoType: 'bullet', damage: 49, penetrationPower: 44 } } } } }, mode: 'pvp' as const }))
     const rows = await fetchAmmoStats('pvp', 'ru', loader)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ id, damage: 49, penetration: 44, price: 1200 })

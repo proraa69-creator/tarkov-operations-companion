@@ -32,7 +32,7 @@ vi.mock('./gameDataCache', () => ({
   writeGameCache: vi.fn(async (key: string, value: unknown) => { cache.set(key, value) }),
 }))
 
-const { economyQueries, fetchEconomySnapshot, fetchPriceHistory, parseEconomyResponse, SeasonPricesUnavailable } = await import('./economyApi')
+const { economyQueries, fetchEconomySnapshot, fetchPriceHistory, parseEconomyResponse } = await import('./economyApi')
 const { bestSell, cheapestBuy, fleaPrice } = await import('../domain/economy')
 
 /** One GPU priced differently per mode, so a mix-up would show. */

@@ -4,7 +4,6 @@ import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { DEFAULT_OFFER_FEE_RATE, DEFAULT_REQUIREMENT_FEE_RATE } from '../domain/fleaFee'
 export { economyQueries, economyQuery } from './economyQueries'
-import { economyQueries } from './economyQueries'
 import { loadTarkovDataset, mirrorMode } from './tarkovDataset'
 import { buildEconomySnapshot as buildJsonEconomy, normalizePriceHistory } from './tarkovJsonAdapters'
 
