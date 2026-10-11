@@ -11,7 +11,7 @@ import { createLoginCodeHandlers, type LoginCodeHandlerOptions, type LoginCodeSt
  * Cloudflare's CF-IPCountry, believed only when the request reached the API through this PC's own chain (loopback:
  * cloudflared → site server → API); Cloudflare's edge sets the header itself, so a visitor cannot choose it.
  */
-const proxiedCountry = (req: Request) => (/^(?:127\.|::1$|::ffff:127\.)/.test(req.socket.remoteAddress ?? '') ? req.get('cf-ipcountry') : undefined)
+export const proxiedCountry = (req: Request) => (/^(?:127\.|::1$|::ffff:127\.)/.test(req.socket.remoteAddress ?? '') ? req.get('cf-ipcountry') : undefined)
 
 export function createLoginCodesRouter(accounts: AccountStore, codes: LoginCodeStore, options: LoginCodeHandlerOptions = {}) {
   const handlers = createLoginCodeHandlers(accounts, codes, options)

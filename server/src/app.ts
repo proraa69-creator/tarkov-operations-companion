@@ -7,12 +7,12 @@ import { getCatalogSnapshot, peekCatalogSnapshot, resolvePlayer } from './servic
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
-import { createLoginCodesRouter } from './routes/loginCodes.js'
+import { createLoginCodesRouter, proxiedCountry } from './routes/loginCodes.js'
 import { createPhoneRouter } from './routes/phone.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { createEmailRouter } from './routes/email.js'
 import { EmailAuthService } from './services/emailAuth.js'
-import { LoginCodeStore } from './services/loginCodes.js'
+import { countryCode, LoginCodeStore } from './services/loginCodes.js'
 import { AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
@@ -98,7 +98,7 @@ export interface ApiOptions {
  * Per-IP limits (per minute) of the public endpoints that need no sign-in and each cost an upstream lookup or a large
  * answer: the catalog, and the player lookups (resolve + profile share one bucket). Generous for real clients.
  */
-export const PUBLIC_RATE_LIMITS = { catalog: 120, players: 30 }
+export const PUBLIC_RATE_LIMITS = { catalog: 120, players: 30, geo: 60 }
 
 /**
  * Origins allowed by default: the app renderer dev server, the website, and the phone app's WebView
@@ -241,6 +241,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
   app.use('/v1/data', createDataRouter(options.data ?? new DataGateway(), paid))
+  // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
+  // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
+  app.get('/v1/geo', perIp('geo'), (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    res.json({ country: countryCode(proxiedCountry(req)) ?? null })
+  })
   app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {
     const lang = z.enum(['ru', 'en']).default('ru').parse(req.query.lang ?? undefined)
     res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode), lang))

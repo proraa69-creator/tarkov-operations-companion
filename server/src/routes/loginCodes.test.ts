@@ -200,3 +200,22 @@ test('the QR sign-in routes are mounted on the API', async () => {
     store.close()
   }
 })
+
+test('/v1/geo: the visitor\'s country for the website language (Cloudflare\'s, through the proxy chain only)', async () => {
+  const server = createApi(new ProgressStore(':memory:'), undefined, new AccountStore()).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const address = server.address()
+  assert.ok(address && typeof address !== 'string')
+  const geo = async (headers: Record<string, string> = {}) => {
+    const response = await fetch(`http://127.0.0.1:${address.port}/v1/geo`, { headers })
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    return response.json() as Promise<{ country: string | null }>
+  }
+  try {
+    assert.deepEqual(await geo({ 'cf-ipcountry': 'ru' }), { country: 'RU' })
+    assert.deepEqual(await geo({ 'cf-ipcountry': 'XX' }), { country: null })
+    assert.deepEqual(await geo(), { country: null })
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
