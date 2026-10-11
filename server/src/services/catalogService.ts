@@ -22,11 +22,11 @@ export function configureCatalogMirror(storage: MirrorStorage) {
       const match = /^\/(regular|pve|pvp-season)\/([a-z]+(?:_(?:ru|en))?)$/.exec(url.pathname)
       const name = match?.[2]
       const bytes = match && name ? await storage.read(`dataset-${match[1]}`, `${name}.json`) : undefined
-      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : new Response('', { status: 503 })
+      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : fetch(input, init)
     }
     if ((url.hostname === 'raidos.app' && url.pathname === '/v1/map-tiles/maps.json') || (url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/src/data/maps.json'))) {
       const bytes = await readFile(join(storage.root, 'maps.json')).catch(() => undefined)
-      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : new Response('', { status: 503 })
+      return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : fetch(input, init)
     }
     return fetch(input, init)
   }
