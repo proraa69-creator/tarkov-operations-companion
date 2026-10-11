@@ -36,10 +36,6 @@ export interface ExperimentalSettings {
    * default (owner, 10.10.2026); empty = taken from the game's settings («По настройкам игры»).
    */
   screenshotKey: string
-  /** «Безрамочный режим»: keep the game in borderless windowed mode (screenMode.ts); off by default (owner, 10.10.2026). */
-  borderless: boolean
-  /** The player's own screen mode before the app changed it (put back when «Безрамочный режим» is switched off). */
-  borderlessPrevious: number | null
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
@@ -60,8 +56,6 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   runAsAdmin: false,
   showOnScreenshot: false,
   screenshotKey: 'Print',
-  borderless: false,
-  borderlessPrevious: null,
 }
 
 let current: ExperimentalSettings | null = null
@@ -115,8 +109,6 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     // The owner removed «Показывать мини-карту при скриншоте»: the minimap opens only by its key.
     showOnScreenshot: false,
     screenshotKey: screenshotKey(value),
-    borderless: flag('borderless'),
-    borderlessPrevious: Number.isInteger(value.borderlessPrevious) && (value.borderlessPrevious as number) >= 0 && (value.borderlessPrevious as number) <= 5 ? value.borderlessPrevious as number : null,
   }
 }
 

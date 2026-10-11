@@ -1,6 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, Maximize2, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, ShieldAlert } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
@@ -22,16 +22,6 @@ const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: s
 ]
 
 /** Which screenshot key is used and where it came from, in one short line. */
-/** «Безрамочный режим в игре»: what it does and what happened with the game's settings file. */
-function screenModeHint(result: ExperimentalStatus['screenMode'], on: boolean) {
-  if (on && result === 'game-running') return 'Игра запущена: режим переключится, как только вы её закроете (игра перезаписывает настройки при выходе).'
-  if (on && (result === 'applied' || result === 'already')) return 'В настройках игры стоит «Оконный без рамки» — мини-карта и карточка предмета видны поверх игры.'
-  if (on && result === 'no-file') return 'Не нашли файл настроек игры — запустите Escape from Tarkov один раз и вернитесь.'
-  if (on && result === 'no-setting') return 'В файле настроек игры нет режима экрана — выберите «Оконный без рамки» в игре вручную.'
-  if (on && result === 'error') return 'Не удалось изменить настройки игры — выберите «Оконный без рамки» в игре вручную.'
-  return 'Ставит в игре режим «Оконный без рамки», чтобы мини-карта и карточка предмета были видны поверх игры. Меняет только этот режим, когда игра закрыта; выключите — вернётся ваш прежний.'
-}
-
 function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined) {
   if (!key) return uiText('Определяю клавишу скриншота…')
   if (key.unbound) return uiText('В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот»).')
@@ -160,13 +150,6 @@ export function ExperimentalPage() {
                   value={settings?.minimapKey ?? 'KeyM'}
                   taken={[settings?.itemKey, settings?.collectorKey]}
                   onChange={(minimapKey) => update({ minimapKey })}
-                />
-                <Toggle
-                  icon={<Maximize2 size={16} />}
-                  title="Безрамочный режим в игре"
-                  hint={screenModeHint(status?.screenMode, Boolean(settings?.borderless))}
-                  on={Boolean(settings?.borderless)}
-                  onChange={(borderless) => update({ borderless })}
                 />
                 <div className="setting-row">
                   <span><strong>{uiText('Размер мини-карты')}</strong><small>{settings?.minimapWidth ?? 420} px</small></span>

@@ -19,8 +19,6 @@ import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScre
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
-import { applyScreenMode, graphicsFile, type ScreenModeResult } from './screenMode.js'
-import { isTarkovRunning } from '../gameProcess.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
   type DisplayMode, type KeyStroke,
@@ -154,34 +152,12 @@ export function startExperimental(next: Options) {
   startHook()
   applySettings(readSettings())
   watchTimer = setInterval(watchGame, WATCH_MS)
-  // «Безрамочный режим»: set (or put back) in the game's settings now if the game is closed, else once it closes.
-  void syncScreenMode()
   // A game switching resolution (Alt+Tab, minimize) changes the displays under the overlay.
   screen.on('display-metrics-changed', resyncMinimapClicks)
   screen.on('display-added', resyncMinimapClicks)
   screen.on('display-removed', resyncMinimapClicks)
   // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
   if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
-}
-
-let screenModeResult: ScreenModeResult | null = null
-let screenModeRetry: NodeJS.Timeout | null = null
-
-/**
- * «Безрамочный режим» (screenMode.ts): writes borderless into the game's Graphics.ini while the game is closed, or puts
- * the player's own mode back when switched off; with the game running it waits and tries again every 30 s.
- */
-async function syncScreenMode(): Promise<ExperimentalSettings> {
-  const settings = readSettings()
-  if (screenModeRetry) { clearInterval(screenModeRetry); screenModeRetry = null }
-  const outcome = await applyScreenMode({ file: graphicsFile(app.getPath('appData')), on: settings.borderless, previous: settings.borderlessPrevious, gameRunning: await isTarkovRunning() })
-  screenModeResult = outcome.result
-  const next = outcome.previous !== settings.borderlessPrevious ? await updateSettings({ borderlessPrevious: outcome.previous }) : settings
-  if (outcome.result === 'game-running') {
-    screenModeRetry = setInterval(() => { void isTarkovRunning().then((running) => { if (running === false) void syncScreenMode() }) }, 30_000)
-    screenModeRetry.unref?.()
-  }
-  return next
 }
 
 let gameWasForeground = false
@@ -304,8 +280,7 @@ function registerIpc() {
   })
   ipcMain.handle('experimental:get-settings', () => readSettings())
   ipcMain.handle('experimental:update-settings', async (event, patch: unknown) => {
-    let settings = await updateSettings(patch)
-    if (patch && typeof patch === 'object' && 'borderless' in patch) settings = await syncScreenMode()
+    const settings = await updateSettings(patch)
     // The minimap's own sliders (opacity, size): it already shows the new value. Sending its whole payload back on
     // every slider step set the slider back to an older value while it was still dragged and rebuilt the map each time.
     applySettings(settings, { echoMinimap: !minimapWindow || minimapWindow.isDestroyed() || event.sender !== minimapWindow.webContents })
@@ -328,7 +303,6 @@ function registerIpc() {
     gameSeenAt: lastGameSeenAt || null,
     gameKeys: gameKeysState(),
     lastPosition: freshPosition(),
-    screenMode: screenModeResult,
     raid: options.raidState(),
     displayMode,
   }))

@@ -97,9 +97,6 @@ export interface ExperimentalSettings {
   showOnScreenshot: boolean
   /** Unity key name the app presses for a screenshot; empty = the key set in the game. */
   screenshotKey: string
-  /** Keep the game in borderless windowed mode (changes the game's Graphics.ini while it is closed). */
-  borderless?: boolean
-  borderlessPrevious?: number | null
 }
 
 export interface ExperimentalStatus {
@@ -126,8 +123,6 @@ export interface ExperimentalStatus {
   /** Whether keys pressed while the game is in front reach this app (hidden: the game runs elevated). */
   gameKeys: 'visible' | 'hidden' | 'unknown'
   lastPosition: PlayerPosition | null
-  /** «Безрамочный режим»: what happened to the game's settings file last time (electron/experimental/screenMode.ts). */
-  screenMode?: 'applied' | 'already' | 'restored' | 'game-running' | 'no-file' | 'no-setting' | 'off' | 'error' | null
   raid: { inRaid: boolean; location?: string }
   /** Display mode of the game the last time it was in front. */
   displayMode: 'exclusive' | 'fullscreen' | 'normal' | 'unknown'
