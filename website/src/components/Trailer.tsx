@@ -7,15 +7,16 @@ import { tr } from '../i18n'
  * Product trailer — the centrepiece of the home page.
  *
  * Source: `website/public/media/trailer.mp4` (H.264, 720p, small: it ships inside the server exe, so every MB slows the server's start).
- * Poster: `trailer-poster.jpg` when present, otherwise the placeholder `trailer-poster.svg`.
- * When a file exists it autoplays muted and loops (unless the visitor prefers reduced motion); the custom
- * controls toggle play/pause and sound. When no source can be played the poster stays with a "coming soon" note.
+ * It autoplays muted and loops; the custom controls toggle play/pause and sound. No picture is shown before the video
+ * (owner, 11.10.2026: a card flashed on every load before the video, «нужно убрать ее вообще»): the frame stays dark
+ * until the first frame is decoded. Only when the video does not autoplay (the visitor prefers reduced motion, or the
+ * browser refused) the title card `trailer-poster.jpg` waits with the play button. When no source can be played a
+ * "coming soon" note is shown.
  */
 const TRAILER_SOURCES = [
   { src: '/media/trailer.mp4', type: 'video/mp4' },
 ]
-const POSTER_JPG = '/media/trailer-poster.jpg'
-const POSTER_FALLBACK = '/media/trailer-poster.svg'
+const POSTER = '/media/trailer-poster.jpg'
 
 type Status = 'loading' | 'ready' | 'missing'
 
@@ -24,24 +25,22 @@ export function Trailer() {
   const [status, setStatus] = useState<Status>('loading')
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true)
-  const [poster, setPoster] = useState(POSTER_FALLBACK)
   const [reducedMotion] = useState(prefersReducedMotion)
-
-  // Use the real JPG poster automatically once it exists.
-  useEffect(() => {
-    const image = new Image()
-    let alive = true
-    image.onload = () => { if (alive && image.naturalWidth > 0) setPoster(POSTER_JPG) }
-    image.src = POSTER_JPG
-    return () => { alive = false }
-  }, [])
+  // The browser refused to autoplay (iOS low-power mode, data saver): the title card and the play button wait for a tap.
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false)
+  const stillFrame = reducedMotion || autoplayBlocked
 
   // Muted autoplay. React does not reliably reflect the `muted` attribute, so set the property directly.
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
     video.muted = true
-    if (!reducedMotion) video.play().catch(() => { /* blocked or no source — the overlay handles it */ })
+    if (!reducedMotion) {
+      video.play().catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'NotAllowedError') setAutoplayBlocked(true)
+        // No source: the <source> error sets 'missing'.
+      })
+    }
   }, [reducedMotion])
 
   function togglePlay() {
@@ -64,7 +63,7 @@ export function Trailer() {
     <div className={`trailer${playing ? ' is-playing' : ''}${missing ? ' is-missing' : ''}`}>
       <video
         ref={videoRef}
-        poster={poster}
+        poster={stillFrame ? POSTER : undefined}
         loop
         muted
         playsInline
@@ -96,7 +95,7 @@ export function Trailer() {
         </div>
       ) : (
         <>
-          {!playing && (status === 'ready' || reducedMotion) && (
+          {!playing && (status === 'ready' || stillFrame) && (
             <button type="button" className="trailer-overlay" onClick={togglePlay} aria-label={tr('Смотреть трейлер')}>
               <span className="play-button" aria-hidden="true"><Play fill="currentColor" /></span>
               <span className="trailer-caption">{tr('Смотреть трейлер')}</span>
