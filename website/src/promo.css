@@ -144,3 +144,54 @@
 @media (prefers-reduced-motion: reduce) {
   .stash-grid span.is-hover { box-shadow: none; }
 }
+
+/* ── The trailer's scenes (11.10.2026): item cards, modes, minimap, update, themes, live phone ── */
+.item-pair-scene { min-height: 400px; padding-top: 66px; }
+.item-pair { position: relative; display: grid; gap: 14px; justify-items: center; width: min(440px, 100%); }
+.item-pair .item-card-shot:nth-child(2) { justify-self: end; width: min(400px, 92%); }
+.key-hint span + kbd { margin-left: 2px; }
+.collector-card { justify-self: end; width: min(360px, 80%); margin-top: -36px; margin-right: 4%; }
+
+.modes-stack { position: relative; display: grid; padding: 26px 8% 18px 0; }
+.modes-card { grid-area: 1 / 1; position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; background: #070b09; box-shadow: 0 22px 50px rgb(0 0 0 / 50%); transform-origin: top left; }
+.modes-card img { display: block; width: 100%; height: auto; }
+.modes-card.is-0 { transform: translate(0, 0); z-index: 3; }
+.modes-card.is-1 { transform: translate(5%, -6%) scale(.97); z-index: 2; opacity: .9; }
+.modes-card.is-2 { transform: translate(10%, -12%) scale(.94); z-index: 1; opacity: .75; }
+.modes-card-label { position: absolute; top: 10px; left: 10px; z-index: 1; padding: 4px 10px; border: 1px solid rgb(223 189 112 / 45%); border-radius: 8px; background: rgb(10 15 12 / 85%); color: var(--brass-strong); font-size: 12px; font-weight: 850; letter-spacing: .04em; }
+.modes-card.is-1 .modes-card-label, .modes-card.is-2 .modes-card-label { left: auto; right: 10px; }
+
+.flea-card-shot { justify-self: end; width: min(300px, 62%); height: auto; margin-top: -90px; margin-right: 3%; border-radius: 12px; filter: drop-shadow(0 18px 34px rgb(0 0 0 / 70%)); }
+
+.minimap-scene { min-height: 420px; display: grid; place-items: center; padding: 34px 18px 22px; background:
+  radial-gradient(ellipse at 30% 30%, rgb(96 110 80 / 22%), transparent 60%),
+  repeating-linear-gradient(115deg, rgb(255 255 255 / 2%) 0 2px, transparent 2px 9px),
+  linear-gradient(160deg, #1d241c, #0a0e0b); }
+.minimap-scene-label { position: absolute; top: 12px; left: 14px; color: var(--text-dim); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.minimap-shot { position: relative; display: block; width: min(330px, 86%); height: auto; filter: drop-shadow(0 22px 40px rgb(0 0 0 / 75%)); }
+
+.update-scene { min-height: 300px; display: grid; place-items: center; padding: 28px 18px; background: radial-gradient(ellipse at 50% 40%, rgb(196 166 101 / 12%), transparent 65%), linear-gradient(160deg, var(--surf-2), var(--surf-0)); }
+.update-shot { display: block; width: min(460px, 100%); height: auto; border-radius: 12px; filter: drop-shadow(0 22px 40px rgb(0 0 0 / 65%)); }
+
+.themes-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.themes-grid li { grid-column: span 2; display: grid; gap: 6px; }
+.themes-grid li:nth-child(4) { grid-column: 2 / span 2; }
+.themes-grid img { display: block; width: 100%; height: auto; border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 14px 30px rgb(0 0 0 / 45%); }
+.themes-grid span { color: var(--text-muted); font-size: 12.5px; font-weight: 750; text-align: center; }
+
+.sync-live { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 18px; }
+.phone-frame.is-small { width: 132px; padding: 6px; border-radius: 22px; }
+.phone-frame.is-small img { border-radius: 17px; }
+
+@media (max-width: 720px) {
+  .item-pair-scene { min-height: 330px; padding-top: 58px; }
+  .modes-stack { padding: 18px 6% 10px 0; }
+  .themes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .themes-grid li, .themes-grid li:nth-child(4) { grid-column: auto; }
+  .themes-grid li:last-child { grid-column: 1 / -1; justify-self: center; width: 50%; }
+  .flea-card-shot, .collector-card { margin-top: -24px; }
+  .minimap-scene { min-height: 340px; }
+}
+@media (max-width: 460px) {
+  .sync-live { grid-template-columns: 1fr; justify-items: center; }
+}

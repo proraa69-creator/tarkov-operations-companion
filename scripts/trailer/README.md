@@ -81,7 +81,15 @@ node scripts/trailer/capture.mjs                          # 2. app → scripts/t
 node scripts/trailer/render.mjs                           # 3. trailer.html → 720p mp4 + poster (about 10 min)
 ```
 
-Stop both vite servers afterwards. `capture.mjs scenegroup ...` re-captures only some groups (`app stash item modes squad
+Stop both vite servers afterwards.
+
+**The website's presentation** («Двенадцать причин…», `website/src/components/promo/`) uses the same shots, one set per
+site language: `TRAILER_LOCALE=en node scripts/trailer/capture.mjs app item modes themes squad bosshp ballistics flea
+minimap update phone live` writes the English interface into `shots-en/` (the demo data's quests, traders and items get
+their English names there); both sets are converted to `website/src/assets/promo/*.webp` and `*-en.webp` (1200 px wide
+for screens, the Tagilla 3D frame composed with the health card for the bosses).
+
+ `capture.mjs scenegroup ...` re-captures only some groups (`app stash item modes squad
 themes bossstill boss3d bosshp ballistics flea minimap update phone live site qr`); `boss3d` alone takes about 10 min
 (120 frames of software WebGL). `render.mjs --preview=scenes --preview-dir=/tmp/p` writes two stills
 per scene without encoding, `--preview=12.5,30` writes stills at those times. The capture also writes the website's

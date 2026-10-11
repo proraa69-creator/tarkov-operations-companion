@@ -24,7 +24,54 @@ import { chromium } from '../../node_modules/playwright/index.mjs'
 const here = dirname(fileURLToPath(import.meta.url))
 const BASE = process.env.TRAILER_BASE ?? 'http://127.0.0.1:5210/'
 const SITE = process.env.TRAILER_SITE ?? 'http://127.0.0.1:5672/'
-const OUT = join(here, 'shots')
+// TRAILER_LOCALE=en: the English interface into shots-en/ (the website's English presentation); icons are read from shots/.
+const LOCALE = process.env.TRAILER_LOCALE === 'en' ? 'en' : 'ru'
+const SRC = join(here, 'shots')
+const OUT = join(here, LOCALE === 'en' ? 'shots-en' : 'shots')
+/** The English capture shows the demo data's quests, traders and items in English (the live English catalog has them so). */
+const EN_NAMES = [
+  ['БП «Топливо»', 'BP Depot'],
+  ['Проверка', 'Checking'],
+  ['Операция «Водолей»', 'Operation Aquarius'],
+  ['Золотая добыча', 'Golden Swag'],
+  ['Знакомство', 'Introduction'],
+  ['Дебют', 'Debut'],
+  ['Стрельба по банкам', 'Shooting Cans'],
+  ['Гренадёр', 'Grenadier'],
+  ['Фармацевт', 'Pharmacist'],
+  ['Тур', 'Tour'],
+  ['База данных — часть 1', 'Database - Part 1'],
+  ['Сигнал — часть 1', 'Signal - Part 1'],
+  ['Тарковский стрелок. Часть 1', 'Tarkov Shooter - Part 1'],
+  ['Спа-тур. Часть 1', 'Spa Tour - Part 1'],
+  ['Горячая доставка', 'Hot Delivery'],
+  ['Доставка из прошлого', 'Delivery From the Past'],
+  ['Прапор', 'Prapor'],
+  ['Терапевт', 'Therapist'],
+  ['Лыжник', 'Skier'],
+  ['Миротворец', 'Peacekeeper'],
+  ['Механик', 'Mechanic'],
+  ['Барахольщик', 'Ragman'],
+  ['Егерь', 'Jaeger'],
+  ['Скупщик', 'Fence'],
+  ['Ключ от бытовки', 'Portable cabin key'],
+  ['Ключ от комнаты 114', 'Dorm room 114 key'],
+  ['Ключ от комнаты 206', 'Dorm room 206 key'],
+  ['Ключ от комнаты 303', 'Dorm room 303 key'],
+  ['Ключ от спецтехники', 'Machinery key'],
+  ['Маркер MS2000', 'MS2000 Marker'],
+  ['Видеокарта', 'Graphics card'],
+  ['Аптечка Salewa', 'Salewa first aid kit'],
+  ['Бронежилет Корунд-ВМ', 'Korund-VM body armor'],
+  ['Ружьё МР-133 12к', 'MP-133 12ga shotgun'],
+  ['Медблок', 'Medstation'],
+  ['Верстак', 'Workbench'],
+  ['Биткоин-ферма', 'Bitcoin farm'],
+  ['Разведцентр', 'Intelligence center'],
+  ['Лазарет', 'Infirmary'],
+]
+// Vite serves the module compiled by esbuild, which prints strings in double quotes.
+const enDemo = (source) => EN_NAMES.reduce((text, [ru, en]) => text.split(`"${ru}"`).join(`"${en}"`).split(`'${ru}'`).join(`'${en}'`), source)
 const AMMO_FIXTURE = readFileSync(join(here, '..', '..', 'src', 'arsenal', 'fixtures', 'ammoResponse.json'), 'utf8')
 mkdirSync(OUT, { recursive: true })
 const only = process.argv.slice(2)
@@ -140,7 +187,7 @@ const SQUAD_BRIDGE = `(() => {
       websiteUrl: async () => 'https://raidos.app',
     },
     update: { status: async () => updateState, onStatus: () => () => {}, install: async () => updateState },
-    getVersion: async () => '0.5.4',
+    getVersion: async () => '0.6.0',
     getRaidState: async () => ({ inRaid: false }),
     serviceRequest: async (method, path) => {
       if (/\\/v1\\/squads\\/mine\\//.test(path)) return { squad: info, access: true, invitations: [] }
@@ -156,13 +203,14 @@ const SQUAD_BRIDGE = `(() => {
 const browser = await chromium.launch({ executablePath: process.env.TRAILER_CHROMIUM ?? '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--force-color-profile=srgb'] })
 
 async function newPage(opts = {}) {
-  const context = await browser.newContext({ viewport: opts.viewport ?? { width: 1920, height: 1080 }, deviceScaleFactor: opts.scale ?? 2, locale: 'ru-RU', reducedMotion: 'reduce' })
+  const context = await browser.newContext({ viewport: opts.viewport ?? { width: 1920, height: 1080 }, deviceScaleFactor: opts.scale ?? 2, locale: LOCALE === 'en' ? 'en-US' : 'ru-RU', reducedMotion: 'reduce' })
   await context.route('**/*', async (route) => {
     const url = route.request().url()
     if (url.startsWith(BASE)) {
       if (/\/src\/data\/demo\.ts/.test(url)) {
         const response = await route.fetch()
-        return route.fulfill({ response, body: (await response.text()) + COLLECTOR_PATCH })
+        const body = (await response.text()) + COLLECTOR_PATCH
+        return route.fulfill({ response, body: LOCALE === 'en' ? enDemo(body) : body })
       }
       return route.continue()
     }
@@ -171,24 +219,24 @@ async function newPage(opts = {}) {
     if (/^https?:\/\/([^/]+\.)?tarkov\.dev\//.test(url)) {
       if (/\/maps\//.test(url) || /\.svg(\?|$)/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: MAP_GRID })
       const own = Object.entries(ICON_FILES).find(([id]) => url.includes(`/${id}-`))
-      if (own) { try { return route.fulfill({ status: 200, contentType: 'image/png', body: readFileSync(join(OUT, own[1])) }) } catch { /* not cut yet */ } }
+      if (own) { try { return route.fulfill({ status: 200, contentType: 'image/png', body: readFileSync(join(SRC, own[1])) }) } catch { /* not cut yet */ } }
       if (/\.(webp|png|jpe?g|gif)(\?|$)/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: ITEM_TILE })
     }
     return route.abort()
   })
-  await context.addInitScript(([theme, mode]) => {
+  await context.addInitScript(([theme, mode, locale]) => {
     try {
       sessionStorage.setItem('tarkov-account-gate-skipped', '1')
       if (!localStorage.getItem('trailer-seeded')) {
         localStorage.setItem('trailer-seeded', '1')
         localStorage.setItem('tarkov-app-theme', theme)
-        localStorage.setItem('tarkov-operations-locale-v1', 'ru')
+        localStorage.setItem('tarkov-operations-locale-v1', locale)
         localStorage.setItem('tarkov-operations-state-v1', JSON.stringify({ raidMode: mode }))
         localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'customs', hiddenMarkerTypes: [], hiddenMarkerLayers: ['spawn'] }))
         localStorage.setItem('toc.cookie-notice', '1')
       }
     } catch { /* storage blocked */ }
-  }, [opts.theme ?? 'tarkov', opts.mode ?? 'pvp'])
+  }, [opts.theme ?? 'tarkov', opts.mode ?? 'pvp', LOCALE])
   if (opts.bridge) await context.addInitScript(BRIDGE)
   if (opts.update) await context.addInitScript((state) => { window.__trailerUpdate = state }, opts.update)
   if (opts.squad) await context.addInitScript(SQUAD_BRIDGE)
@@ -249,11 +297,12 @@ if (want('stash')) {
 
 // 2b. Overlay cards: the sneaker with its «Каппа» tag (also shown in the Collector scene), the GPU with the MATE tag
 if (want('item')) {
-  const icon = (name) => `data:image/png;base64,${readFileSync(join(OUT, `card-icon-${name}.png`)).toString('base64')}`
+  const icon = (name) => `data:image/png;base64,${readFileSync(join(SRC, `card-icon-${name}.png`)).toString('base64')}`
   for (const [name, payload] of [
     // real prices (Tarkov Forge, 10.10.2026: the sneaker live, the GPU the PvP 7-day average to 30.09.2026)
-    ['overlay-sneaker', { state: 'found', itemId: 'viibiin', name: 'Кроссовки Viibiin', shortName: 'Viibiin', fleaPrice: 55908, bestTrader: { name: 'Терапевт', price: 28939 }, quests: [], kappa: true, collector: true, icon: 'sneaker' }],
-    ['overlay-gpu', { state: 'found', itemId: 'graphics-card', name: 'Видеокарта', shortName: 'GPU', fleaPrice: 344000, bestTrader: { name: 'Терапевт', price: 124740 }, quests: [], kappa: false, collector: false, mate: true, icon: 'gpu' }],
+    ['overlay-sneaker', { state: 'found', itemId: 'viibiin', name: LOCALE === 'en' ? 'Viibiin sneaker' : 'Кроссовки Viibiin', shortName: 'Viibiin', fleaPrice: 55908, bestTrader: { name: LOCALE === 'en' ? 'Therapist' : 'Терапевт', price: 28939 }, quests: [], kappa: true, collector: true, icon: 'sneaker' }],
+    // MATE: a friend needs it, the nickname not known yet (owner, 11.10.2026); a squad mate's card shows the nickname.
+    ['overlay-gpu', { state: 'found', itemId: 'graphics-card', name: LOCALE === 'en' ? 'Graphics card' : 'Видеокарта', shortName: 'GPU', fleaPrice: 344000, bestTrader: { name: LOCALE === 'en' ? 'Therapist' : 'Терапевт', price: 124740 }, quests: [], kappa: false, collector: false, mate: true, icon: 'gpu' }],
   ]) {
     const { context, page } = await newPage({ bridge: true, viewport: { width: 520, height: 300 }, scale: 4 })
     await page.goto(BASE + '#/overlay/item'); await settle(page, 800)
@@ -415,7 +464,7 @@ if (want('minimap')) {
   await context.addInitScript(() => { try { localStorage.setItem('raidos.minimap.views.v1', JSON.stringify({ customs: { center: [516, 500], zoom: 2.2 } })) } catch { /* storage blocked */ } })
   await page.goto(BASE + '#/overlay/minimap'); await settle(page, 800)
   await transparent(page)
-  await page.evaluate(async () => {
+  await page.evaluate(async (en) => {
     const demo = await import('/src/data/demo.ts')
     const map = demo.maps.find((m) => m.id === 'customs')
     const layer = { extract: 'extract.pmc', quest: 'quest.zone', boss: 'boss', cache: 'loot.container', danger: 'hazard', key: 'key' }
@@ -423,12 +472,12 @@ if (want('minimap')) {
     window.__emit('overlay:minimap', {
       state: 'ready', map, markers, questCount: 3, opacity: 0.94, playerMarker: 'arrow', minimapWidth: 520,
       quests: [
-        { questId: 'operation-aquarius', name: 'Операция «Водолей»', trader: 'Терапевт', markerIds: ['customs-aquarius'], objectives: ['Найти спрятанную воду в общежитии', 'Выжить и выйти'] },
-        { questId: 'golden-swag', name: 'Золотая добыча', trader: 'Лыжник', markerIds: ['customs-golden-swag'], objectives: ['Найти зажигалку Зиббо', 'Спрятать зажигалку в бытовке'] },
-        { questId: 'checking', name: 'Проверка', trader: 'Прапор', markerIds: ['customs-checking'], objectives: ['Найти ключ от бензовоза', 'Забрать бронзовые часы'] },
+        { questId: 'operation-aquarius', name: en ? 'Operation Aquarius' : 'Операция «Водолей»', trader: en ? 'Therapist' : 'Терапевт', markerIds: ['customs-aquarius'], objectives: en ? ['Find the hidden water in the dorms', 'Survive and extract'] : ['Найти спрятанную воду в общежитии', 'Выжить и выйти'] },
+        { questId: 'golden-swag', name: en ? 'Golden Swag' : 'Золотая добыча', trader: en ? 'Skier' : 'Лыжник', markerIds: ['customs-golden-swag'], objectives: en ? ['Find the Golden Zibbo lighter', 'Stash the lighter in the cabin'] : ['Найти зажигалку Зиббо', 'Спрятать зажигалку в бытовке'] },
+        { questId: 'checking', name: en ? 'Checking' : 'Проверка', trader: en ? 'Prapor' : 'Прапор', markerIds: ['customs-checking'], objectives: en ? ['Find the fuel tanker key', 'Get the bronze watch'] : ['Найти ключ от бензовоза', 'Забрать бронзовые часы'] },
       ],
     })
-  })
+  }, LOCALE === 'en')
   await page.waitForTimeout(1000)
   await page.evaluate(() => window.__emit('overlay:position', { x: 503, y: 0, z: 498, yaw: 35, at: Date.now() }))
   await page.waitForTimeout(1500)
@@ -441,7 +490,7 @@ if (want('minimap')) {
 
 // 8. Auto-update: the «Обновление до актуальной версии» window while a new build downloads
 if (want('update')) {
-  const { context, page } = await newPage({ squad: true, update: { state: 'downloading', progress: 64, version: '0.5.5' } })
+  const { context, page } = await newPage({ squad: true, update: { state: 'downloading', progress: 64, version: '0.6.1' } })
   await open(page, '#/', 1800)
   await page.waitForTimeout(1500)
   await shot(page, 'update')
