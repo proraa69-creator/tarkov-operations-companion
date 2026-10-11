@@ -34,6 +34,7 @@ import { createItemImagesRouter } from './routes/itemImages.js'
 import type { MapMirror } from './services/mapMirror.js'
 import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
+import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { AdminStore } from './services/adminStore.js'
@@ -66,6 +67,7 @@ export interface ApiOptions {
   mirrorStorage?: MirrorStorage
   dataMirror?: TarkovDataMirror
   priceMirror?: PriceMirror
+  legacyGraphql?: LegacyGraphqlBuilder
   itemImageDir?: string
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
@@ -201,7 +203,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror }))
+  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).

@@ -223,6 +223,15 @@ export function canonicalQuery(query: string) {
   return parts.join(' ')
 }
 
+/** Stable disk identity shared by the request gateway and the local compatibility snapshot builder. */
+export function graphqlSnapshotIdentity(query: string, variables: Record<string, unknown> = {}) {
+  const canonical = canonicalQuery(query)
+  const vars = Object.fromEntries(Object.entries(variables).sort(([a], [b]) => a.localeCompare(b)))
+  const varsText = JSON.stringify(vars)
+  const hash = createHash('sha256').update(canonical).update('\u0000').update(varsText).digest('hex')
+  return { canonical, variables: vars, hash, key: `gql:${hash}`, slot: `graphql-${hash}` }
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Upstream + cache
 // ---------------------------------------------------------------------------------------------------------------
@@ -293,11 +302,8 @@ export class DataGateway {
     const varsText = JSON.stringify(Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b))))
     if (varsText.length > MAX_VARIABLES_LENGTH) throw new GatewayError(413, 'Слишком много переменных запроса')
     // Without aliases: the same data asked under other names is one cache entry and one upstream call.
-    const canonical = canonicalQuery(query)
     // gameMode is part of the variables or of the query text itself: both are in the key.
-    const hash = createHash('sha256').update(canonical).update('\u0000').update(varsText).digest('hex')
-    const key = `gql:${hash}`
-    const slot = `graphql-${hash}`
+    const { canonical, key, slot } = graphqlSnapshotIdentity(query, vars)
     const ttl = shape.fields.some((field) => SHORT_FIELDS.has(field)) ? SHORT_TTL_MS : shape.fields.some((field) => PRICE_FIELDS.has(field)) ? PRICE_TTL_MS : STATIC_TTL_MS
     const persisted = this.mirror ? await this.mirror.read(slot, 'response.json') : undefined
     if (this.strict) {
