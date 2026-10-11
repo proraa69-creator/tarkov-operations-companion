@@ -23,10 +23,12 @@ export function GunsmithPage() {
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
   const steps = useMemo(() => gunsmithSteps(data.quests, (id) => availability.get(id)?.status), [availability, data.quests])
   const summary = gunsmithSummary(steps)
-  const requested = Number(params.get('part'))
+  // `?quest=<task id>` (links from the Overview and the task cards); `?part=N` (place in the chain) still works.
+  const requestedQuest = params.get('quest')
+  const requestedPart = Number(params.get('part'))
   const fallback = summary.active[0] ?? summary.next ?? steps[0]
-  const selected = steps.find((step) => step.part === requested) ?? fallback
-  const select = (part: number) => setParams((current) => { const next = new URLSearchParams(current); next.set('part', String(part)); return next }, { replace: true })
+  const selected = steps.find((step) => step.quest.id === requestedQuest) ?? steps.find((step) => step.part === requestedPart) ?? fallback
+  const select = (step: GunsmithStep) => setParams((current) => { const next = new URLSearchParams(current); next.delete('part'); next.set('quest', step.quest.id); return next }, { replace: true })
 
   return <div className="page gunsmith-page">
     <header className="page-header">
@@ -48,7 +50,7 @@ export function GunsmithPage() {
           <div className="panel-header"><div className="panel-title"><Wrench size={15} aria-hidden="true" /> {uiText('Части')}</div></div>
           <ol className="gunsmith-parts">
             {steps.map((step) => <li key={step.part}>
-              <PartRow step={step} selected={step.part === selected?.part} playerLevel={progress.playerLevel} onSelect={() => select(step.part)} />
+              <PartRow step={step} selected={step.part === selected?.part} playerLevel={progress.playerLevel} onSelect={() => select(step)} />
             </li>)}
           </ol>
         </section>
@@ -84,7 +86,7 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
     </div>
     {description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(description)}</p></div>}
     {build
-      ? <GunsmithQuestPlan build={build} part={step.part} />
+      ? <GunsmithQuestPlan build={build} questId={step.quest.id} />
       : <div className="detail-section"><p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p></div>}
     <div className="detail-section">
       <h4>{uiText('Награды')}</h4>

@@ -47,7 +47,14 @@ describe('«Оружейник» on the Overview', () => {
     expect(screen.getByText('Эффективная дальность')).toBeInTheDocument()
     expect(screen.getByText('≤ 4 кг')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /SOCOM556-RC2/ })).toHaveAttribute('href', '/flea?selected=rc2')
-    expect(screen.getByRole('link', { name: /Как собрать/ })).toHaveAttribute('href', '/gunsmith?part=2')
+    expect(screen.getByRole('link', { name: /Как собрать/ })).toHaveAttribute('href', '/gunsmith?quest=gs2')
+  })
+
+  it('is always there, also when this mode has no Gunsmith tasks', () => {
+    render(<LocaleProvider><MemoryRouter><GunsmithPanel steps={[]} playerLevel={12} /></MemoryRouter></LocaleProvider>)
+    expect(screen.getByText('Оружейник')).toBeInTheDocument()
+    expect(screen.getByText(/Заданий «Оружейник» в базе этого режима пока нет/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Посмотреть все/ })).toHaveAttribute('href', '/gunsmith')
   })
 
   it('with no part taken, shows the next one and when it opens', () => {

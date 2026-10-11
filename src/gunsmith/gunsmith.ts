@@ -2,51 +2,82 @@ import type { Quest, TaskProgressStatus, WeaponBuildAttribute, WeaponBuildRequir
 import type { AppLocale } from '../i18n/LocaleProvider'
 
 /**
- * «Оружейник» (owner, 10.10.2026): Mechanic's Gunsmith chain — Part 1 … Part N, each one «modify this weapon to the
- * given specifications». Tasks detected in the game logs go to the «Оружейник» block of the Overview only, not to
+ * «Оружейник» (owner, 10.10.2026): Mechanic's Gunsmith chain, each part «modify this weapon to the given specifications»
+ * (named by the weapon in the game now: «Оружейник. АКС-74Н»). Tasks detected in the game logs go to the «Оружейник» block of the Overview only, not to
  * «Текущие задания»; «Посмотреть все» opens every part with its weapon, required parts and stats (src/pages/GunsmithPage.tsx).
  * Everything comes from the live tarkov.dev catalog (buildWeapon objectives, src/data/objectiveDetails.ts), so a new part or
  * changed specification shows up with the next catalog refresh.
  */
-const SLUG = /^gunsmith-part-(\d+)$/
-const NAMES = [/gunsmith\s*[-–—.:]?\s*part\s*(\d+)/i, /оружейник\.?\s*[-–—.:]?\s*часть\s*(\d+)/i]
+const SLUG = /^gunsmith(?:-|$)/i
+const PART_NUMBER = /(?:part|часть)\s*(\d+)/i
+const NAME = { en: /^\s*[«"']?gunsmith\b/i, ru: /^\s*[«"']?оружейник(?![а-яё])/i }
+/** Latin letters that look Cyrillic: the game's own texts mix them in now and then («Oружейник» with a Latin O). */
+const LOOKALIKES: Record<string, string> = { a: 'а', c: 'с', e: 'е', o: 'о', p: 'р', x: 'х', y: 'у', A: 'А', B: 'В', C: 'С', E: 'Е', H: 'Н', K: 'К', M: 'М', O: 'О', P: 'Р', T: 'Т', X: 'Х', Y: 'У' }
+const asCyrillic = (value: string) => value.replace(/[aceopxyABCEHKMOPTXY]/g, (char) => LOOKALIKES[char] ?? char)
 
-/** Part number of a Gunsmith task (normalizedName `gunsmith-part-7`, «Оружейник. Часть 7», «Gunsmith - Part 7»), else null. */
-export function gunsmithPart(quest: Pick<Quest, 'name' | 'normalizedName'>): number | null {
-  const slug = SLUG.exec(quest.normalizedName ?? '')
-  if (slug) return Number(slug[1])
-  for (const pattern of NAMES) {
-    const match = pattern.exec(quest.name)
-    if (match) return Number(match[1])
-  }
-  return null
+type GunsmithCandidate = Pick<Quest, 'name' | 'normalizedName'> & Partial<Pick<Quest, 'objectiveDetails'>>
+
+/**
+ * A task of the Gunsmith chain. The game now names the parts by their weapon («Оружейник. АКС-74Н», «Gunsmith - AKS-74N»),
+ * earlier by number («Оружейник. Часть 7», `gunsmith-part-7`); either way it starts with «Оружейник» / «Gunsmith».
+ * Every task that asks to build a weapon (buildWeapon objective) counts too, whatever its name (owner, 11.10.2026: all
+ * Gunsmith tasks, numbered or not; their status comes from the game logs by task id, their data from our catalog).
+ */
+export function isGunsmithQuest(quest: GunsmithCandidate): boolean {
+  if (SLUG.test(quest.normalizedName ?? '')) return true
+  if (NAME.en.test(quest.name) || NAME.ru.test(asCyrillic(quest.name))) return true
+  return Boolean(weaponBuildOf(quest))
 }
 
-export const isGunsmithQuest = (quest: Pick<Quest, 'name' | 'normalizedName'>) => gunsmithPart(quest) !== null
+/** The Gunsmith page opened at this task. */
+export const gunsmithHref = (quest: Pick<Quest, 'id'>) => `/gunsmith?quest=${encodeURIComponent(quest.id)}`
 
 /** The weapon build a quest asks for (its first buildWeapon objective). */
-export function weaponBuildOf(quest: Pick<Quest, 'objectiveDetails'>): WeaponBuildRequirement | undefined {
+export function weaponBuildOf(quest: Partial<Pick<Quest, 'objectiveDetails'>>): WeaponBuildRequirement | undefined {
   return quest.objectiveDetails?.find((objective) => objective.build)?.build
 }
 
 export interface GunsmithStep {
   quest: Quest
+  /** Place in the chain, from 1. */
   part: number
   status: TaskProgressStatus
   build?: WeaponBuildRequirement
 }
 
-/** Every Gunsmith part in chain order with its status in this mode. */
+/**
+ * Every Gunsmith task of this mode's catalog in chain order with its status. The order is the chain itself (each part
+ * needs the one before), then a part number when the name has one, then the level.
+ */
 export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined): GunsmithStep[] {
-  const byPart = new Map<number, GunsmithStep>()
+  const byName = new Map<string, Quest>()
   for (const quest of quests) {
-    const part = gunsmithPart(quest)
-    if (part === null || quest.id.startsWith('wiki:')) continue
-    // One task per part (a stale duplicate from another data source never doubles a part).
-    if (byPart.has(part) && !weaponBuildOf(quest)) continue
-    byPart.set(part, { quest, part, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest) })
+    if (quest.id.startsWith('wiki:') || !isGunsmithQuest(quest)) continue
+    // One task per name (a stale duplicate from another data source never doubles a part); the one with the build wins.
+    const key = asCyrillic(quest.normalizedName || quest.name).toLowerCase().replace(/\s+/g, ' ').trim()
+    const known = byName.get(key)
+    if (known && (weaponBuildOf(known) || !weaponBuildOf(quest))) continue
+    byName.set(key, quest)
   }
-  return [...byPart.values()].sort((a, b) => a.part - b.part)
+  const chain = new Map([...byName.values()].map((quest) => [quest.id, quest]))
+  const depths = new Map<string, number>()
+  const depthOf = (quest: Quest, seen: Set<string>): number => {
+    const known = depths.get(quest.id)
+    if (known !== undefined) return known
+    seen.add(quest.id)
+    const before = [...new Set([...(quest.previous ?? []), ...(quest.requirements ?? []).map((requirement) => requirement.taskId)])]
+      .map((id) => chain.get(id))
+      .filter((entry): entry is Quest => Boolean(entry) && !seen.has(entry!.id))
+    const depth = before.length ? 1 + Math.max(...before.map((entry) => depthOf(entry, seen))) : 0
+    seen.delete(quest.id)
+    depths.set(quest.id, depth)
+    return depth
+  }
+  const number = (quest: Quest) => Number(PART_NUMBER.exec(quest.name)?.[1] ?? /-part-(\d+)/.exec(quest.normalizedName ?? '')?.[1] ?? Number.POSITIVE_INFINITY)
+  return [...chain.values()]
+    .map((quest) => ({ quest, depth: depthOf(quest, new Set()), number: number(quest) }))
+    .sort((a, b) => a.depth - b.depth || a.number - b.number || a.quest.level - b.quest.level || a.quest.name.localeCompare(b.quest.name))
+    .map(({ quest }, index) => ({ quest, part: index + 1, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest) }))
 }
 
 /** What the Overview block shows: the parts taken in the game, else the next one to take, and the chain progress. */

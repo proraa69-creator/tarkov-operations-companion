@@ -7,6 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import type { BuildNode, GunCatalog, GunPart } from '../arsenal/gunTypes'
 import type { WeaponBuildRequirement } from '../domain/types'
+import { gunsmithHref } from './gunsmith'
 import { solveGunsmithBuild, type GunsmithPlan } from './gunsmithSolver'
 import { ItemCells, ShoppingTable } from './ShoppingTable'
 import { TraderLevelsStrip } from './TraderLevelsStrip'
@@ -19,7 +20,7 @@ import './gunsmith.css'
  * table with traders, loyalty levels and cheaper alternatives — and, on the page, the player's trader levels and the
  * whole build. `compact`: the Overview block (no level strip, no tree; a link to the page).
  */
-export function GunsmithQuestPlan({ build, part, compact }: { build: WeaponBuildRequirement; part: number; compact?: boolean }) {
+export function GunsmithQuestPlan({ build, questId, compact }: { build: WeaponBuildRequirement; questId: string; compact?: boolean }) {
   const state = useAppState()
   const { locale } = useLocale()
   const catalog = useGunCatalog(state.raidMode, locale)
@@ -62,7 +63,7 @@ export function GunsmithQuestPlan({ build, part, compact }: { build: WeaponBuild
           </>}
         <p className="dim gunsmith-note">{uiText('Сборка подобрана автоматически по данным tarkov.dev. Перед сдачей проверьте характеристики в игре (осмотр оружия): игра считает их сама.')}</p>
       </div>}
-      {compact && <Link to={`/gunsmith?part=${part}`} className="button small gunsmith-how">{uiText('Как собрать')} <ChevronRight size={13} /></Link>}
+      {compact && <Link to={gunsmithHref({ id: questId })} className="button small gunsmith-how">{uiText('Как собрать')} <ChevronRight size={13} /></Link>}
     </div>
   </>
 }

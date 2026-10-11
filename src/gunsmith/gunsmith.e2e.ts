@@ -4,15 +4,17 @@ import { ammoPayload, FX, FX_CATEGORY, gunsPayload, modsPayload } from '../arsen
 
 // «Оружейник» end to end, offline. json.tarkov.dev answers in the exact shape tarkov-data-manager's updateStaticApi writes
 // (bare ids, `buildAttributes` with all ten stats, the unused ones 0, category names only in the items file); the
-// gun catalogue comes from the GraphQL fixture. Names are in English with the `_ru` dictionaries, as upstream.
+// gun catalogue comes from the GraphQL fixture. Names are in English with the `_ru` dictionaries, as upstream; the parts
+// are named by their weapon, as in the game now («Оружейник. АКС-74Н»), with no part number anywhere.
 const MECHANIC = 'tr-mechanic'
+const WEAPON = { 1: ['AK-74N', 'АК-74Н'], 2: ['M4A1', 'M4A1'], 3: ['MP7A1', 'MP7A1'] } as Record<number, [string, string]>
 const PART = { one: 'gs-part-1', two: 'gs-part-2', three: 'gs-part-3' }
 const stats = (wanted: Record<string, [string, number]>) => Object.fromEntries(
   ['accuracy', 'durability', 'effectiveDistance', 'ergonomics', 'height', 'magazineCapacity', 'muzzleVelocity', 'recoil', 'weight', 'width']
     .map((name) => [name, wanted[name] ? { compareMethod: wanted[name][0], value: wanted[name][1] } : { compareMethod: '>=', value: 0 }]),
 )
 const task = (id: string, part: number, level: number, previous: string | undefined, objective: Record<string, unknown>) => ({
-  id, name: `Gunsmith - Part ${part}`, normalizedName: `gunsmith-part-${part}`, trader: MECHANIC, minPlayerLevel: level, kappaRequired: true,
+  id, name: `Gunsmith - ${WEAPON[part][0]}`, normalizedName: `gunsmith-${WEAPON[part][0].toLowerCase()}`, trader: MECHANIC, minPlayerLevel: level, kappaRequired: true,
   experience: 4000 + part * 1000, taskRequirements: previous ? [{ task: previous, status: ['complete'] }] : [], finishRewards: { items: [] },
   objectives: [{ id: `${id}-o`, type: 'buildWeapon', description: `Modify the weapon (Part ${part}) to comply with the given specifications`, optional: false, maps: [], ...objective }],
 })
@@ -28,7 +30,7 @@ const catalog: Record<string, unknown> = {
       [PART.three]: task(PART.three, 3, 30, PART.two, { item: FX.mp7, containsAll: [], containsCategory: [], buildAttributes: stats({ weight: ['<=', 2.5] }) }),
     },
   },
-  tasks_ru: Object.fromEntries([1, 2, 3].flatMap((part) => [[`Gunsmith - Part ${part}`, `Оружейник. Часть ${part}`], [`Modify the weapon (Part ${part}) to comply with the given specifications`, 'Модифицировать оружие в соответствии с требованиями']])),
+  tasks_ru: Object.fromEntries([1, 2, 3].flatMap((part) => [[`Gunsmith - ${WEAPON[part][0]}`, `Оружейник. ${WEAPON[part][1]}`], [`Modify the weapon (Part ${part}) to comply with the given specifications`, 'Модифицировать оружие в соответствии с требованиями']])),
   // Traders with their loyalty levels (player level each needs) and portraits, keyed like the offers (normalizedName).
   traders: Object.fromEntries([[MECHANIC, 'Mechanic', 'mechanic'], ['tr-peacekeeper', 'Peacekeeper', 'peacekeeper'], ['tr-skier', 'Skier', 'skier'], ['tr-prapor', 'Prapor', 'prapor']]
     .map(([id, name, key]) => [id, { id, name, normalizedName: key, imageLink: `https://assets.tarkov.dev/${key}-trader.webp`, levels: [1, 15, 26, 36].map((player, index) => ({ level: index + 1, requiredPlayerLevel: player })) }])),
@@ -95,11 +97,11 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   // Just the current part by name: no part numbers, no chain strip.
   await expect(panel.locator('.gunsmith-current')).toHaveCount(1)
   await expect(panel).not.toContainText('выполнено')
-  const current = panel.getByRole('button', { name: /Оружейник\. Часть 2/ })
+  const current = panel.getByRole('button', { name: /Оружейник\. M4A1/ })
   await expect(current).toBeVisible()
   await expect(panel.locator('.panel-header .current-tasks-where')).toHaveText('Посмотреть все')
   // The part taken in the game is here, not in «Текущие задания».
-  await expect(page.locator('.panel', { hasText: 'Текущие задания' }).getByText('Оружейник. Часть 2')).toHaveCount(0)
+  await expect(page.locator('.panel', { hasText: 'Текущие задания' }).getByText('Оружейник. M4A1')).toHaveCount(0)
 
   await current.click()
   const details = panel.locator('.gunsmith-details')

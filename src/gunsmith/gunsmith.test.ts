@@ -4,7 +4,7 @@ import { installedParts } from '../arsenal/buildModel'
 import { FX, FX_CATEGORY, gunsPayload, modsPayload } from '../arsenal/fixtures/gunFixture'
 import { adaptObjectiveDetails, weaponBuild } from '../data/objectiveDetails'
 import type { Quest, WeaponBuildRequirement } from '../domain/types'
-import { attributeLabel, formatTarget, gunsmithPart, gunsmithSteps, gunsmithSummary, meets, shortfall } from './gunsmith'
+import { attributeLabel, formatTarget, gunsmithSteps, gunsmithSummary, isGunsmithQuest, meets, shortfall } from './gunsmith'
 import { solveGunsmithBuild } from './gunsmithSolver'
 
 const catalog = { weapons: adaptWeapons(gunsPayload('ru')), mods: adaptMods(modsPayload('ru')) }
@@ -14,11 +14,23 @@ const quest = (id: string, name: string, normalizedName: string, build?: WeaponB
 })
 
 describe('«Оружейник»: the Gunsmith chain', () => {
-  it('finds the part number by the tarkov.dev slug or the Russian / English name', () => {
-    expect(gunsmithPart({ name: 'x', normalizedName: 'gunsmith-part-12' })).toBe(12)
-    expect(gunsmithPart({ name: 'Оружейник. Часть 3' })).toBe(3)
-    expect(gunsmithPart({ name: 'Gunsmith - Part 25' })).toBe(25)
-    expect(gunsmithPart({ name: 'Оружейная лихорадка', normalizedName: 'gun-fever' })).toBeNull()
+  it('finds every Gunsmith task: numbered, named by the weapon, or any task that asks to build a weapon', () => {
+    expect(isGunsmithQuest({ name: 'x', normalizedName: 'gunsmith-part-12' })).toBe(true)
+    expect(isGunsmithQuest({ name: 'Оружейник. Часть 3' })).toBe(true)
+    expect(isGunsmithQuest({ name: 'Gunsmith - Part 25' })).toBe(true)
+    // The game names the parts by their weapon now (owner's PvE, 11.10.2026), sometimes with Latin look-alike letters.
+    expect(isGunsmithQuest({ name: 'Оружейник. АКС-74Н' })).toBe(true)
+    expect(isGunsmithQuest({ name: 'Gunsmith - AKS-74N', normalizedName: 'gunsmith-aks-74n' })).toBe(true)
+    expect(isGunsmithQuest({ name: 'Oружейник. MP-133' })).toBe(true)
+    expect(isGunsmithQuest({ name: 'Особый заказ', objectiveDetails: [{ id: 'o', type: 'buildWeapon', description: '', count: 1, build: { weaponId: 'w', partIds: [], attributes: [] } }] })).toBe(true)
+    expect(isGunsmithQuest({ name: 'Оружейная лихорадка', normalizedName: 'gun-fever' })).toBe(false)
+    expect(isGunsmithQuest({ name: 'Мастер-оружейник', normalizedName: 'master-gunsmith' })).toBe(false)
+  })
+
+  it('orders unnumbered parts by the chain itself (each needs the one before)', () => {
+    const named = (id: string, name: string, previous: string[], level: number): Quest => ({ ...quest(id, name, ''), previous, level })
+    const quests = [named('k', 'Оружейник. Kedr', ['a'], 30), named('a', 'Оружейник. АКС-74Н', [], 40), named('m', 'Оружейник. MP-133', ['k'], 5)]
+    expect(gunsmithSteps(quests, () => undefined).map((step) => [step.part, step.quest.id])).toEqual([[1, 'a'], [2, 'k'], [3, 'm']])
   })
 
   it('orders the parts, knows which are taken and which comes next', () => {

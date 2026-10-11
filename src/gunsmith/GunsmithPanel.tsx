@@ -11,7 +11,8 @@ import './gunsmith.css'
  * «Оружейник» under «Текущие задания» on the Overview (owner, 10–11.10.2026): just the Gunsmith part that is current —
  * taken in the game (from the logs), else the next one — by name, no part numbers. A click opens it right here: the
  * whole weapon, the stats it needs, what to buy with pictures, traders and prices, and cheaper alternatives.
- * «Посмотреть все» (set like «N на Таможне» of the block above) opens every part (/gunsmith).
+ * «Посмотреть все» (set like «N на Таможне» of the block above) opens every part (/gunsmith). Always shown, also when the
+ * chain is done or this mode's catalog has no Gunsmith tasks (owner, 11.10.2026).
  */
 export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; playerLevel: number }) {
   const { locale } = useLocale()
@@ -19,15 +20,14 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
   const current = summary.active.length ? summary.active : summary.next ? [summary.next] : []
   const [openPart, setOpenPart] = useState<number | null>(null)
   const baseId = useId()
-  if (!steps.length) return null
-
   return <section className="panel gunsmith-panel">
     <div className="panel-header">
       <div className="panel-title"><Wrench size={15} aria-hidden="true" /> {uiText('Оружейник')}</div>
       <Link to="/gunsmith" className="panel-title current-tasks-where">{uiText('Посмотреть все')}</Link>
     </div>
     <div className="panel-body">
-      {!current.length && <p className="muted">{uiText('Вся цепочка «Оружейник» выполнена.')}</p>}
+      {!steps.length && <p className="muted">{uiText('Заданий «Оружейник» в базе этого режима пока нет.')}</p>}
+      {steps.length > 0 && !current.length && <p className="muted">{uiText('Вся цепочка «Оружейник» выполнена.')}</p>}
       {current.map((step) => {
         const open = openPart === step.part
         const detailsId = `${baseId}-${step.part}`
@@ -42,7 +42,7 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
           <div id={detailsId} className={`gunsmith-details${open ? ' is-open' : ''}`} inert={!open}>
             <div className="gunsmith-details-inner">
               {open && (step.build
-                ? <GunsmithQuestPlan build={step.build} part={step.part} compact />
+                ? <GunsmithQuestPlan build={step.build} questId={step.quest.id} compact />
                 : <p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p>)}
             </div>
           </div>
