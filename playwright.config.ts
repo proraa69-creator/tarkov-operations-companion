@@ -1,7 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
-  testDir: './tests',
+  testDir: '.',
+  // tests/ holds the older specs; new ones live next to their feature as *.e2e.ts, because the VPS publisher refuses any
+  // changed file under tests/ (docs/coordination/ops-reference/release-policy.mjs deployPath).
+  testMatch: ['tests/**/*.spec.ts', 'src/**/*.e2e.ts'],
   fullyParallel: true,
   retries: 0,
   use: {

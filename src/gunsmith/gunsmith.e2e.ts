@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { createLocalProfile } from '../src/domain/progress'
-import { ammoPayload, FX, FX_CATEGORY, gunsPayload, modsPayload } from '../src/arsenal/fixtures/gunFixture'
+import { createLocalProfile } from '../domain/progress'
+import { ammoPayload, FX, FX_CATEGORY, gunsPayload, modsPayload } from '../arsenal/fixtures/gunFixture'
 
 // «Оружейник» end to end, offline. json.tarkov.dev answers in the exact shape tarkov-data-manager's updateStaticApi writes
 // (bare ids, `buildAttributes` with all ten stats, the unused ones 0, category names only in the items file); the
