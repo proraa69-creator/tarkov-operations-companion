@@ -11,7 +11,8 @@ const byKey = new Map(Object.entries(images).map(([path, url]) => [path.replace(
 /** Height of each still in body heights (feet to the top of the head = 1; a raised rifle or antlers add to it). */
 const SIZES: Record<string, number> = figureSizes
 /** Where each still sits in the Gallery viewer's start view: [left of its centre, top, width, height] in view heights. */
-const FRAMES = figureFrames as Record<string, StillFrame>
+const FRAMES: Record<string, StillFrame> = Object.fromEntries(Object.entries(figureFrames as Record<string, number[]>)
+  .flatMap(([key, frame]) => (frame.length === 4 && frame.every(Number.isFinite) ? [[key, [frame[0]!, frame[1]!, frame[2]!, frame[3]!] as const]] : [])))
 
 export type StillFrame = readonly [left: number, top: number, width: number, height: number]
 
