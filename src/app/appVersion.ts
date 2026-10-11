@@ -7,6 +7,12 @@ import { version as packageVersion } from '../../package.json'
  */
 let cached: string | null = null
 
+/**
+ * The version as the owner numbers it: package.json holds a semver «0.6.0-2» because electron-builder refuses
+ * «0.6.0.2» (scripts/set-version.mjs); people see «0.6.0.2».
+ */
+export const displayVersion = (version: string) => version.replace(/^(\d+\.\d+\.\d+)-(\d+)$/, '$1.$2')
+
 export function useAppVersion() {
   const [version, setVersion] = useState(cached ?? packageVersion)
   useEffect(() => {
@@ -19,5 +25,5 @@ export function useAppVersion() {
     }).catch(() => {})
     return () => { active = false }
   }, [])
-  return version
+  return displayVersion(version)
 }

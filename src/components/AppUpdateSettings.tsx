@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, LoaderCircle, RotateCcw } from 'lucide-react'
-import { useAppVersion } from '../app/appVersion'
+import { displayVersion, useAppVersion } from '../app/appVersion'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import type { UpdateCheckResult, UpdateSettings, UpdateStatus } from '../electron'
@@ -63,7 +63,7 @@ export function AppUpdateSettings() {
   if (status.state === 'downloading') line += ` · ${uiText('Загрузка обновления')} ${status.progress ?? 0}%`
   else if (status.state === 'installing') line += ` · ${uiText('Перезапуск…')}`
   else if (status.state === 'error') line += ` · ${uiText(status.error ?? 'Ошибка обновления')}`
-  else if (status.state === 'available') line += ` · ${uiText('Доступна новая версия')}${status.version ? ` ${status.version}` : ''}${status.ready ? ` · ${uiText('уже загружена')}` : ''}`
+  else if (status.state === 'available') line += ` · ${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}${status.ready ? ` · ${uiText('уже загружена')}` : ''}`
   else if (result) line += ` · ${uiText(OUTCOME_TEXT[result.outcome])} (${time})`
   const autoCheck = settings?.autoCheck ?? true
   const autoInstall = settings?.autoInstall ?? false
