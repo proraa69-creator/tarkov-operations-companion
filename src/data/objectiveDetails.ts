@@ -6,7 +6,7 @@
  *   - the GraphQL API (`TASK_OBJECTIVES_QUERY` below): references are objects, e.g. `zone.map: { id }`.
  * Map ids are resolved to the app's canonical map ids by the caller.
  */
-import type { ObjectiveZone, QuestObjective } from '../domain/types'
+import type { ObjectiveZone, QuestObjective, WeaponBuildAttribute, WeaponBuildRequirement } from '../domain/types'
 
 type JsonRecord = Record<string, unknown>
 
@@ -98,6 +98,7 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
       .filter((entry): entry is string => Boolean(entry))
     const mapIds = [...new Set(listedIds.length ? listedIds : [...zones.map((zone) => zone.mapId), ...itemSpots.map((spot) => spot.mapId), ...placeMaps])]
     const count = Math.round(finite(objective.count) ?? 1)
+    const build = weaponBuild(objective)
     return [{
       id,
       type: text(objective.type) || 'unknown',
@@ -111,8 +112,43 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
       ...(itemSpots.length ? { itemSpots } : {}),
       // Zones or possible quest-item spots make it a map point; kill, hand over, skill… stay a checklist step.
       ...(zones.length || itemSpots.length || asArray(objective.zones).length || asArray(objective.possibleLocations).length ? { zoneBound: true } : {}),
+      ...(build ? { build } : {}),
     }]
   })
+}
+
+const COMPARE = new Map<string, WeaponBuildAttribute['compare']>([['>=', '>='], ['<=', '<='], ['>', '>'], ['<', '<'], ['=', '='], ['==', '=']])
+
+/**
+ * A buildWeapon objective («Оружейник»): the weapon (`item`), the parts it must contain (`containsAll`, `containsOne`),
+ * part categories (`containsCategory`) and stats (`attributes: [{ name, requirement: { compareMethod, value } }]`).
+ * References come as ids (json.tarkov.dev) or `{ id, name }` objects (GraphQL); both are read.
+ */
+export function weaponBuild(objective: JsonRecord): WeaponBuildRequirement | undefined {
+  const type = text(objective.type).toLowerCase()
+  const weaponId = refId(objective.item)
+  if (!weaponId || (type !== 'buildweapon' && !Array.isArray(objective.containsAll) && !Array.isArray(objective.attributes))) return undefined
+  const ids = (value: unknown) => [...new Set((Array.isArray(value) ? value : []).map((entry) => refId(entry) || refId(asRecord(entry).item)).filter(Boolean))]
+  const attributes = asArray(objective.attributes).flatMap((entry): WeaponBuildAttribute[] => {
+    const requirement = asRecord(entry.requirement)
+    const name = text(entry.name)
+    const compare = COMPARE.get(text(requirement.compareMethod ?? entry.compareMethod).trim())
+    const value = finite(requirement.value ?? entry.value)
+    return name && compare && value !== undefined ? [{ name, compare, value }] : []
+  })
+  const categories = (Array.isArray(objective.containsCategory) ? objective.containsCategory : []).flatMap((entry) => {
+    const id = refId(entry)
+    const name = text(asRecord(entry).name)
+    return id ? [{ id, name: name || id }] : []
+  })
+  const anyOfIds = ids(objective.containsOne)
+  return {
+    weaponId,
+    partIds: ids(objective.containsAll),
+    ...(anyOfIds.length ? { anyOfIds } : {}),
+    ...(categories.length ? { categories } : {}),
+    attributes,
+  }
 }
 
 /** Objectives per task id from a GraphQL `tasks` answer (`{ data: { tasks: [...] } }` or the bare list). */

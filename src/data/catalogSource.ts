@@ -279,6 +279,8 @@ function adaptTasks(
     const requiredKeys = keyGroups.flatMap((group) => strings(group.keys))
     const raidRequirements: NonNullable<Quest['raidRequirements']> = objectives.flatMap((objective) => {
       const type = text(objective.type).toLowerCase()
+      // «Оружейник»: the weapon is modified in the stash and handed to Mechanic, it is not taken into a raid.
+      if (type === 'buildweapon') return []
       const purpose: NonNullable<Quest['raidRequirements']>[number]['purpose'] = type.includes('mark') ? 'mark' : type.includes('plant') || type.includes('place') ? 'place' : type.includes('give') ? 'handover' : type.includes('find') ? 'find' : 'bring'
       const itemIds = [...new Set([...strings(objective.items), text(objective.item), text(objective.markerItem)].filter(Boolean))]
       const objectiveId = text(objective.id) || undefined

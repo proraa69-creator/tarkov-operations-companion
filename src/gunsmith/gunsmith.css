@@ -1,0 +1,148 @@
+/* «Оружейник»: the Overview block (GunsmithPanel), the requirements card (WeaponBuildDetails) and /gunsmith. */
+
+/* ── Overview block ─────────────────────────────────────────────── */
+.gunsmith-panel .panel-title { display: flex; align-items: center; gap: 7px; }
+.gunsmith-panel .panel-title svg { color: var(--brass); }
+.gunsmith-all { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.gunsmith-progress { display: grid; gap: 8px; margin-bottom: 6px; }
+.gunsmith-progress > small { color: var(--text-dim); font-size: 11px; letter-spacing: .02em; }
+.gunsmith-track { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.gunsmith-chip {
+  width: 24px; height: 24px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surf-1);
+  color: var(--text-muted); font: inherit; font-size: 10.5px; font-weight: 750; font-variant-numeric: tabular-nums;
+  cursor: pointer; transition: border-color .15s var(--ease-soft), background .15s var(--ease-soft), transform .15s var(--ease-soft);
+}
+.gunsmith-chip:hover, .gunsmith-chip:focus-visible { border-color: var(--brass); outline: none; transform: translateY(-1px); }
+.gunsmith-chip.is-completed { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); background: color-mix(in srgb, var(--green) 16%, var(--surf-1)); color: var(--green); }
+.gunsmith-chip.is-active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 26%, var(--surf-1)); color: var(--brass-strong); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brass) 22%, transparent); }
+.gunsmith-chip.is-available { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--brass-strong); }
+.gunsmith-chip.is-locked, .gunsmith-chip.is-unknown { opacity: .55; }
+.gunsmith-chip.is-failed { border-color: color-mix(in srgb, var(--danger) 55%, var(--line)); color: var(--danger); }
+.gunsmith-chip.is-open { outline: 2px solid var(--brass-strong); outline-offset: 1px; opacity: 1; }
+
+.gunsmith-row { grid-template-columns: 32px minmax(0, 1fr) 16px; }
+.gunsmith-row-main { min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.gunsmith-row-main:hover strong, .gunsmith-row-main:focus-visible strong { color: var(--brass-strong); }
+.gunsmith-row-main:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 4px; }
+.gunsmith-row-chevron { color: var(--text-dim); transition: transform .3s var(--ease-soft); }
+.gunsmith-row.is-open .gunsmith-row-chevron { transform: rotate(180deg); }
+
+/* Same calm reveal as «Ещё N заданий» (grid rows 0fr ↔ 1fr). */
+.gunsmith-details { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--ease-soft); }
+.gunsmith-details.is-open { grid-template-rows: 1fr; }
+.gunsmith-details-inner { min-height: 0; overflow: hidden; }
+.gunsmith-details.is-open .gunsmith-details-inner { padding-top: 10px; }
+.gunsmith-details-title { display: grid; gap: 3px; margin-bottom: 10px; }
+.gunsmith-details-title strong { font-size: 13px; }
+.gunsmith-details-title small { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); }
+.gunsmith-how { margin-top: 12px; gap: 4px; }
+
+/* ── Requirements card ──────────────────────────────────────────── */
+.gs-build { display: grid; gap: 14px; }
+.gs-weapon { display: grid; gap: 8px; margin: 0; }
+.gs-weapon img, .gs-weapon-empty {
+  width: 100%; max-height: 190px; aspect-ratio: 16 / 7; padding: 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--brass) 8%, var(--surf-1)), var(--surf-0) 75%);
+  object-fit: contain;
+}
+.gs-weapon-empty { display: grid; place-items: center; color: var(--text-dim); }
+.gs-build.is-compact .gs-weapon img, .gs-build.is-compact .gs-weapon-empty { max-height: 120px; }
+.gs-weapon figcaption strong { display: block; font-size: 13.5px; }
+.gs-weapon figcaption small { color: var(--text-dim); font-size: 11px; }
+.gs-block h5 { margin: 0 0 8px; color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.gs-stats { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.gs-stats li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 12px;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); font-size: 12.5px;
+}
+.gs-stat-name { color: var(--text-muted); }
+.gs-stat-target { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-stat-actual { display: inline-flex; align-items: center; gap: 4px; min-width: 74px; justify-content: flex-end; color: var(--text-dim); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-stats li.is-met { border-color: color-mix(in srgb, var(--green) 35%, var(--line)); }
+.gs-stats li.is-met .gs-stat-actual { color: var(--green); }
+.gs-stats li.is-missed { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.gs-stats li.is-missed .gs-stat-actual { color: var(--danger); }
+.gs-stat-hint { grid-column: 1 / -1; color: var(--text-dim); font-size: 11px; line-height: 1.4; }
+.gs-parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.gs-build.is-compact .gs-parts { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+.gs-part {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 8px; padding: 6px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); color: var(--text); text-decoration: none;
+  transition: border-color .15s var(--ease-soft), background .15s var(--ease-soft);
+}
+.gs-part:hover, .gs-part:focus-visible { border-color: var(--brass); background: var(--panel-3); outline: none; }
+.gs-part img, .gs-part-empty { width: 44px; height: 44px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0); object-fit: contain; }
+.gs-part-empty { display: grid; place-items: center; color: var(--text-dim); }
+.gs-part strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.gs-part small { display: block; overflow: hidden; margin-top: 2px; color: var(--text-dim); font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis; }
+.gs-part .gs-part-price { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
+.gs-categories { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ── /gunsmith ──────────────────────────────────────────────────── */
+.gunsmith-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gunsmith-layout { display: grid; grid-template-columns: minmax(300px, .8fr) minmax(380px, 1.2fr); gap: 14px; align-items: start; }
+.gunsmith-list .panel-title { display: flex; align-items: center; gap: 7px; }
+.gunsmith-list .panel-title svg { color: var(--brass); }
+.gunsmith-parts { margin: 0; padding: 8px 10px 12px; list-style: none; max-height: calc(100vh - var(--topbar, 60px) - 200px); overflow: auto; }
+.gunsmith-parts li + li { margin-top: 3px; }
+.gunsmith-part-row {
+  width: 100%; display: grid; grid-template-columns: 24px 54px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 7px 9px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer; transition: background .15s var(--ease-soft), border-color .15s var(--ease-soft);
+}
+.gunsmith-part-row:hover, .gunsmith-part-row:focus-visible { border-color: var(--line-strong); background: var(--panel-3); outline: none; }
+.gunsmith-part-row.is-selected { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); background: color-mix(in srgb, var(--brass) 10%, var(--panel-2)); box-shadow: inset 2px 0 var(--brass); }
+.gunsmith-part-index { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text-muted); font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gunsmith-part-thumb { width: 54px; height: 30px; object-fit: contain; }
+.gunsmith-part-copy { min-width: 0; }
+.gunsmith-part-copy strong { display: block; overflow: hidden; font-size: 13px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+.gunsmith-part-copy small { display: block; overflow: hidden; margin-top: 2px; color: var(--text-dim); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+.gunsmith-part-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.gunsmith-part-row.is-active .gunsmith-part-index { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); color: var(--brass); }
+.gunsmith-part-row.is-active .gunsmith-part-status, .gunsmith-part-row.is-available .gunsmith-part-status { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); color: var(--brass-strong); }
+.gunsmith-part-row.is-completed { opacity: .6; }
+.gunsmith-part-row.is-completed:hover, .gunsmith-part-row.is-completed.is-selected { opacity: .9; }
+.gunsmith-part-row.is-completed strong { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--text-muted); }
+.gunsmith-part-row.is-completed .gunsmith-part-index, .gunsmith-part-row.is-completed .gunsmith-part-status { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); color: var(--green); }
+.gunsmith-part-row.is-locked .gunsmith-part-copy strong { color: var(--text-muted); }
+
+.gunsmith-detail .detail-hero h2 { margin: 10px 0 10px; font-size: 24px; line-height: 1.15; }
+.gunsmith-example h5 { margin: 16px 0 8px; color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.gunsmith-example h5:first-of-type { margin-top: 4px; }
+.gunsmith-warning { margin: 0 0 10px !important; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--amber, var(--brass)) 50%, var(--line)); border-radius: 8px; background: color-mix(in srgb, var(--amber, var(--brass)) 10%, transparent); color: var(--text) !important; font-size: 12px; }
+.gunsmith-buy { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.gunsmith-buy li { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); }
+.gunsmith-buy img, .gunsmith-buy-empty { width: 38px; height: 38px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0); object-fit: contain; }
+.gunsmith-buy strong { display: block; overflow: hidden; font-size: 12.5px; white-space: nowrap; text-overflow: ellipsis; }
+.gunsmith-buy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
+.gunsmith-buy b { color: var(--brass-strong); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gunsmith-total { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 18px; margin: 8px 0 0 !important; color: var(--text-muted); font-size: 12.5px; }
+.gunsmith-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.gunsmith-tree { margin: 0; padding: 0; list-style: none; border-left: 1px solid var(--line); }
+.gunsmith-tree li { display: grid; grid-template-columns: minmax(110px, .9fr) minmax(0, 1.4fr); align-items: center; gap: 10px; padding: 4px 0 4px 10px; font-size: 12px; }
+.gunsmith-tree-slot { overflow: hidden; color: var(--text-dim); white-space: nowrap; text-overflow: ellipsis; }
+.gunsmith-tree-part { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; color: var(--text); white-space: nowrap; text-overflow: ellipsis; }
+.gunsmith-tree-part img { width: 22px; height: 22px; object-fit: contain; }
+.gunsmith-tree li.is-bought .gunsmith-tree-part { color: var(--brass-strong); }
+.gunsmith-note { margin-top: 12px !important; font-size: 11.5px; line-height: 1.5; }
+
+@media (max-width: 1100px) {
+  .gunsmith-layout { grid-template-columns: 1fr; }
+  .gunsmith-parts { max-height: 340px; }
+}
+
+@media (max-width: 560px) {
+  .gs-stats li { grid-template-columns: minmax(0, 1fr) auto; }
+  .gs-stat-actual { grid-column: 1 / -1; justify-content: flex-start; min-width: 0; }
+  .gunsmith-part-row { grid-template-columns: 24px 44px minmax(0, 1fr); }
+  .gunsmith-part-status { grid-column: 3; justify-self: start; }
+  .gunsmith-tree li { grid-template-columns: 1fr; gap: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gunsmith-details, .gunsmith-row-chevron, .gunsmith-chip { transition: none; }
+}
+
+/* «Текущие задания» page: a Gunsmith part taken in the game is a link to its block, not a task row. */
+.catalog-card.gunsmith-link-card { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 8px; border-style: dashed; text-decoration: none; }

@@ -23,6 +23,8 @@ import { CurrentTasksPanel } from '../components/CurrentTasksPanel'
 import { RaidRequirementsPanel, type RaidNeedRow } from '../components/RaidRequirementsPanel'
 import { KappaBreakdownPanel, KappaStatCard } from '../components/KappaProgress'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
+import { GunsmithPanel } from '../gunsmith/GunsmithPanel'
+import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
 
 export function DashboardPage() {
   const { data } = useTarkovData()
@@ -37,12 +39,15 @@ export function DashboardPage() {
   const progress = state.activeProfile.modes[state.raidMode]
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
   const currentQuests = data.quests.filter((quest) => isLiveGameQuest(quest) && isCurrentTrackedQuest(quest, progress))
+  // «Оружейник» parts go to their own block below «Текущие задания», not into the task lists (owner, 10.10.2026).
+  const taskQuests = currentQuests.filter((quest) => !isGunsmithQuest(quest))
+  const gunsmith = useMemo(() => gunsmithSteps(data.quests, (id) => availability.get(id)?.status), [availability, data.quests])
   const onMap = (quest: typeof currentQuests[number], id: string) => {
     const stageIndex = currentStoryStageIndex(quest, progress)
     return questAppliesToMap(quest, id, stageIndex) && !quest.anyMap
   }
-  const planQuests = currentQuests.filter((quest) => onMap(quest, selectedMap.id))
-  const anyMapCurrent = currentQuests.filter((quest) => quest.anyMap)
+  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id))
+  const anyMapCurrent = taskQuests.filter((quest) => quest.anyMap)
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
@@ -90,13 +95,13 @@ export function DashboardPage() {
     </header>
 
     <section className="stat-grid">
-      <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(currentQuests.length)}</div></div>
+      <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(taskQuests.length)}</div></div>
       <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
       <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
       <GoonCard mode={state.raidMode} mapName={mapName} />
     </section>
     {/* A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026). */}
-    <MapPriority maps={data.maps} countFor={(id) => currentQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} />
+    <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} />
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
 
     <div className="dashboard-layout">
@@ -131,6 +136,7 @@ export function DashboardPage() {
 
       <div className="dashboard-column">
         <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} />
+        <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} />
 
         <section className="panel market-favorites">
           <div className="panel-header"><div className="panel-title">{uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>

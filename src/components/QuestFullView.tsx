@@ -11,6 +11,8 @@ import { followUpQuests, prerequisiteIds } from '../progression/questChronology'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import type { MapMarker, Quest, TaskProgressStatus } from '../domain/types'
 import { questStatusText } from '../shared/questStatus'
+import { gunsmithPart, weaponBuildOf } from '../gunsmith/gunsmith'
+import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -44,6 +46,9 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
   const maps = quest.anyMap ? [] : mapsForQuest(quest, data.maps)
   const firstMap = maps[0]?.id
+  // «Оружейник»: the weapon and its parts get their own card, not item rows.
+  const build = weaponBuildOf(quest)
+  const part = gunsmithPart(quest)
 
   const previous = prerequisiteIds(quest).map((id) => data.quests.find((entry) => entry.id === id)).filter((entry): entry is Quest => Boolean(entry))
   const next = followUpQuests(quest, data.quests).filter((entry) => !entry.id.startsWith('wiki:'))
@@ -61,8 +66,8 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
     for (const itemId of quest.requiredItems ?? []) {
       if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purposes: new Set(), mapIds: new Set() })
     }
-    return [...rows.values()].filter((row) => itemsById.has(row.itemId))
-  }, [itemsById, quest.raidRequirements, quest.requiredItems])
+    return [...rows.values()].filter((row) => itemsById.has(row.itemId) && row.itemId !== build?.weaponId)
+  }, [build?.weaponId, itemsById, quest.raidRequirements, quest.requiredItems])
 
   // Exact points only — never a map-centre guess.
   const points = useMemo(() => {
@@ -98,6 +103,12 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
     {quest.description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(quest.description)}</p></div>}
 
     <QuestObjectivesPanel quest={quest} />
+
+    {build && <div className="detail-section">
+      <h4>{uiText('Сборка оружия')}</h4>
+      <WeaponBuildDetails build={build} />
+      {part !== null && <Link className="button small gunsmith-how" to={`/gunsmith?part=${part}`}>{uiText('Как собрать')} <ArrowUpRight size={13} /></Link>}
+    </div>}
 
     <div className="detail-section">
       <h4>{uiText('Условия')}</h4>

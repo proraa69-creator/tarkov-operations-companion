@@ -1,5 +1,6 @@
 import type { ModeProgress, Quest } from '../domain/types'
 import { isCurrentTrackedQuest, isLiveGameQuest, isStoryQuest } from './requirementEngine'
+import { isGunsmithQuest } from '../gunsmith/gunsmith'
 
 export function belongsInQuestSection(quest: Quest, progress: ModeProgress, section: string, status: string = '') {
   if (isStoryQuest(quest)) {
@@ -11,7 +12,8 @@ export function belongsInQuestSection(quest: Quest, progress: ModeProgress, sect
     return section === 'story' && isCurrentTrackedQuest(quest, progress) && (knownStage || Boolean(record?.storyObjectives?.length))
   }
   if (!isLiveGameQuest(quest) || section === 'story') return false
-  if (section === 'active') return isCurrentTrackedQuest(quest, progress)
+  // «Оружейник» parts taken in the game are shown in their own block (Overview, /gunsmith), not among current tasks.
+  if (section === 'active') return isCurrentTrackedQuest(quest, progress) && !isGunsmithQuest(quest)
   if (section === 'all') return true
   return section === 'kappa' ? quest.kappa : status === section
 }

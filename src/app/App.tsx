@@ -33,6 +33,8 @@ import { UpdateButton } from '../components/UpdateButton'
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
+// «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
+const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
 
 export function App() {
   const { locale, revision } = useLocale()
@@ -57,6 +59,8 @@ export function App() {
     <Route path="/maps" element={<MapsPage />} />
     <Route path="/maps/:mapId" element={<MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
+    {/* «Оружейник»: not in the menu, opened from the Overview block («Посмотреть все»). */}
+    <Route path="/gunsmith" element={<Suspense fallback={null}><GunsmithPage /></Suspense>} />
     <Route path="/squad" element={<SquadPage />} />
     <Route path="/squad/:code" element={<SquadPage />} />
     <Route path="/friend/:code" element={<SquadPage friendLink />} />

@@ -327,6 +327,29 @@ export interface QuestObjective {
   itemSpots?: Array<{ mapId: string; x: number; y?: number; z: number }>
   /** Has zones or possible spots on a map (a map point); otherwise a checklist step (raid briefing). */
   zoneBound?: boolean
+  /** buildWeapon objectives (Механик, «Оружейник»): the weapon to modify, the parts it must hold and its stats. */
+  build?: WeaponBuildRequirement
+}
+
+/** A stat a modified weapon must reach (tarkov.dev `attributes` of a buildWeapon objective), e.g. ergonomics ≥ 50. */
+export interface WeaponBuildAttribute {
+  /** tarkov.dev name: ergonomics, recoil, weight, magazineCapacity, effectiveDistance, durability, accuracy… */
+  name: string
+  compare: '>=' | '<=' | '>' | '<' | '='
+  value: number
+}
+
+/** What a buildWeapon objective asks for (tarkov.dev TaskObjectiveBuildItem). */
+export interface WeaponBuildRequirement {
+  /** Item id of the weapon to modify. */
+  weaponId: string
+  /** Every one of these parts must be installed (containsAll). */
+  partIds: string[]
+  /** At least one of these must be installed (containsOne, older data). */
+  anyOfIds?: string[]
+  /** A part of each of these categories must be installed (containsCategory). */
+  categories?: Array<{ id: string; name: string }>
+  attributes: WeaponBuildAttribute[]
 }
 
 export interface Quest {
