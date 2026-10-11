@@ -18,6 +18,7 @@ export const BUILD_SCREENSHOTS: ReadonlyArray<readonly [task: string, weapon: st
   ['5b47799d86f7746c5d6a5fd8', '58948c8e86f77409493f7266', 'gunsmith-mpx'], // Оружейник. SIG MPX
   ['639872f9decada40426d3447', '587e02ff24597743df3deaeb', 'gunsmith-op-sks'], // Оружейник. ОП-СКС
   ['639872fa9b4fb827b200d8e5', '56d59856d2720bd8418b456a', 'gunsmith-p226r'], // Оружейник. P226R
+  ['639872fc93ae507d5858c3a6', '5fc3f2d5900b1d5091531e57', 'gunsmith-vector-9x19'], // Оружейник. Vector 9x19
   ['5ac244eb86f7741356335af1', '5447a9cd4bdc2dbd208b4567', 'gunsmith-m4a1'], // Оружейник. М4A1
   ['5ae3270f86f77445ba41d4dd', '59d6088586f774275f37482f', 'gunsmith-akm'], // Оружейник. АКМ
   ['5ae3280386f7742a41359364', '57c44b372459772d2b39b8ce', 'gunsmith-as-val'], // Оружейник. АС «Вал»
