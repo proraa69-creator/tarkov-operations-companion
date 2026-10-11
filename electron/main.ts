@@ -29,7 +29,7 @@ import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
-import { confirmStagedBoot } from './ownerDelta.js'
+import { confirmStagedBoot } from './deltaUpdate.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
@@ -439,7 +439,8 @@ function registerIpc() {
     return content
   })
 
-  ipcMain.handle('app:version', () => app.getVersion())
+  // The build that runs (its build-info.json): after a partial update that is the staged build, not the exe's package.json.
+  ipcMain.handle('app:version', async () => (await runningBuild()).version)
   // Trader restock reminders (src/restock/RestockNotifier.tsx): a plain system notification, text only.
   ipcMain.handle('app:notify', (_event, title: unknown, body: unknown) => {
     if (!Notification.isSupported()) return false

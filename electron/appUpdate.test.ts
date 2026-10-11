@@ -21,9 +21,9 @@ vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.
 // The address typed in the app: a player's copy must never update from it.
 vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => 'https://typed-in.example', apiBaseUrl: () => 'https://typed-in.example' }))
 vi.mock('node:child_process', () => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
-// The owner's partial update (electron/ownerDelta.ts): the published parts are mocked here, appDelta.test.ts covers them.
-const delta = vi.hoisted(() => ({ info: null as unknown, fetchDeltaInfo: vi.fn(), stageOwnerDelta: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateOwnerDelta: vi.fn(), relaunchWhenClosed: vi.fn() }))
-vi.mock('./ownerDelta.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageOwnerDelta: delta.stageOwnerDelta, activateOwnerDelta: delta.activateOwnerDelta, relaunchWhenClosed: delta.relaunchWhenClosed }))
+// The owner's partial update (electron/deltaUpdate.ts): the published parts are mocked here, appDelta.test.ts covers them.
+const delta = vi.hoisted(() => ({ info: null as unknown, fetchDeltaInfo: vi.fn(), stageDeltaUpdate: vi.fn(async () => ({ downloaded: 10, total: 100 })), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn() }))
+vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: delta.stageDeltaUpdate, activateDeltaUpdate: delta.activateDeltaUpdate, relaunchWhenClosed: delta.relaunchWhenClosed }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
 const { checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateStatus } = await import('./appUpdate')
@@ -85,11 +85,12 @@ describe('auto-update: signed manifests only (electron/appUpdate.ts)', () => {
     expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/typed-in\.example\/download\/version\.json\?ts=\d+$/), expect.anything())
   })
 
-  it('a player copy never looks for the owner\'s partial update', async () => {
+  it('a player copy asks for the release\'s partial update only signed with the update key (appUpdate.delta.test.ts)', async () => {
+    build.owner = false
     delta.fetchDeltaInfo.mockClear()
     served = { manifest: signedBy(keys.privateKey), exe }
     await checkForUpdateNow()
-    expect(delta.fetchDeltaInfo).not.toHaveBeenCalled()
+    expect(delta.fetchDeltaInfo).toHaveBeenCalledWith('https://raidos.app', expect.objectContaining({ build: 200 }), { signed: true })
   })
 
   it('the downloaded exe must match the signed SHA-256', async () => {
