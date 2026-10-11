@@ -207,3 +207,55 @@ describe('catalog adapter: flea prices per mode', () => {
     expect(byId.get('intel')!.prices.map((entry) => [entry.source, entry.price])).toEqual([['Терапевт', 18000]])
   })
 })
+
+describe('«Оружейник» in the json.tarkov.dev shape', () => {
+  // As tarkov-data-manager's updateStaticApi writes it: bare ids, `buildAttributes` instead of `attributes`, all ten
+  // stats of the game's WeaponAssembly condition (the ones the part does not ask for are 0), category names only in the
+  // items file's `itemCategories` (translated by the `_ru` dictionary like every other text).
+  const gunsmith = {
+    tasks: { tasks: { g1: {
+      id: 'g1', name: 'Gunsmith - Part 1', normalizedName: 'gunsmith-part-1', trader: 'tr-mechanic', minPlayerLevel: 2,
+      objectives: [{
+        id: 'g1-o', type: 'buildWeapon', description: 'Modify an MP-133 to comply with the given specifications', optional: false, maps: [],
+        item: 'mp133', containsAll: ['mp133-mag'], containsCategory: ['cat-foregrip'],
+        buildAttributes: {
+          accuracy: { compareMethod: '>=', value: 0 }, durability: { compareMethod: '>=', value: 60 }, effectiveDistance: { compareMethod: '>=', value: 0 },
+          ergonomics: { compareMethod: '>=', value: 9 }, height: { compareMethod: '<=', value: 0 }, magazineCapacity: { compareMethod: '>=', value: 8 },
+          muzzleVelocity: { compareMethod: '>=', value: 0 }, recoil: { compareMethod: '<=', value: 1000 }, weight: { compareMethod: '<=', value: 4 },
+          width: { compareMethod: '<=', value: 0 },
+        },
+      }],
+    } } },
+    items: {
+      items: { mp133: { id: 'mp133', name: 'MP-133', shortName: 'MP-133', types: ['gun'] }, 'mp133-mag': { id: 'mp133-mag', name: 'MP-133x8', shortName: 'x8', types: ['mods'] } },
+      itemCategories: { 'cat-foregrip': { id: 'cat-foregrip', name: 'Foregrip', normalizedName: 'foregrip', parent: 'cat-mod', children: [] } },
+    },
+    traders: { 'tr-mechanic': { id: 'tr-mechanic', name: 'Mechanic' } },
+  } as Record<string, unknown>
+
+  it('reads the weapon, the parts, the named category and only the stats the part asks for', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const match = /json\.tarkov\.dev\/[a-z-]+\/([a-z]+)(_[a-z]+)?$/.exec(String(url))
+      if (!match) return new Response('', { status: 404 })
+      const data = match[2] ? (match[1] === 'items' ? { Foregrip: 'Тактическая рукоятка', 'Gunsmith - Part 1': 'Оружейник. Часть 1' } : match[1] === 'tasks' ? { 'Gunsmith - Part 1': 'Оружейник. Часть 1' } : {}) : gunsmith[match[1]] ?? {}
+      return new Response(JSON.stringify({ data }), { status: 200 })
+    }))
+    const catalog = await fetchLiveCatalog('pvp', 'ru')
+    const quest = catalog.quests.find((entry) => entry.id === 'g1')!
+    expect(quest.name).toBe('Оружейник. Часть 1')
+    expect(quest.objectiveDetails?.[0].build).toEqual({
+      weaponId: 'mp133',
+      partIds: ['mp133-mag'],
+      categories: [{ id: 'cat-foregrip', name: 'Тактическая рукоятка' }],
+      attributes: [
+        { name: 'durability', compare: '>=', value: 60 },
+        { name: 'ergonomics', compare: '>=', value: 9 },
+        { name: 'magazineCapacity', compare: '>=', value: 8 },
+        { name: 'recoil', compare: '<=', value: 1000 },
+        { name: 'weight', compare: '<=', value: 4 },
+      ],
+    })
+    // The weapon is built in the stash and handed to Mechanic: not a raid requirement.
+    expect(quest.raidRequirements ?? []).toEqual([])
+  })
+})

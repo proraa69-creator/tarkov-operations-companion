@@ -32,6 +32,7 @@ export const TASK_OBJECTIVES_QUERY = `query TaskObjectiveZones($gameMode: GameMo
       ... on TaskObjectiveItem { count foundInRaid items { id } zones { id map { id } position { x y z } outline { x y z } top bottom } }
       ... on TaskObjectiveQuestItem { count questItem { id } possibleLocations { map { id } positions { x y z } } }
       ... on TaskObjectiveExtract { count }
+      ... on TaskObjectiveBuildItem { item { id } containsAll { id } containsCategory { id name } attributes { name requirement { compareMethod value } } }
     }
   }
 }`
@@ -56,8 +57,11 @@ function point(value: unknown): { x: number; y?: number; z: number } | undefined
   return y === undefined ? { x, z } : { x, y, z }
 }
 
-/** Adapts one task's raw objectives. `resolveMapId` turns an upstream map id into the app map id ('' = unknown). */
-export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (upstreamId: string) => string | undefined): QuestObjective[] {
+/**
+ * Adapts one task's raw objectives. `resolveMapId` turns an upstream map id into the app map id ('' = unknown);
+ * `categoryName` names an item category id (json.tarkov.dev gives a Gunsmith part's `containsCategory` as bare ids).
+ */
+export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (upstreamId: string) => string | undefined, categoryName?: (id: string) => string | undefined): QuestObjective[] {
   return asArray(rawObjectives).flatMap((objective): QuestObjective[] => {
     const id = text(objective.id)
     if (!id) return []
@@ -98,7 +102,7 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
       .filter((entry): entry is string => Boolean(entry))
     const mapIds = [...new Set(listedIds.length ? listedIds : [...zones.map((zone) => zone.mapId), ...itemSpots.map((spot) => spot.mapId), ...placeMaps])]
     const count = Math.round(finite(objective.count) ?? 1)
-    const build = weaponBuild(objective)
+    const build = weaponBuild(objective, categoryName)
     return [{
       id,
       type: text(objective.type) || 'unknown',
@@ -121,24 +125,33 @@ const COMPARE = new Map<string, WeaponBuildAttribute['compare']>([['>=', '>='], 
 
 /**
  * A buildWeapon objective («Оружейник»): the weapon (`item`), the parts it must contain (`containsAll`, `containsOne`),
- * part categories (`containsCategory`) and stats (`attributes: [{ name, requirement: { compareMethod, value } }]`).
- * References come as ids (json.tarkov.dev) or `{ id, name }` objects (GraphQL); both are read.
+ * part categories (`containsCategory`) and stats. The two upstream shapes differ (tarkov-data-manager
+ * update-quests.mjs, updateStaticApi):
+ *   - GraphQL: `attributes: [{ name, requirement: { compareMethod, value } }]`, references `{ id, name }`;
+ *   - json.tarkov.dev (what the app loads): `buildAttributes: { ergonomics: { compareMethod, value }, … }`, references
+ *     are bare ids (`containsCategory` too: its names come from `categoryName`, the items file's `itemCategories`).
+ * The game lists all ten stats on every part; a stat the part does not ask for has the value 0 and is left out, as on
+ * tarkov.dev.
  */
-export function weaponBuild(objective: JsonRecord): WeaponBuildRequirement | undefined {
+export function weaponBuild(objective: JsonRecord, categoryName?: (id: string) => string | undefined): WeaponBuildRequirement | undefined {
   const type = text(objective.type).toLowerCase()
   const weaponId = refId(objective.item)
-  if (!weaponId || (type !== 'buildweapon' && !Array.isArray(objective.containsAll) && !Array.isArray(objective.attributes))) return undefined
+  const buildAttributes = asRecord(objective.buildAttributes)
+  if (!weaponId || (type !== 'buildweapon' && !Array.isArray(objective.containsAll) && !Array.isArray(objective.attributes) && !Object.keys(buildAttributes).length)) return undefined
   const ids = (value: unknown) => [...new Set((Array.isArray(value) ? value : []).map((entry) => refId(entry) || refId(asRecord(entry).item)).filter(Boolean))]
-  const attributes = asArray(objective.attributes).flatMap((entry): WeaponBuildAttribute[] => {
+  const rawAttributes = Array.isArray(objective.attributes)
+    ? asArray(objective.attributes)
+    : Object.entries(buildAttributes).map(([name, requirement]) => ({ name, requirement }))
+  const attributes = rawAttributes.flatMap((entry): WeaponBuildAttribute[] => {
     const requirement = asRecord(entry.requirement)
     const name = text(entry.name)
     const compare = COMPARE.get(text(requirement.compareMethod ?? entry.compareMethod).trim())
     const value = finite(requirement.value ?? entry.value)
-    return name && compare && value !== undefined ? [{ name, compare, value }] : []
+    return name && compare && value !== undefined && value !== 0 ? [{ name, compare, value }] : []
   })
   const categories = (Array.isArray(objective.containsCategory) ? objective.containsCategory : []).flatMap((entry) => {
     const id = refId(entry)
-    const name = text(asRecord(entry).name)
+    const name = text(asRecord(entry).name) || (id ? categoryName?.(id) : undefined)
     return id ? [{ id, name: name || id }] : []
   })
   const anyOfIds = ids(objective.containsOne)

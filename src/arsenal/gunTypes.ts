@@ -44,6 +44,8 @@ export interface GunPart {
   /** «noFlea» type: cannot be bought on the flea market. */
   noFlea: boolean
   category?: string
+  /** Every category of the item with its parents (tarkov.dev `categories`): «Оружейник» parts asking for a category. */
+  categoryIds?: string[]
 }
 
 export interface GunPreset {

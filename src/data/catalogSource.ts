@@ -62,7 +62,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru')
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
   const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
-    mergeWikiQuestDetails(mergeWikiQuestCatalog(adaptTasks(tasks, traderById, itemById, mapNameById), wiki.titles), wiki.pages),
+    mergeWikiQuestDetails(mergeWikiQuestCatalog(adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items)), wiki.titles), wiki.pages),
     wiki.storyQuests,
   ), locale))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
@@ -253,11 +253,21 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
   }).filter((item) => item.id)
 }
 
+/** Item category names by id from the items file (`itemCategories`, already in the catalog language). */
+export function itemCategoryNames(itemsRoot: JsonRecord): Map<string, string> {
+  return new Map(recordValues(asRecord(itemsRoot.itemCategories)).flatMap((category) => {
+    const id = text(category.id)
+    const name = text(category.name)
+    return id && name ? [[id, name] as [string, string]] : []
+  }))
+}
+
 function adaptTasks(
   root: JsonRecord,
   traders: Map<string, Trader>,
   items: Map<string, Item>,
   maps: Map<string, string>,
+  categoryNames: Map<string, string> = new Map(),
 ): Quest[] {
   const rawTasks = asRecord(root.tasks)
   return recordValues(rawTasks).map((entry) => {
@@ -342,7 +352,7 @@ function adaptTasks(
       description: `Задание от торговца ${traders.get(text(entry.trader))?.name ?? 'неизвестно'}.`,
       objectives: objectives.map((objective) => text(objective.description)).filter(Boolean),
       objectiveIds: objectives.map((objective) => text(objective.id)).filter(Boolean),
-      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id))),
+      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id)), (id) => categoryNames.get(id)),
       rewards,
       requiredItems: [...new Set([...objectiveItems, ...requiredKeys])],
       raidRequirements,

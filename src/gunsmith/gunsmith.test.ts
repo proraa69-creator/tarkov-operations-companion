@@ -87,6 +87,17 @@ describe('«Как собрать»: example build for a Gunsmith part', () => {
     expect(plan.unplaced).toEqual([])
   })
 
+  it('puts in a part of a required category (json.tarkov.dev containsCategory), the cheapest that fits', () => {
+    const mods = new Map([...catalog.mods].map(([id, part]) => [id, id === FX.foregrip ? { ...part, categoryIds: ['cat-foregrip', 'cat-mod'] } : part]))
+    const plan = solveGunsmithBuild({ weaponId: FX.m4, partIds: [], categories: [{ id: 'cat-foregrip', name: 'Тактическая рукоятка' }], attributes: [] }, { ...catalog, mods })!
+    expect(installedParts(plan.build, { ...catalog, mods }).map((entry) => entry.part.id)).toContain(FX.foregrip)
+  })
+
+  it('reads json.tarkov.dev `buildAttributes` and leaves out the stats the part does not ask for (value 0)', () => {
+    expect(weaponBuild({ type: 'buildWeapon', item: 'mp133', containsAll: [], containsCategory: ['c1'], buildAttributes: { ergonomics: { compareMethod: '>=', value: 9 }, width: { compareMethod: '<=', value: 0 } } }, (id) => (id === 'c1' ? 'Цевьё' : undefined)))
+      .toEqual({ weaponId: 'mp133', partIds: [], categories: [{ id: 'c1', name: 'Цевьё' }], attributes: [{ name: 'ergonomics', compare: '>=', value: 9 }] })
+  })
+
   it('reports what cannot be done instead of guessing', () => {
     expect(solveGunsmithBuild({ weaponId: 'unknown', partIds: [], attributes: [] }, catalog)).toBeNull()
     expect(solveGunsmithBuild({ weaponId: FX.m4, partIds: ['not-in-data'], attributes: [] }, catalog)?.unplaced).toEqual(['not-in-data'])

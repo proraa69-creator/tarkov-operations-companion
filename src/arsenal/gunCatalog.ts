@@ -6,7 +6,7 @@ import { readGameCache, writeGameCache } from '../data/gameDataCache'
 import { adaptAmmo, adaptMods, adaptWeapons, AMMO_QUERY, GUNS_QUERY, MODS_QUERY } from './gunQueries'
 import type { AmmoStats, GunCatalog, GunPart, Weapon } from './gunTypes'
 
-const CACHE_PREFIX = 'raid-os-gun-catalog-v1'
+const CACHE_PREFIX = 'raid-os-gun-catalog-v2'
 /** A cached catalogue younger than this is used without asking tarkov.dev (the mod list is several MB). */
 const FRESH_MS = 30 * 60_000
 /** Offline copy of the builder catalogue (never past the entitlement in the players' app). */

@@ -93,6 +93,16 @@ export function solveGunsmithBuild(requirement: WeaponBuildRequirement, catalog:
       if (placed) { build = placed.build; locked.push(placed.path); break }
     }
   }
+  // «A part of this category» (containsCategory): the cheapest one that fits, unless the build already has one.
+  for (const category of requirement.categories ?? []) {
+    const inCategory = (part: GunPart) => part.categoryIds?.includes(category.id) ?? false
+    if (installedParts(build, catalog).some(({ part }) => inCategory(part))) continue
+    const candidates = [...catalog.mods.values()].filter((part) => inCategory(part) && buyable(part)).sort((a, b) => price(a) - price(b))
+    for (const part of candidates.slice(0, 40)) {
+      const placed = placePart(build, weapon, catalog, part.id, locked, tryInstall, price)
+      if (placed) { build = placed.build; locked.push(placed.path); break }
+    }
+  }
   build = fillRequired(build, weapon, catalog, tryInstall, buyable, price)
 
   const attributes = requirement.attributes

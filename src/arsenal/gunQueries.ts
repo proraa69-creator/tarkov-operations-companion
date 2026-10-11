@@ -37,6 +37,7 @@ export const MODS_QUERY = `query RaidOsMods($lang: LanguageCode, $gameMode: Game
     id name shortName iconLink weight types
     accuracyModifier recoilModifier ergonomicsModifier
     category { name normalizedName }
+    categories { id }
     conflictingItems { id }
     ${OFFER_FIELDS}
     properties {
@@ -117,6 +118,7 @@ function basePart(item: Json, properties: Json): GunPart {
     offers: adaptOffers(item),
     noFlea: types.includes('noFlea'),
     category: text(record(item.category).normalizedName) || undefined,
+    ...(Array.isArray(item.categories) ? { categoryIds: list(item.categories).map((entry) => text(entry.id)).filter(Boolean) } : {}),
   }
 }
 
