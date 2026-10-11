@@ -289,7 +289,9 @@ function useFitWindow(rootRef: RefObject<HTMLDivElement | null>, visibilityRevis
     const frame = requestAnimationFrame(fit)
     const observer = new ResizeObserver(fit)
     observer.observe(element)
-    return () => { cancelAnimationFrame(frame); observer.disconnect() }
+    // The page zoom follows the display (electron/uiScale.ts): the same CSS size then needs another window size.
+    window.addEventListener('resize', fit)
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener('resize', fit) }
   }, [rootRef, visibilityRevision])
 }
 

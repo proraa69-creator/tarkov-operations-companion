@@ -19,6 +19,7 @@ import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScre
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { zoomToDisplay } from '../uiScale.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
   type DisplayMode, type KeyStroke,
@@ -582,6 +583,9 @@ function reassertOverlay(window: BrowserWindow) {
 }
 
 function showOverlay(window: BrowserWindow) {
+  // Full HD look on any game screen (electron/uiScale.ts): the page zoom of the display it was placed on; its CSS sizes
+  // and hit zones are converted with the zoom (pageZoom), so the window follows.
+  zoomToDisplay(window)
   window.showInactive()
   reassertOverlay(window)
   // Some borderless/full-screen games reorder native windows one or two frames after a hotkey.

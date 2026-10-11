@@ -1,6 +1,7 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
 import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -83,12 +84,15 @@ function lockDevTools(contents: WebContents) {
 }
 if (releaseClient) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
 
+/** The main window on a Full HD screen (bigger screens: in proportion, electron/uiScale.ts). */
+const MAIN_WINDOW = { width: 1500, height: 930, minWidth: 1050, minHeight: 700 }
+
 function createWindow() {
+  // Sizes are for a Full HD screen; a bigger one gets them (and the page zoom) in proportion (electron/uiScale.ts).
+  const display = screen.getPrimaryDisplay()
+  const size = scaledWindowSize(MAIN_WINDOW, displayScale(display), display.workArea)
   mainWindow = new BrowserWindow({
-    width: 1500,
-    height: 930,
-    minWidth: 1050,
-    minHeight: 700,
+    ...size,
     backgroundColor: '#0d1110',
     title: trialLaunchesAtStart() ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
@@ -113,6 +117,7 @@ function createWindow() {
 
   // The owner's copy started a build staged by a partial update: its page loaded, so that build works (electron/deltaBoot.ts).
   mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
+  followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
     return { action: 'deny' }
@@ -318,8 +323,11 @@ function registerIpc() {
   ipcMain.handle('maps:open-wiki', async (_event, id: string) => {
     const url = wikiMapUrl(id)
     if (!url) return false
-    const wikiWindow = new BrowserWindow({ width: 1450, height: 950, title: 'Оригинальная карта Wiki', autoHideMenuBar: true,
+    const wikiDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    const wikiSize = scaledWindowSize({ width: 1450, height: 950, minWidth: 0, minHeight: 0 }, displayScale(wikiDisplay), wikiDisplay.workArea)
+    const wikiWindow = new BrowserWindow({ width: wikiSize.width, height: wikiSize.height, title: 'Оригинальная карта Wiki', autoHideMenuBar: true,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: 'wiki-maps' } })
+    followDisplayScale(wikiWindow)
     wikiWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     wikiWindow.webContents.setWindowOpenHandler(({ url: target }) => {
       void openExternalLink(target, wikiWindow)
