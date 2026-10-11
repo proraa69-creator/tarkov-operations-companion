@@ -55,6 +55,9 @@ function localized(names: Json, id: string, field: 'Name' | 'ShortName' | 'Descr
   return text(names[`${id} ${field}`], fallback)
 }
 
+/** Upstream names are translation keys (`<id> Nickname`, `<id> Name`, `MOD_STOCK`); the texts are in the `_<lang>` files. */
+const translated = (names: Json, key: string) => text(names[key], key)
+
 function localImage(base: string, id: string, kind: 'icon' | 'grid') {
   return `${base.replace(/\/$/, '')}/${id}-${kind}.webp`
 }
@@ -86,10 +89,10 @@ function counts(value: unknown): ItemCount[] {
   })
 }
 
-function traderVendor(traderId: string, traders: Record<string, Json>, row: Json) {
+function traderVendor(traderId: string, traders: Record<string, Json>, row: Json, names: Json) {
   const trader = traders[traderId] ?? {}
   return {
-    name: text(trader.name, traderId || 'Trader'),
+    name: translated(names, text(trader.name, traderId || 'Trader')),
     normalizedName: text(trader.normalizedName, traderId),
     minTraderLevel: number(row.minTraderLevel),
     buyLimit: positive(row.buyLimit),
@@ -98,7 +101,7 @@ function traderVendor(traderId: string, traders: Record<string, Json>, row: Json
   }
 }
 
-function legacyOffers(item: Json, traders: Record<string, Json>, price?: MinutePrice) {
+function legacyOffers(item: Json, traders: Record<string, Json>, names: Json, price?: MinutePrice) {
   const lastLowPrice = positive(price?.lastLowPrice) ?? positive(item.lastLowPrice)
   const avg24hPrice = positive(price?.avg24hPrice) ?? positive(item.avg24hPrice)
   const buyFor: Json[] = []
@@ -106,12 +109,12 @@ function legacyOffers(item: Json, traders: Record<string, Json>, price?: MinuteP
   for (const row of array(item.buyFromTrader)) {
     const traderId = text(row.trader)
     const priceRUB = positive(row.priceRUB)
-    if (traderId && priceRUB) buyFor.push({ priceRUB, vendor: traderVendor(traderId, traders, row) })
+    if (traderId && priceRUB) buyFor.push({ priceRUB, vendor: traderVendor(traderId, traders, row, names) })
   }
   const sellFor = array(item.sellToTrader).flatMap((row) => {
     const traderId = text(row.trader)
     const priceRUB = positive(row.priceRUB)
-    return traderId && priceRUB ? [{ priceRUB, vendor: traderVendor(traderId, traders, row) }] : []
+    return traderId && priceRUB ? [{ priceRUB, vendor: traderVendor(traderId, traders, row, names) }] : []
   })
   return { buyFor, sellFor }
 }
@@ -120,7 +123,7 @@ function legacyProperties(value: unknown, items: Record<string, Json>, names: Js
   const row = object(value)
   const type = text(row.propertiesType)
   const slots = array(row.slots).map((slot) => ({
-    id: text(slot.id), nameId: text(slot.nameId), name: text(slot.name, text(slot.nameId)), required: slot.required === true,
+    id: text(slot.id), nameId: text(slot.nameId), name: translated(names, text(slot.name, text(slot.nameId))), required: slot.required === true,
     filters: { allowedItems: (Array.isArray(object(slot.filters).allowedItems) ? object(slot.filters).allowedItems as unknown[] : []).map((entry) => itemRef(typeof entry === 'string' ? entry : object(entry).id, items)) },
   }))
   const presetId = text(row.defaultPreset)
@@ -166,13 +169,13 @@ export function buildLegacyItems(bundle: TarkovJsonBundle): Json[] {
       gridImageLink: localImage(imageBase, id, 'grid'),
       image512pxLink: localImage(imageBase, id, 'grid'),
       inspectImageLink: localImage(imageBase, id, 'grid'),
-      category: category ? { id: categoryId, name: text(category.name, categoryId), normalizedName: text(category.normalizedName, categoryId) } : undefined,
+      category: category ? { id: categoryId, name: translated(names, text(category.name, categoryId)), normalizedName: text(category.normalizedName, categoryId) } : undefined,
       categories: (Array.isArray(item.categories) ? item.categories : []).map((entry) => ({ id: text(entry) })).filter((entry) => entry.id),
       conflictingItems: (Array.isArray(item.conflictingItems) ? item.conflictingItems : []).map((entry) => itemRef(entry, items)),
       lastLowPrice: positive(price.lastLowPrice) ?? positive(item.lastLowPrice),
       avg24hPrice: positive(price.avg24hPrice) ?? positive(item.avg24hPrice),
       low24hPrice: positive(price.low24hPrice) ?? positive(item.low24hPrice),
-      ...legacyOffers(item, traders, price),
+      ...legacyOffers(item, traders, names, price),
       properties: legacyProperties(item.properties, items, names, imageBase),
     }
   })
@@ -192,7 +195,7 @@ function vendorPrice(row: Json, traders: Record<string, Json>, names: Json, kind
   if (!traderId || !price) return null
   const trader = traders[traderId] ?? {}
   return {
-    source: text(trader.name, traderId), traderId, kind: 'trader', price,
+    source: translated(names, text(trader.name, traderId)), traderId, kind: 'trader', price,
     minTraderLevel: kind === 'buy' ? number(row.minTraderLevel) : undefined,
     taskUnlock: kind === 'buy' ? taskRef(row.taskUnlock, names) : undefined,
     buyLimit: kind === 'buy' ? positive(row.buyLimit) : undefined,
@@ -231,7 +234,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
     const traderId = text(row.trader)
     if (!rewardId || !traderId) return []
     const trader = traders[traderId] ?? {}
-    return [{ id: text(row.id, `barter-${index}`), traderId, traderName: text(trader.name, localized(names, traderId, 'Name', traderId)), traderNormalizedName: text(trader.normalizedName) || undefined, level: number(row.minTraderLevel) ?? 1, taskUnlock: taskRef(row.taskUnlock, names), buyLimit: positive(row.buyLimit), requiredItems: counts(row.requiredItems), rewardItems: [{ itemId: rewardId, count: number(reward.count) ?? 1 }] }]
+    return [{ id: text(row.id, `barter-${index}`), traderId, traderName: translated(names, text(trader.name, localized(names, traderId, 'Name', traderId))), traderNormalizedName: text(trader.normalizedName) || undefined, level: number(row.minTraderLevel) ?? 1, taskUnlock: taskRef(row.taskUnlock, names), buyLimit: positive(row.buyLimit), requiredItems: counts(row.requiredItems), rewardItems: [{ itemId: rewardId, count: number(reward.count) ?? 1 }] }]
   })
   const crafts: Craft[] = tarkovRecords(bundle.crafts, 'crafts').flatMap((row, index) => {
     const product = object(row.productItem)
@@ -245,7 +248,8 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
 }
 
 export function buildLegacyTraders(bundle: TarkovJsonBundle) {
-  return tarkovRecords(bundle.traders, 'traders').map((row) => ({ id: text(row.id), name: text(row.name), normalizedName: text(row.normalizedName), resetTime: row.resetTime, imageLink: undefined }))
+  const names = object(unwrapTarkovData(bundle.names))
+  return tarkovRecords(bundle.traders, 'traders').map((row) => ({ id: text(row.id), name: translated(names, text(row.name)), normalizedName: text(row.normalizedName), resetTime: row.resetTime, imageLink: undefined }))
 }
 
 export function buildLegacyBarters(bundle: TarkovJsonBundle, mode: RaidMode = 'pvp', locale: AppLocale = 'ru') {
@@ -261,6 +265,8 @@ export function buildLegacyCrafts(bundle: TarkovJsonBundle, mode: RaidMode = 'pv
 export function buildLegacyBosses(bundle: TarkovJsonBundle): Json[] {
   const root = object(unwrapTarkovData(bundle.maps))
   const mobs = dictionary(root.mobs)
+  const items = dictionary(object(unwrapTarkovData(bundle.items)).items)
+  const names = object(unwrapTarkovData(bundle.names))
   const imageBase = bundle.imageBaseUrl ?? 'https://raidos.app/v1/item-images'
   const bossIds = new Set<string>()
   for (const map of Object.values(dictionary(root.maps))) for (const boss of array(map.bosses)) {
@@ -272,16 +278,24 @@ export function buildLegacyBosses(bundle: TarkovJsonBundle): Json[] {
     imagePortraitLink: undefined,
     normalizedName: text(mob.normalizedName, text(mob.id)),
     health: mob.health ?? { max: 0 },
+    // Upstream lists the gear by item id with `attributes: { slot: 'FirstPrimaryWeapon' }`; released builds read the GraphQL
+    // shape: the item with its names and pictures, `attributes: [{ name: 'slot', value }]`.
     equipment: array(mob.equipment).map((entry) => {
       const item = object(entry.item)
-      const itemId = text(item.id)
+      const itemId = typeof entry.item === 'string' ? entry.item : text(item.id)
+      const row = items[itemId] ?? {}
       const properties = object(item.properties)
-      const preset = object(properties.defaultPreset)
+      const presetRef = properties.defaultPreset ?? object(row.properties).defaultPreset
+      const preset = typeof presetRef === 'string' ? { id: presetRef } : object(presetRef)
       const presetId = text(preset.id)
       return {
         ...entry,
+        attributes: Array.isArray(entry.attributes) ? entry.attributes : Object.entries(object(entry.attributes)).map(([name, value]) => ({ name, value: String(value) })),
         item: {
           ...item,
+          id: itemId,
+          name: localized(names, itemId, 'Name', text(item.name, text(row.name, itemId))),
+          shortName: localized(names, itemId, 'ShortName', text(item.shortName, text(row.shortName))),
           iconLink: itemId ? localImage(imageBase, itemId, 'icon') : undefined,
           properties: {
             ...properties,

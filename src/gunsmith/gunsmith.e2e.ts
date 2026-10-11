@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { createLocalProfile } from '../domain/progress'
-import { ammoPayload, FX, FX_CATEGORY, gunsPayload, modsPayload } from '../arsenal/fixtures/gunFixture'
+import { FX, FX_CATEGORY, upstreamGunItems } from '../arsenal/fixtures/gunFixture'
 
 // «Оружейник» end to end, offline. json.tarkov.dev answers in the exact shape tarkov-data-manager's updateStaticApi writes
-// (bare ids, `buildAttributes` with all ten stats, the unused ones 0, category names only in the items file); the
-// gun catalogue comes from the GraphQL fixture. Names are in English with the `_ru` dictionaries, as upstream; the parts
-// are named by their weapon, as in the game now («Оружейник. АКС-74Н»), with no part number anywhere.
+// (bare ids, `buildAttributes` with all ten stats, the unused ones 0, category names only in the items file); the gun
+// catalogue (weapons, parts, slots, trader offers) is read from the same items file, as the app does now. Names are
+// translation keys with the texts in the `_en` / `_ru` dictionaries, as upstream; the parts are named by their weapon, as
+// in the game now («Оружейник. АКС-74Н»), with no part number anywhere.
 const MECHANIC = 'tr-mechanic'
 const WEAPON = { 1: ['AK-74N', 'АК-74Н'], 2: ['M4A1', 'M4A1'], 3: ['MP7A1', 'MP7A1'] } as Record<number, [string, string]>
 const PART = { one: 'gs-part-1', two: 'gs-part-2', three: 'gs-part-3' }
@@ -20,16 +21,10 @@ const task = (id: string, part: number, level: number, previous: string | undefi
   objectives: [{ id: `${id}-o`, type: 'buildWeapon', description: `Modify the weapon (Part ${part}) to comply with the given specifications`, optional: false, maps: [], ...objective }],
 })
 
-const ITEMS: Array<[id: string, english: string, shortName: string, types: string[], price: number, russian?: string]> = [
-  [FX.m4, 'Colt M4A1 5.56x45 assault rifle', 'M4A1', ['gun'], 34000, 'Штурмовая винтовка Colt M4A1 5.56x45'],
-  [FX.ak, 'Kalashnikov AK-74N 5.45x39 assault rifle', 'AK-74N', ['gun'], 29000],
-  [FX.mp7, 'HK MP7A1 4.6x30 submachine gun', 'MP7A1', ['gun'], 41000],
-  [FX.suppressor, 'SureFire SOCOM556-RC2 5.56x45 sound suppressor', 'RC2', ['mods'], 0, 'Глушитель SureFire SOCOM556-RC2 5.56x45'],
-  [FX.holo, 'EOTech EXPS3 holographic sight', 'EXPS3', ['mods'], 38000, 'Голографический прицел EOTech EXPS3'],
-  [FX.akMuzzle, 'AK-74 6P20 muzzle brake', '6P20', ['mods'], 1800],
-  [FX.stockMoe, 'AR-15 Magpul MOE stock', 'MOE', ['mods'], 6900, 'Приклад Magpul MOE для AR-15'],
-  [FX.foregripRvg, 'Magpul RVG foregrip', 'RVG', ['mods'], 4000, 'Тактическая рукоятка Magpul RVG'],
-]
+// The arsenal fixture's weapons, parts and rounds (src/arsenal/fixtures/gunFixture.ts) as json.tarkov.dev writes them.
+const GUNS = upstreamGunItems()
+// Each picture labelled with its item's short name, like the game's inventory icons.
+const SHORT_NAMES = Object.fromEntries(Object.keys(GUNS.items).map((id) => [id, GUNS.names.en[`${id} ShortName`] ?? id]))
 
 const catalog: Record<string, unknown> = {
   tasks: {
@@ -43,20 +38,23 @@ const catalog: Record<string, unknown> = {
     },
   },
   tasks_ru: Object.fromEntries([1, 2, 3].flatMap((part) => [[`Gunsmith - ${WEAPON[part][0]}`, `Оружейник. ${WEAPON[part][1]}`], [`Modify the weapon (Part ${part}) to comply with the given specifications`, 'Модифицировать оружие в соответствии с требованиями']])),
-  // Traders with their loyalty levels (player level each needs) and portraits, keyed like the offers (normalizedName).
-  traders: Object.fromEntries([[MECHANIC, 'Mechanic', 'mechanic'], ['tr-peacekeeper', 'Peacekeeper', 'peacekeeper'], ['tr-skier', 'Skier', 'skier'], ['tr-prapor', 'Prapor', 'prapor']]
-    .map(([id, name, key]) => [id, { id, name, normalizedName: key, imageLink: `https://assets.tarkov.dev/${key}-trader.webp`, levels: [1, 15, 26, 36].map((player, index) => ({ level: index + 1, requiredPlayerLevel: player })) }])),
-  traders_ru: { Mechanic: 'Механик', Peacekeeper: 'Миротворец', Skier: 'Лыжник', Prapor: 'Прапор' },
+  // Traders with their loyalty levels (player level each needs) and portraits; the offers name them by id. Their names
+  // are keys («<id> Nickname») with the texts in `traders_ru`, as upstream.
+  traders: Object.fromEntries([MECHANIC, 'tr-peacekeeper', 'tr-skier', 'tr-prapor', 'tr-jaeger']
+    .map((id) => [id, { id, name: `${id} Nickname`, normalizedName: id.slice(3), imageLink: `https://assets.tarkov.dev/${id.slice(3)}-trader.webp`, levels: [1, 15, 26, 36].map((player, index) => ({ level: index + 1, requiredPlayerLevel: player })) }])),
+  traders_ru: Object.fromEntries([[MECHANIC, 'Механик'], ['tr-peacekeeper', 'Миротворец'], ['tr-skier', 'Лыжник'], ['tr-prapor', 'Прапор'], ['tr-jaeger', 'Егерь']].map(([id, name]) => [`${id} Nickname`, name])),
   maps: { maps: {} },
-  // Upstream keeps translation keys in the data («<id> Name») and the texts in `items_en` / `items_ru` (the Russian one
-  // falls back to English where it has no translation), as tarkov-data-manager writes them.
+  // Upstream keeps translation keys in the data («<id> Name», «MOD_STOCK») and the texts in `items_en` / `items_ru`, as
+  // tarkov-data-manager writes them.
   items: {
-    items: Object.fromEntries(ITEMS.map(([id, , shortName, types, price]) => [id, { id, name: `${id} Name`, shortName: `${id} ShortName`, types, iconLink: `https://assets.tarkov.dev/${shortName}-icon.webp`, lastLowPrice: price }])),
-    itemCategories: { [FX_CATEGORY.foregrip]: { id: FX_CATEGORY.foregrip, name: 'Foregrip', normalizedName: 'foregrip', parent: FX_CATEGORY.mod, children: [] } },
+    items: GUNS.items,
+    itemCategories: { ...GUNS.itemCategories, [FX_CATEGORY.foregrip]: { id: FX_CATEGORY.foregrip, name: `${FX_CATEGORY.foregrip} Name`, normalizedName: 'foregrip', parent: FX_CATEGORY.mod, children: [] } },
   },
-  items_en: { Foregrip: 'Foregrip', ...Object.fromEntries(ITEMS.flatMap(([id, name, shortName]) => [[`${id} Name`, name], [`${id} ShortName`, shortName]])) },
-  items_ru: { Foregrip: 'Тактическая рукоятка', ...Object.fromEntries(ITEMS.flatMap(([id, name, shortName, , , russian]) => [[`${id} Name`, russian ?? name], [`${id} ShortName`, shortName]])) },
+  items_en: { [`${FX_CATEGORY.foregrip} Name`]: 'Foregrip', ...GUNS.names.en },
+  items_ru: { [`${FX_CATEGORY.foregrip} Name`]: 'Тактическая рукоятка', ...GUNS.names.ru },
   hideout: {},
+  barters: [],
+  crafts: [],
 }
 
 // tarkov.help as it serves its task pages (src/data/tarkovHelpGunsmith.ts): a Next.js page whose server-components payload
@@ -91,6 +89,9 @@ async function openOverview(page: Page, { modsDown = false } = {}) {
     const url = new URL(route.request().url())
     if (url.hostname === 'json.tarkov.dev') {
       const endpoint = url.pathname.split('/').pop() ?? ''
+      // The weapons and their parts come with the trades (src/data/tarkovDataset.ts): without those files there is no
+      // part data, while the task catalog, which does not read them, still loads.
+      if (modsDown && (endpoint === 'barters' || endpoint === 'crafts')) return route.fulfill({ status: 503, json: { error: 'Данные ещё не подготовлены на сервере' } })
       return route.fulfill({ json: { data: catalog[endpoint] ?? {} } })
     }
     if (url.hostname === 'tarkov.help') {
@@ -100,18 +101,11 @@ async function openOverview(page: Page, { modsDown = false } = {}) {
     if (url.hostname === 'minio.tarkov.help') return route.fulfill({ contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: BUILD_SCREEN_SVG })
     // The wiki has no page here: tarkov.help covers the task (the wiki only fills tasks it lacks).
     if (url.hostname === 'escapefromtarkov.fandom.com') return route.fulfill({ json: { error: { code: 'missingtitle' } }, headers: { 'access-control-allow-origin': '*' } })
-    if (url.hostname === 'api.tarkov.dev') {
-      const body = JSON.parse(route.request().postData() ?? '{}') as { query?: string; variables?: { lang?: 'ru' | 'en' } }
-      // The server has no mod data yet (owner, 11.10.2026: «Данные модулей сейчас недоступны»).
-      if (modsDown && body.query?.includes('RaidOsMods')) return route.fulfill({ status: 503, json: { error: 'Данные ещё не подготовлены на сервере' } })
-      const lang = body.variables?.lang === 'en' ? 'en' : 'ru'
-      const payload = body.query?.includes('RaidOsGuns') ? gunsPayload(lang) : body.query?.includes('RaidOsMods') ? modsPayload(lang) : body.query?.includes('RaidOsAmmo') ? ammoPayload(lang) : { data: {} }
-      return route.fulfill({ json: payload })
-    }
     if (url.hostname === 'assets.tarkov.dev') {
       // Each item its own picture, labelled with its short name like the game's inventory icons.
       const icon = /^\/(.+)-icon\.webp$/.exec(url.pathname)
-      return route.fulfill({ contentType: 'image/svg+xml', body: /trader/.test(url.pathname) ? TRADER_SVG : /512|preset/.test(url.pathname) ? RIFLE_SVG : icon ? itemIcon(decodeURIComponent(icon[1])) : ICON_SVG })
+      const label = icon ? decodeURIComponent(icon[1]) : ''
+      return route.fulfill({ contentType: 'image/svg+xml', body: /trader/.test(url.pathname) ? TRADER_SVG : /512|preset|-grid/.test(url.pathname) ? RIFLE_SVG : icon ? itemIcon(SHORT_NAMES[label] ?? label) : ICON_SVG })
     }
     return route.abort()
   })
