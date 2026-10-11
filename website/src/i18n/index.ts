@@ -62,7 +62,17 @@ function browserHints() {
   return { timeZone, languages }
 }
 
-let current: SiteLocale = savedLocale() ?? (detect ? autoLocale(browserHints()) : 'ru')
+/**
+ * `?lang=ru` / `?lang=en`: the language of each page's own address for search engines (App.tsx, public/sitemap.xml), which
+ * crawl from abroad and would otherwise only ever see the English site. Nothing is saved; the RU / EN switch works as usual.
+ */
+function addressLocale(): SiteLocale | null {
+  if (typeof location === 'undefined') return null
+  const lang = new URLSearchParams(location.search).get('lang')
+  return lang === 'ru' || lang === 'en' ? lang : null
+}
+
+let current: SiteLocale = addressLocale() ?? savedLocale() ?? (detect ? autoLocale(browserHints()) : 'ru')
 if (typeof document !== 'undefined') document.documentElement.lang = current
 
 export const siteLocale = () => current
@@ -94,7 +104,7 @@ async function followCountry() {
   if (!country || savedLocale()) return
   setSiteLocale(autoLocale({ ...browserHints(), country }), { remember: false })
 }
-if (detect && !savedLocale()) void followCountry()
+if (detect && !savedLocale() && !addressLocale()) void followCountry()
 
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener) }
 

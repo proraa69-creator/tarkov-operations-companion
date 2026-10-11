@@ -1,0 +1,18 @@
+# Raid OS — https://raidos.app
+# Public pages are open to search engines; account, admin and invitation pages are not.
+User-agent: *
+Allow: /
+Disallow: /cabinet
+Disallow: /admin
+Disallow: /login
+Disallow: /app-login
+Disallow: /register
+Disallow: /reset
+Disallow: /r/
+Disallow: /streamer/
+Disallow: /squad/
+Disallow: /friend/
+Disallow: /download/
+Disallow: /v1/
+
+Sitemap: https://raidos.app/sitemap.xml
