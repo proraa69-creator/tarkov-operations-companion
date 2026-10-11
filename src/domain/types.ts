@@ -357,6 +357,11 @@ export interface Quest {
   normalizedName?: string
   name: string
   trader: string
+  /**
+   * Trader loyalty the task tells about (tarkov.dev, by trader id): `needed` to take it (`traderRequirements` of type
+   * level), `reached` once it is completed (its «reach loyalty level N» objectives). Used to estimate the player's levels.
+   */
+  traderLoyalty?: { needed: Array<{ traderId: string; level: number }>; reached: Array<{ traderId: string; level: number }> }
   mapId?: string
   level: number
   kappa: boolean
@@ -481,6 +486,10 @@ export interface Trader {
   loyalty: number
   accent: string
   imageUrl?: string
+  /** tarkov.dev normalized name (prapor, mechanic, …), the key of trader offers. */
+  normalizedName?: string
+  /** Player level each loyalty level needs: index 0 = level 1 (tarkov.dev `levels[].requiredPlayerLevel`). */
+  levelPlayerLevels?: number[]
 }
 
 export interface AppDataset {

@@ -1,0 +1,101 @@
+/* «Что купить» as a picture table (src/gunsmith/ShoppingTable.tsx) and the trader portraits with loyalty levels. */
+.gs-shop { display: grid; gap: 8px; }
+.gs-shop-head, .gs-shop-row { display: grid; grid-template-columns: 174px minmax(0, 1fr) 150px 96px; align-items: center; column-gap: 12px; }
+.gs-shop.is-compact .gs-shop-head, .gs-shop.is-compact .gs-shop-row { grid-template-columns: minmax(52px, max-content) minmax(0, 1fr) 78px; column-gap: 9px; }
+.gs-shop-head { padding: 0 10px 6px; border-bottom: 1px solid var(--line); color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.gs-shop-head > span:last-child { text-align: right; }
+.gs-shop-rows { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.gs-shop-row { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel-2) 82%, transparent); row-gap: 8px; }
+.gs-shop-row.is-weapon { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); }
+.gs-shop-row.is-required .gs-shop-name small, .gs-shop-row.is-category .gs-shop-name small { color: var(--brass-strong); }
+.gs-shop-name { min-width: 0; }
+.gs-shop-name strong { display: block; font-size: 13px; font-weight: 650; line-height: 1.3; }
+.gs-shop-name small { display: block; margin-top: 3px; color: var(--text-dim); font-size: 11px; }
+.gs-shop.is-compact .gs-shop-name strong { font-size: 12px; }
+/* compact (the Overview block): the sellers go under the name */
+.gs-shop.is-compact .gs-shop-sellers { grid-column: 2; grid-row: 2; }
+.gs-shop.is-compact .gs-shop-price { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+.gs-shop.is-compact .gs-cells { grid-row: 1 / span 2; }
+.gs-shop-sellers { display: grid; gap: 4px; justify-items: start; }
+.gs-shop-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.gs-shop-sellers small { color: var(--text-dim); font-size: 10.5px; line-height: 1.3; }
+.gs-shop-sellers small.is-warning { color: var(--danger); }
+.gs-shop-price { display: grid; justify-items: end; gap: 2px; text-align: right; }
+.gs-shop-price b { color: var(--brass-strong); font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-shop-price small { color: var(--text-dim); font-size: 10.5px; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text-dim) 60%, transparent); white-space: nowrap; }
+.gs-shop-total { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; margin: 4px 2px 0; color: var(--text-muted); font-size: 12.5px; }
+.gs-shop-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.gs-shop-missing { color: var(--danger); }
+
+/* the part in its inventory cells */
+.gs-cells {
+  --cell: 34px;
+  position: relative; display: block; width: calc(var(--w) * var(--cell)); height: calc(var(--h) * var(--cell)); max-width: 204px; max-height: 102px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 80%, #000); border-radius: 3px; overflow: hidden;
+  background-color: #141716;
+  background-image: linear-gradient(to right, rgb(255 255 255 / 6%) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 6%) 1px, transparent 1px);
+  background-size: var(--cell) var(--cell);
+}
+.gs-shop.is-compact .gs-cells { --cell: 26px; max-width: 130px; max-height: 78px; }
+.gs-cells.is-small { --cell: 18px; max-width: 72px; max-height: 36px; }
+.gs-cells img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.gs-cells-label { position: absolute; top: 2px; right: 4px; color: #d8dcd2; font-size: 9.5px; font-weight: 700; line-height: 1; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.gs-cells.is-small .gs-cells-label { display: none; }
+
+/* trader portrait + loyalty level, as on the game's trader screen */
+.gs-trader { position: relative; display: inline-grid; place-items: center; width: 38px; height: 38px; flex: none; border: 1px solid var(--line-strong); border-radius: 4px; overflow: hidden; background: #111413; color: var(--text-muted); }
+.gs-trader.is-small { width: 26px; height: 26px; border-radius: 3px; }
+.gs-trader img { width: 100%; height: 100%; object-fit: cover; }
+.gs-trader-initial { font-size: 14px; font-weight: 800; }
+.gs-trader-level {
+  position: absolute; top: 0; left: 0; min-width: 14px; height: 13px; display: grid; place-items: center; padding: 0 3px;
+  border-right: 1px solid rgb(255 255 255 / 18%); border-bottom: 1px solid rgb(255 255 255 / 18%); border-radius: 0 0 3px 0;
+  background: rgb(10 12 11 / 86%); color: #f2efe4; font: 800 9px/1 var(--font-ui, inherit); letter-spacing: .02em;
+}
+.gs-trader-level svg { color: #e8c766; }
+.gs-trader.is-small .gs-trader-level { min-width: 11px; height: 10px; font-size: 7.5px; padding: 0 2px; }
+.gs-trader-lock { position: absolute; right: 1px; bottom: 1px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 3px; background: rgb(10 12 11 / 86%); color: var(--text-muted); }
+.gs-trader.is-locked img, .gs-trader.is-locked .gs-trader-initial { filter: grayscale(1) brightness(.5); }
+.gs-trader.is-locked { border-color: var(--line); }
+.gs-trader.is-chosen { border-color: var(--brass-strong); box-shadow: 0 0 0 1px var(--brass-strong); }
+.gs-trader.is-flea { color: var(--text); background: color-mix(in srgb, var(--panel-3) 80%, #000); }
+.gs-trader.is-flea.is-chosen { color: var(--brass-strong); }
+.gs-trader.is-flea.is-locked { color: var(--text-dim); opacity: .6; }
+
+/* cheaper alternatives under a part */
+.gs-shop-alts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.gs-shop-alts-title { color: var(--green); font-size: 11px; font-weight: 650; }
+.gs-shop-alt { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; border: 1px solid color-mix(in srgb, var(--green) 35%, var(--line)); border-radius: 6px; background: color-mix(in srgb, var(--green) 7%, transparent); font-size: 11.5px; }
+.gs-shop-alt-name { max-width: 150px; overflow: hidden; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+.gs-shop-alt b { color: var(--brass-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-shop-alt em { color: var(--green); font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs-shop-alt small { color: var(--text-dim); font-size: 10.5px; white-space: nowrap; }
+
+/* «Ваши уровни торговцев» strip */
+.gs-levels { display: grid; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
+.gs-levels-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.gs-levels-head strong { color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.gs-levels-head small { color: var(--text-dim); font-size: 11px; line-height: 1.4; }
+.gs-levels-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.gs-level { position: relative; }
+.gs-level-button { display: grid; justify-items: center; gap: 3px; padding: 0; border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 10px; cursor: pointer; }
+.gs-level-button .gs-trader { width: 44px; height: 44px; }
+.gs-level-button:hover .gs-trader, .gs-level-button:focus-visible .gs-trader, .gs-level.is-open .gs-trader { border-color: var(--brass-strong); }
+.gs-level-button:focus-visible { outline: none; }
+.gs-level-name { max-width: 84px; overflow: hidden; color: var(--text-muted); font-size: 10.5px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+.gs-level-button .gs-level-note { color: var(--text-dim); font-size: 9.5px; }
+.gs-level-button .gs-level-note.is-own { color: var(--brass-strong); }
+.gs-level-menu { position: absolute; top: calc(100% + 4px); left: 50%; z-index: 20; display: flex; gap: 3px; padding: 5px; transform: translateX(-50%); border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel); box-shadow: 0 10px 24px rgb(0 0 0 / 45%); }
+.gs-level-menu button { min-width: 30px; height: 28px; display: grid; place-items: center; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-2); color: var(--text); font: 800 11px/1 var(--font-ui, inherit); cursor: pointer; }
+.gs-level-menu button:hover, .gs-level-menu button:focus-visible { border-color: var(--brass); outline: none; }
+.gs-level-menu button.is-current { border-color: var(--brass-strong); color: var(--brass-strong); }
+.gs-level-menu button svg { color: #e8c766; }
+.gs-level-menu .gs-level-auto { font-weight: 650; font-size: 10px; white-space: nowrap; }
+
+@media (max-width: 720px) {
+  .gs-shop-head { display: none; }
+  .gs-shop-row { grid-template-columns: minmax(52px, max-content) minmax(0, 1fr) 78px; column-gap: 9px; }
+  .gs-shop-row .gs-shop-sellers { grid-column: 2; grid-row: 2; }
+  .gs-shop-row .gs-shop-price { grid-column: 3; grid-row: 1 / span 2; }
+  .gs-shop-row .gs-cells { grid-row: 1 / span 2; --cell: 26px; }
+}

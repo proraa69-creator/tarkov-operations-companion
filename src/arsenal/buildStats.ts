@@ -56,18 +56,33 @@ export function approximateMoa(centerOfImpact: number, accuracyModifierSum: numb
 
 /** What the player can buy from: trader loyalty levels reached and whether the flea market is open (level 15+). */
 export interface PurchaseAccess {
+  /** Loyalty level of every trader not listed in `traderLevels`. */
   traderLevel: number
   flea: boolean
+  /** Loyalty per trader (normalized name: prapor, mechanic, …), e.g. the player's own levels of this mode. */
+  traderLevels?: Record<string, number>
+  /** Whether a task is completed: offers unlocked by a task (`taskUnlock`) need it. Unknown → the offer counts. */
+  taskDone?: (taskId: string) => boolean
 }
 
 export const FULL_ACCESS: PurchaseAccess = { traderLevel: 4, flea: true }
 
+/** Whether the player can use this offer under `access` (and why not). */
+export function offerAccess(offer: GunOffer, item: Pick<GunPart, 'noFlea'>, access: PurchaseAccess = FULL_ACCESS): { ok: true } | { ok: false; reason: 'flea-closed' | 'no-flea' | 'level' | 'task'; level?: number } {
+  if (offer.vendor === 'flea-market') {
+    if (item.noFlea) return { ok: false, reason: 'no-flea' }
+    return access.flea ? { ok: true } : { ok: false, reason: 'flea-closed' }
+  }
+  const level = access.traderLevels?.[offer.vendor] ?? access.traderLevel
+  if ((offer.minTraderLevel ?? 1) > level) return { ok: false, reason: 'level', level }
+  if (offer.taskUnlock && access.taskDone && !access.taskDone(offer.taskUnlock.id)) return { ok: false, reason: 'task' }
+  return { ok: true }
+}
+
 /** Cheapest offer the player can use: flea (unless the item is flea-banned or the flea is closed) or a trader whose loyalty level is reached. */
 export function cheapestOffer(item: Pick<GunPart, 'offers' | 'noFlea'>, access: PurchaseAccess = FULL_ACCESS): GunOffer | undefined {
   return item.offers
-    .filter((offer) => offer.vendor === 'flea-market'
-      ? access.flea && !item.noFlea
-      : (offer.minTraderLevel ?? 1) <= access.traderLevel)
+    .filter((offer) => offerAccess(offer, item, access).ok)
     .reduce<GunOffer | undefined>((best, offer) => !best || offer.priceRUB < best.priceRUB ? offer : best, undefined)
 }
 

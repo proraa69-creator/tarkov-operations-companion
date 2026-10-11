@@ -1,6 +1,6 @@
 import { canInstall, installedParts, installPart, missingRequired, presetBuild, removePart } from '../arsenal/buildModel'
 import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildCost, type BuildStats, type CostLine, type PurchaseAccess } from '../arsenal/buildStats'
-import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from '../arsenal/gunTypes'
+import type { Build, BuildNode, GunCatalog, GunOffer, GunPart, GunSlot, Weapon } from '../arsenal/gunTypes'
 import type { WeaponBuildAttribute, WeaponBuildRequirement } from '../domain/types'
 import { COMPUTED_ATTRIBUTES, meets, shortfall } from './gunsmith'
 
@@ -28,6 +28,23 @@ export interface GunsmithPlan {
   cost: BuildCost
   /** What to buy on top of the weapon (its default preset): required parts, adapters, the parts the stats need. */
   toBuy: CostLine[]
+  /** Cheaper parts for the bought ones that keep every requirement the example meets (by slot). */
+  alternatives: SlotAlternatives[]
+}
+
+export interface PartAlternative {
+  part: GunPart
+  offer?: GunOffer
+  /** How much the whole build gets cheaper with this part instead (parts it needs included). */
+  saving: number
+  /** The computed stats of the build with this part (ergonomics, recoil, …), to show how close to the limit it is. */
+  values: Array<{ attribute: WeaponBuildAttribute; actual: number }>
+}
+
+export interface SlotAlternatives {
+  path: string[]
+  part: GunPart
+  options: PartAlternative[]
 }
 
 type Catalog = Pick<GunCatalog, 'weapons' | 'mods'>
@@ -156,7 +173,61 @@ export function solveGunsmithBuild(requirement: WeaponBuildRequirement, catalog:
     presetLeft.splice(index, 1)
     return false
   })
-  return { weapon, build, stats, checks, unplaced, cost, toBuy }
+  const alternatives = cheaperAlternatives({ build, weapon, catalog, locked, toBuy, checks, attributes, tryInstall, buyable, price, access })
+  return { weapon, build, stats, checks, unplaced, cost, toBuy, alternatives }
+}
+
+/** Slots that also change a stat the app does not compute: left alone, so an alternative never breaks it unseen. */
+function touchesUncomputed(slotNameId: string, attributes: WeaponBuildAttribute[]) {
+  const names = new Set(attributes.filter((attribute) => !COMPUTED_ATTRIBUTES.has(attribute.name)).map((attribute) => attribute.name))
+  const slot = slotNameId.toLowerCase()
+  if ((names.has('effectiveDistance') || names.has('muzzleVelocity') || names.has('accuracy')) && /barrel|muzzle/.test(slot)) return true
+  if (names.has('width') && /stock/.test(slot)) return true
+  if (names.has('height') && /magazine|pistol_grip|foregrip|scope|sight|mount|tactical/.test(slot)) return true
+  return false
+}
+
+const MAX_ALTERNATIVES = 3
+
+/**
+ * «Дешёвые аналоги» (owner, 11.10.2026): for every bought part that is not required, the parts of the same slot that
+ * make the whole build cheaper and still meet every requirement the example meets (computed stats, magazine). Cheapest first.
+ */
+function cheaperAlternatives(input: {
+  build: Build; weapon: Weapon; catalog: Catalog; locked: string[][]; toBuy: CostLine[]; checks: AttributeCheck[]; attributes: WeaponBuildAttribute[]
+  tryInstall: TryInstall; buyable: (part: GunPart) => boolean; price: (part: GunPart) => number; access: PurchaseAccess
+}): SlotAlternatives[] {
+  const { build, weapon, catalog, locked, toBuy, checks, attributes, tryInstall, buyable, price, access } = input
+  const bought = new Set(toBuy.map((line) => line.part.id))
+  const keep = checks.filter((check) => check.met === true).map((check) => check.attribute)
+  // A requirement the example misses must not get further away.
+  const missed = checks.filter((check) => check.met === false && check.actual !== undefined).map((check) => ({ attribute: check.attribute, gap: shortfall(check.attribute, check.actual!) }))
+  const costOf = (candidate: Build) => installedParts(candidate, catalog).reduce((sum, entry) => sum + price(entry.part), 0)
+  const base = costOf(build)
+  const out: SlotAlternatives[] = []
+  for (const ref of slotsOf(build, weapon, catalog)) {
+    const current = ref.child ? catalog.mods.get(ref.child.itemId) : undefined
+    if (!current || !bought.has(current.id) || isLocked(ref.path, locked) || touchesUncomputed(ref.slot.nameId, attributes)) continue
+    const options: PartAlternative[] = []
+    for (const id of ref.slot.allowed) {
+      const part = catalog.mods.get(id)
+      if (!part || id === current.id || !buyable(part) || price(part) >= price(current)) continue
+      const installed = tryInstall(build, ref.path, ref.slot, id)
+      const next = installed && fillRequired(installed, weapon, catalog, tryInstall, buyable, price)
+      if (!next || missingRequired(next, weapon, catalog).length) continue
+      const stats = computeStats(next, weapon, catalog)
+      if (keep.some((attribute) => !meets(attribute, statValue(attribute.name, stats, next, catalog) ?? Number.NaN))) continue
+      if (missed.some(({ attribute, gap }) => shortfall(attribute, statValue(attribute.name, stats, next, catalog) ?? Number.NaN) > gap + 1e-9)) continue
+      const saving = base - costOf(next)
+      const values = checks.flatMap((check) => {
+        const actual = check.actual === undefined ? undefined : statValue(check.attribute.name, stats, next, catalog)
+        return actual === undefined ? [] : [{ attribute: check.attribute, actual }]
+      })
+      if (saving > 0) options.push({ part, offer: cheapestOffer(part, access), saving, values })
+    }
+    if (options.length) out.push({ path: ref.path, part: current, options: options.sort((a, b) => b.saving - a.saving).slice(0, MAX_ALTERNATIVES) })
+  }
+  return out
 }
 
 /** The build's value of a computed stat (recoil = vertical + horizontal, as the game sums it for Gunsmith). */

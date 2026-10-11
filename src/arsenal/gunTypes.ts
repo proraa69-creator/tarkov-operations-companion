@@ -11,6 +11,11 @@ export interface GunOffer {
   priceRUB: number
   /** Trader loyalty level needed for this offer (traders only). */
   minTraderLevel?: number
+  /** The trader's tarkov.dev id and portrait (traders only). */
+  traderId?: string
+  traderImage?: string
+  /** A task that unlocks this offer (tarkov.dev `taskUnlock`): sold only after it is completed. */
+  taskUnlock?: { id: string; name: string }
 }
 
 export interface GunSlot {
@@ -29,6 +34,10 @@ export interface GunPart {
   shortName: string
   iconLink?: string
   imageLink?: string
+  /** The inventory picture (tarkov.dev grid image) and the size in inventory cells. */
+  gridImageLink?: string
+  width?: number
+  height?: number
   weight: number
   ergonomics: number
   recoilModifier: number
@@ -52,6 +61,9 @@ export interface GunPreset {
   id: string
   name: string
   imageLink?: string
+  gridImageLink?: string
+  width?: number
+  height?: number
   /** Every item of the preset (the weapon itself excluded). */
   itemIds: string[]
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Check, ExternalLink, Lock, Trophy, Wrench } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -7,12 +7,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { calculateAvailability } from '../progression/requirementEngine'
 import { gunsmithSteps, gunsmithSummary, stepStatus, type GunsmithStep } from '../gunsmith/gunsmith'
-import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
-import { solveGunsmithBuild, type GunsmithPlan } from '../gunsmith/gunsmithSolver'
-import { useGunCatalog } from '../arsenal/gunCatalog'
-import type { BuildNode, GunCatalog, GunOffer, GunPart } from '../arsenal/gunTypes'
-import { formatPrice } from '../shared/format'
-import type { WeaponBuildRequirement } from '../domain/types'
+import { GunsmithQuestPlan } from '../gunsmith/GunsmithQuestPlan'
 import '../gunsmith/gunsmith.css'
 
 /**
@@ -89,7 +84,7 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
     </div>
     {description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(description)}</p></div>}
     {build
-      ? <ExampleBuild build={build} />
+      ? <GunsmithQuestPlan build={build} part={step.part} />
       : <div className="detail-section"><p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p></div>}
     <div className="detail-section">
       <h4>{uiText('Награды')}</h4>
@@ -99,92 +94,4 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
     </div>
     {quest.wikiLink && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
   </section>
-}
-
-/** Requirements with the example build's values next to them, then what to buy and the whole build. */
-function ExampleBuild({ build }: { build: WeaponBuildRequirement }) {
-  const state = useAppState()
-  const { locale } = useLocale()
-  const catalog = useGunCatalog(state.raidMode, locale)
-  // The search takes up to a second on the full mod list: it runs after the page has painted «Подбираю сборку…».
-  const [result, setResult] = useState<{ build: WeaponBuildRequirement; catalog: GunCatalog; plan: GunsmithPlan | null } | null>(null)
-  useEffect(() => {
-    const data = catalog.data
-    if (!data) return
-    const timer = window.setTimeout(() => setResult({ build, catalog: data, plan: solveGunsmithBuild(build, data) }), 30)
-    return () => window.clearTimeout(timer)
-  }, [build, catalog.data])
-  const plan = result && result.build === build && result.catalog === catalog.data ? result.plan : undefined
-  return <>
-    <div className="detail-section"><WeaponBuildDetails build={build} checks={plan?.checks} /></div>
-    <div className="detail-section gunsmith-example">
-      <h4>{uiText('Как собрать · пример сборки')}</h4>
-      {(catalog.isLoading || (catalog.data && plan === undefined)) && <p className="dim">{uiText('Подбираю сборку по актуальным данным модулей…')}</p>}
-      {!catalog.isLoading && !catalog.data && <p className="dim">{uiText('Данные модулей сейчас недоступны — попробуйте позже.')}</p>}
-      {catalog.data && plan === null && <p className="dim">{uiText('Этого оружия нет в данных модулей: соберите по требованиям выше.')}</p>}
-      {catalog.data && plan && <PlanView plan={plan} catalog={catalog.data} />}
-    </div>
-  </>
-}
-
-function offerText(offer: GunOffer | undefined) {
-  if (!offer) return 'не продаётся — бартер или крафт'
-  return offer.vendor === 'flea-market' ? 'Барахолка' : `${offer.vendorName} · ур. ${offer.minTraderLevel ?? 1}`
-}
-
-function PlanView({ plan, catalog }: { plan: GunsmithPlan; catalog: GunCatalog }) {
-  const weaponLine = plan.cost.lines[0]
-  const partsTotal = plan.toBuy.reduce((sum, line) => sum + (line.offer?.priceRUB ?? 0), 0)
-  const unplaced = plan.unplaced.map((id) => catalog.mods.get(id)?.name ?? id)
-  const missed = plan.checks.filter((check) => check.met === false)
-  const tree = buildRows(plan, catalog)
-  return <div className="gunsmith-plan">
-    {missed.length > 0 && <p className="gunsmith-warning">{uiText('Пример не дотягивает до всех характеристик: подберите другие модули в игре, следя за показателями при осмотре оружия.')}</p>}
-    {unplaced.length > 0 && <p className="gunsmith-warning">{uiText('Не нашли, куда поставить: ')}{unplaced.map((name) => uiText(name)).join(', ')}</p>}
-
-    <h5>{uiText('Что купить')}</h5>
-    <ul className="gunsmith-buy">
-      {weaponLine && <BuyRow part={weaponLine.part} offer={weaponLine.offer} note={uiText('оружие')} />}
-      {plan.toBuy.map((line, index) => <BuyRow key={`${line.part.id}-${index}`} part={line.part} offer={line.offer} />)}
-    </ul>
-    <p className="gunsmith-total">
-      <span>{uiText('Модули: ')}<strong>{formatPrice(partsTotal)}</strong></span>
-      {weaponLine?.offer && <span>{uiText('Вместе с оружием: ')}<strong>{formatPrice(weaponLine.offer.priceRUB + partsTotal)}</strong></span>}
-    </p>
-
-    <h5>{uiText('Сборка целиком')}</h5>
-    <ul className="gunsmith-tree">
-      {tree.map((row) => <li key={row.key} style={{ paddingLeft: `${row.depth * 14}px` }} className={row.bought ? 'is-bought' : ''}>
-        <span className="gunsmith-tree-slot">{uiText(row.slot)}</span>
-        <span className="gunsmith-tree-part">{row.part.iconLink && <img src={row.part.iconLink} alt="" loading="lazy" />}{uiText(row.part.shortName || row.part.name)}</span>
-      </li>)}
-    </ul>
-    <p className="dim gunsmith-note">{uiText('Сборка подобрана автоматически по данным tarkov.dev. Перед сдачей проверьте характеристики в игре (осмотр оружия): игра считает их сама.')}</p>
-  </div>
-}
-
-function BuyRow({ part, offer, note }: { part: GunPart; offer?: GunOffer; note?: string }) {
-  return <li>
-    {part.iconLink ? <img src={part.iconLink} alt="" loading="lazy" /> : <span className="gunsmith-buy-empty" />}
-    <span><strong>{uiText(part.name)}</strong><small>{note ? `${note} · ` : ''}{uiText(offerText(offer))}</small></span>
-    <b>{offer ? formatPrice(offer.priceRUB) : '—'}</b>
-  </li>
-}
-
-/** The build as a tree: slot name, part, depth; parts to buy are marked. */
-function buildRows(plan: GunsmithPlan, catalog: GunCatalog) {
-  const bought = new Set(plan.toBuy.map((line) => line.part.id))
-  const rows: Array<{ key: string; depth: number; slot: string; part: GunPart; bought: boolean }> = []
-  const walk = (part: GunPart, node: BuildNode, depth: number, prefix: string) => {
-    for (const slot of part.slots) {
-      const child = node.children[slot.nameId]
-      const childPart = child ? catalog.mods.get(child.itemId) : undefined
-      if (!child || !childPart) continue
-      const key = `${prefix}/${slot.nameId}`
-      rows.push({ key, depth, slot: slot.name, part: childPart, bought: bought.has(childPart.id) })
-      walk(childPart, child, depth + 1, key)
-    }
-  }
-  walk(plan.weapon, plan.build.root, 0, '')
-  return rows
 }

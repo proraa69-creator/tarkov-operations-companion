@@ -29,8 +29,10 @@ const catalog: Record<string, unknown> = {
     },
   },
   tasks_ru: Object.fromEntries([1, 2, 3].flatMap((part) => [[`Gunsmith - Part ${part}`, `Оружейник. Часть ${part}`], [`Modify the weapon (Part ${part}) to comply with the given specifications`, 'Модифицировать оружие в соответствии с требованиями']])),
-  traders: { [MECHANIC]: { id: MECHANIC, name: 'Mechanic', levels: [] } },
-  traders_ru: { Mechanic: 'Механик' },
+  // Traders with their loyalty levels (player level each needs) and portraits, keyed like the offers (normalizedName).
+  traders: Object.fromEntries([[MECHANIC, 'Mechanic', 'mechanic'], ['tr-peacekeeper', 'Peacekeeper', 'peacekeeper'], ['tr-skier', 'Skier', 'skier'], ['tr-prapor', 'Prapor', 'prapor']]
+    .map(([id, name, key]) => [id, { id, name, normalizedName: key, imageLink: `https://assets.tarkov.dev/${key}-trader.webp`, levels: [1, 15, 26, 36].map((player, index) => ({ level: index + 1, requiredPlayerLevel: player })) }])),
+  traders_ru: { Mechanic: 'Механик', Peacekeeper: 'Миротворец', Skier: 'Лыжник', Prapor: 'Прапор' },
   maps: { maps: {} },
   items: {
     items: Object.fromEntries([
@@ -45,6 +47,7 @@ const catalog: Record<string, unknown> = {
 }
 
 const RIFLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 200"><g fill="#4d5a50" stroke="#8c9a8f" stroke-width="2"><rect x="40" y="88" width="300" height="34" rx="6"/><rect x="330" y="96" width="150" height="14" rx="4"/><rect x="250" y="120" width="26" height="54" rx="4"/><path d="M40 92 L4 84 L4 140 L40 124 Z"/></g></svg>`
+const TRADER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#3b3a33"/><circle cx="32" cy="26" r="13" fill="#b49a7c"/><path d="M8 64 C10 44 54 44 56 64 Z" fill="#4c5a4a"/></svg>`
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="8" fill="#26302a" stroke="#56645a"/><path d="M14 40 L50 24" stroke="#a9b6ac" stroke-width="6" stroke-linecap="round"/></svg>`
 
 async function openOverview(page: Page) {
@@ -60,7 +63,7 @@ async function openOverview(page: Page) {
       const payload = body.query?.includes('RaidOsGuns') ? gunsPayload(lang) : body.query?.includes('RaidOsMods') ? modsPayload(lang) : body.query?.includes('RaidOsAmmo') ? ammoPayload(lang) : { data: {} }
       return route.fulfill({ json: payload })
     }
-    if (url.hostname === 'assets.tarkov.dev') return route.fulfill({ contentType: 'image/svg+xml', body: /512|preset/.test(url.pathname) ? RIFLE_SVG : ICON_SVG })
+    if (url.hostname === 'assets.tarkov.dev') return route.fulfill({ contentType: 'image/svg+xml', body: /trader/.test(url.pathname) ? TRADER_SVG : /512|preset/.test(url.pathname) ? RIFLE_SVG : ICON_SVG })
     return route.abort()
   })
   const profile = createLocalProfile('Оператор', 'gunsmith-e2e')
@@ -89,30 +92,46 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   await openOverview(page)
   const panel = page.locator('.gunsmith-panel')
   await expect(panel).toBeVisible({ timeout: 45_000 })
-  await expect(panel).toContainText('выполнено 1 из 3')
-  await expect(panel.locator('.gunsmith-chip')).toHaveCount(3)
+  // Just the current part by name: no part numbers, no chain strip.
+  await expect(panel.locator('.gunsmith-current')).toHaveCount(1)
+  await expect(panel).not.toContainText('выполнено')
+  const current = panel.getByRole('button', { name: /Оружейник\. Часть 2/ })
+  await expect(current).toBeVisible()
+  await expect(panel.locator('.panel-header .current-tasks-where')).toHaveText('Посмотреть все')
   // The part taken in the game is here, not in «Текущие задания».
-  await expect(panel.getByRole('button', { name: /Оружейник\. Часть 2/ })).toBeVisible()
   await expect(page.locator('.panel', { hasText: 'Текущие задания' }).getByText('Оружейник. Часть 2')).toHaveCount(0)
 
-  await panel.getByRole('button', { name: /Оружейник\. Часть 2/ }).click()
+  await current.click()
   const details = panel.locator('.gunsmith-details')
   await expect(details).toContainText('Штурмовая винтовка Colt M4A1')
-  for (const text of ['Эргономика', '≥ 48', 'Отдача', '≤ 200', 'Вместимость магазина', 'Эффективная дальность', 'Прочность', 'Тактическая рукоятка', 'RC2', 'EXPS3']) await expect(details).toContainText(text)
+  for (const text of ['Эргономика', '≥ 48', 'Отдача', '≤ 200', 'Вместимость магазина', 'Эффективная дальность', 'Прочность', 'Тактическая рукоятка']) await expect(details).toContainText(text)
   // The stats the part does not ask for (0 upstream) are not listed.
   for (const text of ['Ширина', 'Высота', 'Точность', 'Начальная скорость']) await expect(details).not.toContainText(text)
+  // What to buy: pictures, traders with the loyalty level, prices. Peacekeeper sells the suppressor from level III,
+  // which the player (character level 20, nothing proves more) has not got: locked, and it is not on the flea.
+  const shop = details.locator('.gs-shop')
+  await expect(shop).toContainText('SOCOM556-RC2', { timeout: 30_000 })
+  for (const text of ['EXPS3', 'RVG', 'Штурмовая винтовка Colt M4A1']) await expect(shop).toContainText(text)
+  const suppressor = shop.locator('.gs-shop-row', { hasText: 'SOCOM556-RC2' })
+  await expect(suppressor.locator('.gs-trader.is-locked .gs-trader-level')).toHaveText('III')
+  await expect(suppressor).toContainText('нужен уровень 3')
   const shot = async (name: string, target = page.locator('main')) => {
     await target.screenshot({ path: testInfo.outputPath(name) })
     if (process.env.GUNSMITH_SCREENSHOT_DIR) await target.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/${name}` })
   }
   await shot('gunsmith-overview-ru.png', panel)
 
-  await panel.getByRole('link', { name: /Как собрать/ }).click()
+  await details.getByRole('link', { name: /Как собрать/ }).click()
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
   await expect(page.getByText('Как собрать · пример сборки')).toBeVisible()
-  const buy = page.locator('main').getByText('Что купить').locator('..')
-  await expect(buy).toContainText('SOCOM556-RC2', { timeout: 30_000 })
-  await expect(buy).toContainText('EXPS3')
-  await expect(buy).toContainText('AFG')
+  const levels = page.locator('.gs-levels')
+  await expect(levels).toBeVisible({ timeout: 30_000 })
+  // The player sets Peacekeeper's real level: the suppressor becomes available from him.
+  await levels.locator('.gs-level-button[title^="Миротворец"]').click()
+  await levels.getByRole('menuitemradio', { name: 'LL3' }).click()
+  const pageSuppressor = page.locator('main .gs-shop-row', { hasText: 'SOCOM556-RC2' })
+  await expect(pageSuppressor.locator('.gs-trader.is-chosen .gs-trader-level')).toHaveText('III')
+  await expect(pageSuppressor.locator('.gs-shop-price b')).toContainText('61')
+  await expect(levels.locator('.gs-level-button[title^="Миротворец"]')).toContainText('свой')
   await shot('gunsmith-page-ru.png')
 })

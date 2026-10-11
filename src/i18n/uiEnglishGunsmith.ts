@@ -23,4 +23,9 @@ export const GUNSMITH_PHRASES: Array<[string, string]> = [
   ['Сборка подобрана автоматически по данным tarkov.dev. Перед сдачей проверьте характеристики в игре (осмотр оружия): игра считает их сама.',
     'The build is picked automatically from tarkov.dev data. Check the stats in the game (inspect the weapon) before handing it in: the game calculates them itself.'],
   ['Сборка оружия', 'Weapon build'], ['В блоке «Оружейник»: оружие, модули и пример сборки', 'In the Gunsmith block: weapon, mods and an example build'],
+  ['Модификация', 'Modification'], ['Продавец', 'Seller'], ['Дешевле, когда откроется', 'Cheaper once unlocked'],
+  ['Дешевле, требования выполняются:', 'Cheaper, still meets the requirements:'], ['Ваши уровни торговцев', 'Your trader levels'],
+  ['Игра не пишет уровень лояльности в логи: он оценён по взятым заданиям и уровню персонажа. Нажмите на торговца, чтобы указать свой.',
+    'The game does not write loyalty to its logs: it is estimated from the tasks you took and your character level. Click a trader to set yours.'],
+  ['свой', 'yours'], ['оценка', 'estimate'], ['по заданиям', 'from tasks'], ['Цены — по вашим уровням торговцев.', 'Prices follow your trader levels.'],
 ]

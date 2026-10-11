@@ -80,6 +80,23 @@ describe('«Как собрать»: example build for a Gunsmith part', () => {
     expect(plan.toBuy.find((line) => line.part.id === FX.suppressor)?.offer?.vendor).toBe('peacekeeper')
   })
 
+  it('lists cheaper parts that keep every requirement met, and leaves out those that break one', () => {
+    const plan = solveGunsmithBuild({
+      weaponId: FX.m4,
+      partIds: [FX.holo],
+      attributes: [{ name: 'ergonomics', compare: '>=', value: 48 }, { name: 'recoil', compare: '<=', value: 200 }, { name: 'magazineCapacity', compare: '>=', value: 60 }],
+    }, catalog)!
+    expect(plan.toBuy.map((line) => line.part.id)).toContain(FX.stockCtr)
+    // The MOE stock also keeps ergonomics ≥ 48 and recoil ≤ 200, 4 400 ₽ cheaper (Mechanic 5 400 instead of 9 800).
+    const stock = plan.alternatives.find((entry) => entry.part.id === FX.stockCtr)
+    expect(stock?.options.map((option) => [option.part.id, option.saving])).toEqual([[FX.stockMoe, 4_400]])
+    for (const value of stock!.options[0].values) expect(meets(value.attribute, value.actual)).toBe(true)
+    // The rifle's own M4 stock would push the recoil over 200: not offered.
+    expect(stock?.options.map((option) => option.part.id)).not.toContain(FX.stockM4)
+    // Required parts have no alternatives.
+    expect(plan.alternatives.map((entry) => entry.part.id)).not.toContain(FX.holo)
+  })
+
   it('swaps in a part with the slot a required part needs (a handguard with a mount rail)', () => {
     const plan = solveGunsmithBuild({ weaponId: FX.m4, partIds: [FX.mount], attributes: [] }, catalog)!
     const ids = installedParts(plan.build, catalog).map((entry) => entry.part.id)
@@ -90,8 +107,9 @@ describe('«Как собрать»: example build for a Gunsmith part', () => {
   it('puts in a part of a required category (json.tarkov.dev containsCategory), the cheapest that fits', () => {
     expect(catalog.mods.get(FX.foregrip)?.categoryIds).toEqual([FX_CATEGORY.foregrip, FX_CATEGORY.mod])
     const plan = solveGunsmithBuild({ weaponId: FX.m4, partIds: [], categories: [{ id: FX_CATEGORY.foregrip, name: 'Тактическая рукоятка' }], attributes: [] }, catalog)!
-    expect(installedParts(plan.build, catalog).map((entry) => entry.part.id)).toContain(FX.foregrip)
-    expect(plan.toBuy.map((line) => line.part.id)).toContain(FX.foregrip)
+    // Two foregrips are in the category: the cheaper RVG goes in.
+    expect(installedParts(plan.build, catalog).map((entry) => entry.part.id)).toContain(FX.foregripRvg)
+    expect(plan.toBuy.map((line) => line.part.id)).toContain(FX.foregripRvg)
   })
 
   it('reads json.tarkov.dev `buildAttributes` and leaves out the stats the part does not ask for (value 0)', () => {

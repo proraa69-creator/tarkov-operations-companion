@@ -18,6 +18,10 @@ interface WeaponBuildDetailsProps {
   checks?: AttributeCheck[]
   /** The Overview block: smaller picture, no hints. */
   compact?: boolean
+  /** The whole weapon (its default preset's picture from the mod data), better than the base item's. */
+  weaponImage?: string
+  /** The required parts are listed in «Что купить» with pictures and prices already. */
+  hideParts?: boolean
 }
 
 /**
@@ -25,13 +29,14 @@ interface WeaponBuildDetailsProps {
  * stats (every one named — «Эффективная дальность», not «effectiveDistance») and the parts it must hold, with pictures
  * and the flea price.
  */
-export function WeaponBuildDetails({ build, checks, compact }: WeaponBuildDetailsProps) {
+export function WeaponBuildDetails({ build, checks, compact, weaponImage, hideParts }: WeaponBuildDetailsProps) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const mode = useAppState().raidMode
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const weapon = items.get(build.weaponId)
-  const image = weapon?.presetImageUrl ?? weapon?.iconUrl
+  // The whole rifle: the default preset's picture (the base item alone is only its receiver).
+  const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
   const parts = build.partIds.map((id) => ({ id, item: items.get(id) }))
   const anyOf = (build.anyOfIds ?? []).map((id) => ({ id, item: items.get(id) }))
 
@@ -76,11 +81,11 @@ export function WeaponBuildDetails({ build, checks, compact }: WeaponBuildDetail
       </ul>
     </div>}
 
-    {parts.length > 0 && <div className="gs-block">
+    {!hideParts && parts.length > 0 && <div className="gs-block">
       <h5>{uiText('Обязательные модули')}</h5>
       <div className="gs-parts">{parts.map(partCard)}</div>
     </div>}
-    {anyOf.length > 0 && <div className="gs-block">
+    {!hideParts && anyOf.length > 0 && <div className="gs-block">
       <h5>{uiText('Один из модулей')}</h5>
       <div className="gs-parts">{anyOf.map(partCard)}</div>
     </div>}

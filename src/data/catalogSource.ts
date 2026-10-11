@@ -137,7 +137,16 @@ function adaptTraders(root: JsonRecord): Trader[] {
     loyalty: Math.max(1, asArray(entry.levels).length),
     accent: ['#7d8d68', '#789096', '#9a7d64', '#6d8793', '#8e8265', '#877064'][index % 6],
     imageUrl: text(entry.imageLink) || text(entry.avatarLink) || undefined,
+    ...(text(entry.normalizedName) ? { normalizedName: text(entry.normalizedName) } : {}),
+    ...traderLevelPlayerLevels(entry),
   })).filter((trader) => trader.id)
+}
+
+/** `levels: [{ level, requiredPlayerLevel }]` → the player level of each loyalty level, in order. */
+function traderLevelPlayerLevels(entry: JsonRecord): { levelPlayerLevels?: number[] } {
+  const levels = asArray(entry.levels).map((level) => ({ level: number(level.level), player: number(level.requiredPlayerLevel) }))
+    .filter((level) => level.level >= 1).sort((a, b) => a.level - b.level)
+  return levels.length ? { levelPlayerLevels: levels.map((level) => level.player) } : {}
 }
 
 /**
@@ -362,8 +371,21 @@ function adaptTasks(
       experience: number(entry.experience),
       wikiLink: text(entry.wikiLink) || undefined,
       imageUrl: text(entry.taskImageLink) || undefined,
+      ...traderLoyaltyOf(entry, objectives),
     } satisfies Quest
   }).filter((quest) => quest.id)
+}
+
+/** `traderRequirements` (type level) and «reach loyalty level» objectives (`traderLevel`, json `trader` + `level`). */
+function traderLoyaltyOf(entry: JsonRecord, objectives: JsonRecord[]): { traderLoyalty?: NonNullable<Quest['traderLoyalty']> } {
+  const needed = asArray(entry.traderRequirements)
+    .filter((requirement) => text(requirement.requirementType, 'level') === 'level' && ['>=', '>', '='].includes(text(requirement.compareMethod, '>=')))
+    .map((requirement) => ({ traderId: refId(requirement.trader) || text(requirement.trader_id), level: number(requirement.value) + (text(requirement.compareMethod) === '>' ? 1 : 0) }))
+  const reached = objectives.filter((objective) => text(objective.type) === 'traderLevel')
+    .map((objective) => ({ traderId: refId(objective.trader) || text(objective.trader_id), level: number(objective.level) || number(objective.count) }))
+  const valid = (list: Array<{ traderId: string; level: number }>) => list.filter((entry) => entry.traderId && entry.level >= 1 && entry.level <= 4)
+  const result = { needed: valid(needed), reached: valid(reached) }
+  return result.needed.length || result.reached.length ? { traderLoyalty: result } : {}
 }
 
 /** A reference given as `"id"` (json.tarkov.dev) or `{ id }` (GraphQL). */

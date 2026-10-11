@@ -3,36 +3,30 @@
 /* ── Overview block ─────────────────────────────────────────────── */
 .gunsmith-panel .panel-title { display: flex; align-items: center; gap: 7px; }
 .gunsmith-panel .panel-title svg { color: var(--brass); }
-.gunsmith-all { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
-.gunsmith-progress { display: grid; gap: 8px; margin-bottom: 6px; }
-.gunsmith-progress > small { color: var(--text-dim); font-size: 11px; letter-spacing: .02em; }
-.gunsmith-track { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.gunsmith-chip {
-  width: 24px; height: 24px; display: grid; place-items: center; padding: 0;
-  border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surf-1);
-  color: var(--text-muted); font: inherit; font-size: 10.5px; font-weight: 750; font-variant-numeric: tabular-nums;
-  cursor: pointer; transition: border-color .15s var(--ease-soft), background .15s var(--ease-soft), transform .15s var(--ease-soft);
-}
-.gunsmith-chip:hover, .gunsmith-chip:focus-visible { border-color: var(--brass); outline: none; transform: translateY(-1px); }
-.gunsmith-chip.is-completed { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); background: color-mix(in srgb, var(--green) 16%, var(--surf-1)); color: var(--green); }
-.gunsmith-chip.is-active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 26%, var(--surf-1)); color: var(--brass-strong); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brass) 22%, transparent); }
-.gunsmith-chip.is-available { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); color: var(--brass-strong); }
-.gunsmith-chip.is-locked, .gunsmith-chip.is-unknown { opacity: .55; }
-.gunsmith-chip.is-failed { border-color: color-mix(in srgb, var(--danger) 55%, var(--line)); color: var(--danger); }
-.gunsmith-chip.is-open { outline: 2px solid var(--brass-strong); outline-offset: 1px; opacity: 1; }
 
-.gunsmith-row { grid-template-columns: 32px minmax(0, 1fr) 16px; }
-.gunsmith-row-main { min-width: 0; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.gunsmith-row-main:hover strong, .gunsmith-row-main:focus-visible strong { color: var(--brass-strong); }
-.gunsmith-row-main:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 3px; border-radius: 4px; }
 .gunsmith-row-chevron { color: var(--text-dim); transition: transform .3s var(--ease-soft); }
-.gunsmith-row.is-open .gunsmith-row-chevron { transform: rotate(180deg); }
+.gunsmith-current.is-open .gunsmith-row-chevron { transform: rotate(180deg); }
 
 /* Same calm reveal as «Ещё N заданий» (grid rows 0fr ↔ 1fr). */
 .gunsmith-details { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s var(--ease-soft); }
 .gunsmith-details.is-open { grid-template-rows: 1fr; }
 .gunsmith-details-inner { min-height: 0; overflow: hidden; }
-.gunsmith-details.is-open .gunsmith-details-inner { padding-top: 10px; }
+.gunsmith-details.is-open .gunsmith-details-inner { padding-top: 12px; }
+
+/* Overview: the current part by name */
+.gunsmith-current + .gunsmith-current { margin-top: 6px; }
+.gunsmith-current-name {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel-2) 80%, transparent);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color .2s var(--ease-soft), background .2s var(--ease-soft);
+}
+.gunsmith-current-name strong { display: block; font-size: 14px; font-weight: 700; }
+.gunsmith-current-name small { display: block; margin-top: 3px; color: var(--text-dim); font-size: 11px; }
+.gunsmith-current-name:hover, .gunsmith-current-name:focus-visible, .gunsmith-current.is-open .gunsmith-current-name { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); outline: none; }
+.gunsmith-current-name:hover strong, .gunsmith-current-name:focus-visible strong { color: var(--brass-strong); }
+.gunsmith-quest-plan.is-compact { margin-bottom: 14px; }
+.gunsmith-example.is-compact h4 { margin: 0 0 8px; color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.gunsmith-prices-note { margin: 8px 2px 0 !important; font-size: 11.5px; }
 .gunsmith-details-title { display: grid; gap: 3px; margin-bottom: 10px; }
 .gunsmith-details-title strong { font-size: 13px; }
 .gunsmith-details-title small { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); }
@@ -111,19 +105,11 @@
 .gunsmith-example h5 { margin: 16px 0 8px; color: var(--text-dim); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 .gunsmith-example h5:first-of-type { margin-top: 4px; }
 .gunsmith-warning { margin: 0 0 10px !important; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--amber, var(--brass)) 50%, var(--line)); border-radius: 8px; background: color-mix(in srgb, var(--amber, var(--brass)) 10%, transparent); color: var(--text) !important; font-size: 12px; }
-.gunsmith-buy { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.gunsmith-buy li { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); }
-.gunsmith-buy img, .gunsmith-buy-empty { width: 38px; height: 38px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0); object-fit: contain; }
-.gunsmith-buy strong { display: block; overflow: hidden; font-size: 12.5px; white-space: nowrap; text-overflow: ellipsis; }
-.gunsmith-buy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; }
-.gunsmith-buy b { color: var(--brass-strong); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.gunsmith-total { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 18px; margin: 8px 0 0 !important; color: var(--text-muted); font-size: 12.5px; }
-.gunsmith-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
 .gunsmith-tree { margin: 0; padding: 0; list-style: none; border-left: 1px solid var(--line); }
 .gunsmith-tree li { display: grid; grid-template-columns: minmax(110px, .9fr) minmax(0, 1.4fr); align-items: center; gap: 10px; padding: 4px 0 4px 10px; font-size: 12px; }
 .gunsmith-tree-slot { overflow: hidden; color: var(--text-dim); white-space: nowrap; text-overflow: ellipsis; }
 .gunsmith-tree-part { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; color: var(--text); white-space: nowrap; text-overflow: ellipsis; }
-.gunsmith-tree-part img { width: 22px; height: 22px; object-fit: contain; }
+.gunsmith-tree-part .gs-cells { flex: none; }
 .gunsmith-tree li.is-bought .gunsmith-tree-part { color: var(--brass-strong); }
 .gunsmith-note { margin-top: 12px !important; font-size: 11.5px; line-height: 1.5; }
 
@@ -141,7 +127,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gunsmith-details, .gunsmith-row-chevron, .gunsmith-chip { transition: none; }
+  .gunsmith-details, .gunsmith-row-chevron { transition: none; }
 }
 
 /* «Текущие задания» page: a Gunsmith part taken in the game is a link to its block, not a task row. */

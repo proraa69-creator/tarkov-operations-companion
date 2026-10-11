@@ -12,7 +12,7 @@ export const FX = {
   grip: id(10), gripErgo: id(11), mag30: id(12), mag60: id(13), upper: id(14), barrel145: id(15), barrel105: id(16),
   flashHider: id(17), suppressor: id(18), gasLow: id(19), gasA2: id(20), handguard: id(21), handguardSmr: id(22),
   buffer: id(23), stockM4: id(24), stockCtr: id(25), charge: id(26), chargeRaptor: id(27), sightRear: id(28),
-  holo: id(29), foregrip: id(30), mount: id(31), akMag: id(32), akMuzzle: id(33), akStock: id(34), mp7Mag: id(35), glockMag: id(36), m700Mag: id(37),
+  holo: id(29), foregrip: id(30), mount: id(31), akMag: id(32), akMuzzle: id(33), akStock: id(34), mp7Mag: id(35), glockMag: id(36), m700Mag: id(37), foregripRvg: id(38), stockMoe: id(39),
   m855: id(50), m855a1: id(51), m995: id(52), warmageddon: id(53), ps545: id(54), bs545: id(55),
   preset: id(90),
 }
@@ -22,7 +22,7 @@ export const FX_CATEGORY = { foregrip: 'c0000000000000000000f0e1', mod: 'c000000
 
 const flea = (price: number) => ({ priceRUB: price, vendor: { name: 'Барахолка', normalizedName: 'flea-market' } })
 const trader = (price: number, key: string, label: string, level: number) => ({ priceRUB: price, vendor: { name: label, normalizedName: key, minTraderLevel: level } })
-const VENDOR_EN: Record<string, string> = { 'Барахолка': 'Flea Market', 'Миротворец': 'Peacekeeper', 'Прапор': 'Prapor', 'Механик': 'Mechanic', 'Егерь': 'Jaeger' }
+const VENDOR_EN: Record<string, string> = { 'Барахолка': 'Flea Market', 'Миротворец': 'Peacekeeper', 'Прапор': 'Prapor', 'Механик': 'Mechanic', 'Егерь': 'Jaeger', 'Лыжник': 'Skier' }
 /** Trader names come back in the requested language. */
 const localized = <T,>(payload: T, lang: Lang): T => lang === 'ru' ? payload
   : JSON.parse(JSON.stringify(payload), (key, value) => key === 'name' && typeof value === 'string' && VENDOR_EN[value] ? VENDOR_EN[value] : value) as T
@@ -38,7 +38,7 @@ export function gunsPayload(lang: Lang = 'ru') {
       properties: {
         __typename: 'ItemPropertiesWeapon', caliber: 'Caliber556x45NATO', fireRate: 800, ergonomics: 50, recoilVertical: 56, recoilHorizontal: 220, centerOfImpact: 0.1,
         defaultAmmo: { id: FX.m855 },
-        defaultPreset: { id: FX.preset, name: 'Colt M4A1 5.56x45 Default', image512pxLink: asset('m4-default-512.webp'), containsItems: [FX.m4, FX.grip, FX.mag30, FX.upper, FX.barrel145, FX.flashHider, FX.gasLow, FX.handguard, FX.sightRear, FX.buffer, FX.stockM4, FX.charge].map((item) => ({ item: { id: item }, count: 1 })) },
+        defaultPreset: { id: FX.preset, name: 'Colt M4A1 5.56x45 Default', image512pxLink: asset('m4-default-512.webp'), gridImageLink: asset('m4-default-grid.webp'), width: 5, height: 2, containsItems: [FX.m4, FX.grip, FX.mag30, FX.upper, FX.barrel145, FX.flashHider, FX.gasLow, FX.handguard, FX.sightRear, FX.buffer, FX.stockM4, FX.charge].map((item) => ({ item: { id: item }, count: 1 })) },
         slots: [
           slot('mod_pistol_grip', slotName('Пистолетная рукоятка', 'Pistol grip'), [FX.grip, FX.gripErgo]),
           slot('mod_magazine', slotName('Магазин', 'Magazine'), [FX.mag30, FX.mag60], true),
@@ -100,18 +100,20 @@ function modSpecs(lang: Lang): ModSpec[] {
     { id: FX.gasLow, ru: 'Газоблок низкопрофильный Colt M4', en: 'Colt M4 low profile gas block', short: 'Gas block', ergo: 0, recoil: -0.01, weight: 0.038, offers: [flea(2_400)] },
     { id: FX.gasA2, ru: 'Газоблок с мушкой Colt A2', en: 'Colt A2 gas block with front sight', short: 'A2 FSB', ergo: 1, recoil: 0, weight: 0.12, offers: [trader(3_600, 'mechanic', 'Механик', 1)], conflicts: [FX.handguardSmr] },
     { id: FX.handguard, ru: 'Цевьё Colt M4 стандартное', en: 'Colt M4 standard handguard', short: 'M4 HG', ergo: 4, recoil: -0.01, weight: 0.2, offers: [flea(4_200), trader(3_300, 'peacekeeper', 'Миротворец', 1)],
-      slots: [slot('mod_foregrip', s('Тактическая рукоятка', 'Foregrip'), [FX.foregrip])] },
+      slots: [slot('mod_foregrip', s('Тактическая рукоятка', 'Foregrip'), [FX.foregrip, FX.foregripRvg])] },
     { id: FX.handguardSmr, ru: 'Цевьё Geissele SMR Mk.16 13.5"', en: 'Geissele SMR Mk.16 13.5 inch handguard', short: 'SMR 13.5', ergo: 10, recoil: -0.03, weight: 0.36, offers: [flea(29_000), trader(26_700, 'peacekeeper', 'Миротворец', 4)],
-      slots: [slot('mod_foregrip', s('Тактическая рукоятка', 'Foregrip'), [FX.foregrip]), slot('mod_mount_000', s('Крепление', 'Mount'), [FX.mount])] },
+      slots: [slot('mod_foregrip', s('Тактическая рукоятка', 'Foregrip'), [FX.foregrip, FX.foregripRvg]), slot('mod_mount_000', s('Крепление', 'Mount'), [FX.mount])] },
     { id: FX.buffer, ru: 'Буферная трубка AR-15 Colt', en: 'AR-15 Colt buffer tube', short: 'Buffer', ergo: 0, recoil: 0, weight: 0.08, offers: [flea(3_100), trader(2_500, 'peacekeeper', 'Миротворец', 1)],
-      slots: [slot('mod_stock_000', s('Приклад', 'Stock'), [FX.stockM4, FX.stockCtr])] },
+      slots: [slot('mod_stock_000', s('Приклад', 'Stock'), [FX.stockM4, FX.stockCtr, FX.stockMoe])] },
     { id: FX.stockM4, ru: 'Приклад Colt M4 для AR-15', en: 'AR-15 Colt M4 stock', short: 'M4 stock', ergo: 7, recoil: -0.12, weight: 0.17, offers: [flea(3_900), trader(2_900, 'peacekeeper', 'Миротворец', 1)] },
     { id: FX.stockCtr, ru: 'Приклад Magpul CTR для AR-15', en: 'AR-15 Magpul CTR stock', short: 'CTR', ergo: 12, recoil: -0.19, weight: 0.24, offers: [flea(11_200), trader(9_800, 'mechanic', 'Механик', 2)] },
+    { id: FX.stockMoe, ru: 'Приклад Magpul MOE для AR-15', en: 'AR-15 Magpul MOE stock', short: 'MOE', ergo: 11, recoil: -0.18, weight: 0.22, offers: [flea(6_900), trader(5_400, 'mechanic', 'Механик', 1)] },
     { id: FX.charge, ru: 'Рукоятка взведения Colt AR-15', en: 'AR-15 Colt charging handle', short: 'Colt CH', ergo: 0, recoil: 0, weight: 0.03, offers: [flea(1_500), trader(1_200, 'peacekeeper', 'Миротворец', 1)] },
     { id: FX.chargeRaptor, ru: 'Рукоятка взведения Radian Weapons Raptor', en: 'AR-15 Radian Weapons Raptor charging handle', short: 'Raptor', ergo: 7, recoil: 0, weight: 0.05, offers: [] },
     { id: FX.sightRear, ru: 'Целик складной KAC', en: 'KAC folding rear sight', short: 'KAC RS', ergo: 0, recoil: 0, weight: 0.08, offers: [flea(5_100)] },
     { id: FX.holo, ru: 'Голографический прицел EOTech EXPS3', en: 'EOTech EXPS3 holographic sight', short: 'EXPS3', ergo: -1, recoil: 0, weight: 0.32, offers: [flea(38_000), trader(33_400, 'peacekeeper', 'Миротворец', 3)] },
     { id: FX.foregrip, ru: 'Тактическая рукоятка Magpul AFG', en: 'Magpul AFG tactical grip', short: 'AFG', ergo: 3, recoil: -0.035, weight: 0.05, offers: [flea(14_600), trader(12_900, 'mechanic', 'Механик', 2)], categories: [FX_CATEGORY.foregrip, FX_CATEGORY.mod] },
+    { id: FX.foregripRvg, ru: 'Тактическая рукоятка Magpul RVG', en: 'Magpul RVG foregrip', short: 'RVG', ergo: 3, recoil: -0.03, weight: 0.04, offers: [flea(4_800), trader(3_900, 'skier', 'Лыжник', 1)], categories: [FX_CATEGORY.foregrip, FX_CATEGORY.mod] },
     { id: FX.mount, ru: 'Крепление Magpul M-LOK', en: 'Magpul M-LOK mount', short: 'M-LOK', ergo: 0, recoil: 0, weight: 0.03, offers: [flea(2_000)] },
     { id: FX.akMag, ru: 'Магазин 5.45x39 6L23 на 30 патронов', en: '5.45x39 6L23 30-round magazine', short: '6L23', ergo: -3, recoil: 0, weight: 0.23, capacity: 30, offers: [flea(2_600), trader(2_100, 'prapor', 'Прапор', 1)] },
     { id: FX.akMuzzle, ru: 'Дульный тормоз-компенсатор 6П20', en: 'AK-74 6P20 muzzle brake', short: '6P20', ergo: -1, recoil: -0.08, weight: 0.05, offers: [flea(1_800)] },
@@ -122,9 +124,16 @@ function modSpecs(lang: Lang): ModSpec[] {
   ]
 }
 
+/** Inventory size (cells) of the bigger parts; the rest are 1 × 1. */
+const MOD_SIZE: Record<string, [number, number]> = {
+  [FX.suppressor]: [2, 1], [FX.mag30]: [1, 2], [FX.mag60]: [2, 2], [FX.upper]: [2, 1], [FX.barrel145]: [3, 1], [FX.barrel105]: [2, 1],
+  [FX.handguard]: [2, 1], [FX.handguardSmr]: [2, 1], [FX.buffer]: [2, 1], [FX.stockM4]: [2, 1], [FX.stockCtr]: [2, 1], [FX.stockMoe]: [2, 1], [FX.holo]: [2, 1],
+}
+
 export function modsPayload(lang: Lang = 'ru') {
   return localized({ data: { items: modSpecs(lang).map((mod) => ({
     id: mod.id, name: name(lang, mod.ru, mod.en), shortName: mod.short, iconLink: asset(`${mod.short}-icon.webp`), weight: mod.weight,
+    gridImageLink: asset(`${mod.short.replace(/[^A-Za-z0-9-]/g, '')}-grid.webp`), width: MOD_SIZE[mod.id]?.[0] ?? 1, height: MOD_SIZE[mod.id]?.[1] ?? 1,
     types: ['mods', ...(mod.noFlea ? ['noFlea'] : [])],
     accuracyModifier: mod.acc ?? 0, recoilModifier: mod.recoil, ergonomicsModifier: mod.ergo,
     category: { name: mod.kind ?? 'mod', normalizedName: mod.kind ?? 'mod' },

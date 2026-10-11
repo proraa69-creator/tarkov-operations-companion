@@ -16,7 +16,8 @@ const quests: Quest[] = [1, 2].map((n) => ({
 }))
 const items: Item[] = [{ id: FX.m4, name: 'Colt M4A1', shortName: 'M4A1', category: 'Оружие', description: '', prices: [] }]
 const profile = createLocalProfile('Operator', 'p-gunsmith')
-vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests, items } }) }))
+const traders = [{ id: 't-pk', name: 'Миротворец', normalizedName: 'peacekeeper', role: '', loyalty: 4, accent: '', levelPlayerLevels: [1, 15, 26, 36] }]
+vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests, items, traders, metadata: {} } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: profile }) }))
 vi.mock('../arsenal/gunCatalog', () => ({ useGunCatalog: () => ({ data: catalog, isLoading: false }) }))
 
@@ -30,5 +31,10 @@ describe('«Оружейник → Посмотреть все»', () => {
     expect(screen.getAllByText(/SureFire SOCOM556-RC2/).length).toBeGreaterThan(0)
     expect(screen.getByText('Эффективная дальность')).toBeInTheDocument()
     expect(screen.getAllByText('в игре').length).toBeGreaterThan(0)
+    // The player's trader levels (a new character: loyalty 1) and the suppressor Peacekeeper sells from III, locked.
+    expect(screen.getByText(/Ваши уровни торговцев/)).toBeInTheDocument()
+    const suppressor = screen.getByText(/SureFire SOCOM556-RC2/, { selector: '.gs-shop-name strong' }).closest('li')!
+    expect(suppressor.querySelector('.gs-trader.is-locked .gs-trader-level')?.textContent).toBe('III')
+    expect(suppressor.textContent).toContain('нужен уровень 3')
   })
 })

@@ -11,11 +11,11 @@ const SLOT_FIELDS = `fragment SlotFields on ItemSlot { id name nameId required f
  * `lastLowPrice` is asked next to `buyFor`: tarkov.dev's flea entry in `buyFor` is priced at the 24-hour average
  * (`avg24hPrice || lastLowPrice`, tarkov-api datasources/items.mjs), above the cheapest offer one can buy right now.
  */
-const OFFER_FIELDS = `lastLowPrice buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel } } }`
+const OFFER_FIELDS = `lastLowPrice buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel taskUnlock { id name } trader { id imageLink } } } }`
 
 export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: GameMode) {
   items(type: gun, lang: $lang, gameMode: $gameMode) {
-    id name shortName iconLink image512pxLink inspectImageLink weight types
+    id name shortName iconLink image512pxLink inspectImageLink gridImageLink width height weight types
     category { name normalizedName }
     conflictingItems { id }
     ${OFFER_FIELDS}
@@ -24,7 +24,7 @@ export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: Game
       ... on ItemPropertiesWeapon {
         caliber fireRate ergonomics recoilVertical recoilHorizontal centerOfImpact
         defaultAmmo { id }
-        defaultPreset { id name image512pxLink inspectImageLink containsItems { item { id } count } }
+        defaultPreset { id name image512pxLink inspectImageLink gridImageLink width height containsItems { item { id } count } }
         slots { ...SlotFields }
       }
     }
@@ -34,7 +34,7 @@ ${SLOT_FIELDS}`
 
 export const MODS_QUERY = `query RaidOsMods($lang: LanguageCode, $gameMode: GameMode) {
   items(type: mods, lang: $lang, gameMode: $gameMode) {
-    id name shortName iconLink weight types
+    id name shortName iconLink gridImageLink width height weight types
     accuracyModifier recoilModifier ergonomicsModifier
     category { name normalizedName }
     categories { id }
@@ -85,7 +85,15 @@ export function adaptOffers(item: Json): GunOffer[] {
     const priceRUB = key === 'flea-market' && lastLow > 0 ? lastLow : num(entry.priceRUB)
     if (!key || priceRUB <= 0) return []
     const level = optional(vendor.minTraderLevel)
-    return [{ vendor: key, vendorName: text(vendor.name, key), priceRUB, ...(key !== 'flea-market' && level ? { minTraderLevel: level } : {}) }]
+    const trader = record(vendor.trader)
+    const task = record(vendor.taskUnlock)
+    return [{
+      vendor: key, vendorName: text(vendor.name, key), priceRUB,
+      ...(key !== 'flea-market' && level ? { minTraderLevel: level } : {}),
+      ...(text(trader.id) ? { traderId: text(trader.id) } : {}),
+      ...(text(trader.imageLink) ? { traderImage: text(trader.imageLink) } : {}),
+      ...(text(task.id) ? { taskUnlock: { id: text(task.id), name: text(task.name, text(task.id)) } } : {}),
+    }]
   })
 }
 
@@ -107,6 +115,7 @@ function basePart(item: Json, properties: Json): GunPart {
     shortName: text(item.shortName, text(item.name)),
     iconLink: text(item.iconLink) || undefined,
     imageLink: text(item.image512pxLink) || text(item.inspectImageLink) || undefined,
+    ...gridOf(item),
     weight: num(item.weight),
     ergonomics: num(properties.ergonomics ?? item.ergonomicsModifier),
     recoilModifier: asFraction(properties.recoilModifier ?? item.recoilModifier),
@@ -122,6 +131,13 @@ function basePart(item: Json, properties: Json): GunPart {
   }
 }
 
+/** The inventory picture and its size in cells (tarkov.dev gridImageLink, width, height). */
+function gridOf(item: Json): { gridImageLink?: string; width?: number; height?: number } {
+  const width = optional(item.width)
+  const height = optional(item.height)
+  return { ...(text(item.gridImageLink) ? { gridImageLink: text(item.gridImageLink) } : {}), ...(width ? { width } : {}), ...(height ? { height } : {}) }
+}
+
 function adaptPreset(value: unknown, weaponId: string): GunPreset | undefined {
   const preset = record(value)
   const id = text(preset.id)
@@ -131,7 +147,7 @@ function adaptPreset(value: unknown, weaponId: string): GunPreset | undefined {
     const count = Math.max(1, Math.round(num(entry.count)) || 1)
     return itemId && itemId !== weaponId ? Array.from({ length: count }, () => itemId) : []
   })
-  return { id, name: text(preset.name), imageLink: text(preset.image512pxLink) || text(preset.inspectImageLink) || undefined, itemIds }
+  return { id, name: text(preset.name), imageLink: text(preset.image512pxLink) || text(preset.inspectImageLink) || undefined, ...gridOf(preset), itemIds }
 }
 
 const itemsOf = (payload: unknown) => list(record(record(payload).data).items)
