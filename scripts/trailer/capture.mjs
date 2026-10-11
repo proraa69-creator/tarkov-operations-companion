@@ -538,5 +538,23 @@ if (want('qr')) {
   writeFileSync(join(OUT, 'qr.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 4} ${n + 4}" shape-rendering="crispEdges"><rect width="${n + 4}" height="${n + 4}" fill="#fff"/><path d="${d}" fill="#0a0f0c"/></svg>`)
 }
 
+// UI scale previews for big screens (owner, 11.10.2026, 4K at 100 % Windows scaling): the same 3840x2160 picture
+// rendered at UI scale 100 % (as it is now), 150 % and 200 % — explicit groups only (`capture.mjs screens4k`).
+if (only.includes('screens4k')) {
+  const dir = join(here, 'shots-4k')
+  mkdirSync(dir, { recursive: true })
+  const theme = process.env.SCREENS_THEME ?? 'telnyashka'
+  for (const [label, scale] of [['100', 1], ['150', 1.5], ['200', 2]]) {
+    for (const [page, hash] of [['overview', '#/'], ['settings', '#/settings'], ['maps', '#/maps/customs']]) {
+      const { context, page: tab } = await newPage({ theme, viewport: { width: Math.round(3840 / scale), height: Math.round(2160 / scale) }, scale })
+      await open(tab, hash, 2200)
+      await tab.waitForTimeout(1500)
+      await tab.screenshot({ path: join(dir, `${page}-${label}.png`) })
+      await context.close()
+    }
+  }
+  console.log('4K previews saved to', dir)
+}
+
 await browser.close()
 console.log('shots saved to', OUT)
