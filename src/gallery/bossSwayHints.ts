@@ -140,6 +140,11 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
       { box: [0.11, 0.33, -0.06, 0.2, 0.5, 0.06] }, // pouch on the left thigh
     ],
   },
+  // nothing hangs loose on him (tight plate carrier, pouches, knee pads): the shape analysis only finds bootlaces and a
+  // glove cuff, which must not twitch — he stays rigid
+  raiders: {
+    rigid: [[-0.6, 0.0, -0.6, 0.6, 1.2, 0.6]],
+  },
   military: {
     rigid: [[-0.22, 0.48, 0.0, 0.2, 0.8, 0.3]], // rifle
     pieces: [

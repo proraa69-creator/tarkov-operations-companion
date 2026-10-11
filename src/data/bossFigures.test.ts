@@ -22,14 +22,18 @@ describe('raid card boss figures (research list 30.09.2026)', () => {
   })
 
   it('uses the closest existing still for bosses without their own figure, under their own name', () => {
-    const raiders = bossFiguresFor('the-lab', 'pvp')[0]
-    expect(raiders.key).toBe('raiders')
-    expect(raiders.name.ru).toBe('Рейдеры')
     const vengeful = bossFiguresFor('the-labyrinth', 'pvp').find((figure) => figure.key === 'killa-vengeful')
     expect(vengeful?.url).toBe(bossFiguresFor('interchange', 'pvp').find((figure) => figure.key === 'killa')?.url)
-    expect(bossMapIds('military')).toEqual(['reserve', 'the-lab', 'terminal'])
+    expect(bossMapIds('military')).toEqual(['terminal'])
     const ruaf = bossFiguresFor('terminal', 'pve').find((figure) => figure.key === 'ruaf')
     expect([ruaf?.name.ru, ruaf?.name.en]).toEqual(['ВС РФ', 'RUAF'])
+  })
+
+  it('stands the Raiders as their own model on Reserve and in the Lab (owner, 11.10.2026: «рейдера в боссы»)', () => {
+    const raiders = bossFiguresFor('the-lab', 'pvp')[0]
+    expect([raiders.key, raiders.name.ru]).toEqual(['raiders', 'Рейдеры'])
+    expect(raiders.url).not.toBe(bossFiguresFor('terminal', 'pve').find((figure) => figure.key === 'ruaf')?.url)
+    expect(bossMapIds('raiders')).toEqual(['reserve', 'the-lab'])
   })
 
   it('never stands more than seven figures on the card (Terminal: five bosses, Black Division and the RUAF)', () => {

@@ -68,9 +68,10 @@ const GROUPS: Record<string, string[]> = { goons: ['goon-1', 'goon-2', 'goon-3']
 
 /**
  * Bosses without a figure of their own that stand as the closest existing one (same still, own name):
- * the Raiders and the RUAF (ВС РФ) as the «Военные» soldiers, Vengeful Killa (Labyrinth) as Killa.
+ * the RUAF (ВС РФ) as the «Военные» soldiers, Vengeful Killa (Labyrinth) as Killa. The Raiders have their own model
+ * (owner, 11.10.2026: «рейдера в боссы»).
  */
-const FIGURE_ALIASES: Record<string, string> = { raiders: 'military', ruaf: 'military', 'killa-vengeful': 'killa' }
+const FIGURE_ALIASES: Record<string, string> = { ruaf: 'military', 'killa-vengeful': 'killa' }
 
 type FigureMode = 'pvp' | 'pve' | 'seasonal'
 /** A boss that stands on a map only in some modes. */

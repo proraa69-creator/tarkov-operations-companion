@@ -13,8 +13,10 @@ export function readGlbMesh(file: string): GlbMesh {
   const read = (accessorIndex: number) => {
     const accessor = gltf.accessors[accessorIndex]
     const view = gltf.bufferViews[accessor.bufferView]
-    if (view.byteStride) throw new Error('interleaved buffers are not supported')
     const comps = ({ SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 } as Record<string, number>)[accessor.type]
+    const componentBytes = accessor.componentType === 5126 || accessor.componentType === 5125 ? 4 : accessor.componentType === 5123 ? 2 : 1
+    // a stride of exactly one element is tightly packed (glTF-Transform writes it so); a wider one is interleaved
+    if (view.byteStride && view.byteStride !== comps * componentBytes) throw new Error('interleaved buffers are not supported')
     const start = bin.byteOffset + (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0)
     const count = accessor.count * comps
     const slice = bin.buffer.slice(start, start + count * (accessor.componentType === 5126 || accessor.componentType === 5125 ? 4 : accessor.componentType === 5123 ? 2 : 1))
