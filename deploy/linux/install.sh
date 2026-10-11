@@ -32,6 +32,16 @@ report() {
   echo "Ядро: $(uname -r)   Процессоры: $(nproc)"
   free -h | sed -n '1,2p'
   df -h / | tail -1 | awk '{print "Диск /: всего " $2 ", занято " $3 ", свободно " $4}'
+  if findmnt -rn --mountpoint $DATA_DIR/map-mirror >/dev/null 2>&1; then
+    echo "RaidNVMe: $(findmnt -rn -o SOURCE,FSTYPE,SIZE,AVAIL --mountpoint $DATA_DIR/map-mirror)"
+  else
+    warn "RaidNVMe не смонтирован в $DATA_DIR/map-mirror"
+  fi
+  if [ -f $DATA_DIR/map-mirror/snapshots/active.json ]; then
+    node -e 'const fs=require("fs"),p=process.argv[1],a=JSON.parse(fs.readFileSync(p));const s=a.slots||{};const required=["dataset-regular","dataset-pve","dataset-pvp-season","prices-regular","prices-pve","prices-pvp-season"];const missing=required.filter(k=>!s[k]?.current);const withoutPrevious=required.filter(k=>s[k]?.current&&!s[k]?.previous);console.log(`Зеркало: ${Object.keys(s).length} поколений; обязательных отсутствует ${missing.length}; без резервной копии ${withoutPrevious.length}`);if(missing.length)console.log(`  Нет: ${missing.join(", ")}`)' $DATA_DIR/map-mirror/snapshots/active.json || warn "Манифест зеркала повреждён"
+  else
+    warn "Снимки зеркала ещё не созданы"
+  fi
   echo "Node.js: $(node -v 2>/dev/null || echo 'не установлен')   Caddy: $(caddy version 2>/dev/null | cut -d' ' -f1 || echo 'не установлен')"
   for p in 80 443 5202 8787; do echo "Порт $p: $(port_owner "$p" || true)"; done | sed 's/: $/: свободен/'
   for s in raidos-api raidos-site raidos-update.timer caddy nginx apache2 cloudflared docker pm2-root; do
@@ -154,7 +164,7 @@ User=raidos
 Group=raidos
 EnvironmentFile=$ETC_DIR/raidos.env
 EnvironmentFile=-$HOME_DIR/current/build.env
-Environment=HOST=127.0.0.1 PORT=8787 TARKOV_DB_PATH=$DATA_DIR/companion.sqlite NODE_ENV=production RAIDOS_MIRROR_DIR=$DATA_DIR/map-mirror RAIDOS_MIRROR_REQUIRE_MOUNT=1 RAIDOS_DATA_STRICT=1
+Environment=HOST=127.0.0.1 PORT=8787 TARKOV_DB_PATH=$DATA_DIR/companion.sqlite NODE_ENV=production RAIDOS_MIRROR_DIR=$DATA_DIR/map-mirror RAIDOS_MIRROR_REQUIRE_MOUNT=1 RAIDOS_PRICE_SYNC_MS=60000
 ExecStart=/usr/bin/node $HOME_DIR/current/api/server.cjs
 Restart=always
 RestartSec=3

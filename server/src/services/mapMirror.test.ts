@@ -40,6 +40,25 @@ test('map mirror: plan from maps.json, only tarkov.dev paths, the whole pyramid 
   assert.equal(tileSetPath('https://evil.example/maps/x/{z}/{x}/{y}.png'), undefined)
 })
 
+test('map mirror: start is idempotent and stop clears both schedules', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'raidos-mirror-schedule-'))
+  try {
+    const storage = new MirrorStorage({ root: dir, minFreeBytes: 0, freeBytes: async () => 10_000 })
+    const mirror = new MapMirror({ dir, storage, fetch: fakeTarkovDev().impl })
+    const schedules = () => mirror as unknown as { initial: unknown; timer: unknown }
+    mirror.start(60_000, 60_000)
+    const first = { ...schedules() }
+    mirror.start(1, 1)
+    assert.equal(schedules().initial, first.initial)
+    assert.equal(schedules().timer, first.timer)
+    mirror.stop()
+    assert.equal(schedules().initial, null)
+    assert.equal(schedules().timer, null)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('map mirror: downloads existing tiles and schemes, skips empty ones, a complete set is not crawled again; served under /v1/map-tiles', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'raidos-mirror-'))
   try {
