@@ -1,5 +1,6 @@
 import type { GameMap, MapFloorExtent, MapFloorLayer } from '../domain/types'
 import { localizeFloorName, MAIN_FLOOR } from './mapProjection'
+import { mirroredMapsJsonUrl } from './mapMirror'
 
 const MAP_CONFIG_URL = 'https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json'
 const ATTRIBUTION = 'Карта © tarkov.dev contributors · CC BY-NC-SA 4.0'
@@ -42,7 +43,10 @@ interface RawExtent {
 }
 
 export async function fetchMapRenderingConfigs(): Promise<Map<string, Partial<GameMap>>> {
-  const response = await fetch(MAP_CONFIG_URL, { signal: AbortSignal.timeout(20_000), headers: { accept: 'application/json' } })
+  const init = { headers: { accept: 'application/json' } }
+  // GitHub first; our server's copy (data/mapMirror.ts) when GitHub does not answer.
+  let response = await fetch(MAP_CONFIG_URL, { ...init, signal: AbortSignal.timeout(20_000) }).catch(() => null)
+  if (!response?.ok) response = await fetch(mirroredMapsJsonUrl(), { ...init, signal: AbortSignal.timeout(20_000) })
   if (!response.ok) throw new Error(`maps.json: HTTP ${response.status}`)
   const roots = await response.json() as RawMapConfigRoot[]
   return adaptMapRenderingConfigs(Array.isArray(roots) ? roots : [])

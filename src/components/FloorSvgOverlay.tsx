@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { fetchWithMirror } from '../data/mapMirror'
 import { ImageOverlay } from 'react-leaflet'
 import type { LatLngBoundsExpression } from 'leaflet'
 import type { MapFloorLayer } from '../domain/types'
@@ -85,7 +86,7 @@ export function FloorSvgOverlay({ url, layers, selected, bounds, terrain = true,
     let alive = true
     let request = sources.get(url)
     if (!request) {
-      request = fetch(url, { signal: AbortSignal.timeout(30_000) }).then((response) => {
+      request = fetchWithMirror(url, { signal: AbortSignal.timeout(30_000) }).then((response) => {
         if (!response.ok) throw new Error(`Map SVG: HTTP ${response.status}`)
         return response.text()
       }).catch((error) => { sources.delete(url); throw error })

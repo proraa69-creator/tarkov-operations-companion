@@ -19,7 +19,7 @@ import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes } from '../import/logApply'
-import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerSync } from '../sync/serverSync'
+import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
@@ -32,6 +32,7 @@ import { MobileTabBar } from '../mobile/MobileNav'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
+import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 
 
@@ -77,6 +78,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nickname = useAccountNickname()
   // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
   useSocialEvents(raidMode)
+  // Our server's copy of the maps (data/mapMirror.ts) lives on the account's server.
+  const mirrorServer = useServerAccount().status?.serverUrl
+  useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
   const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()

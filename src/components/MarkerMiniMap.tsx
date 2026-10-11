@@ -2,6 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo } from 'react'
 import { divIcon } from 'leaflet'
 import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import { retryTileFromMirror } from '../data/mapMirror'
 import type { GameMap, MapView } from '../domain/types'
 import { createMapCrs, toLeafletBounds } from './mapCrs'
 import { planMapLayers } from '../data/mapView'
@@ -56,6 +57,7 @@ export function MarkerMiniMap({ map, view = 'satellite', position, color }: Mark
           <TileLayer
             key={plan.tileUrl}
             url={plan.tileUrl}
+            eventHandlers={{ tileerror: retryTileFromMirror }}
             bounds={bounds}
             tileSize={map.tileSize ?? 256}
             minZoom={-5}

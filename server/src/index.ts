@@ -12,7 +12,8 @@ import { PhoneAuthService } from './services/phoneAuth.js'
 import { createSmsSender, smsConfigFromEnv, smsLimitsFromEnv } from './services/sms/index.js'
 import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+import { MapMirror } from './services/mapMirror.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
 
@@ -52,7 +53,13 @@ const emails = new EmailAuthService(accounts, { sender: emailConfig ? createEmai
 // Signed entitlements: the private key comes from TARKOV_ENTITLEMENT_PRIVATE_KEY (the owner's app keeps it encrypted) or
 // lives next to the database (entitlement-ed25519.pem, created on the first start). Never in the repository.
 const entitlements = new EntitlementService(accounts, { keyDir: dbPath === ':memory:' ? undefined : dirname(dbPath) })
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements })
+// «Карты у нас на сервере» (owner, 10.10.2026): tarkov.dev's tiles and schemes next to the database, mirrored in the
+// background and served at /v1/map-tiles. Off in the owner's desktop app (RAIDOS_MAP_MIRROR=0, electron/localServer.ts).
+const mapMirror = dbPath !== ':memory:' && process.env.RAIDOS_MAP_MIRROR !== '0'
+  ? new MapMirror({ dir: process.env.RAIDOS_MAP_MIRROR_DIR || join(dirname(dbPath), 'map-mirror'), log: (message) => console.log(message) })
+  : undefined
+mapMirror?.start()
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

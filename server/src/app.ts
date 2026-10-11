@@ -28,6 +28,8 @@ import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
+import { createMapTilesRouter } from './routes/mapTiles.js'
+import type { MapMirror } from './services/mapMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -53,6 +55,8 @@ const syncSchema = z.object({
 })
 
 export interface ApiOptions {
+  /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
+  mapMirror?: MapMirror
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
@@ -185,6 +189,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
+  // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
+  app.use(createMapTilesRouter(options.mapMirror))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
