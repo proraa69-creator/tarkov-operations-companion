@@ -19,7 +19,7 @@ const dataset = (mode: string) => ({ quests: [{ id: 'q' }], items: [], maps: [],
 function installDesktop(serviceRequest: Desktop['serviceRequest'], edition: 'owner' | 'client' = 'client') {
   const cache = new Map<string, string>()
   const desktop = {
-    isDesktop: true, edition, dataGateway: edition === 'client', serviceRequest,
+    isDesktop: true, edition, dataGateway: true, serviceRequest,
     dataCache: { get: vi.fn(async (key: string) => cache.get(key) ?? null), set: vi.fn(async (key: string, value: string) => { cache.set(key, value); return true }) },
   } as unknown as Desktop
   window.tarkovDesktop = desktop
@@ -27,8 +27,8 @@ function installDesktop(serviceRequest: Desktop['serviceRequest'], edition: 'own
 }
 
 describe('data routing by edition', () => {
-  it('players’ builds use the gateway, the owner’s app and development go direct', () => {
-    expect(resolveDataRoute({ edition: 'owner', dev: false, desktopGateway: true })).toBe('direct')
+  it('every packaged build uses the gateway and only explicit development goes direct', () => {
+    expect(resolveDataRoute({ edition: 'owner', dev: false, desktopGateway: true })).toBe('gateway')
     expect(resolveDataRoute({ edition: 'client', dev: false, desktopGateway: true })).toBe('gateway')
     expect(resolveDataRoute({ edition: 'client', dev: true, desktopGateway: false })).toBe('direct')
     // Phone / browser builds: production → gateway, development → direct.
@@ -37,12 +37,12 @@ describe('data routing by edition', () => {
     expect(resolveDataRoute({ edition: 'owner', dev: true, forceGateway: true })).toBe('gateway')
   })
 
-  it('classifies tarkov.dev URLs; images stay untouched', () => {
+  it('classifies tarkov.dev URLs and blocks direct images', () => {
     expect(classifyTarkovUrl('https://api.tarkov.dev/graphql')).toEqual({ kind: 'graphql' })
     expect(classifyTarkovUrl('https://json.tarkov.dev/pve/tasks_en')).toEqual({ kind: 'json', path: 'pve/tasks_en' })
     expect(classifyTarkovUrl('https://players.tarkov.dev/profile/1.json')).toEqual({ kind: 'blocked' })
     expect(classifyTarkovUrl('https://api.tarkov.dev/other')).toEqual({ kind: 'blocked' })
-    expect(classifyTarkovUrl('https://assets.tarkov.dev/killa-portrait.png')).toBeNull()
+    expect(classifyTarkovUrl('https://assets.tarkov.dev/killa-portrait.png')).toEqual({ kind: 'blocked' })
     expect(classifyTarkovUrl('https://raidos.app/v1/data/graphql')).toBeNull()
   })
 })
@@ -103,10 +103,9 @@ describe('client data layer', () => {
     expect(serviceRequest).toHaveBeenLastCalledWith('GET', '/v1/data/json/regular/items_ru', undefined)
 
     expect((await fetch('https://players.tarkov.dev/profile/regular/1.json')).status).toBe(403)
-    // Anything else (our server, images) uses the real fetch.
+    // Direct images are blocked too; the real network is not used.
     await fetch('https://assets.tarkov.dev/killa-portrait.png')
-    expect(network).toHaveBeenCalledTimes(1)
-    expect(network.mock.calls.map((call) => String((call as unknown[])[0]))).toEqual(['https://assets.tarkov.dev/killa-portrait.png'])
+    expect(network).not.toHaveBeenCalled()
   })
 
   it('the guard answers 402 for a refused subscription, so feature code sees !response.ok', async () => {

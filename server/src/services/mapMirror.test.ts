@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import express from 'express'
 import { MapMirror, mirrorPlan, setTileCount, tileSetPath } from './mapMirror.js'
 import { createMapTilesRouter } from '../routes/mapTiles.js'
+import { MirrorStorage } from './mirrorStorage.js'
 
 const PNG = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.from('tile')])
 const MAPS = [
@@ -43,7 +44,8 @@ test('map mirror: downloads existing tiles and schemes, skips empty ones, a comp
   const dir = mkdtempSync(join(tmpdir(), 'raidos-mirror-'))
   try {
     const remote = fakeTarkovDev()
-    const mirror = new MapMirror({ dir, fetch: remote.impl, concurrency: 2, minFreeBytes: 0 })
+    const storage = new MirrorStorage({ root: dir, minFreeBytes: 0, freeBytes: async () => 10_000 })
+    const mirror = new MapMirror({ dir, storage, fetch: remote.impl, concurrency: 2, minFreeBytes: 0 })
     await mirror.run()
     const status = mirror.status()
     assert.equal(status.state, 'done')
@@ -52,7 +54,7 @@ test('map mirror: downloads existing tiles and schemes, skips empty ones, a comp
     assert.equal(status.svgs, 1)
     assert.ok(existsSync(join(dir, 'maps/factory/main/1/0/0.png')))
     assert.ok(!existsSync(join(dir, 'maps/factory/main/1/1/1.png')))
-    assert.ok(readFileSync(join(dir, 'maps.json'), 'utf8').includes('factory'))
+    assert.ok((await storage.read('maps', 'maps.json'))?.toString().includes('factory'))
     assert.ok(!remote.calls.some((url) => url.includes('evil.example')))
 
     const before = remote.calls.length

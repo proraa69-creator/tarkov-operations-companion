@@ -6,6 +6,10 @@ import { AccountStore, newPasswordHash, type SubscriptionSource } from '../servi
 import { ProgressStore } from '../services/progressStore.js'
 import { EntitlementService } from '../services/entitlement.js'
 import { ALLOWED_OPERATIONS, canonicalQuery, checkQueryAllowed, DataGateway, GatewayError, inspectQuery, PRICE_TTL_MS, STATIC_TTL_MS } from '../services/dataGateway.js'
+import { MirrorStorage } from '../services/mirrorStorage.js'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const DEVICE = 'device-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const DAY = 24 * 60 * 60 * 1000
@@ -111,6 +115,30 @@ test('gateway: the size cap still applies to a streamed answer (multi-byte text 
   assert.equal(await ok.graphql('{ items { name } }', undefined), text)
   const small = new DataGateway({ fetch: (async () => new Response(chunked())) as typeof fetch, maxResponseBytes: bytes.length - 1 })
   await assert.rejects(small.graphql('{ items { name } }', undefined), (error: GatewayError) => error.status === 502)
+})
+
+test('gateway strict mode serves disk snapshots and never calls upstream on a miss', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'raidos-gateway-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const mirror = new MirrorStorage({ root, minFreeBytes: 1, freeBytes: async () => 10_000 })
+  let calls = 0
+  const fetcher = (async () => { calls += 1; return new Response(JSON.stringify({ data: { items: [{ id: 'a' }] } })) }) as typeof fetch
+  const query = '{ items { id } }'
+  const bootstrap = new DataGateway({ mirror, fetch: fetcher, strict: false })
+  const expected = await bootstrap.graphql(query, undefined)
+  assert.equal(calls, 1)
+
+  const strict = new DataGateway({ mirror, fetch: fetcher, strict: true })
+  assert.equal(await strict.graphql(query, undefined), expected)
+  await assert.rejects(strict.graphql('{ tasks { id } }', undefined), (error: GatewayError) => error.status === 503)
+  await assert.rejects(strict.json('regular/tasks'), (error: GatewayError) => error.status === 503)
+  assert.equal(calls, 1, 'strict misses never touch upstream')
+
+  const transaction = await mirror.begin('dataset-regular')
+  await transaction.write('tasks.json', '{"data":{"tasks":{"q":{}}}}')
+  await transaction.publish()
+  assert.match(await strict.json('regular/tasks'), /"q"/)
+  assert.equal(calls, 1)
 })
 
 function fakeUpstream() {

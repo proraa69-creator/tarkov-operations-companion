@@ -1,6 +1,7 @@
 import express from 'express'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { activeItemImageDirectory } from '../services/itemImageDirectory.js'
 
 const FILE = /^[a-z0-9]{16,48}-(?:icon|grid)\.(?:webp|jpg|jpeg|png)$/
 
@@ -8,7 +9,7 @@ interface ImageManifest { items?: Record<string, { images?: Record<string, { fil
 let cached = { path: '', mtime: 0, files: new Set<string>() }
 
 async function allowedFiles(directory: string) {
-  const path = join(directory, 'manifest.json')
+  const path = join(activeItemImageDirectory(directory), 'manifest.json')
   const mtime = (await stat(path)).mtimeMs
   if (cached.path === path && cached.mtime === mtime) return cached.files
   const manifest = JSON.parse(await readFile(path, 'utf8')) as ImageManifest
@@ -25,7 +26,7 @@ export function createItemImagesRouter(directory?: string) {
       const file = String(req.params.file)
       if (!directory || !FILE.test(file) || !(await allowedFiles(directory)).has(file)) { res.status(404).end(); return }
       res.set('Cache-Control', 'public, max-age=86400, immutable')
-      res.sendFile(file, { root: directory, dotfiles: 'deny' }, (error) => { if (error && !res.headersSent) next(error) })
+      res.sendFile(file, { root: activeItemImageDirectory(directory), dotfiles: 'deny' }, (error) => { if (error && !res.headersSent) next(error) })
     } catch { res.status(404).end() }
   })
   return router

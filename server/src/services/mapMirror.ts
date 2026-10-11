@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, statfs, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import type { MirrorStorage, MirrorTransaction } from './mirrorStorage.js'
 
 /**
  * «Скачай все интерактивные карты к нам на сервер, чтобы не зависеть ни от кого» (owner, 10.10.2026; tarkov.dev gave
@@ -85,6 +86,7 @@ const digest = (text: string) => createHash('sha256').update(text).digest('hex')
 
 export interface MapMirrorOptions {
   dir: string
+  storage?: MirrorStorage
   fetch?: typeof fetch
   concurrency?: number
   minFreeBytes?: number
@@ -108,6 +110,15 @@ export class MapMirror {
 
   get dir() { return this.options.dir }
   status(): MirrorStatus { return { ...this.current, tiles: { ...this.current.tiles } } }
+
+  /** Mutable map metadata comes from a verified generation; large tile files are immutable in the shared tree. */
+  async read(path: string) {
+    if (path === 'maps.json' || SVG_PATH.test(path)) {
+      const generation = await this.options.storage?.generation('maps')
+      if (generation) return this.options.storage!.read('maps', path)
+    }
+    return readFile(join(this.dir, path)).catch(() => undefined)
+  }
 
   /** Mirrors in the background: first after `delayMs`, then every `everyMs`. */
   start(delayMs = 60_000, everyMs = 24 * 3600_000) {
@@ -150,21 +161,30 @@ export class MapMirror {
 
   private async pass() {
     this.current = { ...this.current, state: 'running', startedAt: new Date().toISOString(), finishedAt: null, error: undefined }
+    let transaction: MirrorTransaction | undefined
     try {
       await mkdir(this.dir, { recursive: true })
       const text = (await this.get(this.options.mapsJsonUrl ?? MAPS_JSON_URL))?.toString('utf8')
       if (!text) throw new Error('maps.json not found')
       const plan = mirrorPlan(JSON.parse(text))
       if (!plan.sets.length) throw new Error('maps.json has no tile sets')
-      await this.save('maps.json', Buffer.from(text, 'utf8'))
+      transaction = await this.options.storage?.begin('maps')
+      if (transaction) await transaction.write('maps.json', text)
+      else await this.save('maps.json', Buffer.from(text, 'utf8'))
       this.current.sets = plan.sets.length
       this.current.tiles = { done: 0, total: plan.sets.reduce((sum, set) => sum + setTileCount(set), 0), saved: 0, missing: 0 }
 
       for (const svg of plan.svgs) {
         const bytes = await this.get(`${ASSETS}${svg}`).catch(() => null)
-        if (bytes && isSvg(bytes)) await this.save(svg, bytes)
+        if (bytes && isSvg(bytes)) {
+          if (transaction) await transaction.write(svg, bytes)
+          else await this.save(svg, bytes)
+        } else if (transaction) {
+          const previous = await this.options.storage!.read('maps', svg)
+          if (previous && isSvg(previous)) await transaction.write(svg, previous)
+        }
       }
-      this.current.svgs = plan.svgs.filter((svg) => existsSync(join(this.dir, svg))).length
+      this.current.svgs = transaction ? plan.svgs.filter((svg) => transaction!.files[svg]).length : plan.svgs.filter((svg) => existsSync(join(this.dir, svg))).length
 
       this.current.completeSets = 0
       for (const set of plan.sets) {
@@ -183,6 +203,14 @@ export class MapMirror {
         }
         if (this.current.state === 'disk-full') return
       }
+      if (this.current.completeSets !== this.current.sets || this.current.svgs !== plan.svgs.length) throw new Error('map snapshot is incomplete')
+      if (transaction) {
+        await transaction.publish({ sets: plan.sets.length, svgs: plan.svgs.length }, async () => {
+          const active = await this.options.storage!.read('maps', 'maps.json')
+          if (!active || !Array.isArray(JSON.parse(active.toString('utf8')))) throw new Error('published maps.json failed smoke check')
+        })
+        transaction = undefined
+      }
       this.current.state = 'done'
       this.log(`done: ${this.current.completeSets}/${this.current.sets} sets, ${this.current.tiles.saved} tiles saved`)
     } catch (error) {
@@ -190,6 +218,7 @@ export class MapMirror {
       this.current.error = error instanceof Error ? error.message : String(error)
       this.log(`error: ${this.current.error}`)
     } finally {
+      await transaction?.abort()
       this.current.finishedAt = new Date().toISOString()
     }
   }

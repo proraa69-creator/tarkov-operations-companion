@@ -4,7 +4,7 @@
  * - The players' app (client edition: the packaged exe, the phone app, any production build that is not the owner's)
  *   never talks to tarkov.dev itself: every GraphQL query and every json.tarkov.dev file goes through our server's data
  *   gateway (POST /v1/data/graphql, GET /v1/data/json/…) with the account session — 402 «Нужна подписка» without one.
- * - The owner's app and development runs keep the direct requests (and the server first, where it exists).
+ * - Every packaged edition, including the owner's, uses the gateway. Only an explicit development run is direct.
  *
  * Feature code calls `tarkovGraphql()` / `tarkovJson()`. Code that still calls `fetch('https://api.tarkov.dev/graphql')`
  * or `fetch('https://json.tarkov.dev/…')` directly is routed through the same functions by `installTarkovFetchGuard()`
@@ -28,7 +28,6 @@ export type DataRoute = 'gateway' | 'direct'
  */
 export function resolveDataRoute(input: { edition: AppEdition; dev: boolean; desktopGateway?: boolean; forceGateway?: boolean }): DataRoute {
   if (input.forceGateway) return 'gateway'
-  if (input.edition === 'owner') return 'direct'
   if (input.desktopGateway !== undefined) return input.desktopGateway ? 'gateway' : 'direct'
   return input.dev ? 'direct' : 'gateway'
 }
@@ -124,7 +123,7 @@ const directFetch: typeof fetch = (input, init) => (originalFetch ?? globalThis.
 
 export type TarkovUrlKind = { kind: 'graphql' } | { kind: 'json'; path: string } | { kind: 'blocked' } | null
 
-/** Which tarkov.dev request a URL is (null: anything else, images on assets.tarkov.dev included). */
+/** Which tarkov.dev request a URL is. Asset requests are blocked; catalog and map URLs must already point at Raid OS. */
 export function classifyTarkovUrl(raw: string): TarkovUrlKind {
   let url: URL
   try { url = new URL(raw) } catch { return null }
@@ -133,6 +132,7 @@ export function classifyTarkovUrl(raw: string): TarkovUrlKind {
   if (host === 'api.tarkov.dev') return url.pathname.replace(/\/+$/, '') === '/graphql' ? { kind: 'graphql' } : { kind: 'blocked' }
   if (host === 'json.tarkov.dev') return { kind: 'json', path: url.pathname.replace(/^\/+|\/+$/g, '') }
   if (host === 'players.tarkov.dev') return { kind: 'blocked' }
+  if (host === 'assets.tarkov.dev') return { kind: 'blocked' }
   return null
 }
 

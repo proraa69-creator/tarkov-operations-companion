@@ -147,13 +147,14 @@ cat > /etc/systemd/system/raidos-api.service <<EOF
 Description=Raid OS API
 After=network-online.target
 Wants=network-online.target
+RequiresMountsFor=$DATA_DIR/map-mirror
 
 [Service]
 User=raidos
 Group=raidos
 EnvironmentFile=$ETC_DIR/raidos.env
 EnvironmentFile=-$HOME_DIR/current/build.env
-Environment=HOST=127.0.0.1 PORT=8787 TARKOV_DB_PATH=$DATA_DIR/companion.sqlite NODE_ENV=production
+Environment=HOST=127.0.0.1 PORT=8787 TARKOV_DB_PATH=$DATA_DIR/companion.sqlite NODE_ENV=production RAIDOS_MIRROR_DIR=$DATA_DIR/map-mirror RAIDOS_MIRROR_REQUIRE_MOUNT=1 RAIDOS_DATA_STRICT=1
 ExecStart=/usr/bin/node $HOME_DIR/current/api/server.cjs
 Restart=always
 RestartSec=3
@@ -165,6 +166,39 @@ ReadWritePaths=$DATA_DIR
 
 [Install]
 WantedBy=multi-user.target
+EOF
+cat > /etc/systemd/system/raidos-images.service <<EOF
+[Unit]
+Description=Raid OS daily item image mirror
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=$DATA_DIR/map-mirror
+
+[Service]
+Type=oneshot
+User=raidos
+Group=raidos
+ExecStart=/usr/bin/node $HOME_DIR/current/bin/cache-item-images.mjs $DATA_DIR/map-mirror/images/items
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=12h
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=$DATA_DIR/map-mirror
+EOF
+cat > /etc/systemd/system/raidos-images.timer <<EOF
+[Unit]
+Description=Refresh Raid OS item images daily
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
 EOF
 cat > /etc/systemd/system/raidos-site.service <<EOF
 [Unit]
@@ -262,7 +296,7 @@ caddy validate --config $CADDY_FILE --adapter caddyfile >/dev/null || die "Caddy
 systemctl daemon-reload
 systemctl enable --now raidos-api raidos-site >/dev/null
 systemctl restart raidos-api raidos-site
-systemctl enable --now raidos-update.timer >/dev/null
+systemctl enable --now raidos-update.timer raidos-images.timer >/dev/null
 systemctl enable caddy >/dev/null && systemctl reload-or-restart caddy
 
 say "Проверка"

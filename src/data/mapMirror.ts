@@ -1,7 +1,6 @@
 /**
  * Our copy of tarkov.dev's maps on the Raid OS server (server/src/services/mapMirror.ts, /v1/map-tiles/…): the app
- * takes tiles, schemes and maps.json from Raid OS first. During the initial server bootstrap only, a file missing from
- * the copy may be retried from tarkov.dev so maps do not go blank while the mirror is still filling.
+ * takes tiles, schemes and maps.json from Raid OS. Published builds never retry an upstream host.
  */
 const DEFAULT_SERVER = 'https://raidos.app'
 let server = DEFAULT_SERVER
@@ -23,42 +22,13 @@ export function mirroredMapUrl(url: string): string | undefined {
   return `${server}/v1/map-tiles/${match[1]}`
 }
 
-/** Convert a mirrored URL back to its upstream asset for the temporary bootstrap fallback. */
-export function upstreamMapUrl(url: string): string | undefined {
-  try {
-    const parsed = new URL(url)
-    if (parsed.origin !== server) return undefined
-    const pathname = decodeURIComponent(parsed.pathname)
-    const match = /^\/v1\/map-tiles\/(maps\/[A-Za-z0-9_./{}-]+)$/.exec(pathname)
-    return match && !match[1].includes('..') ? `https://assets.tarkov.dev/${match[1]}` : undefined
-  } catch { return undefined }
-}
-
 /** The URL rendered by the app: our server whenever this is a known map asset. */
 export const primaryMapUrl = (url: string) => mirroredMapUrl(url) ?? url
 
 /** maps.json from the copy (when GitHub / tarkov.dev is unreachable). */
 export const mirroredMapsJsonUrl = () => `${server}/v1/map-tiles/maps.json`
 
-/** Leaflet `tileerror`: during bootstrap, try the original source once after our copy. */
-export function retryTileFromMirror(event: { tile: HTMLImageElement }) {
-  const tile = event.tile
-  if (tile.dataset.upstreamFallback) return
-  const fallback = upstreamMapUrl(tile.src)
-  if (!fallback) return
-  tile.dataset.upstreamFallback = '1'
-  tile.src = fallback
-}
-
-/** Fetch from our copy, then use upstream only as a bootstrap fallback. */
+/** Fetch only from our copy. A missing file remains a normal server error. */
 export async function fetchWithMirror(url: string, init?: RequestInit) {
-  const primary = primaryMapUrl(url)
-  try {
-    const response = await fetch(primary, init)
-    if (response.ok) return response
-    throw new Error(`HTTP ${response.status}`)
-  } catch (error) {
-    if (primary === url) throw error
-    return fetch(url, init)
-  }
+  return fetch(primaryMapUrl(url), init)
 }

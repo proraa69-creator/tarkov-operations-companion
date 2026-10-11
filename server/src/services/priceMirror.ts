@@ -157,7 +157,11 @@ export class PriceMirror {
     const transaction = await this.options.storage.begin(`prices-${mode}`)
     try {
       await transaction.write('prices.json', `${JSON.stringify(snapshot)}\n`)
-      await transaction.publish({ mode, source, items: count })
+      await transaction.publish({ mode, source, items: count }, async () => {
+        const active = await this.options.storage.read(`prices-${mode}`, 'prices.json')
+        const parsed = active ? JSON.parse(active.toString('utf8')) as PriceSnapshot : null
+        if (!parsed || parsed.mode !== mode || Object.keys(parsed.items ?? {}).length < this.minimum) throw new Error('published prices failed smoke check')
+      })
     } catch (error) { await transaction.abort(); throw error }
     return { snapshot, bytes: Number.isFinite(declared) && declared > 0 ? declared : Buffer.byteLength(text) }
   }

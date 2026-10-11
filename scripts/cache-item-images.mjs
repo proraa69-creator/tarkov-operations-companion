@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { copyFile, mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises'
+import { copyFile, link, mkdir, readFile, rename, rm, writeFile, unlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -62,11 +62,12 @@ async function image(url) {
   return bytes
 }
 
-export async function cacheItemImages(directory, concurrency = 6) {
+async function buildItemImages(directory, sourceDirectory, concurrency = 6) {
   const root = resolve(directory)
+  const source = resolve(sourceDirectory)
   await mkdir(root, { recursive: true, mode: 0o755 })
   let previous = { items: {} }
-  try { previous = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8')) } catch { /* first run */ }
+  try { previous = JSON.parse(await readFile(join(source, 'manifest.json'), 'utf8')) } catch { /* first run */ }
   const rows = new Map()
   for (const mode of ['regular', 'pve', 'pvp-season']) {
     const payload = await json(`https://json.tarkov.dev/${mode}/items`)
@@ -95,10 +96,11 @@ export async function cacheItemImages(directory, concurrency = 6) {
       const file = `${id}-${kind}.${extension}`
       const old = previous.items?.[id]?.images?.[kind]
       let existing
-      try { existing = await readFile(join(root, file)) } catch { /* missing image */ }
+      try { existing = await readFile(join(source, file)) } catch { /* missing image */ }
       const digest = bytes => createHash('sha256').update(bytes).digest('hex')
       const good = existing && isImage(existing, extension) && old?.sha256 === digest(existing)
       let record = good ? old : undefined
+      if (good) await link(join(source, file), join(root, file)).catch(() => copyFile(join(source, file), join(root, file)))
       if (good && old.url === url && Date.now() - Date.parse(old.cachedAt) < 7 * 24 * 60 * 60 * 1000) reused++
       else {
         let failure = url ? 'Download failed' : 'No valid upstream image'
@@ -121,12 +123,49 @@ export async function cacheItemImages(directory, concurrency = 6) {
       if ((saved + reused + missing.length) % 250 === 0) console.log(`Images ${saved + reused + missing.length}/${jobs.length}`)
     }
   }))
-  await copyFile(join(root, 'manifest.json'), join(root, 'manifest.previous.json')).catch(() => {})
   await atomic(join(root, 'manifest.json'), `${JSON.stringify(manifest)}\n`)
   const report = { items: rows.size, images: Object.values(manifest.items).reduce((sum, row) => sum + Object.keys(row.images).length, 0), saved, reused, missing }
   await atomic(join(root, 'report.json'), `${JSON.stringify(report, null, 2)}\n`)
   console.log(JSON.stringify({ ...report, missing: missing.length }))
   return report
+}
+
+export async function cacheItemImages(directory, concurrency = 6) {
+  const root = resolve(directory)
+  const generations = join(root, 'generations')
+  const stagingRoot = join(root, 'staging')
+  await Promise.all([mkdir(generations, { recursive: true }), mkdir(stagingRoot, { recursive: true })])
+  let active = { version: 1, current: '', previous: '' }
+  try {
+    const parsed = JSON.parse(await readFile(join(root, 'active.json'), 'utf8'))
+    if (parsed?.version === 1 && /^[a-z0-9-]{8,80}$/.test(parsed.current)) active = parsed
+  } catch { /* first generation imports the legacy root */ }
+  const source = active.current ? join(generations, active.current) : root
+  const id = `images-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
+  const staging = join(stagingRoot, id)
+  const target = join(generations, id)
+  await mkdir(staging, { recursive: false })
+  try {
+    const report = await buildItemImages(staging, source, concurrency)
+    if (active.current) {
+      const [before, after] = await Promise.all([
+        readFile(join(source, 'manifest.json'), 'utf8').then(JSON.parse).catch(() => null),
+        readFile(join(staging, 'manifest.json'), 'utf8').then(JSON.parse),
+      ])
+      if (before && JSON.stringify(before.items) === JSON.stringify(after.items)) {
+        await rm(staging, { recursive: true, force: true })
+        return { ...report, published: false }
+      }
+    }
+    await rename(staging, target)
+    const next = { version: 1, current: id, ...(active.current ? { previous: active.current } : {}) }
+    await atomic(join(root, 'active.json'), `${JSON.stringify(next)}\n`)
+    if (active.previous && active.previous !== active.current) await rm(join(generations, active.previous), { recursive: true, force: true })
+    return { ...report, published: true }
+  } catch (error) {
+    await rm(staging, { recursive: true, force: true })
+    throw error
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

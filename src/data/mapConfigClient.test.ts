@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { adaptMapRenderingConfigs } from './mapConfigClient'
+import { adaptMapRenderingConfigs, fetchMapRenderingConfigs } from './mapConfigClient'
 
 describe('map rendering config adapter', () => {
+  it('loads maps.json only from Raid OS', async () => {
+    const calls: string[] = []
+    const fetcher = (async (input: string | URL | Request) => {
+      calls.push(String(input))
+      return new Response('unavailable', { status: 503 })
+    }) as typeof fetch
+    await expect(fetchMapRenderingConfigs(fetcher)).rejects.toThrow('HTTP 503')
+    expect(calls).toEqual(['https://raidos.app/v1/map-tiles/maps.json'])
+  })
+
   it('normalizes Tarkov.dev map rendering config', () => {
     const configs = adaptMapRenderingConfigs([{
       normalizedName: 'customs',
