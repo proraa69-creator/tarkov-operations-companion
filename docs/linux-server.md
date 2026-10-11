@@ -11,6 +11,7 @@ release that updates the laptop carries a signed Linux bundle; the VPS installs 
 | Website + `/v1` proxy + downloads (`electron/linux/siteServer.ts`) | `raidos-site` | `127.0.0.1:5202` |
 | HTTPS for `raidos.app` / `www.raidos.app` | `caddy` | `:80`, `:443` |
 | Auto-update (`electron/linux/updater.ts`) | `raidos-update.timer`, every 5 minutes | — |
+| Item image mirror | `raidos-images.timer`, daily | RaidNVMe |
 
 Folders: `/opt/raidos/releases/<build>` and `/opt/raidos/current` (the running build), `/var/lib/raidos`
 (`companion.sqlite`, `entitlement-ed25519.pem`, `backups/`, `client/` with the players' exe), `/etc/raidos/raidos.env`
@@ -29,7 +30,8 @@ read -rsp 'GitHub token: ' T; echo; curl -fsSL -H "Authorization: Bearer $T" -H 
   bash install.sh --check && RAIDOS_GITHUB_TOKEN="$T" bash install.sh
 ```
 
-`--check` only reports (system, memory, disk, Node, ports 80/443/5202/8787, services, `companion.sqlite` files, DNS).
+`--check` only reports (system, memory, disks including the RaidNVMe mount, mirror generations, Node,
+ports 80/443/5202/8787, services, `companion.sqlite` files, DNS).
 The install stops instead of taking over a port another program uses. Taking over the laptop's data on the first
 install: `RAIDOS_IMPORT_DB=/root/companion.sqlite RAIDOS_IMPORT_KEY=/root/entitlement-ed25519.pem bash install.sh`
 (an existing `/var/lib/raidos/companion.sqlite` is never replaced).
@@ -54,6 +56,25 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   payment methods and recurring charges for the shop. Keep it unset otherwise.
 - Check now: `systemctl start raidos-update.service`
 - ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook`
+
+## Tarkov data mirror
+
+`/var/lib/raidos/map-mirror` must be a mounted RaidNVMe filesystem. The API checks reference JSON once a day,
+item images once a day, and separate PvP, PvE and Season prices once a minute. Published generations are atomic;
+`current` stays available while a replacement is downloaded and `previous` is retained for rollback.
+
+After installing a server build that contains the JSON mirror, bootstrap it before enabling strict mode:
+
+```bash
+sudo -u raidos env RAIDOS_MIRROR_DIR=/var/lib/raidos/map-mirror RAIDOS_MIRROR_REQUIRE_MOUNT=1 \
+  node /opt/raidos/current/bin/raidos-mirror-bootstrap.cjs
+curl -fsS https://raidos.app/v1/data/mirror/status
+```
+
+When datasets, all three price modes and every legacy snapshot report `done`, add `RAIDOS_DATA_STRICT=1` to
+`/etc/raidos/raidos.env` and restart `raidos-api`. Strict mode never fetches missing data during a user request.
+Rollback verified generations with `raidos-mirror-rollback.cjs <slot>` or `--all`; remove the strict setting first
+if an emergency rollback needs the transitional fallback.
 
 Not on Linux (owner-app features of the Windows laptop): the admin panel's «Обновление» card and the payment settings
 form — on the VPS updates are automatic and payment settings live in `/etc/raidos/raidos.env`.

@@ -15,7 +15,8 @@ import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './ser
 import { dirname, join } from 'node:path'
 import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
-import { GraphqlPrewarm } from './services/graphqlPrewarm.js'
+import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
+import { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
@@ -79,15 +80,17 @@ const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
 mapMirror?.start()
 dataMirror?.start()
 priceMirror?.start()
-const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1' })
-const graphqlPrewarm = mirrorStorage ? new GraphqlPrewarm(new DataGateway({ mirror: mirrorStorage, strict: false }), (message) => console.log(message)) : undefined
-graphqlPrewarm?.start()
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, itemImageDir, data })
+const priceHistory = mirrorStorage ? new PriceHistoryMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+priceHistory?.start()
+const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1', priceHistory })
+const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+legacyGraphql?.start()
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, data })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
 const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
-  dataMirror?.stop(); priceMirror?.stop(); graphqlPrewarm?.stop()
+  mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop()
   listener.close(() => { db.close(); process.exit(0) })
 })

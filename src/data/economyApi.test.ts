@@ -1,18 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const graphqlCalls: string[] = []
+const jsonCalls: string[] = []
 const cache = new Map<string, unknown>()
 let answer: (query: string) => unknown = () => ({})
+let jsonOffline = false
 
 vi.mock('./tarkovApi', () => ({
   tarkovGraphql: vi.fn(async (query: string) => { graphqlCalls.push(query); return { data: answer(query) } }),
   usesDataGateway: vi.fn(() => true),
-  gatewayRequest: vi.fn(async (_method: string, path: string) => ({ fleaMarket: { enabled: true }, items: { gpu: { lastLowPrice: path.endsWith('/pve') ? 420000 : path.endsWith('/pvp') ? 610000 : 777000, avg24hPrice: 800000 } } })),
+  gatewayRequest: vi.fn(async (_method: string, path: string) => path.includes('/price-history/')
+    ? { points: [{ timestamp: Date.now(), price: 123 }] }
+    : { mode: path.endsWith('/pve') ? 'pve' : path.endsWith('/pvp') ? 'regular' : 'pvp-season', fleaMarket: { enabled: true }, items: { gpu: { lastLowPrice: path.endsWith('/pve') ? 420000 : path.endsWith('/pvp') ? 610000 : 777000, avg24hPrice: 800000 } } }),
   tarkovJson: vi.fn(async (path: string) => {
-    if (path === 'pvp-season/items') return { data: { items: { gpu: { id: 'gpu', basePrice: 100000, lastLowPrice: 700000, types: [] } }, fleaMarket: { enabled: true } } }
-    if (path === 'pvp-season/items_ru') return { data: { 'gpu Name': 'Видеокарта', 'gpu ShortName': 'GPU' } }
-    if (path === 'pvp-season/barters') return { data: [{ id: 'season-barter', trader: 'mechanic', minTraderLevel: 1, requiredItems: [{ item: 'gpu', count: 1 }], offeredItem: { item: 'gpu', count: 2 } }] }
-    if (path === 'pvp-season/crafts') return { data: [{ id: 'season-craft', station: 'workbench', level: 1, duration: 10, requiredItems: [{ item: 'gpu', count: 1 }], productItem: { item: 'gpu', count: 1 } }] }
+    if (jsonOffline) throw new Error('offline')
+    jsonCalls.push(path)
+    const mode = path.split('/')[0]!
+    const endpoint = path.split('/')[1]!
+    if (endpoint === 'items') return { data: { items: { gpu: { id: 'gpu', basePrice: 100000, lastLowPrice: mode === 'pve' ? 400000 : mode === 'pvp-season' ? 700000 : 600000, types: [] } }, fleaMarket: { enabled: true } } }
+    if (endpoint === 'items_ru' || endpoint === 'items_en') return { data: { 'gpu Name': 'Видеокарта', 'gpu ShortName': 'GPU' } }
+    if (endpoint === 'traders') return { data: { traders: { mechanic: { id: 'mechanic', name: 'Механик', normalizedName: 'mechanic' } } } }
+    if (endpoint === 'traders_ru' || endpoint === 'traders_en' || endpoint.startsWith('hideout_')) return { data: {} }
+    if (endpoint === 'barters') return { data: [{ id: `${mode}-barter`, trader: 'mechanic', minTraderLevel: 1, requiredItems: [{ item: 'gpu', count: 1 }], offeredItem: { item: 'gpu', count: 2 } }] }
+    if (endpoint === 'crafts') return { data: [{ id: `${mode}-craft`, station: 'workbench', level: 1, duration: 10, requiredItems: [{ item: 'gpu', count: 1 }], productItem: { item: 'gpu', count: 1 } }] }
+    if (endpoint === 'maps') return { data: { maps: {}, mobs: {} } }
     throw new Error(`Unexpected ${path}`)
   }),
 }))
@@ -21,7 +32,7 @@ vi.mock('./gameDataCache', () => ({
   writeGameCache: vi.fn(async (key: string, value: unknown) => { cache.set(key, value) }),
 }))
 
-const { economyQueries, fetchEconomySnapshot, fetchPriceHistory, parseEconomyResponse, SeasonPricesUnavailable } = await import('./economyApi')
+const { economyQueries, fetchEconomySnapshot, fetchPriceHistory, parseEconomyResponse } = await import('./economyApi')
 const { bestSell, cheapestBuy, fleaPrice } = await import('../domain/economy')
 
 /** One GPU priced differently per mode, so a mix-up would show. */
@@ -37,8 +48,10 @@ const pricesFor = (query: string) => {
 
 beforeEach(() => {
   graphqlCalls.length = 0
+  jsonCalls.length = 0
   cache.clear()
   answer = pricesFor
+  jsonOffline = false
 })
 
 describe('economy data per mode', () => {
@@ -56,12 +69,12 @@ describe('economy data per mode', () => {
     expect([pvp.mode, pvp.items.gpu?.lastLowPrice]).toEqual(['pvp', 610000])
     expect([pve.mode, pve.items.gpu?.lastLowPrice]).toEqual(['pve', 420000])
     expect([...cache.keys()]).toEqual(['tarkov-operations-economy-v1-pvp-ru', 'tarkov-operations-economy-v1-pve-ru'])
-    expect(graphqlCalls.slice(0, 3).every((query) => !/gameMode: pve/.test(query))).toBe(true)
-    expect(graphqlCalls.slice(3).every((query) => /gameMode: pve/.test(query))).toBe(true)
+    expect(jsonCalls.slice(0, 8).every((path) => path.startsWith('regular/'))).toBe(true)
+    expect(jsonCalls.slice(8).every((path) => path.startsWith('pve/'))).toBe(true)
 
     // Offline: a PvE snapshot sitting under the PvP key (e.g. written by an old build) is refused.
     cache.set('tarkov-operations-economy-v1-pvp-ru', pve)
-    answer = () => { throw new Error('offline') }
+    jsonOffline = true
     await expect(fetchEconomySnapshot('pvp', 'ru')).rejects.toThrow('offline')
     await expect(fetchEconomySnapshot('pve', 'ru')).resolves.toMatchObject({ mode: 'pve', source: 'cache' })
   })
@@ -70,11 +83,10 @@ describe('economy data per mode', () => {
     const season = await fetchEconomySnapshot('seasonal', 'ru')
     expect(season).toMatchObject({ mode: 'seasonal', items: { gpu: { lastLowPrice: 777000 } } })
     expect([season.barters.length, season.crafts.length]).toEqual([1, 1])
-    await expect(fetchPriceHistory('gpu', 'seasonal')).rejects.toBeInstanceOf(SeasonPricesUnavailable)
+    await expect(fetchPriceHistory('gpu', 'seasonal')).resolves.toHaveLength(1)
     expect(graphqlCalls).toEqual([])
-    answer = () => ({ historicalItemPrices: [] })
     await fetchPriceHistory('gpu', 'pve', 7)
-    expect(graphqlCalls).toEqual(['{ historicalItemPrices(id: "gpu", days: 7, gameMode: pve) { price priceMin timestamp } }'])
+    expect(graphqlCalls).toEqual([])
   })
 })
 

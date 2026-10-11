@@ -1,20 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { BossGear, BossInfo, MapMarker } from '../domain/types'
-import { dataRoute, tarkovGraphql } from './tarkovApi'
+import { dataRoute } from './tarkovApi'
+import { loadTarkovDataset } from './tarkovDataset'
+import { buildLegacyBosses } from './tarkovJsonAdapters'
 
 const CACHE_KEY = 'toc.bosses.graphql.v2'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const GEAR_SLOTS = ['FirstPrimaryWeapon', 'SecondPrimaryWeapon', 'Holster', 'Headwear', 'ArmorVest', 'TacticalVest']
-
-const BOSSES_QUERY = `query RaidOsBosses {
-  bosses(lang: ru) {
-    name
-    normalizedName
-    imagePortraitLink
-    health { max }
-    equipment { item { id name shortName iconLink properties { ... on ItemPropertiesWeapon { defaultPreset { iconLink } } } } attributes { name value } }
-  }
-}`
 
 export interface BossProfile {
   key: string
@@ -30,19 +22,19 @@ export interface BossProfile {
  * Portrait URLs were checked to return HTTP 200. Gear is tarkov.dev's estimate of typical loadout.
  */
 export const STATIC_BOSSES: BossProfile[] = [
-  { key: 'reshala', name: 'Решала', aliases: ['Reshala'], portraitUrl: 'https://assets.tarkov.dev/reshala-portrait.webp', health: 752, gear: gear('АК-101', 'ТТ Золотой') },
-  { key: 'killa', name: 'Килла', aliases: ['Killa'], portraitUrl: 'https://assets.tarkov.dev/killa-portrait.png', health: 890, gear: gear('РПК-16', 'ТТ', 'Маска-1Щ (KE)', '6Б13 KE') },
-  { key: 'glukhar', name: 'Глухарь', aliases: ['Glukhar'], portraitUrl: 'https://assets.tarkov.dev/glukhar-portrait.png', health: 1010, gear: gear('АШ-12', 'СР-3М', 'ПЛ-15', 'DA Bastion', 'Thunderbolt') },
-  { key: 'shturman', name: 'Штурман', aliases: ['Shturman'], portraitUrl: 'https://assets.tarkov.dev/shturman-portrait.png', health: 812, gear: gear('СВДС', 'АК-105') },
-  { key: 'tagilla', name: 'Тагилла', aliases: ['Tagilla'], portraitUrl: 'https://assets.tarkov.dev/tagilla-portrait.png', health: 1220, gear: gear('АКС-74УН', 'Strandhogg') },
-  { key: 'sanitar', name: 'Санитар', aliases: ['Sanitar'], portraitUrl: 'https://assets.tarkov.dev/sanitar-portrait.png', health: 1270, gear: gear('СР-3М', 'АПС') },
-  { key: 'kaban', name: 'Кабан', aliases: ['Kaban'], portraitUrl: 'https://assets.tarkov.dev/kaban-portrait.png', health: 1300, gear: gear('ПКП', 'СР-1МП') },
-  { key: 'kollontay', name: 'Колонтай', aliases: ['Коллонтай', 'Kollontay'], portraitUrl: 'https://assets.tarkov.dev/kollontay-portrait.png', health: 1055, gear: gear('РПДН', 'ПЛ-15') },
-  { key: 'partisan', name: 'Партизан', aliases: ['Partisan'], portraitUrl: 'https://assets.tarkov.dev/partisan-portrait.png', health: 950, gear: gear('АКС-74', 'МЦ-255-12', 'АПС') },
-  { key: 'zryachiy', name: 'Зрячий', aliases: ['Zryachiy'], portraitUrl: 'https://assets.tarkov.dev/zryachiy-portrait.png', health: 1655, gear: gear('СВДС', 'АКС-74У', 'СР-1МП') },
-  { key: 'knight', name: 'Knight', aliases: ['Рыцарь'], portraitUrl: 'https://assets.tarkov.dev/knight-portrait.png', health: 1120, gear: gear('SPEAR 6.8', 'Glock 17', 'CPC GE') },
-  { key: 'big-pipe', name: 'Big Pipe', aliases: ['Биг Пайп'], portraitUrl: 'https://assets.tarkov.dev/big-pipe-portrait.png', health: 910, gear: gear('MCX .300 BLK', 'M870', 'M45A1') },
-  { key: 'birdeye', name: 'Birdeye', aliases: ['Бёрдай', 'Птичий глаз'], portraitUrl: 'https://assets.tarkov.dev/birdeye-portrait.png', health: 795, gear: gear('M4A1', 'M9A3', 'THOR CRV') },
+  { key: 'reshala', name: 'Решала', aliases: ['Reshala'], health: 752, gear: gear('АК-101', 'ТТ Золотой') },
+  { key: 'killa', name: 'Килла', aliases: ['Killa'], health: 890, gear: gear('РПК-16', 'ТТ', 'Маска-1Щ (KE)', '6Б13 KE') },
+  { key: 'glukhar', name: 'Глухарь', aliases: ['Glukhar'], health: 1010, gear: gear('АШ-12', 'СР-3М', 'ПЛ-15', 'DA Bastion', 'Thunderbolt') },
+  { key: 'shturman', name: 'Штурман', aliases: ['Shturman'], health: 812, gear: gear('СВДС', 'АК-105') },
+  { key: 'tagilla', name: 'Тагилла', aliases: ['Tagilla'], health: 1220, gear: gear('АКС-74УН', 'Strandhogg') },
+  { key: 'sanitar', name: 'Санитар', aliases: ['Sanitar'], health: 1270, gear: gear('СР-3М', 'АПС') },
+  { key: 'kaban', name: 'Кабан', aliases: ['Kaban'], health: 1300, gear: gear('ПКП', 'СР-1МП') },
+  { key: 'kollontay', name: 'Колонтай', aliases: ['Коллонтай', 'Kollontay'], health: 1055, gear: gear('РПДН', 'ПЛ-15') },
+  { key: 'partisan', name: 'Партизан', aliases: ['Partisan'], health: 950, gear: gear('АКС-74', 'МЦ-255-12', 'АПС') },
+  { key: 'zryachiy', name: 'Зрячий', aliases: ['Zryachiy'], health: 1655, gear: gear('СВДС', 'АКС-74У', 'СР-1МП') },
+  { key: 'knight', name: 'Knight', aliases: ['Рыцарь'], health: 1120, gear: gear('SPEAR 6.8', 'Glock 17', 'CPC GE') },
+  { key: 'big-pipe', name: 'Big Pipe', aliases: ['Биг Пайп'], health: 910, gear: gear('MCX .300 BLK', 'M870', 'M45A1') },
+  { key: 'birdeye', name: 'Birdeye', aliases: ['Бёрдай', 'Птичий глаз'], health: 795, gear: gear('M4A1', 'M9A3', 'THOR CRV') },
 ]
 
 let memoryProfiles: BossProfile[] | null = null
@@ -63,7 +55,7 @@ export function resolveBossInfo(marker: MapMarker, remote: BossProfile[] | null)
   }
 }
 
-/** Loads boss profiles from tarkov.dev GraphQL once per session (cached for a day). Returns null until/unless available. */
+/** Loads boss profiles from the Raid OS JSON mirror once per session. Returns null until/unless available. */
 export function useBossProfiles(enabled: boolean) {
   const [profiles, setProfiles] = useState<BossProfile[] | null>(() => memoryProfiles ?? readCache())
   useEffect(() => {
@@ -129,8 +121,7 @@ export function adaptGraphqlBosses(payload: unknown): BossProfile[] {
 }
 
 async function fetchBossProfiles() {
-  // Through the server's data gateway in the players' app (src/data/tarkovApi.ts).
-  const profiles = adaptGraphqlBosses(await tarkovGraphql(BOSSES_QUERY))
+  const profiles = adaptGraphqlBosses({ data: { bosses: buildLegacyBosses(await loadTarkovDataset('pvp', 'ru')) } })
   if (!profiles.length) throw new Error('bosses: empty response')
   return profiles
 }

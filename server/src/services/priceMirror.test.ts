@@ -10,19 +10,20 @@ const id = (n: number) => `${n}`.padStart(24, 'a')
 const payload = (mode: string, price: number) => ({ data: { fleaMarket: { enabled: true, sellOfferFeeRate: 0.05 }, items: [{ id: id(1), lastLowPrice: price, avg24hPrice: price + 1, types: [] }] }, mode })
 
 test('price mirror: keeps three independent economies', () => {
-  assert.equal(normalizePrices(payload('regular', 10), 'regular', 'graphql', 'now').items[id(1)]!.lastLowPrice, 10)
-  assert.equal(normalizePrices(payload('pve', 20), 'pve', 'graphql', 'now').items[id(1)]!.lastLowPrice, 20)
+  assert.equal(normalizePrices(payload('regular', 10), 'regular', 'compact-rest', 'now').items[id(1)]!.lastLowPrice, 10)
+  assert.equal(normalizePrices(payload('pve', 20), 'pve', 'compact-rest', 'now').items[id(1)]!.lastLowPrice, 20)
   assert.equal(normalizePrices(payload('pvp-season', 30), 'pvp-season', 'json', 'now').items[id(1)]!.lastLowPrice, 30)
 })
 
-test('price mirror: falls back to JSON for PvP/PvE and preserves last good mode snapshot', async (t) => {
+test('price mirror: uses compact REST, falls back to JSON and preserves last good mode snapshot', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'raidos-prices-')); t.after(() => rm(root, { recursive: true, force: true }))
   const storage = new MirrorStorage({ root, minFreeBytes: 1, freeBytes: async () => 10_000 })
   let brokenSeason = false
+  const calls: string[] = []
   const fetcher: typeof fetch = async (input) => {
-    const url = String(input)
-    if (url.includes('/graphql')) return new Response('{"errors":["down"]}', { status: 422 })
-    const mode = /json\.tarkov\.dev\/([^/]+)/.exec(url)![1]!
+    const url = String(input); calls.push(url)
+    if (url.includes('/api/v1/pve/')) return new Response('down', { status: 503 })
+    const mode = /(?:api\.tarkov\.dev\/api\/v1|json\.tarkov\.dev)\/([^/]+)/.exec(url)![1]!
     if (brokenSeason && mode === 'pvp-season') return new Response('down', { status: 503 })
     const rows = Array.from({ length: 2 }, (_, index) => ({ id: id(index + 1), lastLowPrice: mode === 'regular' ? 10 : mode === 'pve' ? 20 : 30, types: [] }))
     return new Response(JSON.stringify({ data: { items: rows, fleaMarket: { enabled: true } } }), { status: 200, headers: { 'content-length': String(JSON.stringify(rows).length) } })
@@ -30,6 +31,11 @@ test('price mirror: falls back to JSON for PvP/PvE and preserves last good mode 
   const mirror = new PriceMirror({ storage, fetch: fetcher, minimumItems: 1 })
   await mirror.run()
   assert.equal(mirror.status().state, 'done')
+  assert.ok(calls.some((url) => url.includes('/api/v1/regular/items')))
+  assert.ok(calls.some((url) => url.includes('/api/v1/pve/items')))
+  assert.ok(calls.some((url) => url.includes('json.tarkov.dev/pve/items')))
+  assert.ok(calls.every((url) => !url.includes('/graphql')))
+  assert.equal(JSON.parse((await storage.read('prices-pve', 'prices.json'))!.toString()).source, 'json-fallback')
   const before = (await storage.active()).slots['prices-pvp-season']!.current
   brokenSeason = true
   await mirror.run()

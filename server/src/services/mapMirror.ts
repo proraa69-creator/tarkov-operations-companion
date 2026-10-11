@@ -97,6 +97,7 @@ export interface MapMirrorOptions {
 export class MapMirror {
   private current: MirrorStatus = { state: 'idle', sets: 0, completeSets: 0, tiles: { done: 0, total: 0, saved: 0, missing: 0 }, svgs: 0, bytes: 0, startedAt: null, finishedAt: null }
   private running: Promise<void> | null = null
+  private initial: ReturnType<typeof setTimeout> | null = null
   private timer: ReturnType<typeof setInterval> | null = null
   private readonly fetchImpl: typeof fetch
   private readonly concurrency: number
@@ -122,11 +123,18 @@ export class MapMirror {
 
   /** Mirrors in the background: first after `delayMs`, then every `everyMs`. */
   start(delayMs = 60_000, everyMs = 24 * 3600_000) {
-    if (this.timer) return
+    if (this.initial || this.timer) return
     const kick = () => { void this.run().catch(() => {}) }
-    setTimeout(kick, delayMs).unref?.()
+    this.initial = setTimeout(() => { this.initial = null; kick() }, delayMs)
+    this.initial.unref?.()
     this.timer = setInterval(kick, everyMs)
     this.timer.unref?.()
+  }
+
+  stop() {
+    if (this.initial) clearTimeout(this.initial)
+    if (this.timer) clearInterval(this.timer)
+    this.initial = this.timer = null
   }
 
   run(): Promise<void> {

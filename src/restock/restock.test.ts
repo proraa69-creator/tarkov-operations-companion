@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import fixture from './fixtures/tradersResponse.json'
 import {
   DEFAULT_RESTOCK_SETTINGS, dueNotifications, formatCountdown, msUntilRestock, nextNotificationDelay, nextRestock,
   notificationKey, pruneNotified, sanitizeRestockSettings, type TraderReset,
 } from './restock'
-import { adaptTradersResponse, fetchTraderResets, tradersQuery } from './restockSource'
+import { adaptTradersResponse, tradersQuery } from './restockSource'
 import { readNotified, readRestockSettings, rememberNotified, writeRestockSettings } from './restockSettings'
 
 const NOW = Date.parse('2026-10-01T12:00:00Z')
@@ -83,13 +83,11 @@ describe('restock notification scheduling', () => {
 })
 
 describe('tarkov.dev traders adapter', () => {
-  it('reads reset times and asks for the mode', async () => {
+  it('reads reset times and keeps the legacy query compatible', () => {
     const rows = adaptTradersResponse(fixture)
     expect(rows.find((row) => row.normalizedName === 'prapor')?.resetTime).toBe('2026-10-01T12:30:00.000Z')
     expect(rows.find((row) => row.normalizedName === 'lightkeeper')?.resetTime).toBeUndefined()
     expect(tradersQuery('pve', 'ru')).toContain('traders(gameMode: pve, lang: ru)')
     expect(tradersQuery('seasonal', 'en')).toContain('gameMode: regular')
-    const fetcher = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }))
-    expect((await fetchTraderResets('pvp', 'ru', fetcher as unknown as typeof fetch)).length).toBe(rows.length)
   })
 })

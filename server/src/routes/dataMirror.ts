@@ -3,12 +3,16 @@ import type { MapMirror } from '../services/mapMirror.js'
 import type { MirrorStorage } from '../services/mirrorStorage.js'
 import type { PriceMirror } from '../services/priceMirror.js'
 import type { TarkovDataMirror } from '../services/tarkovDataMirror.js'
+import type { LegacyGraphqlBuilder } from '../services/legacyGraphqlBuilder.js'
+import type { PriceHistoryMirror } from '../services/priceHistoryMirror.js'
 
 export interface DataMirrorRouteOptions {
   storage?: MirrorStorage
   datasets?: TarkovDataMirror
   prices?: PriceMirror
   maps?: MapMirror
+  legacyGraphql?: LegacyGraphqlBuilder
+  priceHistory?: PriceHistoryMirror
 }
 
 /** Public operational status. It intentionally exposes no local paths, upstream URLs or credentials. */
@@ -22,6 +26,8 @@ export function createDataMirrorRouter(options: DataMirrorRouteOptions = {}) {
         datasets: options.datasets?.status() ?? { state: 'idle' },
         prices: options.prices?.status() ?? { state: 'idle' },
         maps: options.maps?.status() ?? { state: 'idle' },
+        legacyGraphql: options.legacyGraphql?.status() ?? { state: 'idle' },
+        priceHistory: options.priceHistory?.status() ?? { state: 'idle' },
       })
     } catch (error) { next(error) }
   })

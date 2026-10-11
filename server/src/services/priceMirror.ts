@@ -13,7 +13,7 @@ export interface MirroredPrice {
 export interface PriceSnapshot {
   mode: MirrorMode
   updatedAt: string
-  source: 'graphql' | 'json'
+  source: 'compact-rest' | 'json-fallback' | 'json'
   fleaMarket: { enabled: boolean; sellOfferFeeRate?: number; sellRequirementFeeRate?: number }
   items: Record<string, MirroredPrice>
 }
@@ -41,15 +41,15 @@ const record = (value: unknown) => value && typeof value === 'object' && !Array.
 export function normalizePrices(payload: unknown, mode: MirrorMode, source: PriceSnapshot['source'], updatedAt: string): PriceSnapshot {
   const envelope = record(payload)
   const data = record(envelope.data ?? envelope)
-  const rawItems = data.items
+  const rawItems = Array.isArray(payload) ? payload : data.items
   const rows = Array.isArray(rawItems) ? rawItems.map(record) : Object.values(record(rawItems)).map(record)
   const items: Record<string, MirroredPrice> = {}
   for (const row of rows) {
-    const id = typeof row.id === 'string' ? row.id : ''
+    const id = typeof row.id === 'string' ? row.id : typeof row.uid === 'string' ? row.uid : ''
     if (!/^[a-z0-9]{16,48}$/.test(id)) continue
-    const types = Array.isArray(row.types) ? row.types.map(String) : []
+    const types = Array.isArray(row.types) ? row.types.map(String) : Array.isArray(row.tags) ? row.tags.map(String) : []
     const price: MirroredPrice = {
-      ...(number(row.lastLowPrice) ? { lastLowPrice: number(row.lastLowPrice) } : {}),
+      ...(number(row.lastLowPrice ?? row.price) ? { lastLowPrice: number(row.lastLowPrice ?? row.price) } : {}),
       ...(number(row.avg24hPrice) ? { avg24hPrice: number(row.avg24hPrice) } : {}),
       ...(number(row.low24hPrice) ? { low24hPrice: number(row.low24hPrice) } : {}),
       ...(types.includes('noFlea') ? { noFlea: true } : {}),
@@ -70,8 +70,10 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
   }
 }
 
-function priceQuery(mode: 'regular' | 'pve') {
-  return `query RaidOsPriceMirror { fleaMarket(gameMode: ${mode}) { enabled sellOfferFeeRate sellRequirementFeeRate } items(gameMode: ${mode}) { id avg24hPrice low24hPrice lastLowPrice types } }`
+function fleaMarket(payload: unknown) {
+  const envelope = record(payload)
+  const data = record(envelope.data ?? envelope)
+  return record(data.fleaMarket)
 }
 
 export class PriceMirror {
@@ -134,17 +136,14 @@ export class PriceMirror {
   }
 
   private async sync(mode: MirrorMode) {
-    let response: Response
-    let source: PriceSnapshot['source'] = 'json'
-    if (mode !== 'pvp-season') {
-      response = await this.fetcher('https://api.tarkov.dev/graphql', {
-        method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', 'accept-encoding': 'gzip', 'user-agent': 'RaidOS-price-mirror/1 (+https://raidos.app)' },
-        body: JSON.stringify({ query: priceQuery(mode) }), signal: AbortSignal.timeout(45_000), redirect: 'error',
-      })
-      if (response.ok) source = 'graphql'
-      else response = await this.fetcher(`https://json.tarkov.dev/${mode}/items`, { headers: { accept: 'application/json', 'accept-encoding': 'gzip', 'user-agent': 'RaidOS-price-mirror/1 (+https://raidos.app)' }, signal: AbortSignal.timeout(45_000), redirect: 'error' })
-    } else {
-      response = await this.fetcher(`https://json.tarkov.dev/${mode}/items`, { headers: { accept: 'application/json', 'accept-encoding': 'gzip', 'user-agent': 'RaidOS-price-mirror/1 (+https://raidos.app)' }, signal: AbortSignal.timeout(45_000), redirect: 'error' })
+    const request = (url: string) => this.fetcher(url, { headers: { accept: 'application/json', 'accept-encoding': 'gzip, br', 'user-agent': 'RaidOS-price-mirror/2 (+https://raidos.app)' }, signal: AbortSignal.timeout(45_000), redirect: 'error' })
+    let source: PriceSnapshot['source'] = mode === 'pvp-season' ? 'json' : 'compact-rest'
+    let response = mode === 'pvp-season'
+      ? await request(`https://json.tarkov.dev/${mode}/items`)
+      : await request(`https://api.tarkov.dev/api/v1/${mode}/items`)
+    if (!response.ok && mode !== 'pvp-season') {
+      source = 'json-fallback'
+      response = await request(`https://json.tarkov.dev/${mode}/items`)
     }
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const declared = Number(response.headers.get('content-length'))
@@ -152,6 +151,17 @@ export class PriceMirror {
     let payload: unknown
     try { payload = JSON.parse(text) } catch { throw new Error('invalid JSON') }
     const snapshot = normalizePrices(payload, mode, source, this.now().toISOString())
+    const daily = await this.options.storage.read(`dataset-${mode}`, 'items.json')
+    if (daily) {
+      try {
+        const flea = fleaMarket(JSON.parse(daily.toString('utf8')))
+        snapshot.fleaMarket = {
+          enabled: flea.enabled !== false,
+          ...(number(flea.sellOfferFeeRate) !== undefined ? { sellOfferFeeRate: number(flea.sellOfferFeeRate) } : {}),
+          ...(number(flea.sellRequirementFeeRate) !== undefined ? { sellRequirementFeeRate: number(flea.sellRequirementFeeRate) } : {}),
+        }
+      } catch { /* keep the last verified defaults from the price payload */ }
+    }
     const count = Object.keys(snapshot.items).length
     if (count < this.minimum) throw new Error(`incomplete prices (${count})`)
     const transaction = await this.options.storage.begin(`prices-${mode}`)

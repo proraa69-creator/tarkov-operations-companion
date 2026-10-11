@@ -18,6 +18,7 @@ import { bearer, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '
 import { GatewayError, type DataGateway } from '../services/dataGateway.js'
 import { SUBSCRIPTION_REQUIRED, type EntitlementService } from '../services/entitlement.js'
 import type { MirrorStorage } from '../services/mirrorStorage.js'
+import type { PriceHistoryMirror } from '../services/priceHistoryMirror.js'
 
 export const DATA_RATE_LIMITS = { perIp: 240, perAccount: 120 }
 export const DEVICE_HEADER = 'x-raid-device'
@@ -54,7 +55,7 @@ export function requireDataAccess(accounts: AccountStore, entitlements: Entitlem
   }
 }
 
-export function createDataRouter(gateway: DataGateway, guard: express.RequestHandler, mirror?: MirrorStorage) {
+export function createDataRouter(gateway: DataGateway, guard: express.RequestHandler, mirror?: MirrorStorage, priceHistory?: PriceHistoryMirror) {
   const router = express.Router()
   router.use(guard)
   const send = (res: Response, body: string) => res.type('application/json').send(body)
@@ -86,6 +87,19 @@ export function createDataRouter(gateway: DataGateway, guard: express.RequestHan
       if (!body) { res.status(503).json({ error: 'Цены ещё загружаются' }); return }
       send(res, body.toString('utf8'))
     } catch (error) { next(error) }
+  })
+  router.get('/price-history/:mode/:itemId', async (req, res, next) => {
+    try {
+      const modes = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season', regular: 'regular', 'pvp-season': 'pvp-season' } as const
+      const mode = modes[String(req.params.mode) as keyof typeof modes]
+      if (!mode || !priceHistory) { res.status(mode ? 503 : 404).json({ error: mode ? 'История цен ещё не настроена' : 'Неизвестный режим' }); return }
+      const days = Number(req.query.days ?? 30)
+      if (!Number.isFinite(days)) { res.status(400).json({ error: 'Некорректный период' }); return }
+      res.json(await priceHistory.request(mode, String(req.params.itemId), days))
+    } catch (error) {
+      if (error instanceof Error && error.message === 'invalid-item') { res.status(400).json({ error: 'Некорректный предмет' }); return }
+      next(error)
+    }
   })
   return router
 }

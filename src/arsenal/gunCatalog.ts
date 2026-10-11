@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
-import { tarkovGraphql } from '../data/tarkovApi'
 import { readGameCache, writeGameCache } from '../data/gameDataCache'
-import { adaptAmmo, adaptMods, adaptWeapons, AMMO_QUERY, GUNS_QUERY, MODS_QUERY } from './gunQueries'
+import { adaptAmmo, adaptMods, adaptWeapons } from './gunQueries'
+import { loadTarkovDataset } from '../data/tarkovDataset'
+import { buildLegacyAmmo, buildLegacyItems } from '../data/tarkovJsonAdapters'
 import type { AmmoStats, GunCatalog, GunPart, Weapon } from './gunTypes'
 
 const CACHE_PREFIX = 'raid-os-gun-catalog-v2'
@@ -23,24 +24,14 @@ interface CachedCatalog {
   loadedAt: string
 }
 
-/** Through the server's data gateway in the players' app (src/data/tarkovApi.ts, docs/subscription-protection.md). */
-async function graphql(query: string, variables: Record<string, string>) {
-  const payload = await tarkovGraphql(query, variables)
-  if (payload.errors?.length && !payload.data) throw new Error(payload.errors[0]?.message ?? 'GraphQL error')
-  return payload
-}
-
 /** Live guns + mods + ammo for one mode and language. */
 export async function fetchLiveGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
-  const variables = { lang: locale, gameMode: graphqlGameMode(mode) }
-  const [guns, mods, ammo] = await Promise.all([
-    graphql(GUNS_QUERY, variables),
-    graphql(MODS_QUERY, variables),
-    graphql(AMMO_QUERY, variables).catch(() => ({ data: { ammo: [] } })),
-  ])
-  const weapons = adaptWeapons(guns)
+  const bundle = await loadTarkovDataset(mode, locale)
+  const items = buildLegacyItems(bundle)
+  const payload = { data: { items } }
+  const weapons = adaptWeapons(payload)
   if (!weapons.length) throw new Error('Сервер данных: нет оружия в ответе')
-  return { weapons, mods: adaptMods(mods), ammo: adaptAmmo(ammo), loadedAt: new Date().toISOString(), source: 'live' }
+  return { weapons, mods: adaptMods(payload), ammo: adaptAmmo({ data: { ammo: buildLegacyAmmo(bundle) } }), loadedAt: new Date().toISOString(), source: 'live' }
 }
 
 const fromCache = (cached: CachedCatalog, source: GunCatalog['source']): GunCatalog => ({

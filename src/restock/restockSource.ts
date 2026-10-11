@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
-import { graphqlGameMode, TARKOV_GRAPHQL_URL } from '../arsenal/ammoSource'
+import { graphqlGameMode } from '../arsenal/ammoSource'
+import { loadTarkovDataset } from '../data/tarkovDataset'
+import { buildLegacyTraders } from '../data/tarkovJsonAdapters'
 import type { TraderReset } from './restock'
 
-/** tarkov.dev GraphQL: `traders(gameMode: GameMode, lang: LanguageCode) { id name normalizedName resetTime imageLink }`. */
+/** Kept for legacy snapshot identity and compatibility tests. */
 export function tradersQuery(mode: RaidMode, locale: AppLocale) {
   return `{ traders(gameMode: ${graphqlGameMode(mode)}, lang: ${locale === 'en' ? 'en' : 'ru'}) { id name normalizedName resetTime imageLink } }`
 }
@@ -26,15 +28,8 @@ export function adaptTradersResponse(payload: unknown): TraderReset[] {
   })
 }
 
-export async function fetchTraderResets(mode: RaidMode, locale: AppLocale, fetcher: typeof fetch = fetch): Promise<TraderReset[]> {
-  const response = await fetcher(TARKOV_GRAPHQL_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ query: tradersQuery(mode, locale) }),
-    signal: AbortSignal.timeout(20_000),
-  })
-  if (!response.ok) throw new Error(`Сервер данных: HTTP ${response.status}`)
-  return adaptTradersResponse(await response.json())
+export async function fetchTraderResets(mode: RaidMode, locale: AppLocale): Promise<TraderReset[]> {
+  return adaptTradersResponse({ data: { traders: buildLegacyTraders(await loadTarkovDataset(mode, locale)) } })
 }
 
 /** Restock times for the selected mode; refreshed every 2 minutes so a passed restock picks up the next time soon. */
