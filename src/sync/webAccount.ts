@@ -25,6 +25,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
+  { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
   { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },

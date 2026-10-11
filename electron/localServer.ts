@@ -152,7 +152,7 @@ async function startApi() {
     stdio: 'pipe',
     // Only the variables the server reads (electron/apiEnv.ts): never the app's own secrets such as RAIDOS_UPDATE_SIGNING_KEY*.
     // No 4 GB copy of tarkov.dev's maps on the owner's PC: that is the VPS's job (server/src/services/mapMirror.ts).
-    env: apiChildEnv(process.env, { HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, RAIDOS_MAP_MIRROR: '0', ...buildEnv, ...serverExe, ...extra }),
+    env: apiChildEnv(process.env, { HOST: '127.0.0.1', PORT: String(API_PORT), TARKOV_DB_PATH: databasePath(), WEB_ORIGIN, RAIDOS_MAP_MIRROR: '0', RAIDOS_DATA_MIRROR: '0', ...buildEnv, ...serverExe, ...extra }),
   })
   const write = (chunk: Buffer) => void appendFile(log, chunk).catch(() => {})
   child.stdout?.on('data', write)

@@ -14,8 +14,13 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
 import { dirname, join } from 'node:path'
 import { MapMirror } from './services/mapMirror.js'
+import { MirrorStorage } from './services/mirrorStorage.js'
+import { TarkovDataMirror } from './services/tarkovDataMirror.js'
+import { PriceMirror } from './services/priceMirror.js'
+import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
+import { configureCatalogMirror } from './services/catalogService.js'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -55,13 +60,31 @@ const emails = new EmailAuthService(accounts, { sender: emailConfig ? createEmai
 const entitlements = new EntitlementService(accounts, { keyDir: dbPath === ':memory:' ? undefined : dirname(dbPath) })
 // «Карты у нас на сервере» (owner, 10.10.2026): tarkov.dev's tiles and schemes next to the database, mirrored in the
 // background and served at /v1/map-tiles. Off in the owner's desktop app (RAIDOS_MAP_MIRROR=0, electron/localServer.ts).
-const mapMirror = dbPath !== ':memory:' && process.env.RAIDOS_MAP_MIRROR !== '0'
-  ? new MapMirror({ dir: process.env.RAIDOS_MAP_MIRROR_DIR || join(dirname(dbPath), 'map-mirror'), log: (message) => console.log(message) })
+const mirrorEnabled = dbPath !== ':memory:' && process.env.RAIDOS_DATA_MIRROR !== '0'
+const mirrorRoot = process.env.RAIDOS_MIRROR_DIR || process.env.RAIDOS_MAP_MIRROR_DIR || join(dirname(dbPath), 'map-mirror')
+const mirrorStorage = mirrorEnabled ? new MirrorStorage({ root: mirrorRoot, requireMount: process.env.RAIDOS_MIRROR_REQUIRE_MOUNT === '1' }) : undefined
+if (mirrorStorage) configureCatalogMirror(mirrorStorage)
+const itemImageDir = mirrorEnabled ? join(mirrorRoot, 'images', 'items') : undefined
+if (itemImageDir) {
+  process.env.RAIDOS_ITEM_IMAGE_DIR ||= itemImageDir
+  process.env.RAIDOS_ITEM_IMAGE_URL ||= `${(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app').replace(/\/$/, '')}/v1/item-images`
+}
+const dataMirror = mirrorStorage ? new TarkovDataMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
+  // Keep the existing layout: maps.json at the mirror root, tiles below root/maps/*.
+  ? new MapMirror({ dir: mirrorRoot, log: (message) => console.log(message) })
   : undefined
 mapMirror?.start()
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror })
+dataMirror?.start()
+priceMirror?.start()
+const data = new DataGateway({ mirror: mirrorStorage })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, itemImageDir, data })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
 const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
-for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => listener.close(() => { db.close(); process.exit(0) }))
+for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
+  dataMirror?.stop(); priceMirror?.stop()
+  listener.close(() => { db.close(); process.exit(0) })
+})

@@ -18,7 +18,7 @@ describe('map rendering config adapter', () => {
     }])
 
     expect(configs.get('customs')).toMatchObject({
-      tileUrl: 'https://assets.tarkov.dev/maps/customs/main/{z}/{x}/{y}.png',
+      tileUrl: 'https://raidos.app/v1/map-tiles/maps/customs/main/{z}/{x}/{y}.png',
       bounds: [[698, -307], [-372, 237]],
       transform: [0.239, 168.65, 0.239, 136.35],
       coordinateRotation: 180,

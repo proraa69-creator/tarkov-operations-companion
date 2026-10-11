@@ -17,6 +17,7 @@ import type { NextFunction, Request, Response } from 'express'
 import { bearer, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
 import { GatewayError, type DataGateway } from '../services/dataGateway.js'
 import { SUBSCRIPTION_REQUIRED, type EntitlementService } from '../services/entitlement.js'
+import type { MirrorStorage } from '../services/mirrorStorage.js'
 
 export const DATA_RATE_LIMITS = { perIp: 240, perAccount: 120 }
 export const DEVICE_HEADER = 'x-raid-device'
@@ -53,7 +54,7 @@ export function requireDataAccess(accounts: AccountStore, entitlements: Entitlem
   }
 }
 
-export function createDataRouter(gateway: DataGateway, guard: express.RequestHandler) {
+export function createDataRouter(gateway: DataGateway, guard: express.RequestHandler, mirror?: MirrorStorage) {
   const router = express.Router()
   router.use(guard)
   const send = (res: Response, body: string) => res.type('application/json').send(body)
@@ -75,6 +76,16 @@ export function createDataRouter(gateway: DataGateway, guard: express.RequestHan
     try {
       send(res, await gateway.json(`${String(req.params.mode)}/${String(req.params.name)}`, { accountId: String(res.locals.accountId) }))
     } catch (error) { if (!fail(res, error)) next(error) }
+  })
+  router.get('/prices/:mode', async (req, res, next) => {
+    try {
+      const modes: Record<string, string> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season', regular: 'regular', 'pvp-season': 'pvp-season' }
+      const mode = modes[String(req.params.mode)]
+      if (!mode) { res.status(404).json({ error: 'Неизвестный режим' }); return }
+      const body = await mirror?.read(`prices-${mode}`, 'prices.json')
+      if (!body) { res.status(503).json({ error: 'Цены ещё загружаются' }); return }
+      send(res, body.toString('utf8'))
+    } catch (error) { next(error) }
   })
   return router
 }

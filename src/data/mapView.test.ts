@@ -3,8 +3,8 @@ import type { GameMap } from '../domain/types'
 import { adaptMapRenderingConfigs } from './mapConfigClient'
 import { MAP_VIEW_KEY, mapForView, mapViewSupport, planMapLayers, readMapView, resolveMapView, saveMapView } from './mapView'
 
-const TILE = 'https://assets.tarkov.dev/maps/customs_0.16/main/{z}/{x}/{y}.png'
-const SVG = 'https://assets.tarkov.dev/maps/svg/Customs.svg'
+const TILE = 'https://raidos.app/v1/map-tiles/maps/customs_0.16/main/{z}/{x}/{y}.png'
+const SVG = 'https://raidos.app/v1/map-tiles/maps/svg/Customs.svg'
 
 function customs(): GameMap {
   const config = adaptMapRenderingConfigs([{

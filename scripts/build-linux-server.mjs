@@ -35,6 +35,7 @@ const bundle = (entry, outfile) => esbuild.build({
 })
 await bundle('./electron/linux/siteServer.ts', join(stage, 'site', 'site-server.cjs'))
 await bundle('./electron/linux/updater.ts', join(stage, 'bin', 'raidos-update.cjs'))
+await cp(join(root, 'scripts', 'cache-item-images.mjs'), join(stage, 'bin', 'cache-item-images.mjs'))
 await cp(join(root, 'deploy', 'linux', 'install.sh'), join(stage, 'install.sh'))
 
 await writeFile(join(stage, 'build-info.json'), `${JSON.stringify({ version, build, commit, edition: 'linux' })}\n`)

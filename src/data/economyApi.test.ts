@@ -6,6 +6,15 @@ let answer: (query: string) => unknown = () => ({})
 
 vi.mock('./tarkovApi', () => ({
   tarkovGraphql: vi.fn(async (query: string) => { graphqlCalls.push(query); return { data: answer(query) } }),
+  usesDataGateway: vi.fn(() => true),
+  gatewayRequest: vi.fn(async () => ({ fleaMarket: { enabled: true }, items: { gpu: { lastLowPrice: 777000, avg24hPrice: 800000 } } })),
+  tarkovJson: vi.fn(async (path: string) => {
+    if (path === 'pvp-season/items') return { data: { items: { gpu: { id: 'gpu', basePrice: 100000, lastLowPrice: 700000, types: [] } }, fleaMarket: { enabled: true } } }
+    if (path === 'pvp-season/items_ru') return { data: { 'gpu Name': 'Видеокарта', 'gpu ShortName': 'GPU' } }
+    if (path === 'pvp-season/barters') return { data: [{ id: 'season-barter', trader: 'mechanic', minTraderLevel: 1, requiredItems: [{ item: 'gpu', count: 1 }], offeredItem: { item: 'gpu', count: 2 } }] }
+    if (path === 'pvp-season/crafts') return { data: [{ id: 'season-craft', station: 'workbench', level: 1, duration: 10, requiredItems: [{ item: 'gpu', count: 1 }], productItem: { item: 'gpu', count: 1 } }] }
+    throw new Error(`Unexpected ${path}`)
+  }),
 }))
 vi.mock('./gameDataCache', () => ({
   readGameCache: vi.fn(async (key: string) => cache.get(key)),
@@ -57,8 +66,10 @@ describe('economy data per mode', () => {
     await expect(fetchEconomySnapshot('pve', 'ru')).resolves.toMatchObject({ mode: 'pve', source: 'cache' })
   })
 
-  it('Season asks nothing and says there are no separate Season prices (no PvP or PvE prices as Season ones)', async () => {
-    await expect(fetchEconomySnapshot('seasonal', 'ru')).rejects.toBeInstanceOf(SeasonPricesUnavailable)
+  it('Season uses its own mirrored JSON prices, barters and crafts without a PvP/PvE GraphQL request', async () => {
+    const season = await fetchEconomySnapshot('seasonal', 'ru')
+    expect(season).toMatchObject({ mode: 'seasonal', items: { gpu: { lastLowPrice: 777000 } } })
+    expect([season.barters.length, season.crafts.length]).toEqual([1, 1])
     await expect(fetchPriceHistory('gpu', 'seasonal')).rejects.toBeInstanceOf(SeasonPricesUnavailable)
     expect(graphqlCalls).toEqual([])
     answer = () => ({ historicalItemPrices: [] })
