@@ -1,5 +1,4 @@
 import { Globe, Monitor, Server, Smartphone } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { siteLocale, tr } from '../../i18n'
 import { LoginQr } from '../LoginQr'
 import { Platforms } from '../Platforms'
@@ -13,7 +12,6 @@ import kappaShot from '../../assets/promo/kappa.webp'
 import squadShot from '../../assets/promo/squad-board.webp'
 import bossShot from '../../assets/promo/boss-tagilla.webp'
 import ballisticsShot from '../../assets/promo/ballistics.webp'
-import fleaCard from '../../assets/promo/flea-card.webp'
 import minimapShot from '../../assets/promo/minimap.webp'
 import updateShot from '../../assets/promo/update.webp'
 import themeTarkov from '../../assets/promo/theme-tarkov.webp'
@@ -40,7 +38,6 @@ import modeSeasonEn from '../../assets/promo/mode-season-en.webp'
 import squadShotEn from '../../assets/promo/squad-board-en.webp'
 import bossShotEn from '../../assets/promo/boss-tagilla-en.webp'
 import ballisticsShotEn from '../../assets/promo/ballistics-en.webp'
-import fleaCardEn from '../../assets/promo/flea-card-en.webp'
 import minimapShotEn from '../../assets/promo/minimap-en.webp'
 import updateShotEn from '../../assets/promo/update-en.webp'
 import themeTarkovEn from '../../assets/promo/theme-tarkov-en.webp'
@@ -70,10 +67,6 @@ function Shot({ src, alt, width, height, title, className = '' }: { src: string;
   )
 }
 
-function Caption({ children }: { children: ReactNode }) {
-  return <figcaption className="promo-caption">{children}</figcaption>
-}
-
 export function OverviewVisual() {
   return (
     <figure className="promo-figure">
@@ -95,7 +88,6 @@ export function ItemPriceVisual() {
           <img className="item-card-shot" src={shot(itemGpu, itemGpuEn)} width={560} height={281} loading="lazy" decoding="async" alt={tr('Карточка видеокарты с меткой MATE: предмет нужен другу или напарнику')} />
         </div>
       </div>
-      <Caption>{tr('Кроссовки нужны для «Коллекционера», видеокарта — другу (MATE; когда он в отряде, вместо метки — его ник). Цены на картинке — пример.')}</Caption>
     </figure>
   )
 }
@@ -126,7 +118,6 @@ export function ModesVisual() {
           </div>
         ))}
       </div>
-      <Caption>{tr('Переключатель режимов в верхней панели меняет все разделы сразу.')}</Caption>
     </figure>
   )
 }
@@ -165,8 +156,6 @@ export function BallisticsVisual() {
   return (
     <figure className="promo-figure">
       <Shot src={shot(ballisticsShot, ballisticsShotEn)} width={1200} height={763} title={tr('Арсенал · Баллистика')} alt={tr('Баллистика в Raid OS: график пробития и урона патронов и таблица «Против брони» — шанс пробить броню 1–6 класса')} />
-      <img className="flea-card-shot" src={shot(fleaCard, fleaCardEn)} width={340} height={385} loading="lazy" decoding="async" alt={tr('Карточка видеокарты на барахолке: цена для выбранного режима')} />
-      <Caption>{tr('На картинке — часть патронов, в приложении — все патроны игры. Цены — пример.')}</Caption>
     </figure>
   )
 }
@@ -178,7 +167,6 @@ export function MinimapVisual() {
         <span className="minimap-scene-label" aria-hidden="true">{tr('Окно игры')}</span>
         <img className="minimap-shot" src={shot(minimapShot, minimapShotEn)} width={560} height={695} loading="lazy" decoding="async" alt={tr('Мини-карта поверх окна игры: позиция игрока, квестовые точки рядом, этажи и ползунки размера и прозрачности')} />
       </div>
-      <Caption>{tr('Карта — нейтральная сетка-пример: в приложении — карты локаций.')}</Caption>
     </figure>
   )
 }
@@ -258,7 +246,6 @@ export function SquadVisual() {
   return (
     <figure className="promo-figure">
       <Shot src={shot(squadShot, squadShotEn)} width={1200} height={412} title={tr('Отряд · Квесты по картам')} alt={tr('Отряд в Raid OS: квесты каждого участника по картам и общие квесты — у кого они совпадают')} />
-      <Caption>{tr('Пример отряда: участники и ники придуманы для картинки.')}</Caption>
     </figure>
   )
 }

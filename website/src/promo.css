@@ -25,7 +25,6 @@
 
 /* Figures */
 .promo-figure { margin: 0; display: grid; gap: 12px; min-width: 0; }
-.promo-caption { color: var(--text-dim); font-size: 13px; line-height: 1.5; }
 .shot { position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; background: #070b09; box-shadow: 0 24px 60px rgb(0 0 0 / 45%), 0 0 0 5px rgb(169 185 115 / 4%); }
 .shot img { display: block; width: 100%; height: auto; }
 .shot-bar { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, #151d18, #0e1411); }
@@ -161,7 +160,6 @@
 .modes-card-label { position: absolute; top: 10px; left: 10px; z-index: 1; padding: 4px 10px; border: 1px solid rgb(223 189 112 / 45%); border-radius: 8px; background: rgb(10 15 12 / 85%); color: var(--brass-strong); font-size: 12px; font-weight: 850; letter-spacing: .04em; }
 .modes-card.is-1 .modes-card-label, .modes-card.is-2 .modes-card-label { left: auto; right: 10px; }
 
-.flea-card-shot { justify-self: end; width: min(300px, 62%); height: auto; margin-top: -90px; margin-right: 3%; border-radius: 12px; filter: drop-shadow(0 18px 34px rgb(0 0 0 / 70%)); }
 
 .minimap-scene { min-height: 420px; display: grid; place-items: center; padding: 34px 18px 22px; background:
   radial-gradient(ellipse at 30% 30%, rgb(96 110 80 / 22%), transparent 60%),
@@ -189,7 +187,7 @@
   .themes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .themes-grid li, .themes-grid li:nth-child(4) { grid-column: auto; }
   .themes-grid li:last-child { grid-column: 1 / -1; justify-self: center; width: 50%; }
-  .flea-card-shot, .collector-card { margin-top: -24px; }
+  .collector-card { margin-top: -24px; }
   .minimap-scene { min-height: 340px; }
 }
 @media (max-width: 460px) {

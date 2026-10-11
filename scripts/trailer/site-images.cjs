@@ -21,9 +21,6 @@ const save = async (img, name) => { const info = await webp(img).toFile(join(OUT
   // ballistics: without the sidebar (its version line) — the page content only
   const b = await sharp(join(SH, 'ballistics.png')).metadata()
   await save(sharp(join(SH, 'ballistics.png')).extract({ left: 444, top: 0, width: b.width - 444, height: b.height }).resize({ width: 1200 }), 'ballistics')
-  // the flea card down to its buttons
-  // the flea card: name and prices, without the empty picture area and the buttons
-  await save(sharp(join(SH, 'flea-card.png')).extract({ left: 0, top: 390, width: 680, height: 770 }).resize({ width: 340 }), 'flea-card')
   await save(sharp(join(SH, 'overlay-minimap.png')).resize({ width: 560 }), 'minimap')
   await save(sharp(join(SH, 'update-card.png')).resize({ width: 720 }), 'update')
   for (const id of ['tarkov', 'blackmc', 'slate', 'telnyashka', 'gear']) await save(sharp(join(SH, `theme-${id}.png`)).resize({ width: 640 }), `theme-${id}`)
