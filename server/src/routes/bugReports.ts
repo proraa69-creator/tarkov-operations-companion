@@ -12,6 +12,14 @@
  *   GET  /v1/accounts/me/admin/bug-reports/:id                            -> { report } (description, file metadata)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx                 -> the image bytes (inline, no-store, nosniff)
  *   POST /v1/accounts/me/admin/bug-reports/:id/status  { status }         -> { report } (audit: bug.status)
+ *   POST /v1/accounts/me/admin/bug-reports/:id/reward  { days 1–365 }     -> { report } subscription days for the reporter
+ *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason
+ *        «Отчёт об ошибке №N» and added to the report's reward_days (audit: bug.reward); 409 when the account is gone.
+ *   POST /v1/accounts/me/admin/bug-reports/:id/mail                       -> { report } sends the report's PDF to the
+ *        owner's mailbox again (audit: bug.mail); 503 when e-mail is not configured.
+ *
+ * Every new report goes to the owner's mailbox as a PDF (services/bugReportMail.ts, TARKOV_BUG_REPORT_EMAIL), in the
+ * background: the player's answer never waits for it, and a failure is kept on the report for the admin panel.
  *
  * Mounted in app.ts BEFORE the global `express.json({ limit: '1mb' })`: the upload has its own JSON parser with a
  * limit that fits 25 MB of screenshots in base64; the other routes parse at most a few kilobytes.
@@ -43,8 +51,19 @@ const pageSchema = z.object({
 const idSchema = z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER)
 const idxSchema = z.coerce.number().int().min(0).max(BUG_REPORT_LIMITS.files - 1)
 const statusSchema = z.object({ status: z.enum(['open', 'closed']) })
+const rewardSchema = z.object({ days: z.number().int().min(1).max(365) })
 
-export type BugReportAudit = (actor: string, action: 'bug.status', target: string, details: Record<string, unknown>) => void
+export type BugReportAudit = (actor: string, action: 'bug.status' | 'bug.reward' | 'bug.mail', target: string, details: Record<string, unknown>) => void
+/** Sends a report's PDF to the owner (services/bugReportMail.ts). */
+export interface BugReportMail {
+  readonly enabled: boolean
+  /** In the background, one after another (a new report). */
+  queue(id: number): void
+  /** Now; resolves with the report as it is afterwards (mailed or the error). */
+  send(id: number): Promise<unknown>
+}
+/** Grants subscription days to an account (AdminStore.grant). */
+export type GrantDays = (actor: string, accountId: string, days: number, reason: string) => void
 export interface BugReportLimits { perAccount: number; perIp: number; windowMs: number }
 export const BUG_REPORT_RATE_LIMITS: BugReportLimits = { perAccount: 5, perIp: 5, windowMs: 60 * 60 * 1000 }
 /** Upload bodies read at the same time (each may be ~36 MB of JSON in memory while it is parsed). */
@@ -62,7 +81,7 @@ function decodeScreenshot(raw: string) {
   return Buffer.from(data, 'base64')
 }
 
-export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number } = {}) {
+export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays } = {}) {
   const router = express.Router()
   const maxUploads = options.maxConcurrentUploads ?? MAX_CONCURRENT_UPLOADS
   let uploads = 0
@@ -104,6 +123,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
       if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много отчётов. Попробуйте через час.' }); return }
       const created = store.create(accountId, accounts.emailOf(accountId), { topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files })
       res.status(201).json(created)
+      try { options.mail?.queue(created.id) } catch { /* the report is saved; the owner can send the PDF from the panel */ }
     } catch (error) {
       if (error instanceof BugReportError) { res.status(error.status).json({ error: error.message }); return }
       throw error
@@ -165,6 +185,42 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     if (!report) { notFound(res); return }
     try { options.audit?.(actor, 'bug.status', String(report.id), { status: report.status }) } catch { /* the status is already saved */ }
     res.json({ report })
+  })
+
+  router.post('/v1/accounts/me/admin/bug-reports/:id/reward', express.json({ limit: '4kb' }), (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const body = rewardSchema.safeParse(req.body)
+    if (!body.success) { res.status(400).json({ error: 'Число дней: от 1 до 365' }); return }
+    const id = idSchema.safeParse(req.params.id)
+    const report = id.success ? store.get(id.data) : undefined
+    if (!report) { notFound(res); return }
+    if (!options.grant) { res.status(503).json({ error: 'Выдача подписки на этом сервере недоступна' }); return }
+    if (!report.accountId) { res.status(409).json({ error: 'Аккаунт отправителя удалён: дни выдать некому' }); return }
+    try {
+      options.grant(actor, report.accountId, body.data.days, `Отчёт об ошибке №${report.id}`)
+    } catch (error) {
+      // AccountError (404 «Пользователь не найден», …) answers as it is; anything else is a server fault
+      const status = (error as { status?: unknown }).status
+      if (typeof status !== 'number') throw error
+      res.status(status).json({ error: error instanceof Error ? error.message : 'Не удалось выдать дни' })
+      return
+    }
+    const updated = store.addReward(report.id, body.data.days)
+    try { options.audit?.(actor, 'bug.reward', String(report.id), { days: body.data.days, email: report.email ?? null }) } catch { /* the days are already granted */ }
+    res.json({ report: updated })
+  })
+
+  router.post('/v1/accounts/me/admin/bug-reports/:id/mail', async (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const id = idSchema.safeParse(req.params.id)
+    const report = id.success ? store.get(id.data) : undefined
+    if (!report) { notFound(res); return }
+    if (!options.mail?.enabled) { res.status(503).json({ error: 'Отправка писем на сервере не настроена (TARKOV_EMAIL_PROVIDER, TARKOV_EMAIL_API_KEY)' }); return }
+    await options.mail.send(report.id)
+    try { options.audit?.(actor, 'bug.mail', String(report.id), {}) } catch { /* the mail went out already */ }
+    res.json({ report: store.get(report.id) })
   })
 
   return router

@@ -1,4 +1,4 @@
-import { Bug, ChevronDown, LoaderCircle, RefreshCw, RotateCcw, CheckCheck } from 'lucide-react'
+import { Bug, CalendarPlus, ChevronDown, LoaderCircle, Mail, RefreshCw, RotateCcw, CheckCheck } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
@@ -16,7 +16,11 @@ const FILTERS: Array<{ id: BugReportStatus; label: string }> = [
 
 const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`)
 
-/** «Баг-репорты»: reports sent from the app («Сообщить об ошибке»), open first; a row opens the description and screenshots. */
+/**
+ * «Отчёты» (owner, 11.10.2026): bug reports sent from the app («Сообщить об ошибке», «Нашёл баг или ошибку? +1 день»),
+ * open first, with the reporter's e-mail. A row opens the description and screenshots; after checking it the owner grants
+ * the reporter days of subscription right there (default 1). Each report also comes to the owner's mailbox as a PDF.
+ */
 export function AdminBugReports() {
   const [status, setStatus] = useState<BugReportStatus>('open')
   const [page, setPage] = useState(0)
@@ -42,7 +46,8 @@ export function AdminBugReports() {
         </button>
       </div>
       <p className="field-hint" style={{ margin: 0 }}>
-        Отчёты из приложения: кнопка «Сообщить об ошибке». E-mail — адрес аккаунта на момент отправки; у удалённых аккаунтов его нет.
+        Отчёты из приложения: кнопка «Сообщить об ошибке» («Нашёл баг или ошибку? +1 день»). Каждый отчёт приходит PDF-файлом на почту.
+        Проверьте отчёт и выдайте дни в подробностях. E-mail — адрес аккаунта на момент отправки; у удалённых аккаунтов его нет.
       </p>
       {list.error && <Notice tone={list.error.offline ? 'offline' : 'error'}>{list.error.message}</Notice>}
       {!data && !list.error && <Loading text="Загружаем отчёты…" />}
@@ -53,7 +58,7 @@ export function AdminBugReports() {
             <thead>
               <tr>
                 <th scope="col">Дата</th><th scope="col">E-mail</th><th scope="col">Тема</th><th scope="col">Версия</th>
-                <th scope="col" className="num">Скриншоты</th><th scope="col"><span className="visually-hidden">Подробнее</span></th>
+                <th scope="col" className="num">Скриншоты</th><th scope="col">Награда</th><th scope="col"><span className="visually-hidden">Подробнее</span></th>
               </tr>
             </thead>
             <tbody>
@@ -67,6 +72,7 @@ export function AdminBugReports() {
                       <th scope="row" className="admin-wrap">{report.topic}</th>
                       <td className="mono">{report.appVersion || '—'}</td>
                       <td className="num mono">{report.files || '—'}</td>
+                      <td>{report.rewardDays ? <span className="tag green admin-mini">+{report.rewardDays} дн.</span> : <span className="dim">—</span>}</td>
                       <td className="admin-row-action">
                         <button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : report.id)}>
                           <ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Открыть'}
@@ -75,7 +81,7 @@ export function AdminBugReports() {
                     </tr>
                     {expanded && (
                       <tr className="owner-detail">
-                        <td colSpan={6}><BugReportDetails id={report.id} onChange={() => { setOpen(null); void list.reload() }} /></td>
+                        <td colSpan={7}><BugReportDetails id={report.id} onChange={() => { setOpen(null); void list.reload() }} onUpdate={() => void list.reload()} /></td>
                       </tr>
                     )}
                   </Fragment>
@@ -90,11 +96,47 @@ export function AdminBugReports() {
   )
 }
 
-function BugReportDetails({ id, onChange }: { id: number; onChange: () => void }) {
+function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: () => void; onUpdate: () => void }) {
   const detail = useAdminData(useCallback((token: string) => bugReportsApi.get(token, id), [id]))
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<Failure | null>(null)
+  const [days, setDays] = useState('1')
+  const [done, setDone] = useState('')
   const report = detail.data?.report
+
+  /** Grants the reporter days of subscription (owner, 11.10.2026: «+1 день я буду выдавать сам»). */
+  async function reward() {
+    const n = Number(days)
+    if (!detail.token || !report) return
+    if (!Number.isInteger(n) || n < 1 || n > 365) { setActionError({ message: 'Число дней: от 1 до 365.', offline: false }); return }
+    if (!window.confirm(`Выдать ${n} дн. подписки ${report.email ?? 'отправителю'} за отчёт №${report.id}?`)) return
+    setBusy(true); setActionError(null); setDone('')
+    try {
+      const result = await bugReportsApi.reward(detail.token, id, n)
+      detail.setData(result)
+      setDone(`Выдано +${n} дн. ${result.report.email ?? ''}`.trim())
+      onUpdate()
+    } catch (reason) {
+      setActionError(failure(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function mail() {
+    if (!detail.token) return
+    setBusy(true); setActionError(null); setDone('')
+    try {
+      const result = await bugReportsApi.mail(detail.token, id)
+      detail.setData(result)
+      setDone(result.report.mailError ? '' : 'PDF отправлен на почту')
+      if (result.report.mailError) setActionError({ message: result.report.mailError, offline: false })
+    } catch (reason) {
+      setActionError(failure(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function setStatus(next: BugReportStatus) {
     if (!detail.token) return
@@ -116,6 +158,9 @@ function BugReportDetails({ id, onChange }: { id: number; onChange: () => void }
         <div><dt>Статус</dt><dd><span className={`tag ${report.status === 'open' ? 'brass' : 'green'}`}>{report.status === 'open' ? 'Открыт' : 'Закрыт'}</span>{report.closedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.closedAt))}</span> : null}</dd></div>
         <div><dt>Версия приложения</dt><dd className="mono">{report.appVersion || '—'}</dd></div>
         <div><dt>Система</dt><dd className="mono">{report.platform || '—'}</dd></div>
+        <div><dt>E-mail</dt><dd>{report.email ?? <span className="dim">аккаунт удалён</span>}</dd></div>
+        <div><dt>Выдано за отчёт</dt><dd>{report.rewardDays ? <><span className="tag green">+{report.rewardDays} дн.</span>{report.rewardedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.rewardedAt))}</span> : null}</> : <span className="dim">ещё нет</span>}</dd></div>
+        <div><dt>PDF на почту</dt><dd>{report.mailedAt ? <span className="mono">{dateTime.format(new Date(report.mailedAt))}</span> : report.mailError ? <span className="admin-danger-text">{report.mailError}</span> : <span className="dim">ещё не отправлен</span>}</dd></div>
       </dl>
       <div>
         <div className="field-label">Описание</div>
@@ -130,7 +175,15 @@ function BugReportDetails({ id, onChange }: { id: number; onChange: () => void }
         </div>
       )}
       {actionError && <Notice tone={actionError.offline ? 'offline' : 'error'}>{actionError.message}</Notice>}
+      {done && <Notice tone="success">{done}</Notice>}
       <div className="admin-bug-actions">
+        {report.accountId
+          ? <div className="inline-form admin-bug-reward">
+            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней за отчёт" value={days} disabled={busy} onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 3))} />
+            <button type="button" className="button primary small" disabled={busy} onClick={() => void reward()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}Выдать +{Number(days) || 1} дн.</button>
+          </div>
+          : <span className="field-hint">Аккаунт отправителя удалён: выдать дни некому.</span>}
+        <button type="button" className="button ghost small" disabled={busy} onClick={() => void mail()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}{report.mailedAt ? 'Отправить PDF ещё раз' : 'Отправить PDF на почту'}</button>
         {report.status === 'open'
           ? <button type="button" className="button primary small" disabled={busy} onClick={() => void setStatus('closed')}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CheckCheck aria-hidden="true" />}Закрыть</button>
           : <button type="button" className="button ghost small" disabled={busy} onClick={() => void setStatus('open')}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}Открыть снова</button>}

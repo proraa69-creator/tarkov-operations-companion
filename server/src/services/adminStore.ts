@@ -44,11 +44,11 @@ const SCHEMA = `
 `
 
 export type AuditAction =
-  | 'subscription.grant' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
+  | 'subscription.grant' | 'subscription.revoke' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
-  | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status'
+  | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -452,6 +452,27 @@ export class AdminStore {
       this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(id, until)
       this.db.prepare('INSERT INTO owner_subscription_grants (account_id, days, reason, actor, at, paid_until_before, paid_until_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, days, reason, actor, this.now(), before ?? null, until)
       this.audit(actor, 'subscription.grant', target.email, { days, reason, paidUntil: new Date(until).toISOString() })
+    })
+    return this.user(id)
+  }
+
+  /**
+   * «Списать дни подписки» (owner, 11.10.2026): takes N days off the end of the paid period, never back past now (taking
+   * more than is left simply ends the subscription today). Logged next to the grants with negative days, audited as
+   * `subscription.revoke`. A trial or a streamer's lifetime access has no paid days to take.
+   */
+  revoke(actor: string, id: string, days: number, reason: string) {
+    const target = this.mustUser(id)
+    const kind = (this.db.prepare('SELECT kind FROM accounts WHERE id = ?').get(id) as Row | undefined)?.kind
+    if (kind === 'streamer') throw new AccountError(409, 'У стримера бессрочный доступ: списывать нечего')
+    transaction(this.db, () => {
+      const before = this.payments.paidUntil(id)
+      const now = this.now()
+      if (before == null || before <= now) throw new AccountError(409, 'У пользователя нет оплаченных дней')
+      const until = Math.max(now, before - days * DAY_MS)
+      this.db.prepare('UPDATE subscriptions SET paid_until = ? WHERE account_id = ?').run(until, id)
+      this.db.prepare('INSERT INTO owner_subscription_grants (account_id, days, reason, actor, at, paid_until_before, paid_until_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, -days, reason, actor, now, before, until)
+      this.audit(actor, 'subscription.revoke', target.email, { days, reason, paidUntil: new Date(until).toISOString() })
     })
     return this.user(id)
   }

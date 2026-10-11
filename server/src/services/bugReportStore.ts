@@ -1,9 +1,11 @@
 /**
  * «Сообщить об ошибке» (routes/bugReports.ts): reports the players send from the app (topic, description, up to five
- * screenshots, app version and OS) and the owner reads in the website's «Админ-панель» → «Баг-репорты».
+ * screenshots, app version and OS) and the owner reads in the website's «Админ-панель» → «Отчёты».
  *
- * Tables are created with IF NOT EXISTS and never change existing ones:
- *   bug_reports       — one report; `email` is the account's address at the time it was sent;
+ * Tables are created with IF NOT EXISTS; later columns are added when missing (ADDED_COLUMNS), nothing is ever dropped:
+ *   bug_reports       — one report; `email` is the account's address at the time it was sent; reward_days: subscription
+ *                       days the owner granted for it («+1 день», owner 11.10.2026); mailed_at / mail_error: the PDF the
+ *                       server e-mails to the owner (services/bugReportMail.ts);
  *   bug_report_files  — its screenshots (PNG / JPEG / WEBP, checked by their magic bytes, never by the declared type).
  *
  * Deleting an account (AccountStore.deleteAccount) clears `account_id` and `email` of its reports: the report itself
@@ -65,6 +67,14 @@ const SCHEMA = `
     PRIMARY KEY (report_id, idx));
 `
 
+/** Columns added after the first release of the table (name, type with default). */
+const ADDED_COLUMNS: Array<[string, string]> = [
+  ['reward_days', 'INTEGER NOT NULL DEFAULT 0'],
+  ['rewarded_at', 'INTEGER'],
+  ['mailed_at', 'INTEGER'],
+  ['mail_error', 'TEXT'],
+]
+
 export class BugReportError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -101,6 +111,12 @@ export interface BugReportSummary {
   createdAt: string
   closedAt?: string
   files: number
+  /** Subscription days the owner granted for this report (0 = none yet). */
+  rewardDays: number
+  rewardedAt?: string
+  /** When the PDF went to the owner's mailbox; the last error if it did not. */
+  mailedAt?: string
+  mailError?: string
 }
 export interface BugReportView extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFileView[] }
 
@@ -138,6 +154,8 @@ export class BugReportStore {
     this.now = options.now ?? Date.now
     this.maxStoredBytes = options.maxStoredBytes ?? BUG_REPORT_STORAGE.maxStoredBytes
     this.db.exec(SCHEMA)
+    const columns = new Set((this.db.prepare('PRAGMA table_info(bug_reports)').all() as Row[]).map((row) => String(row.name)))
+    for (const [name, type] of ADDED_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE bug_reports ADD COLUMN ${name} ${type}`)
     this.pruneScreenshots()
   }
 
@@ -208,6 +226,28 @@ export class BugReportStore {
     return { mime: String(row.mime) as ImageMime, data: Buffer.from(row.data as Uint8Array) }
   }
 
+  /** Every screenshot of a report with its bytes, in order (the PDF for the owner). */
+  files(id: number): Array<{ idx: number; mime: ImageMime; data: Buffer }> {
+    return (this.db.prepare('SELECT idx, mime, data FROM bug_report_files WHERE report_id = ? ORDER BY idx').all(id) as Row[])
+      .map((row) => ({ idx: Number(row.idx), mime: String(row.mime) as ImageMime, data: Buffer.from(row.data as Uint8Array) }))
+  }
+
+  /** Records subscription days the owner granted for the report (they add up). */
+  addReward(id: number, days: number): BugReportView | undefined {
+    const result = this.db.prepare('UPDATE bug_reports SET reward_days = reward_days + ?, rewarded_at = ? WHERE id = ?').run(days, this.now(), id)
+    return Number(result.changes) ? this.get(id) : undefined
+  }
+
+  /** The PDF reached the mail provider (clears an earlier error). */
+  markMailed(id: number) {
+    this.db.prepare('UPDATE bug_reports SET mailed_at = ?, mail_error = NULL WHERE id = ?').run(this.now(), id)
+  }
+
+  /** The PDF could not be sent: the reason, shortened, for the admin panel. */
+  markMailFailed(id: number, error: string) {
+    this.db.prepare('UPDATE bug_reports SET mail_error = ? WHERE id = ?').run(error.slice(0, 300), id)
+  }
+
   setStatus(id: number, status: BugReportStatus): BugReportView | undefined {
     const result = this.db.prepare('UPDATE bug_reports SET status = ?, closed_at = ? WHERE id = ?').run(status, status === 'closed' ? this.now() : null, id)
     return Number(result.changes) ? this.get(id) : undefined
@@ -224,6 +264,10 @@ export class BugReportStore {
       status: row.status === 'closed' ? 'closed' : 'open',
       createdAt: iso(row.created_at)!,
       ...(row.closed_at == null ? {} : { closedAt: iso(row.closed_at)! }),
+      rewardDays: Number(row.reward_days ?? 0),
+      ...(row.rewarded_at == null ? {} : { rewardedAt: iso(row.rewarded_at)! }),
+      ...(row.mailed_at == null ? {} : { mailedAt: iso(row.mailed_at)! }),
+      ...(row.mail_error == null ? {} : { mailError: String(row.mail_error) }),
     }
   }
 }

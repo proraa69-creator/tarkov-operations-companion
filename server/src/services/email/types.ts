@@ -10,11 +10,20 @@
 export type EmailProviderId = 'resend'
 export const EMAIL_PROVIDERS: readonly EmailProviderId[] = ['resend']
 
+/** A file sent with the message: its bytes in base64. */
+export interface EmailAttachment {
+  filename: string
+  content: string
+  contentType?: string
+}
+
 export interface EmailMessage {
   to: string
   subject: string
   html: string
   text: string
+  /** Files (the owner's bug report PDFs, services/bugReportMail.ts); codes and notices have none. */
+  attachments?: EmailAttachment[]
 }
 
 export interface EmailSender {

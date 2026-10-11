@@ -12,6 +12,7 @@ import { PhoneAuthService } from './services/phoneAuth.js'
 import { createSmsSender, smsConfigFromEnv, smsLimitsFromEnv } from './services/sms/index.js'
 import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
+import { bugReportEmailFromEnv } from './services/bugReportMail.js'
 import { dirname, join } from 'node:path'
 import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
@@ -57,7 +58,10 @@ const smsConfig = smsConfigFromEnv()
 const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSender(smsConfig) : undefined, limits: smsLimitsFromEnv() })
 // E-mail one-time codes (registration confirmation, sign-in and reset by e-mail): only with a provider set in the owner's app.
 const emailConfig = emailConfigFromEnv()
-const emails = new EmailAuthService(accounts, { sender: emailConfig ? createEmailSender(emailConfig) : undefined, limits: emailLimitsFromEnv() })
+const emailSender = emailConfig ? createEmailSender(emailConfig) : undefined
+const emails = new EmailAuthService(accounts, { sender: emailSender, limits: emailLimitsFromEnv() })
+// «Сообщить об ошибке»: every report as a PDF to the owner's mailbox (TARKOV_BUG_REPORT_EMAIL, default raidosapp@gmail.com).
+const bugReportMail = { sender: emailSender, to: bugReportEmailFromEnv() }
 // Signed entitlements: the private key comes from TARKOV_ENTITLEMENT_PRIVATE_KEY (the owner's app keeps it encrypted) or
 // lives next to the database (entitlement-ed25519.pem, created on the first start). Never in the repository.
 const entitlements = new EntitlementService(accounts, { keyDir: dbPath === ':memory:' ? undefined : dirname(dbPath) })
@@ -93,7 +97,7 @@ priceHistory?.start()
 const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1', priceHistory })
 const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 legacyGraphql?.start()
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data, bugReportMail })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

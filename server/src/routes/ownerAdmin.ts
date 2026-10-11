@@ -13,6 +13,7 @@
  *   GET  /me/admin/users?q&filter&limit&offset       -> { users, total }
  *   GET  /me/admin/users/:id                         -> { user, payments, grants }
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
+ *   POST /me/admin/users/:id/revoke          { days 1–3650, reason }   -> { user, payments, grants } (takes paid days off; 409 when none)
  *   POST /me/admin/users/:id/cancel-autopay                            -> { user, payments, grants }
  *   POST /me/admin/users/:id/block           { reason? }               -> { user, … } (sessions revoked, login 403)
  *   POST /me/admin/users/:id/unblock                                   -> { user, … }
@@ -156,6 +157,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.post('/me/admin/users/:id/grant', owner('write', (req, res, actor) => {
     const { days, reason } = grantSchema.parse(req.body)
     res.json(admin.grant(actor, idSchema.parse(req.params.id), days, reason))
+  }))
+  router.post('/me/admin/users/:id/revoke', owner('write', (req, res, actor) => {
+    const { days, reason } = grantSchema.parse(req.body)
+    res.json(admin.revoke(actor, idSchema.parse(req.params.id), days, reason))
   }))
   router.post('/me/admin/users/:id/cancel-autopay', owner('write', async (req, res, actor) => { res.json(await admin.cancelAutopay(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/block', owner('write', (req, res, actor) => {

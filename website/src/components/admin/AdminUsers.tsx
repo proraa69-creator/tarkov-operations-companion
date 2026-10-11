@@ -1,4 +1,4 @@
-import { Ban, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
 import { useAuth } from '../../auth'
@@ -106,6 +106,8 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
   const detail = useAdminData(useCallback((t: string) => api.adminUser(t, id), [id]))
   const [days, setDays] = useState('30')
   const [reason, setReason] = useState('')
+  const [takeDays, setTakeDays] = useState('1')
+  const [takeReason, setTakeReason] = useState('')
   const [blockReason, setBlockReason] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<Failure | null>(null)
@@ -134,6 +136,20 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
     void run('grant', (t) => api.adminGrant(t, id, n, reason.trim()), (result) => { setReason(''); return `Подписка до ${dateOnly.format(new Date(result.user.subscription.paidUntil!))}` })
   }
 
+  // «Списать дни» (owner, 11.10.2026: «в разделе пользователи удалять дни подписки»)
+  const revoke = (event: FormEvent) => {
+    event.preventDefault()
+    const n = Number(takeDays)
+    if (!Number.isInteger(n) || n < 1 || n > 3650) { setError({ message: 'Число дней: от 1 до 3650.', offline: false }); return }
+    if (takeReason.trim().length < 3) { setError({ message: 'Укажите причину (от 3 символов) — она попадёт в журнал.', offline: false }); return }
+    if (!window.confirm(`Списать ${n} дн. подписки у ${detail.data?.user.email ?? 'пользователя'}?`)) return
+    void run('revoke', (t) => api.adminRevoke(t, id, n, takeReason.trim()), (result) => {
+      setTakeReason('')
+      const sub = result.user.subscription
+      return sub.status === 'active' && sub.paidUntil ? `Подписка теперь до ${dateOnly.format(new Date(sub.paidUntil))}` : 'Оплаченных дней не осталось: подписка закончилась'
+    })
+  }
+
   const data = detail.data
   if (!data) return detail.error ? <Notice tone="error">{detail.error.message}</Notice> : <Loading />
   const user = data.user
@@ -151,6 +167,18 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
             <button type="submit" className="button small primary" disabled={busy !== null}>{busy === 'grant' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}Выдать</button>
           </div>
           <span className="field-hint">Дни добавляются к концу оплаченного периода (или с сегодня). Это не выручка: в статистике оплат не появится.</span>
+        </form>
+        <form className="admin-action" onSubmit={revoke}>
+          <div className="field-label"><CalendarMinus size={13} aria-hidden="true" />Списать дни подписки</div>
+          <div className="inline-form">
+            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней списать" value={takeDays} onChange={(e) => setTakeDays(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+            <input className="input" aria-label="Причина списания" placeholder="Причина (видна в журнале)" maxLength={200} value={takeReason} onChange={(e) => setTakeReason(e.target.value)} />
+          </div>
+          <div className="admin-chips">
+            {[1, 7, 30].map((n) => <button key={n} type="button" className="button small ghost" onClick={() => setTakeDays(String(n))}>{n} дн.</button>)}
+            <button type="submit" className="button small ghost admin-danger" disabled={busy !== null || user.subscription.status !== 'active' || Boolean(user.subscription.lifetime)}>{busy === 'revoke' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarMinus aria-hidden="true" />}Списать</button>
+          </div>
+          <span className="field-hint">{user.subscription.lifetime ? 'У стримера бессрочный доступ: списывать нечего.' : user.subscription.status !== 'active' ? 'Оплаченных дней нет (пробный период здесь не списывается).' : 'Дни снимаются с конца оплаченного периода, но не раньше сегодняшнего дня.'}</span>
         </form>
         <div className="admin-action">
           <div className="field-label"><ShieldCheck size={13} aria-hidden="true" />Доступ</div>
@@ -181,10 +209,10 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
           )}
         </div>
         <div>
-          <div className="field-label">Выдано вручную</div>
+          <div className="field-label">Выдано и списано вручную</div>
           {data.grants.length === 0 ? <span className="field-hint">Ничего не выдавалось.</span> : (
             <ul className="admin-list">
-              {data.grants.map((grant) => <li key={grant.at}><span className="mono">{dateTime.format(new Date(grant.at))}</span> · +{grant.days} дн. · «{grant.reason}» · {grant.actor}</li>)}
+              {data.grants.map((grant) => <li key={grant.at}><span className="mono">{dateTime.format(new Date(grant.at))}</span> · <span className={grant.days < 0 ? 'admin-danger-text' : undefined}>{grant.days < 0 ? `−${-grant.days}` : `+${grant.days}`} дн.</span> · «{grant.reason}» · {grant.actor}</li>)}
             </ul>
           )}
         </div>

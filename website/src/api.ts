@@ -430,6 +430,8 @@ export const api = {
   adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number) => request<{ users: AdminUser[]; total: number }>(`/me/admin/users${adminQuery({ q, filter, limit, offset })}`, { token }),
   adminUser: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}`, { token }),
   adminGrant: (token: string, id: string, days: number, reason: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/grant`, { method: 'POST', token, body: { days, reason } }),
+  /** Takes paid days off the end of the subscription (never back past today); logged with the grants as −N. */
+  adminRevoke: (token: string, id: string, days: number, reason: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke`, { method: 'POST', token, body: { days, reason } }),
   adminCancelAutopay: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/cancel-autopay`, { method: 'POST', token, body: {} }),
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),

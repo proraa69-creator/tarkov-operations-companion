@@ -13,7 +13,7 @@ import { PhoneAuthService } from './services/phoneAuth.js'
 import { createEmailRouter } from './routes/email.js'
 import { EmailAuthService } from './services/emailAuth.js'
 import { countryCode, LoginCodeStore } from './services/loginCodes.js'
-import { AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
+import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import { SocialSignals } from './services/socialSignals.js'
@@ -55,6 +55,8 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
+import { BugReportMailer } from './services/bugReportMail.js'
+import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
@@ -110,6 +112,8 @@ export interface ApiOptions {
   ownerApp?: OwnerAppLink
   /** «Сообщить об ошибке» (routes/bugReports.ts): per-account / per-IP limits for tests. */
   bugReportLimits?: Partial<BugReportLimits>
+  /** Every report to the owner's mailbox as a PDF (services/bugReportMail.ts): the e-mail provider and the address. */
+  bugReportMail?: { sender?: EmailSender; to?: string }
 }
 
 /**
@@ -166,9 +170,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
   // «Сообщить об ошибке»: before the global JSON parser, because the upload (screenshots in base64, up to 25 MB) has its
   // own larger limit; everything else keeps the 1 MB limit below. The audit log is read lazily (created further down).
-  app.use(createBugReportsRouter(accounts, new BugReportStore(accounts.database, { now: accounts.clock }), {
+  // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).
+  const bugReports = new BugReportStore(accounts.database, { now: accounts.clock })
+  const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
+  app.use(createBugReportsRouter(accounts, bugReports, {
     limits: options.bugReportLimits,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
+    mail: bugReportMail,
+    grant: (actor, accountId, days, reason) => {
+      if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
+      adminStore.grant(actor, accountId, days, reason)
+    },
   }))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)

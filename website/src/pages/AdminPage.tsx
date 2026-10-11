@@ -22,7 +22,8 @@ const TABS = [
   { id: 'streamers', label: 'Стримеры', icon: Radio },
   { id: 'invites', label: 'Друзья', icon: HeartHandshake },
   { id: 'sales', label: 'Настройки продаж', icon: Settings2 },
-  { id: 'bugs', label: 'Баг-репорты', icon: Bug },
+  // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
+  { id: 'reports', label: 'Отчёты', icon: Bug },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
   { id: 'update', label: 'Обновление', icon: DownloadCloud },
@@ -37,7 +38,8 @@ export function AdminPage() {
   const auth = useAuth()
   const [params, setParams] = useSearchParams()
   // «Выплаты» now live in «Стримеры» (owner, 09.10): an old ?tab=payouts link opens that tab.
-  const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab')
+  // «Баг-репорты» became «Отчёты»: an old ?tab=bugs link opens it.
+  const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab') === 'bugs' ? 'reports' : params.get('tab')
   const tab: TabId = TABS.some((item) => item.id === requested) ? requested as TabId : 'summary'
 
   if (auth.status === 'signed-out') return <Navigate to="/login" replace state={{ from: '/admin' }} />
@@ -89,7 +91,7 @@ export function AdminPage() {
           </>}
           {tab === 'invites' && <AdminInvites />}
           {tab === 'sales' && <AdminSales />}
-          {tab === 'bugs' && <><AdminBugReports /><AdminQuestPoints /></>}
+          {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /></>}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
           {tab === 'update' && <AdminUpdate />}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Bug, CheckCircle2, ImagePlus, LoaderCircle, LogIn, MessageCircle, Send, X } from 'lucide-react'
+import { AlertTriangle, Bug, CheckCircle2, Gift, ImagePlus, LoaderCircle, LogIn, MessageCircle, Send, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
@@ -23,7 +23,13 @@ const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1
 
 let nextShotId = 1
 
-/** «Сообщить об ошибке»: topic, description, up to five screenshots (file picker, drag & drop, Ctrl+V). */
+/** The reward the owner grants by hand after checking a report (website «Админ-панель» → «Отчёты»; owner, 11.10.2026). */
+const REWARD_NOTE = 'Если ошибка подтвердится, к подписке добавится 1 день.'
+
+/**
+ * «Сообщить об ошибке»: topic, description, up to five screenshots (file picker, drag & drop, Ctrl+V). On top: «Нашёл баг
+ * или ошибку? +1 день» (owner, 11.10.2026); the server forwards every report to the owner as a PDF.
+ */
 export function BugReportDialog({ onClose }: { onClose: () => void }) {
   const { status, checking } = useServerAccount()
   const version = useAppVersion()
@@ -103,10 +109,15 @@ export function BugReportDialog({ onClose }: { onClose: () => void }) {
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
       <div className="registration-icon"><Bug size={26} /></div>
       <h2>{uiText('Сообщить об ошибке')}</h2>
+      {!sent && <div className="bug-report-reward">
+        <Gift size={20} aria-hidden="true" />
+        <div><strong>{uiText('Нашёл баг или ошибку?')} <b>{uiText('+1 день')}</b></strong><span>{uiText(REWARD_NOTE)}</span></div>
+      </div>}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />
         <strong>{uiText('Спасибо! Отчёт отправлен')}</strong>
         <p className="muted">{uiText('Мы посмотрим его и постараемся исправить. Если нужно что-то уточнить — пишите в Telegram.')}</p>
+        <p className="bug-report-reward-note"><Gift size={14} aria-hidden="true" />{uiText(REWARD_NOTE)}</p>
         <div className="bug-report-actions">
           <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} />{SUPPORT_TELEGRAM_HANDLE}</a>
           <button type="button" className="button primary" onClick={onClose}>{uiText('Готово')}</button>

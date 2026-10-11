@@ -5,6 +5,14 @@
 .bug-report-dialog { width: min(600px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
 .bug-report-dialog h2 { margin-top: 0; }
 .bug-report-form { display: grid; gap: 12px; }
+/* «Нашёл баг или ошибку? +1 день» (owner, 11.10.2026) */
+.bug-report-reward { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--brass) 10%, transparent); color: var(--brass-strong, var(--brass)); }
+.bug-report-reward > svg { flex: none; }
+.bug-report-reward div { display: grid; gap: 2px; min-width: 0; }
+.bug-report-reward strong { color: var(--text); font-size: 15px; }
+.bug-report-reward b { color: var(--brass-strong, var(--brass)); white-space: nowrap; }
+.bug-report-reward span { color: var(--text-dim); font-size: 12px; }
+.bug-report-reward-note { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--brass-strong, var(--brass)); font-size: 13px; }
 .bug-report-form .field-label { display: grid; gap: 6px; }
 .bug-report-text { min-height: 120px; resize: vertical; font: inherit; line-height: 1.45; padding-block: 9px; }
 .bug-report-count { justify-self: end; color: var(--text-dim); font-size: 11px; }

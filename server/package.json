@@ -15,8 +15,10 @@
     "mirror:rollback": "node --import tsx -e \"import('./src/cli/rollbackMirror.ts').then(m => m.main())\""
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "pdf-lib": "^1.17.1",
     "zod": "^3.25.0"
   },
   "devDependencies": {

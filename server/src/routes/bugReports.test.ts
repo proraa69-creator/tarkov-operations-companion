@@ -10,6 +10,8 @@ import { createBugReportsRouter } from './bugReports.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
+import { FakeEmailSender } from '../services/email/index.js'
+import { bugReportEmailFromEnv, DEFAULT_BUG_REPORT_EMAIL } from '../services/bugReportMail.js'
 
 const password = 'correct horse battery'
 
@@ -18,14 +20,14 @@ const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(
 const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.from([40, 0, 0, 0]), Buffer.from('WEBPVP8 '), Buffer.alloc(32, 2)])
 const shot = (data: Buffer) => ({ data: data.toString('base64') })
 
-async function setup(limits?: { perAccount?: number; perIp?: number }) {
+async function setup(limits?: { perAccount?: number; perIp?: number }, mail?: FakeEmailSender) {
   const db = openDatabase(':memory:')
   const first = new AccountStore({ db, ownerEmails: [] })
   await first.register('owner@example.com', password)
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
   const payments = new PaymentStore(db, undefined)
-  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, bugReportLimits: limits, guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, bugReportLimits: limits, guard: { quickCheckEveryMs: 0 }, ...(mail ? { bugReportMail: { sender: mail, to: DEFAULT_BUG_REPORT_EMAIL } } : {}) }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
   const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown) => {
@@ -284,6 +286,120 @@ test('bug reports: with the screenshot storage full, a large upload is refused u
     const small = await t.send(t.tokens[0]!, { ...report, screenshots: [shot(PNG)] })
     assert.equal(small.status, 507, 'small screenshot: refused by the store')
     assert.equal((await t.send(t.tokens[0]!, report)).status, 201)
+  } finally {
+    await t.close()
+  }
+})
+
+const waitFor = async (check: () => boolean, ms = 8000) => {
+  const until = Date.now() + ms
+  while (!check()) {
+    if (Date.now() > until) throw new Error('timed out')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+type Report = { id: number; email?: string; accountId?: string; rewardDays: number; rewardedAt?: string; mailedAt?: string; mailError?: string }
+type UserDetail = { user: { subscription: { status: string; paidUntil?: string } }; grants: Array<{ days: number; reason: string }> }
+const DAY = 24 * 60 * 60 * 1000
+
+test('bug reports: the PDF address comes from TARKOV_BUG_REPORT_EMAIL, raidosapp@gmail.com by default, «off» turns it off', () => {
+  assert.equal(bugReportEmailFromEnv({}), 'raidosapp@gmail.com')
+  assert.equal(bugReportEmailFromEnv({ TARKOV_BUG_REPORT_EMAIL: 'owner@example.com' }), 'owner@example.com')
+  assert.equal(bugReportEmailFromEnv({ TARKOV_BUG_REPORT_EMAIL: 'not an address\r\nBcc: x@y.z' }), 'raidosapp@gmail.com')
+  assert.equal(bugReportEmailFromEnv({ TARKOV_BUG_REPORT_EMAIL: 'off' }), undefined)
+})
+
+test('bug reports: every report goes to the owner as a PDF, the owner grants days for it and can take paid days off (owner, 11.10.2026)', async () => {
+  const mail = new FakeEmailSender()
+  const t = await setup(undefined, mail)
+  try {
+    const player = await t.register('player@example.com')
+    const owner = await t.login('owner@example.com')
+    const playerId = t.accounts.accountByEmail('player@example.com')!.id
+    const created = await t.call<{ id: number }>('POST', '/bug-reports', player, { ...report, screenshots: [shot(PNG), shot(WEBP)] })
+    assert.equal(created.status, 201)
+    const id = created.json.id
+
+    // in the background: a PDF with the report and the PNG; the WEBP (no PDF image format) goes next to it as a file
+    await waitFor(() => mail.sent.length === 1)
+    const message = mail.sent[0]!
+    assert.equal(message.to, 'raidosapp@gmail.com')
+    assert.match(message.subject, new RegExp(`отчёт об ошибке №${id}: Карта не открывается`))
+    assert.match(message.text, /player@example\.com/)
+    assert.equal(message.attachments?.length, 2)
+    assert.equal(message.attachments![0]!.contentType, 'application/pdf')
+    const pdf = Buffer.from(message.attachments![0]!.content, 'base64')
+    assert.equal(pdf.subarray(0, 5).toString('latin1'), '%PDF-')
+    assert.ok(pdf.length > 20_000, 'the Cyrillic font is embedded')
+    assert.equal(message.attachments![1]!.contentType, 'image/webp')
+    // the mail is recorded right after the provider took it
+    await waitFor(() => (t.accounts.database.prepare('SELECT mailed_at FROM bug_reports WHERE id = ?').get(id) as { mailed_at: number | null }).mailed_at != null)
+    const opened = await t.call<{ report: Report }>('GET', `/accounts/me/admin/bug-reports/${id}`, owner)
+    assert.equal(opened.json.report.email, 'player@example.com')
+    assert.equal(opened.json.report.accountId, playerId)
+    assert.ok(opened.json.report.mailedAt)
+    assert.equal(opened.json.report.rewardDays, 0)
+
+    // «+1 день»: owner only, 1–365 days, granted to the reporter with the report's number as the reason
+    assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/${id}/reward`, player, { days: 1 })).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/${id}/reward`, owner, { days: 0 })).status, 400)
+    assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/999/reward`, owner, { days: 1 })).status, 404)
+    const rewarded = await t.call<{ report: Report }>('POST', `/accounts/me/admin/bug-reports/${id}/reward`, owner, { days: 1 })
+    assert.equal(rewarded.status, 200, JSON.stringify(rewarded.json))
+    assert.equal(rewarded.json.report.rewardDays, 1)
+    assert.ok(rewarded.json.report.rewardedAt)
+    const listed = await t.call<{ reports: Report[] }>('GET', '/accounts/me/admin/bug-reports?status=open', owner)
+    assert.equal(listed.json.reports[0]!.rewardDays, 1)
+    let user = (await t.call<UserDetail>('GET', `/accounts/me/admin/users/${playerId}`, owner)).json
+    assert.equal(user.user.subscription.status, 'active')
+    assert.ok(Math.abs(Date.parse(user.user.subscription.paidUntil!) - (Date.now() + DAY)) < 60_000)
+    assert.deepEqual(user.grants.map((grant) => [grant.days, grant.reason]), [[1, `Отчёт об ошибке №${id}`]])
+
+    // «Списать дни»: off the end of the paid period; more than is left ends it today; then there is nothing to take
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${playerId}/grant`, owner, { days: 30, reason: 'подарок' })).status, 200)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${playerId}/revoke`, player, { days: 7, reason: 'проверка' })).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 7, reason: '' })).status, 400)
+    user = (await t.call<UserDetail>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 7, reason: 'лишние дни' })).json
+    assert.ok(Math.abs(Date.parse(user.user.subscription.paidUntil!) - (Date.now() + 24 * DAY)) < 60_000)
+    assert.deepEqual(user.grants[0], { ...user.grants[0], days: -7, reason: 'лишние дни' })
+    user = (await t.call<UserDetail>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 100, reason: 'всё' })).json
+    assert.equal(user.user.subscription.status, 'inactive')
+    const none = await t.call<{ error: string }>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 1, reason: 'ещё' })
+    assert.equal(none.status, 409)
+    assert.match(none.json.error, /нет оплаченных дней/)
+
+    // the PDF again from the panel; a failed send is kept on the report, the report itself is never lost
+    const again = await t.call<{ report: Report }>('POST', `/accounts/me/admin/bug-reports/${id}/mail`, owner)
+    assert.equal(again.status, 200)
+    assert.equal(mail.sent.length, 2)
+    mail.fail = true
+    const failed = await t.call<{ report: Report }>('POST', `/accounts/me/admin/bug-reports/${id}/mail`, owner)
+    assert.equal(failed.status, 200)
+    assert.match(failed.json.report.mailError ?? '', /Не удалось/)
+    const second = await t.call<{ id: number }>('POST', '/bug-reports', player, report)
+    assert.equal(second.status, 201)
+    const audit = t.accounts.database.prepare("SELECT action FROM owner_audit_log WHERE action IN ('bug.reward', 'bug.mail', 'subscription.revoke') ORDER BY id").all() as Array<{ action: string }>
+    assert.deepEqual(audit.map((row) => row.action), ['bug.reward', 'subscription.revoke', 'subscription.revoke', 'bug.mail', 'bug.mail'])
+  } finally {
+    await t.close()
+  }
+})
+
+test('bug reports: no days for a deleted account, and without e-mail settings the PDF button says so', async () => {
+  const t = await setup()
+  try {
+    const player = await t.register('gone@example.com')
+    const owner = await t.login('owner@example.com')
+    const created = await t.call<{ id: number }>('POST', '/bug-reports', player, report)
+    assert.equal(created.status, 201)
+    const mailed = await t.call<{ error: string }>('POST', `/accounts/me/admin/bug-reports/${created.json.id}/mail`, owner)
+    assert.equal(mailed.status, 503)
+    assert.match(mailed.json.error, /не настроена/)
+    t.accounts.deleteAccount(t.accounts.accountByEmail('gone@example.com')!.id)
+    const reward = await t.call<{ error: string }>('POST', `/accounts/me/admin/bug-reports/${created.json.id}/reward`, owner, { days: 1 })
+    assert.equal(reward.status, 409)
+    assert.match(reward.json.error, /удалён/)
   } finally {
     await t.close()
   }
