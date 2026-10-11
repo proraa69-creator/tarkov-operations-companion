@@ -139,7 +139,7 @@ export function weaponBuild(objective: JsonRecord, categoryName?: (id: string) =
   const buildAttributes = asRecord(objective.buildAttributes)
   if (!weaponId || (type !== 'buildweapon' && !Array.isArray(objective.containsAll) && !Array.isArray(objective.attributes) && !Object.keys(buildAttributes).length)) return undefined
   const ids = (value: unknown) => [...new Set((Array.isArray(value) ? value : []).map((entry) => refId(entry) || refId(asRecord(entry).item)).filter(Boolean))]
-  const rawAttributes = Array.isArray(objective.attributes)
+  const rawAttributes: JsonRecord[] = Array.isArray(objective.attributes)
     ? asArray(objective.attributes)
     : Object.entries(buildAttributes).map(([name, requirement]) => ({ name, requirement }))
   const attributes = rawAttributes.flatMap((entry): WeaponBuildAttribute[] => {

@@ -17,6 +17,9 @@ export const FX = {
   preset: id(90),
 }
 
+/** Item category ids (tarkov.dev `categories`, the item's category and its parents) the «Оружейник» parts ask for. */
+export const FX_CATEGORY = { foregrip: 'c0000000000000000000f0e1', mod: 'c0000000000000000000f0d0' }
+
 const flea = (price: number) => ({ priceRUB: price, vendor: { name: 'Барахолка', normalizedName: 'flea-market' } })
 const trader = (price: number, key: string, label: string, level: number) => ({ priceRUB: price, vendor: { name: label, normalizedName: key, minTraderLevel: level } })
 const VENDOR_EN: Record<string, string> = { 'Барахолка': 'Flea Market', 'Миротворец': 'Peacekeeper', 'Прапор': 'Prapor', 'Механик': 'Mechanic', 'Егерь': 'Jaeger' }
@@ -72,7 +75,7 @@ export function gunsPayload(lang: Lang = 'ru') {
   ] } }, lang)
 }
 
-interface ModSpec { id: string; ru: string; en: string; short: string; ergo: number; recoil: number; acc?: number; weight: number; offers: unknown[]; slots?: unknown[]; conflicts?: string[]; noFlea?: boolean; coi?: number; capacity?: number; kind?: string }
+interface ModSpec { id: string; ru: string; en: string; short: string; ergo: number; recoil: number; acc?: number; weight: number; offers: unknown[]; slots?: unknown[]; conflicts?: string[]; noFlea?: boolean; coi?: number; capacity?: number; kind?: string; categories?: string[] }
 
 function modSpecs(lang: Lang): ModSpec[] {
   const s = (ru: string, en: string) => name(lang, ru, en)
@@ -108,7 +111,7 @@ function modSpecs(lang: Lang): ModSpec[] {
     { id: FX.chargeRaptor, ru: 'Рукоятка взведения Radian Weapons Raptor', en: 'AR-15 Radian Weapons Raptor charging handle', short: 'Raptor', ergo: 7, recoil: 0, weight: 0.05, offers: [] },
     { id: FX.sightRear, ru: 'Целик складной KAC', en: 'KAC folding rear sight', short: 'KAC RS', ergo: 0, recoil: 0, weight: 0.08, offers: [flea(5_100)] },
     { id: FX.holo, ru: 'Голографический прицел EOTech EXPS3', en: 'EOTech EXPS3 holographic sight', short: 'EXPS3', ergo: -1, recoil: 0, weight: 0.32, offers: [flea(38_000), trader(33_400, 'peacekeeper', 'Миротворец', 3)] },
-    { id: FX.foregrip, ru: 'Тактическая рукоятка Magpul AFG', en: 'Magpul AFG tactical grip', short: 'AFG', ergo: 3, recoil: -0.035, weight: 0.05, offers: [flea(14_600), trader(12_900, 'mechanic', 'Механик', 2)] },
+    { id: FX.foregrip, ru: 'Тактическая рукоятка Magpul AFG', en: 'Magpul AFG tactical grip', short: 'AFG', ergo: 3, recoil: -0.035, weight: 0.05, offers: [flea(14_600), trader(12_900, 'mechanic', 'Механик', 2)], categories: [FX_CATEGORY.foregrip, FX_CATEGORY.mod] },
     { id: FX.mount, ru: 'Крепление Magpul M-LOK', en: 'Magpul M-LOK mount', short: 'M-LOK', ergo: 0, recoil: 0, weight: 0.03, offers: [flea(2_000)] },
     { id: FX.akMag, ru: 'Магазин 5.45x39 6L23 на 30 патронов', en: '5.45x39 6L23 30-round magazine', short: '6L23', ergo: -3, recoil: 0, weight: 0.23, capacity: 30, offers: [flea(2_600), trader(2_100, 'prapor', 'Прапор', 1)] },
     { id: FX.akMuzzle, ru: 'Дульный тормоз-компенсатор 6П20', en: 'AK-74 6P20 muzzle brake', short: '6P20', ergo: -1, recoil: -0.08, weight: 0.05, offers: [flea(1_800)] },
@@ -125,6 +128,7 @@ export function modsPayload(lang: Lang = 'ru') {
     types: ['mods', ...(mod.noFlea ? ['noFlea'] : [])],
     accuracyModifier: mod.acc ?? 0, recoilModifier: mod.recoil, ergonomicsModifier: mod.ergo,
     category: { name: mod.kind ?? 'mod', normalizedName: mod.kind ?? 'mod' },
+    categories: (mod.categories ?? [FX_CATEGORY.mod]).map((category) => ({ id: category })),
     conflictingItems: (mod.conflicts ?? []).map((item) => ({ id: item })),
     buyFor: mod.offers,
     properties: {

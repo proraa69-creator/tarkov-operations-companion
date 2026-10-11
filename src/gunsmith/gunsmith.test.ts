@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { adaptMods, adaptWeapons } from '../arsenal/gunQueries'
 import { installedParts } from '../arsenal/buildModel'
-import { FX, gunsPayload, modsPayload } from '../arsenal/fixtures/gunFixture'
+import { FX, FX_CATEGORY, gunsPayload, modsPayload } from '../arsenal/fixtures/gunFixture'
 import { adaptObjectiveDetails, weaponBuild } from '../data/objectiveDetails'
 import type { Quest, WeaponBuildRequirement } from '../domain/types'
 import { attributeLabel, formatTarget, gunsmithPart, gunsmithSteps, gunsmithSummary, meets, shortfall } from './gunsmith'
@@ -88,9 +88,10 @@ describe('«Как собрать»: example build for a Gunsmith part', () => {
   })
 
   it('puts in a part of a required category (json.tarkov.dev containsCategory), the cheapest that fits', () => {
-    const mods = new Map([...catalog.mods].map(([id, part]) => [id, id === FX.foregrip ? { ...part, categoryIds: ['cat-foregrip', 'cat-mod'] } : part]))
-    const plan = solveGunsmithBuild({ weaponId: FX.m4, partIds: [], categories: [{ id: 'cat-foregrip', name: 'Тактическая рукоятка' }], attributes: [] }, { ...catalog, mods })!
-    expect(installedParts(plan.build, { ...catalog, mods }).map((entry) => entry.part.id)).toContain(FX.foregrip)
+    expect(catalog.mods.get(FX.foregrip)?.categoryIds).toEqual([FX_CATEGORY.foregrip, FX_CATEGORY.mod])
+    const plan = solveGunsmithBuild({ weaponId: FX.m4, partIds: [], categories: [{ id: FX_CATEGORY.foregrip, name: 'Тактическая рукоятка' }], attributes: [] }, catalog)!
+    expect(installedParts(plan.build, catalog).map((entry) => entry.part.id)).toContain(FX.foregrip)
+    expect(plan.toBuy.map((line) => line.part.id)).toContain(FX.foregrip)
   })
 
   it('reads json.tarkov.dev `buildAttributes` and leaves out the stats the part does not ask for (value 0)', () => {
