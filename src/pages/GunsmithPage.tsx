@@ -94,6 +94,7 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
         ? <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>
         : <p className="dim">{uiText('Награды на Wiki не указаны.')}</p>}
     </div>
-    {quest.wikiLink && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
+    {/* The wiki's parts table is already here (src/data/wikiGunsmith.ts): no link to it then (owner, 11.10.2026). */}
+    {quest.wikiLink && !build?.wikiParts?.length && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
   </section>
 }

@@ -55,6 +55,7 @@
 .gs-trader-level svg { color: #e8c766; }
 .gs-trader.is-small .gs-trader-level { min-width: 11px; height: 10px; font-size: 7.5px; padding: 0 2px; }
 .gs-trader-lock { position: absolute; right: 1px; bottom: 1px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 3px; background: rgb(10 12 11 / 86%); color: var(--text-muted); }
+.gs-trader-barter { position: absolute; left: 1px; top: 1px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 3px; background: rgb(10 12 11 / 86%); color: #9fc7e8; }
 .gs-trader.is-locked img, .gs-trader.is-locked .gs-trader-initial { filter: grayscale(1) brightness(.5); }
 .gs-trader.is-locked { border-color: var(--line); }
 .gs-trader.is-chosen { border-color: var(--brass-strong); box-shadow: 0 0 0 1px var(--brass-strong); }

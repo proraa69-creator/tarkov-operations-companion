@@ -350,6 +350,19 @@ export interface WeaponBuildRequirement {
   /** A part of each of these categories must be installed (containsCategory). */
   categories?: Array<{ id: string; name: string }>
   attributes: WeaponBuildAttribute[]
+  /** The parts of the task's wiki page («Related Quest Items»: a build that passes), src/data/wikiGunsmith.ts. */
+  wikiParts?: WikiBuildPart[]
+}
+
+/** One part of a Gunsmith task's wiki table: the item, whether the wiki says it must be installed, who sells it. */
+export interface WikiBuildPart {
+  /** Catalog item id; missing when the catalog has no item by the wiki's name. */
+  itemId?: string
+  /** The wiki's (English) item name. */
+  name: string
+  required?: boolean
+  /** Trader key (tarkov.dev normalizedName, `flea-market` for the flea) and the loyalty level; `barter` for a barter. */
+  sellers: Array<{ trader: string; level: number; barter?: boolean }>
 }
 
 export interface Quest {

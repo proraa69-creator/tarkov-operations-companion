@@ -3,6 +3,9 @@ import { economyQueries } from '../../../src/data/economyQueries.js'
 import type { DataGateway } from './dataGateway.js'
 
 const DAY = 24 * 60 * 60 * 1000
+/** A pass with failures (upstream slow or down right after a deploy) is run again soon, not only the next day. */
+const RETRY_MS = 10 * 60 * 1000
+const MAX_RETRIES = 6
 
 const BOSSES_QUERY = `query RaidOsBosses {
   bosses(lang: ru) {
@@ -45,8 +48,10 @@ export class GraphqlPrewarm {
   private running: Promise<void> | null = null
   private initial: ReturnType<typeof setTimeout> | null = null
   private timer: ReturnType<typeof setInterval> | null = null
+  private retry: ReturnType<typeof setTimeout> | null = null
+  private retries = 0
 
-  constructor(private readonly gateway: DataGateway, private readonly log: (message: string) => void = console.log) {}
+  constructor(private readonly gateway: DataGateway, private readonly log: (message: string) => void = console.log, private readonly retryMs = RETRY_MS) {}
 
   start(initialDelayMs = 30_000, intervalMs = DAY) {
     if (this.initial || this.timer) return
@@ -60,7 +65,8 @@ export class GraphqlPrewarm {
   stop() {
     if (this.initial) clearTimeout(this.initial)
     if (this.timer) clearInterval(this.timer)
-    this.initial = this.timer = null
+    if (this.retry) clearTimeout(this.retry)
+    this.initial = this.timer = this.retry = null
   }
 
   run() {
@@ -83,5 +89,14 @@ export class GraphqlPrewarm {
     })
     await Promise.all(workers)
     this.log(`GraphQL prewarm: ${done}/${total} snapshots refreshed`)
+    // A new app version asks new queries: until their snapshots exist the strict API answers 503 for them
+    // («Данные модулей сейчас недоступны»), so a failed pass is tried again in a few minutes.
+    if (done === total) this.retries = 0
+    else if (this.timer && !this.retry && this.retries < MAX_RETRIES) {
+      this.retries += 1
+      this.log(`GraphQL prewarm: ${total - done} failed, retry ${this.retries}/${MAX_RETRIES} in ${Math.round(this.retryMs / 60_000)} min`)
+      this.retry = setTimeout(() => { this.retry = null; void this.run().catch(() => undefined) }, this.retryMs)
+      this.retry.unref?.()
+    }
   }
 }

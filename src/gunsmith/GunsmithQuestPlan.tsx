@@ -38,7 +38,7 @@ export function GunsmithQuestPlan({ build, questId, compact }: { build: WeaponBu
 
   return <>
     <div className={compact ? 'gunsmith-quest-plan is-compact' : 'detail-section'}>
-      <WeaponBuildDetails build={build} checks={plan?.checks} compact={compact} weaponImage={preset?.imageLink ?? plan?.weapon.imageLink} hideParts={Boolean(plan)} />
+      <WeaponBuildDetails build={build} checks={plan?.checks} compact={compact} weaponImage={preset?.imageLink ?? plan?.weapon.imageLink} hideParts={Boolean(plan)} mods={catalog.data?.mods} access={shop.access} />
     </div>
     <div className={compact ? 'gunsmith-example is-compact' : 'detail-section gunsmith-example'}>
       <h4>{uiText(compact ? 'Что купить' : 'Как собрать · пример сборки')}</h4>

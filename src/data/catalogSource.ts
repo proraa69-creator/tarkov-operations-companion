@@ -6,6 +6,7 @@ import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails } from './wikiQuestCatalog'
+import { englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
@@ -41,9 +42,11 @@ interface Envelope {
 export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const taskVersion: { version?: string } = {}
+  // The items with their English names too: the wiki's Gunsmith tables name parts in English (src/data/wikiGunsmith.ts).
+  const englishItems: { data?: unknown } = {}
   const [tasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher),
-    fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher),
+    fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, englishItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
     fetchTranslated(upstreamMode, 'traders', locale, undefined, fetcher),
     fetchTranslated(upstreamMode, 'hideout', locale, undefined, fetcher),
@@ -61,8 +64,16 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const mapNameById = buildMapNameIndex(maps)
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
+  const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items))
+  // «Оружейник»: every weapon-build task gets the parts table of its wiki page (who sells each part, from which level).
+  const buildPages = taskRows.flatMap((quest) => {
+    const title = quest.objectiveDetails?.some((objective) => objective.build) ? wikiPageTitle(quest.wikiLink) : undefined
+    return title ? [title] : []
+  })
+  const buildTables = buildPages.length ? await fetchWikiBuildTables(buildPages) : new Map<string, never>()
+  const withBuilds = withWikiBuilds(taskRows, buildTables, englishItemResolver(recordValues(asRecord(asRecord(englishItems.data).items))))
   const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
-    mergeWikiQuestDetails(mergeWikiQuestCatalog(adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items)), wiki.titles), wiki.pages),
+    mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
   ), locale))
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
@@ -95,13 +106,14 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   }
 }
 
-async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch): Promise<JsonRecord> {
+async function fetchTranslated(mode: string, endpoint: string, locale: AppLocale, version: { version?: string } | undefined, fetcher: typeof fetch, untranslated?: { data?: unknown }): Promise<JsonRecord> {
   const path = `${mode}/${endpoint}`
   const [base, translations] = await Promise.all([
     fetchEnvelope(`${BASE_URL}/${path}`, fetcher),
     fetchEnvelope(`${BASE_URL}/${path}_${locale}`, fetcher),
   ])
   if (version && base.version) version.version = base.version
+  if (untranslated) untranslated.data = base.data
   const dictionary = asRecord(translations.data)
   return asRecord(translateDeep(base.data, dictionary))
 }
