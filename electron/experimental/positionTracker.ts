@@ -23,13 +23,27 @@ export function screenshotFolderCandidates() {
   return [...new Set(documents.map((folder) => join(folder, 'Escape from Tarkov', 'Screenshots')))]
 }
 
+/** EFT names screenshots by the time they were taken: `2024-06-13[11-05]_…`. */
+const TAKEN_AT = /^\d{4}-\d{2}-\d{2}\[\d{2}-\d{2}\]/
+
+/**
+ * When the game last wrote a coordinate screenshot here (0: never, −1: no folder). The names give the minute, so only
+ * the newest minute's files are looked at, not each of the thousands a player keeps (this runs every 15 seconds).
+ */
 function newestScreenshotTime(folder: string) {
   try {
-    let newest = 0
+    let minute = ''
+    let latest: string[] = []
+    const undated: string[] = []
     for (const name of readdirSync(folder)) {
       if (!isPositionScreenshot(name)) continue
-      newest = Math.max(newest, statSync(join(folder, name)).mtimeMs)
+      const taken = TAKEN_AT.exec(name)?.[0]
+      if (!taken) undated.push(name)
+      else if (taken > minute) { minute = taken; latest = [name] }
+      else if (taken === minute) latest.push(name)
     }
+    let newest = 0
+    for (const name of [...latest, ...undated]) newest = Math.max(newest, statSync(join(folder, name)).mtimeMs)
     return newest
   } catch {
     return -1
@@ -79,6 +93,8 @@ export class PositionTracker {
   private busy = false
   /** Screenshots that existed before the tracker started belong to the player and are never touched. */
   private preexisting = new Set<string>()
+  /** When each new file was written: a screenshot never changes, so it is looked up once, not every second. */
+  private written = new Map<string, number>()
 
   constructor(
     private readonly onPosition: (position: PlayerPosition) => void,
@@ -97,6 +113,7 @@ export class PositionTracker {
     this.folder = folder
     await mkdir(folder, { recursive: true }).catch(() => {})
     this.preexisting = new Set(await readdir(folder).catch(() => [] as string[]))
+    this.written = new Map()
     try {
       this.watcher = watch(folder, (_event, name) => {
         if (name && isPositionScreenshot(String(name))) void this.refresh()
@@ -119,6 +136,15 @@ export class PositionTracker {
     this.startedAt = 0
   }
 
+  private async writtenAt(folder: string, name: string) {
+    const known = this.written.get(name)
+    if (known !== undefined) return known
+    const info = await stat(join(folder, name)).catch(() => null)
+    // A file still being written may have no size yet: looked up again next time.
+    if (info?.size) this.written.set(name, info.mtimeMs)
+    return info?.mtimeMs ?? null
+  }
+
   private async refresh(includePreexisting = false) {
     if (this.busy || !this.running) return
     this.busy = true
@@ -134,7 +160,7 @@ export class PositionTracker {
       const fresh = all.filter((name) => /\.(png|jpe?g|bmp)$/i.test(name) && !this.preexisting.has(name))
       let newFile: PositionTracker['lastSeen'] = null
       if (fresh.length) {
-        const stats = await Promise.all(fresh.map(async (name) => ({ name, time: (await stat(join(folder, name)).catch(() => null))?.mtimeMs ?? 0 })))
+        const stats = await Promise.all(fresh.map(async (name) => ({ name, time: await this.writtenAt(folder, name) ?? 0 })))
         const newest = stats.sort((a, b) => b.time - a.time)[0]
         if (newest && newest.name !== this.lastSeen?.name) {
           this.lastSeen = { folder, name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
@@ -143,8 +169,8 @@ export class PositionTracker {
       }
       const names = all.filter((name) => isPositionScreenshot(name) && (includePreexisting || !this.preexisting.has(name)))
       const files = (await Promise.all(names.map(async (name) => {
-        const info = await stat(join(folder, name)).catch(() => null)
-        return info ? { name, time: info.mtimeMs } : null
+        const time = await this.writtenAt(folder, name)
+        return time == null ? null : { name, time }
       }))).filter((file): file is { name: string; time: number } => Boolean(file))
       files.sort((a, b) => b.time - a.time)
       const newest = files[0]

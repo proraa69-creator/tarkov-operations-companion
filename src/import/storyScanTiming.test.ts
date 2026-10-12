@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reuseQuestReading, STORY_SCAN_TIMING as timing } from './storyScanTiming'
+import { reuseQuestReading, reuseStableReading, STORY_SCAN_TIMING as timing, unchangedFrame } from './storyScanTiming'
 
 describe('fast but fresh story scans', () => {
   it('budgets two independent OCR passes under ten seconds at three seconds per pass', () => {
@@ -16,5 +16,26 @@ describe('fast but fresh story scans', () => {
     expect(reuseQuestReading(null, 1500, true, true)).toBe(false)
     expect(reuseQuestReading({ at: 1000, detail: true }, 1500, true, false)).toBe(false)
     expect(reuseQuestReading({ at: 2000, detail: true }, 1500, true, true)).toBe(false)
+  })
+  it('reads an unchanged screen no more once two readings agreed, and again now and then', () => {
+    const read = (reads: number) => ({ at: 1000, detail: true, reads })
+    // The confirming second reading always happens.
+    expect(reuseStableReading(read(1), 5000, true, true)).toBe(false)
+    expect(reuseStableReading(read(2), 5000, true, true)).toBe(true)
+    expect(reuseStableReading(read(2), 1000 + timing.stableReuseMs, true, true)).toBe(false)
+    expect(reuseStableReading(read(2), 5000, true, false)).toBe(false)
+    expect(reuseStableReading(read(2), 5000, false, true)).toBe(false)
+    expect(reuseStableReading(null, 5000, true, true)).toBe(false)
+  })
+  it('tells a changed counter from the same screen', () => {
+    const frame = new Uint8Array(120 * 68 * 4).fill(40)
+    const same = frame.slice()
+    same[400] = 44
+    expect(unchangedFrame(frame, same)).toBe(true)
+    const counter = frame.slice()
+    counter[4 * 900 + 1] = 52
+    expect(unchangedFrame(frame, counter)).toBe(false)
+    expect(unchangedFrame(null, frame)).toBe(false)
+    expect(unchangedFrame(frame, new Uint8Array(8))).toBe(false)
   })
 })

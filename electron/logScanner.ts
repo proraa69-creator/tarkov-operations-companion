@@ -130,18 +130,32 @@ const signalCache = new Map<string, Followed<{ signals: LogSignal[]; gatewayMode
 const raidCache = new Map<string, Followed<{ events: RaidLogEvent[] }, RaidLogEvent[]>>()
 let lastScan: { root: string; folders: number; inputs: Array<LogSignal[] | undefined>; result: ModeLogScanResult } | null = null
 
+/**
+ * Launches before the newest one are over: the game writes only to the newest launch's logs. Read once more after a
+ * newer launch appeared (their last lines may have come after the previous poll), their logs are not listed or checked
+ * again — a player keeps hundreds of launches, and every 5-second poll used to list each folder and check each log.
+ */
+const finishedLaunches = new Map<string, string[]>()
+
 export async function scanLogFolderBySession(root: string): Promise<ModeLogScanResult> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
-  const sessionFolders = entries.filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name)).map((entry) => join(root, entry.name))
-  const folders = sessionFolders.length ? sessionFolders : [root]
+  const launches = entries.filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name)).map((entry) => ({ folder: join(root, entry.name), key: launchKey(entry.name) }))
+  const folders = launches.length ? launches : [{ folder: root, key: 0 }]
+  const newest = Math.max(0, ...launches.map((launch) => launch.key))
   const inputs: Array<LogSignal[] | undefined> = []
   const seen = new Set<string>()
-  for (const folder of folders) {
-    for (const file of await relevantLogs(folder)) {
+  for (const { folder, key } of folders) {
+    const finished = finishedLaunches.get(folder)
+    const files = finished ?? await relevantLogs(folder)
+    for (const file of files) {
       seen.add(file)
-      inputs.push(await follow(file, signalCache, signalReader, MAX_FILE_BYTES))
+      const kept = finished ? signalCache.get(file) : undefined
+      inputs.push(kept ? kept.result : await follow(file, signalCache, signalReader, MAX_FILE_BYTES))
     }
+    if (!finished && key > 0 && key < newest) finishedLaunches.set(folder, files)
   }
+  const listed = new Set(folders.map((entry) => entry.folder))
+  for (const folder of finishedLaunches.keys()) if (folder.startsWith(root) && !listed.has(folder)) finishedLaunches.delete(folder)
   forgetOthers(signalCache, root, seen)
   // Nothing changed since the last poll (the usual case): skip summarizing every launch again.
   if (lastScan && lastScan.root === root && lastScan.folders === folders.length && sameInputs(lastScan.inputs, inputs)) return lastScan.result

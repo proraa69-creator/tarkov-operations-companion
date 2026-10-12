@@ -95,7 +95,6 @@ const LOCAL_EDIT_HOLD_MS = 1500
 function MinimapOverlay() {
   const [payload, setPayload] = useState<MinimapPayload | null>(null)
   const [position, setPosition] = useState<PlayerPosition | null>(null)
-  const [now, setNow] = useState(() => Date.now())
   const [opacity, setOpacity] = useState(0.9)
   const [width, setWidth] = useState(420)
   /** The chosen quest and which of its rooms (or the whole map) its button showed last. */
@@ -118,8 +117,7 @@ function MinimapOverlay() {
     const offVisibility = window.tarkovDesktop?.onOverlay?.('overlay:visibility', visible => {
       if (visible) setVisibilityRevision(value => value + 1)
     })
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => { offMap?.(); offPosition?.(); offVisibility?.(); window.clearInterval(timer) }
+    return () => { offMap?.(); offPosition?.(); offVisibility?.() }
   }, [])
 
   // «Этаж по скриншоту»: each new screenshot shows the player's floor; a floor clicked here stays until the next one
@@ -143,7 +141,6 @@ function MinimapOverlay() {
       </div>
     )
   }
-  const age = position ? Math.max(0, Math.round((now - position.at) / 1000)) : null
   const quests = payload.quests ?? []
   // A quest that left the list (done, or another map) is not selected any more: the map follows the player again.
   const selected = quests.find((quest) => quest.questId === questCycle.questId)
@@ -184,7 +181,7 @@ function MinimapOverlay() {
       >
         <Grip className="ov-drag-grip" size={14} aria-hidden="true" />
         <strong title={uiText(payload.map.name)}>{uiText(payload.map.name)}</strong>
-        <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
+        <PositionAge at={position?.at ?? null} />
         <button className="ov-icon-button" type="button" title={uiText('Скрыть мини-карту')} aria-label={uiText('Скрыть мини-карту')} onClick={() => void window.tarkovDesktop?.experimental?.toggleMinimap()}><X size={14} /></button>
       </div>
       <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} view={view} floor={floor} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} questId={selectedQuest} questSeq={questCycle.seq} target={target} />
@@ -231,6 +228,21 @@ function MinimapOverlay() {
       )}
     </div>
   )
+}
+
+/**
+ * «● live» / «12 с назад»: the age of the last position, ticking once a second on its own — the map, the markers and
+ * the quest list of the minimap (shown over the game during a raid) are not drawn again every second for it.
+ */
+function PositionAge({ at }: { at: number | null }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (at == null) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [at])
+  const age = at == null ? null : Math.max(0, Math.round((now - at) / 1000))
+  return <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
 }
 
 function formatAge(seconds: number) {
