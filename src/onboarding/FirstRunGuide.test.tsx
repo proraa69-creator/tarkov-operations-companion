@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ status: null as import('../electron').ServerAccountStatus | null }))
 vi.mock('../sync/serverSync', () => ({ useServerStatus: () => mocks.status }))
 const { FirstRunGuide } = await import('./FirstRunGuide')
-const { GUIDE_TIMING, readGuide } = await import('./firstRunGuide')
+const { GUIDE_TIMING, readGuide } = await import('./guideProgress')
 
 const newAccount = { signedIn: true, email: 'new@example.com', online: true, serverUrl: 'https://raidos.app', persistent: true, createdAt: new Date().toISOString() }
 const open = (path: string) => render(<MemoryRouter initialEntries={[path]}><FirstRunGuide /></MemoryRouter>)

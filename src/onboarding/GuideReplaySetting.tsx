@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useServerStatus } from '../sync/serverSync'
-import { restartGuide } from './firstRunGuide'
+import { restartGuide } from './guideProgress'
 
 /** Settings → «Интерфейс»: the first-run tips once more (src/onboarding/FirstRunGuide.tsx), for the signed-in account. */
 export function GuideReplaySetting() {

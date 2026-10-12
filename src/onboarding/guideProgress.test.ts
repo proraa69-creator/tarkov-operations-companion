@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { acceptStep, guideFinished, guideForAccount, guideStepFor, isNewAccount, NEW_ACCOUNT_MS, readGuide, restartGuide } from './firstRunGuide'
+import { acceptStep, guideFinished, guideForAccount, guideStepFor, isNewAccount, NEW_ACCOUNT_MS, readGuide, restartGuide } from './guideProgress'
 
 const NOW = new Date('2026-10-12T12:00:00Z')
 const account = (createdAt: string | undefined, extra: object = {}) => ({ signedIn: true, email: 'Player@Example.com', online: true, serverUrl: 'https://raidos.app', persistent: true, createdAt, ...extra })

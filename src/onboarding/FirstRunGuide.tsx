@@ -6,7 +6,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
 import kappaContainer from '../assets/guide/kappa-container.webp'
-import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type GuideStep } from './firstRunGuide'
+import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type GuideStep } from './guideProgress'
 import './firstRunGuide.css'
 
 type Phrase = { ru: string; en: string }
@@ -80,7 +80,7 @@ const DEMO_QUEST: Phrase = { ru: 'Поставка из прошлого', en: '
 const DEMO_MAP: Phrase = { ru: 'Таможня', en: 'Customs' }
 
 /**
- * The first-run guide (src/onboarding/firstRunGuide.ts): on the first visit of a section, a new account's player gets the
+ * The first-run guide (src/onboarding/guideProgress.ts): on the first visit of a section, a new account's player gets the
  * section's tip with «Принял». Mounted once, outside the pages; it waits for the startup notices and for the page.
  */
 export function FirstRunGuide() {
