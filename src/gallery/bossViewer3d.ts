@@ -272,7 +272,7 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       model.traverse((object) => { if ((object as Mesh).isMesh) meshes.push(object as Mesh) })
       const skinned: PhysicsMesh[] = []
       for (const mesh of meshes) {
-        gradeBossMaterial(mesh.material as Material)
+        gradeBossMaterial(mesh.material as Material, fix?.haze)
         if (!animated) continue
         // graded and skinned at once (one shader compile); rigid until its rig arrives from the worker
         const physicsMesh = new PhysicsMesh(mesh.geometry, mesh.material)

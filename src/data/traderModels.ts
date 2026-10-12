@@ -16,7 +16,14 @@ const BY_NAME: Record<string, string> = {
   'Егерь': 'jaeger', 'Реф': 'ref', 'Водитель БТР': 'btr-driver', 'Лыжник': 'skier', 'Барахольщик': 'ragman', 'Смотритель': 'lightkeeper',
 }
 
-export const TRADER_MODEL_FIX: BossModelFix = { fit: true }
+const TRADER_MODEL_FIX: BossModelFix = { fit: true }
+/** Fence stands in black haze (owner, 12.10.2026: «сделать 3д модель скупщика черной… как будто дымка черная»). */
+const TRADER_MODEL_FIXES: Record<string, BossModelFix> = { fence: { ...TRADER_MODEL_FIX, haze: 0.85 } }
+
+/** How the viewer shows a trader's model: every scene fits in view; some get their own look. */
+export function traderModelFix(key: string): BossModelFix {
+  return TRADER_MODEL_FIXES[key] ?? TRADER_MODEL_FIX
+}
 
 /** The model key of a trader (normalized name, else by his Russian name), when there is a model for him. */
 export function traderModelKey(trader: { normalizedName?: string; name: string }): string | undefined {

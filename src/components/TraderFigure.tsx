@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Trader } from '../domain/types'
-import { TRADER_MODEL_FIX, traderModelKey, traderModelUrl } from '../data/traderModels'
+import { traderModelFix, traderModelKey, traderModelUrl } from '../data/traderModels'
 import { traderPortrait } from '../data/traderPortraits'
 import type { BossViewerHandle } from '../gallery/bossViewer3d'
 import { TRADER_SWAY_HINTS } from '../gallery/traderSwayHints'
@@ -59,10 +59,10 @@ function TraderStage({ modelKey, url, name }: { modelKey: string; url: string; n
   }, [reduced])
 
   useEffect(() => {
-    if (ready) handleRef.current?.load(url, TRADER_MODEL_FIX, TRADER_SWAY_HINTS[modelKey])
+    if (ready) handleRef.current?.load(url, traderModelFix(modelKey), TRADER_SWAY_HINTS[modelKey])
   }, [modelKey, ready, url])
 
-  return <section className="panel trader-figure" aria-label={uiText(name)}>
+  return <section className={`panel trader-figure${traderModelFix(modelKey).haze ? ' is-hazy' : ''}`} aria-label={uiText(name)}>
     <div className="trader-figure-stage">
       <canvas ref={canvasRef} tabIndex={0} aria-label={uiText('3D модель: перетащите, чтобы повернуть')} className={failed ? 'is-hidden' : ''} />
       {loading && !failed && <span className="trader-figure-status"><Loader2 size={14} className="spin" /> {uiText('Загрузка модели…')}</span>}
