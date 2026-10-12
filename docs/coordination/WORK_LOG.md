@@ -522,7 +522,7 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
   - Тесты `MarkerMiniMap` 3/3: этаж со своими плитками, основной/неизвестный этаж, «Схема».
   - Настройки в Chromium (RU/EN).
   - Вживую мини-карту в песочнице не открыть: снимки карт приходят из сети.
-- Gate в worktree на `4978566`: typecheck (tsc -b), electron tsc, vitest (все), cache 2/2, server typecheck, server 279/279, сайт, release-policy 6/6, deploy-paths (`bb7fd18..HEAD` 12 файлов, 0 отклонено), eslint. `4978566` → `release/production` (fast-forward от `bb7fd18`); GitHub verify, verify-renderer, build-unsigned-ipa — запущены (итог допишу).
+- Gate в worktree на `4978566`: typecheck (tsc -b), electron tsc, vitest (все), cache 2/2, server typecheck, server 279/279, сайт, release-policy 6/6, deploy-paths (`bb7fd18..HEAD` 12 файлов, 0 отклонено), eslint. `4978566` → `release/production` (fast-forward от `bb7fd18`); GitHub verify, verify-renderer, build-unsigned-ipa — success.
 - Вопрос владельца про «Оружейника» (почему «Мастер. Часть 1, 2, 5» «выполнено», а остальные «нет в логах игры», «хотя выполнены все почти»):
   - Ответ: «выполнено» — только по записи, которую приложение видело само. Это лог, в том числе прочитанный раньше и уже удалённый игрой (`applyLogQuestState`, `keepPreviousLogRecords`), или старая ручная отметка.
   - Остальные части сданы раньше, чем приложение впервые прочитало логи.
