@@ -7,6 +7,7 @@ export function questStatusText(status: TaskProgressStatus) {
   if (status === 'active') return 'Текущее'
   if (status === 'available') return 'Доступно'
   if (status === 'locked') return 'Недоступно'
-  // the logs never mention it and the player's quests began before the oldest log («Оружейник», requirementEngine.ts)
-  return 'Нет в логах'
+  // the logs never mention it and the player's quests began before the oldest log («Оружейник», requirementEngine.ts):
+  // no words, the row is only dimmed (owner, 12.10.2026)
+  return ''
 }

@@ -28,7 +28,7 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
     <div className="panel-body">
       {!steps.length && <p className="muted">{uiText('Заданий «Оружейник» в базе этого режима пока нет.')}</p>}
       {steps.length > 0 && !current.length && <p className="muted">{uiText(summary.unknown
-        ? 'В логах игры нет взятой части «Оружейника». Возьмите её у Механика — она появится здесь.'
+        ? 'Взятая часть «Оружейника» появится здесь, как только вы примете её у Механика.'
         : 'Вся цепочка «Оружейник» выполнена.')}</p>}
       {current.map((step) => {
         const open = openPart === step.part
@@ -37,7 +37,7 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
           <button type="button" className="gunsmith-current-name" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpenPart(open ? null : step.part)}>
             <span>
               <strong>{uiText(step.quest.name)}</strong>
-              {step.status !== 'active' && <small>{stepStatus(step, playerLevel, locale)}</small>}
+              {step.status !== 'active' && step.status !== 'unknown' && <small>{stepStatus(step, playerLevel, locale)}</small>}
             </span>
             <ChevronDown size={16} className="gunsmith-row-chevron" aria-hidden="true" />
           </button>

@@ -88,7 +88,7 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
               <strong>{uiText(quest.name)}</strong>
               <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? ` · ${uiText('капа')}` : ''}{quest.anyMap ? ` · ${uiText('Любая карта')}` : quest.mapId ? ` · ${uiText(data.maps.find((map) => map.id === quest.mapId)?.name ?? quest.mapId)}` : ''}</small>
             </span>
-            <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>
+            {questStatusText(status) && <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>}
           </>
           return <li key={quest.id}>
             {/* Completed quests stay struck through but open like the rest (the owner reads them back). */}

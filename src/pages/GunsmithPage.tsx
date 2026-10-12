@@ -70,7 +70,7 @@ function PartRow({ step, selected, playerLevel, onSelect }: { step: GunsmithStep
       <strong>{uiText(step.quest.name)}</strong>
       <small>{uiText(weapon?.shortName ?? '')}{weapon ? ' · ' : ''}{uiText(`ур. ${step.quest.level}`)}</small>
     </span>
-    <span className="gunsmith-part-status">{step.status === 'locked' && <Lock size={10} aria-hidden="true" />}{stepStatus(step, playerLevel, locale)}</span>
+    {step.status !== 'unknown' && <span className="gunsmith-part-status">{step.status === 'locked' && <Lock size={10} aria-hidden="true" />}{stepStatus(step, playerLevel, locale)}</span>}
   </button>
 }
 
@@ -82,7 +82,7 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
     <div className="detail-hero">
       <div className="eyebrow">{uiText(quest.trader)} · {uiText(`уровень ${quest.level}`)}</div>
       <h2>{uiText(quest.name)}</h2>
-      <div className="quest-full-tags"><span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}</div>
+      <div className="quest-full-tags">{step.status !== 'unknown' && <span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>}{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}</div>
     </div>
     {description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(description)}</p></div>}
     {step.builds.length

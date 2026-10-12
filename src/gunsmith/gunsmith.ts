@@ -166,14 +166,18 @@ export function shortfall(attribute: WeaponBuildAttribute, actual: number) {
   return Math.abs(actual - target) / scale + 1e-6
 }
 
-/** «выполнено», «принято в игре», «доступно у Механика», «с 25 уровня» (already in the interface language). */
+/**
+ * «выполнено», «принято в игре», «доступно у Механика», «с 25 уровня» (already in the interface language). A part the
+ * logs say nothing about gets no words at all — it is only dimmed (owner, 12.10.2026: «где написано нет в логах игры,
+ * не нужно это писать, просто держи их притемнёнными»).
+ */
 export function stepStatus(step: GunsmithStep, playerLevel: number, locale: AppLocale) {
   const en = locale === 'en'
   if (step.status === 'completed') return en ? 'done' : 'выполнено'
   if (step.status === 'active') return en ? 'taken in the game' : 'принято в игре'
   if (step.status === 'failed') return en ? 'failed' : 'провалено'
   if (step.status === 'available') return en ? 'available from Mechanic' : 'доступно у Механика'
-  if (step.status === 'unknown') return en ? 'not in the game logs' : 'нет в логах игры'
+  if (step.status === 'unknown') return ''
   if (playerLevel < step.quest.level) return en ? `from level ${step.quest.level}` : `с ${step.quest.level} уровня`
   return en ? 'after the previous part' : 'после предыдущей части'
 }

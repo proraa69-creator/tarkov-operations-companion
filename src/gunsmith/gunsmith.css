@@ -93,7 +93,11 @@ span.gs-part { cursor: default; }
 .gunsmith-part-copy small { display: block; overflow: hidden; margin-top: 2px; color: var(--text-dim); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .gunsmith-part-status { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border: 1px solid var(--line); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
 .gunsmith-part-row.is-active .gunsmith-part-index { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); color: var(--brass); }
-.gunsmith-part-row.is-active .gunsmith-part-status, .gunsmith-part-row.is-available .gunsmith-part-status { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); color: var(--brass-strong); }
+/* Only a part taken in the game («принято») is highlighted (owner, 12.10.2026: «если нет надписи принято в игре, значит
+   эти квесты не должны подсвечиваться»); one the logs say nothing about is dimmed, not crossed out, and opens. */
+.gunsmith-part-row.is-active .gunsmith-part-status { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); color: var(--brass-strong); }
+.gunsmith-part-row.is-unknown { opacity: .5; }
+.gunsmith-part-row.is-unknown:hover, .gunsmith-part-row.is-unknown.is-selected { opacity: .85; }
 .gunsmith-part-row.is-completed { opacity: .6; }
 .gunsmith-part-row.is-completed:hover, .gunsmith-part-row.is-completed.is-selected { opacity: .9; }
 .gunsmith-part-row.is-completed strong { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--text-muted); }

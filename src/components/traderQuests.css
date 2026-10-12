@@ -25,6 +25,9 @@ button.trader-quest-row:hover, button.trader-quest-row:focus-visible { border-co
 .trader-quest-row.is-active .trader-quest-index { border-color: var(--brass); color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
 /* finished: struck through, dimmed, not clickable */
 .trader-quest-row.is-completed, .trader-quest-row.is-failed { opacity: .55; }
+/* a «Оружейник» part the logs say nothing about: dimmed, no status words, still opens */
+.trader-quest-row.is-unknown { opacity: .5; }
+.trader-quest-row.is-unknown:hover, .trader-quest-row.is-unknown.is-selected { opacity: .85; }
 .trader-quest-row.is-completed:hover, .trader-quest-row.is-failed:hover, .trader-quest-row.is-completed.is-selected, .trader-quest-row.is-failed.is-selected { opacity: .85; }
 .trader-quest-row.is-completed strong, .trader-quest-row.is-failed strong { text-decoration: line-through; text-decoration-thickness: 1.5px; text-decoration-color: color-mix(in srgb, var(--text) 70%, transparent); color: var(--text-muted); }
 .trader-quest-row.is-completed .trader-quest-index { border-color: color-mix(in srgb, var(--green) 70%, var(--bg)); color: var(--green); }

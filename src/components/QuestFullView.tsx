@@ -89,7 +89,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       <div className="eyebrow">{uiText(quest.trader)} · {uiText(`уровень ${quest.level}`)}</div>
       <h2>{uiText(quest.name)}</h2>
       <div className="quest-full-tags">
-        <span className={`tag ${statusTone(status)}`}>{uiText(questStatusText(status))}</span>
+        {questStatusText(status) && <span className={`tag ${statusTone(status)}`}>{uiText(questStatusText(status))}</span>}
         {quest.kappa && <span className="tag brass">{uiText('капа')}</span>}
         {factionLabel(quest.faction) && <span className="tag">{uiText(factionLabel(quest.faction))}</span>}
         {quest.anyMap && <span className="tag"><MapPin size={11} /> {uiText('Любая карта')}</span>}
