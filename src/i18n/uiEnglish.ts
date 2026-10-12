@@ -79,8 +79,8 @@ const PHRASES: Array<[string, string]> = [
   ['У торговца', 'At trader'], ['Показать на карте', 'Show on map'], ['Нет выбранного задания', 'No task selected'],
   ['Задача', 'Task'], ['Этапы главы', 'Chapter stages'], ['Сейчас выполняется', 'In progress'],
   ['Подробные цели временно недоступны.', 'Detailed objectives are temporarily unavailable.'],
-  ['Требуемые предметы', 'Required items'], ['Награды на Wiki не указаны.', 'Rewards are not listed on the Wiki.'],
-  ['Страница на Wiki', 'Wiki page'], ['Сюжетные главы не найдены.', 'No story chapters found.'],
+  ['Требуемые предметы', 'Required items'], ['Награды не указаны.', 'No rewards listed.'],
+  ['Сюжетные главы не найдены.', 'No story chapters found.'],
   ['Нет заданий с такими фильтрами.', 'No tasks match these filters.'], ['Провалено', 'Failed'],
   ['Выберите портрет торговца, подробные данные появятся в следующих версиях.', 'Choose a trader portrait. Detailed data will appear in a future version.'],
   ['Контакты', 'Contacts'], ['Система', 'System'], ['Локальные предпочтения и управление данными аккаунта.', 'Local preferences and account data management.'],
@@ -94,7 +94,6 @@ const PHRASES: Array<[string, string]> = [
   ['Нужен для квестов', 'Needed for tasks'], ['Для квестов не нужен', 'Not needed for tasks'],
   ['Нужен для Каппы', 'Needed for Kappa'], ['Загрузка карты…', 'Loading map…'], ['Мини-карта', 'Minimap'],
   ['Нет данных карты.', 'No map data.'], ['нет цены', 'no price'], ['нет квестов', 'no tasks'],
-  ['Загрузка интерактивной карты Wiki…', 'Loading interactive Wiki map…'],
 ]
 
 const EXTRA: Array<[string, string]> = [

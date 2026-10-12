@@ -14,7 +14,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     get: (key: string) => ipcRenderer.invoke('data-cache:get', String(key)) as Promise<string | null>,
     set: (key: string, value: string, maxAgeMs: number) => ipcRenderer.invoke('data-cache:set', String(key), String(value), Number(maxAgeMs)) as Promise<boolean>,
   },
-  openWikiMap: (id: string) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('service:request', method, path, body),
   account: {
     status: () => ipcRenderer.invoke('account:status'),

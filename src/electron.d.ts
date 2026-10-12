@@ -161,7 +161,6 @@ interface TarkovDesktopApi {
     setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
   }
-  openWikiMap: (id: string) => Promise<boolean>
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
   serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>
   /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */

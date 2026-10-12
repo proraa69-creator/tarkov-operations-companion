@@ -26,7 +26,7 @@ const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestS
       {
         id: 'story-tour-0',
         title: 'Выбраться из Эпицентра',
-        description: 'Выйдите с Эпицентра. По Wiki — выход «Улица Климова» за «Skyside».',
+        description: 'Выйдите с Эпицентра через выход «Улица Климова» за «Skyside».',
         mapIds: ['ground-zero'],
         ocrAliases: ['выбраться из эпицентра', 'побег с эпицентра'],
         landmarkHints: ['климова', 'skyside'],
@@ -129,7 +129,6 @@ export const STORY_TEXT = {
   branch: { ru: 'Ветка:', en: 'Branch:' },
   needs: { ru: 'Нужно:', en: 'Needs:' },
   noPoint: { ru: 'Точки на карте нет.', en: 'No map point.' },
-  addedFromWiki: { ru: 'Этап добавлен по Wiki.', en: 'Stage added from the wiki.' },
   approximatePoint: { ru: 'Точка на карте поставлена игроками вручную — примерная.', en: 'The map point was placed by players by hand and is approximate.' },
 }
 
@@ -143,7 +142,6 @@ function seedDescription(seed: StoryStageSeed, lang: 'ru' | 'en') {
   if (seed.needs) parts.push(`${STORY_TEXT.needs[lang]} ${lang === 'ru' ? STORY_NEEDS[seed.needs] ?? seed.needs : seed.needs}.`)
   if (seed.points?.length) parts.push(STORY_TEXT.approximatePoint[lang])
   else if (!seed.mapIds.length) parts.push(STORY_TEXT.noPoint[lang])
-  if (seed.synthetic) parts.push(STORY_TEXT.addedFromWiki[lang])
   return parts.join(' ')
 }
 

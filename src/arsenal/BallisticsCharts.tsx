@@ -221,8 +221,7 @@ export function ArmorEffectivenessTable({ ammo }: { ammo: AmmoStats }) {
         </tbody>
       </table>
       <p className="chart-note">
-        {uiText('Правило вики: пробитие ≥ класс × 10 — класс пробивается уверенно. Шанс считается по формуле страницы «Ballistics» Escape from Tarkov Wiki при постоянной прочности; износ брони между выстрелами не учитывается.')}{' '}
-        <a href="https://escapefromtarkov.fandom.com/wiki/Ballistics" target="_blank" rel="noreferrer">{uiText('Источник')}</a>
+        {uiText('Правило: пробитие ≥ класс × 10 — класс пробивается уверенно. Шанс считается при постоянной прочности; износ брони между выстрелами не учитывается.')}
       </p>
     </div>
   )
