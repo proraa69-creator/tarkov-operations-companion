@@ -612,7 +612,7 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
   - Живая «Галерея» в Chromium: Рыцарь, Бёрдай, Кабан и Партизан открываются и вращаются мышью без ошибок на странице.
 - Gate в worktree на `5e335f6`:
   - typecheck (tsc -b), electron tsc, vitest (все), cache 2/2, server typecheck, server 279/279, сайт, release-policy 6/6, deploy-paths (`78df631..HEAD` 12 файлов, 0 отклонено), eslint (без предупреждений).
-  - `5e335f6` → `release/production` (fast-forward от `78df631`); GitHub verify, verify-renderer, build-unsigned-ipa — на момент записи ещё идут.
+  - `5e335f6` → `release/production` (fast-forward от `78df631`); GitHub verify, verify-renderer, build-unsigned-ipa — success.
 - Риски:
   - Шов рюкзака с курткой при резком повороте тянется на 1,4–1,7 см по краю (меньше прежнего, но виден вблизи); у Бёрдая так же — у концов стволов возле бёдер.
   - У Ваджа антенна по-прежнему неподвижна (в модели нет тонкого стержня).
