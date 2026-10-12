@@ -631,15 +631,19 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
       const hang = smooth((hair.root - y) / (hair.reach ?? 0.07)) * fade * (hair.amount ?? 0.6)
       if (hang > w[i]) { w[i] = hang; live[i] = 0.3 * fade; kind[i] = 2; strand[i] = STRAND_TYPE.hair }
     }
-    // antennas: fixed at the bottom of the box, bending more and more towards the tip; the radio and the back stay
+    // antennas: fixed at the bottom of the box, bending more and more towards the tip; the radio and the back stay.
+    // Inside its box a thin part is the antenna whatever else claimed it: the dreads' box over Knight's head reached
+    // down the rod in front of his shoulder, and its middle swung like hair while the tip stayed a stiff rod — the
+    // antenna broke in the middle (owner, 12.10.2026)
+    let rod = -1
     for (const whip of hints.whips ?? []) {
       if (!thin[i]) break
       const [x0, y0, z0, x1, y1, z1] = whip.box
       if (x < x0 || x > x1 || z < z0 || z > z1 || y < y0 || y > y1) continue
       const t = (y - y0) / Math.max(1e-6, y1 - y0)
-      const bend = t * t * (whip.amount ?? 0.6) * smooth(fromBody![i] / STRAND_BAND)
-      if (bend > w[i]) { w[i] = bend; live[i] = 1; kind[i] = 2; strand[i] = STRAND_TYPE.antenna }
+      rod = Math.max(rod, t * t * (whip.amount ?? 0.6) * smooth(fromBody![i] / STRAND_BAND))
     }
+    if (rod >= 0) { w[i] = rod; live[i] = 1; kind[i] = 2; strand[i] = STRAND_TYPE.antenna }
     for (const soft of hints.soften ?? []) {
       const fade = 1 - smooth(outside(soft.box, x, y, z) / HINT_MARGIN)
       if (fade > 0) w[i] *= 1 - fade * (1 - soft.factor)

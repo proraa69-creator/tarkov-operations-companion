@@ -7,12 +7,14 @@
  * the model's world matrix gives the frame's angular velocity and acceleration and the linear velocity and
  * acceleration of its origin (smoothed, clamped; a jump is a teleport and brings no inertia), and each particle feels
  *   gravity − frame acceleration − α × x − ω × (ω × x) − 2 ω × v − air drag (relative to the still air) − damping.
- * Cloth, straps, hair and antennas are particles: XPBD stretch links (compliance from the material's frequency), local
+ * Cloth, straps and hair are particles: XPBD stretch links (compliance from the material's frequency), local
  * shape matching of every particle's neighbourhood (bending: a fold keeps its shape and cannot pop inside out), a shape
  * spring back to the sculpted form (the material's elasticity, stronger at the attachment, plus the pull back of a
  * hanging pendulum, g / L), a tether to the nearest pin (no stretching out), a max-distance envelope (soft from 60 %),
  * collisions with the body's distance field and strain limiting. Pouches and gear are rigid pendulums about their
- * pivot with a spring, damping and anisotropic swing limits (out, in, sideways, twist).
+ * pivot with a spring, damping and anisotropic swing limits (out, in, sideways, twist). Antennas are rods clamped at
+ * their base: the particles along a rod follow its first bending mode (a damped oscillator of the tip, the bend growing
+ * smoothly from the base), so a rod whips and rings but never kinks part-way along.
  * The sculpted rest pose already hangs under gravity, so its pull is balanced out: at rest the model is exactly as
  * modelled. Once the model stands still and everything has calmed, the elements glide the last centimetres into the
  * rest pose (a flap caught on the coarse collider would stay there) and the simulation sleeps.
@@ -20,9 +22,9 @@
  * the motion is the same at 30, 60 or 144 frames per second.
  */
 import {
-  PARTICLE_KINDS, PHYSICS_SETTINGS, PIECE_KINDS, particleProfile, pieceProfile, type PhysicsOverrides, type PhysicsSettings,
+  PARTICLE_KINDS, PHYSICS_SETTINGS, PIECE_KINDS, particleProfile, pieceProfile, whipProfile, type PhysicsOverrides, type PhysicsSettings,
 } from './config'
-import { sampleSdf, type PhysicsRig } from './rig'
+import { ELEMENT, sampleSdf, type PhysicsRig } from './rig'
 
 export interface PhysicsOptions {
   overrides?: PhysicsOverrides
@@ -61,7 +63,18 @@ const LINK_STRAIN = 0.1
 /** Asleep only this close to the rest pose (m); falling asleep puts every particle exactly at rest. */
 const SLEEP_OFFSET = 0.002
 
+/** An antenna particle with a lower mobility than this is part of the rod's base (rig.ts PIN_MOBILITY). */
+const WHIP_BASE = 0.04
+/** A rod shorter than this (m) stays still. */
+const WHIP_MIN_LENGTH = 0.03
+
 const smooth = (t: number) => { const c = t < 0 ? 0 : t > 1 ? 1 : t; return c * c * (3 - 2 * c) }
+/**
+ * The bend of a clamped rod along its length (u = 0 at the base, 1 at the tip): the deflection under a load spread
+ * evenly along it, 1 at the tip, flat at the base; its slope.
+ */
+const rodShape = (u: number) => (u * u * (6 - 4 * u + u * u)) / 3
+const rodSlope = (u: number) => (4 * u * (3 - 3 * u + u * u)) / 3
 /** Stiffness left out in the air: 1 at the attachment (mobility ≤ 0.35), 1 − softness where the element is free. */
 const airFactor = (softness: number, mobility: number) => 1 - softness * smooth((mobility - 0.35) / 0.5)
 
@@ -112,6 +125,12 @@ export class BossPhysics {
   private readonly pieceBalance: Float64Array
   private readonly limits: Float64Array
   private readonly basis: Float64Array
+  // antennas (whips): per particle its rod (-1: none), the share of the tip's deflection it moves by and how much nearer
+  // the base it comes per m² of deflection (a bent rod keeps its length); per rod its constants and the tip's state
+  private readonly whipOf: Int32Array
+  private readonly whipShare: Float64Array
+  private readonly whipShorten: Float64Array
+  private whips: Whip[] = []
   // the frame's motion (body frame): angular velocity, angular acceleration, acceleration and velocity of the origin,
   // gravity, the air's velocity
   private readonly w = new Float64Array(3)
@@ -161,6 +180,7 @@ export class BossPhysics {
     this.damping = new Float64Array(P); this.pieceGravity = new Float64Array(P); this.pieceInertia = new Float64Array(P)
     this.pieceDrag = new Float64Array(P); this.pieceBalance = new Float64Array(P * 3); this.limits = new Float64Array(P * 4)
     this.basis = new Float64Array(P * 9)
+    this.whipOf = new Int32Array(N).fill(-1); this.whipShare = new Float64Array(N); this.whipShorten = new Float64Array(N)
     this.configure(options.overrides)
     this.reset()
   }
@@ -257,6 +277,96 @@ export class BossPhysics {
       this.basis[b + 3] = ox; this.basis[b + 4] = oy; this.basis[b + 5] = oz
       this.basis[b + 6] = ux; this.basis[b + 7] = uy; this.basis[b + 8] = uz
     }
+    this.configureWhips(overrides)
+  }
+
+  /**
+   * Antennas: every connected rod of antenna particles, its base (where it leaves the radio: its stillest particles),
+   * its axis and every particle's place along it. The particle solver never moves them; a rod too short to bend stays.
+   */
+  private configureWhips(overrides?: PhysicsOverrides) {
+    const { rig, N } = this
+    const profile = whipProfile(overrides)
+    const seen = new Uint8Array(N)
+    const isRod = (q: number) => rig.type[q] === ELEMENT.antenna
+    const gap = (a: number, b: number) => Math.hypot(rig.rest[a * 3] - rig.rest[b * 3], rig.rest[a * 3 + 1] - rig.rest[b * 3 + 1], rig.rest[a * 3 + 2] - rig.rest[b * 3 + 2])
+    const gradient = new Float64Array(3)
+    for (let first = 0; first < N; first++) {
+      if (seen[first] || !isRod(first)) continue
+      const members = [first]
+      seen[first] = 1
+      for (let m = 0; m < members.length; m++) {
+        const a = members[m]
+        for (let k = rig.neighbourStart[a]; k < rig.neighbourStart[a + 1]; k++) {
+          const b = rig.neighbours[k]
+          if (!seen[b] && isRod(b)) { seen[b] = 1; members.push(b) }
+        }
+      }
+      for (const q of members) { this.invMass[q] = 0; this.matchFactor[q] = 0 }
+      // distance along the rod from its base (Dijkstra over the links; a rod has a few dozen particles at most)
+      let stillest = first
+      for (const q of members) if (rig.mobility[q] < rig.mobility[stillest]) stillest = q
+      const base = members.filter((q) => rig.mobility[q] < WHIP_BASE)
+      if (!base.length) base.push(stillest)
+      const along = new Map<number, number>(members.map((q) => [q, Infinity]))
+      for (const q of base) along.set(q, 0)
+      const done = new Set<number>()
+      for (;;) {
+        let next = -1, best = Infinity
+        for (const q of members) if (!done.has(q) && along.get(q)! < best) { best = along.get(q)!; next = q }
+        if (next < 0) break
+        done.add(next)
+        for (let k = rig.neighbourStart[next]; k < rig.neighbourStart[next + 1]; k++) {
+          const b = rig.neighbours[k]
+          if (along.has(b) && best + gap(next, b) < along.get(b)!) along.set(b, best + gap(next, b))
+        }
+      }
+      let tip = base[0]
+      for (const q of members) if (along.get(q)! > along.get(tip)!) tip = q
+      const length = along.get(tip)!
+      if (members.length < 3 || !(length >= WHIP_MIN_LENGTH)) continue
+      const axis = new Float64Array(3)
+      for (const q of base) for (let c = 0; c < 3; c++) axis[c] -= rig.rest[q * 3 + c] / base.length
+      for (let c = 0; c < 3; c++) axis[c] += rig.rest[tip * 3 + c]
+      const axisLength = Math.hypot(axis[0], axis[1], axis[2])
+      if (!(axisLength > 1e-6)) continue
+      for (let c = 0; c < 3; c++) axis[c] /= axisLength
+      const index = this.whips.length
+      // the loads act on the shape-weighted centre of the rod; the first mode's participation Σφ / Σφ²
+      let sum = 0, sum2 = 0
+      const centre = new Float64Array(3)
+      const rooms: { q: number; away: Float64Array; room: number }[] = []
+      for (const q of members) {
+        const u = Math.min(1, along.get(q)! / length), share = rodShape(u)
+        this.whipOf[q] = index
+        this.whipShare[q] = share
+        // a bent rod keeps its length: a point at u comes ½ ∫₀ᵘ slope² nearer the base per unit tip deflection²
+        let integral = 0
+        const steps = 16
+        for (let k = 0; k < steps; k++) { const v = ((k + 0.5) / steps) * u; integral += rodSlope(v) ** 2 * (u / steps) }
+        this.whipShorten[q] = (0.5 * integral) / length
+        sum += share; sum2 += share * share
+        for (let c = 0; c < 3; c++) centre[c] += rig.rest[q * 3 + c] * share
+        // room to bend towards the body: the body's distance at rest less the clearance, across the rod
+        if (share > 0.1) {
+          sampleSdf(rig, rig.rest[q * 3], rig.rest[q * 3 + 1], rig.rest[q * 3 + 2], gradient)
+          const along2 = gradient[0] * axis[0] + gradient[1] * axis[1] + gradient[2] * axis[2]
+          const away = Float64Array.from([gradient[0] - along2 * axis[0], gradient[1] - along2 * axis[1], gradient[2] - along2 * axis[2]])
+          const awayLength = Math.hypot(away[0], away[1], away[2])
+          if (awayLength > 1e-6) {
+            for (let c = 0; c < 3; c++) away[c] /= awayLength
+            rooms.push({ q, away, room: Math.max(0, rig.restDistance[q] - profile.clearance) })
+          }
+        }
+      }
+      for (let c = 0; c < 3; c++) centre[c] /= Math.max(1e-9, sum)
+      const frequency = Math.min(7, Math.max(2, profile.frequencyHz * Math.sqrt(profile.length / length)))
+      this.whips.push({
+        members, axis, centre, centreShare: sum2 / Math.max(1e-9, sum), gain: sum / Math.max(1e-9, sum2),
+        omega: TAU * frequency, dampingRatio: profile.dampingRatio, inertia: profile.inertia, maxBend: profile.maxBend * length,
+        rooms, d: new Float64Array(3), dv: new Float64Array(3),
+      })
+    }
   }
 
   /** Back to the rest pose, at rest; the motion history is forgotten (a new model, a teleport). */
@@ -270,6 +380,7 @@ export class BossPhysics {
       this.qLast.set([0, 0, 0, 1], j * 4)
     }
     this.spin.fill(0)
+    for (const whip of this.whips) { whip.d.fill(0); whip.dv.fill(0) }
     this.hasPrev = false
     this.accumulator = 0
     this.quiet = 0
@@ -362,6 +473,7 @@ export class BossPhysics {
     this.v.fill(0)
     for (let j = 0; j < this.P; j++) { this.q.set([0, 0, 0, 1], j * 4); this.qLast.set([0, 0, 0, 1], j * 4) }
     this.spin.fill(0)
+    for (const whip of this.whips) { whip.d.fill(0); whip.dv.fill(0) }
   }
 
   private readMatrix(m: ArrayLike<number>) {
@@ -443,6 +555,12 @@ export class BossPhysics {
       fastest = Math.max(fastest, this.swingPiece(j))
       const theta = logQuat(this.q, j * 4)
       furthest = Math.max(furthest, Math.hypot(theta[0], theta[1], theta[2]) * Math.sqrt(this.armInertia[j]))
+    }
+    // 5. antennas: rods bending in their first mode
+    for (const whip of this.whips) {
+      this.bendWhip(whip, recover)
+      fastest = Math.max(fastest, Math.hypot(whip.dv[0], whip.dv[1], whip.dv[2]))
+      furthest = Math.max(furthest, Math.hypot(whip.d[0], whip.d[1], whip.d[2]))
     }
     this.fastest = fastest
     this.furthest = furthest
@@ -581,6 +699,67 @@ export class BossPhysics {
     }
   }
 
+  /**
+   * One substep of an antenna rod: the tip's deflection as a damped oscillator (the rod's first mode) driven by the
+   * inertial forces at the rod's load centre, across the rod, within its bend limit and clear of the body; then every
+   * particle of the rod at its share of the deflection, a little nearer the base as the rod bends (it keeps its length).
+   */
+  private bendWhip(whip: Whip, recover: number) {
+    const { h, x, v, p } = this
+    const { axis, centre, d, dv } = whip
+    if (recover > 0) {
+      // coming to rest: glide in like the other elements
+      for (let c = 0; c < 3; c++) { d[c] *= 1 - recover; dv[c] = 0 }
+    } else {
+      const [wx, wy, wz] = this.w, [ax, ay, az] = this.al
+      const k = whip.centreShare
+      const cx = centre[0] + d[0] * k, cy = centre[1] + d[1] * k, cz = centre[2] + d[2] * k
+      // the frame's acceleration at the load centre: linear, Euler α × x, centripetal ω × (ω × x)
+      const rx = wy * cz - wz * cy, ry = wz * cx - wx * cz, rz = wx * cy - wy * cx
+      const fx = this.a0[0] + (ay * cz - az * cy) + (wy * rz - wz * ry)
+      const fy = this.a0[1] + (az * cx - ax * cz) + (wz * rx - wx * rz)
+      const fz = this.a0[2] + (ax * cy - ay * cx) + (wx * ry - wy * rx)
+      // Coriolis on the bending rod: 2 ω × (its velocity), in the mode's own terms
+      const kx = 2 * (wy * dv[2] - wz * dv[1]), ky = 2 * (wz * dv[0] - wx * dv[2]), kz = 2 * (wx * dv[1] - wy * dv[0])
+      const omega = whip.omega, damping = 2 * whip.dampingRatio * omega, gain = whip.gain * whip.inertia
+      dv[0] += (-gain * fx - whip.inertia * kx - omega * omega * d[0] - damping * dv[0]) * h
+      dv[1] += (-gain * fy - whip.inertia * ky - omega * omega * d[1] - damping * dv[1]) * h
+      dv[2] += (-gain * fz - whip.inertia * kz - omega * omega * d[2] - damping * dv[2]) * h
+      for (let c = 0; c < 3; c++) d[c] += dv[c] * h
+    }
+    // across the rod only
+    const da = d[0] * axis[0] + d[1] * axis[1] + d[2] * axis[2], va = dv[0] * axis[0] + dv[1] * axis[1] + dv[2] * axis[2]
+    for (let c = 0; c < 3; c++) { d[c] -= da * axis[c]; dv[c] -= va * axis[c] }
+    // the bend limit, soft from 60 %: what goes past it does not come back as a spring
+    const bend = Math.hypot(d[0], d[1], d[2]), most = whip.maxBend, soft = most * 0.6
+    if (bend > soft) {
+      const kept = soft + (most - soft) * Math.tanh((bend - soft) / (most - soft))
+      for (let c = 0; c < 3; c++) d[c] *= kept / bend
+      const out = (dv[0] * d[0] + dv[1] * d[1] + dv[2] * d[2]) / kept
+      if (out > 0) for (let c = 0; c < 3; c++) dv[c] -= (out * d[c]) / kept
+    }
+    // clear of the body: no particle comes nearer it than the clearance (towards the body at rest, across the rod)
+    for (const { q, away, room } of whip.rooms) {
+      const share = this.whipShare[q]
+      const towards = -(d[0] * away[0] + d[1] * away[1] + d[2] * away[2]) * share
+      if (towards <= room) continue
+      const push = (towards - room) / share
+      for (let c = 0; c < 3; c++) d[c] += push * away[c]
+      const vn = dv[0] * away[0] + dv[1] * away[1] + dv[2] * away[2]
+      if (vn < 0) for (let c = 0; c < 3; c++) dv[c] -= vn * away[c]
+    }
+    const d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2]
+    for (const q of whip.members) {
+      const share = this.whipShare[q], nearer = this.whipShorten[q] * d2, q3 = q * 3
+      for (let c = 0; c < 3; c++) {
+        const at = this.rig.rest[q3 + c] + d[c] * share - axis[c] * nearer
+        v[q3 + c] = dv[c] * share
+        x[q3 + c] = at
+        p[q3 + c] = at
+      }
+    }
+  }
+
   /** One substep of a piece; returns how fast it turns, as the speed of its centre (m/s). */
   private swingPiece(j: number): number {
     const { h, rig, q, spin } = this
@@ -688,7 +867,7 @@ export class BossPhysics {
     for (let i = 0; i < N; i++) {
       const i3 = i * 3
       if (!Number.isFinite(x[i3]) || !Number.isFinite(x[i3 + 1]) || !Number.isFinite(x[i3 + 2])) finite = false
-      if (this.invMass[i] === 0) continue
+      if (this.invMass[i] === 0 && this.whipOf[i] < 0) continue
       offset = Math.max(offset, Math.hypot(x[i3] - rig.rest[i3], x[i3 + 1] - rig.rest[i3 + 1], x[i3 + 2] - rig.rest[i3 + 2]))
       speed = Math.max(speed, Math.hypot(v[i3], v[i3 + 1], v[i3 + 2]))
       if (this.allowed[i] > -Infinity) penetration = Math.max(penetration, this.allowed[i] - sampleSdf(rig, x[i3], x[i3 + 1], x[i3 + 2]))
@@ -707,6 +886,29 @@ export class BossPhysics {
     }
     return { offset, speed, stretch, strain, penetration: Math.max(0, penetration), pieceAngle, finite }
   }
+}
+
+/** An antenna rod (simulation frame, m). */
+interface Whip {
+  members: number[]
+  /** Unit vector from the base to the tip. */
+  axis: Float64Array
+  /** The shape-weighted centre of the rod, where its loads act on average, and its share of the tip's deflection. */
+  centre: Float64Array
+  centreShare: number
+  /** First-mode participation (Σφ / Σφ²): how much more the tip moves than a rigid rod would. */
+  gain: number
+  /** Natural angular frequency, rad/s. */
+  omega: number
+  dampingRatio: number
+  inertia: number
+  /** Largest deflection of the tip, m. */
+  maxBend: number
+  /** Particles near the body: the direction away from it across the rod and how far they may move against it, m. */
+  rooms: { q: number; away: Float64Array; room: number }[]
+  /** Deflection of the tip and its velocity. */
+  d: Float64Array
+  dv: Float64Array
 }
 
 const scratchMatrix = new Float64Array(9)

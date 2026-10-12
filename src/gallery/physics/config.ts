@@ -8,7 +8,7 @@
  * - cloth   — capes, cloaks, coat hems, loincloths, tabards, ghillie strips: a sheet of particles;
  * - strap   — rifle slings, ropes, loose straps and cords: a chain, usually pinned at both ends;
  * - hair    — dreadlocks and ponytails: chains hanging from the scalp;
- * - antenna — radio antennas: a stiff chain that whips and springs back to its shape;
+ * - antenna — radio antennas: a springy rod clamped at its base that bends along its whole length (WHIP_PROFILE);
  * - pouch   — small pouches and pockets: a light rigid body swinging about its top seam;
  * - gear    — holsters, backpacks, bags, hoods: a heavier rigid body swinging about its strap point.
  * The body, the head, the arms and legs, weapons and rigid armour never move (they are not part of any element).
@@ -126,9 +126,30 @@ export const PARTICLE_PROFILES: Record<ParticleKind, ParticleProfile> = {
   strap: { mass: 0.03, stretchHz: 80, bendHz: 1.2, shapeHz: 0.4, rootShape: 8, airSoftness: 0.65, damping: 3, drag: 0.04, gravity: 1, inertia: 1, maxDistance: 0.18, maxStretch: 0.01, collisionRadius: 0.01, spacing: 0.03 },
   // hair and dreads: flexible, keep their fall, lively
   hair: { mass: 0.01, stretchHz: 70, bendHz: 1.6, shapeHz: 0.8, rootShape: 6, airSoftness: 0.3, damping: 3.2, drag: 0.03, gravity: 1, inertia: 1, maxDistance: 0.14, maxStretch: 0.02, collisionRadius: 0.012, spacing: 0.03 },
-  // antennas: springy rods, whip on a turn and spring back to their shape
+  // antennas: only the particle spacing along the rod is used here; the rod bends as a whole (WHIP_PROFILE)
   antenna: { mass: 0.01, stretchHz: 120, bendHz: 14, shapeHz: 4.5, rootShape: 4, airSoftness: 0, damping: 4, drag: 0.003, gravity: 0.3, inertia: 1, maxDistance: 0.12, maxStretch: 0.005, collisionRadius: 0, spacing: 0.025 },
 }
+
+/**
+ * A radio antenna: a springy rod clamped at its base. It bends in its first mode (a cantilever: still at the base, the
+ * bend growing smoothly to the tip), so it whips on a turn and rings back to its shape and never kinks part-way along
+ * (owner, 12.10.2026: «антенна ломается посередине» — simulated particle by particle, its middle bent like a hinge).
+ */
+export interface WhipProfile {
+  /** Natural frequency of a rod `length` long, Hz; a shorter rod is stiffer (× √(length / its length), 2–7 Hz). */
+  frequencyHz: number
+  length: number
+  /** Damping ratio: 0.12 rings for about a second. */
+  dampingRatio: number
+  /** Reaction to the body's acceleration and turning, 0..1. */
+  inertia: number
+  /** The tip bends at most this share of the rod's length (a soft limit from 60 %). */
+  maxBend: number
+  /** The tip keeps at least this distance from the body when it bends towards it, m. */
+  clearance: number
+}
+
+export const WHIP_PROFILE: WhipProfile = { frequencyHz: 3, length: 0.3, dampingRatio: 0.12, inertia: 1, maxBend: 0.22, clearance: 0.012 }
 
 export const PIECE_PROFILES: Record<PieceKind, PieceProfile> = {
   // pouches and holsters strapped to a thigh or a belt: a small, quick, well damped give
@@ -143,6 +164,7 @@ export interface PhysicsOverrides {
   strap?: Partial<ParticleProfile>
   hair?: Partial<ParticleProfile>
   antenna?: Partial<ParticleProfile>
+  whip?: Partial<WhipProfile>
   pouch?: Partial<Omit<PieceProfile, 'limits'>> & { limits?: Partial<PieceProfile['limits']> }
   gear?: Partial<Omit<PieceProfile, 'limits'>> & { limits?: Partial<PieceProfile['limits']> }
 }
@@ -152,6 +174,10 @@ export const PIECE_KINDS: PieceKind[] = ['pouch', 'gear']
 
 export function particleProfile(kind: ParticleKind, overrides?: PhysicsOverrides): ParticleProfile {
   return { ...PARTICLE_PROFILES[kind], ...overrides?.[kind] }
+}
+
+export function whipProfile(overrides?: PhysicsOverrides): WhipProfile {
+  return { ...WHIP_PROFILE, ...overrides?.whip }
 }
 
 export function pieceProfile(kind: PieceKind, overrides?: PhysicsOverrides): PieceProfile {

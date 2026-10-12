@@ -87,7 +87,8 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
   },
   'black-division': {
     rigid: [[-0.13, 0.46, 0.0, 0.1, 0.8, 0.28]], // rifle
-    whips: [{ box: [0.06, 0.84, -0.08, 0.12, 0.96, 0.02] }], // radio antenna on the left shoulder
+    // radio antenna on the left shoulder: the thin rod from the radio (y 0.8) to its tip (0.925), off the rifle's box
+    whips: [{ box: [0.075, 0.8, -0.025, 0.115, 0.95, 0.025] }],
     pieces: [
       { box: [-0.2, 0.36, -0.07, -0.115, 0.52, 0.07] }, // drop-leg pouch, right thigh
       { box: [0.115, 0.36, -0.07, 0.2, 0.52, 0.07] }, // drop-leg pouch, left thigh
