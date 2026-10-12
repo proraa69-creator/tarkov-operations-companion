@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Check, ChevronRight, Clock3, LayoutDashboard, Lock, LockKeyhole, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
+import { Check, ChevronRight, Clock3, LayoutDashboard, LockKeyhole, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
@@ -104,6 +104,33 @@ export function DashboardPage() {
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
   const leftBlocks: Blocks = {
+    // The big raid map moves like the other blocks (owner, 12.10.2026), within its wide column.
+    raid: {
+      label: 'План рейда',
+      node: <section ref={raidCardRef} className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
+        <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
+        <RaidSmoke mapId={selectedMap.id} />
+        <BossFigures mapId={selectedMap.id} />
+        <div className="raid-content">
+          <div className="raid-main">
+            <span className="tag brass">{uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
+            <h2 className="raid-map-name">{uiText(selectedMap.name)}</h2>
+            <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
+
+          </div>
+          <div className={`raid-map-picker ${mapPickerOpen ? 'is-open' : ''}`} aria-hidden={!mapPickerOpen}>
+            <MapSlideshow active={mapPickerOpen} firstMapId={selectedMap.id} />
+            <div className="raid-map-picker-grid">
+              {uiText(data.maps.map((map) => {
+                const access = calculateMapAccess(map, data.quests, availability)
+                return <button key={map.id} tabIndex={mapPickerOpen ? 0 : -1} aria-disabled={access.locked} title={uiText(access.locked ? access.quest?.name : map.name)} onClick={() => { if (!access.locked) { state.setSelectedMapId(map.id); setMapPickerOpen(false) } }}><span className="map-color" style={{ background: map.accent }} />{uiText(map.name)}{uiText(access.locked && <LockKeyhole size={13} />)}</button>
+              }))}
+            </div>
+          </div>
+            <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
+        </div>
+      </section>,
+    },
     squad: { label: 'Отряд', node: <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} /> },
     requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} /> },
   }
@@ -134,33 +161,7 @@ export function DashboardPage() {
     columns: {
       label: '',
       node: <div className="dashboard-layout">
-        <div className="dashboard-column">
-          <section ref={raidCardRef} className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
-            <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
-            <RaidSmoke mapId={selectedMap.id} />
-            <BossFigures mapId={selectedMap.id} />
-            {editor.editing && <span className="overview-fixed-chip"><Lock size={12} />{uiText(' Карта на месте')}</span>}
-            <div className="raid-content">
-              <div className="raid-main">
-                <span className="tag brass">{uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
-                <h2 className="raid-map-name">{uiText(selectedMap.name)}</h2>
-                <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
-
-              </div>
-              <div className={`raid-map-picker ${mapPickerOpen ? 'is-open' : ''}`} aria-hidden={!mapPickerOpen}>
-                <MapSlideshow active={mapPickerOpen} firstMapId={selectedMap.id} />
-                <div className="raid-map-picker-grid">
-                  {uiText(data.maps.map((map) => {
-                    const access = calculateMapAccess(map, data.quests, availability)
-                    return <button key={map.id} tabIndex={mapPickerOpen ? 0 : -1} aria-disabled={access.locked} title={uiText(access.locked ? access.quest?.name : map.name)} onClick={() => { if (!access.locked) { state.setSelectedMapId(map.id); setMapPickerOpen(false) } }}><span className="map-color" style={{ background: map.accent }} />{uiText(map.name)}{uiText(access.locked && <LockKeyhole size={13} />)}</button>
-                  }))}
-                </div>
-              </div>
-                <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
-            </div>
-          </section>
-          {layout.left.map(block('left', leftBlocks))}
-        </div>
+        <div className="dashboard-column">{layout.left.map(block('left', leftBlocks))}</div>
         <div className="dashboard-column">{layout.right.map(block('right', rightBlocks))}</div>
       </div>,
     },
@@ -177,7 +178,7 @@ export function DashboardPage() {
         <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>
-    {editor.editing && <p className="overview-edit-hint" role="status">{uiText('Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму; большая карта остаётся на месте. Esc — готово.')}</p>}
+    {editor.editing && <p className="overview-edit-hint" role="status">{uiText('Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
     <div className="overview-rows">{layout.rows.map(block('rows', rows))}</div>
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />

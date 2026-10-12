@@ -13,9 +13,9 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
   ['Лыжник', 'Skier'], ['Механик', 'Mechanic'], ['Егерь', 'Jaeger'], ['Барахольщик', 'Ragman'],
   // «Настроить блоки» (src/overview/)
-  ['Настроить блоки', 'Arrange blocks'], ['Карта на месте', 'The map stays'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],
-  ['Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму; большая карта остаётся на месте. Esc — готово.',
-    'Drag a block with the mouse — the others slide out of the way. A block only goes where it keeps its shape; the big map stays in place. Esc — done.'],
+  ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],
+  ['Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.',
+    'Drag a block with the mouse — the others slide out of the way. A block only goes where it keeps its shape. Esc — done.'],
   ['перемещаемый блок', 'movable block'], ['Перетащите мышью или двигайте стрелками.', 'Drag it with the mouse or move it with the arrow keys.'],
   ['сейчас скрыт', 'hidden right now'],
 ]

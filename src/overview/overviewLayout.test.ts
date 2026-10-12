@@ -7,7 +7,7 @@ const memory = () => {
 }
 
 describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)', () => {
-  it('moves a block within its zone only; the big map rows never move', () => {
+  it('moves a block within its zone only; the card row and the two columns stay rows', () => {
     const layout = defaultOverviewLayout()
     const moved = moveBlock(layout, 'right', 'favorites', 0)
     expect(moved.right).toEqual(['favorites', 'tasks', 'gunsmith'])
@@ -17,6 +17,9 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
     expect(moveBlock(layout, 'rows', 'columns', 0)).toBe(layout)
     expect(moveBlock(layout, 'rows', 'priority', 99).rows).toEqual(['stats', 'columns', 'priority'])
     expect(moveBlock(layout, 'stats', 'stat-goons', -5).stats).toEqual(['stat-goons', 'stat-tasks', 'stat-progress', 'stat-kappa'])
+    // the big raid map moves too, within its wide column (owner, 12.10.2026: «сделай что бы карта в блоке обзор перемещалась»)
+    expect(moveBlock(layout, 'left', 'raid', 2).left).toEqual(['squad', 'requirements', 'raid'])
+    expect(moveBlock(layout, 'right', 'raid', 0)).toBe(layout)
   })
 
   it('cleans a saved layout: foreign or doubled ids go, missing blocks come back at their default place', () => {
@@ -30,7 +33,8 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
     expect(layout.stats).toEqual(['stat-kappa', 'stat-progress', 'stat-tasks', 'stat-goons'])
     // the card row stays above the columns with the map; the strip keeps its place between them
     expect(layout.rows).toEqual(['stats', 'priority', 'columns'])
-    expect(layout.left).toEqual(['squad', 'requirements'])
+    // a layout saved before the map could move gets the map back at the top of its column
+    expect(layout.left).toEqual(['raid', 'squad', 'requirements'])
     expect(layout.right).toEqual(['tasks', 'gunsmith', 'favorites'])
     expect(sanitizeOverviewLayout(null)).toEqual(defaultOverviewLayout())
     expect(sanitizeOverviewLayout({ rows: ['priority', 'stats', 'columns'] }).rows).toEqual(['priority', 'stats', 'columns'])

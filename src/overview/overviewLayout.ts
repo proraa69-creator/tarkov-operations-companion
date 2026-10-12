@@ -1,10 +1,11 @@
 /**
- * «Настроить блоки» on the Overview (owner, 12.10.2026: «добавь функцию перемещение блоков на вкладке обзор, кроме
- * большой карты… Каждый блок не должен менять форму но можно переносить по вкладке обзор»). A block moves only among
- * the places of its own shape, so it never changes size:
+ * «Настроить блоки» on the Overview (owner, 12.10.2026: «добавь функцию перемещение блоков на вкладке обзор… Каждый
+ * блок не должен менять форму но можно переносить по вкладке обзор»; then «сделай что бы карта в блоке обзор
+ * перемещалась» — the big raid map moves too). A block moves only among the places of its own shape, so it never
+ * changes size:
  * - stats: the four small cards of the top row;
  * - rows: the full-width rows — the map priority strip stands above the cards, under them or at the very bottom;
- * - left: the wide column under the big raid map (the map itself never moves);
+ * - left: the wide column — the raid map, the squad and the raid requirements;
  * - right: the narrow column.
  * The order is kept on this computer (localStorage). Unknown ids are dropped, and blocks added later join at their
  * default place.
@@ -16,11 +17,11 @@ export type OverviewLayout = Record<OverviewZoneId, string[]>
 export const OVERVIEW_ZONES: Readonly<Record<OverviewZoneId, readonly string[]>> = {
   stats: ['stat-tasks', 'stat-progress', 'stat-kappa', 'stat-goons'],
   rows: ['stats', 'priority', 'columns'],
-  left: ['squad', 'requirements'],
+  left: ['raid', 'squad', 'requirements'],
   right: ['tasks', 'gunsmith', 'favorites'],
 }
 
-/** Rows that are not dragged themselves: the card row (its cards move) and the columns with the big map. */
+/** Rows that are not dragged themselves: the card row and the two columns (the blocks inside them move). */
 export const FIXED_BLOCKS: ReadonlySet<string> = new Set(['stats', 'columns'])
 
 export const OVERVIEW_LAYOUT_KEY = 'raidos-overview-layout-v1'
@@ -43,7 +44,7 @@ export function sanitizeOverviewLayout(raw: unknown): OverviewLayout {
     for (const id of known) if (!order.includes(id)) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
     layout[zone] = order
   }
-  // The card row always stays above the columns with the big map; only the strip moves around them.
+  // The card row always stays above the two columns; only the strip moves around them.
   const rows = layout.rows.filter((id) => !FIXED_BLOCKS.has(id))
   const fixed = OVERVIEW_ZONES.rows.filter((id) => FIXED_BLOCKS.has(id))
   const strip = layout.rows.indexOf('priority')
