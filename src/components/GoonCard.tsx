@@ -22,7 +22,8 @@ const NOTICE: Record<GoonReportResult, string> = {
 
 /**
  * Goons (Кочевники) stat card. Everything that opens here is absolutely positioned,
- * so the card and the rest of the dashboard never move or resize.
+ * so the card and the rest of the dashboard never move or resize. The 5-hour statistics cover the card exactly, never
+ * more (owner, 12.10.2026); with the pointer over them the wheel scrolls «кто видел», not the page.
  */
 export function GoonCard({ mode, mapName }: GoonCardProps) {
   const { locale } = useLocale()
@@ -33,6 +34,8 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const [notice, setNotice] = useState<GoonReportResult | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const statsRef = useRef<HTMLDivElement>(null)
+  const recentRef = useRef<HTMLUListElement>(null)
 
   const closeMenu = (restoreFocus = false) => {
     setMenuOpen(false)
@@ -48,6 +51,42 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
     document.addEventListener('keydown', onKey)
     return () => { document.removeEventListener('pointerdown', onPointer); document.removeEventListener('keydown', onKey) }
   }, [menuOpen])
+
+  // Anywhere over the statistics the wheel scrolls the sightings list (a non-passive listener: React's onWheel cannot
+  // stop the page from scrolling), a row at a time so no nickname is cut in half: a mouse notch (~100 px) moves two
+  // rows, a touchpad one row per 50 px it adds up. A list that fits leaves the wheel to the page. The list is exactly as
+  // tall as the whole rows that fit (themes differ in card height), so the last visible one is never cut either.
+  const hasRecent = recent.length > 0
+  useEffect(() => {
+    const stats = statsRef.current
+    if (!stats || !hasRecent) return
+    let pending = 0
+    const onWheel = (event: WheelEvent) => {
+      const list = recentRef.current
+      if (!list || list.scrollHeight <= list.clientHeight || !event.deltaY) return
+      event.preventDefault()
+      const step = rowStep(list)
+      const pixels = event.deltaY * (event.deltaMode === 1 ? step : event.deltaMode === 2 ? list.clientHeight : 1)
+      if (Math.sign(pixels) !== Math.sign(pending)) pending = 0
+      pending += pixels
+      const rows = Math.trunc(pending / 50)
+      if (!rows) return
+      pending -= rows * 50
+      list.scrollTop = Math.round(list.scrollTop / step + rows) * step
+    }
+    const fit = () => {
+      const list = recentRef.current
+      if (!list) return
+      list.style.height = ''
+      const step = rowStep(list)
+      list.style.height = `${Math.max(step, Math.floor(list.clientHeight / step) * step)}px`
+    }
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(fit)
+    observer?.observe(stats)
+    fit()
+    stats.addEventListener('wheel', onWheel, { passive: false })
+    return () => { observer?.disconnect(); stats.removeEventListener('wheel', onWheel) }
+  }, [hasRecent])
 
   useEffect(() => {
     if (!notice) return
@@ -114,7 +153,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText('не отправлено')}</em>}
     </div>
 
-    <div className="goon-stats-popover" aria-hidden="true">
+    <div ref={statsRef} className="goon-stats-popover" aria-hidden="true">
       <div className="goon-stats-head">
         <span className="stat-label">{uiText('Кочевники · 5 часов')}</span>
         <span>{top ? <>{uiText('Чаще всего:')} <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</span>
@@ -127,14 +166,23 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
           </div>
         })}
       </div>
-      {recent.length > 0 && <ul className="goon-recent">
-        {recent.slice(0, 5).map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
-          <b>{entry.nickname ?? uiText('игрок')}</b><span>{uiText(mapName(entry.mapId))}</span><time dateTime={entry.reportedAt}>{time(entry.reportedAt)}</time>
-        </li>)}
-      </ul>}
-      <div className="goon-stats-foot">
-        {lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}
-      </div>
+      {recent.length > 0
+        ? <ul ref={recentRef} className="goon-recent">
+          {recent.map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
+            <b>{entry.nickname ?? uiText('игрок')}</b><span>{uiText(mapName(entry.mapId))}</span><time dateTime={entry.reportedAt}>{time(entry.reportedAt)}</time>
+          </li>)}
+        </ul>
+        : <div className="goon-stats-foot">
+          {lastSeen ? <>{uiText('Последний раз:')} {time(lastSeen)} · {ago(lastSeen)}</> : uiText(connectionNote)}
+        </div>}
     </div>
   </div>
+}
+
+/** Distance from one sightings row to the next (row height and gap); 14 px while the rows are not laid out. */
+function rowStep(list: HTMLElement) {
+  const first = list.firstElementChild as HTMLElement | null
+  const second = first?.nextElementSibling as HTMLElement | null
+  const step = first && second ? second.offsetTop - first.offsetTop : first?.offsetHeight ?? 0
+  return step > 0 ? step : 14
 }
