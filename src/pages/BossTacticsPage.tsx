@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Crosshair, ExternalLink, HeartPulse, ListOrdered, Map as MapIcon, Package, Swords } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Crosshair, HeartPulse, ListOrdered, Map as MapIcon, Package, Swords } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { allBossFigures, bossMapIds, BOSS_NAMES } from '../data/bossFigures'
@@ -14,8 +14,6 @@ const EXTRA_NAMES: Record<string, { ru: string; en: string }> = {
   'the-wedge': { ru: 'Клин', en: 'The Wedge' },
   'shadow-of-tagilla': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
 }
-
-const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
 
 /**
  * «Тактика боя» (owner, 10.10.2026): how one boss fights, where to hit him and a plan for the fight. Not in the menu —
@@ -77,11 +75,5 @@ export function BossTacticsPage() {
         {tactics.loot && <p className="boss-tactics-loot"><Package size={14} /><span><b>{uiText('Лут')}:</b> {tactics.loot}</span></p>}
       </section>
     </div>
-
-    <details className="boss-tactics-sources">
-      <summary>{uiText('Источники')} · {tactics.sources.length}</summary>
-      <p className="dim">{uiText('Собрано из гайдов и вики игроков; поведение боссов меняется с патчами, шансы появления разные в PvP, PvE и «Сезоне».')}</p>
-      <ul>{tactics.sources.map((url) => <li key={url}><a href={url} target="_blank" rel="noopener noreferrer"><ExternalLink size={12} />{host(url)}</a></li>)}</ul>
-    </details>
   </div>
 }

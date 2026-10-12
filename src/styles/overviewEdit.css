@@ -45,12 +45,6 @@
 .overview-block.is-lifted .overview-veil { cursor: grabbing; border-style: solid; border-color: var(--brass); background: rgb(196 166 101 / 7%); }
 .overview-block:not(.is-lifted) { transition: box-shadow .2s var(--ease-out); }
 .overview-editing { user-select: none; }
-.overview-editing .raid-card { outline: 1px solid color-mix(in srgb, var(--line-strong) 80%, transparent); outline-offset: -1px; }
-.overview-fixed-chip {
-  position: absolute; top: 12px; right: 12px; z-index: 6; display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: rgb(14 20 16 / 82%);
-  color: var(--text-muted); font-size: 12px; font-weight: 650;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .overview-veil, .overview-block.is-lifted, .overview-block:not(.is-lifted) { transition: none; }

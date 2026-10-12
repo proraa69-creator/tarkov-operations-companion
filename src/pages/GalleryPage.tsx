@@ -1,7 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Loader2, RotateCw, Store, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, RotateCw, X } from 'lucide-react'
 import { allBossFigures, bossMapIds, type BossFigure } from '../data/bossFigures'
 import { GALLERY_BOSS_KEYS, bossDetails, type BossSection } from '../data/bossInfo'
 import { BOSS_MODEL_FIX, bossModelUrl } from '../data/bossModels'
@@ -15,7 +15,6 @@ import { isMobileLayout } from '../platform'
 
 const SPIN_STORAGE_KEY = 'tarkov-gallery-spin-v1'
 const TAB_STORAGE_KEY = 'tarkov-gallery-tab-v1'
-type GalleryTab = 'main' | 'ancient' | 'traders'
 
 const withModel = new Map(allBossFigures().filter((figure) => bossModelUrl(figure.key)).map((figure) => [figure.key, figure]))
 /** Only bosses that have both a still and a 3D model; a key without a model yet is simply skipped. */
@@ -27,25 +26,23 @@ const SECTIONS: Record<BossSection, BossFigure[]> = {
 function readSpin() {
   try { return localStorage.getItem(SPIN_STORAGE_KEY) === '1' } catch { return false }
 }
-function readTab(): GalleryTab {
-  try {
-    const value = localStorage.getItem(TAB_STORAGE_KEY)
-    return value === 'ancient' || value === 'traders' ? value : 'main'
-  } catch { return 'main' }
+/** The section shown last (a «Торговцы» tab saved by an older version opens the main bosses). */
+function readTab(): BossSection {
+  try { return localStorage.getItem(TAB_STORAGE_KEY) === 'ancient' ? 'ancient' : 'main' } catch { return 'main' }
 }
 const mapLine = (key: string) => bossMapIds(key).map((id) => uiText(MAP_DISPLAY_NAMES[id] ?? id)).join(' · ')
 
 /**
- * «Боссы» (the «Галерея» until 12.10.2026, renamed by the owner): the owner's 3D models — bosses (main and ancient) and, later, traders. The grid shows light
- * pre-rendered stills; only the opened boss gets a live 3D viewer (three.js is imported on open, freed on close).
+ * «Боссы» (the «Галерея» until 12.10.2026, renamed by the owner): the owner's 3D models of the bosses, main and ancient.
+ * The traders' figures are on the Traders page (the «Торговцы» tab here was removed by the owner, 12.10.2026). The grid
+ * shows light pre-rendered stills; only the opened boss gets a live 3D viewer (three.js is imported on open, freed on close).
  */
 export function GalleryPage() {
   const { locale } = useLocale()
-  const [tab, setTab] = useState<GalleryTab>(readTab)
+  const [section, setSection] = useState<BossSection>(readTab)
   const [openKey, setOpenKey] = useState<string | null>(null)
-  useEffect(() => { try { localStorage.setItem(TAB_STORAGE_KEY, tab) } catch { /* per-viewer convenience only */ } }, [tab])
-  const section: BossSection | null = tab === 'traders' ? null : tab
-  const figures = section ? SECTIONS[section] : []
+  useEffect(() => { try { localStorage.setItem(TAB_STORAGE_KEY, section) } catch { /* per-viewer convenience only */ } }, [section])
+  const figures = SECTIONS[section]
 
   return <div className="page gallery-page">
     <header className="page-header"><div>
@@ -53,16 +50,12 @@ export function GalleryPage() {
       <h1 className="page-title">{uiText('Боссы')}</h1>
       <p className="page-subtitle">{uiText(isMobileLayout() ? 'Откройте карточку и вращайте модель пальцем; щипок — приблизить.' : 'Откройте карточку и вращайте модель мышью; колесо — приблизить.')}</p>
     </div></header>
-    <nav className="gallery-tabs" aria-label={uiText('Разделы галереи')}>
-      <button type="button" className={section ? 'is-active' : ''} aria-current={section ? 'page' : undefined} onClick={() => setTab('main')}>{uiText('Боссы')}</button>
-      <button type="button" className={tab === 'traders' ? 'is-active' : ''} aria-current={tab === 'traders' ? 'page' : undefined} onClick={() => setTab('traders')}>{uiText('Торговцы')}</button>
-    </nav>
-    {section && <div className="segmented-filter gallery-subtabs" role="group" aria-label={uiText('Боссы')}>
-      {(['main', 'ancient'] as const).map((value) => <button key={value} type="button" className={section === value ? 'active' : ''} aria-pressed={section === value} onClick={() => setTab(value)}>
+    <div className="segmented-filter gallery-subtabs" role="group" aria-label={uiText('Боссы')}>
+      {(['main', 'ancient'] as const).map((value) => <button key={value} type="button" className={section === value ? 'active' : ''} aria-pressed={section === value} onClick={() => setSection(value)}>
         {uiText(value === 'main' ? 'Основные' : 'Древние боссы')} <span className="gallery-count">{SECTIONS[value].length}</span>
       </button>)}
-    </div>}
-    {section ? <div className="gallery-grid">
+    </div>
+    <div className="gallery-grid">
       {figures.map((figure) => {
         const info = bossDetails(figure.key)
         const maps = mapLine(figure.key)
@@ -78,13 +71,8 @@ export function GalleryPage() {
           </span>}
         </button>
       })}
-    </div> : <div className="panel empty-state gallery-empty" role="status"><div>
-      <Store size={30} />
-      <h2>{uiText('Модели торговцев скоро появятся')}</h2>
-      <p>{uiText('Здесь будут 3D модели торговцев Таркова. Пока загляните в раздел «Боссы».')}</p>
-      <button type="button" className="button ghost" onClick={() => setTab('main')}>{uiText('К боссам')}</button>
-    </div></div>}
-    {openKey && section && <BossViewerDialog
+    </div>
+    {openKey && <BossViewerDialog
       bossKey={openKey}
       figures={figures}
       onClose={() => setOpenKey(null)}
