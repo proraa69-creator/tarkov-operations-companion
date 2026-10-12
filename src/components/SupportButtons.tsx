@@ -24,7 +24,7 @@ const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1
 let nextShotId = 1
 
 /** The reward the owner grants by hand after checking a report (website «Админ-панель» → «Отчёты»; owner, 11.10.2026). */
-const REWARD_NOTE = 'Если ошибка подтвердится, к подписке добавится 1 день.'
+export const REWARD_NOTE = 'Если ошибка подтвердится, к подписке добавится 1 день.'
 
 /**
  * «Сообщить об ошибке»: topic, description, up to five screenshots (file picker, drag & drop, Ctrl+V). On top: «Нашёл баг

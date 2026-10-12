@@ -9,6 +9,7 @@ import {
   Boxes,
   Crosshair,
   Database,
+  Gift,
   HardDrive,
   KeyRound,
   Minus,
@@ -603,7 +604,7 @@ export function TradersPage() {
 
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
-import { SupportButtons } from "../components/SupportButtons";
+import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 
 export function SettingsPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -663,8 +664,9 @@ export function SettingsPage() {
           <div className="panel-body">
             <div className="setting-row">
               <span>
-                <strong>{uiText("Нашли ошибку или есть вопрос?")}</strong>
-                <small>{uiText("Напишите нам в Telegram или отправьте отчёт об ошибке со скриншотами.")}</small>
+                {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
+                <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
+                <small>{uiText("Напишите нам в Telegram или отправьте отчёт об ошибке со скриншотами.")} {uiText(REWARD_NOTE)}</small>
               </span>
             </div>
             <div className="support-row"><SupportButtons variant="panel" /></div>

@@ -7,7 +7,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Нашёл баг или ошибку?', 'Found a bug or an error?'], ['+1 день', '+1 day'],
   ['Если ошибка подтвердится, к подписке добавится 1 день.', 'If the bug is confirmed, 1 day is added to your subscription.'],
   ['Поддержка', 'Support'],
-  ['Нашли ошибку или есть вопрос?', 'Found a bug or have a question?'],
+  ['Нашли ошибку или есть вопрос?', 'Found a bug or have a question?'], ['+1 день за ошибку', '+1 day per bug'],
   ['Напишите нам в Telegram или отправьте отчёт об ошибке со скриншотами.', 'Message us on Telegram or send a bug report with screenshots.'],
   ['Написать в Telegram', 'Message on Telegram'],
   ['Тема', 'Topic'],
