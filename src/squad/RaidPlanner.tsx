@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { Compass, Crosshair, LoaderCircle, Map as MapIcon, Route as RouteIcon, Users } from 'lucide-react'
 import type { AppDataset, RaidMode } from '../domain/types'
@@ -10,12 +10,14 @@ import { sharedQuestsOf, type SquadMemberQuests } from './squadOverview'
 import { useSquad } from './useSquad'
 import { MemberChips } from './squadUi'
 import { friendLabel, memberLabel, modeLabel } from './squadLabels'
+import { friendColors, YOU_COLOR } from './friendColors'
+import { MapPicker } from '../components/MapPicker'
 import './squad.css'
 
 type Data = Pick<AppDataset, 'quests' | 'maps' | 'markers'>
 const MAX_FRIENDS = 4
 
-interface Group { members: SquadMemberQuests[]; names: Map<string, { label: string; index: number }>; hidden: string[] }
+interface Group { members: SquadMemberQuests[]; names: Map<string, { label: string; index: number; color?: string }>; hidden: string[] }
 
 /** «План рейда»: map priority for the squad or chosen friends, the same quests, and a route on the chosen map. */
 export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidMode; data: Data; friends: Friend[]; initialMapId?: string }) {
@@ -30,7 +32,9 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
   const error = result.key === key ? result.error : ''
   const loading = source === 'friends' && result.key !== key
   const [mapId, setMapId] = useState(initialMapId ?? '')
+  const [pickerOpen, setPickerOpen] = useState(false)
   const shareable = friends.filter((friend) => friend.sharesProgress)
+  const colors = useMemo(() => friendColors(friends.map((friend) => friend.friendId)), [friends])
 
   useEffect(() => {
     if (source !== 'friends') return
@@ -53,7 +57,7 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
     }
     if (source === 'friends' && people) {
       const label = (person: PlannerPerson) => (person.isYou ? `${person.nickname ?? uiText('Вы')} (${uiText('вы')})` : person.nickname ?? friendLabel(friends.find((friend) => friend.friendId === person.id)?.nicknames ?? {}, mode))
-      const names = new Map(people.map((person, index) => [person.id, { label: label(person), index }]))
+      const names = new Map(people.map((person, index) => [person.id, { label: label(person), index, color: person.isYou ? YOU_COLOR : colors.get(person.id) }]))
       return {
         members: people.filter((person) => !person.hidden).map((person) => ({ memberId: person.id, activeQuestIds: person.activeQuestIds, objectives: person.objectives })),
         names,
@@ -61,11 +65,12 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
       }
     }
     return null
-  }, [source, overview, people, friends, mode])
+  }, [source, overview, people, friends, mode, colors])
 
   const ranks = useMemo(() => (group ? rankMaps(group.members, data.quests, data.markers) : []), [group, data.quests, data.markers])
   const shared = useMemo(() => (group ? sharedQuestsOf(group.members) : []), [group])
-  const activeMap = ranks.find((rank) => rank.mapId === mapId)?.mapId ?? ranks[0]?.mapId ?? ''
+  // A map picked by hand («Выбрать карту») stays, even with nothing for the group there; else the best one.
+  const activeMap = data.maps.some((map) => map.id === mapId) ? mapId : ranks[0]?.mapId ?? ''
   const plan = useMemo(() => (group && activeMap ? planMapRoute(group.members, data.quests, data.markers, activeMap) : null), [group, activeMap, data.quests, data.markers])
   const questName = (id: string) => data.quests.find((quest) => quest.id === id)?.name ?? id
   const top = ranks[0]?.score || 1
@@ -110,6 +115,7 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
                   <span className="squad-row-main">
                     <strong>{uiText(mapDisplayName(rank.mapId, data.maps))}</strong>
                     <small className="muted">{uiText('целей')}: {rank.objectives} · {uiText('заданий')}: {rank.quests}{rank.sharedQuests > 0 && <> · <span className="squad-shared-label">{uiText('общих')}: {rank.sharedQuests}</span></>}</small>
+                    {group.members.length > 1 && <PersonCounts rank={rank} group={group} />}
                     <span className="squad-rank-bar"><span style={{ width: `${Math.max(6, (rank.score / top) * 100)}%` }} /></span>
                   </span>
                 </button>
@@ -134,9 +140,17 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
         <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText('План на карте')} · {uiText(mapDisplayName(plan.mapId, data.maps))}</div>
-            <Link className="button small ghost" to={`/maps/${plan.mapId}`}><MapIcon size={14} />{uiText('Открыть карту')}</Link>
+            <div className="squad-plan-actions">
+              <button type="button" className={`button small ghost${pickerOpen ? ' active' : ''}`} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}><Compass size={14} />{uiText('Выбрать карту')}</button>
+              <Link className="button small ghost" to={`/maps/${plan.mapId}`}><MapIcon size={14} />{uiText('Открыть карту')}</Link>
+            </div>
           </div>
           <div className="panel-body">
+            <MapPicker open={pickerOpen} maps={data.maps} firstMapId={plan.mapId} onPick={(id) => { setMapId(id); setPickerOpen(false) }}
+              noteOf={(map) => {
+                const rank = ranks.find((entry) => entry.mapId === map.id)
+                return rank ? <span className="squad-picker-count" title={uiText('Заданий группы на карте')}>{rank.quests}</span> : null
+              }} />
             {plan.steps.length > 0 && (
               <ol className="squad-route">
                 {plan.steps.map((step) => (
@@ -168,6 +182,20 @@ export function RaidPlanner({ mode, data, friends, initialMapId }: { mode: RaidM
       )}
     </div>
   )
+}
+
+/** Under a map of «Приоритет карт»: how many quests each one of the group has there (owner: «сколько у него и у меня»). */
+function PersonCounts({ rank, group }: { rank: { perMember: Record<string, number> }; group: Group }) {
+  return <span className="squad-person-counts">
+    {group.members.map((member) => {
+      const entry = group.names.get(member.memberId)
+      const count = rank.perMember[member.memberId] ?? 0
+      return <span key={member.memberId} className={`squad-person-count hue-${(entry?.index ?? 0) % 5}${count ? '' : ' is-none'}`}
+        style={entry?.color ? { '--hue': entry.color } as CSSProperties : undefined}>
+        {entry?.label ?? '—'}: <strong>{count}</strong>
+      </span>
+    })}
+  </span>
 }
 
 /** Dashboard: under the map choice, the squad's best maps for this mode (only when the account is in a squad). */

@@ -143,6 +143,28 @@ export const friendAction = (friendId: string, action: 'remove' | 'block' | 'unb
 export const setHideProgress = (friendId: string, hideProgress: boolean) => request('PUT', `/v1/friends/${friendId}/privacy`, { hideProgress })
 export const regenerateFriendCode = () => request<{ code: string }>('POST', '/v1/friends/code')
 
+/** A friend's game account in one mode: level and prestige (null: not known — no synced game account or profile). */
+export interface FriendModeInfo { level: number; prestige: number; updatedAt: string | null }
+export interface FriendInfo { nickname: string | null; hidden: boolean; modes: Partial<Record<RaidMode, FriendModeInfo | null>> }
+
+/** «Информация о друге»: level and prestige in every mode (GET /v1/friends/:id/info), shape-checked. */
+export async function fetchFriendInfo(friendId: string): Promise<FriendInfo> {
+  if (!HEX24.test(friendId)) throw new Error('Друг не найден')
+  const answer = await request<Record<string, unknown>>('GET', `/v1/friends/${friendId}/info`)
+  const raw = answer?.modes && typeof answer.modes === 'object' ? answer.modes as Record<string, unknown> : {}
+  const modes: FriendInfo['modes'] = {}
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    const value = raw[mode] as Record<string, unknown> | null | undefined
+    const level = Number(value?.level), prestige = Number(value?.prestige)
+    modes[mode] = value && Number.isFinite(level) && level >= 0 && level <= 200 ? {
+      level: Math.round(level),
+      prestige: Number.isFinite(prestige) && prestige >= 0 && prestige <= 99 ? Math.round(prestige) : 0,
+      updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : null,
+    } : null
+  }
+  return { nickname: typeof answer?.nickname === 'string' ? answer.nickname : null, hidden: answer?.hidden === true, modes }
+}
+
 export async function fetchPlannerPeople(mode: RaidMode, friendIds: string[]): Promise<PlannerPerson[]> {
   const answer = await request<{ people?: unknown }>('POST', `/v1/friends/progress/${mode}`, { friendIds: friendIds.filter((id) => HEX24.test(id)).slice(0, 10) })
   return (Array.isArray(answer?.people) ? answer.people : []).flatMap((raw): PlannerPerson[] => {

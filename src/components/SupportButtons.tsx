@@ -41,6 +41,8 @@ export function BugReportDialog({ onClose }: { onClose: () => void }) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [contact, setContact] = useState(false)
+  const closeContact = useCallback(() => setContact(false), [])
   const fileInput = useRef<HTMLInputElement>(null)
   const shotsRef = useRef(shots)
   useEffect(() => { shotsRef.current = shots }, [shots])
@@ -163,27 +165,55 @@ export function BugReportDialog({ onClose }: { onClose: () => void }) {
         </div>
         {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{error}</span></div>}
         <div className="bug-report-actions">
-          <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} />{uiText('Связаться')}</a>
+          <button type="button" className="button ghost" onClick={() => setContact(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
           <button type="submit" className="button primary" disabled={sending || !topic.trim() || !description.trim()}>
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : 'Отправить отчёт')}
           </button>
         </div>
       </form>}
+      {contact && <ContactDialog onClose={closeContact} />}
     </section>
   </div>, document.body)
 }
 
 /**
- * «Связаться» (Telegram) and «Сообщить об ошибке»: in the sidebar's «Система» group (`variant="nav"`) and in
+ * «Связаться» (owner, 12.10.2026: «при нажатии всплывающее окно, и предлагает перейти в телеграм канал для связи. кнопки
+ * да нет»): «Да» opens the Telegram channel (the system browser, as every outside link), «Нет» closes.
+ */
+export function ContactDialog({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    // Captured on the window: over the bug report dialog, Escape closes only this one.
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); onClose() } }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+  return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText('Связаться с нами')} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <section className="panel registration-dialog contact-dialog" onMouseDown={(event) => event.stopPropagation()}>
+      <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
+      <div className="registration-icon"><MessageCircle size={26} /></div>
+      <h2>{uiText('Связаться с нами')}</h2>
+      <p className="muted">{uiText('Перейти в Telegram-канал Raid OS, чтобы написать нам?')} <strong className="contact-handle">{SUPPORT_TELEGRAM_HANDLE}</strong></p>
+      <div className="contact-actions">
+        <button type="button" className="button ghost" onClick={onClose}>{uiText('Нет')}</button>
+        {/* Closed after the click: the link opens first. */}
+        <a className="button primary" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer" autoFocus onClick={() => window.setTimeout(onClose, 0)}><Send size={15} />{uiText('Да')}</a>
+      </div>
+    </section>
+  </div>, document.body)
+}
+
+/**
+ * «Связаться» (asks, then Telegram) and «Сообщить об ошибке»: in the sidebar's «Система» group (`variant="nav"`) and in
  * Settings → «Поддержка» (`variant="panel"`, also on the phone, which has no sidebar).
  */
 export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
-  const [open, setOpen] = useState(false)
-  const close = useCallback(() => setOpen(false), [])
+  const [open, setOpen] = useState<'' | 'contact' | 'report'>('')
+  const close = useCallback(() => setOpen(''), [])
   const className = variant === 'nav' ? 'nav-link support-nav-link' : 'button ghost'
   return <>
-    <a className={className} href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer" title={`Telegram ${SUPPORT_TELEGRAM_HANDLE}`}><MessageCircle size={variant === 'nav' ? undefined : 15} /><span>{uiText('Связаться')}</span></a>
-    <button type="button" className={className} onClick={() => setOpen(true)}><Bug size={variant === 'nav' ? undefined : 15} /><span>{uiText('Сообщить об ошибке')}</span></button>
-    {open && <BugReportDialog onClose={close} />}
+    <button type="button" className={className} onClick={() => setOpen('contact')} title={`Telegram ${SUPPORT_TELEGRAM_HANDLE}`}><MessageCircle size={variant === 'nav' ? undefined : 15} /><span>{uiText('Связаться')}</span></button>
+    <button type="button" className={className} onClick={() => setOpen('report')}><Bug size={variant === 'nav' ? undefined : 15} /><span>{uiText('Сообщить об ошибке')}</span></button>
+    {open === 'contact' && <ContactDialog onClose={close} />}
+    {open === 'report' && <BugReportDialog onClose={close} />}
   </>
 }

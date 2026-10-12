@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SupportButtons } from './SupportButtons'
@@ -17,13 +17,43 @@ function mockDesktop(status: unknown, answer: unknown = { id: 7, createdAt: '202
 describe('SupportButtons', () => {
   afterEach(() => { Reflect.deleteProperty(window, 'tarkovDesktop') })
 
-  it('links «Связаться» to the owner\'s Telegram', () => {
+  it('asks before «Связаться» opens the owner\'s Telegram channel: «Да» goes there, «Нет» stays', async () => {
     mockDesktop(signedOut)
+    const user = userEvent.setup()
     render(<SupportButtons variant="panel" />)
-    const link = screen.getByRole('link', { name: 'Связаться' })
-    expect(link).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
+    expect(screen.queryByRole('link', { name: 'Связаться' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Связаться' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Связаться с нами' })
+    expect(dialog).toHaveTextContent('Перейти в Telegram-канал Raid OS, чтобы написать нам?')
+    const yes = screen.getByRole('link', { name: 'Да' })
+    expect(yes).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
     expect(SUPPORT_TELEGRAM_URL).toBe('https://t.me/raidosapp')
-    expect(link).toHaveAttribute('target', '_blank')
+    expect(yes).toHaveAttribute('target', '_blank')
+    await user.click(screen.getByRole('button', { name: 'Нет' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Связаться' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // «Да»: the link opens (not followed in jsdom), then the question closes.
+    await user.click(screen.getByRole('button', { name: 'Связаться' }))
+    const again = screen.getByRole('link', { name: 'Да' })
+    again.addEventListener('click', (event) => event.preventDefault())
+    await user.click(again)
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('over the bug report, Escape closes only the «Связаться» question', async () => {
+    mockDesktop(signedIn)
+    const user = userEvent.setup()
+    render(<SupportButtons variant="nav" />)
+    await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
+    await screen.findByLabelText('Тема')
+    await user.click(within(screen.getByRole('dialog', { name: 'Сообщить об ошибке' })).getByRole('button', { name: 'Связаться' }))
+    expect(await screen.findByRole('dialog', { name: 'Связаться с нами' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Связаться с нами' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Сообщить об ошибке' })).toBeInTheDocument()
   })
 
   it('sends a signed-in report with a screenshot and shows the thank-you state', async () => {
@@ -90,6 +120,9 @@ describe('SupportButtons', () => {
     setRenderLanguage('en')
     try {
       expect(uiText('Связаться')).toBe('Contact us')
+      expect(uiText('Перейти в Telegram-канал Raid OS, чтобы написать нам?')).toBe('Open the Raid OS Telegram channel to message us?')
+      expect(uiText('Да')).toBe('Yes')
+      expect(uiText('Нет')).toBe('No')
       expect(uiText('Сообщить об ошибке')).toBe('Report a bug')
       expect(uiText('Спасибо! Отчёт отправлен')).toBe('Thank you! The report has been sent')
       expect(uiText('Скриншоты принимаются только в PNG, JPEG или WEBP')).toBe('Screenshots are accepted only as PNG, JPEG or WEBP')

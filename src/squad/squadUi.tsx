@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 
@@ -19,12 +19,13 @@ export function MemberAvatar({ name, index }: { name: string; index: number }) {
   return <span className={`squad-avatar hue-${index % 5}`} aria-hidden>{name.slice(0, 1).toUpperCase()}</span>
 }
 
-export function MemberChips({ ids, names }: { ids: string[]; names: Map<string, { label: string; index: number }> }) {
+export function MemberChips({ ids, names }: { ids: string[]; names: Map<string, { label: string; index: number; color?: string }> }) {
   return (
     <span className="squad-chips">
       {ids.map((id) => {
         const entry = names.get(id)
-        return <span key={id} className={`squad-chip hue-${(entry?.index ?? 0) % 5}`}>{entry?.label ?? '—'}</span>
+        // A friend's own colour («Друзья», squad/friendColors.ts) when there is one.
+        return <span key={id} className={`squad-chip hue-${(entry?.index ?? 0) % 5}`} style={entry?.color ? { '--hue': entry.color } as CSSProperties : undefined}>{entry?.label ?? '—'}</span>
       })}
     </span>
   )

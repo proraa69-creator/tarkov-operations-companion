@@ -41,6 +41,8 @@ import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
 import { useRaidRoute } from '../raidprep/useRaidPrep'
 import { useSquadSharedQuests } from '../squad/useSquad'
+import { FriendQuestMarkers, FriendQuestToggle } from '../squad/FriendQuestsOnMap'
+import { useFriendQuestLayer } from '../squad/friendQuestLayer'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
@@ -434,6 +436,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
   const squadShared = useSquadSharedQuests(state.raidMode)
+  // «Квесты друзей»: friends' quest points in their colours (squad/FriendQuestsOnMap.tsx).
+  const friendQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers)
 
   useEffect(() => {
     if (!focusedQuestId) return
@@ -569,6 +573,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
+          <FriendQuestToggle layer={friendQuests} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
           <QuestPointControls state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} onSelectMap={selectMap} onFocus={showMarker} onToggle={(on) => { if (on) setBossActive(false) }} />
@@ -604,6 +609,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <MapToolLayer value={tools} onChange={setTools} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
+          <FriendQuestMarkers points={friendQuests.points} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]

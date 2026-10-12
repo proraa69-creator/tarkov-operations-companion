@@ -2,6 +2,8 @@
 export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Связаться', 'Contact us'],
   ['Сообщить об ошибке', 'Report a bug'],
+  // «Связаться» asks first (owner, 12.10.2026)
+  ['Связаться с нами', 'Contact us'], ['Перейти в Telegram-канал Raid OS, чтобы написать нам?', 'Open the Raid OS Telegram channel to message us?'], ['Да', 'Yes'],
   // Traders page 3D figure (src/components/TraderFigure.tsx)
   ['3D модель этого торговца скоро появится.', 'The 3D model of this trader is coming soon.'], ['Перетащите — повернуть · двойной клик — сброс', 'Drag to turn · double-click to reset'], ['Проведите пальцем — повернуть · двойное касание — сброс', 'Swipe to turn · double-tap to reset'],
   ['Нашёл баг или ошибку?', 'Found a bug or an error?'], ['+1 день', '+1 day'],

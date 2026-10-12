@@ -25,13 +25,13 @@ const catalog = {
 type Call = (method: string, path: string, body?: unknown, token?: string, ip?: string) => Promise<Response>
 interface Ctx { call: Call; accounts: AccountStore; progress: ProgressStore; trial: (email: string) => Promise<string>; user: (email: string) => Promise<string>; advance: (ms: number) => void }
 
-async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: FriendsRouterOptions['limits']) {
+async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: FriendsRouterOptions['limits'], playerProfile?: FriendsRouterOptions['playerProfile']) {
   const progress = new ProgressStore(':memory:')
   let clock = Date.now()
   const accounts = new AccountStore({ now: () => clock })
   await accounts.register('streamer@example.com', password)
   accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
-  const server = createApi(progress, undefined, accounts, { catalog: (mode) => (mode === 'pvp' ? catalog : undefined), friendLimits }).listen(0, '127.0.0.1')
+  const server = createApi(progress, undefined, accounts, { catalog: (mode) => (mode === 'pvp' ? catalog : undefined), friendLimits, playerProfile: playerProfile ?? (async () => { throw new Error('offline') }) }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   const call: Call = (method, path, body, token, ip) => fetch(`${base}${path}`, {
@@ -249,6 +249,7 @@ test('friends are a paid feature for sending requests and seeing progress; answe
     assert.equal((await call('POST', '/v1/friends/requests', { code: (await overview(call, paid)).code }, free)).status, 402)
     assert.equal((await call('GET', '/v1/friends/needs/pvp', undefined, free)).status, 402)
     assert.equal((await call('POST', '/v1/friends/progress/pvp', { friendIds: [] }, free)).status, 402)
+    assert.equal((await call('GET', `/v1/friends/${'a'.repeat(24)}/info`, undefined, free)).status, 402)
     await call('POST', '/v1/friends/requests', { code: (await overview(call, free)).code }, paid)
     const request = (await overview(call, free)).incoming[0]
     assert.equal((await call('POST', `/v1/friends/requests/${request.requestId}/accept`, undefined, free)).status, 204)
@@ -308,3 +309,48 @@ test('instant social events: a request wakes the receiver, the answer the sender
     assert.notEqual((await json<{ version: number }>(await waitingQuest)).version, afterFriends, 'a friend\'s quest wakes the friend')
   })
 })
+
+test('a friend\'s info: level and prestige in every mode from the public profiles, never the game account id', async () => {
+  const asked: string[] = []
+  const playerProfile: FriendsRouterOptions['playerProfile'] = async (mode, gameId) => {
+    asked.push(`${mode}:${gameId}`)
+    if (mode === 'seasonal') throw Object.assign(new Error('Профиль этого режима пока не опубликован'), { status: 404 })
+    return { level: mode === 'pvp' ? 42 : 17, prestige: mode === 'pvp' ? 2 : 0, fetchedAt: '2026-10-12T10:00:00.000Z', upstreamUpdatedAt: '2026-10-12T09:00:00.000Z' }
+  }
+  await withServer(async ({ call, trial, accounts, progress }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_2' })
+    const { bAsSeenByA } = await befriend(call, a, b)
+    // b's desktop app synced PvP with game account 7690289; PvE and the season are tried with the same account.
+    progress.syncUser(`user:${accounts.authenticate(b)!}`, 'pvp', { accountId: 7690289, characterId: CHARACTER, events: [] })
+    const response = await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.deepEqual(JSON.parse(body), {
+      nickname: 'Bravo_2', hidden: false,
+      modes: { pvp: { level: 42, prestige: 2, updatedAt: '2026-10-12T09:00:00.000Z' }, pve: { level: 17, prestige: 0, updatedAt: '2026-10-12T09:00:00.000Z' }, seasonal: null },
+    })
+    assert.deepEqual(asked.sort(), ['pve:7690289', 'pvp:7690289', 'seasonal:7690289'])
+    assert.ok(!body.includes('7690289'), 'the game account id never leaves the server')
+    // Hiding progress hides the info too.
+    assert.equal((await call('PUT', `/v1/friends/${(await overview(call, b)).friends[0].friendId}/privacy`, { hideProgress: true }, b)).status, 204)
+    assert.deepEqual(await json(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)), { nickname: 'Bravo_2', hidden: true, modes: {} })
+    // Not a friend, a malformed id.
+    const c = await trial('charlie@example.com')
+    assert.equal((await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, c)).status, 404)
+    assert.equal((await call('GET', '/v1/friends/nope/info', undefined, a)).status, 404)
+  }, undefined, playerProfile)
+})
+
+test('a friend\'s info without any synced game account: every mode unknown, no lookups', async () => {
+  let lookups = 0
+  await withServer(async ({ call, trial }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    const { bAsSeenByA } = await befriend(call, a, b)
+    assert.deepEqual((await json<{ modes: unknown }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))).modes, { pvp: null, pve: null, seasonal: null })
+    assert.equal(lookups, 0)
+  }, undefined, async () => { lookups += 1; return { level: 1, prestige: 0 } })
+})
+

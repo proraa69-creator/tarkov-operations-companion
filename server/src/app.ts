@@ -16,6 +16,7 @@ import { countryCode, LoginCodeStore } from './services/loginCodes.js'
 import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
+import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
 import { createPaymentsRouter } from './routes/payments.js'
 import { createAdminRouter } from './routes/admin.js'
@@ -108,6 +109,8 @@ export interface ApiOptions {
   /** «Отряд» and friends (routes/social.ts): rate limits for tests. */
   squadLimits?: SocialLimits['squadLimits']
   friendLimits?: SocialLimits['friendLimits']
+  /** The friend's info (routes/friends.ts): public game profiles; default the tarkov.dev lookup, tests pass a fake. */
+  playerProfile?: FriendsRouterOptions['playerProfile']
   /** The owner app's main process (services/ownerApp.ts): «Обновление» tab, error reports. Default: process.parentPort. */
   ownerApp?: OwnerAppLink
   /** «Сообщить об ошибке» (routes/bugReports.ts): per-account / per-IP limits for tests. */
@@ -239,7 +242,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const socialSignals = new SocialSignals()
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
-  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals })
+  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
