@@ -7,8 +7,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Скачать приложение', 'Download the app'], ['Личный кабинет', 'My account'],
   ['Не вмешивается в игру · Windows 10 и 11', 'Does not interfere with the game · Windows 10 and 11'],
   ['Пригласи друга', 'Invite a friend'], ['Raid OS выгоднее с отрядом', 'Raid OS pays off with a squad'],
-  ['Приглашай друзей, помогай им быстрее закрывать квесты и получай Premium бесплатно. Твой друг получает скидку на первый месяц, а ты — дни подписки за каждого активного игрока.',
-    'Invite friends, help them finish tasks faster and get Premium for free. Your friend gets a discount on the first month, and you get subscription days for every active player.'],
+  ['Приглашай друзей, помогай им быстрее закрывать квесты и получай Premium бесплатно. Твой друг получает скидку 20 % на первый месяц, а ты — 7 дней Premium за каждого, кто его оплатил, даже если у тебя ещё не было оплат.',
+    'Invite friends, help them finish tasks faster and get Premium for free. Your friend gets 20% off the first month, and you get 7 days of Premium for every friend who pays for it — even if you have never paid yourself.'],
   ['Мой код', 'My code'], ['Зарегистрироваться', 'Sign up'],
 
   // About (pages/AboutPage.tsx).

@@ -261,8 +261,8 @@ Flow:
 
 1. User downloads desktop client.
 2. User registers/signs in.
-3. Every new account gets 1 free day from registration (owner, 12.10.2026), server-side, once per canonical e-mail and per device; accounts from before keep what they had.
-4. User may arrive through a streamer referral link; referral users get 3 free days (programme paused since 09.10.2026 — a streamer's code then gives the same 1 day as everybody).
+3. Every new account gets 1 free day (owner, 12.10.2026), server-side, once per canonical e-mail and per device. The day is counted from the first sign-in in an app — PC, phone or browser build, the first POST /v1/entitlement — not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»); until then the account shows «сутки ждут первого входа в приложение». Accounts that had a free period but had never signed in to an app when this shipped (0.6.0.23) wait for that sign-in at the full length; accounts from before 12.10.2026 without a streamer's code have no free day.
+4. User may arrive through a streamer referral link; referral users get 3 free days, also from the first sign-in in an app (programme paused since 09.10.2026 — a streamer's code then gives the same 1 day as everybody).
 5. After the free period, paid features are blocked.
 6. App shows a subscription/payment window.
 7. User can subscribe for:
@@ -279,6 +279,15 @@ If a user has no active subscription:
 - paid data/functionality should be unavailable;
 - server should not return protected catalog/progression features;
 - local cached paid data should have strict expiry and should not allow permanent offline bypass.
+
+## Friend referral program («Пригласи друга»)
+
+Implemented in `server/src/services/invites.ts`; terms in the offer, section 7 (`website/src/legal/documents.ts`).
+
+- Every player has a personal code and link. A new player who registers with it (or enters it in the cabinet before the first payment) gets 20 % off the first payment of the 1-month plan.
+- The inviter gets 7 days of Premium for every friend whose first payment is that discounted first month (owner, 12.10.2026: «друзья должны оплатить подписку по скидке 20%»). A friend who starts with a longer plan (no discount there) does not count. The inviter's own payment is not required (owner, 12.10.2026: «ему дают бонусы, даже если он не оплатил первично»).
+- The reward is held 14 days; any refund of the friend's payment cancels it. A friend counts once per Escape from Tarkov account (bound by the desktop app). Suspicious rewards go to the owner's review. Ranks: 3 / 10 / 25 confirmed friends add a month / three months / a year, 50 make access lifelong (25 and 50 after the owner's review).
+- Rewards are subscription days only, never money.
 
 ## Streamer referral program
 

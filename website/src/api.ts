@@ -29,8 +29,11 @@ export interface Account {
   nickname?: string
   /** The same nickname under every mode (older servers: one per mode). */
   nicknames: Partial<Record<AccountMode, string>>
-  /** `lifetime`: streamers use the service free of charge, for good. */
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  /**
+   * `lifetime`: streamers use the service free of charge, for good. `trialPendingDays`: the free period starts with the
+   * first sign-in in the app (status stays 'inactive' until then; owner, 12.10.2026).
+   */
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
   stats?: ReferralStats
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
@@ -276,7 +279,7 @@ export interface AdminPayments { payments: AdminPayment[]; total: number; totals
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }

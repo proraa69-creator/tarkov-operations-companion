@@ -39,12 +39,19 @@ async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: Frien
     headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(ip ? { 'x-forwarded-for': ip } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+  // The free period starts at the first sign-in in an app (owner, 12.10.2026): each test player has signed in once on
+  // a PC of their own (POST /v1/entitlement registers the device).
+  let devices = 0
+  const openedApp = ({ token }: { token: string }) => {
+    accounts.claimTrialDevice(accounts.authenticate(token)!, `test-pc-${String(++devices).padStart(3, '0')}-abcdefghijklmnop`)
+    return token
+  }
   try {
     await run({
       call, accounts, progress,
       advance: (ms) => { clock += ms },
-      trial: async (email) => (await accounts.register(email, password, 'HUNTER')).token,
-      user: async (email) => (await accounts.register(email, password)).token,
+      trial: async (email) => openedApp(await accounts.register(email, password, 'HUNTER')),
+      user: async (email) => openedApp(await accounts.register(email, password)),
     })
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))

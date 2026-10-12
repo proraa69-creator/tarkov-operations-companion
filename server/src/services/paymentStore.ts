@@ -293,7 +293,11 @@ const ADDED_COLUMNS: Array<[string, string]> = [
 ]
 
 /** A payment that has just succeeded (PaymentStore.onSucceeded). */
-export interface SucceededPayment { id: string; accountId: string; plan: PlanId; amount: number; methodKey?: string }
+export interface SucceededPayment {
+  id: string; accountId: string; plan: PlanId; amount: number; methodKey?: string
+  /** «Пригласи друга»: the first month was paid with the friend's discount, % (services/invites.ts counts only these). */
+  discountPercent?: number
+}
 
 const nullableText = (value: unknown) => (value == null ? null : String(value))
 const rub = (kopecks: number) => (kopecks / 100).toFixed(2)
@@ -655,7 +659,10 @@ export class PaymentStore {
     const changed = this.db.prepare("UPDATE payments SET status = 'succeeded', paid_at = ?, amount = ?, streamer_percent = ?, streamer_earning = ?, amount_original = COALESCE(?, amount_original, ?), currency = COALESCE(?, currency, 'RUB') WHERE id = ? AND status = 'pending'")
       .run(this.now(), rubKopecks, percent, earning, original?.amount ?? null, rubKopecks, original?.currency ?? null, String(row.id))
     if (!Number(changed.changes)) return false
-    const done: SucceededPayment = { id: String(row.id), accountId: String(row.account_id), plan: row.plan as PlanId, amount: rubKopecks, ...(methodKey ? { methodKey } : {}) }
+    const done: SucceededPayment = {
+      id: String(row.id), accountId: String(row.account_id), plan: row.plan as PlanId, amount: rubKopecks, ...(methodKey ? { methodKey } : {}),
+      ...(row.discount_percent == null ? {} : { discountPercent: Number(row.discount_percent) }),
+    }
     for (const listener of this.succeededListeners) {
       try { listener(done) } catch (error) { console.error('Payment listener failed', error instanceof Error ? error.message : 'unknown error') }
     }

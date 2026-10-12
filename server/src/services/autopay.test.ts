@@ -95,6 +95,8 @@ async function setup(options: { config?: PaymentConfig | undefined; lava?: boole
   accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
   const { token } = await accounts.register('player@example.com', password, 'HUNTER')
   const accountId = accounts.authenticate(token)!
+  // The player has signed in to the app: the referral trial runs (it starts there, owner 12.10.2026).
+  accounts.claimTrialDevice(accountId, 'test-pc-player-abcdefghijklmnop')
   return { db, accounts, payments, yoo, lavaApi, notices, accountId, token, advance: (ms: number) => { clock += ms }, now }
 }
 

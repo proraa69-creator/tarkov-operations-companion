@@ -22,6 +22,8 @@ function subscriptionText(user: AdminUser) {
   if (sub.lifetime) return { label: 'Стример, бесплатно', tone: 'brass' }
   if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}`, tone: 'green' }
   if (sub.status === 'trial') return { label: `пробный до ${dateOnly.format(new Date(sub.trialEndsAt!))}`, tone: 'brass' }
+  // The free period waits for the first sign-in in the app (owner, 12.10.2026).
+  if (sub.trialPendingDays) return { label: `${sub.trialPendingDays === 1 ? 'сутки' : `${sub.trialPendingDays} дн.`} — ждут входа в приложение`, tone: 'brass' }
   return { label: sub.paidUntil ? `истекла ${dateOnly.format(new Date(sub.paidUntil))}` : 'нет', tone: '' }
 }
 

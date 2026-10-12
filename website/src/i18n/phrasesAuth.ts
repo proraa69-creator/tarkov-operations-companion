@@ -17,6 +17,9 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
 
   // Sign up (pages/RegisterPage.tsx)
   ['Регистрация', 'Sign up'], ['Один аккаунт для сайта и приложения.', 'One account for the website and the app.'],
+  ['Сутки бесплатно', 'One day free'], ['с первого входа в приложение Raid OS, без оплаты.', 'from your first sign-in in the Raid OS app, no payment needed.'],
+  ['Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.',
+    'Invite friends: for every friend who pays for the first month with the 20% discount through your link, you get 7 days of Premium — even if you have never paid yourself.'],
   ['Регистрация · подтверждение e-mail', 'Sign up · e-mail confirmation'], ['Проверьте почту', 'Check your inbox'],
   ['Не короче 8 символов.', 'At least 8 characters.'], ['Повторите пароль', 'Repeat the password'],
   ['Пароль должен быть не короче 8 символов.', 'The password must be at least 8 characters long.'], ['Пароли не совпадают.', 'The passwords do not match.'],

@@ -54,7 +54,7 @@ function FriendsPromo() {
           <div>
             <div className="feature-eyebrow"><span className="feature-icon" aria-hidden="true"><Users /></span>{tr('Пригласи друга')}</div>
             <h2 className="feature-title" id="friends-promo-title">{tr('Raid OS выгоднее с отрядом')}</h2>
-            <p className="feature-lead">{tr('Приглашай друзей, помогай им быстрее закрывать квесты и получай Premium бесплатно. Твой друг получает скидку на первый месяц, а ты — дни подписки за каждого активного игрока.')}</p>
+            <p className="feature-lead">{tr('Приглашай друзей, помогай им быстрее закрывать квесты и получай Premium бесплатно. Твой друг получает скидку 20 % на первый месяц, а ты — 7 дней Premium за каждого, кто его оплатил, даже если у тебя ещё не было оплат.')}</p>
             <div className="hero-actions">
               {signedIn ? (
                 <Link to="/cabinet" className="button primary large"><Ticket aria-hidden="true" />{tr('Мой код')}</Link>

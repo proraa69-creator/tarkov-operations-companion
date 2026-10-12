@@ -44,6 +44,8 @@ async function setup() {
   accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
   const { token } = await accounts.register('player@example.com', 'correct horse battery', 'HUNTER')
   const accountId = accounts.authenticate(token)!
+  // The player has signed in to the app: the referral trial runs (it starts there, owner 12.10.2026).
+  accounts.claimTrialDevice(accountId, 'test-pc-player-abcdefghijklmnop')
   return { accounts, payments, yoo, accountId, advance: (ms: number) => { clock += ms } }
 }
 

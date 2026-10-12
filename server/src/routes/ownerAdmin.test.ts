@@ -92,9 +92,9 @@ test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owne
     ] as const) {
       assert.equal((await t.call(method, path, player, body)).status, 404, path)
     }
-    // Nothing changed for the player: no paid days, only the free day after registration.
-    const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string; paidUntil?: string } }
-    assert.deepEqual([me.subscription.status, me.subscription.paidUntil], ['trial', undefined])
+    // Nothing changed for the player: no paid days, only the free day (it waits for the first sign-in in the app).
+    const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string; paidUntil?: string; trialPendingDays?: number } }
+    assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 1 })
   } finally { await t.close() }
 })
 
@@ -374,8 +374,8 @@ test('the owner can take the streamer status away: the cabinet goes, the code st
     const me = (await t.call('GET', '/accounts/me', streamer)).json as unknown as { kind: string; referralCode?: string; subscription: { status: string; lifetime?: true } }
     assert.equal(me.kind, 'user')
     assert.equal(me.referralCode, undefined)
-    // An ordinary account again: no lifetime access, only its free day after registration (still running here).
-    assert.deepEqual(me.subscription, { status: 'trial', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+    // An ordinary account again: no lifetime access, only its free day (never signed in to the app: still waiting).
+    assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 1 })
     assert.equal((await t.call('POST', '/accounts/referral-visits', undefined, { code: 'HUNTER' })).status, 404)
     assert.throws(() => t.accounts.promoteToStreamer('owner@example.com', 'HUNTER'), /already taken/)
     const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries.map((entry) => `${entry.action}:${entry.target}`)
