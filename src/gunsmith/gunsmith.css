@@ -70,7 +70,6 @@ span.gs-part { cursor: default; }
 .gs-part strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-part small { display: block; overflow: hidden; margin-top: 2px; color: var(--text-dim); font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-part .gs-part-price { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
-.gs-categories { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ── /gunsmith ──────────────────────────────────────────────────── */
 .gunsmith-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

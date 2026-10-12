@@ -82,10 +82,8 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
       </ul>
     </div>}
 
+    {/* A part of a required category (containsCategory) is not listed apart (owner, 12.10.2026: «удали везде надпись
+        деталь из категории»): the example build («Как собрать», gunsmithSolver.ts) already puts the cheapest fitting one in. */}
     <BuildPartCards build={build} compact={compact} mods={mods} access={access} plan={plan} modsStatus={modsStatus} />
-    {build.categories?.length ? <div className="gs-block">
-      <h5>{uiText('Деталь из категории')}</h5>
-      <div className="gs-categories">{build.categories.map((category) => <span className="tag" key={category.id}>{uiText(category.name)}</span>)}</div>
-    </div> : null}
   </div>
 }
