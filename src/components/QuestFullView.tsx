@@ -151,7 +151,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
           const map = data.maps.find((entry) => entry.id === marker.mapId)!
           const item = marker.itemId ? itemsById.get(marker.itemId) : undefined
           return <figure className="quest-full-place" key={marker.id}>
-            <MarkerMiniMap map={map} view={mapView} position={marker.position} color="#d6a64f" />
+            <MarkerMiniMap map={map} view={mapView} floor={marker.floor} position={marker.position} color="#d6a64f" />
             <figcaption>
               {item?.iconUrl && <img src={item.iconUrl} alt="" loading="lazy" />}
               <span>

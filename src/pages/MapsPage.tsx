@@ -349,6 +349,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const plan = planMapLayers(activeMap, mapView, floor)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a newly opened map starts on its main level; useAutoFloor below may move it in the same commit
     setFloor(baseFloor)
     setTools((current) => ({ ...current, rulerPoints: [], sniperCenter: null }))
   }, [activeMap.id, baseFloor])
@@ -449,6 +450,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         && (entry.stageIndex == null || entry.stageIndex === stageIndex)
       ))
     if (marker) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- «Показать на карте» (?quest=…) selects its marker once the map's markers are known
       setSelectedMarker(marker)
       return
     }
@@ -719,7 +721,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
               </div>
               {uiText(sheetVisual && sheetPoint && (
                 <figure className="map-quest-sheet-visual">
-                  <MarkerMiniMap map={activeMap} view={mapView} position={sheetPoint.position} color={markerMeta[markerLayerId(sheetPoint)].color} />
+                  <MarkerMiniMap map={activeMap} view={mapView} floor={sheetPoint.floor} position={sheetPoint.position} color={markerMeta[markerLayerId(sheetPoint)].color} />
                   <figcaption>
                     <span>{uiText("Примерное место")}</span>
                     <span>{uiText(sheetFloor)}</span>
