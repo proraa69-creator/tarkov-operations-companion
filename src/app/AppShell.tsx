@@ -155,19 +155,22 @@ export function AppShell({ children }: { children: ReactNode }) {
       ).catch(() => {})
     }
     const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)
+    // The Logs folder the game writes to now, not just the one saved earlier (owner, 12.10.2026: «разберись, чтобы
+    // брались актуальные логи»): the saved folder and every one found compete, the newest game launch wins.
     const savedFolder = localStorage.getItem(LOG_FOLDER_STORAGE_KEY)
-    if (savedFolder) {
-      void window.tarkovDesktop.startWatchingLogs(savedFolder).then((started) => {
+    const watchSaved = () => {
+      if (!savedFolder) return
+      void window.tarkovDesktop?.startWatchingLogs(savedFolder).then((started) => {
         if (!started) localStorage.removeItem(LOG_FOLDER_STORAGE_KEY)
       }).catch(() => localStorage.removeItem(LOG_FOLDER_STORAGE_KEY))
-    } else {
-      void window.tarkovDesktop.autoFindAndScanLogs().then((result) => {
-        if (!active || !result) return
-        applyLogResult(result)
-        localStorage.setItem(LOG_FOLDER_STORAGE_KEY, result.folder)
-        void window.tarkovDesktop?.startWatchingLogs(result.folder)
-      }).catch(() => {})
     }
+    void window.tarkovDesktop.autoFindAndScanLogs(savedFolder ?? undefined).then((result) => {
+      if (!active) return
+      if (!result) { watchSaved(); return }
+      applyLogResult(result)
+      localStorage.setItem(LOG_FOLDER_STORAGE_KEY, result.folder)
+      void window.tarkovDesktop?.startWatchingLogs(result.folder)
+    }).catch(watchSaved)
     return () => {
       active = false
       unsubscribe()

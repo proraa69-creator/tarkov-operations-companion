@@ -195,7 +195,8 @@ interface TarkovDesktopApi {
     /** Another server address (e.g. the owner's public link); '' = this PC. */
     setServerUrl?: (url: string) => Promise<ServerAccountStatus>
   }
-  autoFindAndScanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  /** `current`: the folder used last; the Logs folder where the game started last is scanned (it or one found). */
+  autoFindAndScanLogs: (current?: string) => Promise<(DesktopLogScanResult & { folder: string }) | null>
   scanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
   startWatchingLogs: (folder: string) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>

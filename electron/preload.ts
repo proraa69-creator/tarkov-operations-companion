@@ -82,7 +82,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
       return () => ipcRenderer.removeListener('update:status', listener)
     },
   },
-  autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
+  autoFindAndScanLogs: (current?: string) => ipcRenderer.invoke('logs:auto-find-and-scan', current) as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data') as Promise<boolean>,

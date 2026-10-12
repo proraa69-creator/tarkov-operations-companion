@@ -7,7 +7,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RaidMode } from '../src/domain/types.js'
-import { discoverEftLogs, normalizeSelectedLogsFolder } from './logDiscovery.js'
+import { discoverAllEftLogs, discoverEftLogs, freshestLogsFolder, normalizeSelectedLogsFolder } from './logDiscovery.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
 import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
 import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
@@ -377,12 +377,20 @@ function registerIpc() {
     await shell.openExternal(target)
     return true
   })
-  ipcMain.handle('logs:auto-find-and-scan', async () => {
-    const discovered = await discoverEftLogs(app.getPath('appData'))
-    if (!discovered.logsFolder) return null
-    logFolderGrants.grant(discovered.logsFolder)
-    const parsed = await scanLogFolderBySession(discovered.logsFolder)
-    return { ...parsed, folder: discovered.logsFolder }
+  // `current`: the folder the app used last. It competes with every Logs folder found, and the one where the game
+  // started last wins (logDiscovery.ts freshestLogsFolder); a path from the page counts only if it may be watched.
+  ipcMain.handle('logs:auto-find-and-scan', async (_event, current: unknown) => {
+    const found = await discoverAllEftLogs(app.getPath('appData'))
+    const known = typeof current === 'string' && current && await mayWatchLogFolder(current, {
+      grants: logFolderGrants,
+      remembered: rememberedLogsFolder,
+      discover: async () => (await discoverEftLogs(app.getPath('appData'))).logsFolder,
+    }) ? current : undefined
+    const folder = await freshestLogsFolder([known, ...found])
+    if (!folder) return null
+    logFolderGrants.grant(folder)
+    const parsed = await scanLogFolderBySession(folder)
+    return { ...parsed, folder }
   })
 
   ipcMain.handle('logs:select-and-scan', async () => {
