@@ -753,7 +753,7 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
     - смена страниц — View Transition 220 мс, «Назад» тоже;
     - «Концовки» на 1600/900/390 px без горизонтальной прокрутки, RU и EN.
 - Gate в worktree на `ca3fa24`: typecheck (tsc -b), electron tsc, vitest (все), cache 2/2, server typecheck, server 281/281, сайт, release-policy 6/6, deploy-paths (`5006f54..HEAD` 49 файлов, 0 отклонено), eslint.
-- `ca3fa24` → `release/production` (fast-forward от `5006f54`); GitHub verify, verify-renderer, build-unsigned-ipa — success. VPS публикует выпуск сам после CI (обычно 10–20 минут).
+- `ca3fa24` → `release/production` (fast-forward от `5006f54`); GitHub verify, verify-renderer, build-unsigned-ipa — success. Опубликовано: `raidos.app/download/version.json` — 0.6.0-24, build 1791817931853, commit `ca3fa24…-production`, подпись есть.
 - Слияние в рабочую ветку (`1b5ac38`), там же хронология 0.6.0.22:
   - у торговцев первая вкладка «Хронология», вторая «Текущие»; на странице заданий обе вкладки «Хронология» и «Концовки»;
   - скрытый счётчик закрывает задание, только когда модель веток хронологии не может его прочитать (нет данных о ветке или нет журналов); разговор с торговцем закрывает задание до появления в логах, как в выпуске;
