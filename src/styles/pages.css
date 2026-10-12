@@ -751,7 +751,7 @@ a.quest-stage:hover { color: var(--text); }
 .exp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .priority-map-label { min-width: 0; display: grid; gap: 7px; }
 .priority-meter { display: block; height: 4px; border-radius: 4px; background: #293a30; overflow: hidden; }
-.priority-meter > span { display: block; height: 100%; background: #b9a466; border-radius: inherit; transition: width .25s ease; }
+.priority-meter > span { display: block; height: 100%; background: #b9a466; border-radius: inherit; transition: width .25s ease; transform-origin: left; animation: bar-grow .6s var(--ease-out) both; }
 .priority-compact .priority-quest-count { font-size: 14px; font-weight: 650; color: #e9eee8; white-space: nowrap; }
 .goon-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .goon-card .goon-map-value { font-size: 24px; margin-top: 6px; }
@@ -973,7 +973,10 @@ a.quest-stage:hover { color: var(--text); }
 .map-priority-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .map-priority-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
 .map-priority-bar { grid-column: 1 / -1; display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.map-priority-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brass); transition: width .25s var(--ease-soft); }
+.map-priority-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brass); transition: width .25s var(--ease-soft); transform-origin: left; animation: bar-grow .6s var(--ease-out) both; }
+/* Bars grow in from the left when a page opens (owner, 12.10.2026: the reference video's bars). */
+@keyframes bar-grow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .map-priority-bar > span, .priority-meter > span { animation: none; } }
 /* ── end Goons card + map priority ── */
 .profile-live-card { display: flex; flex-direction: column; }
 .profile-live-card > .panel-body { flex: 1; }
@@ -1199,8 +1202,9 @@ a.quest-stage:hover { color: var(--text); }
   .map-priority-all { margin-left: auto; }
 }
 @media (max-width: 980px) {
-  /* one column: both columns' panels interleave, so the current tasks stay above the raid requirements as before */
+  /* one column: both columns' panels interleave, so the current tasks stay above the raid requirements as before.
+     By place, not by block («Настроить блоки»): the second block of the left column and the third of the right one go down. */
   .dashboard-layout > .dashboard-column { display: contents; }
-  .dashboard-layout .raid-needs { order: 1; }
-  .dashboard-layout .market-favorites { order: 2; }
+  .dashboard-layout > .dashboard-column:first-child > .overview-block:nth-child(3) { order: 1; }
+  .dashboard-layout > .dashboard-column:last-child > .overview-block:nth-child(3) { order: 2; }
 }

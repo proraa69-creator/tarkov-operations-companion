@@ -23,6 +23,20 @@ describe('task availability', () => {
     expect(evaluateTaskAvailability(quest, progress)).toEqual({ status: 'available', blockers: [] })
   })
 
+  it('never offers a task the game opens by its own conditions until the logs have it (owner, 12.10.2026)', () => {
+    // «Оружейник. АКС-74Н»: no level, no task before it, but a hidden counter of Mechanic's tasks (and Mechanic may be
+    // closed altogether); «Оружейник. MP-133»: a talk with Mechanic
+    const aks = { ...quest, id: 'aks-74n', level: 1, requirements: [], gameConditions: ['progress' as const] }
+    const mp133 = { ...quest, id: 'mp-133', level: 1, requirements: [], gameConditions: ['dialogue' as const] }
+    const progress = createModeProgress()
+    expect(evaluateTaskAvailability(aks, progress)).toEqual({ status: 'locked', blockers: ['Откроется в игре по ходу заданий торговца'] })
+    expect(evaluateTaskAvailability(mp133, progress).blockers).toEqual(['Откроется после разговора с торговцем в игре'])
+    expect(calculateAvailability([aks, mp133], progress).get('aks-74n')?.status).toBe('locked')
+    // taken in the game: the logs decide
+    progress.taskProgress['aks-74n'] = { taskId: 'aks-74n', status: 'active', source: 'eft-log', updatedAt: '' }
+    expect(calculateAvailability([aks, mp133], progress).get('aks-74n')?.status).toBe('active')
+  })
+
   it('keeps opposite-faction tasks locked', () => {
     const progress = createModeProgress()
     progress.playerLevel = 5

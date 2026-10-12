@@ -7,7 +7,7 @@ const upstream: Record<string, unknown> = {
     tasks: {
       t1: {
         id: 't1', name: 'Аптечный бизнес', trader: 'tr1', minPlayerLevel: 5, kappaRequired: true,
-        // opens at level 2 of a trader line and in a dialogue (2026 game versions)
+        // opens at level 2 of a trader line and in a dialogue (2026 game versions; json.tarkov.dev `otherRequirements`)
         otherRequirements: [{ id: 'r1', type: 'globalVariable', variableId: 'line-x', compareMethod: '>=', value: 2 }, { id: 'r2', type: 'dialogue', traders: ['tr1'] }],
         objectives: [
           { id: 'o1', type: 'findItem', description: 'Найти в рейде газоанализатор', count: 2, foundInRaid: true, items: ['gas'], maps: [] },
@@ -57,6 +57,8 @@ describe('catalog adapter: found-in-raid and structured requirements', () => {
     expect(quest.objectiveDetails!.find((objective) => objective.id === 'o4')).toMatchObject({ type: 'visit', mapIds: ['customs'], zoneBound: true })
     expect(quest.objectiveDetails!.find((objective) => objective.id === 'o3')).toMatchObject({ type: 'giveItem', count: 3 })
     expect(quest.objectiveDetails!.find((objective) => objective.id === 'o3')?.zoneBound).toBeUndefined()
+    // the game's own conditions, each kind once (the app cannot see them: requirementEngine.ts keeps such a task locked)
+    expect([...quest.gameConditions!].sort()).toEqual(['dialogue', 'progress'])
     const level = catalog.hideout.find((station) => station.id === 'st1')!.levels![0]
     expect(level.itemRequirements).toEqual([{ itemId: 'gas', count: 1, foundInRaid: true }, { itemId: 'salewa', count: 2, foundInRaid: undefined }])
     expect(level.requirements[0]).toContain('(найти в рейде)')

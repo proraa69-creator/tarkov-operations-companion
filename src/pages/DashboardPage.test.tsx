@@ -65,7 +65,9 @@ describe('DashboardPage', () => {
   it('puts «Приоритет карт» across the page under the cards and the raid requirements in the left column, with one row for any 7.62x51 pack', async () => {
     const { container } = renderDashboard()
     const priority = container.querySelector('.map-priority') as HTMLElement
-    expect(priority.previousElementSibling).toHaveClass('stat-grid')
+    // the default rows: the cards, the strip under them, then the two columns
+    expect([...container.querySelectorAll('.overview-rows > .overview-block')].map((row) => row.getAttribute('data-block'))).toEqual(['stats', 'priority', 'columns'])
+    expect(priority.closest('[data-block]')).toHaveAttribute('data-block', 'priority')
     expect(priority.closest('.dashboard-layout')).toBeNull()
     expect(priority.querySelectorAll('.map-priority-tile')).toHaveLength(dataset.maps.length)
     const [left, right] = [...container.querySelectorAll('.dashboard-column')]
@@ -109,7 +111,7 @@ describe('DashboardPage', () => {
   it('keeps the four stat cards in order; «Квесты» on the Kappa card opens the four key tasks for «Коллекционер»', async () => {
     const user = userEvent.setup()
     const { container } = renderDashboard()
-    const cards = [...container.querySelectorAll('.stat-grid > .stat-card')]
+    const cards = [...container.querySelectorAll('.stat-grid .stat-card')]
     expect(cards).toHaveLength(4)
     expect(cards[2]).toHaveClass('kappa-card')
     expect(cards[2]).toHaveTextContent('Выполнено 0 из 4')
@@ -118,6 +120,45 @@ describe('DashboardPage', () => {
     expect([...dialog.querySelectorAll('.kappa-quest strong')].map((node) => node.textContent))
       .toEqual(['Реагент. Часть 4', 'Стрелок от бога', 'Тарковский стрелок. Часть 4', 'Шить — не тужить. Часть 4'])
   })
+  it('«Настроить блоки»: every block but the big map gets a handle, arrows move it within its zone, the order is kept and «Сбросить» restores it', async () => {
+    const user = userEvent.setup()
+    const { container, unmount } = renderDashboard()
+    expect(container.querySelector('.overview-veil')).toBeNull()
+    await user.click(screen.getByRole('button', { name: /Настроить блоки/ }))
+    expect(screen.getByRole('button', { name: /Готово/ })).toHaveAttribute('aria-pressed', 'true')
+    // the four cards, the strip, the two left blocks and the three right ones; the map itself and the rows stay put
+    const handles = () => [...container.querySelectorAll('.overview-veil')].map((veil) => veil.closest('[data-block]')?.getAttribute('data-block'))
+    expect(handles().sort()).toEqual(['favorites', 'gunsmith', 'priority', 'requirements', 'squad', 'stat-goons', 'stat-kappa', 'stat-progress', 'stat-tasks', 'tasks'].sort())
+    expect(container.querySelector('.raid-card .overview-veil')).toBeNull()
+    expect(container.querySelector('.raid-card .overview-fixed-chip')).toHaveTextContent('Карта на месте')
+    // while editing, the content under a handle does not react
+    expect(container.querySelector('[data-block="stat-kappa"] > .overview-block-content')).toHaveAttribute('inert')
+
+    const veil = (id: string) => container.querySelector(`[data-block="${id}"] > .overview-veil`) as HTMLElement
+    const order = (selector: string) => [...container.querySelectorAll(selector)].map((element) => element.getAttribute('data-block'))
+    // the strip goes above the cards; the Kappa card one place to the left; the market to the top of the right column
+    fireEvent.keyDown(veil('priority'), { key: 'ArrowUp' })
+    fireEvent.keyDown(veil('stat-kappa'), { key: 'ArrowLeft' })
+    fireEvent.keyDown(veil('favorites'), { key: 'ArrowUp' })
+    fireEvent.keyDown(veil('favorites'), { key: 'ArrowUp' })
+    expect(order('.overview-rows > .overview-block')).toEqual(['priority', 'stats', 'columns'])
+    expect(order('.stat-grid > .overview-block')).toEqual(['stat-tasks', 'stat-kappa', 'stat-progress', 'stat-goons'])
+    expect(order('.dashboard-column:last-child > .overview-block')).toEqual(['favorites', 'tasks', 'gunsmith'])
+    expect(JSON.parse(localStorage.getItem('raidos-overview-layout-v1')!)).toMatchObject({ rows: ['priority', 'stats', 'columns'], right: ['favorites', 'tasks', 'gunsmith'] })
+
+    // «Готово» ends the editing; the order stays after a reload
+    await user.click(screen.getByRole('button', { name: /Готово/ }))
+    expect(container.querySelector('.overview-veil')).toBeNull()
+    unmount()
+    const again = renderDashboard()
+    expect([...again.container.querySelectorAll('.stat-grid > .overview-block')].map((element) => element.getAttribute('data-block'))).toEqual(['stat-tasks', 'stat-kappa', 'stat-progress', 'stat-goons'])
+    await user.click(screen.getByRole('button', { name: /Настроить блоки/ }))
+    await user.click(screen.getByRole('button', { name: /Сбросить/ }))
+    expect([...again.container.querySelectorAll('.overview-rows > .overview-block')].map((row) => row.getAttribute('data-block'))).toEqual(['stats', 'priority', 'columns'])
+    expect(localStorage.getItem('raidos-overview-layout-v1')).toBeNull()
+    expect(screen.getByRole('button', { name: /Сбросить/ })).toBeDisabled()
+  })
+
   it('market favourites show the PvP flea price (cheapest offer), not the highest quote nor another mode\'s price', () => {
     const { container } = renderDashboard(['fav-odd', 'fav-pve'])
     const rows = [...container.querySelectorAll('.market-favorites .item-row')].map((row) => row.textContent?.replace(/\s+/g, ' '))

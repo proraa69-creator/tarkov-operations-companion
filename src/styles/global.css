@@ -113,6 +113,11 @@ img { max-width: 100%; }
 .startup-recovery-actions button + button { background: transparent; color: var(--text, #eef3ea); border-color: var(--line, rgb(255 255 255 / 12%)); }
 .page { max-width: 1580px; margin: 0 auto; animation: page-in .3s ease both; }
 @keyframes page-in { from { opacity: 0; transform: translateY(4px); } }
+/* Page changes crossfade through a View Transition (src/app/pageTransitionHistory.ts): the old page fades out while
+   the new one fades in, with the same curve so the sidebar and the top bar stay perfectly still. */
+:root[data-view-transitions] .page { animation: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; animation-timing-function: var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 26px; }
 .eyebrow { color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .18em; text-transform: uppercase; }
 .page-title { margin: 7px 0 5px; font-size: clamp(26px, 3vw, 39px); line-height: 1; letter-spacing: -.045em; }

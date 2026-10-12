@@ -418,6 +418,13 @@ export interface Quest {
    * level), `reached` once it is completed (its «reach loyalty level N» objectives). Used to estimate the player's levels.
    */
   traderLoyalty?: { needed: Array<{ traderId: string; level: number }>; reached: Array<{ traderId: string; level: number }> }
+  /**
+   * The game's own conditions of the task that the app cannot see (tarkov.dev `otherRequirements`): a talk with the trader
+   * (`dialogue`) or a hidden progress counter of the trader's tasks (`progress`, a `globalVariable`). Such a task is never
+   * «available» on a guess, only once the game logs have it (src/progression/requirementEngine.ts; owner, 12.10.2026:
+   * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»).
+   */
+  gameConditions?: Array<'dialogue' | 'progress'>
   mapId?: string
   level: number
   kappa: boolean

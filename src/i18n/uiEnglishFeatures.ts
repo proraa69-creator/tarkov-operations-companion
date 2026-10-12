@@ -108,7 +108,6 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Режим экрана игры', 'Game display mode'], ['эксклюзивный полноэкранный', 'exclusive full screen'],
   ['полноэкранный (окна поверх видны)', 'full screen (overlays visible)'], ['оконный', 'windowed'],
   ['определится, когда игра будет на переднем плане', 'detected when the game is in front'],
-  ['Галерея', 'Gallery'],
   ['Откройте карточку и вращайте модель мышью; колесо — приблизить.', 'Open a card and turn the model with the mouse; the wheel zooms.'],
   ['3D модель: перетащите, чтобы повернуть', '3D model: drag to turn'], ['Загрузка модели…', 'Loading model…'],
   ['Не удалось загрузить 3D модель', 'Could not load the 3D model'], ['Предыдущий босс', 'Previous boss'], ['Следующий босс', 'Next boss'],

@@ -1,0 +1,55 @@
+/* «Концовки» (src/endings/): the endings view of the Quests page and the deciding-choice notes in the chapters. */
+.story-endings { display: grid; gap: 14px; }
+.ending-fork { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.ending-branch { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
+.ending-branch h3 { margin: 0 0 9px; color: var(--text); font-size: 14px; }
+.ending-branch > p { margin: 0 0 10px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.ending-subchoice { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--brass); font-size: 12.5px; font-weight: 700; }
+.ending-subchoices { display: grid; gap: 5px; margin: 8px 0 0; padding: 0 0 0 19px; list-style: none; color: var(--text-muted); font-size: 12.5px; }
+.ending-subchoices strong { color: var(--ending-accent); }
+
+.ending-steps { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.ending-join { margin-top: 12px; }
+.ending-step { display: flex; align-items: flex-start; gap: 8px; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+.ending-step::before { content: ""; flex: none; width: 5px; height: 5px; margin: 7px 4px 0 4px; border-radius: 50%; background: var(--line-strong); }
+.ending-step:is(.is-craft, .is-achievement, .is-warning)::before { content: none; }
+.ending-step > svg { flex: none; margin-top: 2px; }
+.ending-step.is-craft { color: var(--blue); }
+.ending-step.is-achievement { color: var(--brass); }
+.ending-step.is-warning { color: var(--amber); }
+.ending-step.is-milestone { color: var(--text); font-weight: 750; }
+.ending-step.is-other-mode { opacity: .5; }
+.ending-when {
+  display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--text-dim); font-size: 10px; font-weight: 750; line-height: 16px; vertical-align: 1px;
+}
+
+.ending-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1380px) { .ending-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .ending-grid { grid-template-columns: 1fr; } }
+.ending-card { --ending-accent: var(--brass); display: flex; flex-direction: column; gap: 14px; padding: 16px; border-top: 3px solid var(--ending-accent); }
+.ending-card.is-survivor, .ending-tag.is-survivor, .ending-subchoices .is-survivor { --ending-accent: var(--amber); }
+.ending-card.is-savior, .ending-tag.is-savior, .ending-subchoices .is-savior { --ending-accent: var(--green); }
+.ending-card.is-fallen, .ending-tag.is-fallen, .ending-subchoices .is-fallen { --ending-accent: var(--danger); }
+.ending-card.is-debtor, .ending-tag.is-debtor, .ending-subchoices .is-debtor { --ending-accent: var(--blue); }
+.ending-card-kicker { color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ending-card-head h3 { margin: 3px 0 6px; color: var(--ending-accent); font-size: 21px; }
+.ending-card-head p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+.ending-exit { display: grid; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.45; }
+.ending-exit p { display: flex; gap: 8px; margin: 0; }
+.ending-exit svg { flex: none; margin-top: 2px; color: var(--brass); }
+.ending-note { margin: 0; font-size: 12.5px; }
+
+/* In a chapter: the deciding choices and where they lead. */
+.story-decisions { display: grid; gap: 14px; justify-items: start; }
+.story-decision h4 { display: flex; align-items: center; gap: 6px; color: var(--brass); }
+.story-decision ul { display: grid; gap: 7px; margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.story-decision li strong { color: var(--text); }
+.decision-endings { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 2px; vertical-align: middle; }
+.ending-tag { --ending-accent: var(--brass); border-color: color-mix(in srgb, var(--ending-accent) 45%, var(--line)); color: var(--ending-accent); }
+.story-decision-hint {
+  display: flex; align-items: flex-start; gap: 7px; margin: 7px 0 0; padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--brass) 40%, transparent); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--brass) 8%, transparent); color: #d4bc83; font-size: 12.5px; line-height: 1.45;
+}
+.story-decision-hint svg { flex: none; margin-top: 2px; }

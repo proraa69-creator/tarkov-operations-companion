@@ -10,7 +10,10 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['Задания торговца', 'Trader tasks'], ['Список заданий', 'Task list'],
   ['Общий список', 'All tasks'], ['Доступные', 'Available'], ['Завершённые', 'Completed'], ['Недоступно', 'Locked'],
   ['Завершённых заданий у этого торговца пока нет.', 'This trader has no completed tasks yet.'],
-  ['Сейчас нет доступных заданий у этого торговца.', 'This trader has no available tasks right now.'],
+  ['Сейчас у этого торговца нет текущих заданий: принятое в игре появится здесь само.', 'This trader has no current tasks right now: one you take in the game shows up here by itself.'],
+  // «Концовки» (src/endings/; the endings' own texts carry both languages)
+  ['Концовки', 'Endings'], ['Концовки игры', 'Game endings'],
+  ['Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.', 'The four endings, the deciding choices on the way and where each choice leads.'],
   ['У этого торговца нет заданий.', 'This trader has no tasks.'],
   ['Выберите задание', 'Select a task'],
   ['Нажмите на доступное задание слева — здесь откроется его полное описание: цели, условия, предметы, места на карте и награды.',

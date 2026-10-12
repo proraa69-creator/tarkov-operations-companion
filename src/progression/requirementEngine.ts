@@ -48,6 +48,11 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
       blockers.push(`Не выполнено предыдущее задание: ${requirement.taskId}`)
     }
   }
+  // The game's own conditions are out of the app's sight: a task given in a talk with the trader, or one behind a hidden
+  // counter the line model below cannot read (no line data for it, or no logs to compare with), is offered only once the
+  // logs have it (the explicit record above), never on a guess (owner, 12.10.2026: Mechanic closed, «АКС-74Н» offered).
+  if (quest.gameConditions?.includes('dialogue')) blockers.push('Откроется после разговора с торговцем в игре')
+  if (quest.gameConditions?.includes('progress') && !(context && quest.unlock?.lines?.length)) blockers.push('Откроется в игре по ходу заданий торговца')
 
   // A trader line at a level (src/data/questUnlock.ts): open once a quest of that level or above was taken. When the
   // player's history began before the logs, a line the logs say nothing about may be open: unknown, not locked — unless
