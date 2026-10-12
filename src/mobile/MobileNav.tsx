@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Target, UserRound, Users, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Skull, Target, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -20,7 +20,7 @@ const MORE = [
   ...(featureEnabled('economyTools') ? [{ to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat }] : []),
   ...(featureEnabled('economyTools') ? [{ to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical }] : []),
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
-  { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
+  { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
   ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
   ...(featureEnabled('raidBriefing') ? [{ to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList }] : []),

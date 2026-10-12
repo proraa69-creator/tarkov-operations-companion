@@ -10,8 +10,8 @@ import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageCheck, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Users, Wrench, X,
+  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, MapPinned, PackageCheck, PackageX, Palette,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -43,7 +43,7 @@ const navigation = [
   { to: '/quests', ru: 'Текущие задания', en: 'Current Tasks', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
-  { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
+  { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
 ]
 
 /** «Рейд» group: preparation for the next raid (briefing, items to keep, squad and raid planner). */

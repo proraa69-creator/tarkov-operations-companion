@@ -36,7 +36,7 @@ function readTab(): GalleryTab {
 const mapLine = (key: string) => bossMapIds(key).map((id) => uiText(MAP_DISPLAY_NAMES[id] ?? id)).join(' · ')
 
 /**
- * «Галерея»: the owner's 3D models — bosses (main and ancient) and, later, traders. The grid shows light
+ * «Боссы» (the «Галерея» until 12.10.2026, renamed by the owner): the owner's 3D models — bosses (main and ancient) and, later, traders. The grid shows light
  * pre-rendered stills; only the opened boss gets a live 3D viewer (three.js is imported on open, freed on close).
  */
 export function GalleryPage() {
@@ -50,7 +50,7 @@ export function GalleryPage() {
   return <div className="page gallery-page">
     <header className="page-header"><div>
       <div className="eyebrow">{uiText('3D модели')}</div>
-      <h1 className="page-title">{uiText('Галерея')}</h1>
+      <h1 className="page-title">{uiText('Боссы')}</h1>
       <p className="page-subtitle">{uiText(isMobileLayout() ? 'Откройте карточку и вращайте модель пальцем; щипок — приблизить.' : 'Откройте карточку и вращайте модель мышью; колесо — приблизить.')}</p>
     </div></header>
     <nav className="gallery-tabs" aria-label={uiText('Разделы галереи')}>
