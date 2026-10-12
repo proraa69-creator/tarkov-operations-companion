@@ -78,7 +78,7 @@ export function QuestsPage() {
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
       <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
       </>}
-      <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); return next }) }}>{uiText(label)}</button>))}</div>
+      <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} data-guide={value === 'story' ? 'story-tab' : undefined} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); return next }) }}>{uiText(label)}</button>))}</div>
       {statusFilter !== 'endings' && <span className="dim">{uiText("Найдено: ")}{uiText(filtered.length)}</span>}
     </div>
 

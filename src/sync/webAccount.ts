@@ -215,7 +215,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
-  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> = {}
+  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
   try {
     const health = await send('GET', '/health', { timeoutMs: 4000 })
     online = health.response.ok
@@ -223,7 +223,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
@@ -235,7 +235,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -249,10 +249,17 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
   const paidUntil = date(sub.paidUntil)
   const trialEndsAt = date(sub.trialEndsAt)
+  // The free period waiting for the first sign-in in an app: its length in days.
+  const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
+  const createdAt = date(view.createdAt)
+  return {
+    nicknames,
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
+  }
 }
 
 export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {

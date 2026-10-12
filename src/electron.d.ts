@@ -37,7 +37,10 @@ export interface ServerAccountStatus {
   persistent: boolean
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
-  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+  /** `trialPendingDays`: the free period still waits for the account's first sign-in in an app (server, accountStore.ts). */
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+  /** When the account was registered (server, ISO): the first-run guide is for new accounts (src/onboarding/). */
+  createdAt?: string
   /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
   phone?: string
   /** false while the e-mail is not confirmed («Подтвердите e-mail»); absent with an older server or app. */

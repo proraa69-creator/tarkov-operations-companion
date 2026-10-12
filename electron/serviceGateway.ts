@@ -397,7 +397,7 @@ export async function serviceRequestOrNull(method: string, path: string, body?: 
 }
 
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
-export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
 
 export interface AccountStatus {
   signedIn: boolean
@@ -410,6 +410,8 @@ export interface AccountStatus {
   phone?: string
   /** false: the e-mail is not confirmed yet («Подтвердите e-mail»); absent with an older server. */
   emailVerified?: boolean
+  /** When the account was registered (ISO): the renderer's first-run guide is for new accounts. */
+  createdAt?: string
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -422,7 +424,7 @@ export async function accountStatus(): Promise<AccountStatus> {
   await loadSessionForServer()
   let serverUrl = defaultApiUrl()
   let online: boolean
-  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> = {}
+  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
   try {
     serverUrl = apiBaseUrl()
     const health = await send('GET', '/health', { timeoutMs: 3000 })
@@ -431,7 +433,7 @@ export async function accountStatus(): Promise<AccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
         details = accountDetails(view)
@@ -455,7 +457,7 @@ let entitlementDue = false
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 /** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> {
   const nicknames: Partial<Record<AccountMode, string>> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -468,10 +470,17 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
   const paidUntil = date(sub.paidUntil)
   const trialEndsAt = date(sub.trialEndsAt)
+  // The free period waiting for the first sign-in in an app: its length in days.
+  const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
+  const createdAt = date(view.createdAt)
+  return {
+    nicknames,
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
+  }
 }
 
 /**
