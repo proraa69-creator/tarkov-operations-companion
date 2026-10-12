@@ -231,7 +231,8 @@ export function ExperimentalBridge() {
       if (!entries.length) { notify('Список предметов не загружен. Обновите каталог в приложении.'); return }
       scanning = true
       notify('Распознавание предметов началось.')
-      void scanForCollectorItems(state.raidMode, entries).then((result) => {
+      // A hotkey press is one scan of its own: every label on screen is read.
+      void scanForCollectorItems(state.raidMode, entries, { restart: true }).then((result) => {
         notify(result.ok
           ? result.gameWindow ? `Найдено предметов: ${result.found}. Добавлено новых: ${result.added.length}.` : 'Окно игры не найдено. Откройте схрон и повторите сканирование.'
           : 'Сканирование работает только в приложении для Windows.')

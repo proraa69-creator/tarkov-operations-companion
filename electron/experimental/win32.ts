@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url)
 type Koffi = {
   load: (name: string) => { func: (signature: string) => (...args: unknown[]) => unknown }
   struct: (name: string, fields: Record<string, string>) => unknown
+  address: (pointer: unknown) => bigint
 }
 
 let api: {
@@ -19,7 +20,19 @@ let api: {
   isAdmin: (() => number) | null
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
   gdi: Gdi | null
+  windows: Windows | null
 } | null | undefined
+
+interface Windows {
+  find: (className: string | null, title: string | null) => unknown
+  minimized: (hwnd: unknown) => boolean
+  visible: (hwnd: unknown) => boolean
+  clientRect: (hwnd: unknown, rect: Record<string, number>) => boolean
+  clientToScreen: (hwnd: unknown, point: Record<string, number>) => boolean
+  fromPoint: (point: { x: number; y: number }) => unknown
+  ancestor: (hwnd: unknown, flags: number) => unknown
+  address: (pointer: unknown) => bigint
+}
 
 interface Gdi {
   getDC: (hwnd: unknown) => unknown
@@ -74,6 +87,20 @@ function win32() {
           deleteDC: gdi32.func('bool __stdcall DeleteDC(void* hdc)'),
         } as unknown as Gdi
       }),
+      windows: optional(() => {
+        koffi.struct('RAIDOS_RECT', { left: 'int32', top: 'int32', right: 'int32', bottom: 'int32' })
+        koffi.struct('RAIDOS_POINT', { x: 'int32', y: 'int32' })
+        return {
+          find: user32.func('void* __stdcall FindWindowW(const char16_t* lpClassName, const char16_t* lpWindowName)'),
+          minimized: user32.func('bool __stdcall IsIconic(void* hWnd)'),
+          visible: user32.func('bool __stdcall IsWindowVisible(void* hWnd)'),
+          clientRect: user32.func('bool __stdcall GetClientRect(void* hWnd, _Out_ RAIDOS_RECT* lpRect)'),
+          clientToScreen: user32.func('bool __stdcall ClientToScreen(void* hWnd, _Inout_ RAIDOS_POINT* lpPoint)'),
+          fromPoint: user32.func('void* __stdcall WindowFromPoint(RAIDOS_POINT Point)'),
+          ancestor: user32.func('void* __stdcall GetAncestor(void* hwnd, uint32 gaFlags)'),
+          address: (pointer: unknown) => koffi.address(pointer),
+        } as unknown as Windows
+      }),
     }
   } catch (error) {
     api = null
@@ -92,10 +119,7 @@ export function foregroundWindowTitle() {
   const calls = win32()
   if (!calls) return ''
   const hwnd = calls.foreground()
-  if (!hwnd) return ''
-  const buffer = new Uint16Array(512)
-  const length = calls.windowText(hwnd, buffer, buffer.length)
-  return length > 0 ? String.fromCharCode(...buffer.subarray(0, length)) : ''
+  return hwnd ? windowTitle(calls, hwnd) : ''
 }
 
 export function isTarkovTitle(name: string) {
@@ -105,6 +129,58 @@ export function isTarkovTitle(name: string) {
 
 export function isTarkovForeground() {
   return isTarkovTitle(foregroundWindowTitle())
+}
+
+const GA_ROOT = 2
+
+/** Whether the game's window can be found and copied (visibleGameRect + captureScreenRegion). */
+export function gameCaptureAvailable() {
+  const calls = win32()
+  return Boolean(calls?.windows && calls.gdi)
+}
+
+/**
+ * The game's picture on screen (physical pixels) while the player can see it: the game in front, or its window open
+ * and uncovered on another monitor (the app on one screen, the stash on the other). Null when it is minimised, covered
+ * by another window (its picture would then be of that window — this app's own item list among them) or not running,
+ * and when the Windows functions are unavailable.
+ */
+export function visibleGameRect(): { x: number; y: number; width: number; height: number } | null {
+  const calls = win32()
+  const windows = calls?.windows
+  if (!calls || !windows) return null
+  try {
+    const front = calls.foreground()
+    const inFront = Boolean(front) && isTarkovTitle(windowTitle(calls, front))
+    // The game's window is «EscapeFromTarkov» of the Unity window class.
+    const found = inFront ? front : windows.find(null, 'EscapeFromTarkov') || windows.find('UnityWndClass', null)
+    const hwnd = found && (inFront || isTarkovTitle(windowTitle(calls, found))) ? found : null
+    if (!hwnd || windows.minimized(hwnd) || !windows.visible(hwnd)) return null
+    const rect = { left: 0, top: 0, right: 0, bottom: 0 }
+    const origin = { x: 0, y: 0 }
+    if (!windows.clientRect(hwnd, rect) || !windows.clientToScreen(hwnd, origin)) return null
+    const width = rect.right - rect.left, height = rect.bottom - rect.top
+    if (width < 320 || height < 240) return null
+    if (!inFront) {
+      const game = windows.address(hwnd)
+      for (const fx of [0.1, 0.5, 0.9]) {
+        for (const fy of [0.1, 0.5, 0.9]) {
+          const hit = windows.fromPoint({ x: Math.round(origin.x + width * fx), y: Math.round(origin.y + height * fy) })
+          const root = hit ? windows.ancestor(hit, GA_ROOT) : null
+          if (!root || windows.address(root) !== game) return null
+        }
+      }
+    }
+    return { x: origin.x, y: origin.y, width, height }
+  } catch {
+    return null
+  }
+}
+
+function windowTitle(calls: NonNullable<ReturnType<typeof win32>>, hwnd: unknown) {
+  const buffer = new Uint16Array(512)
+  const length = calls.windowText(hwnd, buffer, buffer.length)
+  return length > 0 ? String.fromCharCode(...buffer.subarray(0, length)) : ''
 }
 
 export function isVirtualKeyDown(key: number) { return Boolean((win32()?.keyState(key) ?? 0) & 0x8000) }

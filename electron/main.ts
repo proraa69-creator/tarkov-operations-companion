@@ -10,7 +10,8 @@ import type { RaidMode } from '../src/domain/types.js'
 import { discoverAllEftLogs, discoverEftLogs, freshestLogsFolder, normalizeSelectedLogsFolder } from './logDiscovery.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
 import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
-import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng, scanScreenText } from './screenOcr.js'
+import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
+import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
@@ -583,7 +584,7 @@ function registerIpc() {
     return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`).catch(() => null) ?? fetchPlayerProfile(mode, accountId)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)
-  ipcMain.handle('collector:scan-screen', () => scanScreenText())
+  ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => scanCollectorScreen({ restart: Boolean(options && typeof options === 'object' && (options as { restart?: unknown }).restart === true) }))
   ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail)))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   ipcMain.handle('quests:recognize-png', async (_event, raw: unknown) => {

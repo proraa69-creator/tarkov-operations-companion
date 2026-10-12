@@ -1,11 +1,14 @@
 import type { Item, Quest } from '../domain/types'
-import { ITEM_TEXT_MIN_SCORE, itemTextScore } from '../overlay/itemMatch'
+import { ITEM_TEXT_MIN_SCORE, itemTextScore, normalizeOcr } from '../overlay/itemMatch'
+import { labelScore } from './collectorMatch'
 
 const COLLECTOR_NAME = /^\s*(коллекционер|collector)\s*$/i
 
 export interface CollectorEntry {
   item: Item
   count: number
+  /** Several other items carry the same label (ten masks are «Маска»): the label alone does not prove this item. */
+  ambiguous?: boolean
 }
 
 /** The Collector task (the one that gives the Kappa container); its items come from the live catalog. */
@@ -24,16 +27,29 @@ export function collectorEntries(quests: Quest[], items: Item[]): CollectorEntry
     counts.set(requirement.itemId, (counts.get(requirement.itemId) ?? 0) + Math.max(1, requirement.count || 1))
   }
   for (const id of quest.requiredItems ?? []) if (!counts.has(id)) counts.set(id, 1)
+  const labels = new Map<string, number>()
+  for (const item of items) {
+    const label = normalizeOcr(item.shortName ?? '')
+    if (label) labels.set(label, (labels.get(label) ?? 0) + 1)
+  }
   return [...counts.entries()].flatMap(([id, count]) => {
     const item = byId.get(id)
-    return item ? [{ item, count }] : []
+    if (!item) return []
+    // One look-alike (the Raven's key, «Ворон») is rarely on screen with it; a label of three or more items is common.
+    const ambiguous = (labels.get(normalizeOcr(item.shortName ?? '')) ?? 0) > 2
+    return [ambiguous ? { item, count, ambiguous } : { item, count }]
   }).sort((a, b) => a.item.name.localeCompare(b.item.name, 'ru'))
 }
 
-/** Which of the wanted items are visible in the OCR text of one screen. */
+/**
+ * Which of the wanted items are visible in the OCR text of one screen: their stash labels (also misread), or their full
+ * names (a tooltip). An item whose label other items share is ticked only by its full name.
+ */
 export function findVisibleItems(entries: CollectorEntry[], ocrText: string) {
   if (!ocrText.trim()) return []
-  return entries.filter(({ item }) => itemTextScore(item, ocrText) >= ITEM_TEXT_MIN_SCORE).map(({ item }) => item.id)
+  return entries.filter(({ item, ambiguous }) => (ambiguous
+    ? itemTextScore({ ...item, shortName: '' }, ocrText)
+    : Math.max(itemTextScore(item, ocrText), labelScore(item, ocrText))) >= ITEM_TEXT_MIN_SCORE).map(({ item }) => item.id)
 }
 
 const STORAGE_PREFIX = 'tarkov-collector-items-v1:'
@@ -70,14 +86,18 @@ export function clearCollectorDirty(mode: string) {
   try { localStorage.removeItem(DIRTY_PREFIX + mode) } catch { /* storage unavailable */ }
 }
 
-/** Scans the game screen and adds every wanted item that is visible; never unticks anything. */
-export async function scanForCollectorItems(mode: string, entries: CollectorEntry[]) {
+/**
+ * Reads the game screen once and adds every wanted item that is visible; never unticks anything. `restart` starts a
+ * new scan (labels read in the previous one are read again).
+ */
+export async function scanForCollectorItems(mode: string, entries: CollectorEntry[], options: { restart?: boolean } = {}) {
   const api = window.tarkovDesktop
   if (!api) return { ok: false as const, reason: 'desktop' as const }
-  const frame = api.scanScreenText ? await api.scanScreenText() : await api.captureQuestFrame(false, true)
+  const frame = api.scanScreenText ? await api.scanScreenText(options) : await api.captureQuestFrame(false, true)
   const found = findVisibleItems(entries, frame.text)
   const current = loadCollected(mode)
   const added = found.filter((id) => !current.includes(id))
   if (added.length) saveCollected(mode, [...current, ...added])
-  return { ok: true as const, found: found.length, added, gameWindow: frame.gameWindow }
+  const waiting = 'waiting' in frame && frame.waiting === true
+  return { ok: true as const, found: found.length, added, gameWindow: frame.gameWindow, waiting }
 }
