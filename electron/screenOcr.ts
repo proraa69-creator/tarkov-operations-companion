@@ -6,7 +6,7 @@ import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
-import { reuseQuestReading } from '../src/import/storyScanTiming.js'
+import { reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/import/storyScanTiming.js'
 import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 
 let worker: OcrWorker | null = null
@@ -16,7 +16,8 @@ let preparing: Promise<OcrWorker> | null = null
 const PROBE_SIZE = { width: 160, height: 90 }
 /** Mean per-channel difference (0–255) below which two probes count as the same picture. */
 const SAME_FRAME_DIFF = 3
-let lastWatch: { fingerprint: Buffer; text: string; sourceName: string; story?: StoryPaneReading; at: number; detail: boolean } | null = null
+/** The last reading of the game: a coarse print (moves a little: re-read soon), a fine one (unchanged: see reuseStableReading). */
+let lastWatch: { fingerprint: Buffer; fine: Buffer; text: string; sourceName: string; story?: StoryPaneReading; at: number; detail: boolean; reads: number } | null = null
 let lastScreenshot: { key: string; text: string; sourceName: string; story?: StoryPaneReading; observedAt: number } | null = null
 /** Where the parts of the last story pane were: while it stays open (flipping chapters) no whole-screen pass is needed. */
 let storyLayout: { width: number; height: number; rects: StoryPaneRects } | null = null
@@ -45,12 +46,14 @@ export async function captureQuestFrame(watch = false, detail = false) {
     const image = grabGameDisplay()
     if (image) {
       const fingerprint = frameFingerprint(image)
+      const fine = fineFingerprint(image)
       const capturedAt = Date.now()
-      if (lastWatch && reuseQuestReading(lastWatch, capturedAt, detail, sameFrame(fingerprint, lastWatch.fingerprint))) {
+      const unchanged = unchangedFrame(lastWatch?.fine, fine)
+      if (lastWatch && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
         return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}) }
       }
       const result = await readQuestFrame(image, detail, 'EscapeFromTarkov')
-      lastWatch = { fingerprint, ...result, at: capturedAt, detail }
+      lastWatch = { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 }
       return { ...result, gameWindow: true, observedAt: lastWatch.at }
     }
   }
@@ -67,8 +70,11 @@ export async function captureQuestFrame(watch = false, detail = false) {
       return { text: '', sourceName: '', gameWindow: false }
     }
     const fingerprint = probe.thumbnail.isEmpty() ? null : frameFingerprint(probe.thumbnail)
+    // The probe itself (160 × 90) is the fine print.
+    const fine = fingerprint ? probe.thumbnail.toBitmap() : null
+    const unchanged = Boolean(fine && unchangedFrame(lastWatch?.fine, fine))
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
-    if (fingerprint && lastWatch && reuseQuestReading(lastWatch, Date.now(), detail, sameFrame(fingerprint, lastWatch.fingerprint))) {
+    if (fingerprint && lastWatch && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
       return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}) }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
@@ -76,7 +82,7 @@ export async function captureQuestFrame(watch = false, detail = false) {
     if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game) }
     const capturedAt = Date.now()
     const result = await readQuestFrame(game.thumbnail, detail, game.name)
-    lastWatch = fingerprint ? { fingerprint, ...result, at: capturedAt, detail } : null
+    lastWatch = fingerprint && fine ? { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 } : null
     return { ...result, gameWindow: true, observedAt: capturedAt }
   }
   const sources = await desktopCapturer.getSources({
@@ -265,6 +271,11 @@ function isTarkovWindow(name: string) {
 
 function frameFingerprint(image: NativeImage) {
   return image.resize({ width: 48, height: 27, quality: 'good' }).toBitmap()
+}
+
+/** About 16 × 16 screen pixels a sample at 1080p: a changed digit shows. */
+function fineFingerprint(image: NativeImage) {
+  return image.resize({ width: 120, height: 68, quality: 'good' }).toBitmap()
 }
 
 function sameFrame(a: Buffer, b: Buffer) {

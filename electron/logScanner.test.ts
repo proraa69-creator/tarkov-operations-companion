@@ -196,4 +196,29 @@ describe('following the logs of a running game', () => {
     await writeFile(logPath(root, 'application'), app(at(1), 'Session mode: Regular'))
     expect(await readRaidState(root)).toEqual({ inRaid: false })
   })
+
+  it('reads a finished launch once more after the next one starts, then no more', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-launches-'))
+    const first = 'log_2026.09.29_20-31-00_1.1.5.1.47510'
+    const second = 'log_2026.09.30_18-02-10_1.1.5.1.47510'
+    const pushLog = (name: string) => join(root, name, `${name.slice(4)} push-notifications_000.log`)
+    const ids = async () => (await scanLogFolderBySession(root)).events.map((event) => event.taskId)
+    const QUEST_C = '5967733e86f774602332fc84', QUEST_D = '59c124d686f774189b3c843f', QUEST_E = '5c0be5fc86f774467a116593'
+    await session(root, first, {
+      application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular'), app('2026-09-29 20:31:10.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
+      'push-notifications': block('2026-09-29 20:40:00.000', QUEST_A),
+    })
+    expect(await ids()).toEqual([QUEST_A])
+    // The game closes after one more quest, written after that poll; the next launch starts.
+    await appendFile(pushLog(first), `\n${block('2026-09-29 23:59:00.000', QUEST_B).join('\n')}`)
+    await session(root, second, {
+      application: [app('2026-09-30 18:02:20.000', 'Session mode: Regular'), app('2026-09-30 18:02:25.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
+      'push-notifications': block('2026-09-30 18:10:00.000', QUEST_C),
+    })
+    expect(await ids()).toEqual([QUEST_A, QUEST_B, QUEST_C])
+    // The first launch is over: not checked again. The running one is followed.
+    await appendFile(pushLog(first), `\n${block('2026-09-30 00:30:00.000', QUEST_E).join('\n')}`)
+    await appendFile(pushLog(second), `\n${block('2026-09-30 18:20:00.000', QUEST_D).join('\n')}`)
+    expect(await ids()).toEqual([QUEST_A, QUEST_B, QUEST_C, QUEST_D])
+  })
 })

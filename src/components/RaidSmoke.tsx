@@ -14,7 +14,7 @@ import '../styles/raidSmoke.css'
  * Green signal smoke behind the boss figures of the Overview raid card (decorative, like a smoke grenade in the game).
  * ~40 pre-baked puff sprites (src/assets/smoke, made by the smoke prototype's bake script) rise very slowly from
  * behind the middle of the figure group; every puff is a pure function of the loop time, so the loop is seamless.
- * Canvas at half resolution and ≤ 30 fps; it sleeps while the card is off-screen, the window is hidden or
+ * Canvas at 0.4 resolution and ≤ 24 fps; it sleeps while the card is off-screen, the window is hidden or
  * unfocused (the game is in front), and draws one still frame for reduced motion. Setting «Дым за боссами»
  * (on/off, plume width, speed, colour).
  */
@@ -27,8 +27,10 @@ export function RaidSmoke({ mapId }: { mapId: string }) {
 }
 
 const PERIOD = 72 // s — puff lives are PERIOD / 2 and PERIOD / 3 (36 s, 24 s): very slow
-const FRAME_MS = 1000 / 30
-const SCALE = 0.5 // backing store: half the CSS pixels (the smoke is soft anyway)
+// The plume drifts slowly: 24 frames a second and a backing store of 0.4 of the CSS pixels look the same as 30 and 0.5
+// (the smoke is soft anyway) and cost the processor about half (owner, 12.10.2026: «чтобы не сильно нагружало пк»).
+const FRAME_MS = 1000 / 24
+const SCALE = 0.4
 // Enough overlapping puffs that the column reads as one continuous plume, not a stack of separate balls.
 const PUFFS = 64
 const STILL_TIME = PERIOD * 0.4

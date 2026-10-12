@@ -8,7 +8,7 @@ vi.mock('idb-keyval', () => ({
   keys: async () => [...idb.store.keys()],
 }))
 
-import { classifyTarkovUrl, DataAccessError, GRAPHQL_URL, installTarkovFetchGuard, resolveDataRoute, setDataRouteForTests, tarkovGraphql, tarkovJson, uninstallTarkovFetchGuardForTests } from './tarkovApi'
+import { classifyTarkovUrl, DataAccessError, forgetSharedTarkovJson, GRAPHQL_URL, installTarkovFetchGuard, resolveDataRoute, setDataRouteForTests, tarkovGraphql, tarkovJson, uninstallTarkovFetchGuardForTests } from './tarkovApi'
 import { fetchTarkovCatalog } from './tarkovJsonClient'
 import { purgeLegacyPlaintextCaches, readGameCache, writeGameCache } from './gameDataCache'
 import { computeDataAccess } from '../account/dataAccess'
@@ -152,5 +152,28 @@ describe('client data layer', () => {
     expect(computeDataAccess('gateway', { ...base, signedIn: false })).toEqual({ state: 'locked', reason: 'signed-out' })
     expect(computeDataAccess('gateway', { ...base, signedIn: true, entitlement: { valid: false, reason: 'subscription' } })).toEqual({ state: 'locked', reason: 'subscription' })
     expect(computeDataAccess('gateway', { ...base, signedIn: true, entitlement: { valid: true, plan: 'streamer', expiresAt: '2026-10-04T00:00:00.000Z' } })).toEqual({ state: 'granted', plan: 'streamer', expiresAt: '2026-10-04T00:00:00.000Z' })
+  })
+})
+
+describe('big data files', () => {
+  afterEach(() => { forgetSharedTarkovJson(); vi.unstubAllGlobals() })
+
+  it('are downloaded once for the parts of a page that read them together, and again after a failure', async () => {
+    let calls = 0
+    const fetchMock = vi.fn(async () => {
+      calls += 1
+      return calls === 3 ? new Response('busy', { status: 503 }) : Response.json({ data: { call: calls } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const [restock, bosses, ammo] = await Promise.all(['regular/items', 'regular/items', 'regular/items'].map((path) => tarkovJson<{ data: { call: number } }>(path, 'direct')))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(restock).toBe(bosses)
+    expect(ammo.data.call).toBe(1)
+    // Another file is its own download.
+    expect((await tarkovJson<{ data: { call: number } }>('regular/maps', 'direct')).data.call).toBe(2)
+    forgetSharedTarkovJson()
+    await expect(tarkovJson('regular/items', 'direct')).rejects.toThrow(/HTTP 503/)
+    // The failure is not kept: the next reader downloads again.
+    expect((await tarkovJson<{ data: { call: number } }>('regular/items', 'direct')).data.call).toBe(4)
   })
 })
