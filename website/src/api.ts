@@ -278,7 +278,8 @@ export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
   autopay: { provider: string; status: string; plan: string } | null
-  lastSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
+  /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
+  lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
 }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
 export interface AdminDevice { id: string; name: string; createdAt: string; lastSeenAt: string; active: boolean; revokedAt?: string; revokedReason?: 'limit' | 'owner' | 'user' }

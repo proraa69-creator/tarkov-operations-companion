@@ -117,6 +117,40 @@ test('users list and details never contain password hashes, salts or session tok
   } finally { await t.close() }
 })
 
+test('users list: «Вход с ПК» is the last use of the PC app, not of the site or the phone', async () => {
+  const t = await setup()
+  try {
+    const player = await t.register('player@example.com')
+    const owner = await t.login('owner@example.com')
+    const row = async () => ((await t.call('GET', '/accounts/me/admin/users?q=player', owner)).json as unknown as { users: Array<{ lastSeenAt?: string; pcSeenAt?: string }> }).users[0]!
+    const signedUp = await row()
+    assert.ok(signedUp.lastSeenAt, 'the site sign-in is activity')
+    assert.equal(signedUp.pcSeenAt, undefined, 'but not a PC sign-in')
+
+    // The phone build registers its device too: still no PC sign-in.
+    t.advance(60 * 60 * 1000)
+    assert.equal((await t.call('POST', '/entitlement', player, { deviceId: 'phone-01-abcdefghijklmnopqrstu', deviceName: 'Android · Raid OS' })).status, 200)
+    assert.equal((await row()).pcSeenAt, undefined)
+
+    t.advance(60 * 60 * 1000)
+    const pcAt = new Date(Date.parse('2026-10-01T12:00:00.000Z')).toISOString()
+    assert.equal((await t.call('POST', '/entitlement', player, { deviceId: 'pc-0001-abcdefghijklmnopqrstu', deviceName: 'Windows · DESKTOP-1 · Raid OS 0.6.0' })).status, 200)
+    assert.equal((await row()).pcSeenAt, pcAt)
+
+    // Later the site is used again: the PC time stays, the activity moves on. The next app start moves the PC time — also
+    // after the free day is over (402: no subscription, the device is still registered).
+    t.advance(DAY)
+    assert.equal((await t.call('GET', '/accounts/me', player)).status, 200)
+    const after = await row()
+    assert.equal(after.pcSeenAt, pcAt)
+    assert.equal(after.lastSeenAt, '2026-10-02T12:00:00.000Z')
+    assert.equal((await t.call('POST', '/entitlement', player, { deviceId: 'pc-0001-abcdefghijklmnopqrstu', deviceName: 'Windows · DESKTOP-1 · Raid OS 0.6.0' })).status, 402)
+    assert.equal((await row()).pcSeenAt, '2026-10-02T12:00:00.000Z')
+    const id = ((await t.call('GET', '/accounts/me/admin/users?q=player', owner)).json as unknown as { users: Array<{ id: string }> }).users[0]!.id
+    assert.equal(((await t.call('GET', `/accounts/me/admin/users/${id}`, owner)).json as unknown as { user: { pcSeenAt?: string } }).user.pcSeenAt, '2026-10-02T12:00:00.000Z')
+  } finally { await t.close() }
+})
+
 test('manual grant extends the paid period from its end, validates input and is logged with the reason', async () => {
   const t = await setup()
   try {
