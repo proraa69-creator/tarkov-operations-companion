@@ -171,15 +171,17 @@ function dropLines(mask: Uint8Array, width: number, height: number, across: numb
       }
     }
   }
-  for (let x = 0; x < width; x += 1) {
-    let start = -1
-    for (let y = 0; y <= height; y += 1) {
-      const on = y < height && mask[y * width + x] === 1
-      if (on && start < 0) start = y
-      else if (!on && start >= 0) {
-        if (y - start >= down) for (let k = start; k < y; k += 1) out[k * width + x] = 0
-        start = -1
-      }
+  // Down the columns, read row by row (memory order): where each column's run started so far.
+  const starts = new Int32Array(width).fill(-1)
+  for (let y = 0; y <= height; y += 1) {
+    const row = y * width
+    for (let x = 0; x < width; x += 1) {
+      const on = y < height && mask[row + x] === 1
+      const start = starts[x]!
+      if (on) { if (start < 0) starts[x] = y; continue }
+      if (start < 0) continue
+      if (y - start >= down) for (let k = start; k < y; k += 1) out[k * width + x] = 0
+      starts[x] = -1
     }
   }
   return out
@@ -206,42 +208,66 @@ function textLike(mask: Uint8Array, width: number, box: Box) {
   return rows > 0 && runs / rows >= 2.5 && columns / box.width <= 0.9
 }
 
+/** A label with `pad` pixels around it, copied out of the frame (the frame moves on; the label waits for its reading). */
+export function cropLabel(raster: Raster, box: Box, pad = 3): Raster {
+  const x0 = Math.max(0, box.x - pad), y0 = Math.max(0, box.y - pad)
+  const x1 = Math.min(raster.width, box.x + box.width + pad), y1 = Math.min(raster.height, box.y + box.height + pad)
+  const width = x1 - x0, height = y1 - y0
+  const data = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y += 1) data.set(raster.data.subarray(((y0 + y) * raster.width + x0) * 4, ((y0 + y) * raster.width + x1) * 4), y * width * 4)
+  return { width, height, data, order: raster.order }
+}
+
+export interface LabelStack {
+  width: number
+  height: number
+  /** 1 byte per pixel: black ink on white. */
+  data: Uint8Array
+  /** The rows of each label in the picture, in the order given (OCR lines are matched back to labels by them). */
+  bands: Array<{ top: number; bottom: number }>
+}
+
 /**
- * The labels cut out, enlarged `scale` times (bilinear, then cut to black ink on white — the way OCR reads best) and
- * stacked one under another with a gap, as a single grey picture. Returns the picture (1 byte per pixel) and its size.
+ * Label crops enlarged `scale` times (bilinear, then cut to black ink on white — the way OCR reads best) and stacked one
+ * under another with a gap, as a single grey picture. `threshold`: how much ink makes a black pixel (lower: bolder
+ * strokes, for a second reading of a label the first one got wrong).
  */
-export function stackLabels(raster: Raster, boxes: Box[], scale = 3, pad = 3, gapRows = 28): { width: number; height: number; data: Uint8Array } {
-  const [ri, gi, bi] = channels(raster)
-  const crops = boxes.map((box) => ({
-    x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad),
-    width: Math.min(raster.width, box.x + box.width + pad) - Math.max(0, box.x - pad),
-    height: Math.min(raster.height, box.y + box.height + pad) - Math.max(0, box.y - pad),
-  }))
+export function stackCrops(crops: Raster[], scale = 3, options: { gapRows?: number; threshold?: number } = {}): LabelStack {
+  const gapRows = options.gapRows ?? 28, threshold = options.threshold ?? 110
   const width = Math.max(1, ...crops.map((crop) => Math.round(crop.width * scale))) + gapRows * 2
   const height = crops.reduce((sum, crop) => sum + Math.round(crop.height * scale) + gapRows, gapRows)
   const out = new Uint8Array(width * height).fill(255)
+  const bands: LabelStack['bands'] = []
   let top = gapRows
   for (const crop of crops) {
+    const [ri, gi, bi] = channels(crop)
     const w = Math.round(crop.width * scale), h = Math.round(crop.height * scale)
     // Ink of the crop's pixels, sampled bilinearly.
     const ink = (sx: number, sy: number) => {
-      const x = Math.min(raster.width - 1, Math.max(0, sx)), y = Math.min(raster.height - 1, Math.max(0, sy))
-      const i = (y * raster.width + x) * 4
-      return inkOf(raster.data[i + ri]!, raster.data[i + gi]!, raster.data[i + bi]!)
+      const x = Math.min(crop.width - 1, Math.max(0, sx)), y = Math.min(crop.height - 1, Math.max(0, sy))
+      const i = (y * crop.width + x) * 4
+      return inkOf(crop.data[i + ri]!, crop.data[i + gi]!, crop.data[i + bi]!)
     }
     for (let y = 0; y < h; y += 1) {
-      const fy = crop.y + (y + 0.5) / scale - 0.5
+      const fy = (y + 0.5) / scale - 0.5
       const y0 = Math.floor(fy), ty = fy - y0
       for (let x = 0; x < w; x += 1) {
-        const fx = crop.x + (x + 0.5) / scale - 0.5
+        const fx = (x + 0.5) / scale - 0.5
         const x0 = Math.floor(fx), tx = fx - x0
         const value = (ink(x0, y0) * (1 - tx) + ink(x0 + 1, y0) * tx) * (1 - ty) + (ink(x0, y0 + 1) * (1 - tx) + ink(x0 + 1, y0 + 1) * tx) * ty
-        out[(top + y) * width + gapRows + x] = value >= 110 ? 0 : 255
+        out[(top + y) * width + gapRows + x] = value >= threshold ? 0 : 255
       }
     }
+    bands.push({ top, bottom: top + h })
     top += h + gapRows
   }
-  return { width, height, data: out }
+  return { width, height, data: out, bands }
+}
+
+/** The labels of one frame cut out and stacked (stackCrops): the picture OCR reads. */
+export function stackLabels(raster: Raster, boxes: Box[], scale = 3, pad = 3, gapRows = 28): { width: number; height: number; data: Uint8Array } {
+  const { width, height, data } = stackCrops(boxes.map((box) => cropLabel(raster, box, pad)), scale, { gapRows })
+  return { width, height, data }
 }
 
 /** How much the labels are enlarged for OCR: to about 34 px tall (×2.75 at 1440p, ×4 at 1080p). */
@@ -270,23 +296,49 @@ export function stripKey(raster: Raster, box: Box, pad = 3) {
   return `${x1 - x0}x${y1 - y0}:${(hash >>> 0).toString(36)}`
 }
 
-/** A coarse print of the frame (64 × 36 samples): a scan does nothing while the screen stays the same. */
-export function framePrint(raster: Raster) {
-  const print = new Uint8Array(64 * 36)
-  for (let row = 0; row < 36; row += 1) {
-    const y = Math.min(raster.height - 1, Math.floor(((row + 0.5) * raster.height) / 36))
-    for (let column = 0; column < 64; column += 1) {
-      const x = Math.min(raster.width - 1, Math.floor(((column + 0.5) * raster.width) / 64))
-      const i = (y * raster.width + x) * 4
-      print[row * 64 + column] = (raster.data[i]! + raster.data[i + 1]! * 2 + raster.data[i + 2]!) >> 2
+/** The frame cut into tiles, each with a hash of all its pixels: what changed between two frames, and where. */
+export interface TilePrint { tile: number; columns: number; rows: number; width: number; height: number; hashes: Uint32Array }
+
+export function tilePrint(raster: Raster, tile = 32): TilePrint {
+  const columns = Math.ceil(raster.width / tile), rows = Math.ceil(raster.height / tile)
+  const hashes = new Uint32Array(columns * rows).fill(0x811c9dc5)
+  const words = raster.data.byteOffset % 4 === 0 ? new Uint32Array(raster.data.buffer, raster.data.byteOffset, raster.width * raster.height) : null
+  for (let y = 0; y < raster.height; y += 1) {
+    const rowTiles = Math.floor(y / tile) * columns
+    for (let column = 0; column < columns; column += 1) {
+      const x0 = column * tile, x1 = Math.min(raster.width, x0 + tile)
+      let hash = hashes[rowTiles + column]!
+      if (words) for (let p = y * raster.width + x0, end = y * raster.width + x1; p < end; p += 1) hash = Math.imul(hash ^ words[p]!, 0x01000193)
+      else for (let i = (y * raster.width + x0) * 4, end = (y * raster.width + x1) * 4; i < end; i += 1) hash = Math.imul(hash ^ raster.data[i]!, 0x01000193)
+      hashes[rowTiles + column] = hash
     }
   }
-  return print
+  return { tile, columns, rows, width: raster.width, height: raster.height, hashes }
 }
 
-export function samePrint(a: Uint8Array | null, b: Uint8Array) {
-  if (!a || a.length !== b.length) return false
-  let changed = 0
-  for (let index = 0; index < a.length; index += 1) if (Math.abs(a[index]! - b[index]!) > 6) changed += 1
-  return changed === 0
+/**
+ * The part of the frame that changed since `previous`, grown by `margin` (a label half in a changed tile is read whole);
+ * the whole frame for a first frame or a new size, null when nothing changed. The cursor or a tooltip is a small box:
+ * only it is looked at again, not the whole screen.
+ */
+export function changedArea(previous: TilePrint | null, next: TilePrint, margin: number): Box | null {
+  const whole = { x: 0, y: 0, width: next.width, height: next.height }
+  if (!previous || previous.width !== next.width || previous.height !== next.height || previous.tile !== next.tile) return whole
+  let left = Infinity, top = Infinity, right = -1, bottom = -1
+  for (let row = 0; row < next.rows; row += 1) {
+    for (let column = 0; column < next.columns; column += 1) {
+      if (previous.hashes[row * next.columns + column] === next.hashes[row * next.columns + column]) continue
+      left = Math.min(left, column); right = Math.max(right, column); top = Math.min(top, row); bottom = Math.max(bottom, row)
+    }
+  }
+  if (right < 0) return null
+  const x0 = Math.max(0, left * next.tile - margin), y0 = Math.max(0, top * next.tile - margin)
+  const x1 = Math.min(next.width, (right + 1) * next.tile + margin), y1 = Math.min(next.height, (bottom + 1) * next.tile + margin)
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
+}
+
+/** A copy of part of the frame (labelBoxes on the changed part only). */
+export function subRaster(raster: Raster, box: Box): Raster {
+  if (box.x === 0 && box.y === 0 && box.width === raster.width && box.height === raster.height) return raster
+  return cropLabel(raster, box, 0)
 }

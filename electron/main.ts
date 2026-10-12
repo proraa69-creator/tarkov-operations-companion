@@ -559,7 +559,12 @@ function registerIpc() {
     return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`).catch(() => null) ?? fetchPlayerProfile(mode, accountId)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)
-  ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => scanCollectorScreen({ restart: Boolean(options && typeof options === 'object' && (options as { restart?: unknown }).restart === true) }))
+  ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
+    const raw = options && typeof options === 'object' ? options as { restart?: unknown; names?: unknown } : {}
+    // The wanted items' labels (a second look at a misread one): a short list of short strings, nothing else.
+    const names = Array.isArray(raw.names) ? raw.names.filter((name): name is string => typeof name === 'string' && name.length <= 40).slice(0, 120) : undefined
+    return scanCollectorScreen({ restart: raw.restart === true, names })
+  })
   ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail)))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   ipcMain.handle('quests:recognize-png', async (_event, raw: unknown) => {

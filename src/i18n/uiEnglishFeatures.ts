@@ -91,7 +91,7 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Клавиша нажата, но игра не сохранила скриншот. Проверьте, что в игре скриншот назначен на', 'The key was pressed but the game saved no screenshot. Check that the game screenshot is bound to'],
   [', и что папка скриншотов выбрана верно.', ', and that the screenshots folder is right.'],
   ['Скриншот появился, но в его имени нет координат: игра пишет их только в рейде. Повторите проверку в рейде.', 'A screenshot appeared, but its name has no coordinates: the game writes them only in a raid. Check again in a raid.'],
-  ['Окно игры не найдено — читаю весь экран.', 'Game window not found — reading the whole screen.'], ['Найдено новых:', 'New items found:'],
+  ['Окно игры не найдено — читаю весь экран.', 'Game window not found — reading the whole screen.'], ['Найдено новых:', 'New items found:'], ['Прочитано подписей:', 'Labels read:'], ['найдено новых:', 'new items found:'],
   ['Откройте игру со схроном: сканирование идёт, пока окно игры видно на экране.', 'Open the game with your stash: scanning runs while the game window is visible on screen.'],
   ['Окно игры не найдено. Откройте схрон в игре и нажмите «Сканировать» ещё раз.', 'Game window not found. Open your stash in the game and press «Scan» again.'],
   ['Листайте схрон — сканирование идёт.', 'Scroll the stash — scanning is running.'], ['Готово. Добавлено предметов:', 'Done. Items added:'], ['Вы', 'You'], ['Остановить', 'Stop'],

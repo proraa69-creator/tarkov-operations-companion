@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Item } from '../domain/types'
 import { findVisibleItems } from './collector'
-import { framePrint, labelBoxes, labelScale, samePrint, stackLabels, stripKey, type Raster } from './labelScan'
+import { changedArea, labelBoxes, labelScale, stackLabels, stripKey, tilePrint, type Raster } from './labelScan'
 
 const require = createRequire(import.meta.url)
 const sharp = require('sharp') as typeof import('sharp').default
@@ -62,9 +62,23 @@ describe('Collector scan: item labels', () => {
     const shifted = { ...raster, data: moved }
     expect(stripKey(shifted, { ...label, x: label.x + 7, y: label.y + 5 })).toBe(stripKey(raster, label))
     expect(stripKey(raster, { ...label, x: label.x + 1 })).not.toBe(stripKey(raster, label))
-    expect(samePrint(framePrint(raster), framePrint(raster))).toBe(true)
-    expect(samePrint(framePrint(raster), framePrint(shifted))).toBe(false)
-    expect(samePrint(null, framePrint(raster))).toBe(false)
+    // Nothing changed: nothing to look at; everything moved: the whole frame; a first frame: the whole frame.
+    const whole = { x: 0, y: 0, width: raster.width, height: raster.height }
+    expect(changedArea(tilePrint(raster), tilePrint(raster), 40)).toBeNull()
+    expect(changedArea(tilePrint(raster), tilePrint(shifted), 40)).toEqual(whole)
+    expect(changedArea(null, tilePrint(raster), 40)).toEqual(whole)
+  })
+
+  it('looks only where the screen changed: the cursor over one cell is a small box around it', () => {
+    const touched = new Uint8Array(raster.data)
+    // a cursor-sized change in the middle of a cell (300, 400)
+    for (let y = 400; y < 420; y += 1) for (let x = 300; x < 312; x += 1) touched[(y * raster.width + x) * 4] = 255
+    const area = changedArea(tilePrint(raster), tilePrint({ ...raster, data: touched }), 40)!
+    expect(area.x).toBeLessThanOrEqual(300)
+    expect(area.y).toBeLessThanOrEqual(400)
+    expect(area.x + area.width).toBeGreaterThanOrEqual(312)
+    expect(area.y + area.height).toBeGreaterThanOrEqual(420)
+    expect(area.width * area.height).toBeLessThan(raster.width * raster.height * 0.1)
   })
 })
 
