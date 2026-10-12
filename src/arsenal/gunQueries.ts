@@ -128,7 +128,16 @@ function basePart(item: Json, properties: Json): GunPart {
     noFlea: types.includes('noFlea'),
     category: text(record(item.category).normalizedName) || undefined,
     ...(Array.isArray(item.categories) ? { categoryIds: list(item.categories).map((entry) => text(entry.id)).filter(Boolean) } : {}),
+    ...sizeIncreaseOf(properties),
   }
+}
+
+/** What the part adds to the weapon's size in cells (JSON items: `increaseSize`, `increaseSizeForced`). */
+function sizeIncreaseOf(properties: Json): Pick<GunPart, 'increaseSize'> {
+  const grow = record(properties.increaseSize)
+  const left = num(grow.left), right = num(grow.right), up = num(grow.up), down = num(grow.down)
+  if (!left && !right && !up && !down) return {}
+  return { increaseSize: { left, right, up, down, forced: properties.increaseSizeForced === true } }
 }
 
 /** The inventory picture and its size in cells (tarkov.dev gridImageLink, width, height). */

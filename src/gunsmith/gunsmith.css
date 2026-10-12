@@ -70,7 +70,6 @@ span.gs-part { cursor: default; }
 .gs-part strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-part small { display: block; overflow: hidden; margin-top: 2px; color: var(--text-dim); font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-part .gs-part-price { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
-.gs-categories { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* ── /gunsmith ──────────────────────────────────────────────────── */
 .gunsmith-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -129,6 +128,8 @@ span.gs-part { cursor: default; }
 .gs-alternatives { min-width: 240px; }
 .gs-alternatives .hover-card-items strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-alternatives .hover-card-items small { display: block; font-size: 11px; }
+.gs-alternatives .gs-alt-values { color: var(--text-muted); }
+.gs-alternatives .gs-alt-values .is-missed { color: var(--amber); }
 .gs-alternatives p.dim { margin: 0; }
 .gs-sellers { margin-bottom: 10px; }
 .gs-sellers ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }

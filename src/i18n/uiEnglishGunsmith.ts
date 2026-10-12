@@ -8,7 +8,7 @@ export const GUNSMITH_PHRASES: Array<[string, string]> = [
   ['Подробных требований к сборке в данных пока нет.', 'The data has no build requirements for this part yet.'], ['Как собрать', 'How to build'],
   ['нет на барахолке', 'not on the flea'], ['Оружие из задания', 'The task’s weapon'], ['Готовая сборка: tarkov.help', 'Finished build: tarkov.help'], ['Проверьте в игре', 'Check in the game'],
   ['В примере сборки', 'In the example build'], ['в игре', 'in game'], ['Обязательные модули', 'Required mods'],
-  ['Один из модулей', 'One of these mods'], ['Деталь из категории', 'A part of the category'],
+  ['Один из модулей', 'One of these mods'],
   ['Все части цепочки: оружие, обязательные модули, характеристики и пример сборки. Данные tarkov.dev обновляются вместе с базой заданий.',
     'Every part of the chain: the weapon, required mods, stats and an example build. tarkov.dev data refreshes with the task database.'],
   ['Задания «Оружейник» не найдены в базе заданий этого режима.', 'No Gunsmith tasks in this mode’s task database.'], ['Части', 'Parts'],

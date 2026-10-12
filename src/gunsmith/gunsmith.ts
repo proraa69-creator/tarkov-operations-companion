@@ -118,13 +118,28 @@ export const BUILD_ATTRIBUTES: Record<string, AttributeInfo> = {
 }
 
 /** Attributes the build calculator checks (src/gunsmith/gunsmithSolver.ts); the rest are checked in the game. */
-export const COMPUTED_ATTRIBUTES = new Set(['ergonomics', 'recoil', 'weight', 'magazineCapacity'])
+export const COMPUTED_ATTRIBUTES = new Set(['ergonomics', 'recoil', 'weight', 'magazineCapacity', 'width', 'height'])
 
 const humanize = (name: string) => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase())
 
 export function attributeLabel(name: string, locale: AppLocale) {
   const info = BUILD_ATTRIBUTES[name]
   return info ? info[locale] : humanize(name)
+}
+
+const SHORT_LABELS: Record<string, { ru: string; en: string }> = {
+  ergonomics: { ru: 'эрг.', en: 'ergo' },
+  recoil: { ru: 'отдача', en: 'recoil' },
+  weight: { ru: 'вес', en: 'weight' },
+  magazineCapacity: { ru: 'магазин', en: 'mag' },
+  width: { ru: 'ширина', en: 'width' },
+  height: { ru: 'высота', en: 'height' },
+}
+
+/** «эрг. 54», «вес 3,4 кг»: a computed stat in a few characters (the alternatives' hover window). */
+export function formatShortValue(name: string, value: number, locale: AppLocale) {
+  const label = SHORT_LABELS[name]?.[locale] ?? attributeLabel(name, locale)
+  return `${label} ${formatValue(name, value, locale)}`
 }
 
 export function attributeHint(name: string, locale: AppLocale) {

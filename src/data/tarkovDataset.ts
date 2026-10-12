@@ -11,6 +11,25 @@ const dataObject = (value: unknown) => {
   return object(root.data === undefined ? root : root.data)
 }
 
+/**
+ * The items part of a mirrored mode only — items, their names, traders and prices — for the gun catalogue (weapons, mods,
+ * ammo): it never needs the maps (~9 MB), barters, crafts or hideout. Prices that cannot be fetched (the server is still
+ * preparing them) fall back to the items file, as the direct route always does.
+ */
+export async function loadTarkovItemsDataset(mode: RaidMode, locale: AppLocale): Promise<TarkovJsonBundle> {
+  const upstreamMode = mirrorMode(mode)
+  const [items, itemNames, traders, traderNames] = await Promise.all([
+    tarkovJson(`${upstreamMode}/items`), tarkovJson(`${upstreamMode}/items_${locale}`),
+    tarkovJson(`${upstreamMode}/traders`), tarkovJson(`${upstreamMode}/traders_${locale}`),
+  ])
+  const prices = usesDataGateway() ? await gatewayRequest('GET', `/v1/data/prices/${mode}`).catch(() => items) : items
+  return {
+    items, traders, prices, mode,
+    names: { data: { ...dataObject(itemNames), ...dataObject(traderNames) } },
+    imageBaseUrl: usesDataGateway() ? 'https://raidos.app/v1/item-images' : 'https://assets.tarkov.dev',
+  }
+}
+
 /** One coherent app view of a mirrored mode. All calls go through raidos.app in production. */
 export async function loadTarkovDataset(mode: RaidMode, locale: AppLocale): Promise<TarkovJsonBundle> {
   const upstreamMode = mirrorMode(mode)

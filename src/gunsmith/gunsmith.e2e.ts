@@ -84,14 +84,19 @@ const TRADER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 const itemIcon = (label: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="1" y="1" width="62" height="62" rx="4" fill="#1d2420" stroke="#56645a"/><path d="M12 40 L46 26 L52 30 L18 46 Z" fill="#8e9b91"/><circle cx="22" cy="40" r="5" fill="#5d6a60"/><text x="60" y="12" font-family="sans-serif" font-size="9" font-weight="700" fill="#e6ece7" text-anchor="end">${label.replace(/[<&]/g, '')}</text></svg>`
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="4" y="4" width="56" height="56" rx="8" fill="#26302a" stroke="#56645a"/><path d="M14 40 L50 24" stroke="#a9b6ac" stroke-width="6" stroke-linecap="round"/></svg>`
 
-async function openOverview(page: Page, { modsDown = false } = {}) {
+/**
+ * The mod data (src/arsenal/gunCatalog.ts) reads the item files again when a Gunsmith part opens: from now on the server
+ * answers that it is still preparing them. The task catalog, loaded before, keeps its copy.
+ */
+async function takeModsDown(page: Page) {
+  await page.route((url) => url.hostname === 'json.tarkov.dev' && /\/items$/.test(url.pathname), (route) => route.fulfill({ status: 503, json: { error: 'Данные ещё не подготовлены на сервере' } }))
+}
+
+async function openOverview(page: Page) {
   await page.route((url) => url.hostname !== '127.0.0.1' && url.hostname !== 'localhost', async (route) => {
     const url = new URL(route.request().url())
     if (url.hostname === 'json.tarkov.dev') {
       const endpoint = url.pathname.split('/').pop() ?? ''
-      // The weapons and their parts come with the trades (src/data/tarkovDataset.ts): without those files there is no
-      // part data, while the task catalog, which does not read them, still loads.
-      if (modsDown && (endpoint === 'barters' || endpoint === 'crafts')) return route.fulfill({ status: 503, json: { error: 'Данные ещё не подготовлены на сервере' } })
       return route.fulfill({ json: { data: catalog[endpoint] ?? {} } })
     }
     if (url.hostname === 'tarkov.help') {
@@ -157,7 +162,9 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   await current.click()
   const details = panel.locator('.gunsmith-details')
   await expect(details).toContainText('Штурмовая винтовка Colt M4A1')
-  for (const text of ['Эргономика', '≥ 48', 'Отдача', '≤ 200', 'Вместимость магазина', 'Эффективная дальность', 'Прочность', 'Тактическая рукоятка']) await expect(details).toContainText(text)
+  for (const text of ['Эргономика', '≥ 48', 'Отдача', '≤ 200', 'Вместимость магазина', 'Эффективная дальность', 'Прочность']) await expect(details).toContainText(text)
+  // The part of a category the task asks for is put in by the example build; no separate block names it (owner, 12.10.2026).
+  await expect(details).not.toContainText('Деталь из категории')
   // The stats the part does not ask for (0 upstream) are not listed.
   for (const text of ['Ширина', 'Высота', 'Точность', 'Начальная скорость']) await expect(details).not.toContainText(text)
   // tarkov.help's finished build: the game's «Сборки оружия» screen, full screen on a click, closed by Escape.
@@ -185,6 +192,8 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   await expect(window).toContainText('Можно поставить вместо')
   await expect(window.locator('li').first()).toBeVisible({ timeout: 30_000 })
   await expect(window).toContainText(/Приклад|stock/)
+  // Each alternative with the build's stats it gives, all within the task's limits.
+  await expect(window.locator('.gs-alt-values').first()).toContainText(/эрг\. \d+/)
   const shot = async (name: string, target = page.locator('main')) => {
     await target.screenshot({ path: testInfo.outputPath(name) })
     if (process.env.GUNSMITH_SCREENSHOT_DIR) await target.screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/${name}` })
@@ -205,9 +214,10 @@ test('«Оружейник»: Overview block and «Как собрать» from 
 
 test('«Оружейник»: tarkov.help’s traders and loyalty levels on every part, also without the mod data', async ({ page }, testInfo) => {
   test.setTimeout(120_000)
-  await openOverview(page, { modsDown: true })
+  await openOverview(page)
   const panel = page.locator('.gunsmith-panel')
   await expect(panel).toBeVisible({ timeout: 45_000 })
+  await takeModsDown(page)
   await panel.getByRole('button', { name: /Оружейник\. M4A1/ }).click()
   const details = panel.locator('.gunsmith-details')
   await expect(details.locator('.gs-block', { hasText: 'Обязательные модули' })).toBeVisible({ timeout: 30_000 })
@@ -234,8 +244,10 @@ test('«Оружейник»: tarkov.help’s traders and loyalty levels on ever
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
   // On the page the card also carries the item's full Russian name from the catalog.
   await expect(page.locator('main .gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part', { hasText: 'Приклад Magpul MOE для AR-15' })).toBeVisible()
-  // Without the mod data the hover window says when the alternatives come.
-  await expect(await hoverWindow(page, page.locator('main .gs-part', { hasText: 'MOE' }))).toContainText('Аналоги появятся, когда загрузятся данные модулей')
+  // Without the mod data the hover window says so plainly and offers to try again.
+  const unchecked = await hoverWindow(page, page.locator('main .gs-part', { hasText: 'MOE' }))
+  await expect(unchecked).toContainText('Данные модулей не загрузились — аналоги не проверены.')
+  await expect(unchecked.getByRole('button', { name: 'Повторить' })).toBeVisible()
   await expect(page.getByRole('link', { name: /Страница на Wiki/ })).toHaveCount(0)
   if (process.env.GUNSMITH_SCREENSHOT_DIR) await page.locator('main').screenshot({ path: `${process.env.GUNSMITH_SCREENSHOT_DIR}/gunsmith-wiki-page-ru.png` })
 })

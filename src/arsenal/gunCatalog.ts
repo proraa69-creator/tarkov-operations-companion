@@ -3,7 +3,7 @@ import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { readGameCache, writeGameCache } from '../data/gameDataCache'
 import { adaptAmmo, adaptMods, adaptWeapons } from './gunQueries'
-import { loadTarkovDataset } from '../data/tarkovDataset'
+import { loadTarkovItemsDataset } from '../data/tarkovDataset'
 import { buildLegacyAmmo, buildLegacyItems } from '../data/tarkovJsonAdapters'
 import type { AmmoStats, GunCatalog, GunPart, Weapon } from './gunTypes'
 
@@ -26,7 +26,7 @@ interface CachedCatalog {
 
 /** Live guns + mods + ammo for one mode and language. */
 export async function fetchLiveGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
-  const bundle = await loadTarkovDataset(mode, locale)
+  const bundle = await loadTarkovItemsDataset(mode, locale)
   const items = buildLegacyItems(bundle)
   const payload = { data: { items } }
   const weapons = adaptWeapons(payload)
@@ -63,7 +63,8 @@ export function useGunCatalog(mode: RaidMode, locale: AppLocale) {
     queryFn: () => fetchGunCatalog(mode, locale),
     staleTime: FRESH_MS,
     gcTime: 1000 * 60 * 60,
-    retry: 1,
+    // a busy server (429 / 503 while it prepares the data) gets two more tries, 1 s and 2 s later
+    retry: 2,
     refetchOnWindowFocus: false,
   })
 }
