@@ -40,6 +40,9 @@
 .account-gate-hint { display: flex; gap: 8px; align-items: flex-start; margin: 0; font-size: 12px; line-height: 1.45; }
 .account-gate-hint svg { flex: 0 0 auto; margin-top: 1px; }
 .account-gate-invite { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.account-gate-perks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.account-gate-perks li { display: flex; gap: 8px; align-items: flex-start; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.account-gate-perks svg { flex: 0 0 auto; margin-top: 1px; color: var(--brass); }
 .account-gate-pending { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--green) 8%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
 .account-gate-pending svg { flex: 0 0 auto; color: var(--green); margin-top: 1px; }
 .account-gate-pending small { display: block; color: var(--text-muted); word-break: break-all; }

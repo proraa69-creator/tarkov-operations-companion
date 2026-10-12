@@ -70,9 +70,13 @@ export interface AdminUser {
   createdAt: string
   referredBy?: string
   referralCode?: string
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  /** trialPendingDays: the free period waits for the first sign-in in an app (AccountStore.claimTrialDevice). */
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
+  /** The last authenticated request from anywhere (the site, the phone or the PC app). */
   lastSeenAt?: string
+  /** The last use of the account in the PC app (owner, 12.10.2026: «крайнее время входа в аккаунт на пк»). */
+  pcSeenAt?: string
   blockedAt?: string
   payments: { count: number; total: number }
 }
@@ -340,12 +344,25 @@ export class AdminStore {
   // Users
   // ------------------------------------------------------------------------------------------------------------
 
-  private static readonly USER_SELECT = `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_denied, a.blocked_at, a.last_seen_at, s.paid_until,
+  /**
+   * `pc_seen_at`: the latest use of the account's PC devices (services/entitlement.ts: written at sign-in, on every
+   * entitlement refresh and by data requests). The desktop app names its device after the system
+   * (electron/entitlement.ts deviceName: «Windows · DESKTOP-1234 · Raid OS 0.6.0»); the phone and browser builds send
+   * «Android · Raid OS», «iOS · Raid OS», «Браузер · Raid OS» (src/sync/webEntitlement.ts) and do not count.
+   */
+  private userSelect() {
+    const devices = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'account_devices'").get() !== undefined
+    const pcSeen = devices
+      ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
+      : 'NULL'
+    return `
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, s.paid_until,
+      ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
       (SELECT r.provider || '|' || r.status || '|' || r.plan FROM recurring_subscriptions r WHERE r.account_id = a.id ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1) AS autopay
     FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id`
+  }
 
   users(q: string, filter: UserFilter, limit: number, offset: number) {
     const now = this.now()
@@ -362,13 +379,13 @@ export class AdminStore {
     if (filter === 'blocked') where.push('a.blocked_at IS NOT NULL')
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id ${clause}`).get(...args) as Row).n)
-    const rows = this.db.prepare(`${AdminStore.USER_SELECT} ${clause} ORDER BY a.created_at DESC, a.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
+    const rows = this.db.prepare(`${this.userSelect()} ${clause} ORDER BY a.created_at DESC, a.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
     return { users: rows.map((row) => this.toUser(row)), total }
   }
 
   /** One user with his last payments and the owner's manual grants. */
   user(id: string) {
-    const row = this.db.prepare(`${AdminStore.USER_SELECT} WHERE a.id = ?`).get(id) as Row | undefined
+    const row = this.db.prepare(`${this.userSelect()} WHERE a.id = ?`).get(id) as Row | undefined
     if (!row) throw new AccountError(404, 'Пользователь не найден')
     const payments = (this.db.prepare('SELECT p.*, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id WHERE p.account_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT 20').all(id) as Row[]).map(toPayment)
     const grants = (this.db.prepare('SELECT * FROM owner_subscription_grants WHERE account_id = ? ORDER BY at DESC, id DESC LIMIT 20').all(id) as Row[])
@@ -383,6 +400,7 @@ export class AdminStore {
     const trialEnds = row.trial_ends_at == null || Number(row.trial_denied ?? 0) ? undefined : Number(row.trial_ends_at)
     let subscription: AdminUser['subscription'] = { status: 'inactive', ...(paidUntil ? { paidUntil: iso(paidUntil) } : {}) }
     if (trialEnds !== undefined && trialEnds > now) subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
+    else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }
     if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
     const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')
@@ -398,6 +416,7 @@ export class AdminStore {
       subscription,
       autopay: provider ? { provider, status: status ?? '', plan: plan ?? '' } : null,
       ...(row.last_seen_at == null ? {} : { lastSeenAt: iso(row.last_seen_at) }),
+      ...(row.pc_seen_at == null ? {} : { pcSeenAt: iso(row.pc_seen_at) }),
       ...(row.blocked_at == null ? {} : { blockedAt: iso(row.blocked_at) }),
       payments: { count: Number(row.paid_count ?? 0), total: rub(row.paid_total) },
     }

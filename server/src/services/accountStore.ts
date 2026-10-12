@@ -27,7 +27,11 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
-/** Every new account gets one free day from registration (owner, 12.10.2026: «Сделай 1 бесплатный при регистрации всем»). */
+/**
+ * Every new account gets one free day (owner, 12.10.2026: «Сделай 1 бесплатный при регистрации всем»), counted from the
+ * first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в
+ * приложение»): see claimTrialDevice.
+ */
 export const WELCOME_TRIAL_MS = 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
@@ -52,8 +56,10 @@ interface Account {
   referredBy?: string
   referredAt?: number
   nicknames: Partial<Record<AccountMode, string>>
-  /** End of the free period: a day from registration, three with a streamer's code. None for older accounts. */
+  /** End of the free period once it has started. None for older accounts and while it waits for the first app sign-in. */
   trialEndsAt?: number
+  /** The free period not started yet (a day, three with a streamer's code): it starts at the first sign-in in an app. */
+  trialPendingMs?: number
   /** The free period was refused: this e-mail (canonical form) or device already had one (trial_claims). */
   trialDenied: boolean
 }
@@ -108,7 +114,11 @@ export interface AccountView {
   /** The same nickname under every mode (for builds before the single nickname); empty without one. */
   nicknames: Partial<Record<AccountMode, string>>
   /** `lifetime`: streamers use the service free of charge, for good. */
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  subscription: {
+    status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true
+    /** The free period waits for the first sign-in in an app (status stays 'inactive' until then): its length, days. */
+    trialPendingDays?: number
+  }
   stats?: ReferralStats
   /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
   owner?: true
@@ -258,6 +268,7 @@ function toAccount(row: Row | undefined): Account | undefined {
     referredAt: row.referred_at == null ? undefined : Number(row.referred_at),
     nicknames: parseNicknames(row.nicknames),
     trialEndsAt: row.trial_ends_at == null ? undefined : Number(row.trial_ends_at),
+    trialPendingMs: row.trial_pending_ms == null ? undefined : Number(row.trial_pending_ms),
     trialDenied: row.trial_denied != null,
   }
 }
@@ -359,9 +370,11 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['email_canon', 'TEXT'],
   // Set when the free period was refused (trial_claims): the referral still counts for the streamer.
   ['trial_denied', 'INTEGER'],
-  // End of the free period (WELCOME_TRIAL_MS from registration, REFERRAL_TRIAL_MS with a streamer's code). Accounts
+  // End of the free period (WELCOME_TRIAL_MS, REFERRAL_TRIAL_MS with a streamer's code) once it has started. Accounts
   // from before 12.10.2026 have it only for a streamer's code (filled in from referred_at, see the constructor).
   ['trial_ends_at', 'INTEGER'],
+  // The length of a free period that has not started yet: it starts at the first sign-in in an app (claimTrialDevice).
+  ['trial_pending_ms', 'INTEGER'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -408,6 +421,14 @@ export class AccountStore {
     // The free period used to be computed from referred_at; once, when the column appears, it is written down for those
     // accounts, so their trials end exactly as before. Older accounts without a streamer's code get no free day.
     if (!columns.has('trial_ends_at')) this.db.prepare('UPDATE accounts SET trial_ends_at = referred_at + ? WHERE referred_at IS NOT NULL').run(REFERRAL_TRIAL_MS)
+    // Once, when the pending column appears: the free period of an account that has never signed in to an app (no
+    // device, services/entitlement.ts) was running out unused — it now waits for that first sign-in, at its full length.
+    if (!columns.has('trial_pending_ms')) {
+      const devices = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'account_devices'").get() !== undefined
+      this.db.prepare(`UPDATE accounts SET trial_pending_ms = MIN(MAX(trial_ends_at - COALESCE(referred_at, created_at), ?), ?), trial_ends_at = NULL
+        WHERE trial_ends_at IS NOT NULL AND trial_denied IS NULL AND kind = 'user' AND deleted_at IS NULL${devices ? ' AND NOT EXISTS (SELECT 1 FROM account_devices d WHERE d.account_id = accounts.id)' : ''}`)
+        .run(WELCOME_TRIAL_MS, REFERRAL_TRIAL_MS)
+    }
     // A verified number belongs to one account only.
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_invite_code ON accounts(invite_code) WHERE invite_code IS NOT NULL')
@@ -495,7 +516,7 @@ export class AccountStore {
   private claimTrialByEmail(accountId: string, email: string) {
     const digest = trialEmailDigest(email)
     if (this.db.prepare('SELECT 1 FROM trial_claims WHERE email_canon_hash = ? AND account_id <> ?').get(digest, accountId)) {
-      this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
+      this.db.prepare('UPDATE accounts SET trial_denied = ?, trial_pending_ms = NULL WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
       return
     }
     if (!this.db.prepare('SELECT 1 FROM trial_claims WHERE account_id = ? AND device_id IS NULL').get(accountId)) {
@@ -504,18 +525,24 @@ export class AccountStore {
   }
 
   /**
-   * Called when the app registers a device (services/entitlement.ts): an account with a free period loses it when that
-   * device already served another account's free period; otherwise the device is noted for this one.
+   * Called when an app (PC, phone or browser build) registers a device (services/entitlement.ts, every POST
+   * /v1/entitlement): an account with a free period loses it when that device already served another account's free
+   * period; otherwise the device is noted for this one, and a free period still waiting for the first sign-in in an app
+   * starts now (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»).
    */
   claimTrialDevice(accountId: string, deviceId: string) {
-    const row = this.db.prepare("SELECT email, trial_ends_at, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
-    if (!row || row.trial_ends_at == null || row.trial_denied != null) return
+    const row = this.db.prepare("SELECT email, trial_ends_at, trial_pending_ms, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
+    if (!row || (row.trial_ends_at == null && row.trial_pending_ms == null) || row.trial_denied != null) return
     if (this.db.prepare('SELECT 1 FROM trial_claims WHERE device_id = ? AND account_id <> ?').get(deviceId, accountId)) {
-      this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ?').run(this.now(), accountId)
+      this.db.prepare('UPDATE accounts SET trial_denied = ?, trial_pending_ms = NULL WHERE id = ?').run(this.now(), accountId)
       return
     }
     if (!this.db.prepare('SELECT 1 FROM trial_claims WHERE device_id = ? AND account_id = ?').get(deviceId, accountId)) {
       this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, ?, ?, ?)').run(trialEmailDigest(String(row.email)), deviceId, accountId, this.now())
+    }
+    if (row.trial_pending_ms != null) {
+      this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
+        .run(this.now() + Number(row.trial_pending_ms), accountId)
     }
   }
 
@@ -537,10 +564,11 @@ export class AccountStore {
       if (this.activeOwnerOfCode(code)) referredBy = code
       else invitedBy = this.playerOfCode(code) ?? null
     }
-    const trialEndsAt = createdAt + (referredBy && this.streamerTrial ? REFERRAL_TRIAL_MS : WELCOME_TRIAL_MS)
+    // The free period starts at the first sign-in in an app (claimTrialDevice), not now.
+    const trialPendingMs = referredBy && this.streamerTrial ? REFERRAL_TRIAL_MS : WELCOME_TRIAL_MS
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_ends_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialEndsAt)
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
@@ -588,6 +616,10 @@ export class AccountStore {
       // An ended free period stays in the view while nothing was ever paid: the app then says the trial is over.
       subscription: trialEndsAt === undefined || (trialEndsAt <= this.now() && paidUntil !== undefined) ? { status: 'inactive' }
         : { status: trialEndsAt > this.now() ? 'trial' : 'inactive', trialEndsAt: new Date(trialEndsAt).toISOString() },
+    }
+    // Not started yet: the site says it starts with the first sign-in in the app.
+    if (!account.trialDenied && account.trialPendingMs !== undefined && view.subscription.status === 'inactive') {
+      view.subscription = { status: 'inactive', trialPendingDays: Math.max(1, Math.round(account.trialPendingMs / (24 * 60 * 60 * 1000))) }
     }
     if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
@@ -708,8 +740,10 @@ export class AccountStore {
     if (this.activeOwnerOfCode(code)) {
       const applied = this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(code, this.now(), account.id)
       if (Number(applied.changes) > 0 && this.streamerTrial) {
-        // A streamer's code entered later gives three free days from now (never shortens a running free period).
-        this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
+        // A streamer's code entered later gives three free days: from now when the free period has started (never
+        // shortening it), else as the length of the one still waiting for the first sign-in in an app.
+        if (account.trialEndsAt !== undefined) this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
+        else this.db.prepare('UPDATE accounts SET trial_pending_ms = MAX(COALESCE(trial_pending_ms, 0), ?) WHERE id = ?').run(REFERRAL_TRIAL_MS, account.id)
         this.claimTrialByEmail(account.id, account.email)
       }
       return

@@ -294,7 +294,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
     }
   }
 
-  const { status, paidUntil, trialEndsAt, lifetime } = account.subscription
+  const { status, paidUntil, trialEndsAt, lifetime, trialPendingDays } = account.subscription
   if (lifetime) {
     return (
       <section className="panel" id="subscription" aria-labelledby="sub-title">
@@ -315,8 +315,12 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const trial = status === 'trial'
   const title = active && paidUntil ? tr('Активна до {date}', { date: formatDate(paidUntil) })
     : trial && trialEndsAt ? tr('Пробный период до {date}', { date: formatDate(trialEndsAt) })
-      : tr('Не активна')
-  const hint = active ? tr('Ваша подписка продолжает действовать.') : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Первый день после регистрации — бесплатно.') : ''
+      : trialPendingDays ? tr(trialPendingDays === 1 ? 'Сутки бесплатно — ждут первого входа в приложение' : '{days} дн. бесплатно — ждут первого входа в приложение', { days: trialPendingDays })
+        : tr('Не активна')
+  // owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»
+  const hint = active ? tr('Ваша подписка продолжает действовать.')
+    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные сутки идут с первого входа в приложение.')
+      : trialPendingDays ? tr('Отсчёт начнётся, когда вы впервые войдёте в аккаунт в приложении Raid OS.') : ''
   const shownPlans = visiblePlans(plans)
   const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
     ? { ...selectedPlan, price: Math.round(selectedPlan.price * (100 - friendDiscount.percent)) / 100 }
@@ -327,13 +331,14 @@ function SubscriptionPanel({ account }: { account: Account }) {
     <section className="panel" id="subscription" aria-labelledby="sub-title">
       <div className="panel-header">
         <div className="panel-title" id="sub-title"><CreditCard aria-hidden="true" />{tr('Подписка')}</div>
-        {active ? <span className="tag green">{tr('Активна')}</span> : trial ? <span className="tag brass">{tr('Пробный период')}</span> : <span className="tag">{tr('Не активна')}</span>}
+        {active ? <span className="tag green">{tr('Активна')}</span> : trial ? <span className="tag brass">{tr('Пробный период')}</span>
+          : trialPendingDays ? <span className="tag brass">{tr('Ждёт входа в приложение')}</span> : <span className="tag">{tr('Не активна')}</span>}
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 16 }}>
         {check && <PaymentCheckNotice check={check} />}
         {autopay && <AutopayCard autopay={autopay} busy={cancelling} error={cancelError && tr(cancelError)} onCancel={() => void cancelAutopay()} />}
         <div className="sub-status">
-          <CalendarClock aria-hidden="true" size={28} style={{ color: active ? 'var(--success)' : trial ? 'var(--brass)' : 'var(--text-dim)', flex: '0 0 auto' }} />
+          <CalendarClock aria-hidden="true" size={28} style={{ color: active ? 'var(--success)' : trial || trialPendingDays ? 'var(--brass)' : 'var(--text-dim)', flex: '0 0 auto' }} />
           <div style={{ minWidth: 0 }}>
             <div className="big">{title}</div>
             {hint && <div className="muted" style={{ fontSize: 14 }}>{hint}</div>}

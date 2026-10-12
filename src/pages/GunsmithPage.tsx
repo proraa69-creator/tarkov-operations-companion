@@ -38,7 +38,6 @@ export function GunsmithPage() {
         <p className="page-subtitle">{uiText('Все части цепочки: оружие, обязательные модули, характеристики и пример сборки. Данные tarkov.dev обновляются вместе с базой заданий.')}</p>
       </div>
       <div className="gunsmith-page-actions">
-        <span className="tag green"><Check size={12} /> {uiText(`Выполнено ${summary.done} из ${summary.total}`)}</span>
         <Link to="/" className="button ghost"><ArrowLeft size={15} />{uiText(' Обзор')}</Link>
       </div>
     </header>

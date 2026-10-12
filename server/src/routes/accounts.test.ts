@@ -25,8 +25,8 @@ test('register, login and /me return an opaque token and an ordinary user view',
   assert.equal(account.kind, 'user')
   assert.equal(account.stats, undefined)
   assert.equal(account.referralCode, undefined)
-  // Every new account starts with one free day (owner, 12.10.2026).
-  assert.deepEqual(account.subscription, { status: 'trial', trialEndsAt: '2026-09-29T10:00:00.000Z' })
+  // Every new account has one free day (owner, 12.10.2026), counted from the first sign-in in an app, not from now.
+  assert.deepEqual(account.subscription, { status: 'inactive', trialPendingDays: 1 })
   assert.ok(!JSON.stringify(registered.body).includes(password))
 
   assert.equal((await api.register({ ip: '1', body: { email: 'player@example.com', password } })).status, 409)
@@ -86,7 +86,10 @@ test('streamer promotion is server-side only and exposes referral stats only to 
   const referredBody = referred.body as { token: string; referralApplied: boolean; account: AccountView }
   assert.equal(referredBody.referralApplied, true)
   assert.equal(referredBody.account.referredBy, 'HUNTER_TV')
-  assert.equal(referredBody.account.subscription.status, 'trial')
+  assert.deepEqual(referredBody.account.subscription, { status: 'inactive', trialPendingDays: 3 })
+  // The fan signs in to the app (POST /v1/entitlement registers the device): the three days start.
+  store.claimTrialDevice(store.authenticate(referredBody.token)!, 'device-fan-abcdefghijklmnopqrstu')
+  assert.equal(((await api.me({ authorization: auth(referredBody.token) })).body as AccountView).subscription.status, 'trial')
   assert.equal(referredBody.account.stats, undefined)
   assert.equal(referredBody.account.referralCode, undefined)
 
@@ -280,7 +283,7 @@ test('streamer-code trial: once per canonical e-mail, also after deleting the ac
   await api.register({ ip: '1', body: { email: 'tv@example.com', password } })
   store.promoteToStreamer('tv@example.com', 'hunter_tv')
   const first = (await api.register({ ip: '2', body: { email: 'fan.one@gmail.com', password, referralCode: 'HUNTER_TV' } })).body as { token: string; account: AccountView }
-  assert.equal(first.account.subscription.status, 'trial')
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 3 })
   store.deleteAccount(store.authenticate(first.token)!)
   const again = await api.register({ ip: '3', body: { email: 'fanone+2@googlemail.com', password, referralCode: 'HUNTER_TV' } })
   assert.equal(again.status, 201)
@@ -294,27 +297,40 @@ test('streamer-code trial: once per canonical e-mail, also after deleting the ac
   // A different mailbox gets its trial; both registrations count for the streamer.
   const other = (await api.register({ ip: '5', body: { email: 'fan.two@gmail.com', password } })).body as { token: string }
   const applied = await api.applyReferral({ authorization: auth(other.token), body: { code: 'hunter_tv' } })
-  assert.equal((applied.body as AccountView).subscription.status, 'trial')
+  assert.deepEqual((applied.body as AccountView).subscription, { status: 'inactive', trialPendingDays: 3 }, 'three days, from the first sign-in in an app')
   const streamer = ((await api.login({ ip: '1', body: { email: 'tv@example.com', password } })).body as { account: AccountView }).account
   assert.equal(streamer.stats?.registrations, 3)
 })
 
-test('one free day for every new account (owner, 12.10.2026): once per mailbox; when it is over the view keeps its end', async () => {
+test('one free day for every new account, from the first sign-in in an app (owner, 12.10.2026): once per mailbox and device; when it is over the view keeps its end', async () => {
   const { api, store, advance } = setup()
   const first = (await api.register({ ip: '1', body: { email: 'new.player@gmail.com', password } })).body as { token: string; account: AccountView }
-  assert.deepEqual(first.account.subscription, { status: 'trial', trialEndsAt: '2026-09-29T10:00:00.000Z' })
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 1 })
   // Deleting the account and registering the same mailbox again gives no second day.
   store.deleteAccount(store.authenticate(first.token)!)
   const again = (await api.register({ ip: '2', body: { email: 'newplayer+2@googlemail.com', password } })).body as { token: string; account: AccountView }
   assert.deepEqual(again.account.subscription, { status: 'inactive' })
-  // Another mailbox gets its day; once it is over, the end stays in the view (the app says the trial is over).
+  // Another mailbox gets its day. It waits for the app («сутки должны начинаться после первого входа в приложение»):
+  // three days later nothing has run out yet.
   const other = (await api.register({ ip: '3', body: { email: 'other@example.com', password } })).body as { token: string }
-  advance(WELCOME_TRIAL_MS)
-  const view = (await api.me({ authorization: auth(other.token) })).body as AccountView
-  assert.deepEqual(view.subscription, { status: 'inactive', trialEndsAt: '2026-09-29T10:00:00.000Z' })
+  advance(3 * WELCOME_TRIAL_MS)
+  const me = async (token: string) => ((await api.me({ authorization: auth(token) })).body as AccountView).subscription
+  assert.deepEqual(await me(other.token), { status: 'inactive', trialPendingDays: 1 })
+  const device = 'device-pc-01-abcdefghijklmnopqrstu'
+  store.claimTrialDevice(store.authenticate(other.token)!, device)
+  assert.deepEqual(await me(other.token), { status: 'trial', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+  // Further sign-ins do not move the end; once it is over, the end stays in the view (the app says the trial is over).
+  advance(WELCOME_TRIAL_MS / 2)
+  store.claimTrialDevice(store.authenticate(other.token)!, device)
+  advance(WELCOME_TRIAL_MS / 2)
+  assert.deepEqual(await me(other.token), { status: 'inactive', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+  // A new account signing in on a PC that already served a free day gets none.
+  const third = (await api.register({ ip: '4', body: { email: 'third@example.com', password } })).body as { token: string }
+  store.claimTrialDevice(store.authenticate(third.token)!, device)
+  assert.deepEqual(await me(third.token), { status: 'inactive' })
 })
 
-test('accounts from before the free day keep what they had: nothing, or the streamer-code trial counted from the code', async () => {
+test('accounts from before the free day keep what they had: nothing, or the streamer-code trial — waiting for the app when it never signed in there', async () => {
   const db = openDatabase(':memory:')
   let clock = Date.parse('2026-10-10T10:00:00.000Z')
   const before = new AccountStore({ db, now: () => clock })
@@ -322,13 +338,22 @@ test('accounts from before the free day keep what they had: nothing, or the stre
   before.promoteToStreamer('tv@example.com', 'hunter_tv')
   const plain = before.authenticate((await before.register('old@example.com', password)).token)!
   const fan = before.authenticate((await before.register('fan@example.com', password, 'HUNTER_TV')).token)!
-  // The database as it was before 12.10.2026: no trial_ends_at yet.
+  const player = before.authenticate((await before.register('player@example.com', password, 'HUNTER_TV')).token)!
+  // The database as it was before 12.10.2026: no free-day columns yet. The player has used the app (a device).
   db.exec('ALTER TABLE accounts DROP COLUMN trial_ends_at')
+  db.exec('ALTER TABLE accounts DROP COLUMN trial_pending_ms')
+  db.exec('CREATE TABLE account_devices (account_id TEXT, device_id TEXT, name TEXT, created_at INTEGER, last_seen_at INTEGER, session_digest TEXT, revoked_at INTEGER, revoked_reason TEXT)')
+  db.prepare("INSERT INTO account_devices (account_id, device_id, name, created_at, last_seen_at) VALUES (?, 'pc-1', 'Windows · PC · Raid OS 0.5.4', ?, ?)").run(player, clock, clock)
   clock += 60 * 60 * 1000
   const after = new AccountStore({ db, now: () => clock })
   assert.deepEqual(after.view(plain).subscription, { status: 'inactive' })
-  assert.deepEqual(after.view(fan).subscription, { status: 'trial', trialEndsAt: new Date(Date.parse('2026-10-10T10:00:00.000Z') + REFERRAL_TRIAL_MS).toISOString() })
-  // A new account in the updated database gets its day.
+  // Signed in to the app before: the trial keeps running from the code.
+  assert.deepEqual(after.view(player).subscription, { status: 'trial', trialEndsAt: new Date(Date.parse('2026-10-10T10:00:00.000Z') + REFERRAL_TRIAL_MS).toISOString() })
+  // Never signed in to an app: the three days wait for that (owner, 12.10.2026).
+  assert.deepEqual(after.view(fan).subscription, { status: 'inactive', trialPendingDays: 3 })
+  after.claimTrialDevice(fan, 'device-fan-abcdefghijklmnopqrstu')
+  assert.deepEqual(after.view(fan).subscription, { status: 'trial', trialEndsAt: new Date(clock + REFERRAL_TRIAL_MS).toISOString() })
+  // A new account in the updated database: its day waits for the app too.
   const fresh = after.authenticate((await after.register('fresh@example.com', password)).token)!
-  assert.deepEqual(after.view(fresh).subscription, { status: 'trial', trialEndsAt: new Date(clock + WELCOME_TRIAL_MS).toISOString() })
+  assert.deepEqual(after.view(fresh).subscription, { status: 'inactive', trialPendingDays: 1 })
 })

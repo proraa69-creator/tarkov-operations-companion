@@ -38,7 +38,11 @@ test('access: inactive gets nothing, paid / trial / streamer / owner get a signe
   const { accounts, entitlements, paid, clock } = setup()
   const user = await accounts.register('user@example.com', 'correct horse battery')
   const id = accounts.authenticate(user.token)!
-  // The free day after registration (owner, 12.10.2026): a trial token that ends with it; then nothing.
+  // The free day (owner, 12.10.2026) waits for the first sign-in in an app: nothing before it, then a trial token that
+  // ends with the day; then nothing.
+  clock.now += 2 * DAY
+  assert.equal(entitlements.issue(id, device(1)), undefined)
+  entitlements.registerDevice(id, device(1), 'PC')
   const welcome = entitlements.issue(id, device(1))!
   assert.equal(welcome.claims.plan, 'trial')
   assert.equal(welcome.claims.exp, clock.now + WELCOME_TRIAL_MS)
@@ -164,8 +168,12 @@ test('HTTP: public key, issue with device registration, 402 without a subscripti
     assert.equal((await call('POST', '/v1/entitlement', undefined, { deviceId: device(1) })).status, 401)
     const user = (await accounts.register('user@example.com', 'correct horse battery')).token
     const id = accounts.authenticate(user)!
-    clock.now += WELCOME_TRIAL_MS // the free day after registration is over
+    clock.now += WELCOME_TRIAL_MS // the free day waits for the first sign-in in an app: nothing has run out yet
     assert.equal((await call('POST', '/v1/entitlement', user, { deviceId: 'short' })).status, 400)
+    const first = await call('POST', '/v1/entitlement', user, { deviceId: device(1), deviceName: 'Windows · Raid OS' })
+    assert.equal(first.status, 200)
+    assert.equal(((await first.json()) as { plan: string }).plan, 'trial')
+    clock.now += WELCOME_TRIAL_MS // now the day is over
     const denied = await call('POST', '/v1/entitlement', user, { deviceId: device(1), deviceName: 'Windows · Raid OS' })
     assert.equal(denied.status, 402)
     const deniedBody = await denied.json() as { error: string; code: string; subscription: { status: string } }
@@ -247,7 +255,7 @@ test('streamer-code trial: a device that already served another account\'s trial
   assert.equal(accounts.view(tv).stats?.registrations, 3)
 })
 
-test('the free day after registration: a PC that already served another account\'s free time gives none to the next one', async () => {
+test('the free day (from the first sign-in in an app): a PC that already served another account\'s free time gives none to the next one', async () => {
   const { accounts, entitlements } = setup()
   const { tokenDigest } = await import('./accountStore.js')
   const a = (await accounts.register('first@example.com', 'correct horse battery')).token

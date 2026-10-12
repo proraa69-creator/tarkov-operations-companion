@@ -22,7 +22,7 @@ describe('Traders page figure', () => {
   })
 
   it('shows the portrait of a trader without a model', () => {
-    render(<TraderFigure trader={{ id: 's', name: 'Лыжник', normalizedName: 'skier', role: '', loyalty: 1, accent: '#888' }} />)
+    render(<TraderFigure trader={{ id: 't', name: 'Таран', normalizedName: 'taran', role: '', loyalty: 1, accent: '#888' }} />)
     expect(screen.getByText('3D модель этого торговца скоро появится.')).toBeInTheDocument()
     expect(viewer.load).not.toHaveBeenCalled()
   })

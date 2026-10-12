@@ -22,6 +22,8 @@ function subscriptionText(user: AdminUser) {
   if (sub.lifetime) return { label: 'Стример, бесплатно', tone: 'brass' }
   if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}`, tone: 'green' }
   if (sub.status === 'trial') return { label: `пробный до ${dateOnly.format(new Date(sub.trialEndsAt!))}`, tone: 'brass' }
+  // The free period waits for the first sign-in in the app (owner, 12.10.2026).
+  if (sub.trialPendingDays) return { label: `${sub.trialPendingDays === 1 ? 'сутки' : `${sub.trialPendingDays} дн.`} — ждут входа в приложение`, tone: 'brass' }
   return { label: sub.paidUntil ? `истекла ${dateOnly.format(new Date(sub.paidUntil))}` : 'нет', tone: '' }
 }
 
@@ -60,7 +62,7 @@ export function AdminUsers() {
                 <thead>
                   <tr>
                     <th scope="col">E-mail</th><th scope="col">Регистрация</th><th scope="col">Подписка</th><th scope="col">Пришёл от</th>
-                    <th scope="col" className="num">Оплаты, ₽</th><th scope="col">Был в сети</th><th scope="col"><span className="visually-hidden">Действия</span></th>
+                    <th scope="col" className="num">Оплаты, ₽</th><th scope="col" title="Последний вход в приложение Raid OS на компьютере">Вход с ПК</th><th scope="col"><span className="visually-hidden">Действия</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -83,7 +85,7 @@ export function AdminUsers() {
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
                           <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
-                          <td className="mono" data-label="Был в сети">{user.lastSeenAt ? dateTime.format(new Date(user.lastSeenAt)) : '—'}</td>
+                          <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
                         </tr>
                         {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} /></td></tr>}
@@ -216,7 +218,7 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
             </ul>
           )}
         </div>
-        <UserDevices id={id} />
+        <UserDevices id={id} lastSeenAt={user.lastSeenAt} />
       </div>
     </div>
   )
@@ -225,7 +227,7 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
 const DEVICE_OFF: Record<string, string> = { limit: 'вход на новом устройстве', owner: 'отключено владельцем', user: 'отключено пользователем' }
 
 /** «Устройства»: at most three active per account; a switched-off device is signed out (its app shows why). */
-function UserDevices({ id }: { id: string }) {
+function UserDevices({ id, lastSeenAt }: { id: string; lastSeenAt?: string }) {
   const { token } = useAuth()
   const devices = useAdminData(useCallback((t: string) => api.adminDevices(t, id), [id]))
   const [busy, setBusy] = useState('')
@@ -251,6 +253,7 @@ function UserDevices({ id }: { id: string }) {
           ))}
         </ul>
       )}
+      {lastSeenAt && <span className="field-hint">Был в сети (сайт, телефон или ПК): <span className="mono">{dateTime.format(new Date(lastSeenAt))}</span></span>}
     </div>
   )
 }

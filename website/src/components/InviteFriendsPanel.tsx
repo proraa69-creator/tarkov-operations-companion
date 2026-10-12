@@ -87,7 +87,7 @@ export function InviteFriendsPanel() {
         <div className="how-it-works">
           <div className="field-label">{tr('Правила')}</div>
           <p className="invite-rules">
-            {tr('Друг получает скидку {discount} % на первый месяц. Вы — {bonus} Premium за каждого друга, который оплатил подписку; дни начисляются после проверки ({hold}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.', {
+            {tr('Друг получает скидку {discount} % на первый месяц. Вы — {bonus} Premium за каждого друга, который оплатил первый месяц со скидкой {discount} %, даже если сами вы ещё не платили; дни начисляются после проверки ({hold}). Друг засчитывается, когда его приложение Raid OS на ПК привязало аккаунт Escape from Tarkov: один аккаунт игры — один друг. Любой возврат оплаты друга отменяет его дни и бонус ранга, если друзей для ранга больше не хватает. Награды — дни Premium, деньгами не выводятся. Накрутка аннулирует награды.', {
               discount: program?.discountPercent ?? 20,
               bonus: bonusText(program?.rewardDays ?? 7),
               hold: countText(program?.holdDays ?? 14, DAY_WORDS),
@@ -150,7 +150,7 @@ function ProgramView({ program, onChange }: { program: InviteProgram; onChange: 
       <div className="invite-rewards">
         <div className="field-label">{tr('Награды')}</div>
         {program.rewards.length === 0 ? (
-          <div className="muted" style={{ fontSize: 14 }}>{tr('Пока наград нет. Поделитесь ссылкой — как только друг оплатит подписку, здесь появится {bonus} Premium.', { bonus: bonusText(program.rewardDays) })}</div>
+          <div className="muted" style={{ fontSize: 14 }}>{tr('Пока наград нет. Поделитесь ссылкой — как только друг оплатит первый месяц со скидкой, здесь появится {bonus} Premium.', { bonus: bonusText(program.rewardDays) })}</div>
         ) : (
           <ul className="reward-list">
             {program.rewards.map((reward) => {

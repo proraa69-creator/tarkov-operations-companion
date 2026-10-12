@@ -300,7 +300,7 @@ const waitFor = async (check: () => boolean, ms = 8000) => {
 }
 
 type Report = { id: number; email?: string; accountId?: string; rewardDays: number; rewardedAt?: string; mailedAt?: string; mailError?: string }
-type UserDetail = { user: { subscription: { status: string; paidUntil?: string } }; grants: Array<{ days: number; reason: string }> }
+type UserDetail = { user: { subscription: { status: string; paidUntil?: string; trialPendingDays?: number } }; grants: Array<{ days: number; reason: string }> }
 const DAY = 24 * 60 * 60 * 1000
 
 test('bug reports: the PDF address comes from TARKOV_BUG_REPORT_EMAIL, raidosapp@gmail.com by default, «off» turns it off', () => {
@@ -364,8 +364,8 @@ test('bug reports: every report goes to the owner as a PDF, the owner grants day
     assert.ok(Math.abs(Date.parse(user.user.subscription.paidUntil!) - (Date.now() + 24 * DAY)) < 60_000)
     assert.deepEqual(user.grants[0], { ...user.grants[0], days: -7, reason: 'лишние дни' })
     user = (await t.call<UserDetail>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 100, reason: 'всё' })).json
-    // only paid days go: the player's free day after registration is not touched
-    assert.equal(user.user.subscription.status, 'trial')
+    // only paid days go: the player's free day (still waiting for the first sign-in in the app) is not touched
+    assert.deepEqual([user.user.subscription.status, user.user.subscription.trialPendingDays], ['inactive', 1])
     const none = await t.call<{ error: string }>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 1, reason: 'ещё' })
     assert.equal(none.status, 409)
     assert.match(none.json.error, /нет оплаченных дней/)
