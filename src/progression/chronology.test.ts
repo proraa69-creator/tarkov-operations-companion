@@ -167,7 +167,7 @@ describe("the owner's logs against the quest grid", () => {
     expect(count('completed')).toBeGreaterThanOrEqual(25)
   })
 
-  it('PvE, 26.09: Prapor — the quest handed in and the ones taken date his first line', () => {
+  it('PvE, 26.09: Prapor — the quest handed in and the ones taken date the first line', () => {
     const availability = calculateAvailability(quests, progressOf(recordsOf('pve'), { faction: 'bear', playerLevel: 1 }))
     expect(statusOf(availability, 'Прапор', 'Сила переубеждения')?.status).toBe('completed')
     for (const name of ['Компромат', 'Пикник со стрельбой', 'Белка и Стрелка', 'Проверка на вшивость', 'Роскошная жизнь']) {
@@ -182,10 +182,10 @@ describe("the owner's logs against the quest grid", () => {
     expect([...availability.values()].some((entry) => entry.basis && entry.basis !== 'chain')).toBe(false)
     expect(statusOf(availability, 'Барахольщик', 'Вернем Ультре былое величие')?.status).toBe('completed')
     expect(statusOf(availability, 'Барахольщик', 'Мелочь, а приятно')?.status).toBe('active')
-    // Ragman's first line reached level 2: its level-1 quest not taken yet is open; his second line is not
+    // Ragman's first line reached level 2: its level-1 quest not taken yet is open; the second line is not
     expect(statusOf(availability, 'Барахольщик', 'Картотека')?.status).toBe('available')
     expect(statusOf(availability, 'Барахольщик', 'Горячая доставка')).toMatchObject({ status: 'locked', line: { level: 2 } })
-    // Therapist: the dialogue quests are taken, his first line has not started
+    // Therapist: the dialogue quests are taken, the first line has not started
     expect(statusOf(availability, 'Терапевт', 'Первый в очереди')?.status).toBe('active')
     expect(statusOf(availability, 'Терапевт', 'Дефицит')).toMatchObject({ status: 'locked', line: { level: 1 } })
   })

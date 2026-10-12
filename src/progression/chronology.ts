@@ -14,11 +14,11 @@ import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements } fr
  *   were given out long ago — probably completed. Its other level-4 tasks are open (not proven completed).
  * - `stage`: a task taken at a trader's loyalty stage (LL3: a line-3 task, a task that needs LL3) shows the trader's
  *   earlier stages (LL1, LL2) are behind the player — probably completed.
- * - `start`: the trader's first tasks (given in the first dialogue) are behind a player who has any later task of his.
+ * - `start`: the trader's first tasks (given in the first dialogue) are behind a player who has any later task of that trader.
  * - `chain`: what such a task needed first came before it too.
  *
  * Only when the logs do not hold the whole history (`historyBeforeLogs`: a taken quest needs one the logs never saw, or a
- * trader's quests are in the logs without his first ones). A new account or a wipe is all in the logs: then a quest the
+ * trader's quests are in the logs without the trader's first ones). A new account or a wipe is all in the logs: then a quest the
  * logs do not mention was simply not taken. Never for the «Оружейник» parts (logs only, src/progression/requirementEngine.ts),
  * a quest of the other faction, a quest above the player's level, or one that opens on another quest being taken or
  * failed (a branch: «Большой заказчик», «Простое любопытство»).
@@ -38,7 +38,7 @@ export interface ChronologyResult {
   completed: Map<string, ChronologyMark>
   /** The level each line reached by the logs: the highest level a taken quest of it needed. */
   lineLevels: Map<string, { level: number; anchorId: string }>
-  /** Each trader's loyalty stage by the logs: the highest stage of a taken quest of his (chronologyStages). */
+  /** Each trader's loyalty stage by the logs: the highest stage among the trader's taken quests (chronologyStages). */
   traderStages: Map<string, { ll: number; anchorId: string }>
   /** The player's quests began before the oldest log. */
   historyBeforeLogs: boolean
@@ -135,13 +135,13 @@ export function inferChronology(quests: Quest[], known: Record<string, TaskProgr
     // a quest in the logs needs one the logs never saw
     live.some((quest) => (tracked(quest.id)?.status === 'active' || tracked(quest.id)?.status === 'completed')
       && questRequirements(quest).some((requirement) => isCompletionOnly(requirement) && byId.has(requirement.taskId) && !tracked(requirement.taskId)))
-    // a trader's later quests are in the logs, his first ones are not
+    // a trader's later quests are in the logs, the trader's first ones are not
     || [...starters].some(([trader, first]) => !first.some((quest) => tracked(quest.id))
       && live.some((quest) => traderKeyOf(quest) === trader && !quest.unlock?.dialogue && tracked(quest.id)))
   )
 
   const completed = new Map<string, ChronologyMark>()
-  // the logs prove the character had the level of every quest he took
+  // the logs prove the character had the level of every quest taken
   const knownLevel = Math.max(options.playerLevel, ...anchors.map((quest) => quest.level))
   if (!historyBeforeLogs) return { completed, lineLevels, traderStages, historyBeforeLogs, stages, knownLevel }
 

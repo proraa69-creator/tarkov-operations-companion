@@ -23,7 +23,7 @@ export interface ChronologyGroup {
   steps: ChronologyStep[]
 }
 
-/** The groups of one trader's quests (`quests`: his live quests), in order. `stages`: chronologyStages of all quests. */
+/** The groups of one trader's quests (`quests`: the trader's live quests), in order. `stages`: chronologyStages of all quests. */
 export function traderChronologyGroups(quests: Quest[], stages: ReadonlyMap<string, number>, all: Quest[] = quests): ChronologyGroup[] {
   const sorted = sortQuestsChronologically(quests, all)
   const start = sorted.filter((quest) => quest.unlock?.dialogue)

@@ -12,7 +12,7 @@ const quest = (id: string, extra: Partial<Quest> = {}): Quest => ({ id, name: id
 const dataset = (quests: Quest[]) => ({ quests, traders: [{ id: THERAPIST, name: 'Терапевт' }] }) as unknown as AppDataset
 
 describe('the quest grid snapshot', () => {
-  it("knows Therapist's first line level by level and his dialogue quests in every mode", () => {
+  it("knows Therapist's first line level by level and the dialogue quests in every mode", () => {
     for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
       expect(snapshotUnlock(mode, SHORTAGE)?.lines?.[0].level).toBe(1)
       expect(snapshotUnlock(mode, FALL_AILMENT)?.lines?.[0]).toEqual({ id: snapshotUnlock(mode, SHORTAGE)!.lines![0].id, level: 4 })
