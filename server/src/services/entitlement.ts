@@ -2,7 +2,8 @@
  * Signed entitlements and device binding (docs/subscription-protection.md).
  *
  * - Access is decided only here, from server data: the owner (TARKOV_OWNER_EMAILS + proven e-mail), streamers (free for
- *   good), a paid period (ЮKassa / Lava payments and the owner's «Выдать дни» grants) or the 3-day referral trial.
+ *   good), a paid period (ЮKassa / Lava payments and the owner's «Выдать дни» grants) or the free period (a day after
+ *   registration for everybody, owner 12.10.2026; three days with a streamer's code while that programme runs).
  * - The app asks POST /v1/entitlement for an Ed25519-signed token {account, device, plan, iat, exp}; exp is at most
  *   72 hours ahead (offline grace) and never later than the end of the paid period + 1 day (trial: its end).
  * - The signing key: TARKOV_ENTITLEMENT_PRIVATE_KEY (PEM or base64 of it; the owner's app keeps it encrypted with
@@ -15,7 +16,7 @@
  * - One session per device: a device is bound to the session that registered it, the data gateway checks the pair
  *   (device id AND session digest), and a device that registers with a new session signs the previous one out. So one
  *   device slot cannot be shared by many PCs that send the same device id with their own sessions.
- * - Streamer-code trial: a device that already served another account's trial ends this account's trial
+ * - Free period: a device that already served another account's free period ends this account's one
  *   (AccountStore.claimTrialDevice).
  */
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign, type KeyObject } from 'node:crypto'

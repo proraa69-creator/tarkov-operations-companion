@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AccountStore, canonicalEmail, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, type AccountView } from '../services/accountStore.js'
+import { AccountStore, canonicalEmail, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
+import { openDatabase } from '../services/database.js'
 
 const password = 'correct horse battery'
 
@@ -24,7 +25,8 @@ test('register, login and /me return an opaque token and an ordinary user view',
   assert.equal(account.kind, 'user')
   assert.equal(account.stats, undefined)
   assert.equal(account.referralCode, undefined)
-  assert.deepEqual(account.subscription, { status: 'inactive' })
+  // Every new account starts with one free day (owner, 12.10.2026).
+  assert.deepEqual(account.subscription, { status: 'trial', trialEndsAt: '2026-09-29T10:00:00.000Z' })
   assert.ok(!JSON.stringify(registered.body).includes(password))
 
   assert.equal((await api.register({ ip: '1', body: { email: 'player@example.com', password } })).status, 409)
@@ -105,7 +107,8 @@ test('streamer promotion is server-side only and exposes referral stats only to 
 
   advance(REFERRAL_TRIAL_MS + 1)
   const fan = (await api.me({ authorization: auth(referredBody.token) })).body as AccountView
-  assert.deepEqual(fan.subscription, { status: 'inactive' })
+  // Over, and nothing was ever paid: the end stays in the view, so the app can say the trial is over.
+  assert.deepEqual(fan.subscription, { status: 'inactive', trialEndsAt: '2026-10-01T10:00:00.000Z' })
   assert.throws(() => store.promoteToStreamer('fan@example.com', 'hunter_tv'), /already taken/)
 })
 
@@ -294,4 +297,38 @@ test('streamer-code trial: once per canonical e-mail, also after deleting the ac
   assert.equal((applied.body as AccountView).subscription.status, 'trial')
   const streamer = ((await api.login({ ip: '1', body: { email: 'tv@example.com', password } })).body as { account: AccountView }).account
   assert.equal(streamer.stats?.registrations, 3)
+})
+
+test('one free day for every new account (owner, 12.10.2026): once per mailbox; when it is over the view keeps its end', async () => {
+  const { api, store, advance } = setup()
+  const first = (await api.register({ ip: '1', body: { email: 'new.player@gmail.com', password } })).body as { token: string; account: AccountView }
+  assert.deepEqual(first.account.subscription, { status: 'trial', trialEndsAt: '2026-09-29T10:00:00.000Z' })
+  // Deleting the account and registering the same mailbox again gives no second day.
+  store.deleteAccount(store.authenticate(first.token)!)
+  const again = (await api.register({ ip: '2', body: { email: 'newplayer+2@googlemail.com', password } })).body as { token: string; account: AccountView }
+  assert.deepEqual(again.account.subscription, { status: 'inactive' })
+  // Another mailbox gets its day; once it is over, the end stays in the view (the app says the trial is over).
+  const other = (await api.register({ ip: '3', body: { email: 'other@example.com', password } })).body as { token: string }
+  advance(WELCOME_TRIAL_MS)
+  const view = (await api.me({ authorization: auth(other.token) })).body as AccountView
+  assert.deepEqual(view.subscription, { status: 'inactive', trialEndsAt: '2026-09-29T10:00:00.000Z' })
+})
+
+test('accounts from before the free day keep what they had: nothing, or the streamer-code trial counted from the code', async () => {
+  const db = openDatabase(':memory:')
+  let clock = Date.parse('2026-10-10T10:00:00.000Z')
+  const before = new AccountStore({ db, now: () => clock })
+  await before.register('tv@example.com', password)
+  before.promoteToStreamer('tv@example.com', 'hunter_tv')
+  const plain = before.authenticate((await before.register('old@example.com', password)).token)!
+  const fan = before.authenticate((await before.register('fan@example.com', password, 'HUNTER_TV')).token)!
+  // The database as it was before 12.10.2026: no trial_ends_at yet.
+  db.exec('ALTER TABLE accounts DROP COLUMN trial_ends_at')
+  clock += 60 * 60 * 1000
+  const after = new AccountStore({ db, now: () => clock })
+  assert.deepEqual(after.view(plain).subscription, { status: 'inactive' })
+  assert.deepEqual(after.view(fan).subscription, { status: 'trial', trialEndsAt: new Date(Date.parse('2026-10-10T10:00:00.000Z') + REFERRAL_TRIAL_MS).toISOString() })
+  // A new account in the updated database gets its day.
+  const fresh = after.authenticate((await after.register('fresh@example.com', password)).token)!
+  assert.deepEqual(after.view(fresh).subscription, { status: 'trial', trialEndsAt: new Date(clock + WELCOME_TRIAL_MS).toISOString() })
 })

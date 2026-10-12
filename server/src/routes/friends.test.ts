@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore } from '../services/accountStore.js'
+import { AccountStore, WELCOME_TRIAL_MS } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { normalizeFriendCode } from '../services/friendStore.js'
 import { sanitizeObjectives } from '../services/sharedProgress.js'
@@ -23,11 +23,12 @@ const catalog = {
 } as unknown as AppDataset
 
 type Call = (method: string, path: string, body?: unknown, token?: string, ip?: string) => Promise<Response>
-interface Ctx { call: Call; accounts: AccountStore; progress: ProgressStore; trial: (email: string) => Promise<string>; user: (email: string) => Promise<string> }
+interface Ctx { call: Call; accounts: AccountStore; progress: ProgressStore; trial: (email: string) => Promise<string>; user: (email: string) => Promise<string>; advance: (ms: number) => void }
 
 async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: FriendsRouterOptions['limits']) {
   const progress = new ProgressStore(':memory:')
-  const accounts = new AccountStore()
+  let clock = Date.now()
+  const accounts = new AccountStore({ now: () => clock })
   await accounts.register('streamer@example.com', password)
   accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
   const server = createApi(progress, undefined, accounts, { catalog: (mode) => (mode === 'pvp' ? catalog : undefined), friendLimits }).listen(0, '127.0.0.1')
@@ -41,6 +42,7 @@ async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: Frien
   try {
     await run({
       call, accounts, progress,
+      advance: (ms) => { clock += ms },
       trial: async (email) => (await accounts.register(email, password, 'HUNTER')).token,
       user: async (email) => (await accounts.register(email, password)).token,
     })
@@ -232,9 +234,10 @@ test('objective-level progress is shared when the records carry it, and finished
 })
 
 test('friends are a paid feature for sending requests and seeing progress; answering and safety actions stay free', async () => {
-  await withServer(async ({ call, trial, user }) => {
+  await withServer(async ({ call, trial, user, advance }) => {
     const paid = await trial('paid@example.com')
     const free = await user('free@example.com')
+    advance(WELCOME_TRIAL_MS) // the free day after registration is over; the streamer's three days are not
     assert.equal((await overview(call, free)).access, false)
     assert.equal((await call('POST', '/v1/friends/requests', { code: (await overview(call, paid)).code }, free)).status, 402)
     assert.equal((await call('GET', '/v1/friends/needs/pvp', undefined, free)).status, 402)

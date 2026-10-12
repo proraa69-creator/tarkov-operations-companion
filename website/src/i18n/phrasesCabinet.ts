@@ -21,6 +21,7 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Подписка', 'Subscription'], ['Активна', 'Active'], ['Не активна', 'Inactive'], ['Пробный период', 'Trial'],
   ['Активна до {date}', 'Active until {date}'], ['Пробный период до {date}', 'Trial until {date}'],
   ['Ваша подписка продолжает действовать.', 'Your subscription remains active.'], ['Бесплатный доступ по приглашению.', 'Free access by invitation.'],
+  ['Первый день после регистрации — бесплатно.', 'The first day after sign-up is free.'],
   ['Бесплатно навсегда (стример)', 'Free forever (streamer)'],
   ['Для стримеров все функции открыты без оплаты и без срока. Ничего оплачивать не нужно.', 'Streamers get every feature with no payment and no time limit. There is nothing to pay.'],
   ['Проверяем предыдущую оплату…', 'Checking your previous payment…'],

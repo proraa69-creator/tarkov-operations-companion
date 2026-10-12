@@ -47,6 +47,7 @@ export function AdminSales() {
           <dl className="admin-facts">
             <div><dt>Цена месяца</dt><dd className="mono">{data.yookassa ? `${formatRub(data.yookassa.monthPrice)} ₽` : '—'}</dd></div>
             <div><dt>Общая доля стримеров</dt><dd className="mono">{data.streamerPercent} %</dd></div>
+            <div><dt>Бесплатно после регистрации</dt><dd className="mono">{data.welcomeTrialDays ?? 1} дн.</dd></div>
             <div><dt>Пробный период по ссылке</dt><dd className="mono">{data.trialDays} дн.</dd></div>
             <div><dt>Адрес сайта для возврата</dt><dd className="mono">{data.yookassa?.publicUrl ?? '—'}</dd></div>
             <div><dt>Lava.top: валюта и курс</dt><dd className="mono">{data.lava ? `${data.lava.currency} · ${formatRub(data.lava.rubRate)} ₽` : '—'}</dd></div>

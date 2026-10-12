@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore, newPasswordHash, type SubscriptionSource } from '../services/accountStore.js'
+import { AccountStore, newPasswordHash, WELCOME_TRIAL_MS, type SubscriptionSource } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { EntitlementService } from '../services/entitlement.js'
 import { ALLOWED_OPERATIONS, canonicalQuery, checkQueryAllowed, DataGateway, GatewayError, inspectQuery, PRICE_TTL_MS, STATIC_TTL_MS } from '../services/dataGateway.js'
@@ -229,9 +229,10 @@ test('gateway cache: flea prices of PvP, PvE and Season never share an entry (ga
   assert.deepEqual(upstream.calls.slice(2).map((call) => call.url.replace(/^https:\/\/json\.tarkov\.dev\//, '')), ['regular/items', 'pve/items', 'pvp-season/items'])
 })
 
-async function withApi(run: (ctx: { call: (method: string, path: string, options?: { token?: string; device?: string; body?: unknown; ip?: string }) => Promise<Response>; accounts: AccountStore; paid: Map<string, number>; upstream: ReturnType<typeof fakeUpstream>; entitlements: EntitlementService }) => Promise<void>, limits?: { perIp?: number; perAccount?: number }) {
+async function withApi(run: (ctx: { call: (method: string, path: string, options?: { token?: string; device?: string; body?: unknown; ip?: string }) => Promise<Response>; accounts: AccountStore; paid: Map<string, number>; upstream: ReturnType<typeof fakeUpstream>; entitlements: EntitlementService; advance: (ms: number) => void }) => Promise<void>, limits?: { perIp?: number; perAccount?: number }) {
   const paid = new Map<string, number>()
-  const accounts = new AccountStore({ ownerEmails: ['owner@example.com'] })
+  let clock = Date.now()
+  const accounts = new AccountStore({ ownerEmails: ['owner@example.com'], now: () => clock })
   const source: SubscriptionSource = { paidUntil: (id) => paid.get(id), referralStats: () => ({ activeSubscriptions: 0, revenue: 0, earnings: 0 }), referralSeries: () => [] }
   accounts.attachSubscriptions(source)
   const entitlements = new EntitlementService(accounts)
@@ -243,6 +244,7 @@ async function withApi(run: (ctx: { call: (method: string, path: string, options
   try {
     await run({
       accounts, paid, upstream, entitlements,
+      advance: (ms) => { clock += ms },
       call: (method, path, options = {}) => fetch(`${base}${path}`, {
         method,
         headers: { 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...(options.ip ? { 'x-forwarded-for': options.ip } : {}) },
@@ -256,11 +258,12 @@ async function withApi(run: (ctx: { call: (method: string, path: string, options
 }
 
 test('HTTP gateway: 401 signed out, 402 without subscription, 403 without an active device, data with all three', async () => {
-  await withApi(async ({ call, accounts, paid, upstream, entitlements }) => {
+  await withApi(async ({ call, accounts, paid, upstream, entitlements, advance }) => {
     const graphql = { query: '{ items { id } }' }
     assert.equal((await call('POST', '/v1/data/graphql', { body: graphql })).status, 401)
     const token = (await accounts.register('user@example.com', 'correct horse battery')).token
     const id = accounts.authenticate(token)!
+    advance(WELCOME_TRIAL_MS) // the free day after registration is over
     const denied = await call('POST', '/v1/data/graphql', { token, device: DEVICE, body: graphql })
     assert.equal(denied.status, 402)
     assert.deepEqual(await denied.json(), { error: 'Нужна подписка', code: 'subscription_required' })

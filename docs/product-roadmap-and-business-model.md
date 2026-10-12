@@ -261,9 +261,9 @@ Flow:
 
 1. User downloads desktop client.
 2. User registers/signs in.
-3. User may arrive through a streamer referral link.
-4. Referral users get 3 free days.
-5. After 3 days, paid features are blocked.
+3. Every new account gets 1 free day from registration (owner, 12.10.2026), server-side, once per canonical e-mail and per device; accounts from before keep what they had.
+4. User may arrive through a streamer referral link; referral users get 3 free days (programme paused since 09.10.2026 — a streamer's code then gives the same 1 day as everybody).
+5. After the free period, paid features are blocked.
 6. App shows a subscription/payment window.
 7. User can subscribe for:
    - 1 month;

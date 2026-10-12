@@ -316,7 +316,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const title = active && paidUntil ? tr('Активна до {date}', { date: formatDate(paidUntil) })
     : trial && trialEndsAt ? tr('Пробный период до {date}', { date: formatDate(trialEndsAt) })
       : tr('Не активна')
-  const hint = active ? tr('Ваша подписка продолжает действовать.') : trial ? tr('Бесплатный доступ по приглашению.') : ''
+  const hint = active ? tr('Ваша подписка продолжает действовать.') : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Первый день после регистрации — бесплатно.') : ''
   const shownPlans = visiblePlans(plans)
   const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
     ? { ...selectedPlan, price: Math.round(selectedPlan.price * (100 - friendDiscount.percent)) / 100 }

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore } from '../services/accountStore.js'
+import { AccountStore, WELCOME_TRIAL_MS } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { normalizeSquadCode, SQUAD_INVITE_TTL_MS } from '../services/squadStore.js'
 import type { AppDataset } from '../models/api.js'
@@ -71,11 +71,14 @@ async function invite(call: Call, token: string, squadId: string) {
 }
 
 test('squad routes need a session and a subscription, trial or streamer account', async () => {
-  await withServer(async ({ call, user, accounts }) => {
+  await withServer(async ({ call, user, accounts, clock }) => {
     assert.equal((await call('GET', '/v1/squads/mine/pvp')).status, 401)
     assert.equal((await call('POST', '/v1/squads', {})).status, 401)
     assert.equal((await call('POST', '/v1/squads/join', { code: 'ABCDE-FGHJK' }, 'x'.repeat(43))).status, 401)
     const free = await user('free@example.com')
+    // The free day after registration opens squads too; once it is over, the account is a free one.
+    assert.equal((await json<{ access: boolean }>(await call('GET', '/v1/squads/mine/pvp', undefined, free))).access, true)
+    clock.now += WELCOME_TRIAL_MS
     const mine = await json<{ squad: unknown; access: boolean; invitations: unknown[] }>(await call('GET', '/v1/squads/mine/pvp', undefined, free))
     assert.deepEqual(mine, { squad: null, access: false, invitations: [] })
     const refused = await call('POST', '/v1/squads', {}, free)

@@ -364,7 +364,8 @@ test('bug reports: every report goes to the owner as a PDF, the owner grants day
     assert.ok(Math.abs(Date.parse(user.user.subscription.paidUntil!) - (Date.now() + 24 * DAY)) < 60_000)
     assert.deepEqual(user.grants[0], { ...user.grants[0], days: -7, reason: 'лишние дни' })
     user = (await t.call<UserDetail>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 100, reason: 'всё' })).json
-    assert.equal(user.user.subscription.status, 'inactive')
+    // only paid days go: the player's free day after registration is not touched
+    assert.equal(user.user.subscription.status, 'trial')
     const none = await t.call<{ error: string }>('POST', `/accounts/me/admin/users/${playerId}/revoke`, owner, { days: 1, reason: 'ещё' })
     assert.equal(none.status, 409)
     assert.match(none.json.error, /нет оплаченных дней/)

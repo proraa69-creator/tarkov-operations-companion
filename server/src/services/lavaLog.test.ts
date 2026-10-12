@@ -211,11 +211,11 @@ test('confirm: grants exactly the stored plan once, records the webhook amount, 
     // The invoice is for 3 months (12.99 USD); Lava reports 11.50 USD (fees / conversion): nothing is granted.
     const { contractId, paymentId } = await invoice('3m')
     await quiet(() => { payments.lavaWebhook(hook, { eventType: 'payment.success', contractId, amount: 11.5, currency: 'USD', periodicity: 'PERIOD_YEAR' }) })
-    assert.equal(accounts.view(playerId).subscription.status, 'inactive')
+    assert.equal(accounts.view(playerId).subscription.paidUntil, undefined)
     const id = rows().find((row) => row.result === 'amount-mismatch')!.id as number
 
     assert.equal((await call('POST', `/accounts/me/admin/lava/events/${id}/confirm`, playerToken, {})).status, 404)
-    assert.equal(accounts.view(playerId).subscription.status, 'inactive', 'a non-owner cannot grant anything')
+    assert.equal(accounts.view(playerId).subscription.paidUntil, undefined, 'a non-owner cannot grant anything')
     assert.equal((await call('POST', '/accounts/me/admin/lava/events/999999/confirm', ownerToken, {})).status, 404)
     assert.equal((await call('POST', '/accounts/me/admin/lava/events/abc/confirm', ownerToken, {})).status, 400)
 
@@ -282,7 +282,7 @@ test('confirm does nothing when the payment was applied meanwhile', async () => 
     const done = await call('POST', `/accounts/me/admin/lava/events/${id}/confirm`, ownerToken, {})
     assert.equal(done.status, 200)
     assert.equal(done.json.already, true)
-    assert.equal(accounts.view(playerId).subscription.status, 'inactive', 'no second grant')
+    assert.equal(accounts.view(playerId).subscription.paidUntil, undefined, 'no second grant')
   } finally { await close() }
 })
 

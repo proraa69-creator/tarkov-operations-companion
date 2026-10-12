@@ -293,6 +293,8 @@ export interface AdminSalesSettings {
   lava: { currency: string; rubRate: number; paymentMethod: string | null; offerId: string } | null
   streamerPercent: number
   trialDays: number
+  /** Free days every new account gets (servers before 12.10.2026 do not send it). */
+  welcomeTrialDays?: number
 }
 export interface YookassaSettingsInput { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay: boolean }
 export interface YookassaSettingsView { configured: boolean; settings: YookassaSettingsInput & { hasKey: boolean } }

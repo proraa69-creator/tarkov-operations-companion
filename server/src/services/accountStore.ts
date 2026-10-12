@@ -27,6 +27,8 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
+/** Every new account gets one free day from registration (owner, 12.10.2026: «Сделай 1 бесплатный при регистрации всем»). */
+export const WELCOME_TRIAL_MS = 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
 export const MAX_SESSIONS_PER_ACCOUNT = 10
@@ -50,7 +52,9 @@ interface Account {
   referredBy?: string
   referredAt?: number
   nicknames: Partial<Record<AccountMode, string>>
-  /** The streamer-code trial was refused: this e-mail (canonical form) or device already had one (trial_claims). */
+  /** End of the free period: a day from registration, three with a streamer's code. None for older accounts. */
+  trialEndsAt?: number
+  /** The free period was refused: this e-mail (canonical form) or device already had one (trial_claims). */
   trialDenied: boolean
 }
 
@@ -253,6 +257,7 @@ function toAccount(row: Row | undefined): Account | undefined {
     referredBy: row.referred_by == null ? undefined : String(row.referred_by),
     referredAt: row.referred_at == null ? undefined : Number(row.referred_at),
     nicknames: parseNicknames(row.nicknames),
+    trialEndsAt: row.trial_ends_at == null ? undefined : Number(row.trial_ends_at),
     trialDenied: row.trial_denied != null,
   }
 }
@@ -352,8 +357,11 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // Canonical e-mail (canonicalEmail) of a working account: one person cannot hold several accounts through
   // «name+1@», «n.a.m.e@gmail.com»… NULL once the account is deleted.
   ['email_canon', 'TEXT'],
-  // Set when the streamer-code trial was refused (trial_claims): the referral still counts for the streamer.
+  // Set when the free period was refused (trial_claims): the referral still counts for the streamer.
   ['trial_denied', 'INTEGER'],
+  // End of the free period (WELCOME_TRIAL_MS from registration, REFERRAL_TRIAL_MS with a streamer's code). Accounts
+  // from before 12.10.2026 have it only for a streamer's code (filled in from referred_at, see the constructor).
+  ['trial_ends_at', 'INTEGER'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -377,7 +385,8 @@ export class AccountStore {
   /** `ownerEmails` defaults to TARKOV_OWNER_EMAILS (the owner's desktop app passes it to the API process). */
   /**
    * The 3 free days for a streamer's code. The live server turns them off (server/src/index.ts: the streamer programme is
-   * paused, owner 09.10.2026) — the code still records the referral; trials granted before keep running out.
+   * paused, owner 09.10.2026) — the code still records the referral and the account keeps its one free day like any
+   * other; trials granted before keep running out.
    */
   private readonly streamerTrial: boolean
 
@@ -396,6 +405,9 @@ export class AccountStore {
     // Accounts created afterwards are never grandfathered: they must confirm their e-mail first. Because this runs only
     // when the column is missing, a later restart cannot grandfather anybody new.
     if (!columns.has('email_grandfathered')) this.db.exec('UPDATE accounts SET email_grandfathered = 1')
+    // The free period used to be computed from referred_at; once, when the column appears, it is written down for those
+    // accounts, so their trials end exactly as before. Older accounts without a streamer's code get no free day.
+    if (!columns.has('trial_ends_at')) this.db.prepare('UPDATE accounts SET trial_ends_at = referred_at + ? WHERE referred_at IS NOT NULL').run(REFERRAL_TRIAL_MS)
     // A verified number belongs to one account only.
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_invite_code ON accounts(invite_code) WHERE invite_code IS NOT NULL')
@@ -477,14 +489,10 @@ export class AccountStore {
   }
 
   /**
-   * The streamer-code trial goes to the first account of a canonical e-mail only. A later account (another «+tag», a
-   * re-registration after «Удалить аккаунт») keeps the referral — it counts for the streamer — but gets no trial.
+   * The free period goes to the first account of a canonical e-mail only. A later account (another «+tag», a
+   * re-registration after «Удалить аккаунт») gets none; a streamer's code on it still counts for the streamer.
    */
   private claimTrialByEmail(accountId: string, email: string) {
-    if (!this.streamerTrial) {
-      this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
-      return
-    }
     const digest = trialEmailDigest(email)
     if (this.db.prepare('SELECT 1 FROM trial_claims WHERE email_canon_hash = ? AND account_id <> ?').get(digest, accountId)) {
       this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
@@ -496,12 +504,12 @@ export class AccountStore {
   }
 
   /**
-   * Called when the app registers a device (services/entitlement.ts): an account with a streamer-code trial loses the
-   * trial when that device already served another account's trial; otherwise the device is noted for this one.
+   * Called when the app registers a device (services/entitlement.ts): an account with a free period loses it when that
+   * device already served another account's free period; otherwise the device is noted for this one.
    */
   claimTrialDevice(accountId: string, deviceId: string) {
-    const row = this.db.prepare("SELECT email, referred_at, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
-    if (!row || row.referred_at == null || row.trial_denied != null) return
+    const row = this.db.prepare("SELECT email, trial_ends_at, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
+    if (!row || row.trial_ends_at == null || row.trial_denied != null) return
     if (this.db.prepare('SELECT 1 FROM trial_claims WHERE device_id = ? AND account_id <> ?').get(deviceId, accountId)) {
       this.db.prepare('UPDATE accounts SET trial_denied = ? WHERE id = ?').run(this.now(), accountId)
       return
@@ -525,19 +533,20 @@ export class AccountStore {
     if (referralCode) {
       const code = normalizeReferralCode(referralCode)
       // An unknown or invalid code must not block registration; it is simply not applied. A streamer's code gives the
-      // trial; a player's code («Пригласи друга») gives the discount on the first month (services/invites.ts).
+      // longer trial; a player's code («Пригласи друга») gives the discount on the first month (services/invites.ts).
       if (this.activeOwnerOfCode(code)) referredBy = code
       else invitedBy = this.playerOfCode(code) ?? null
     }
+    const trialEndsAt = createdAt + (referredBy && this.streamerTrial ? REFERRAL_TRIAL_MS : WELCOME_TRIAL_MS)
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key))
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_ends_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialEndsAt)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
       throw error
     }
-    if (referredBy) this.claimTrialByEmail(id, key)
+    this.claimTrialByEmail(id, key)
     return { token: this.createSession(id), referralApplied: referredBy !== null || invitedBy !== null }
   }
 
@@ -568,16 +577,18 @@ export class AccountStore {
 
   view(accountId: string): AccountView {
     const account = this.mustGet(accountId)
-    const trialEndsAt = account.referredAt === undefined ? undefined : account.referredAt + REFERRAL_TRIAL_MS
+    const trialEndsAt = account.trialDenied ? undefined : account.trialEndsAt
+    const paidUntil = this.subscriptions?.paidUntil(account.id)
     const view: AccountView = {
       email: account.email,
       kind: account.kind,
       createdAt: new Date(account.createdAt).toISOString(),
       ...(primaryNickname(account.nicknames) ? { nickname: primaryNickname(account.nicknames) } : {}),
       nicknames: nicknamesFor(primaryNickname(account.nicknames)),
-      subscription: trialEndsAt !== undefined && !account.trialDenied && trialEndsAt > this.now() ? { status: 'trial', trialEndsAt: new Date(trialEndsAt).toISOString() } : { status: 'inactive' },
+      // An ended free period stays in the view while nothing was ever paid: the app then says the trial is over.
+      subscription: trialEndsAt === undefined || (trialEndsAt <= this.now() && paidUntil !== undefined) ? { status: 'inactive' }
+        : { status: trialEndsAt > this.now() ? 'trial' : 'inactive', trialEndsAt: new Date(trialEndsAt).toISOString() },
     }
-    const paidUntil = this.subscriptions?.paidUntil(account.id)
     if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
     if (this.invitedBy(account.id)) view.invitedByFriend = true
@@ -696,7 +707,11 @@ export class AccountStore {
     const code = normalizeReferralCode(rawCode)
     if (this.activeOwnerOfCode(code)) {
       const applied = this.db.prepare('UPDATE accounts SET referred_by = ?, referred_at = ? WHERE id = ? AND referred_by IS NULL AND invited_by IS NULL').run(code, this.now(), account.id)
-      if (Number(applied.changes) > 0) this.claimTrialByEmail(account.id, account.email)
+      if (Number(applied.changes) > 0 && this.streamerTrial) {
+        // A streamer's code entered later gives three free days from now (never shortens a running free period).
+        this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
+        this.claimTrialByEmail(account.id, account.email)
+      }
       return
     }
     const inviter = this.playerOfCode(code)

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore } from './accountStore.js'
+import { AccountStore, WELCOME_TRIAL_MS } from './accountStore.js'
 import { openDatabase } from './database.js'
 import { HOLD_MS, InviteProgram, LIFETIME_UNTIL } from './invites.js'
 import { PaymentStore } from './paymentStore.js'
@@ -68,7 +68,9 @@ test('a friend registers with a player code and gets 20 % off the first month on
 
   const friend = await t.register('friend@example.com', code)
   assert.equal(t.accounts.invitedBy(friend), inviter)
-  assert.equal(t.accounts.view(friend).subscription.status, 'inactive', 'a friend code gives the discount, not the streamer trial')
+  // A friend code gives the discount, not the streamer's three days: only everybody's free day after registration.
+  const friendSubscription = t.accounts.view(friend).subscription
+  assert.deepEqual([friendSubscription.status, Date.parse(friendSubscription.trialEndsAt!) - t.now()], ['trial', WELCOME_TRIAL_MS])
   assert.equal(t.invites.discountPercent(friend), 20)
   await t.pay(friend, '1m')
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '240.00', currency: 'RUB' })
@@ -282,7 +284,7 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '300.00', currency: 'RUB' })
 })
 
-test('streamer programme paused: a streamer\'s code records the referral but gives no free days and no discount', async () => {
+test('streamer programme paused: a streamer\'s code records the referral but gives no extra free days and no discount', async () => {
   const { AccountStore } = await import('./accountStore.js')
   const { openDatabase } = await import('./database.js')
   const store = new AccountStore({ db: openDatabase(':memory:'), ownerEmails: [], streamerTrial: false })
@@ -290,10 +292,12 @@ test('streamer programme paused: a streamer\'s code records the referral but giv
   store.promoteToStreamer('tv@example.com', 'HUNTER')
   const viewer = store.authenticate((await store.register('viewer@example.com', 'correct horse battery', 'HUNTER')).token)!
   assert.equal(store.view(viewer).referredBy, 'HUNTER')
-  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive' })
+  // Only the free day every account gets, not the streamer's three.
+  const freeTime = (id: string) => Date.parse(store.view(id).subscription.trialEndsAt!) - Date.parse(store.view(id).createdAt)
+  assert.deepEqual([store.view(viewer).subscription.status, freeTime(viewer)], ['trial', WELCOME_TRIAL_MS])
   const late = store.authenticate((await store.register('late@example.com', 'correct horse battery')).token)!
   store.applyReferral(late, 'HUNTER')
-  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription.status], ['HUNTER', 'inactive'])
+  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription.status, freeTime(late)], ['HUNTER', 'trial', WELCOME_TRIAL_MS])
 })
 
 test('a plain sign-up without a friend or streamer code pays the list price; the cabinet shows no discount', async () => {
