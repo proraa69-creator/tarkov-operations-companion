@@ -114,8 +114,6 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   // uiText translates " · "-separated parts one by one.
   ['3D модели', '3D models'], ['Перетащите — повернуть', 'Drag to turn'], ['колесо — масштаб', 'wheel to zoom'], ['двойной клик — сброс', 'double-click to reset'],
   ['Автоповорот', 'Auto-rotate'],
-  ['Разделы галереи', 'Gallery sections'], ['Основные', 'Main'], ['Древние боссы', 'Ancient bosses'],
-  ['Модели торговцев скоро появятся', 'Trader models are coming soon'], ['К боссам', 'To bosses'],
-  ['Здесь будут 3D модели торговцев Таркова. Пока загляните в раздел «Боссы».', 'Tarkov’s traders will get 3D models here. Meanwhile, have a look at the Bosses section.'],
+  ['Основные', 'Main'], ['Древние боссы', 'Ancient bosses'],
   ['Здоровье', 'Health'], ['Вооружение', 'Weapons'], ['Ценный лут', 'Notable loot'], ['По мотивам', 'Styled after'],
 ]
