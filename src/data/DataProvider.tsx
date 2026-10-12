@@ -6,6 +6,7 @@ import { demoDataset } from './demo'
 import { fetchTarkovCatalog } from './tarkovJsonClient'
 import { useAppState } from '../state/AppState'
 import { cleanDatasetText } from '../shared/questText'
+import { withQuestGrid } from './questGrid'
 import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
@@ -51,7 +52,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   })
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
-  const russian = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
+  // Each quest's trader line and level and tarkov.help's view of it (src/data/questGrid.ts): the quest chronology.
+  const russian = useMemo(() => cleanDatasetText(withQuestGrid(query.data ?? demoDataset, raidMode)), [query.data, raidMode])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
   // Bosses the owner placed by hand (in this mode, or for every mode) replace the automatic markers of that boss on that

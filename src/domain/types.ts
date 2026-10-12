@@ -379,11 +379,40 @@ export interface BuildGuidePart {
   notSold?: boolean
 }
 
+/**
+ * How a task opens besides its previous tasks (tarkov.dev `otherRequirements`, src/data/questGrid.ts). Since the 2026
+ * versions of the game most trader tasks open by a trader «ветка» (a game variable) reaching a level: «Дефицит» at level 1
+ * of Therapist's first line, «Осеннее недомогание» at level 4 of it. A trader's first tasks are given in a dialogue.
+ */
+export interface QuestUnlock {
+  /** `id` = the game variable; `level` = the value it must reach; `order` / `ll` = the line's place among the trader's lines and its loyalty level (tarkov.help). */
+  lines?: Array<{ id: string; level: number; order?: number; ll?: number }>
+  dialogue?: boolean
+}
+
+/** tarkov.help's view of a task (src/data/questGrid.snapshot.json): its loyalty level, level and previous tasks there. */
+export interface QuestHelpView {
+  ll?: number
+  level?: number
+  kappa?: boolean
+  /** Previous tasks there that the game has (task ids) and that it no longer has (names). */
+  after?: string[]
+  afterNames?: string[]
+  /** tarkov.help's name when it is not the game's. */
+  name?: string
+}
+
 export interface Quest {
   id: string
   normalizedName?: string
   name: string
   trader: string
+  /** The trader's game id (tarkov.dev), when known. */
+  traderId?: string
+  /** Line and dialogue conditions (src/data/questGrid.ts). */
+  unlock?: QuestUnlock
+  /** tarkov.help's view of the task, for the chronology and the comparison (src/data/questGrid.ts). */
+  helpView?: QuestHelpView
   /**
    * Trader loyalty the task tells about (tarkov.dev, by trader id): `needed` to take it (`traderRequirements` of type
    * level), `reached` once it is completed (its «reach loyalty level N» objectives). Used to estimate the player's levels.

@@ -13,6 +13,7 @@ import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapter
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
+import { unlockFromRequirements } from './questUnlock'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -394,11 +395,15 @@ function adaptTasks(
       objectives: objectives.map((objective) => ({ type: text(objective.type), description: text(objective.description) })),
       mapIds,
     })
+    const unlock = unlockFromRequirements(entry.otherRequirements)
     return {
       id: text(entry.id),
       normalizedName: text(entry.normalizedName),
       name,
       trader: traders.get(text(entry.trader))?.name ?? 'Неизвестный торговец',
+      ...(refId(entry.trader) ? { traderId: refId(entry.trader) } : {}),
+      // A trader line and its level, or a trader dialogue (src/data/questUnlock.ts).
+      ...(unlock ? { unlock } : {}),
       mapId: maps.get(rawMapId),
       mapIds,
       anyMap,

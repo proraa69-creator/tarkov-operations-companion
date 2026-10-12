@@ -7,6 +7,8 @@ const upstream: Record<string, unknown> = {
     tasks: {
       t1: {
         id: 't1', name: 'Аптечный бизнес', trader: 'tr1', minPlayerLevel: 5, kappaRequired: true,
+        // opens at level 2 of a trader line and in a dialogue (2026 game versions)
+        otherRequirements: [{ id: 'r1', type: 'globalVariable', variableId: 'line-x', compareMethod: '>=', value: 2 }, { id: 'r2', type: 'dialogue', traders: ['tr1'] }],
         objectives: [
           { id: 'o1', type: 'findItem', description: 'Найти в рейде газоанализатор', count: 2, foundInRaid: true, items: ['gas'], maps: [] },
           { id: 'o2', type: 'giveItem', description: 'Передать газоанализатор', count: 2, foundInRaid: true, items: ['gas'], maps: [] },
@@ -45,6 +47,7 @@ describe('catalog adapter: found-in-raid and structured requirements', () => {
     }))
     const catalog = await fetchLiveCatalog('pve', 'en')
     const quest = catalog.quests.find((entry) => entry.id === 't1')!
+    expect(quest).toMatchObject({ traderId: 'tr1', unlock: { lines: [{ id: 'line-x', level: 2 }], dialogue: true } })
     const gas = quest.raidRequirements!.filter((requirement) => requirement.itemId === 'gas')
     expect(gas.map((requirement) => [requirement.objectiveId, requirement.purpose, requirement.count, requirement.foundInRaid, requirement.alternatives])).toEqual([
       ['o1', 'find', 2, true, 1],

@@ -1,17 +1,34 @@
-import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus, TaskRequirement } from '../domain/types'
+import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from '../domain/types'
 import { gunsmithSteps } from '../gunsmith/gunsmith'
+import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
+import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements } from './questBasics'
+
+export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
 export interface TaskAvailability {
   status: TaskProgressStatus
   blockers: string[]
+  /**
+   * Why a quest the logs do not mention has this status (src/progression/chronology.ts): `chain` — a quest in the logs
+   * needs it; `line` / `stage` / `start` — it comes before what the logs show (probably completed).
+   */
+  basis?: 'chain' | ChronologyBasis
+  /** The quest from the logs that dates this one. */
+  anchorId?: string
+  /** A line the quest waits for: its place among the trader's lines, the level it needs and the level the logs show. */
+  line?: { order?: number; ll?: number; level: number; reached?: number }
 }
 
-export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress): TaskAvailability {
+/** What the logs show about lines and stages (calculateAvailability), for the line conditions of each quest. */
+export type AvailabilityContext = Pick<ChronologyResult, 'lineLevels' | 'traderStages' | 'historyBeforeLogs' | 'stages' | 'knownLevel'>
+
+export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, context?: AvailabilityContext): TaskAvailability {
   const explicit = progress.taskProgress[quest.id]
   if (explicit) return { status: explicit.status, blockers: [] }
 
   const blockers: string[] = []
-  if (progress.playerLevel < quest.level) blockers.push(`Нужен уровень ${quest.level}`)
+  // the profile's level, or the one the quests in the logs prove
+  if (Math.max(progress.playerLevel, context?.knownLevel ?? 0) < quest.level) blockers.push(`Нужен уровень ${quest.level}`)
   const faction = questFaction(quest.faction)
   if (progress.faction !== 'unknown' && faction && faction !== progress.faction) {
     blockers.push(`Задание доступно фракции ${quest.faction}`)
@@ -32,15 +49,33 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress): 
     }
   }
 
-  return blockers.length ? { status: 'locked', blockers } : { status: 'available', blockers: [] }
-}
+  // A trader line at a level (src/data/questUnlock.ts): open once a quest of that level or above was taken. When the
+  // player's history began before the logs, a line the logs say nothing about may be open: unknown, not locked — unless
+  // the quest belongs to a later loyalty stage than the trader's quests in the logs.
+  let unknown = false
+  let waiting: TaskAvailability['line']
+  for (const line of context ? quest.unlock?.lines ?? [] : []) {
+    const reached = context!.lineLevels.get(line.id)
+    if (reached && reached.level >= line.level) continue
+    const stage = context!.traderStages.get(traderKeyOf(quest))
+    if (context!.historyBeforeLogs && !reached && (!stage || (context!.stages.get(quest.id) ?? 1) <= stage.ll)) {
+      unknown = true
+      continue
+    }
+    waiting = { ...(line.order ? { order: line.order } : {}), ...(line.ll ? { ll: line.ll } : {}), level: line.level, ...(reached ? { reached: reached.level } : {}) }
+    blockers.push(`Откроется на ${line.level}-м уровне ветки${line.order ? ` ${line.order}` : ''} торговца`)
+  }
 
-/** Only an explicit USEC/BEAR restriction counts; «Any» (or its translation) means everyone. */
-export function questFaction(value: string | undefined): 'usec' | 'bear' | undefined {
-  const key = value?.trim().toLowerCase() ?? ''
-  if (/^(usec|юсек)$/.test(key)) return 'usec'
-  if (/^(bear|беар|бир)$/.test(key)) return 'bear'
-  return undefined
+  // Loyalty the logs do not show yet (a quest that needs LL4 while the trader's quests in the logs are of LL3 at most):
+  // the player may have it from before the logs.
+  if (context?.historyBeforeLogs && !blockers.length) {
+    const own = quest.traderLoyalty?.needed.filter((entry) => !quest.traderId || entry.traderId === quest.traderId).map((entry) => entry.level) ?? []
+    const stage = context.traderStages.get(traderKeyOf(quest))?.ll ?? 1
+    if (own.some((level) => level > stage)) unknown = true
+  }
+
+  if (blockers.length) return { status: 'locked', blockers, ...(waiting ? { line: waiting } : {}) }
+  return unknown ? { status: 'unknown', blockers: [] } : { status: 'available', blockers: [] }
 }
 
 /** Sources that describe this mode's real quest state: logs (split per mode), manual edits, story-pane scans. */
@@ -82,12 +117,32 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
       queue.push(requirement.taskId)
     }
   }
-  const availability = new Map(quests.map((quest) => [quest.id, evaluateTaskAvailability(quest, verified)]))
+  // The chronology against the quest grid (src/progression/chronology.ts): what comes before the quests in the logs.
+  const chronology = inferChronology(quests, verified.taskProgress, {
+    playerLevel: progress.playerLevel,
+    faction: progress.faction,
+    exclude: gunsmith,
+  })
+  for (const [taskId, mark] of chronology.completed) {
+    verified.taskProgress[taskId] = {
+      taskId,
+      status: 'completed',
+      source: 'inferred',
+      updatedAt: progress.lastLogSyncAt ?? new Date(0).toISOString(),
+      inferredFromTaskId: mark.anchorId,
+    }
+  }
+  const availability = new Map(quests.map((quest) => {
+    const result = evaluateTaskAvailability(quest, verified, chronology)
+    const mark = chronology.completed.get(quest.id)
+    const inferred = verified.taskProgress[quest.id]
+    if (mark) return [quest.id, { ...result, basis: mark.basis, anchorId: mark.anchorId }]
+    if (inferred?.source === 'inferred') return [quest.id, { ...result, basis: 'chain' as const, ...(inferred.inferredFromTaskId ? { anchorId: inferred.inferredFromTaskId } : {}) }]
+    return [quest.id, result]
+  }))
   gunsmithFromLogs(byId, steps, logged, availability)
   return availability
 }
-
-const completionOnly = (requirement: TaskRequirement) => !requirement.group && (requirement.allowedStatuses.length === 0 || requirement.allowedStatuses.every((status) => status === 'complete'))
 
 /**
  * «Оружейник» from the game logs only (owner, 11.10.2026: «не бери это правило по квестам за основу, лучше читай логи
@@ -105,14 +160,14 @@ function gunsmithFromLogs(byId: Map<string, Quest>, steps: ReturnType<typeof gun
     return record && TRACKED_SOURCES.has(record.source) ? record : undefined
   }
   const held = Object.values(logged).filter((record) => TRACKED_SOURCES.has(record.source) && (record.status === 'active' || record.status === 'completed'))
-  const needed = new Set(held.flatMap((record) => questRequirements(byId.get(record.taskId) ?? {}).filter(completionOnly).map((requirement) => requirement.taskId)))
+  const needed = new Set(held.flatMap((record) => questRequirements(byId.get(record.taskId) ?? {}).filter(isCompletionOnly).map((requirement) => requirement.taskId)))
   const olderThanLogs = [...needed].some((taskId) => byId.has(taskId) && !tracked(taskId))
   if (!olderThanLogs) return
   const locked = new Set<string>()
   // in chain order: a part's previous parts are decided before it
   for (const { quest } of steps) {
     if (tracked(quest.id)) continue
-    const before = questRequirements(quest).filter(completionOnly).map((requirement) => requirement.taskId)
+    const before = questRequirements(quest).filter(isCompletionOnly).map((requirement) => requirement.taskId)
     const blocked = before.some((taskId) => locked.has(taskId) || tracked(taskId)?.status === 'active' || tracked(taskId)?.status === 'failed')
     if (blocked && !needed.has(quest.id)) {
       locked.add(quest.id)
@@ -121,17 +176,13 @@ function gunsmithFromLogs(byId: Map<string, Quest>, steps: ReturnType<typeof gun
   }
 }
 
-/** Completed trader quests proven by logs or by a mandatory prerequisite chain. */
+/** Completed trader quests: by the logs, a mandatory prerequisite chain or the chronology (src/progression/chronology.ts). */
 export function completedQuestStats(quests: Quest[], availability: Map<string, TaskAvailability>) {
   const live = quests.filter((quest) => isLiveGameQuest(quest))
   const done = live.filter((quest) => availability.get(quest.id)?.status === 'completed')
   const kappa = live.filter((quest) => quest.kappa)
   const kappaDone = kappa.filter((quest) => availability.get(quest.id)?.status === 'completed')
   return { completed: done.length, total: live.length, kappaCompleted: kappaDone.length, kappaTotal: kappa.length }
-}
-
-export function isLiveGameQuest(quest: { id: string; kind?: string; storyChapterId?: string }) {
-  return Boolean(quest.id) && !quest.id.startsWith('wiki:') && quest.kind !== 'story' && !quest.storyChapterId
 }
 
 export function isStoryQuest(quest: { kind?: string }) {
@@ -164,16 +215,3 @@ export function currentStoryStageIndex(quest: Quest, progress: ModeProgress) {
   return 0
 }
 
-/**
- * The quest's prerequisites. A tarkov.dev task brings its own list, and an empty one means «none»: the wiki's «Предыдущий
- * квест» (filled into `previous` for such tasks) describes older chains — «Всей этой швали...» has no requirement in
- * tarkov.dev, but its wiki chain made 9 Jaeger quests «completed» for an account that had done 2. Only quests without
- * tarkov.dev data (wiki pages) use `previous`.
- */
-export function questRequirements(quest: Pick<Quest, 'requirements' | 'previous'>): TaskRequirement[] {
-  if (quest.requirements) return quest.requirements
-  return (quest.previous ?? []).map((taskId) => ({
-    taskId,
-    allowedStatuses: ['complete'] as Array<'complete' | 'failed' | 'active'>,
-  }))
-}
