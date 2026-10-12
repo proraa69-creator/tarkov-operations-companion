@@ -40,13 +40,19 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
     pieces: [{ box: [-0.08, 0.79, -0.14, 0.08, 0.9, -0.075] }], // hood on the back
   },
   partisan: {
-    rigid: [[-0.17, 0.45, -0.01, 0.16, 0.66, 0.27]], // AK-74M with the GP-25
+    rigid: [
+      // AK-74M with the GP-25, held across the body muzzle down: below the rope hanging from his fist (the rope's end
+      // reached into the rifle's box, was held there and the rope did not move at all: owner, 12.10.2026)
+      [-0.17, 0.45, -0.01, -0.06, 0.62, 0.27],
+      [-0.06, 0.45, -0.01, 0.16, 0.66, 0.27],
+    ],
     pieces: [
-      { box: [-0.07, 0.6, -0.25, 0.13, 0.84, -0.14] }, // backpack
+      { box: [-0.07, 0.6, -0.25, 0.13, 0.84, -0.14], whole: true }, // backpack
       { box: [-0.16, 0.36, -0.2, -0.09, 0.48, -0.09] }, // thigh pouch
       { box: [-0.02, 0.42, -0.21, 0.04, 0.53, -0.13] }, // knife sheath at the back
     ],
-    soften: [{ box: [-0.2, 0.6, -0.05, 0.0, 0.85, 0.25], factor: 0.4 }], // the rope in his hand
+    // the rope looped in his fist (his only strap): a stiff cord that swings as a whole and keeps its loop
+    physics: { strap: { bendHz: 10, airSoftness: 0.1, shapeHz: 1.2, inertia: 0.5, damping: 5 } },
   },
   shturman: {
     rigid: [[-0.085, 0.69, -0.01, 0.1, 0.89, 0.33]], // SVDS (the sling below it keeps swinging)
@@ -144,6 +150,19 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
       { box: [-0.08, 0.6, -0.32, 0.21, 0.89, -0.16], more: [[0.13, 0.62, -0.17, 0.235, 0.87, -0.075]], pivot: [0.06, 0.89, -0.17], whole: true },
       { box: [-0.19, 0.33, -0.06, -0.115, 0.48, 0.07] }, // holster on the right thigh
     ],
+  },
+  // the long leather coat, open in front: the two front flaps from the chest and the skirt below the hips hang free of
+  // the body and swing as heavy cloth — sagging and pulling the leather down after it, not wobbling like jelly (owner,
+  // 12.10.2026); the shape analysis took the flaps for cords and held most of the skirt
+  kaban: {
+    cloth: [
+      [-0.32, 0.3, -0.08, -0.1, 0.72, 0.22], // the right front flap, below his raised fist
+      [0.07, 0.3, -0.05, 0.32, 0.62, 0.25], // the left front flap, beside his fist at the belly
+      [-0.32, 0.3, -0.3, 0.32, 0.48, -0.04], // the skirt behind the legs
+    ],
+    physics: {
+      cloth: { mass: 0.05, stretchHz: 90, bendHz: 1.6, shapeHz: 0.25, rootShape: 6, airSoftness: 0.5, damping: 2.4, drag: 0.03, maxDistance: 0.25, collisionRadius: 0.015 },
+    },
   },
   kollontay: {
     rigid: [[-0.3, 0.0, -0.05, -0.08, 0.8, 0.36]], // RPD standing by his leg
