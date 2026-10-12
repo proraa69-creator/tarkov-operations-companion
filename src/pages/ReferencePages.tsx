@@ -606,6 +606,7 @@ export function TradersPage() {
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
+import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 
 export function SettingsPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -656,6 +657,7 @@ export function SettingsPage() {
               </span>
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>
+            <GuideReplaySetting />
           </div>
         </section>
         <section className="panel">

@@ -160,6 +160,11 @@ export function useServerAccount() {
   return { ...snapshot, available: Boolean(accountApi()), refresh: refreshServerStatus, login: loginToServer, logout: logoutFromServer }
 }
 
+/** The account status as the store has it, without asking the server again (unlike `useServerAccount`). */
+export function useServerStatus() {
+  return useSyncExternalStore(subscribe, () => state.status, () => state.status)
+}
+
 const connected = () => Boolean(state.status?.signedIn && state.status.online)
 
 /** The server account status as last read (outside React). */
