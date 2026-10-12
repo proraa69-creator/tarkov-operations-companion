@@ -503,7 +503,7 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
   - Сервер 279/279: 14 тестов переписаны (новый аккаунт сразу в пробном периоде; тесты платных функций переводят часы за конец дня), 3 новых — один раз на ящик и после удаления, перенос старых аккаунтов, то же устройство.
   - Сайт 83/83; GoonCard 3/3 (новый — колесо и все ники).
   - Chromium с подставными отметками: 1280/1600/1920 px, RU/EN, темы Олива/Металл/Тельняшка/Снаряжение — окно = рамка карточки, строки целые, страница при прокрутке стоит.
-- Gate в worktree на `bb7fd18`: typecheck (tsc -b), electron tsc, vitest (все, 1177), cache 2/2, server typecheck, server 279/279, сайт, release-policy 6/6, deploy-paths (`3da0300..HEAD` 26 файлов, 0 отклонено), eslint. `bb7fd18` → `release/production` (fast-forward от `3da0300`); GitHub verify, verify-renderer, build-unsigned-ipa — запущены (итог допишу).
+- Gate в worktree на `bb7fd18`: typecheck (tsc -b), electron tsc, vitest (все, 1177), cache 2/2, server typecheck, server 279/279, сайт, release-policy 6/6, deploy-paths (`3da0300..HEAD` 26 файлов, 0 отклонено), eslint. `bb7fd18` → `release/production` (fast-forward от `3da0300`); GitHub verify, verify-renderer, build-unsigned-ipa — success.
 - Риски:
   - Оплата в первый день начинает оплаченный срок сразу (остаток бесплатного дня сверху не добавляется).
   - Бесплатный день по устройству не даётся второму аккаунту на том же ПК (семья на одном компьютере).
