@@ -5,6 +5,7 @@ import { graphqlGameMode } from '../arsenal/ammoSource'
 import { loadTarkovDataset } from '../data/tarkovDataset'
 import { buildLegacyTraders } from '../data/tarkovJsonAdapters'
 import type { TraderReset } from './restock'
+import { traderDisplayName } from '../data/traderNames'
 
 /** Kept for legacy snapshot identity and compatibility tests. */
 export function tradersQuery(mode: RaidMode, locale: AppLocale) {
@@ -20,7 +21,7 @@ export function adaptTradersResponse(payload: unknown): TraderReset[] {
     if (!id) return []
     return [{
       id,
-      name: typeof trader.name === 'string' ? trader.name : id,
+      name: traderDisplayName(typeof trader.name === 'string' ? trader.name : '', typeof trader.normalizedName === 'string' ? trader.normalizedName : undefined) || 'Торговец',
       normalizedName: typeof trader.normalizedName === 'string' ? trader.normalizedName : undefined,
       imageUrl: typeof trader.imageLink === 'string' ? trader.imageLink : undefined,
       resetTime: typeof trader.resetTime === 'string' && trader.resetTime ? trader.resetTime : undefined,

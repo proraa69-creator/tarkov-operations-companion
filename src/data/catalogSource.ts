@@ -12,6 +12,7 @@ import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails } from './objectiveDetails'
+import { traderDisplayName } from './traderNames'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -177,7 +178,7 @@ function translateDeep(value: unknown, dictionary: JsonRecord): unknown {
 function adaptTraders(root: JsonRecord): Trader[] {
   return recordValues(root).map((entry, index) => ({
     id: text(entry.id),
-    name: text(entry.name, 'Неизвестный торговец'),
+    name: traderDisplayName(text(entry.name), text(entry.normalizedName)) || 'Неизвестный торговец',
     role: text(entry.description, 'Торговец и источник заданий'),
     loyalty: Math.max(1, asArray(entry.levels).length),
     accent: ['#7d8d68', '#789096', '#9a7d64', '#6d8793', '#8e8265', '#877064'][index % 6],

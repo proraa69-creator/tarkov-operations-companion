@@ -1,6 +1,7 @@
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import type { Barter, Craft, EconomyItem, EconomySnapshot, ItemCount, PricePoint, TaskRef, VendorPrice } from './economyApi'
+import { traderDisplayName } from './traderNames'
 export type { PricePoint } from './economyApi'
 
 type Json = Record<string, unknown>
@@ -92,7 +93,7 @@ function counts(value: unknown): ItemCount[] {
 function traderVendor(traderId: string, traders: Record<string, Json>, row: Json, names: Json) {
   const trader = traders[traderId] ?? {}
   return {
-    name: translated(names, text(trader.name, traderId || 'Trader')),
+    name: traderDisplayName(translated(names, text(trader.name, traderId)), text(trader.normalizedName)) || 'Trader',
     normalizedName: text(trader.normalizedName, traderId),
     minTraderLevel: number(row.minTraderLevel),
     buyLimit: positive(row.buyLimit),
@@ -195,7 +196,7 @@ function vendorPrice(row: Json, traders: Record<string, Json>, names: Json, kind
   if (!traderId || !price) return null
   const trader = traders[traderId] ?? {}
   return {
-    source: translated(names, text(trader.name, traderId)), traderId, kind: 'trader', price,
+    source: traderDisplayName(translated(names, text(trader.name, traderId)), text(trader.normalizedName)) || 'Торговец', traderId, kind: 'trader', price,
     minTraderLevel: kind === 'buy' ? number(row.minTraderLevel) : undefined,
     taskUnlock: kind === 'buy' ? taskRef(row.taskUnlock, names) : undefined,
     buyLimit: kind === 'buy' ? positive(row.buyLimit) : undefined,
@@ -234,7 +235,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
     const traderId = text(row.trader)
     if (!rewardId || !traderId) return []
     const trader = traders[traderId] ?? {}
-    return [{ id: text(row.id, `barter-${index}`), traderId, traderName: translated(names, text(trader.name, localized(names, traderId, 'Name', traderId))), traderNormalizedName: text(trader.normalizedName) || undefined, level: number(row.minTraderLevel) ?? 1, taskUnlock: taskRef(row.taskUnlock, names), buyLimit: positive(row.buyLimit), requiredItems: counts(row.requiredItems), rewardItems: [{ itemId: rewardId, count: number(reward.count) ?? 1 }] }]
+    return [{ id: text(row.id, `barter-${index}`), traderId, traderName: traderDisplayName(translated(names, text(trader.name, localized(names, traderId, 'Name', traderId))), text(trader.normalizedName)) || 'Торговец', traderNormalizedName: text(trader.normalizedName) || undefined, level: number(row.minTraderLevel) ?? 1, taskUnlock: taskRef(row.taskUnlock, names), buyLimit: positive(row.buyLimit), requiredItems: counts(row.requiredItems), rewardItems: [{ itemId: rewardId, count: number(reward.count) ?? 1 }] }]
   })
   const crafts: Craft[] = tarkovRecords(bundle.crafts, 'crafts').flatMap((row, index) => {
     const product = object(row.productItem)
@@ -249,7 +250,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
 
 export function buildLegacyTraders(bundle: TarkovJsonBundle) {
   const names = object(unwrapTarkovData(bundle.names))
-  return tarkovRecords(bundle.traders, 'traders').map((row) => ({ id: text(row.id), name: translated(names, text(row.name)), normalizedName: text(row.normalizedName), resetTime: row.resetTime, imageLink: undefined }))
+  return tarkovRecords(bundle.traders, 'traders').map((row) => ({ id: text(row.id), name: traderDisplayName(translated(names, text(row.name)), text(row.normalizedName)) || 'Торговец', normalizedName: text(row.normalizedName), resetTime: row.resetTime, imageLink: undefined }))
 }
 
 export function buildLegacyBarters(bundle: TarkovJsonBundle, mode: RaidMode = 'pvp', locale: AppLocale = 'ru') {
