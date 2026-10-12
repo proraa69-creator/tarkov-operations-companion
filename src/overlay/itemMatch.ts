@@ -30,7 +30,7 @@ function trigrams(value: string) {
   return grams
 }
 
-function levenshtein(a: string, b: string) {
+export function levenshtein(a: string, b: string) {
   if (a === b) return 0
   if (!a.length) return b.length
   if (!b.length) return a.length
@@ -46,7 +46,7 @@ function levenshtein(a: string, b: string) {
 }
 
 /** Similarity of the name to its best-matching stretch of the OCR line (OCR adds noise around it). */
-function partialSimilarity(name: string, line: string) {
+export function partialSimilarity(name: string, line: string) {
   if (line.length <= name.length) return 1 - levenshtein(name, line) / name.length
   let best = Infinity
   for (let start = 0; start <= line.length - name.length; start += 1) {

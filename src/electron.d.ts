@@ -217,7 +217,8 @@ interface TarkovDesktopApi {
   captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
-  scanScreenText?: () => Promise<{ text: string; gameWindow: boolean }>
+  /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
+  scanScreenText?: (options?: { restart?: boolean }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number }>
   recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>

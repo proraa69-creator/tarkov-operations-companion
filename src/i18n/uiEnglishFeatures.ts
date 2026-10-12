@@ -92,6 +92,8 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   [', и что папка скриншотов выбрана верно.', ', and that the screenshots folder is right.'],
   ['Скриншот появился, но в его имени нет координат: игра пишет их только в рейде. Повторите проверку в рейде.', 'A screenshot appeared, but its name has no coordinates: the game writes them only in a raid. Check again in a raid.'],
   ['Окно игры не найдено — читаю весь экран.', 'Game window not found — reading the whole screen.'], ['Найдено новых:', 'New items found:'],
+  ['Откройте игру со схроном: сканирование идёт, пока окно игры видно на экране.', 'Open the game with your stash: scanning runs while the game window is visible on screen.'],
+  ['Окно игры не найдено. Откройте схрон в игре и нажмите «Сканировать» ещё раз.', 'Game window not found. Open your stash in the game and press «Scan» again.'],
   ['Листайте схрон — сканирование идёт.', 'Scroll the stash — scanning is running.'], ['Готово. Добавлено предметов:', 'Done. Items added:'], ['Вы', 'You'], ['Остановить', 'Stop'],
   ['Сменить цветовую схему', 'Change colour scheme'], ['Прозрачность мини-карты', 'Mini map opacity'], ['Прозрачность', 'Opacity'],
   ['Обозначение игрока', 'Player marker'], ['Как показывать вашу позицию на картах', 'How your position is shown on maps'],

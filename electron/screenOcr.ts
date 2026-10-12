@@ -1,45 +1,13 @@
-import { createRequire } from 'node:module'
-import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { app, desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
+import { desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
 import { runOcrJob } from './ocrQueue.js'
+import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { reuseQuestReading } from '../src/import/storyScanTiming.js'
-import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
-
-const require = createRequire(import.meta.url)
-interface OcrLine { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }
-const { createWorker } = require('tesseract.js') as {
-  createWorker: (langs?: string, oem?: number, options?: Record<string, unknown>) => Promise<{
-    recognize: (image: Buffer, options?: Record<string, unknown>, output?: Record<string, boolean>) => Promise<{ data: { text?: string; blocks?: Array<{ paragraphs: Array<{ lines: Array<OcrLine & { words: OcrWordBox[] }> }> }> | null } }>
-    setParameters: (params: Record<string, string>) => Promise<unknown>
-    terminate: () => Promise<unknown>
-  }>
-}
-
-/**
- * Each OCR engine keeps both language models in memory (~100 MB). Engines are freed after a while unused and
- * started again on the next request (a second or two), so an idle app stays light.
- */
-function idleRelease(ms: number, release: () => void) {
-  let timer: NodeJS.Timeout | null = null
-  return () => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => { timer = null; release() }, ms)
-    timer.unref?.()
-  }
-}
-
-type OcrWorker = Awaited<ReturnType<typeof createWorker>>
-
-const appDir = dirname(fileURLToPath(import.meta.url))
-const TESSDATA_URL = 'https://github.com/tesseract-ocr/tessdata_fast/raw/main'
+import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 
 let worker: OcrWorker | null = null
 let preparing: Promise<OcrWorker> | null = null
@@ -161,9 +129,7 @@ export async function recognizeRegion(image: NativeImage) {
 let tooltipWorker: Promise<OcrWorker> | null = null
 function tooltipOcr() {
   tooltipWorker ??= (async () => {
-    const langPath = tessdataDirectory()
-    await mkdir(langPath, { recursive: true })
-    await ensureLanguageData(langPath)
+    const langPath = await ocrLanguagePath()
     const next = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
     // One line: the item name inside the game's tooltip.
     await next.setParameters(TOOLTIP_OCR_PARAMETERS)
@@ -189,72 +155,6 @@ const touchTooltip = idleRelease(10 * 60_000, () => {
   tooltipWorker = null
   void engine?.then((next) => next.terminate()).catch(() => {})
 })
-
-const touchStash = idleRelease(60_000, () => {
-  const pool = stashPool
-  stashPool = null
-  void pool?.then((workers) => Promise.all(workers.map((next) => next.terminate()))).catch(() => {})
-})
-
-/** Workers for the stash scan: sparse-text mode suits the short labels in inventory cells. */
-const STASH_WORKERS = 3
-let stashPool: Promise<OcrWorker[]> | null = null
-
-function stashWorkers() {
-  if (!stashPool) {
-    stashPool = (async () => {
-      const langPath = tessdataDirectory()
-      await mkdir(langPath, { recursive: true })
-      await ensureLanguageData(langPath)
-      return Promise.all(Array.from({ length: STASH_WORKERS }, async () => {
-        const next = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
-        await next.setParameters({ tessedit_pageseg_mode: '11' })
-        return next
-      }))
-    })().catch((error) => { stashPool = null; throw error })
-  }
-  return stashPool
-}
-
-/**
- * Reads the whole screen (stash, inventory) for the Collector checklist. The picture is cut into
- * overlapping tiles that are enlarged for the tiny cell labels and read in parallel.
- */
-export async function scanScreenText() {
-  const display = screen.getPrimaryDisplay()
-  const scale = display.scaleFactor || 1
-  const physical = { width: Math.round(display.bounds.width * scale), height: Math.round(display.bounds.height * scale) }
-  const [workers, sources] = await Promise.all([
-    stashWorkers(),
-    desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: physical }),
-  ])
-  const game = sources.find((source) => isTarkovWindow(source.name) && !source.thumbnail.isEmpty())
-  const source = game ?? sources.find((entry) => entry.id.startsWith('screen') && entry.display_id === String(display.id)) ?? sources.find((entry) => entry.id.startsWith('screen'))
-  if (!source || source.thumbnail.isEmpty()) return { text: '', gameWindow: false }
-  const image = source.thumbnail
-  const { width, height } = image.getSize()
-  const columns = 3
-  const rows = 2
-  const overlap = Math.round(height * 0.03)
-  const tiles: NativeImage[] = []
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const x = Math.max(0, Math.round((column * width) / columns) - overlap)
-      const y = Math.max(0, Math.round((row * height) / rows) - overlap)
-      const w = Math.min(width - x, Math.round(width / columns) + overlap * 2)
-      const h = Math.min(height - y, Math.round(height / rows) + overlap * 2)
-      const tile = image.crop({ x, y, width: w, height: h })
-      // Cell labels are ~9 px tall at 1080p; about 2x makes them readable for OCR.
-      tiles.push(h < 900 ? tile.resize({ width: Math.round(w * 1.8), quality: 'best' }) : tile)
-    }
-  }
-  const texts = await Promise.all(tiles.map((tile, index) => {
-    const worker = workers[index % workers.length]!
-    return runOcrJob(worker, () => worker.recognize(tile.toPNG())).then((result) => result.data.text ?? '')
-  }))
-  touchStash()
-  return { text: texts.join('\n'), gameWindow: Boolean(game) }
-}
 
 /** Loads the OCR model ahead of the first lookup. */
 export async function warmUpOcr() {
@@ -400,9 +300,7 @@ async function getWorker() {
   if (worker) return worker
   if (preparing) return preparing
   preparing = (async () => {
-    const langPath = tessdataDirectory()
-    await mkdir(langPath, { recursive: true })
-    await ensureLanguageData(langPath)
+    const langPath = await ocrLanguagePath()
     const next = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
     await next.setParameters({ tessedit_pageseg_mode: '6' })
     worker = next
@@ -413,23 +311,5 @@ async function getWorker() {
   } catch (error) {
     preparing = null
     throw error
-  }
-}
-
-function tessdataDirectory() {
-  const packaged = join(process.resourcesPath, 'tessdata')
-  const development = join(appDir, '../../electron/tessdata')
-  if (existsSync(join(packaged, 'rus.traineddata'))) return packaged
-  if (existsSync(join(development, 'rus.traineddata'))) return development
-  return join(app.getPath('userData'), 'tessdata')
-}
-
-async function ensureLanguageData(directory: string) {
-  for (const lang of ['rus', 'eng']) {
-    const file = join(directory, `${lang}.traineddata`)
-    if (existsSync(file)) continue
-    const response = await fetch(`${TESSDATA_URL}/${lang}.traineddata`)
-    if (!response.ok) throw new Error('Не удалось подготовить распознавание текста. Нужен интернет при первом сканировании.')
-    await writeFile(file, Buffer.from(await response.arrayBuffer()))
   }
 }

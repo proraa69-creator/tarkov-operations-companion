@@ -22,4 +22,21 @@ describe('collector items', () => {
     expect(findVisibleItems(entries, '')).toEqual([])
     expect(findVisibleItems(entries, 'Kiver-M Saury Can Топор Salewa')).toEqual(['axe'])
   })
+
+  it('reads stash labels as OCR misreads them, but not the label of many items', () => {
+    const catalog = [
+      item('oil', 'Масло для бороды Deadlyslob\'s', 'Масло'), item('fire', 'Оружейная смазка #FireKlean', '#FireKlean'),
+      item('slender', 'Маска Ночного Слендера', 'Маска'), item('half', 'Нижняя полумаска', 'Маска'), item('neo', 'Неопреновая маска', 'Маска'),
+      item('raven', 'Статуэтка ворона', 'Ворон'), item('ravenkey', 'Ключ от убежища Ворона', 'Ворон'),
+    ]
+    const collector = [{ id: 'collector', name: 'Коллекционер', raidRequirements: ['oil', 'fire', 'slender', 'raven'].map((itemId) => ({ itemId, count: 1, purpose: 'handover', mapIds: [] })) }] as unknown as Quest[]
+    const wanted = collectorEntries(collector, catalog)
+    expect(wanted.find((entry) => entry.item.id === 'slender')?.ambiguous).toBe(true)
+    expect(wanted.find((entry) => entry.item.id === 'raven')?.ambiguous).toBeUndefined()
+    // «Macno»: Cyrillic read as Latin; «#FireKlea»: the label cut to its cell.
+    expect(findVisibleItems(wanted, 'Macno\n#FireKlea\nВорон').sort()).toEqual(['fire', 'oil', 'raven'])
+    // «Маска» on screen may be any of the masks; the full name in a tooltip is this one.
+    expect(findVisibleItems(wanted, 'Маска')).toEqual([])
+    expect(findVisibleItems(wanted, 'Маска Ночного Слендера')).toEqual(['slender'])
+  })
 })
