@@ -101,7 +101,6 @@ button.quest-full-link:hover, button.quest-full-link:focus-visible { border-colo
 .quest-chronology-basis.is-log { color: var(--brass-strong); }
 .quest-chronology-basis.is-chain, .quest-chronology-basis.is-line, .quest-chronology-basis.is-stage, .quest-chronology-basis.is-start { color: var(--green); }
 .quest-chronology-basis.is-wait { color: var(--text-muted); }
-.quest-chronology-basis.is-unknown { color: var(--text-dim); font-style: italic; }
 /* a status taken from the logs keeps its full strength even when finished: it is a fact, the rest is dated from it */
 .quest-chronology-row.is-completed:has(.quest-chronology-basis.is-log) { opacity: .7; }
 @media (max-width: 720px) {

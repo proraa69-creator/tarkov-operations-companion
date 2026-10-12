@@ -43,9 +43,8 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['задания открываются по уровням ветки', 'tasks open level by level of the line'],
   ['по цепочкам и лояльности', 'by chains and loyalty'],
   ['сюжет, события, задания других торговцев', 'story, events, other traders’ tasks'],
-  ['по цепочке', 'by chain'], ['по ветке', 'by line'], ['по лояльности', 'by loyalty'], ['старт', 'start'], ['нет в логах', 'not in the logs'],
+  ['по цепочке', 'by chain'], ['по ветке', 'by line'], ['по лояльности', 'by loyalty'], ['старт', 'start'],
   ['Выдаётся в диалоге с торговцем (первые задания)', 'Given in a dialogue with the trader (the first tasks)'],
-  ['Логи об этом задании молчат, а задания игрока начались раньше самых старых логов.', 'The logs say nothing about this task, and the player’s tasks began before the oldest logs.'],
   ['История из логов', 'History from the logs'], ['последнее событие каждого задания', 'the latest event of each task'],
   ['взято', 'taken'], ['сдано', 'handed in'], ['лояльность', 'loyalty'], ['после', 'after'],
   ['Сетка квестов: tarkov.dev и tarkov.help', 'Quest grid: tarkov.dev and tarkov.help'],
@@ -77,7 +76,6 @@ export const QUEST_RULES: Array<[RegExp, string]> = [
   [/^По логам: (\d+)$/g, 'By the logs: $1'],
   [/^По цепочке: (\d+)$/g, 'By chain: $1'],
   [/^По хронологии: (\d+)$/g, 'By chronology: $1'],
-  [/^Нет в логах: (\d+)$/g, 'Not in the logs: $1'],
   [/^снимок (\d)/g, 'snapshot of $1'],
   [/^Показать все \((\d+)\)$/g, 'Show all ($1)'],
 ]

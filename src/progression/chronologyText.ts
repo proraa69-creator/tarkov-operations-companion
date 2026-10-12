@@ -6,7 +6,7 @@ import { questStage } from './chronology'
 const TRACKED = new Set(['eft-log', 'manual', 'screen-scan'])
 
 export interface ChronologyTag {
-  kind: 'log' | 'chain' | 'line' | 'stage' | 'start' | 'wait' | 'unknown'
+  kind: 'log' | 'chain' | 'line' | 'stage' | 'start' | 'wait'
   text: string
 }
 
@@ -24,7 +24,7 @@ export function chronologyTag(quest: Quest, info: TaskAvailability | undefined, 
   if (info?.basis === 'stage') return { kind: 'stage', text: 'по лояльности' }
   if (info?.basis === 'start') return { kind: 'start', text: 'старт' }
   if (info?.status === 'locked' && info.line) return { kind: 'wait', text: `откроется на ${info.line.level}-м уровне` }
-  if (info?.status === 'unknown') return { kind: 'unknown', text: 'нет в логах' }
+  // a quest the logs do not mention is only dimmed, no words (owner, 12.10.2026, «Оружейник»)
   return undefined
 }
 
@@ -52,6 +52,5 @@ export function chronologyNote(quest: Quest, info: TaskAvailability | undefined,
     const line = `${info.line.order ? ` ${info.line.order}` : ''}${info.line.ll ? ` (LL${info.line.ll})` : ''}`
     return `Откроется на ${info.line.level}-м уровне ветки${line} торговца. ${info.line.reached ? `По логам ветка дошла до ${info.line.reached}-го уровня.` : 'По логам ветка ещё не начата.'}`
   }
-  if (info?.status === 'unknown') return 'Логи об этом задании молчат, а задания игрока начались раньше самых старых логов.'
   return undefined
 }

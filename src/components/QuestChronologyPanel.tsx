@@ -48,7 +48,6 @@ export function QuestChronologyPanel({ quests, shown, availability, progress, se
       logs: of((_info, quest) => TRACKED.has(progress.taskProgress[quest.id]?.source ?? '')),
       chain: of((info) => info?.basis === 'chain'),
       chronology: of((info) => info?.basis === 'line' || info?.basis === 'stage' || info?.basis === 'start'),
-      unknown: of((info) => info?.status === 'unknown'),
     }
   }, [availability, progress.taskProgress, quests])
 
@@ -57,7 +56,6 @@ export function QuestChronologyPanel({ quests, shown, availability, progress, se
       <span className="tag brass">{uiText(`По логам: ${counts.logs}`)}</span>
       <span className="tag green">{uiText(`По цепочке: ${counts.chain}`)}</span>
       <span className="tag green">{uiText(`По хронологии: ${counts.chronology}`)}</span>
-      {counts.unknown > 0 && <span className="tag">{uiText(`Нет в логах: ${counts.unknown}`)}</span>}
       <small className="dim">{uiText(`Сетка квестов: tarkov.dev и tarkov.help · снимок ${new Date(questGridSnapshotDate).toLocaleDateString('ru-RU')}`)}</small>
     </div>
     {events.length > 0 && <section className="quest-chronology-log">
