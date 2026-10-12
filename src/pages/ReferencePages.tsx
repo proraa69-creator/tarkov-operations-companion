@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
 import { TraderFigure } from "../components/TraderFigure";
+import { traderPortrait } from "../data/traderPortraits";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -584,8 +585,8 @@ export function TradersPage() {
               className="trader-portrait"
               style={{ borderColor: trader.accent }}
             >
-              {uiText(trader.imageUrl ? (
-                <img src={trader.imageUrl} alt={uiText("")} />
+              {uiText(traderPortrait(trader) ? (
+                <img src={traderPortrait(trader)} alt={uiText("")} />
               ) : (
                 trader.name[0]
               ))}

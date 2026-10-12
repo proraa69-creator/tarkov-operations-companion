@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { Trader } from '../domain/types'
 import { TRADER_MODEL_FIX, traderModelKey, traderModelUrl } from '../data/traderModels'
+import { traderPortrait } from '../data/traderPortraits'
 import type { BossViewerHandle } from '../gallery/bossViewer3d'
 import { TRADER_SWAY_HINTS } from '../gallery/traderSwayHints'
 import { uiText } from '../i18n/renderText'
@@ -19,9 +20,10 @@ import './traderFigure.css'
 export function TraderFigure({ trader }: { trader: Trader }) {
   const key = traderModelKey(trader)
   const url = key ? traderModelUrl(key) : undefined
+  const portrait = traderPortrait(trader)
   if (!key || !url) return <section className="panel trader-figure is-empty" aria-label={uiText(trader.name)}>
     <div className="trader-figure-portrait" style={{ borderColor: trader.accent }}>
-      {trader.imageUrl ? <img src={trader.imageUrl} alt="" /> : <span>{trader.name[0]}</span>}
+      {portrait ? <img src={portrait} alt="" /> : <span>{trader.name[0]}</span>}
     </div>
     <strong>{uiText(trader.name)}</strong>
     <p className="muted">{uiText('3D модель этого торговца скоро появится.')}</p>
