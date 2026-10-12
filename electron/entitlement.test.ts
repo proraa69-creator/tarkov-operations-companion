@@ -42,6 +42,8 @@ beforeAll(async () => {
   state.remote = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   state.keys = { [state.remote]: ((await (await fetch(`${state.remote}/v1/entitlement/public-key`)).json()) as { publicKey: string }).publicKey }
   expect((await fetch(`${state.remote}/v1/accounts/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'player@example.com', password }) })).status).toBe(201)
+  // The free day every new account gets (owner, 12.10.2026) is already over for this player: the app starts locked.
+  accounts.database.prepare('UPDATE accounts SET trial_ends_at = ? WHERE email = ?').run(Date.now() - 1, 'player@example.com')
 })
 
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())))
