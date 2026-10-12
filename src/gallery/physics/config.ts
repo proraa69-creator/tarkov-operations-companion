@@ -154,8 +154,9 @@ export const WHIP_PROFILE: WhipProfile = { frequencyHz: 3, length: 0.3, dampingR
 export const PIECE_PROFILES: Record<PieceKind, PieceProfile> = {
   // pouches and holsters strapped to a thigh or a belt: a small, quick, well damped give
   pouch: { mass: 0.4, frequencyHz: 4.5, size: 0.06, dampingRatio: 0.6, drag: 0.08, gravity: 1, inertia: 0.45, limits: { out: 3, in: 0.3, side: 2.5, twist: 1 } },
-  // backpacks and bags: heavy, held by their straps, barely sway (owner, 11.10.2026: «уменьши инерцию кабур и рюкзаков»)
-  gear: { mass: 2.5, frequencyHz: 3, size: 0.15, dampingRatio: 0.6, drag: 0.15, gravity: 1, inertia: 0.45, limits: { out: 2.5, in: 0.3, side: 2, twist: 0.8 } },
+  // backpacks and bags: heavy, held tight by their straps, barely sway and settle at once (owner, 11.10.2026: «уменьши
+  // инерцию кабур и рюкзаков»; 12.10.2026, Knight and Shturman: «уменьши инерцию рюкзака»)
+  gear: { mass: 2.5, frequencyHz: 3.5, size: 0.15, dampingRatio: 0.75, drag: 0.15, gravity: 1, inertia: 0.3, limits: { out: 1.5, in: 0.3, side: 1.2, twist: 0.5 } },
 }
 
 /** Per-model overrides (bossSwayHints.ts `physics`): any field of any profile. */

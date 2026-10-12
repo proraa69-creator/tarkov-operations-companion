@@ -49,6 +49,25 @@ describe('computeSwayWeights', () => {
     for (let i = column.from; i < column.to; i++) expect(whole.parts![i * 4 + 3]).toBe(0)
   })
 
+  it('swings a piece in all its boxes, and a whole item even close to the body', () => {
+    const positions: number[] = [], indices: number[] = []
+    const column = body(positions, indices)
+    const sheet = cape(positions, indices, column)
+    const parts = (more: boolean, whole: boolean) => computeSwayWeights(new Float32Array(positions), new Uint32Array(indices), {
+      hints: { pieces: [{ box: [-0.2, 0.6, -0.3, 0.2, 0.9, -0.105], more: more ? [[-0.2, 0.3, -0.3, 0.2, 0.6, -0.105]] : undefined, pivot: [0, 0.9, -0.1], whole }] },
+    })!.parts!
+    // the cape's lower half is only in the second box: without it, it stays; with it, it moves with the piece
+    const bottom = sheet.to - 2
+    expect(parts(false, false)[bottom * 4 + 3]).toBe(0)
+    expect(parts(true, false)[bottom * 4 + 3]).toBeCloseTo(1)
+    // the sixth row, close to the back: a holster's band keeps it nearly still, a backpack moves it with the rest
+    const near = sheet.from + 5 * 4 + 1
+    expect(parts(true, true)[near * 4 + 3]).toBeGreaterThan(0.7)
+    expect(parts(true, false)[near * 4 + 3]).toBeLessThan(0.2)
+    const whole = parts(true, true)
+    for (let i = column.from; i < column.to; i++) expect(whole[i * 4 + 3]).toBe(0)
+  })
+
   it('inside a whip box a thin rod is the antenna, even where a hair box reaches it (owner, 12.10.2026)', () => {
     const positions: number[] = [], indices: number[] = []
     body(positions, indices)

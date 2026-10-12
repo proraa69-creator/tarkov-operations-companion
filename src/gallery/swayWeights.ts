@@ -57,6 +57,13 @@ const PIECE_BAND = 0.03
  * from PIECE_RISE[1] it moves in full. The body under a piece is the model with the piece's box taken out.
  */
 const PIECE_RISE = [0.004, 0.045] as const
+/**
+ * A whole item (hints.pieces `whole`: a backpack, a bag) blends into the body only in a narrow strip where it touches
+ * it: with the bands above its front half next to the back stayed behind while the rest swung, and the backpack
+ * broke in two along its sides (owner, 12.10.2026: «ломается рюкзак пополам»).
+ */
+const WHOLE_BAND = 0.012
+const WHOLE_RISE = [0.002, 0.012] as const
 /** Antennas likewise, from where they leave the radio (fraction of height). */
 const STRAND_BAND = 0.012
 /**
@@ -597,8 +604,10 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
     return x < 0 || y < 0 || z < 0 || x >= nx || y >= ny || z >= nz ? -1 : x + y * nx + z * nx * ny
   }
   const pieceReach = (hints.pieces ?? []).map((hint) => {
+    const boxes = [hint.box, ...(hint.more ?? [])]
+    const inBoxes = (x: number, y: number, z: number) => boxes.some((box) => outside(box, x, y, z) === 0)
     const inside = new Uint8Array(n)
-    for (let i = 0; i < n; i++) if (weld[i] === i && outside(hint.box, ...at(i)) === 0) inside[i] = 1
+    for (let i = 0; i < n; i++) if (weld[i] === i && inBoxes(...at(i))) inside[i] = 1
     const seeds: number[] = []
     for (let i = 0; i < n; i++) if (weld[i] === i && !inside[i] && neighbours[i].some((j) => inside[j])) seeds.push(i)
     const body = new Uint8Array(solid.length)
@@ -606,7 +615,7 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
       if (!solid[k]) continue
       const x = (ox + (k % nx + 0.5) * cell - cx) / height, y = (oy + (Math.floor(k / nx) % ny + 0.5) * cell - minY) / height
       const z = (oz + (Math.floor(k / (nx * ny)) + 0.5) * cell - cz) / height
-      if (outside(hint.box, x, y, z) > 0) body[k] = 1
+      if (!inBoxes(x, y, z)) body[k] = 1
     }
     const toBody = distanceTransform(body, 1, nx, ny, nz)
     const rise = (i: number) => { const k = voxelOf(i); return k < 0 ? 0 : (Math.sqrt(toBody[k]) * cell) / height }
@@ -658,8 +667,9 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
       const { inside, reach, rise } = pieceReach[index]
       if (!inside[i]) return
       w[i] = 0
-      const standsOut = smooth((rise(i) - PIECE_RISE[0]) / (PIECE_RISE[1] - PIECE_RISE[0]))
-      const amount = smooth(reach[i] / PIECE_BAND) * standsOut * (hint.amount ?? 1) * hold
+      const [low, high] = hint.whole ? WHOLE_RISE : PIECE_RISE
+      const standsOut = smooth((rise(i) - low) / (high - low))
+      const amount = smooth(reach[i] / (hint.whole ? WHOLE_BAND : PIECE_BAND)) * standsOut * (hint.amount ?? 1) * hold
       if (amount <= parts[i * 4 + 3] || amount < 0.002) return
       const b = hint.box
       const pivot = hint.pivot ?? [(b[0] + b[3]) / 2, b[4], (b[2] + b[5]) / 2]
