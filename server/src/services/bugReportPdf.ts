@@ -24,6 +24,33 @@ const ACCENT = rgb(0.6, 0.46, 0.17)
 const RULE = rgb(0.84, 0.85, 0.82)
 /** Screenshots embedded together at most (a mail with attachments must stay well under the provider's 40 MB). */
 const IMAGE_BUDGET = 20 * 1024 * 1024
+/**
+ * A PNG is decoded in full to go into the PDF (about 2.5 s and 250 MB for an 8K screenshot): past this many pixels in
+ * one report, PNGs are attached as files instead. A small file may claim a huge image (a decompression bomb), and the
+ * server must neither unpack it nor stall on several big ones. One 8K or four 4K screenshots still go into the PDF.
+ */
+const PNG_PIXEL_BUDGET = 36_000_000
+
+/**
+ * Width × height of a plain PNG: exactly one IHDR, right after the signature, and no APNG frames. pdf-lib's decoder
+ * takes the size of every IHDR it meets and of every animation frame, so anything else could still claim a huge
+ * image: 0 for it, as for a file that cannot be read.
+ */
+export function pngPixels(data: Uint8Array) {
+  if (data.length < 24) return 0
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+  let pixels = 0
+  for (let offset = 8; offset + 8 <= data.length;) {
+    const type = String.fromCharCode(...data.subarray(offset + 4, offset + 8))
+    if (type === 'IHDR') {
+      if (offset !== 8) return 0
+      pixels = view.getUint32(16) * view.getUint32(20)
+    } else if (offset === 8 || type === 'acTL' || type === 'fcTL' || type === 'fdAT') return 0
+    if (type === 'IEND') break
+    offset += 12 + view.getUint32(offset)
+  }
+  return pixels
+}
 
 const moscow = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -174,10 +201,14 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
   if (report.files.length) {
     out.heading(`Скриншоты · ${report.files.length}`)
     let budget = IMAGE_BUDGET
+    let pixelBudget = PNG_PIXEL_BUDGET
     for (const file of report.files) {
       const name = `Скриншот ${file.idx + 1}`
       let image: PDFImage | undefined
-      if (file.mime !== 'image/webp' && file.data.length <= budget) {
+      const pixels = file.mime === 'image/png' ? pngPixels(file.data) : 0
+      const tooLarge = file.mime === 'image/png' && (pixels === 0 || pixels > pixelBudget)
+      if (file.mime !== 'image/webp' && !tooLarge && file.data.length <= budget) {
+        pixelBudget -= pixels
         try {
           image = file.mime === 'image/jpeg' ? await doc.embedJpg(file.data) : await doc.embedPng(file.data)
         } catch { image = undefined }
@@ -187,7 +218,7 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
         out.image(image, name)
       } else {
         skipped.push(file.idx)
-        out.text(`${name}: ${file.mime === 'image/webp' ? 'формат WEBP в PDF не вставляется' : 'не вставлен в PDF'} — файл приложен к письму.`, { color: DIM })
+        out.text(`${name}: ${file.mime === 'image/webp' ? 'формат WEBP в PDF не вставляется' : pixels > PNG_PIXEL_BUDGET ? 'слишком большое изображение для PDF' : 'не вставлен в PDF'} — файл приложен к письму.`, { color: DIM })
       }
     }
   }

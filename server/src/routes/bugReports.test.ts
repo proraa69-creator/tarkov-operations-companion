@@ -386,6 +386,24 @@ test('bug reports: every report goes to the owner as a PDF, the owner grants day
   }
 })
 
+test('bug report PDF: a PNG claiming a huge image is attached as the file, never unpacked', async () => {
+  const { bugReportPdf, pngPixels } = await import('../services/bugReportPdf.js')
+  assert.equal(pngPixels(PNG), 1)
+  // a valid signature and IHDR claiming 40000 × 40000 pixels in a tiny file
+  const bomb = Buffer.from(PNG)
+  bomb.writeUInt32BE(40000, 16); bomb.writeUInt32BE(40000, 20)
+  assert.equal(pngPixels(bomb), 1_600_000_000)
+  // the same claim hidden behind a small first header (pdf-lib's decoder takes the last IHDR) or in APNG frames
+  const chunk = (type: string, data: Buffer) => Buffer.concat([Buffer.from([0, 0, 0, data.length]), Buffer.from(type, 'latin1'), data, Buffer.alloc(4)])
+  const huge = Buffer.alloc(13); huge.writeUInt32BE(40000, 0); huge.writeUInt32BE(40000, 4); huge[8] = 8; huge[9] = 6
+  assert.equal(pngPixels(Buffer.concat([PNG.subarray(0, 33), chunk('IHDR', huge), PNG.subarray(33)])), 0)
+  assert.equal(pngPixels(Buffer.concat([PNG.subarray(0, 33), chunk('fcTL', Buffer.alloc(26)), PNG.subarray(33)])), 0)
+  assert.equal(pngPixels(Buffer.concat([PNG.subarray(0, 8), chunk('tEXt', Buffer.from('a')), PNG.subarray(8)])), 0)
+  const { pdf, skipped } = await bugReportPdf({ id: 9, topic: 'т', description: 'д', appVersion: '', platform: '', status: 'open', createdAt: new Date().toISOString(), rewardDays: 0, files: [{ idx: 0, mime: 'image/png', data: bomb }, { idx: 1, mime: 'image/png', data: PNG }] })
+  assert.deepEqual(skipped, [0])
+  assert.equal(Buffer.from(pdf.subarray(0, 5)).toString('latin1'), '%PDF-')
+})
+
 test('bug reports: no days for a deleted account, and without e-mail settings the PDF button says so', async () => {
   const t = await setup()
   try {
