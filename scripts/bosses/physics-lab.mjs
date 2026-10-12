@@ -1,7 +1,7 @@
 // Renders the physics lab page (physics-lab.html) for boss models into PNGs.
 //   node scripts/bosses/physics-lab.mjs <out dir> [classes|sim|walk|strain] [key ...]   (sim: turns; walk: walking; strain: what
 //   the motion does to every vertex — see physics-lab.ts)
-//   PHYSICS_LAB_SIZE=600: pixels per view (default 420)
+//   PHYSICS_LAB_SIZE=600: pixels per view (default 420); PHYSICS_LAB_DIR=src/assets/trader-models: other models (traders)
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
 import fs from 'node:fs'
@@ -13,7 +13,7 @@ const root = path.resolve(here, '../..')
 const outDir = path.resolve(process.argv[2] || 'physics-lab-out')
 const mode = process.argv[3] || 'classes'
 const only = process.argv.slice(4)
-const srcDir = path.join(root, 'src/assets/boss-models')
+const srcDir = path.resolve(root, process.env.PHYSICS_LAB_DIR || 'src/assets/boss-models')
 const vite = await createServer({ root, configFile: false, logLevel: 'warn', appType: 'mpa', server: { host: '127.0.0.1', port: 0, fs: { allow: [root] } } })
 await vite.listen()
 const port = vite.httpServer.address().port

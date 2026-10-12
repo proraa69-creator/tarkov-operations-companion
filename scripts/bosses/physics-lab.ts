@@ -11,13 +11,16 @@
 import { BufferAttribute, Color, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, OrthographicCamera, Scene, WebGLRenderer, Box3, Vector3, AmbientLight, DirectionalLight, type Material } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { computeSwayWeights } from '../../src/gallery/swayWeights'
-import { BOSS_SWAY_HINTS } from '../../src/gallery/bossSwayHints'
+import { BOSS_SWAY_HINTS as BOSS_HINTS } from '../../src/gallery/bossSwayHints'
+import { TRADER_SWAY_HINTS } from '../../src/gallery/traderSwayHints'
 import { buildPhysicsRig } from '../../src/gallery/physics/rig'
 import { BossPhysics } from '../../src/gallery/physics/sim'
 import { PhysicsMesh } from '../../src/gallery/physics/skin'
 
 const q = new URLSearchParams(location.search)
 const key = q.get('key') ?? ''
+/** Bosses and traders (their keys never collide). */
+const BOSS_SWAY_HINTS = { ...TRADER_SWAY_HINTS, ...BOSS_HINTS }
 const mode = q.get('mode') ?? 'classes'
 const S = +(q.get('s') || 420)
 const canvas = document.getElementById('c') as HTMLCanvasElement

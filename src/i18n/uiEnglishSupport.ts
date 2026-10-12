@@ -2,6 +2,8 @@
 export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Связаться', 'Contact us'],
   ['Сообщить об ошибке', 'Report a bug'],
+  // Traders page 3D figure (src/components/TraderFigure.tsx)
+  ['3D модель этого торговца скоро появится.', 'The 3D model of this trader is coming soon.'], ['Перетащите — повернуть · двойной клик — сброс', 'Drag to turn · double-click to reset'], ['Проведите пальцем — повернуть · двойное касание — сброс', 'Swipe to turn · double-tap to reset'],
   ['Нашёл баг или ошибку?', 'Found a bug or an error?'], ['+1 день', '+1 day'],
   ['Если ошибка подтвердится, к подписке добавится 1 день.', 'If the bug is confirmed, 1 day is added to your subscription.'],
   ['Поддержка', 'Support'],

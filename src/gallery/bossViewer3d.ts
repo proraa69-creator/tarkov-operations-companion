@@ -39,6 +39,8 @@ const START_YAW = START_YAW_DEG * DEG
 const PITCH_LIMIT = 18 * DEG
 const DIST_START = START_DISTANCE, DIST_MIN = 0.55 * DIST_START, DIST_MAX = 1.35 * DIST_START
 const TARGET = new Vector3(0, LOOK_AT_Y, 0)
+/** BossModelFix.fit: the scene's height and its widest turn (diameter) in the start view, in view heights at the target. */
+const FIT_HEIGHT = 1.08, FIT_WIDTH = 1.0
 const SPIN_SPEED = 0.35 // rad/s
 const SPIN_FRAME_MS = 1000 / 30
 /** An arrow key turns by KEY_TURN in KEY_TURN_MS and a reset eases back in RESET_MS: real turns the cloth follows. */
@@ -290,11 +292,20 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       const box = new Box3().setFromObject(upright)
       const size = box.getSize(new Vector3())
       const centre = box.getCenter(new Vector3())
-      const body = headTop(points(upright), box.min.y, size.y) / (fix?.seated ?? 1)
+      const vertices = points(upright)
       const holder = new Group()
       upright.position.set(-centre.x, -box.min.y, -centre.z)
       holder.add(upright)
-      holder.scale.setScalar(1 / Math.max(body, 1e-6))
+      if (fix?.fit) {
+        // a whole scene (a trader at his desk, on crates, with a dog): all of it in view however it is turned, centred
+        let radius = 0
+        for (let i = 0; i + 2 < vertices.length; i += 3) radius = Math.max(radius, Math.hypot(vertices[i]! - centre.x, vertices[i + 2]! - centre.z))
+        const scale = Math.min(FIT_HEIGHT / Math.max(size.y, 1e-6), FIT_WIDTH / Math.max(2 * radius, 1e-6))
+        holder.scale.setScalar(scale)
+        holder.position.y = LOOK_AT_Y - (size.y * scale) / 2
+      } else {
+        holder.scale.setScalar(1 / Math.max(headTop(vertices, box.min.y, size.y) / (fix?.seated ?? 1), 1e-6))
+      }
       turntable.add(holder)
       // every model is first seen from the start view, where its still stood while it loaded: no jump on switching
       yaw = START_YAW; pitch = START_PITCH; dist = DIST_START

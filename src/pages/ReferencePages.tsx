@@ -2,6 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
+import { TraderFigure } from "../components/TraderFigure";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -567,6 +568,8 @@ export function TradersPage() {
           <p className="page-subtitle">{uiText("Время рестока — для выбранного режима. Сезон использует время PvP.")}</p>
         </div>
       </header>
+      {/* The cards with the selected trader's 3D figure beside them, his quests below (owner, 11.10.2026). */}
+      <div className="trader-top">
       <div className="trader-grid">
         {uiText(data.traders.map((trader) => (
           <button
@@ -590,6 +593,8 @@ export function TradersPage() {
             <TraderRestockTimer trader={trader} />
           </button>
         )))}
+      </div>
+      {selectedTrader && <TraderFigure trader={selectedTrader} />}
       </div>
       {selectedTrader && <TraderQuestBoard trader={selectedTrader} />}
     </div>
