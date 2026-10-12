@@ -1,0 +1,57 @@
+/* «Настроить блоки» on the Overview (src/overview/): blocks keep their size, the carried one follows the mouse. */
+.overview-header-actions { display: grid; justify-items: end; gap: 8px; }
+.overview-layout-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.overview-edit-hint { margin: -16px 0 18px; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+
+.overview-rows { display: grid; gap: 14px; }
+.overview-rows > .overview-block > .overview-block-content > :is(.stat-grid, .map-priority, .dashboard-layout) { margin-top: 0; }
+
+.overview-block { position: relative; min-width: 0; border-radius: var(--radius-md); }
+.overview-block-content { display: contents; }
+/* A block that renders nothing right now (no squad) takes no room… */
+.overview-block:not(.is-editing):has(> .overview-block-content:empty) { display: none; }
+/* …except while editing: a small placeholder keeps its place. */
+.overview-block.is-editing:has(> .overview-block-content:empty) { min-height: 54px; }
+.overview-block.is-editing:has(> .overview-block-content:empty) .overview-veil::after {
+  content: attr(data-label) " · " attr(data-empty);
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 10px 16px 0;
+  color: var(--text-dim); font-size: 12px; text-align: center;
+}
+
+.stat-grid > .overview-block { display: flex; flex-direction: column; }
+.stat-grid > .overview-block > .overview-block-content > .stat-card { flex: 1; }
+
+.overview-veil {
+  position: absolute; inset: 0; z-index: 5;
+  border: 1px dashed color-mix(in srgb, var(--brass) 55%, transparent); border-radius: inherit;
+  background: rgb(196 166 101 / 4%);
+  cursor: grab; touch-action: none; user-select: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.overview-veil:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .overview-veil:hover { border-color: var(--brass); background: rgb(196 166 101 / 9%); }
+}
+/* The grip sits on the middle of the top edge, half outside: it never covers a title, a counter or a button. */
+.overview-grip {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 34px; height: 20px;
+  border: 1px solid color-mix(in srgb, var(--brass) 60%, transparent); border-radius: 7px;
+  background: var(--surf-1); color: var(--brass);
+}
+
+/* The carried block: above the others, opaque (the panels are slightly see-through), with a shadow; its transform
+   comes from useOverviewEditor. */
+.overview-block.is-lifted { background: var(--panel); box-shadow: 0 22px 50px rgb(0 0 0 / 48%); transition: box-shadow .15s var(--ease-out); }
+.overview-block.is-lifted .overview-veil { cursor: grabbing; border-style: solid; border-color: var(--brass); background: rgb(196 166 101 / 7%); }
+.overview-block:not(.is-lifted) { transition: box-shadow .2s var(--ease-out); }
+.overview-editing { user-select: none; }
+.overview-editing .raid-card { outline: 1px solid color-mix(in srgb, var(--line-strong) 80%, transparent); outline-offset: -1px; }
+.overview-fixed-chip {
+  position: absolute; top: 12px; right: 12px; z-index: 6; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 7px; background: rgb(14 20 16 / 82%);
+  color: var(--text-muted); font-size: 12px; font-weight: 650;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overview-veil, .overview-block.is-lifted, .overview-block:not(.is-lifted) { transition: none; }
+}

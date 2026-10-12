@@ -5,6 +5,7 @@ import { Check, Circle, Clock, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import type { CollectorTaskRow, CollectorTaskState } from './collectorKeyTasks'
+import { CountUp } from './CountUp'
 
 const STATE_LABELS: Record<CollectorTaskState, string> = { completed: 'выполнено', active: 'текущее', open: 'не выполнено' }
 
@@ -20,7 +21,7 @@ export function KappaStatCard({ completed, total, open, onOpen, controlsId }: { 
       <Link className="button small kappa-items-button" to="/kappa-items">{uiText('Предметы')}</Link>
     </div>
     <div className="stat-label">{uiText('Задания для Капы')}</div>
-    <div className="stat-value">{completed}</div>
+    <div className="stat-value"><CountUp value={completed} /></div>
     <div className="stat-meta">{uiText(`Выполнено ${completed} из ${total}`)}</div>
   </div>
 }

@@ -2,7 +2,7 @@
 import './app/contentSecurityPolicy'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { HashRouter } from 'react-router-dom'
+import { unstable_HistoryRouter as HistoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import 'leaflet/dist/leaflet.css'
 import './styles/global.css'
@@ -10,6 +10,7 @@ import './styles/pages.css'
 import './styles/theme-gear.css'
 import './styles/mobile.css'
 import { App } from './app/App'
+import { createPageTransitionHistory, markViewTransitions } from './app/pageTransitionHistory'
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
 import { OverlayApp, overlayKind } from './overlay/OverlayApp'
@@ -41,7 +42,7 @@ function showStartupError(error: unknown) {
     try {
       localStorage.removeItem('tarkov-operations-ui-v2')
       sessionStorage.clear()
-    } catch {}
+    } catch { /* storage unavailable: reload anyway */ }
     location.reload()
   })
   root.querySelector('[data-action="reload"]')?.addEventListener('click', () => location.reload())
@@ -60,6 +61,9 @@ clearRemovedAppearanceSettings()
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
 const overlay = overlayKind(window.location.hash)
+// Page changes crossfade (owner, 12.10.2026: «сделай нам так же плавно все приложение»).
+const pageHistory = createPageTransitionHistory()
+markViewTransitions()
 
 try {
   ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -67,7 +71,7 @@ try {
       ? <LocaleProvider><OverlayApp kind={overlay} /></LocaleProvider>
       : <React.StrictMode>
         <QueryClientProvider client={queryClient}>
-          <LocaleProvider><AppStateProvider><DataProvider><HashRouter><App /></HashRouter></DataProvider></AppStateProvider></LocaleProvider>
+          <LocaleProvider><AppStateProvider><DataProvider><HistoryRouter history={pageHistory} useTransitions={false}><App /></HistoryRouter></DataProvider></AppStateProvider></LocaleProvider>
         </QueryClientProvider>
       </React.StrictMode>,
   )
