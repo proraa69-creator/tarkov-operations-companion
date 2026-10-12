@@ -133,7 +133,6 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['Загружаем профиль…', 'Loading the profile…'], ['Друг скрыл от вас прогресс — уровни не показываются.', 'Your friend hides their progress from you, so the levels are not shown.'],
   ['Престиж', 'Prestige'], ['Без престижа', 'No prestige'],
   ['Друг ещё не синхронизировал игровой аккаунт в Raid OS, или профиль игры не опубликован.', 'Your friend has not synced a game account in Raid OS yet, or the game profile is not published.'],
-  ['Уровень и престиж — из публичного профиля игры (tarkov.dev) по игровому аккаунту, который друг синхронизировал в Raid OS.', 'Level and prestige come from the public game profile (tarkov.dev) of the game account your friend synced in Raid OS.'],
   // Server answers (server/src/routes/squads.ts, friends.ts and their stores).
   ['Отряд доступен с активной подпиской', 'The squad needs an active subscription'],
   ['Друзья и общий прогресс доступны с активной подпиской', 'Friends and shared progress need an active subscription'],

@@ -98,6 +98,23 @@ describe('useGoonTracker', () => {
     expect(result.current.stats).toEqual([expect.objectContaining({ mapId: 'woods', count: 1 })])
   })
 
+  it('waits out the spam protection: «later», kept unsent, and sent by itself on the next refresh', async () => {
+    serviceRequest.mockImplementation(async (method: string) => {
+      if (method === 'GET') return { latest: null, last5h: [], recent: [] }
+      throw new Error("Error invoking remote method 'service:request': Error: Слишком частые отметки. Повторите через минуту.")
+    })
+    const { result } = renderHook(() => useGoonTracker('seasonal'))
+    await waitFor(() => expect(result.current.connection).toBe('server'))
+    let outcome = ''
+    await act(async () => { outcome = await result.current.reportSighting('shoreline') })
+    expect(outcome).toBe('later')
+    expect(result.current.connection).toBe('server')
+    expect(result.current.location).toMatchObject({ mapId: 'shoreline', source: 'local', unsent: true })
+    serviceRequest.mockImplementation(async (method: string) => method === 'GET' ? { latest: null, last5h: [], recent: [] } : { accepted: true, snapshot: { latest: null, last5h: [], recent: [] } })
+    act(() => { window.dispatchEvent(new Event('raidos:live-update')) })
+    await waitFor(() => expect(readOwnSightings('seasonal')[0]).toMatchObject({ mapId: 'shoreline', sent: true }))
+  })
+
   it('works in local-only mode when no server is configured', async () => {
     serviceRequest.mockResolvedValue(null)
     const { result } = renderHook(() => useGoonTracker('seasonal'))

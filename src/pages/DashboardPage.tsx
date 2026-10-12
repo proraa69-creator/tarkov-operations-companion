@@ -99,7 +99,7 @@ export function DashboardPage() {
 
   const statCards: Blocks = {
     'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
-    'stat-progress': { label: 'Прогресс', node: <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value"><CountUp value={stats.completed} /></div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div> },
+    'stat-progress': { label: 'Прогресс', node: <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value"><CountUp value={stats.completed} /></div></div> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }

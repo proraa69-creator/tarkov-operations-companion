@@ -56,7 +56,6 @@ export function FriendInfoDialog({ friendId, name, color, onClose }: { friendId:
         })}
       </div>}
       {shown && !known.length && <p className="muted friend-info-hint">{uiText('Друг ещё не синхронизировал игровой аккаунт в Raid OS, или профиль игры не опубликован.')}</p>}
-      <p className="friend-info-note">{uiText('Уровень и престиж — из публичного профиля игры (tarkov.dev) по игровому аккаунту, который друг синхронизировал в Raid OS.')}</p>
     </section>
   </div>, document.body)
 }
