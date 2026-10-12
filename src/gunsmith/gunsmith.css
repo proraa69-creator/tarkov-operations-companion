@@ -128,6 +128,8 @@ span.gs-part { cursor: default; }
 .gs-alternatives { min-width: 240px; }
 .gs-alternatives .hover-card-items strong { display: block; overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
 .gs-alternatives .hover-card-items small { display: block; font-size: 11px; }
+.gs-alternatives .gs-alt-values { color: var(--text-muted); }
+.gs-alternatives .gs-alt-values .is-missed { color: var(--amber); }
 .gs-alternatives p.dim { margin: 0; }
 .gs-sellers { margin-bottom: 10px; }
 .gs-sellers ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }

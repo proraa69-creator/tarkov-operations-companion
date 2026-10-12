@@ -30,6 +30,8 @@ interface WeaponBuildDetailsProps {
   /** The example build: its fitting alternatives fill the module cards' hover window. */
   plan?: GunsmithPlan | null
   modsStatus?: ModsStatus
+  /** Loads the mod data again after it failed. */
+  onRetryMods?: () => void
 }
 
 /**
@@ -37,7 +39,7 @@ interface WeaponBuildDetailsProps {
  * stats (every one named — «Эффективная дальность», not «effectiveDistance») and the parts it must hold, with pictures
  * and the flea price.
  */
-export function WeaponBuildDetails({ build, questId, checks, compact, weaponImage, mods, access, plan, modsStatus }: WeaponBuildDetailsProps) {
+export function WeaponBuildDetails({ build, questId, checks, compact, weaponImage, mods, access, plan, modsStatus, onRetryMods }: WeaponBuildDetailsProps) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
@@ -84,6 +86,6 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
 
     {/* A part of a required category (containsCategory) is not listed apart (owner, 12.10.2026: «удали везде надпись
         деталь из категории»): the example build («Как собрать», gunsmithSolver.ts) already puts the cheapest fitting one in. */}
-    <BuildPartCards build={build} compact={compact} mods={mods} access={access} plan={plan} modsStatus={modsStatus} />
+    <BuildPartCards build={build} compact={compact} mods={mods} access={access} plan={plan} modsStatus={modsStatus} onRetryMods={onRetryMods} />
   </div>
 }

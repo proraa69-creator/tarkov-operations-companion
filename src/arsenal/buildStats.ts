@@ -27,6 +27,9 @@ export interface BuildStats {
   moa?: number
   weight: number
   partCount: number
+  /** Inventory size in cells (see `weaponSize`); absent when the data has no part sizes. */
+  width?: number
+  height?: number
 }
 
 export const CM_PER_MOA_AT_100M = 2.9089
@@ -47,6 +50,37 @@ export function computeStats(build: Build, weapon: Weapon, catalog: Pick<GunCata
     moa: centerOfImpact ? round2(approximateMoa(centerOfImpact, accuracyModifierSum)) : undefined,
     weight: round3(weapon.weight + sum(parts.map((part) => part.weight))),
     partCount: parts.length,
+    ...weaponSize(parts, weapon, catalog),
+  }
+}
+
+const SIDES = ['left', 'right', 'up', 'down'] as const
+const sizeData = new WeakMap<Map<string, GunPart>, boolean>()
+
+/**
+ * Inventory size of the assembled weapon in cells, grown the way the game grows it: the bare weapon, plus on each side the
+ * largest growth of its ordinary parts (they overlap) and every growth of the forced ones (`increaseSizeForced`). Gives
+ * tarkov.dev's `defaultWidth` / `defaultHeight` for the default preset of every weapon (164 of 164 checked, 12.10.2026).
+ * Nothing when the catalogue has no part sizes at all (one cached by an older version) or the weapon has no size.
+ */
+export function weaponSize(parts: GunPart[], weapon: Pick<Weapon, 'width' | 'height'>, catalog: Pick<GunCatalog, 'mods'>): { width?: number; height?: number } {
+  let known = sizeData.get(catalog.mods)
+  if (known === undefined) {
+    known = [...catalog.mods.values()].some((part) => part.increaseSize)
+    sizeData.set(catalog.mods, known)
+  }
+  if (!known || !weapon.width || !weapon.height) return {}
+  const grow = { left: 0, right: 0, up: 0, down: 0 }
+  const forced = { left: 0, right: 0, up: 0, down: 0 }
+  for (const size of parts.flatMap((part) => part.increaseSize ?? [])) {
+    for (const side of SIDES) {
+      if (size.forced) forced[side] += size[side]
+      else grow[side] = Math.max(grow[side], size[side])
+    }
+  }
+  return {
+    width: weapon.width + grow.left + grow.right + forced.left + forced.right,
+    height: weapon.height + grow.up + grow.down + forced.up + forced.down,
   }
 }
 
