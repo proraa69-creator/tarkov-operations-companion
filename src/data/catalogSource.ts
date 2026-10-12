@@ -418,6 +418,7 @@ function adaptTasks(
       wikiLink: text(entry.wikiLink) || undefined,
       imageUrl: text(entry.taskImageLink) || undefined,
       ...traderLoyaltyOf(entry, objectives),
+      ...gameConditionsOf(entry),
     } satisfies Quest
   }).filter((quest) => quest.id)
 }
@@ -432,6 +433,16 @@ function traderLoyaltyOf(entry: JsonRecord, objectives: JsonRecord[]): { traderL
   const valid = (list: Array<{ traderId: string; level: number }>) => list.filter((entry) => entry.traderId && entry.level >= 1 && entry.level <= 4)
   const result = { needed: valid(needed), reached: valid(reached) }
   return result.needed.length || result.reached.length ? { traderLoyalty: result } : {}
+}
+
+/**
+ * `otherRequirements`: conditions the game checks and the app cannot (a talk with the trader, `dialogue`; a hidden counter
+ * of the trader's tasks, `globalVariable`, or any newer kind). Most of Mechanic's Gunsmith parts open this way now.
+ */
+function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Quest['gameConditions']> } {
+  const kinds = new Set(asArray(entry.otherRequirements).map((requirement) => text(requirement.type)).filter(Boolean)
+    .map((type) => (type === 'dialogue' ? 'dialogue' as const : 'progress' as const)))
+  return kinds.size ? { gameConditions: [...kinds] } : {}
 }
 
 /** A reference given as `"id"` (json.tarkov.dev) or `{ id }` (GraphQL). */

@@ -28,7 +28,7 @@ const quests = [
 const statuses: Record<string, 'completed' | 'active' | 'locked'> = { gs1: 'completed', gs2: 'active', gs3: 'locked' }
 
 describe('«Оружейник» on the Overview', () => {
-  const view = (map: Record<string, 'completed' | 'active' | 'locked'>, playerLevel: number) =>
+  const view = (map: Record<string, 'completed' | 'active' | 'available' | 'locked'>, playerLevel: number) =>
     render(<LocaleProvider><MemoryRouter><GunsmithPanel steps={gunsmithSteps(quests, (id) => map[id])} playerLevel={playerLevel} /></MemoryRouter></LocaleProvider>)
 
   it('shows just the current part by name and opens its weapon, stats and parts', async () => {
@@ -57,9 +57,16 @@ describe('«Оружейник» on the Overview', () => {
     expect(screen.getByRole('link', { name: /Посмотреть все/ })).toHaveAttribute('href', '/gunsmith')
   })
 
-  it('with no part taken, shows the next one and when it opens', () => {
-    view({ gs1: 'completed', gs2: 'locked', gs3: 'locked' }, 5)
+  it('with no part taken, offers only a part the game has opened', () => {
+    view({ gs1: 'completed', gs2: 'available', gs3: 'locked' }, 12)
     expect(screen.getByRole('button', { name: /Оружейник. Часть 2/ })).toBeInTheDocument()
-    expect(screen.getByText(/с 12 уровня/)).toBeInTheDocument()
+    expect(screen.getByText(/доступно у Механика/)).toBeInTheDocument()
+  })
+
+  it('offers nothing while the game keeps the parts closed (owner, 12.10.2026: Mechanic still closed in the season)', () => {
+    view({ gs1: 'locked', gs2: 'locked', gs3: 'locked' }, 5)
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByText(/появится здесь, как только вы примете её у Механика/)).toBeInTheDocument()
+    expect(screen.queryByText(/выполнена/)).toBeNull()
   })
 })

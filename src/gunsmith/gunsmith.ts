@@ -88,14 +88,16 @@ export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => Ta
 }
 
 /**
- * What the Overview block shows: the parts taken in the game, else the next one to take, and the chain progress. A part
- * the logs say nothing about (status unknown, requirementEngine.ts) is never offered as the next one.
+ * What the Overview block shows: the parts taken in the game, else the next one the game really offers now (available),
+ * and the chain progress. A part the logs say nothing about (unknown) or one the game has not opened (locked: the level,
+ * the part before it, Mechanic himself still closed — his own conditions, requirementEngine.ts) is never offered
+ * (owner, 12.10.2026: «механик закрыт, но в обзоре появился квест АКС-74Н»).
  */
 export function gunsmithSummary(steps: GunsmithStep[]) {
   const active = steps.filter((step) => step.status === 'active')
   const done = steps.filter((step) => step.status === 'completed').length
   const unknown = steps.filter((step) => step.status === 'unknown').length
-  const next = active.length ? undefined : steps.find((step) => step.status !== 'completed' && step.status !== 'unknown')
+  const next = active.length ? undefined : steps.find((step) => step.status === 'available')
   return { active, next, done, unknown, total: steps.length }
 }
 

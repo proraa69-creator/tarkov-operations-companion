@@ -31,6 +31,10 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress): 
       blockers.push(`Не выполнено предыдущее задание: ${requirement.taskId}`)
     }
   }
+  // The game's own conditions (a talk with the trader, a hidden counter of his tasks) are out of the app's sight: the
+  // task is offered only once the logs have it (the explicit record above), never on a guess.
+  if (quest.gameConditions?.includes('dialogue')) blockers.push('Откроется после разговора с торговцем в игре')
+  if (quest.gameConditions?.includes('progress')) blockers.push('Откроется в игре по ходу заданий торговца')
 
   return blockers.length ? { status: 'locked', blockers } : { status: 'available', blockers: [] }
 }

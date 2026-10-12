@@ -40,8 +40,11 @@ describe('«Оружейник»: the Gunsmith chain', () => {
     expect(steps.map((step) => [step.part, step.status])).toEqual([[1, 'completed'], [2, 'active'], [3, 'locked']])
     expect(gunsmithSummary(steps)).toMatchObject({ done: 1, total: 3, next: undefined })
     expect(gunsmithSummary(steps).active.map((step) => step.part)).toEqual([2])
+    // the part after a handed-in one is offered once the game opens it, never while it is still locked
     statuses.b = 'completed'
-    expect(gunsmithSummary(gunsmithSteps(quests, (id) => statuses[id])).next?.part).toBe(3)
+    expect(gunsmithSummary(gunsmithSteps(quests, (id) => statuses[id])).next).toBeUndefined()
+    const opened: Record<string, 'completed' | 'available'> = { a: 'completed', b: 'completed', c: 'available' }
+    expect(gunsmithSummary(gunsmithSteps(quests, (id) => opened[id])).next?.part).toBe(3)
   })
 
   it('names every stat in the words of the game, effectiveDistance included', () => {

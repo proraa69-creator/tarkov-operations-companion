@@ -114,6 +114,21 @@ describe('App', () => {
     expect(screen.queryByText(/ассортимент, репутация/i)).not.toBeInTheDocument()
   })
 
+  it('lists only the quests taken in the game on the trader\'s «Текущие» tab (owner, 12.10.2026)', async () => {
+    const user = userEvent.setup()
+    let profile = createLocalProfile('TEST', 'trader-current')
+    profile = setTaskProgress(profile, 'pvp', { taskId: 'checking', status: 'active', source: 'eft-log', updatedAt: '2026-10-12T00:00:00Z' })
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+    // an old address with the «Доступные» list opens the current ones
+    renderApp('/traders?trader=prapor&list=available')
+    expect(screen.queryByRole('tab', { name: /Доступные/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Текущие/ })).toHaveAttribute('aria-selected', 'true')
+    // «Дебют» could be taken (level 1, nothing before it) but is not: only the taken «Проверка» is listed
+    expect([...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)).toEqual(['Проверка'])
+    await user.click(screen.getByRole('tab', { name: /Общий список/ }))
+    expect([...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)).toContain('Дебют')
+  })
+
   it('adds a selected flea item to the raid list', async () => {
     const user = userEvent.setup()
     renderApp('/flea?selected=graphics-card')
