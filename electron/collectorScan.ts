@@ -10,8 +10,8 @@ import { createLabelReader, toPgm, type FrameReading } from '../src/kappa/labelR
  * One call reads one frame of the game; the page calls again while the player scrolls the stash.
  *   - Only the game's own pixels: its window while the player can see it (one GDI copy, a few ms) — never the whole
  *     desktop, where this app's own list of item names would be read as found.
- *   - Only the item labels (src/kappa/labelScan.ts), enlarged and stacked into one small picture per OCR engine; each
- *     label once per scan, nothing while the frame stays the same (src/kappa/labelReader.ts).
+ *   - Only the item labels (src/kappa/labelScan.ts) of the part of the screen that changed, enlarged and stacked into one
+ *     small picture for one OCR engine; each label once per scan, a few dozen per call (src/kappa/labelReader.ts).
  */
 export interface CollectorScan extends FrameReading {
   /** The game's picture was read. */
@@ -20,45 +20,45 @@ export interface CollectorScan extends FrameReading {
   waiting?: boolean
 }
 
-const ENGINES = 2
-
-let pool: Promise<OcrWorker[]> | null = null
+let engine: Promise<OcrWorker> | null = null
 const release = idleRelease(60_000, () => {
-  const engines = pool
-  pool = null
-  void engines?.then((list) => Promise.all(list.map((engine) => engine.terminate()))).catch(() => {})
+  const current = engine
+  engine = null
+  void current?.then((worker) => worker.terminate()).catch(() => {})
 })
 
-function engines() {
-  pool ??= (async () => {
+/** One OCR engine: one processor core at most, so the game keeps the rest (two made the game stutter). */
+function ocr() {
+  engine ??= (async () => {
     const langPath = await ocrLanguagePath()
-    return Promise.all(Array.from({ length: ENGINES }, async () => {
-      const engine = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
-      // Sparse text: one short label per line, with room around it. The picture carries no resolution: say it.
-      await engine.setParameters({ tessedit_pageseg_mode: '11', user_defined_dpi: '300' })
-      return engine
-    }))
-  })().catch((error) => { pool = null; throw error })
-  return pool
+    const worker = await createWorker('rus+eng', 1, { langPath, cachePath: langPath, gzip: false })
+    // Sparse text: one short label per line, with room around it. The picture carries no resolution: say it.
+    await worker.setParameters({ tessedit_pageseg_mode: '11', user_defined_dpi: '300' })
+    return worker
+  })().catch((error) => { engine = null; throw error })
+  return engine
 }
 
-const reader = createLabelReader(async (pictures) => {
-  const list = await engines()
+const reader = createLabelReader(async (picture) => {
+  const worker = await ocr()
   try {
-    return await Promise.all(pictures.map((picture, index) => {
-      const engine = list[index % list.length]!
-      const image = toPgm(picture)
-      return runOcrJob(engine, () => engine.recognize(Buffer.from(image.buffer, image.byteOffset, image.byteLength))).then((result) => result.data.text ?? '')
-    }))
+    const image = toPgm(picture)
+    const result = await runOcrJob(worker, () => worker.recognize(Buffer.from(image.buffer, image.byteOffset, image.byteLength), {}, { blocks: true }))
+    return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
+      .map((line) => ({ text: line.text, top: line.bbox.y0, bottom: line.bbox.y1 }))
   } finally {
     release()
   }
-}, ENGINES)
+})
 
-export async function scanCollectorScreen(options: { restart?: boolean } = {}): Promise<CollectorScan> {
-  if (options.restart) reader.reset()
+/**
+ * `restart` starts a new scan (everything on screen is read again); `names`: the wanted items' labels, a misread one
+ * near them is read a second time.
+ */
+export async function scanCollectorScreen(options: { restart?: boolean; names?: string[] } = {}): Promise<CollectorScan> {
+  if (options.restart) reader.reset(options.names)
   const frame = await captureGame()
-  if (!frame) return { text: '', gameWindow: false, waiting: true, labels: 0, read: 0 }
+  if (!frame) return { text: '', gameWindow: false, waiting: true, labels: 0, read: 0, pending: 0 }
   return { ...(await reader.readFrame(frame)), gameWindow: true }
 }
 

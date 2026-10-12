@@ -47,6 +47,7 @@ export function KappaItemsPage() {
     setPasses(0)
     const started = Date.now()
     let addedTotal = 0
+    let readTotal = 0
     let sawGame = false
     try {
       for (let pass = 0; scanning.current && Date.now() - started < SCAN_WINDOW_MS; pass += 1) {
@@ -58,9 +59,11 @@ export function KappaItemsPage() {
           setFresh((current) => [...current, ...result.added])
         }
         if (result.gameWindow) sawGame = true
+        readTotal += result.read
         setMessage(result.waiting
           ? 'Откройте игру со схроном: сканирование идёт, пока окно игры видно на экране.'
-          : `Найдено новых: ${addedTotal}. Листайте схрон — сканирование идёт.`)
+          // How many labels were read tells a scan that sees the stash from one that sees nothing.
+          : `Прочитано подписей: ${readTotal} · найдено новых: ${addedTotal}. Листайте схрон — сканирование идёт.`)
         await new Promise((resolve) => setTimeout(resolve, result.waiting ? WAIT_PAUSE_MS : PASS_PAUSE_MS))
       }
       if (scanning.current) {

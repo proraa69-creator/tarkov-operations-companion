@@ -87,17 +87,30 @@ export function clearCollectorDirty(mode: string) {
 }
 
 /**
- * Reads the game screen once and adds every wanted item that is visible; never unticks anything. `restart` starts a
- * new scan (labels read in the previous one are read again).
+ * Reads the game screen and adds every wanted item that is visible; never unticks anything. `restart` starts a new scan
+ * (labels read in the previous one are read again). A call reads a few dozen labels (electron/collectorScan.ts);
+ * `drain` keeps calling until every label on screen is read (the in-game hotkey: one press, the whole screen).
  */
-export async function scanForCollectorItems(mode: string, entries: CollectorEntry[], options: { restart?: boolean } = {}) {
+export async function scanForCollectorItems(mode: string, entries: CollectorEntry[], options: { restart?: boolean; drain?: boolean } = {}) {
   const api = window.tarkovDesktop
   if (!api) return { ok: false as const, reason: 'desktop' as const }
-  const frame = api.scanScreenText ? await api.scanScreenText(options) : await api.captureQuestFrame(false, true)
-  const found = findVisibleItems(entries, frame.text)
-  const current = loadCollected(mode)
-  const added = found.filter((id) => !current.includes(id))
-  if (added.length) saveCollected(mode, [...current, ...added])
-  const waiting = 'waiting' in frame && frame.waiting === true
-  return { ok: true as const, found: found.length, added, gameWindow: frame.gameWindow, waiting }
+  const names = entries.map(({ item }) => item.shortName ?? '').filter(Boolean)
+  const found = new Set<string>()
+  const added: string[] = []
+  let gameWindow = false, waiting = false, read = 0
+  for (let call = 0; call < (options.drain ? 30 : 1); call += 1) {
+    const frame = api.scanScreenText
+      ? await api.scanScreenText(call === 0 && options.restart ? { restart: true, names } : {})
+      : await api.captureQuestFrame(false, true)
+    for (const id of findVisibleItems(entries, frame.text)) found.add(id)
+    const current = loadCollected(mode)
+    const fresh = [...found].filter((id) => !current.includes(id))
+    if (fresh.length) { saveCollected(mode, [...current, ...fresh]); added.push(...fresh) }
+    gameWindow = gameWindow || frame.gameWindow
+    read += 'read' in frame ? frame.read ?? 0 : 0
+    waiting = 'waiting' in frame && frame.waiting === true
+    if (waiting || !('pending' in frame) || !frame.pending) break
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return { ok: true as const, found: found.size, added, gameWindow, waiting, read }
 }

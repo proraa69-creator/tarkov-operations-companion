@@ -232,7 +232,7 @@ export function ExperimentalBridge() {
       scanning = true
       notify('Распознавание предметов началось.')
       // A hotkey press is one scan of its own: every label on screen is read.
-      void scanForCollectorItems(state.raidMode, entries, { restart: true }).then((result) => {
+      void scanForCollectorItems(state.raidMode, entries, { restart: true, drain: true }).then((result) => {
         notify(result.ok
           ? result.gameWindow ? `Найдено предметов: ${result.found}. Добавлено новых: ${result.added.length}.` : 'Окно игры не найдено. Откройте схрон и повторите сканирование.'
           : 'Сканирование работает только в приложении для Windows.')
