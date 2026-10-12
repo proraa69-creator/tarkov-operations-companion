@@ -4,10 +4,11 @@
  * расстёгнуты, чтобы края колыхались и сверху и снизу»). Boxes in fractions of the model height, measured on the
  * physics lab's views (scripts/bosses/physics-lab.mjs with PHYSICS_LAB_DIR=src/assets/trader-models).
  *
- * Only Peacekeeper (open parka) and Therapist (open lab coat) wear something that hangs loose: the free edges of the
- * open front, from the collar down, and the hem move; the coats themselves are thick shells lying on the body and
- * stay (moving whole skirts dragged the legs inside them along — owner: «не… кабура вместе с куском штанов»).
+ * Peacekeeper (open parka), Therapist (open lab coat) and Ragman (open blazer) wear something that hangs loose: the free
+ * edges of the open front, from the collar down, and the hem move; the coats themselves are thick shells lying on the
+ * body and stay (moving whole skirts dragged the legs inside them along — owner: «не… кабура вместе с куском штанов»).
  * Everybody else stays still — the shape analysis would otherwise swing a stool's legs, a desk lamp or bootlaces.
+ * Skier, Ragman and Lightkeeper: the owner's models of 12.10.2026 («модели оставшиеся устанавливай»).
  */
 import type { BossSwayHints } from './bossSwayHints'
 
@@ -39,4 +40,22 @@ export const TRADER_SWAY_HINTS: Record<string, BossSwayHints> = {
       [-0.1, 0.52, 0.0, 0.1, 0.82, 0.11],
     ],
   },
+  // On a lighthouse balcony: the long coat hangs right behind the railing's bars, which the physics does not collide
+  // with, so it stays still rather than swinging through them.
+  lightkeeper: STILL,
+  ragman: {
+    rigid: [
+      [-0.4, -0.05, -0.4, 0.4, 0.43, 0.4], // the bar stool and the legs, everything below the seat
+      [-0.14, 0.42, 0.04, 0.06, 0.58, 0.36], // the right hand on the thigh
+      [0.09, 0.55, -0.12, 0.21, 0.68, 0.2], // the left hand on the hip
+    ],
+    // the open blazer: the edges of its front from the lapels down and the flaps lying on the thighs
+    cloth: [
+      [-0.14, 0.56, 0.0, 0.09, 0.83, 0.3],
+      [-0.19, 0.44, -0.06, 0.17, 0.57, 0.3],
+    ],
+  },
+  // The open puffer vest is a thick shell lying on the body all round, its front edges included: the analysis pinned
+  // every cloth particle (20 of 20 in a box over the whole vest), so nothing would move — held still like the others.
+  skier: STILL,
 }

@@ -13,7 +13,7 @@ const byKey = new Map(Object.entries(urls).map(([path, url]) => [path.replace(/^
 /** Russian names of the traders that have a model (the catalog's normalized names can be missing offline). */
 const BY_NAME: Record<string, string> = {
   'Прапор': 'prapor', 'Терапевт': 'therapist', 'Скупщик': 'fence', 'Миротворец': 'peacekeeper', 'Механик': 'mechanic',
-  'Егерь': 'jaeger', 'Реф': 'ref', 'Водитель БТР': 'btr-driver',
+  'Егерь': 'jaeger', 'Реф': 'ref', 'Водитель БТР': 'btr-driver', 'Лыжник': 'skier', 'Барахольщик': 'ragman', 'Смотритель': 'lightkeeper',
 }
 
 export const TRADER_MODEL_FIX: BossModelFix = { fit: true }
