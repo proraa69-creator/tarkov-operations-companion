@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Check, ChevronRight, Clock3, LayoutDashboard, LockKeyhole, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
+import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
@@ -12,7 +12,7 @@ import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { sortQuestsChronologically } from '../progression/questChronology'
-import { MapSlideshow } from '../components/MapSlideshow'
+import { MapPicker } from '../components/MapPicker'
 import { GoonCard } from '../components/GoonCard'
 import { MapPriority } from '../components/MapPriority'
 import { SquadRaidCard } from '../squad/RaidPlanner'
@@ -118,15 +118,9 @@ export function DashboardPage() {
             <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
 
           </div>
-          <div className={`raid-map-picker ${mapPickerOpen ? 'is-open' : ''}`} aria-hidden={!mapPickerOpen}>
-            <MapSlideshow active={mapPickerOpen} firstMapId={selectedMap.id} />
-            <div className="raid-map-picker-grid">
-              {uiText(data.maps.map((map) => {
-                const access = calculateMapAccess(map, data.quests, availability)
-                return <button key={map.id} tabIndex={mapPickerOpen ? 0 : -1} aria-disabled={access.locked} title={uiText(access.locked ? access.quest?.name : map.name)} onClick={() => { if (!access.locked) { state.setSelectedMapId(map.id); setMapPickerOpen(false) } }}><span className="map-color" style={{ background: map.accent }} />{uiText(map.name)}{uiText(access.locked && <LockKeyhole size={13} />)}</button>
-              }))}
-            </div>
-          </div>
+          <MapPicker open={mapPickerOpen} maps={data.maps} firstMapId={selectedMap.id}
+            lockedOf={(map) => { const access = calculateMapAccess(map, data.quests, availability); return { locked: access.locked, title: access.quest?.name } }}
+            onPick={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
             <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
         </div>
       </section>,

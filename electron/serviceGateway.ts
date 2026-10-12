@@ -97,6 +97,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/friends\/requests\/[a-f0-9]{24}\/(?:accept|decline|cancel)$/ },
   { methods: ['POST'], path: /^\/v1\/friends\/[a-f0-9]{24}\/(?:remove|block|unblock)$/ },
   { methods: ['PUT'], path: /^\/v1\/friends\/[a-f0-9]{24}\/privacy$/ },
+  // A friend's level and prestige per mode (the info button in «Друзья»).
+  { methods: ['GET'], path: /^\/v1\/friends\/[a-f0-9]{24}\/info$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/friends/progress/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/friends/needs/${MODE}$`) },
 ]

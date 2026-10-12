@@ -46,7 +46,41 @@ describe('rankMaps', () => {
     const members = [
       { memberId: 'a', activeQuestIds: ['solo-woods'], objectives: { 'solo-woods': [{ objectiveId: 'w1', done: true }, { objectiveId: 'w2', count: 3, target: 3 }] } },
     ]
-    expect(rankMaps(members, quests, markers)).toEqual([{ mapId: 'woods', score: 1, objectives: 1, quests: 1, sharedQuests: 0 }])
+    expect(rankMaps(members, quests, markers)).toEqual([{ mapId: 'woods', score: 1, objectives: 1, quests: 1, sharedQuests: 0, perMember: { a: 1 }, covered: 1 }])
+  })
+})
+
+describe('rankMaps for a group of friends', () => {
+  const list = [
+    quest('a1', { mapId: 'woods' }), quest('a2', { mapId: 'woods' }), quest('a3', { mapId: 'woods' }), quest('a4', { mapId: 'woods' }),
+    quest('a5', { mapId: 'customs' }), quest('b1', { mapId: 'customs' }), quest('c1', { mapId: 'customs' }), quest('c2', { mapId: 'reserve' }),
+  ]
+  const members = [
+    { memberId: 'me', activeQuestIds: ['a1', 'a2', 'a3', 'a4', 'a5'] },
+    { memberId: 'b', activeQuestIds: ['b1'] },
+    { memberId: 'c', activeQuestIds: ['c1', 'c2'] },
+  ]
+
+  it('counts each member’s quests per map', () => {
+    const customs = rankMaps(members, list, []).find((rank) => rank.mapId === 'customs')!
+    expect(customs.perMember).toEqual({ me: 1, b: 1, c: 1 })
+    expect(customs.covered).toBe(3)
+  })
+
+  it('puts first the map where everyone has quests, not the one with the most quests of one person', () => {
+    // Woods has 4 quests, all of them mine; Customs has one for each of the three.
+    expect(rankMaps(members, list, []).map((rank) => rank.mapId)).toEqual(['customs', 'woods', 'reserve'])
+  })
+
+  it('between maps that cover everyone, prefers the one where the member with the fewest quests has more', () => {
+    const more = [...list, quest('b2', { mapId: 'reserve' }), quest('a6', { mapId: 'reserve' }), quest('c3', { mapId: 'reserve' })]
+    const group = [
+      { memberId: 'me', activeQuestIds: ['a5', 'a6'] },
+      { memberId: 'b', activeQuestIds: ['b1', 'b2'] },
+      { memberId: 'c', activeQuestIds: ['c1', 'c2', 'c3'] },
+    ]
+    // Reserve: me 1, b 1, c 2 — Customs: me 1, b 1, c 1. Both cover everyone with at least 1; Reserve has more to do.
+    expect(rankMaps(group, more, [])[0].mapId).toBe('reserve')
   })
 })
 

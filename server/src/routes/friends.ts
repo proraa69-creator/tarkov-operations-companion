@@ -12,6 +12,7 @@
  *   PUT  /:friendId/privacy                  { hideProgress } -> 204
  *   POST /progress/:mode                     { friendIds[] } -> { people } (planner / friend's progress; paid)
  *   GET  /needs/:mode                        -> { itemIds | null, questIds } (in-raid «MATE» badge; paid)
+ *   GET  /:friendId/info                     -> { nickname, hidden, modes: { pvp|pve|seasonal: { level, prestige, updatedAt } | null } } (paid)
  *
  * Paid (docs/product-roadmap-and-business-model.md): sending requests and seeing friends' progress need an active
  * subscription, the trial or a streamer account. Answering requests, removing, blocking and privacy always work.
@@ -44,8 +45,19 @@ const TOO_MANY = 'Слишком много запросов. Попробуйт
 
 export const FRIEND_RATE_LIMITS = { ip: 900, account: 300, windowMs: 10 * 60 * 1000, requestsAccount: 20, requestsIp: 40, requestsWindowMs: 60 * 60 * 1000 }
 
+/** What the friend's info shows of a game profile (never the account id, gear or the profile's own nickname). */
+export interface FriendModeInfo { level: number; prestige: number; updatedAt: string | null }
+/** A player's public profile (electron/playerProfileService.ts `fetchPlayerProfile`): its level and prestige. */
+export type PlayerProfileLookup = (mode: RaidMode, accountId: number) => Promise<{ level: number; prestige: number; fetchedAt?: string; upstreamUpdatedAt?: string }>
+
+const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
+/** The apps give up on a friends call after 15 s: the public profiles answer within this or count as unknown. */
+const PROFILE_WAIT_MS = 8_000
+
 export interface FriendsRouterOptions {
   catalog?: CatalogPeek
+  /** The friend's info: levels and prestige per mode from the public profiles. Without it the modes are unknown. */
+  playerProfile?: PlayerProfileLookup
   now?: () => number
   limits?: Partial<typeof FRIEND_RATE_LIMITS>
   /** Instant updates (services/socialSignals.ts): everybody a change touches reloads at once. */
@@ -182,6 +194,38 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     if (catalog) for (const person of people) for (const itemId of itemIdsNeededBy([person.member], catalog.quests)) add(byItem, itemId, person.name)
     res.json({ mode, itemIds: catalog ? itemIdsNeededBy(members, catalog.quests) : null, questIds, byQuest, byItem: catalog ? byItem : null })
   }))
+
+  // The friend's account in every mode (owner, 12.10.2026: «уровни во всех режимах, значок престижа»): from the public game
+  // profile of the game account the friend's desktop app synced (progress_scopes.account_id); one game account usually
+  // plays every mode, so a mode not synced yet is tried with the known one. Nothing while the friend hides their progress.
+  router.get('/:friendId/info', async (req, res, next) => {
+    try {
+      const accountId = account(res)
+      const friendId = String(req.params.friendId)
+      if (!FRIEND_ID.test(friendId)) throw new FriendError(404, 'Друг не найден')
+      requireAccess(accountId)
+      const friendAccount = friends.friendAccount(accountId, friendId)
+      if (friends.hidesProgress(friendAccount, accountId)) { res.json({ nickname: nickname(friendAccount), hidden: true, modes: {} }); return }
+      const gameIds = MODES.map((mode) => progress.scope(`user:${friendAccount}`, mode)?.accountId ?? 0)
+      const known = gameIds.find((id) => id > 0) ?? 0
+      const lookup = options.playerProfile
+      const modes = Object.fromEntries(await Promise.all(MODES.map(async (mode, index): Promise<[RaidMode, FriendModeInfo | null]> => {
+        const gameId = gameIds[index] || known
+        if (!gameId || !lookup) return [mode, null]
+        try {
+          const profile = await Promise.race([lookup(mode, gameId), new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('timeout')), PROFILE_WAIT_MS).unref?.())])
+          return [mode, { level: Math.max(0, Math.round(profile.level)), prestige: Math.max(0, Math.round(profile.prestige)), updatedAt: profile.upstreamUpdatedAt ?? profile.fetchedAt ?? null }]
+        } catch {
+          // Not published for this mode (404), busy (429) or slow: unknown, not an error.
+          return [mode, null]
+        }
+      })))
+      res.json({ nickname: nickname(friendAccount), hidden: false, modes })
+    } catch (error) {
+      if (error instanceof FriendError) { res.status(error.status).json({ error: error.message, ...(error.status === 402 ? { code: 'subscription_required' } : {}) }); return }
+      next(error)
+    }
+  })
 
   router.post('/:friendId/:action', handle((req, res) => {
     const accountId = account(res)
