@@ -175,7 +175,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       active = false
       unsubscribe()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id])
 
   const results = useMemo(() => {
