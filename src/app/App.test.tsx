@@ -129,6 +129,14 @@ describe('App', () => {
     expect([...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)).toContain('Дебют')
   })
 
+  it('has the «Концовки» tab with the four endings (owner, 12.10.2026)', () => {
+    renderApp('/quests?filter=endings')
+    expect(screen.getByRole('heading', { name: 'Концовки игры' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Концовки' })).toHaveClass('active')
+    expect(screen.getAllByRole('heading', { name: /«(Выживший|Спаситель|Падший|Должник)»/ })).toHaveLength(4)
+    expect(screen.queryByPlaceholderText('Поиск задания…')).not.toBeInTheDocument()
+  })
+
   it('adds a selected flea item to the raid list', async () => {
     const user = userEvent.setup()
     renderApp('/flea?selected=graphics-card')

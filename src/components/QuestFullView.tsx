@@ -13,6 +13,7 @@ import type { MapMarker, Quest, TaskProgressStatus } from '../domain/types'
 import { questStatusText } from '../shared/questStatus'
 import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
+import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -104,6 +105,9 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
     {quest.description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(quest.description)}</p></div>}
 
     <QuestObjectivesPanel quest={quest} />
+
+    {/* the BTR Driver's tasks decide the «Спаситель» ending (src/endings/) */}
+    <StoryDecisionNotes quest={quest} />
 
     {build && <div className="detail-section">
       <h4>{uiText('Сборка оружия')}</h4>
