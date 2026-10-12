@@ -39,7 +39,7 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   killa: { ru: 'Килла', en: 'Killa' },
   tagilla: { ru: 'Тагилла', en: 'Tagilla' },
   'tagilla-2': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
-  'killa-knight': { ru: 'Древний Килла', en: 'Ancient Killa' },
+  'killa-knight': { ru: 'Килла', en: 'Killa' },
   wadge: { ru: 'Wadge', en: 'Wadge' },
   glukhar: { ru: 'Глухарь', en: 'Glukhar' },
   raiders: { ru: 'Рейдеры', en: 'Raiders' },
@@ -51,17 +51,18 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   'black-division': { ru: 'Black Division', en: 'Black Division' },
   military: { ru: 'Военные', en: 'Military' },
   ruaf: { ru: 'ВС РФ', en: 'RUAF' },
-  // Ancient (medieval) versions: Gallery only, never on a map.
-  'tagilla-knight': { ru: 'Древний Тагилла', en: 'Ancient Tagilla' },
-  'tagilla-2-knight': { ru: 'Древняя Тень Тагиллы', en: 'Ancient Shadow of Tagilla' },
-  'reshala-knight': { ru: 'Древний Решала', en: 'Ancient Reshala' },
-  'sanitar-knight': { ru: 'Древний Санитар', en: 'Ancient Sanitar' },
-  'dark-knight': { ru: 'Древний рыцарь', en: 'Ancient Knight' },
-  'zryachiy-archer': { ru: 'Древний Зрячий', en: 'Ancient Zryachiy' },
-  'goon-bow': { ru: 'Древний Кочевник (лучник)', en: 'Ancient Goon (archer)' },
-  'goon-axe': { ru: 'Древний Кочевник (топор)', en: 'Ancient Goon (axe)' },
-  'black-division-old': { ru: 'Древний Black Division', en: 'Ancient Black Division' },
-  'ancient-soldier': { ru: 'Древний военный', en: 'Ancient Soldier' },
+  // Ancient (medieval) versions: Gallery only, never on a map. Named just by the boss, without «Древний»: the «Древние
+  // боссы» tab tells them apart (owner, 12.10.2026).
+  'tagilla-knight': { ru: 'Тагилла', en: 'Tagilla' },
+  'tagilla-2-knight': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
+  'reshala-knight': { ru: 'Решала', en: 'Reshala' },
+  'sanitar-knight': { ru: 'Санитар', en: 'Sanitar' },
+  'dark-knight': { ru: 'Рыцарь', en: 'Knight' },
+  'zryachiy-archer': { ru: 'Зрячий', en: 'Zryachiy' },
+  'goon-bow': { ru: 'Кочевник (лучник)', en: 'Goon (archer)' },
+  'goon-axe': { ru: 'Кочевник (топор)', en: 'Goon (axe)' },
+  'black-division-old': { ru: 'Black Division', en: 'Black Division' },
+  'ancient-soldier': { ru: 'Военный', en: 'Soldier' },
 }
 
 /** Groups that always stand together. */
