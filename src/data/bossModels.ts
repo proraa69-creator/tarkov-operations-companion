@@ -16,6 +16,8 @@ export interface BossModelFix {
   seated?: number
   /** Fit the whole scene in view (height and widest turn), centred: traders with desks, crates or a dog. */
   fit?: boolean
+  /** Black haze over the model, 0…1 (bossLook.ts `gradeBossShader`): dark, nearly grey colours, texture still seen. */
+  haze?: number
 }
 
 export const BOSS_MODEL_FIX: Record<string, BossModelFix> = {

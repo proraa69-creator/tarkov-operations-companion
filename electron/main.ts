@@ -31,7 +31,6 @@ import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDE
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { confirmStagedBoot } from './deltaUpdate.js'
-import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
 import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
@@ -127,7 +126,7 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedAppPage(url)) event.preventDefault()
   })
-  // <webview> guests (src/components/WikiMapEmbed.tsx) never get the app's preload or Node, and only the embedded hosts.
+  // The app embeds no pages: a <webview> never gets the app's preload or Node, and none attaches (trustedPages.ts).
   mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     delete webPreferences.preload
     delete (webPreferences as { preloadURL?: string }).preloadURL
@@ -245,7 +244,7 @@ app.on('web-contents-created', (_event, contents) => {
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
-    if (url.startsWith('https://tarkov.dev/') || isWikiMapHost(url)) return
+    if (url.startsWith('https://tarkov.dev/')) return
     event.preventDefault()
     void openExternalLink(url, mainWindow)
   })
@@ -319,30 +318,6 @@ function registerIpc() {
     await clearScanFrames().catch(() => 0)
     await clearGameCache()
     await mainWindow.webContents.session.clearStorageData({ storages: ['localstorage', 'indexdb', 'cachestorage', 'serviceworkers'] })
-    return true
-  })
-  ipcMain.handle('maps:open-wiki', async (_event, id: string) => {
-    const url = wikiMapUrl(id)
-    if (!url) return false
-    const wikiDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    const wikiSize = scaledWindowSize({ width: 1450, height: 950, minWidth: 0, minHeight: 0 }, displayScale(wikiDisplay), wikiDisplay.workArea)
-    const wikiWindow = new BrowserWindow({ width: wikiSize.width, height: wikiSize.height, title: 'Оригинальная карта Wiki', autoHideMenuBar: true,
-      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: 'wiki-maps' } })
-    followDisplayScale(wikiWindow)
-    wikiWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
-    wikiWindow.webContents.setWindowOpenHandler(({ url: target }) => {
-      void openExternalLink(target, wikiWindow)
-      return { action: 'deny' }
-    })
-    wikiWindow.webContents.on('will-navigate', (event, target) => {
-      let origin = ''
-      try { origin = new URL(target).origin } catch { /* refused below */ }
-      if (origin !== 'https://escapefromtarkov.fandom.com') {
-        event.preventDefault()
-        void openExternalLink(target, wikiWindow)
-      }
-    })
-    await wikiWindow.loadURL(url)
     return true
   })
   ipcMain.handle('service:request', async (_event, method: string, path: string, body: unknown) => serviceRequest(method, path, body))

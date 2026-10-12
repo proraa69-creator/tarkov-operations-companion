@@ -23,7 +23,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Бартер', 'Barter'], ['Боеприпас', 'Ammo'], ['Броня', 'Armor'], ['Еда', 'Food'], ['Инструмент', 'Tool'], ['Оружие', 'Weapon'],
   // Story chapters (src/data/storyChapters.ts)
   ['Тур', 'Tour'], ['Выбраться из Эпицентра', 'Get out of Ground Zero'],
-  ['Выйдите с Эпицентра. По Wiki — выход «Улица Климова» за «Skyside».', 'Extract from Ground Zero. Per the wiki: the “Klimov Street” exit past “Skyside”.'],
+  ['Выйдите с Эпицентра через выход «Улица Климова» за «Skyside».', 'Extract from Ground Zero through the “Klimov Street” exit past “Skyside”.'],
   ['Поговорить с Терапевтом', 'Talk to Therapist'], ['Разговор с Терапевтом в меню торговцев.', 'Talk to Therapist in the traders menu.'],
   ['Обеспечить доступ на локацию Улицы Таркова', 'Secure access to Streets of Tarkov'],
   ['Передайте Терапевту 250 000 ₽ (опционально — собрать сумму). Передача в меню торговца, точки на карте нет.', 'Hand over 250,000 ₽ to Therapist (optional: collect the sum). Done in the trader menu, no map point.'],

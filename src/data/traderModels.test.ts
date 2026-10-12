@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TRADER_SWAY_HINTS } from '../gallery/traderSwayHints'
-import { TRADER_MODEL_FIX, traderModelKey, traderModelUrl } from './traderModels'
+import { traderModelFix, traderModelKey, traderModelUrl } from './traderModels'
 
 /**
  * The traders' 3D figures (owner, 11.10.2026: «добавь 3д модели всех торговцев…», Jaeger included; 12.10.2026: Skier,
@@ -29,8 +29,11 @@ describe('trader models', () => {
     expect(traderModelKey({ name: 'Мистер Керман' })).toBeUndefined()
   })
 
-  it('fits each whole scene (desks, crates, the dog) in view', () => {
-    expect(TRADER_MODEL_FIX.fit).toBe(true)
+  it('fits each whole scene (desks, crates, the dog) in view; only Fence stands in black haze', () => {
+    for (const key of keys) {
+      expect(traderModelFix(key).fit, key).toBe(true)
+      expect(Boolean(traderModelFix(key).haze), key).toBe(key === 'fence')
+    }
   })
 
   it('moves only the open coats: Peacekeeper, Therapist and Ragman have cloth, everybody else is held still', () => {

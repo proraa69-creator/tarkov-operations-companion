@@ -58,7 +58,7 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
         }),
         rewards: english?.rewards.length ? english.rewards : quest.rewards,
         // Story stages parsed from the Russian wiki have no English source; curated ones are translated.
-        stages: quest.stages?.map((stage, index) => ({ ...stage, title: englishOr(stage.title, `Stage ${index + 1} (see the wiki)`), description: stage.description ? englishOr(stage.description, '') : stage.description })),
+        stages: quest.stages?.map((stage, index) => ({ ...stage, title: englishOr(stage.title, `Stage ${index + 1}`), description: stage.description ? englishOr(stage.description, '') : stage.description })),
         wikiLink: quest.wikiLink && !CYRILLIC.test(name) ? englishWiki(name) : quest.wikiLink,
       }
     }),

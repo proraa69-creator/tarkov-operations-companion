@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ExternalLink, Lock, Trophy, Wrench } from 'lucide-react'
+import { ArrowLeft, Check, Lock, Trophy, Wrench } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -92,9 +92,7 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
       <h4>{uiText('Награды')}</h4>
       {quest.rewards.length
         ? <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>
-        : <p className="dim">{uiText('Награды на Wiki не указаны.')}</p>}
+        : <p className="dim">{uiText('Награды не указаны.')}</p>}
     </div>
-    {/* The guide's parts table is already here (src/data/tarkovHelpGunsmith.ts, wikiGunsmith.ts): no link to the wiki then. */}
-    {quest.wikiLink && !step.builds.some((entry) => entry.guide?.parts.length) && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
   </section>
 }

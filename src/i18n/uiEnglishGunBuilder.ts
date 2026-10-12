@@ -18,7 +18,7 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Пистолеты-пулемёты', 'Submachine guns'], ['Дробовики', 'Shotguns'], ['Пулемёты', 'Machine guns'], ['Пистолеты', 'Pistols'], ['Револьверы', 'Revolvers'], ['Гранатомёты', 'Grenade launchers'],
   ['Характеристики', 'Stats'], ['против заводской', 'vs default preset'], ['Вертикальная отдача', 'Vertical recoil'], ['Горизонтальная отдача', 'Horizontal recoil'],
   ['Эргономика', 'Ergonomics'], ['Точность ≈ MOA', 'Accuracy ≈ MOA'],
-  ['Отдача: база × (1 + Σ модификаторов модулей и патрона), по вики Escape from Tarkov. Сумма модификаторов', 'Recoil: base × (1 + Σ mod and ammo modifiers), per the Escape from Tarkov wiki. Sum of modifiers'],
+  ['Отдача: база × (1 + Σ модификаторов модулей и патрона). Сумма модификаторов', 'Recoil: base × (1 + Σ mod and ammo modifiers). Sum of modifiers'],
   ['MOA — приблизительная оценка по стволу, без навыков и разброса патрона.', 'MOA is an approximation from the barrel, without skills or ammo dispersion.'],
   ['Нет данных о патронах этого калибра.', 'No ammo data for this caliber.'], ['Проб.', 'Pen.'], ['Урон броне', 'Armor damage'], ['Скорость, м/с', 'Velocity, m/s'], ['м/с', 'm/s'],
   ['Где купить', 'Where to buy'], ['Лояльность торговцев', 'Trader loyalty'], ['Барахолка доступна', 'Flea market unlocked'],

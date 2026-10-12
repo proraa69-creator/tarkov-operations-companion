@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, CheckCircle2, ExternalLink, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
@@ -188,7 +188,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       <h4>{uiText('Награды')}</h4>
       {quest.rewards.length
         ? <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>
-        : <p className="dim">{uiText('Награды на Wiki не указаны.')}</p>}
+        : <p className="dim">{uiText('Награды не указаны.')}</p>}
     </div>
 
     {next.length > 0 && <div className="detail-section">
@@ -204,7 +204,6 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
 
     <div className="detail-section stack quest-full-actions">
       {(firstMap || quest.anyMap) && <Link className="button ghost" to={`/maps/${firstMap ?? data.maps[0]?.id ?? 'customs'}?quest=${encodeURIComponent(quest.id)}`}><MapPin size={15} />{uiText(' Показать на карте')}</Link>}
-      {quest.wikiLink && <a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a>}
     </div>
   </div>
 }

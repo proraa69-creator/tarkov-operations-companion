@@ -42,20 +42,37 @@ export function applyBossLighting(renderer: WebGLRenderer, scene: Scene): () => 
 
 /** GLSL edits for the model's MeshStandardMaterial (used from an onBeforeCompile, see gradeBossMaterial). */
 export function gradeBossShader(shader: WebGLProgramParametersWithUniforms) {
+  gradeShader(shader, 0)
+}
+
+/**
+ * `h`, the black haze (BossModelFix.haze, Fence: owner, 12.10.2026 «черной, но чтобы было видно текстуру и притемненый
+ * немного, как будто дымка черная»): the colours go dark and nearly grey, so the figure reads black while the texture's
+ * folds, seams and prints stay visible, and the lit result sinks into black, more towards the silhouette, as if seen
+ * through smoke. Its own function: three.js calls onBeforeCompile(shader, renderer), the renderer is no haze.
+ */
+function gradeShader(shader: WebGLProgramParametersWithUniforms, h: number) {
+  const saturation = SATURATION * (1 - 0.8 * h)
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <map_fragment>', `#include <map_fragment>
 {
   float boss_l = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-  diffuseColor.rgb = max(mix(vec3(boss_l), diffuseColor.rgb, ${SATURATION.toFixed(3)}), 0.0);
+  diffuseColor.rgb = max(mix(vec3(boss_l), diffuseColor.rgb, ${saturation.toFixed(3)}), 0.0)${h ? ` * ${(1 - 0.62 * h).toFixed(3)}` : ''};
 }`)
     // after metalness is known: matte dielectrics, metal keeps (most of) its own roughness
     .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
 roughnessFactor = mix(${ROUGH_FLOOR.toFixed(3)} + ${(1 - ROUGH_FLOOR).toFixed(3)} * roughnessFactor, max(roughnessFactor, 0.3), metalnessFactor);`)
+  if (h) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `#include <opaque_fragment>
+{
+  float boss_edge = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.004, 0.005, 0.006), ${(0.3 * h).toFixed(3)} + ${(0.5 * h).toFixed(3)} * boss_edge * boss_edge);
+}`)
 }
 
 /** Applies the grade to a material that is not patched otherwise (the sway material chains it itself). */
-export function gradeBossMaterial(material: Material) {
-  material.onBeforeCompile = gradeBossShader
-  material.customProgramCacheKey = () => 'boss-grade'
+export function gradeBossMaterial(material: Material, haze = 0) {
+  const h = Number.isFinite(haze) ? Math.min(1, Math.max(0, haze)) : 0
+  material.onBeforeCompile = h ? (shader) => gradeShader(shader, h) : gradeBossShader
+  material.customProgramCacheKey = () => (h ? `boss-grade-haze-${h}` : 'boss-grade')
   material.needsUpdate = true
 }

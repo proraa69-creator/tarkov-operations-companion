@@ -181,7 +181,7 @@ function StatsPanel({ stats, base, cost, baseCost }: { stats: BuildStats; base?:
           {row.bar !== undefined && <span className="gb-bar"><span style={{ width: `${row.bar}%` }} /></span>}
         </div>
       })}
-      <p className="gb-footnote">{uiText('Отдача: база × (1 + Σ модификаторов модулей и патрона), по вики Escape from Tarkov. Сумма модификаторов')}: <strong>{formatModifier(stats.recoilModifierSum)}</strong>. {uiText('MOA — приблизительная оценка по стволу, без навыков и разброса патрона.')}</p>
+      <p className="gb-footnote">{uiText('Отдача: база × (1 + Σ модификаторов модулей и патрона). Сумма модификаторов')}: <strong>{formatModifier(stats.recoilModifierSum)}</strong>. {uiText('MOA — приблизительная оценка по стволу, без навыков и разброса патрона.')}</p>
     </div>
   </section>
 }

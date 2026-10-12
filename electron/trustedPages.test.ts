@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { wikiMapUrl } from '../src/data/wikiMaps'
 import { isAppPageUrl, isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages'
 
 // A portable exe unpacks to %TEMP%; the user name has a space (and may be Cyrillic).
@@ -63,9 +62,9 @@ describe('links opened in the system browser (setWindowOpenHandler)', () => {
 })
 
 describe('<webview> attach (will-attach-webview)', () => {
-  it('allows the embedded wiki maps over HTTPS only', () => {
-    expect(isEmbeddableWebviewUrl(wikiMapUrl('customs')!)).toBe(true)
-    expect(isEmbeddableWebviewUrl(wikiMapUrl('shoreline', 'm1')!)).toBe(true)
+  it('attaches none: the app embeds no outside pages', () => {
+    expect(isEmbeddableWebviewUrl('https://escapefromtarkov.fandom.com/ru/wiki/x')).toBe(false)
+    expect(isEmbeddableWebviewUrl('https://tarkov.dev/map/customs')).toBe(false)
     expect(isEmbeddableWebviewUrl('http://escapefromtarkov.fandom.com/ru/wiki/x')).toBe(false)
     expect(isEmbeddableWebviewUrl('https://escapefromtarkov.fandom.com.evil.com/')).toBe(false)
     expect(isEmbeddableWebviewUrl('https://evil.fandom.com/')).toBe(false)

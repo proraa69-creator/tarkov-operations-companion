@@ -8,6 +8,12 @@
 .trader-figure-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; outline: none; }
 .trader-figure-stage canvas:active { cursor: grabbing; }
 .trader-figure-stage canvas.is-hidden { visibility: hidden; }
+/* Fence in black haze: the smoke settles at his feet and closes in at the edges (the model itself is darkened in its
+   shader, bossLook.ts); it never takes the pointer from the canvas. */
+.trader-figure.is-hazy .trader-figure-stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 58% 62% at 50% 46%, transparent 52%, rgb(0 0 0 / 42%) 100%),
+    linear-gradient(to top, rgb(0 0 0 / 50%), rgb(0 0 0 / 14%) 26%, transparent 46%); }
 .trader-figure-status { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 .trader-figure-status.is-error { color: var(--danger); }
 .trader-figure-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px 12px; border-top: 1px solid var(--line); }

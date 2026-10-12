@@ -6,7 +6,7 @@ describe('external links (L1)', () => {
   it('opens known sites at once', () => {
     for (const url of [
       'https://raidos.app/cabinet', 'https://www.raidos.app/', 'https://tarkov.dev/task/x', 'https://assets.tarkov.dev/a.png',
-      'https://t.me/raidosapp', 'https://t.me/other', 'https://escapefromtarkov.fandom.com/wiki/Killa',
+      'https://t.me/raidosapp', 'https://t.me/other',
       'https://github.com/proraa69-creator/tarkov-operations-companion/issues', 'https://github.com/proraa69-creator',
       'https://vk.com/metadvij', 'https://www.youtube.com/watch?v=1', 'https://youtu.be/1', 'https://yoomoney.ru/checkout/payments/v2/contract',
       'https://timesaver.gg/blog/tarkov-reshala-boss-guide', 'https://eft.su/b/killa/en',
@@ -17,6 +17,8 @@ describe('external links (L1)', () => {
   it('asks first for any other https page, look-alikes and other local addresses', () => {
     for (const url of [
       'https://evil.example/', 'https://raidos.app.evil.example/', 'https://evilraidos.app/', 'https://other.fandom.com/wiki/x',
+      // The app links to no wiki (owner, 12.10.2026): a wiki page is shown to the player first like any other site.
+      'https://escapefromtarkov.fandom.com/wiki/Killa',
       'https://github.com/someone-else/repo', 'https://github.com/proraa69-creatorX', 'https://vk.com/metadvijx', 'https://vk.com/somebody',
       'https://user:pass@raidos.app/', 'https://raidos.app:8443/', 'http://127.0.0.1:8787/v1/admin', 'http://localhost:9000/',
     ]) expect([url, externalLinkPolicy(url)]).toEqual([url, 'confirm'])

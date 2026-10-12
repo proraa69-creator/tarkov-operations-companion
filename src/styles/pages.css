@@ -153,9 +153,9 @@
 .map-stage { position: relative; min-width: 0; background: var(--surf-0); }
 .map-canvas-keyboard { width: 100%; height: 100%; }
 .map-stage-embed { background: #151515; }
-.wiki-map-shell, .tarkov-dev-map-shell { position: absolute; inset: 0; }
-.wiki-map, .tarkov-dev-map { display: flex; width: 100%; height: 100%; border: 0; }
-.wiki-map-loading, .tarkov-dev-map-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: #b6c0b8; background: #151515; font-size: 13px; letter-spacing: .04em; }
+.tarkov-dev-map-shell { position: absolute; inset: 0; }
+.tarkov-dev-map { display: flex; width: 100%; height: 100%; border: 0; }
+.tarkov-dev-map-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: #b6c0b8; background: #151515; font-size: 13px; letter-spacing: .04em; }
 .quest-map-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px 10px; margin-top: 8px; width: 100%; }
 .quest-map-row-main { min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .quest-map-pin { width: 32px; height: 32px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px; background: #18231d; color: var(--brass); cursor: pointer; display: grid; place-items: center; }

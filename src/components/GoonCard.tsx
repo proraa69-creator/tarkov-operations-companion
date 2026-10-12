@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { GOON_MAPS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
+import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
 import type { RaidMode } from '../domain/types'
 import './goonCard.css'
 
@@ -15,6 +15,7 @@ const NOTICE: Record<GoonReportResult, string> = {
   sent: 'Отметка отправлена',
   duplicate: 'Вы уже отмечали эту карту',
   unsent: 'Не отправлено · сохранено локально',
+  later: 'Слишком часто: отметка уйдёт сама через минуту',
   local: 'Сохранено только на этом компьютере',
   signin: 'Войдите в аккаунт, чтобы отметить',
   nickname: 'Ник появится, когда приложение прочитает логи игры',
@@ -118,6 +119,8 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const lastSeen = stats.reduce<string | null>((latest, row) => !latest || row.lastAt > latest ? row.lastAt : latest, null) ?? location?.reportedAt ?? null
   const connectionNote = connection === 'offline' ? 'сервер недоступен' : connection === 'local-only' ? 'локальный режим' : 'обновление каждые 30 с'
 
+  // An unsent sighting goes again with every refresh for a while (spam protection, a short outage): «отправится позже».
+  const resending = Boolean(location?.unsent && connection !== 'local-only' && now - Date.parse(location.reportedAt) < GOON_RETRY_UNSENT_MS)
   const meta = notice
     ? uiText(NOTICE[notice])
     : location
@@ -150,7 +153,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
     {/* A new value remounts (key) so it slides up into place. */}
     <div className="stat-value goon-map-value"><span key={location?.mapId ?? 'none'} className="goon-rise">{uiText(location ? mapName(location.mapId) : 'Нет данных')}</span></div>
     <div className={`stat-meta goon-meta ${location?.unsent && !notice ? 'is-unsent' : ''}`} aria-live="polite">
-      <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText('не отправлено')}</em>}
+      <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText(resending ? 'отправится позже' : 'не отправлено')}</em>}
     </div>
 
     <div ref={statsRef} className="goon-stats-popover" aria-hidden="true">

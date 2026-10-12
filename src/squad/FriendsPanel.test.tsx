@@ -54,7 +54,8 @@ describe('FriendsPanel: the friend\'s colour and info', () => {
     expect(pve).toHaveTextContent('17')
     expect(pve).toHaveTextContent('Без престижа')
     expect(within(dialog).getByText('Сезон').closest('.friend-info-mode')).toHaveTextContent('нет данных')
-    expect(dialog).toHaveTextContent('tarkov.dev')
+    // No note under the modes (owner, 12.10.2026: «убери нижнюю надпись»).
+    expect(dialog).not.toHaveTextContent('tarkov.dev')
 
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
