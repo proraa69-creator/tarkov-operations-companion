@@ -20,8 +20,8 @@ const TEXT = {
     fairEyebrow: 'И главное', fairTitle: 'Raid OS не нарушает правила игры',
     fairRows: ['Не внедряется в игру', 'Не читает её память', 'Не меняет её файлы', 'Ничего не делает за тебя'],
     tag1: 'Меньше вкладок,', tag2: 'больше рейдов.', download: 'Скачать для Windows', soonPhones: 'Скоро — на iPhone и Android',
-    // As on the site's «О нас» page (website/src/pages/AboutPage.tsx), word for word.
-    disclaimer: ['Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games Limited.', 'Проект не связан с Battlestate Games, не одобрен и не спонсируется ею.', 'Все игровые материалы принадлежат их правообладателям.'],
+    // The site's «О нас» wording (website/src/pages/AboutPage.tsx) without «не одобрен», as the owner asked.
+    disclaimer: ['Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games Limited.', 'Проект не связан с Battlestate Games и не спонсируется ею.', 'Все игровые материалы принадлежат их правообладателям.'],
   },
   en: {
     introSub: 'The companion app for <em>Escape from Tarkov</em>',
@@ -29,7 +29,7 @@ const TEXT = {
     fairEyebrow: 'Most importantly', fairTitle: 'Raid OS doesn’t break the game’s rules',
     fairRows: ['Doesn’t inject into the game', 'Doesn’t read its memory', 'Doesn’t change its files', 'Doesn’t play for you'],
     tag1: 'Fewer tabs,', tag2: 'more raids.', download: 'Download for Windows', soonPhones: 'Soon on iPhone and Android',
-    disclaimer: ['Unofficial fan project. Escape from Tarkov is a trademark of Battlestate Games Limited.', 'This project is not affiliated with, endorsed or sponsored by Battlestate Games.', 'All game materials belong to their respective owners.'],
+    disclaimer: ['Unofficial fan project. Escape from Tarkov is a trademark of Battlestate Games Limited.', 'This project is not affiliated with or sponsored by Battlestate Games.', 'All game materials belong to their respective owners.'],
   },
 }
 // Phrase starts inside the voice clips (seconds from the clip start), from silencedetect at -34 dB / 70 ms.
