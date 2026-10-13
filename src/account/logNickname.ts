@@ -14,6 +14,7 @@ import type { ModeSelectCard, TraderScreenReading } from '../import/modeSelectSc
 import { screenNickname } from '../import/modeSelectScreen'
 import type { LocalProfile, PlayerProfileSnapshot, RaidMode } from '../domain/types'
 import { canResolvePlayerProfiles, desktopPlayerProfileGateway } from '../profile/playerProfileGateway'
+import { readManualTraderLevels, setManualTraderLevel } from '../gunsmith/traderLevels'
 import { currentServerStatus } from '../sync/serverSync'
 import { accountNickname, cleanNickname, NICKNAME_PATTERN, profileNickname, RAID_MODE_ORDER, renameBoundModes, saveNicknameOnServer } from './nicknameBinding'
 
@@ -217,9 +218,16 @@ let lastTrader: { at: number; key: string } | null = null
 
 /**
  * The traders' screen (two readings agreed, electron/screenOcr.ts): the level of the mode the game is in now (`mode`, from
- * the logs; nothing without it) — raised only, it does not name its mode — and the player's nickname marked «(вы)».
+ * the logs; nothing without it) — raised only, it does not name its mode — the player's nickname marked «(вы)» and the
+ * traders' loyalty levels.
  */
 export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode | undefined, observedAt: number, state: () => LogNicknameTarget) {
+  // The traders' loyalty levels of the mode the game is in (the badges on the portraits): the game's own, so they win
+  // over the app's estimate (src/gunsmith/traderLevels.ts) — written only when they differ.
+  if (mode && reading.loyalty) {
+    const stored = readManualTraderLevels(mode)
+    for (const [trader, level] of Object.entries(reading.loyalty)) if (stored[trader] !== level) setManualTraderLevel(mode, trader, level)
+  }
   const key = `${mode ?? ''}:${reading.level ?? ''}:${reading.nickname ?? ''}`
   if (lastTrader && lastTrader.key === key && observedAt - lastTrader.at < 10 * 60_000) return
   lastTrader = { at: observedAt, key }

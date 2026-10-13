@@ -66,6 +66,11 @@ function readStored(): Stored {
   return snapshot.value
 }
 
+/** The levels set for a mode (by the player or read from the game's traders' screen), by trader key. */
+export function readManualTraderLevels(mode: RaidMode): Record<string, number> {
+  return { ...(readStored()[mode] ?? {}) }
+}
+
 /** The player's own level for a trader in a mode; `null` clears it (back to the estimate). */
 export function setManualTraderLevel(mode: RaidMode, key: string, level: number | null) {
   const stored = readStored()
