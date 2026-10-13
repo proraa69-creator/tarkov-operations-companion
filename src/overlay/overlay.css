@@ -251,3 +251,6 @@ html.overlay-minimap #root > * { flex: none; }
 /* In-raid item card: «НЕ ПРОДАВАТЬ» badge. */
 .eft-keep { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; margin: 6px 10px 0; padding: 5px 8px; border: 1px solid #8a3a2f; border-radius: 4px; color: #ffd9cf; background: rgb(110 32 22 / 78%); font-size: 11px; line-height: 1.3; }
 .eft-keep strong { color: #fff; letter-spacing: .08em; }
+
+/* Why the player's dot cannot come (src/overlay/positionReadiness.ts): one line under the header, readable over the game. */
+.ov-hint { margin: 0; padding: 6px 10px; border-bottom: 1px solid rgb(255 196 92 / 35%); background: rgb(40 28 8 / 88%); color: #ffd28a; font-size: 12px; line-height: 1.35; }

@@ -116,6 +116,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     onCheckProgress: (callback) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
     openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),
+    fixSnipping: () => ipcRenderer.invoke('experimental:fix-snipping'),
     answer: (id, payload) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback) => subscribe('experimental:query', callback),
     onPosition: (callback) => subscribe('experimental:position', callback),
@@ -127,7 +128,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   overlayHold: (held) => ipcRenderer.send('overlay:hold', Boolean(held)),
   overlayZones: (zones) => ipcRenderer.send('overlay:zones', zones),
   onOverlay: (channel, callback) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return () => {}
+    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)
     ipcRenderer.send('overlay:subscribe', channel)
     return unsubscribe

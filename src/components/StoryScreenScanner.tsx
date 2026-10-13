@@ -5,7 +5,7 @@ import { confirmStoryFrame, isStoryMenuText, matchStoryChapters, type StoryConfi
 import { isTasksMenuText } from '../import/screenScanSync'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
-import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { quietScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
 
 /** Game open, but not on the story pane: look again every few seconds. */
@@ -60,6 +60,8 @@ export function StoryScreenScanner() {
       let confirmation: StoryConfirmation | null = null
       let lastContext = ''
       let contextStartedAt = Date.now()
+      /** Looks in a row at the game showing no screen read here (quietScanDelay). */
+      let quiet = 0
       while (!cancelled) {
         let delay: number = IDLE_MS
         if (!inRaid) {
@@ -92,7 +94,11 @@ export function StoryScreenScanner() {
               await wait(IDLE_MS)
               continue
             }
-            if (frame?.gameWindow) delay = MENU_CHECK_MS
+            if (frame?.gameWindow) {
+              const known = Boolean(frame.story || frame.profiles?.length || frame.trader || isStoryMenuText(frame.text) || isTasksMenuText(frame.text))
+              quiet = known ? 0 : quiet + 1
+              delay = known ? MENU_CHECK_MS : quietScanDelay(quiet)
+            } else quiet = 0
             // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
             if (frame?.gameWindow && !inRaid && (frame.story || isStoryMenuText(frame.text))) {
               delay = STORY_PANE_MS

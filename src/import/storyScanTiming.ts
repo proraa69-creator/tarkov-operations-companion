@@ -1,5 +1,15 @@
 /** Two fresh readings within 10 seconds when each OCR pass takes at most 3 seconds. */
-export const STORY_SCAN_TIMING = { menuMs: 1200, storyMs: 600, idleMs: 1500, rereadDetailMs: 1000, rereadMenuMs: 1800, screenshotMaxAgeMs: 10_000, stableReuseMs: 20_000 } as const
+export const STORY_SCAN_TIMING = { menuMs: 1200, storyMs: 600, idleMs: 1500, quietMaxMs: 4000, rereadDetailMs: 1000, rereadMenuMs: 1800, screenshotMaxAgeMs: 10_000, stableReuseMs: 20_000 } as const
+
+/**
+ * The game is in front but shows none of the screens read here (a raid the logs did not report, the stash, a loading
+ * screen): every such look waits longer — 1.2 s, then ×1.6 up to 4 s — so a raid costs a screen copy every few seconds
+ * instead of almost every second (players, 14.10.2026: «Micro freezes», «мышь дёргается»). A recognised screen (story
+ * pane, tasks, mode select, traders) brings back the quick pace.
+ */
+export function quietScanDelay(quietLooks: number) {
+  return Math.min(STORY_SCAN_TIMING.quietMaxMs, Math.round(STORY_SCAN_TIMING.menuMs * Math.pow(1.6, Math.max(0, quietLooks - 1))))
+}
 
 export function reuseQuestReading(previous: { at: number; detail: boolean } | null, now: number, detail: boolean, same: boolean) {
   return Boolean(previous && same && previous.detail === detail && now >= previous.at

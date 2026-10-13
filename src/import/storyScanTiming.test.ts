@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { reuseQuestReading, reuseStableReading, STORY_SCAN_TIMING as timing, unchangedFrame } from './storyScanTiming'
+import { quietScanDelay, reuseQuestReading, reuseStableReading, STORY_SCAN_TIMING as timing, unchangedFrame } from './storyScanTiming'
 
 describe('fast but fresh story scans', () => {
+  it('looks at a game that shows no known screen less and less often, at most every four seconds', () => {
+    expect(quietScanDelay(0)).toBe(timing.menuMs)
+    expect(quietScanDelay(1)).toBe(timing.menuMs)
+    expect(quietScanDelay(2)).toBeGreaterThan(timing.menuMs)
+    expect(quietScanDelay(3)).toBeGreaterThan(quietScanDelay(2))
+    expect(quietScanDelay(50)).toBe(timing.quietMaxMs)
+    // A raid the logs miss: about one screen copy every 4 s after the first few looks.
+    expect(timing.quietMaxMs).toBeLessThanOrEqual(4000)
+  })
   it('budgets two independent OCR passes under ten seconds at three seconds per pass', () => {
     expect(timing.idleMs + 3000 + timing.storyMs + 3000).toBeLessThan(10_000)
   })

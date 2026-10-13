@@ -10,6 +10,7 @@ import { planMapLayers, resolveMapView } from '../data/mapView'
 import { PLAYER_FLOOR_HINT, useAutoFloor } from '../data/useAutoFloor'
 import type { GameMap, MapView } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
+import { POSITION_PROBLEM_TEXT, type PositionProblem } from './positionReadiness'
 import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
 import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
@@ -95,6 +96,8 @@ const LOCAL_EDIT_HOLD_MS = 1500
 function MinimapOverlay() {
   const [payload, setPayload] = useState<MinimapPayload | null>(null)
   const [position, setPosition] = useState<PlayerPosition | null>(null)
+  /** What stops the player's dot (positionReadiness.ts), sent by the app when the minimap opens; null when nothing. */
+  const [hint, setHint] = useState<PositionProblem | null>(null)
   const [opacity, setOpacity] = useState(0.9)
   const [width, setWidth] = useState(420)
   /** The chosen quest and which of its rooms (or the whole map) its button showed last. */
@@ -117,7 +120,8 @@ function MinimapOverlay() {
     const offVisibility = window.tarkovDesktop?.onOverlay?.('overlay:visibility', visible => {
       if (visible) setVisibilityRevision(value => value + 1)
     })
-    return () => { offMap?.(); offPosition?.(); offVisibility?.() }
+    const offHint = window.tarkovDesktop?.onOverlay?.('overlay:hint', (next) => setHint(isPositionProblem(next) ? next : null))
+    return () => { offMap?.(); offPosition?.(); offVisibility?.(); offHint?.() }
   }, [])
 
   // «Этаж по скриншоту»: each new screenshot shows the player's floor; a floor clicked here stays until the next one
@@ -184,6 +188,7 @@ function MinimapOverlay() {
         <PositionAge at={position?.at ?? null} />
         <button className="ov-icon-button" type="button" title={uiText('Скрыть мини-карту')} aria-label={uiText('Скрыть мини-карту')} onClick={() => void window.tarkovDesktop?.experimental?.toggleMinimap()}><X size={14} /></button>
       </div>
+      {hint && !position && <p className="ov-hint" role="status">{uiText(POSITION_PROBLEM_TEXT[hint].short)}</p>}
       <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} view={view} floor={floor} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} questId={selectedQuest} questSeq={questCycle.seq} target={target} />
       {floors.length > 1 && (
         <div className="ov-floor-list ov-interactive" role="group" aria-label={uiText('Этаж карты')}>
@@ -544,4 +549,8 @@ function PlayerMarker({ position, style, followDisabled, keepZoom }: { position:
   const icon = useMemo(() => divIcon({ className: 'ov-player', html: playerMarkerSvg(style, angle), iconSize: [20, 20], iconAnchor: [10, 10] }), [angle, style])
 
   return latLngValue ? <Marker position={latLngValue} icon={icon} interactive={false} zIndexOffset={1000} /> : null
+}
+
+function isPositionProblem(value: unknown): value is PositionProblem {
+  return typeof value === 'string' && value in POSITION_PROBLEM_TEXT
 }

@@ -249,6 +249,17 @@ export function runElevated(file: string, params: string, dir: string) {
 }
 
 /**
+ * Turns off «Use the Print screen key to open screen capture» for this Windows user (HKCU, no administrator rights),
+ * only on the player's click («Включить точку» on the Mini Map page). Windows' own keyboard settings switch it back.
+ */
+export function disablePrintScreenSnipping(): Promise<boolean> {
+  if (process.platform !== 'win32') return Promise.resolve(false)
+  return new Promise((resolve) => {
+    execFile('reg', ['add', 'HKCU\\Control Panel\\Keyboard', '/v', 'PrintScreenKeyForSnippingEnabled', '/t', 'REG_DWORD', '/d', '0', '/f'], { windowsHide: true, timeout: 4000 }, (error) => resolve(!error))
+  })
+}
+
+/**
  * Whether Windows opens the Snipping Tool on PrtSc (and so keeps the key from the game). The value is
  * missing until the player changes the setting; Windows 11 then does it by default, Windows 10 does not.
  */
@@ -341,7 +352,6 @@ export async function pressKeys(strokes: KeyStroke[], holdMs = 60) {
 }
 
 const SRCCOPY = 0x00cc0020
-const CAPTUREBLT = 0x40000000
 
 /**
  * A copy of a screen area (physical pixels) as top-down BGRA — a few milliseconds, against hundreds for a
@@ -357,7 +367,9 @@ export function captureScreenRegion(x: number, y: number, width: number, height:
   const bitmap = memoryDC ? gdi.createCompatibleBitmap(screenDC, width, height) : null
   const previous = memoryDC && bitmap ? gdi.selectObject(memoryDC, bitmap) : null
   try {
-    if (!memoryDC || !bitmap || !gdi.bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY | CAPTUREBLT)) return null
+    // Plain SRCCOPY: CAPTUREBLT (layered windows too) hides and shows the cursor around every copy — the cursor flickered
+    // with each scan — and only adds our own overlays to the picture.
+    if (!memoryDC || !bitmap || !gdi.bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY)) return null
     // GetDIBits wants the bitmap unselected.
     gdi.selectObject(memoryDC, previous)
     const data = new Uint8Array(width * height * 4)

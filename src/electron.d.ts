@@ -241,6 +241,8 @@ interface TarkovDesktopApi {
     relaunchAsAdmin: () => Promise<boolean>
     /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
     openKeyboardSettings: () => Promise<boolean>
+    /** «Включить точку»: turns off «PrtSc opens the Snipping Tool» for this Windows user; the new state. */
+    fixSnipping: () => Promise<{ ok: boolean; snipping: 'on' | 'off' | 'unknown' }>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
@@ -261,6 +263,8 @@ interface TarkovDesktopApi {
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
     (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
     (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
+    /** What stops the player's dot (src/overlay/positionReadiness.ts); null when nothing. Checked again on arrival. */
+    (channel: 'overlay:hint', callback: (problem: unknown) => void): () => void
   }
 }
 
