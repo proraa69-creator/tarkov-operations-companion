@@ -283,6 +283,8 @@ export interface AdminUser {
   autopay: { provider: string; status: string; plan: string } | null
   /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
+  /** The bound Escape from Tarkov account, masked (one game account — one Raid OS account; servers before 13.10.2026 omit it). */
+  eftAccount?: { masked: string; boundAt: string }
 }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
 export interface AdminDevice { id: string; name: string; createdAt: string; lastSeenAt: string; active: boolean; revokedAt?: string; revokedReason?: 'limit' | 'owner' | 'user' }
@@ -441,6 +443,7 @@ export const api = {
   adminCancelAutopay: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/cancel-autopay`, { method: 'POST', token, body: {} }),
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
+  adminUnbindEft: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/eft-account/unbind`, { method: 'POST', token, body: {} }),
   adminDevices: (token: string, id: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices`, { token }),
   adminRevokeDevice: (token: string, id: string, deviceId: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST', token, body: {} }),
   adminStreamerSettings: (token: string) => request<AdminStreamerSettings>('/me/admin/streamer-settings', { token }),

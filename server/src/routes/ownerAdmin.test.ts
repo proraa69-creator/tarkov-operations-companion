@@ -227,6 +227,29 @@ test('blocking revokes sessions, refuses login with 403 and cannot target the ow
   } finally { await t.close() }
 })
 
+test('«Отвязать аккаунт Escape from Tarkov»: shown masked in the user, freed by the owner, logged (owner, 13.10.2026)', async () => {
+  const t = await setup()
+  try {
+    const player = await t.register('player@example.com')
+    const owner = await t.login('owner@example.com')
+    assert.equal((await t.call('POST', '/accounts/me/eft-account', player, { accountId: '7654321' })).status, 200)
+    const users = ((await t.call('GET', '/accounts/me/admin/users', owner)).json as unknown as { users: Array<{ id: string; email: string; eftAccount?: { masked: string } }> }).users
+    const listed = users.find((user) => user.email === 'player@example.com')!
+    assert.equal(listed.eftAccount?.masked, '••••321')
+    assert.equal(users.find((user) => user.email === 'owner@example.com')!.eftAccount, undefined)
+    // Nobody but the owner.
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${listed.id}/eft-account/unbind`, player)).status, 404)
+    const freed = await t.call('POST', `/accounts/me/admin/users/${listed.id}/eft-account/unbind`, owner)
+    assert.equal(freed.status, 200)
+    assert.equal((freed.json as unknown as { user: { eftAccount?: unknown } }).user.eftAccount, undefined)
+    // The game account is free: another account can take it.
+    const other = await t.register('other@example.com')
+    assert.equal((await t.call('POST', '/accounts/me/eft-account', other, { accountId: '7654321' })).status, 200)
+    const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string }> }).entries
+    assert.deepEqual(actions.map((entry) => [entry.action, entry.target]), [['eft.unbind', 'player@example.com']])
+  } finally { await t.close() }
+})
+
 test('statistics: users, revenue by provider and plan per day / month, payouts, filters and CSV', async () => {
   const t = await setup()
   try {

@@ -1,4 +1,4 @@
-import { Ban, CalendarMinus, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
 import { useAuth } from '../../auth'
@@ -197,6 +197,19 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
             )}
           </div>
           {user.owner && <span className="field-hint">Аккаунт владельца заблокировать нельзя.</span>}
+        </div>
+        {/* One Escape from Tarkov account — one Raid OS account (owner, 13.10.2026): a player who changed game accounts
+            writes to support, the owner frees the old one here. */}
+        <div className="admin-action">
+          <div className="field-label"><Gamepad2 size={13} aria-hidden="true" />Аккаунт Escape from Tarkov</div>
+          {user.eftAccount
+            ? <span className="field-hint">Привязан <span className="mono">{user.eftAccount.masked}</span> с {dateTime.format(new Date(user.eftAccount.boundAt))}. Другие аккаунты Raid OS с ним не откроются, а этот — с другим аккаунтом игры.</span>
+            : <span className="field-hint">Не привязан: приложение для Windows привяжет аккаунт игры из логов при входе.</span>}
+          {user.eftAccount && (
+            <div className="admin-chips">
+              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отвязать аккаунт Escape from Tarkov ${user.eftAccount!.masked} от ${user.email}? Приложение привяжет аккаунт игры заново при следующем входе.`)) void run('eft', (t) => api.adminUnbindEft(t, id), () => 'Аккаунт Escape from Tarkov отвязан') }}>{busy === 'eft' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Unlink aria-hidden="true" />}Отвязать</button>
+            </div>
+          )}
         </div>
       </div>
       {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}

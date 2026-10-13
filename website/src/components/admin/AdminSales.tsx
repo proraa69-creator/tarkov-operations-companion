@@ -72,6 +72,7 @@ const ACTION_LABEL: Record<string, string> = {
   'account.block': 'Заблокирован вход',
   'account.unblock': 'Разблокирован вход',
   'sessions.revoke': 'Сброшены сессии',
+  'eft.unbind': 'Отвязан аккаунт Escape from Tarkov',
   'streamer.percent': 'Доля стримера',
   'streamer.link': 'Ссылка стримера',
   'streamer.revoke': 'Снят статус стримера',

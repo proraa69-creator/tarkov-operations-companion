@@ -18,6 +18,7 @@
  *   POST /me/admin/users/:id/block           { reason? }               -> { user, … } (sessions revoked, login 403)
  *   POST /me/admin/users/:id/unblock                                   -> { user, … }
  *   POST /me/admin/users/:id/revoke-sessions                           -> { revoked, user, … }
+ *   POST /me/admin/users/:id/eft-account/unbind                        -> { user, … } (the bound Escape from Tarkov account is freed)
  *   GET  /me/admin/streamer-settings                 -> { defaultPercent, streamers: [{ code, email, percent, custom, linkEnabled }] }
  *   PUT  /me/admin/streamers/:code/percent   { percent: 0–100 | null } -> streamer settings
  *   PUT  /me/admin/streamers/:code/link      { enabled: boolean }      -> streamer settings
@@ -169,6 +170,7 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }))
   router.post('/me/admin/users/:id/unblock', owner('write', (req, res, actor) => { res.json(admin.setBlocked(actor, idSchema.parse(req.params.id), false)) }))
   router.post('/me/admin/users/:id/revoke-sessions', owner('write', (req, res, actor) => { res.json(admin.revokeSessions(actor, idSchema.parse(req.params.id))) }))
+  router.post('/me/admin/users/:id/eft-account/unbind', owner('write', (req, res, actor) => { res.json(admin.unbindEftAccount(actor, idSchema.parse(req.params.id))) }))
 
   router.get('/me/admin/streamer-settings', owner('read', (_req, res) => { res.json(admin.streamerSettings()) }))
   router.put('/me/admin/streamers/:code/percent', owner('write', (req, res, actor) => {

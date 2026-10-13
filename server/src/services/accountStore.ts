@@ -195,6 +195,26 @@ export function eftDigest(eftAccountId: string) {
 
 /** The answer when the game account already belongs to another Raid OS account. */
 export const EFT_IN_USE_MESSAGE = 'Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.'
+/** The answer when this Raid OS account is bound to another game account than the one the logs show. */
+export const EFT_OTHER_MESSAGE = 'К этому аккаунту Raid OS привязан другой аккаунт Escape from Tarkov.'
+
+/**
+ * Why a device may not use an account (owner, 13.10.2026: one game account — one Raid OS account, both ways):
+ * `in-use` — the game account in its logs belongs to another Raid OS account; `other-account` — this Raid OS account
+ * is bound to another game account. `seen` / `bound`: the game accounts, masked (••••123).
+ */
+export interface EftBlock { kind: 'in-use' | 'other-account'; seen: string; bound?: string }
+
+export class EftConflictError extends AccountError {
+  constructor(readonly block: EftBlock) {
+    super(409, block.kind === 'in-use' ? EFT_IN_USE_MESSAGE : EFT_OTHER_MESSAGE)
+  }
+}
+
+/** The 403 of an entitlement or paid-data request from a device that eftBlock refuses (the app shows its own screen). */
+export function eftConflictBody(block: EftBlock) {
+  return { error: block.kind === 'in-use' ? EFT_IN_USE_MESSAGE : EFT_OTHER_MESSAGE, code: 'eft_conflict', conflict: block.kind, seen: block.seen, ...(block.bound ? { bound: block.bound } : {}) }
+}
 
 /**
  * The canonical form of an e-mail for anti-abuse checks (never for sign-in): lowercase, «+tag» dropped, and for
@@ -332,13 +352,29 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS trial_claims_device ON trial_claims(device_id);
   CREATE INDEX IF NOT EXISTS trial_claims_account ON trial_claims(account_id);
   -- The Escape from Tarkov account of a Raid OS account: the AccountId the desktop app reads from the game logs, kept as
-  -- a digest (eftDigest) and its last digits. One game account belongs to one Raid OS account at a time («Пригласи
-  -- друга» counts one friend per game account, services/invites.ts). Deleted with the account.
+  -- a digest (eftDigest) and its last digits. One game account belongs to one Raid OS account and one Raid OS account
+  -- to one game account (owner, 13.10.2026; bindEftAccount, eftBlock); «Пригласи друга» counts one friend per game
+  -- account (services/invites.ts). Deleted with the account; the owner can unbind it (unbindEftAccount).
   CREATE TABLE IF NOT EXISTS eft_accounts (
     account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
     eft_digest TEXT NOT NULL UNIQUE,
     eft_hint TEXT NOT NULL,
     bound_at INTEGER NOT NULL);
+  -- The game account each app device of an account saw last in its logs (bindEftAccount; the device is the one the
+  -- reporting session registered). eftBlock checks it on every entitlement and paid-data request. Deleted with the account.
+  CREATE TABLE IF NOT EXISTS eft_reports (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL,
+    eft_digest TEXT NOT NULL,
+    eft_hint TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, device_id));
+  -- Game accounts that already had a free period: one free period per game account (owner, 13.10.2026). No foreign key
+  -- and never purged by deleteAccount(), like trial_claims.
+  CREATE TABLE IF NOT EXISTS eft_trial_claims (
+    eft_digest TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    at INTEGER NOT NULL);
 `
 
 /**
@@ -441,6 +477,10 @@ export class AccountStore {
     for (const row of this.db.prepare("SELECT id, email, referred_at FROM accounts WHERE referred_at IS NOT NULL AND trial_denied IS NULL AND deleted_at IS NULL AND kind = 'user' AND NOT EXISTS (SELECT 1 FROM trial_claims c WHERE c.account_id = accounts.id)").all() as Row[]) {
       this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, NULL, ?, ?)').run(trialEmailDigest(String(row.email)), String(row.id), Number(row.referred_at))
     }
+    // Game accounts bound before «one free period per game account» (owner, 13.10.2026): those whose account had one.
+    this.db.exec(`INSERT OR IGNORE INTO eft_trial_claims (eft_digest, account_id, at)
+      SELECT e.eft_digest, e.account_id, e.bound_at FROM eft_accounts e JOIN accounts a ON a.id = e.account_id
+      WHERE a.trial_ends_at IS NOT NULL AND a.trial_denied IS NULL`)
   }
 
   /** The shared database handle (the owner's admin panel reads statistics from it, services/adminStore.ts). */
@@ -643,22 +683,94 @@ export class AccountStore {
   }
 
   /**
-   * The game account found in this player's Escape from Tarkov logs (sent by the desktop app): bound to this account.
-   * Another game account later replaces it. A game account another working Raid OS account already holds is refused
-   * (409, EFT_IN_USE_MESSAGE): one game account — one Raid OS account, so a second registration cannot reuse it.
+   * The game account found in this player's Escape from Tarkov logs (sent by the desktop app after every log scan).
+   * One game account — one Raid OS account, both ways, decided here from the bindings whatever the PC keeps (owner,
+   * 13.10.2026: «не войдешь в один аккаунт Таркова двумя аккаунтами RAID OS», nor into this account with another game
+   * account). A free game account binds to an account that has none; a game account another Raid OS account holds
+   * (EFT_IN_USE_MESSAGE) and, for a bound account, any other game account (EFT_OTHER_MESSAGE) are refused with 409.
+   * Allowed or not, the report is kept for the device of this session (`sessionDigest`): eftBlock then refuses that
+   * device the entitlement and the paid data until it reports a game account that fits. The owner's accounts are never
+   * refused, and a game account an owner account holds refuses nobody: the owner tests the players' app on his own PC.
+   * A free period goes to one Raid OS account per game account (eft_trial_claims, kept after «Удалить аккаунт»).
    * The logs are the player's own; this keeps honest players apart, it is not proof against a forged request.
    */
-  bindEftAccount(accountId: string, eftAccountId: string) {
+  bindEftAccount(accountId: string, eftAccountId: string, sessionDigest?: string) {
     const account = this.mustGet(accountId)
     if (!/^\d{3,12}$/.test(eftAccountId)) throw new AccountError(400, 'Неверный идентификатор аккаунта Escape from Tarkov')
     const digest = eftDigest(eftAccountId)
-    const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
-    if (holder && String(holder.account_id) !== account.id) throw new AccountError(409, EFT_IN_USE_MESSAGE)
-    if (!holder) {
-      this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET eft_digest = excluded.eft_digest, eft_hint = excluded.eft_hint, bound_at = excluded.bound_at')
-        .run(account.id, digest, eftAccountId.slice(-3), this.now())
+    const hint = eftAccountId.slice(-3)
+    const device = sessionDigest ? this.deviceOfSession(account.id, sessionDigest) : undefined
+    if (device) {
+      this.db.prepare('INSERT INTO eft_reports (account_id, device_id, eft_digest, eft_hint, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(account_id, device_id) DO UPDATE SET eft_digest = excluded.eft_digest, eft_hint = excluded.eft_hint, at = excluded.at')
+        .run(account.id, device, digest, hint, this.now())
     }
-    return this.eftAccountOf(account.id)!
+    const block = this.eftRule(account.id, digest, hint)
+    if (block) throw new EftConflictError(block)
+    const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
+    const own = this.eftDigestOf(account.id)
+    if (!holder && own === undefined) {
+      this.db.prepare('INSERT INTO eft_accounts (account_id, eft_digest, eft_hint, bound_at) VALUES (?, ?, ?, ?)').run(account.id, digest, hint, this.now())
+    }
+    if (this.eftDigestOf(account.id) === digest) this.claimTrialByEft(account.id, digest)
+    return this.eftAccountOf(account.id)
+  }
+
+  /**
+   * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
+   * fits. The owner's accounts and game accounts held by an owner account are exempt.
+   */
+  private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
+    if (this.isOwner(accountId)) return undefined
+    const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
+    const holderId = holder ? String(holder.account_id) : undefined
+    if (holderId !== undefined && holderId !== accountId && this.isOwner(holderId)) return undefined
+    const seen = `••••${hint}`
+    if (holderId !== undefined && holderId !== accountId) return { kind: 'in-use', seen }
+    const own = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_accounts WHERE account_id = ?').get(accountId) as Row | undefined
+    if (own && String(own.eft_digest) !== digest) return { kind: 'other-account', seen, bound: `••••${String(own.eft_hint)}` }
+    return undefined
+  }
+
+  /**
+   * Why this app device may not use the account now (entitlement and paid data, routes/entitlement.ts, routes/data.ts):
+   * the game account it reported last breaks the one-to-one rule against the current bindings — so the owner unbinding a
+   * game account (unbindEftAccount) or the player starting the game under the right one opens it again.
+   */
+  eftBlock(accountId: string, deviceId: string | undefined): EftBlock | undefined {
+    if (!deviceId) return undefined
+    const report = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
+    return report ? this.eftRule(accountId, String(report.eft_digest), String(report.eft_hint)) : undefined
+  }
+
+  /** The owner's «Отвязать аккаунт Escape from Tarkov» (a player's new game account): binding and device reports go. */
+  unbindEftAccount(accountId: string) {
+    const account = this.mustGet(accountId)
+    const removed = Number(this.db.prepare('DELETE FROM eft_accounts WHERE account_id = ?').run(account.id).changes)
+    this.db.prepare('DELETE FROM eft_reports WHERE account_id = ?').run(account.id)
+    return removed > 0
+  }
+
+  /** The app device this session registered (POST /v1/entitlement), if any. */
+  private deviceOfSession(accountId: string, sessionDigest: string) {
+    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'account_devices'").get()) return undefined
+    const row = this.db.prepare('SELECT device_id FROM account_devices WHERE account_id = ? AND session_digest = ? AND revoked_at IS NULL ORDER BY last_seen_at DESC LIMIT 1').get(accountId, sessionDigest) as Row | undefined
+    return row ? String(row.device_id) : undefined
+  }
+
+  /**
+   * One free period per game account (owner, 13.10.2026: a second Raid OS account «ради бесплатных суток» gets none,
+   * also after the first one was deleted): an account on a free period that binds a game account whose free period
+   * another account had loses its own; otherwise the game account is noted for this one.
+   */
+  private claimTrialByEft(accountId: string, digest: string) {
+    const row = this.db.prepare("SELECT trial_ends_at, trial_pending_ms, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
+    if (!row || (row.trial_ends_at == null && row.trial_pending_ms == null) || row.trial_denied != null) return
+    const claim = this.db.prepare('SELECT account_id FROM eft_trial_claims WHERE eft_digest = ?').get(digest) as Row | undefined
+    if (claim && String(claim.account_id) !== accountId) {
+      this.db.prepare('UPDATE accounts SET trial_denied = ?, trial_pending_ms = NULL WHERE id = ? AND trial_denied IS NULL').run(this.now(), accountId)
+      return
+    }
+    if (!claim) this.db.prepare('INSERT INTO eft_trial_claims (eft_digest, account_id, at) VALUES (?, ?, ?)').run(digest, accountId, this.now())
   }
 
   /** The bound game account, masked, or undefined. */
@@ -978,7 +1090,7 @@ export class AccountStore {
       ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
       ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
-      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['eft_accounts', 'account_id'],
+      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
     ]
     const progressOwner = `user:${account.id}`
@@ -1325,10 +1437,12 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (blocked) return blocked
       const parsed = eftAccountSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Неверный идентификатор аккаунта Escape from Tarkov')
+      // The session tells which app device saw this game account (it registered the device, POST /v1/entitlement).
+      const token = bearer(req.authorization)
       try {
-        return { status: 200, body: { eftAccount: store.bindEftAccount(accountId, parsed.data.accountId), account: store.view(accountId) } }
+        return { status: 200, body: { eftAccount: store.bindEftAccount(accountId, parsed.data.accountId, token ? tokenDigest(token) : undefined), account: store.view(accountId) } }
       } catch (error) {
-        if (error instanceof AccountError && error.status === 409) return { status: 409, body: { error: error.message, code: 'eft-in-use' } }
+        if (error instanceof EftConflictError) return { status: 409, body: { error: error.message, code: error.block.kind === 'in-use' ? 'eft-in-use' : 'eft-other-account', ...error.block } }
         throw error
       }
     }),

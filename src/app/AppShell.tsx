@@ -18,7 +18,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
-import { applyScanToModes } from '../import/logApply'
+import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -35,8 +35,6 @@ import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
 import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 
-
-const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
 
 const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
