@@ -9,17 +9,19 @@ import { addedOverrideIdOf, useQuestPointOverrides, useQuestPointWriter, type Qu
 import type { GameMap, MapMarker, Quest } from '../domain/types'
 
 /**
- * «Квесты: правка точек» (owner app only, server/src/routes/questPoints.ts): find a quest by name, pick its objective /
- * story stage, drag a wrong point to the right place, click the map to add a point, hide a wrong one or return the
- * original. Every change is saved at once and every player's map shows it (src/data/questPointOverrides.ts).
- * The floor selected on the map goes with a moved / added point when it is not the main level.
+ * The quest constructor «Редактировать квесты» (owner app only, server/src/routes/questPoints.ts): find a quest in the
+ * list or by name, pick its objective / story stage, drag a wrong point to the right place, click the map to add a
+ * point, hide a wrong one or return the original. Every change is saved at once and every player's map shows it
+ * (src/data/questPointOverrides.ts). The floor selected on the map goes with a moved / added point when it is not the
+ * main level. The quest's texts are edited in the quest window at the bottom (components/QuestTextEditor.tsx).
  */
-export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[] }) {
+/** `initialQuestId`: open the constructor on that quest (the owner's «Заявки» → «Открыть в конструкторе», ?edit=1). */
+export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, initialQuestId }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string }) {
   const enabled = isOwnerApp()
   const overrides = useQuestPointOverrides(enabled)
   const writer = useQuestPointWriter()
-  const [active, setActive] = useState(false)
-  const [questId, setQuestId] = useState('')
+  const [active, setActive] = useState(Boolean(initialQuestId))
+  const [questId, setQuestId] = useState(initialQuestId ?? '')
   /** '' = all points; `o:<objective id>`; `s:<stage index>`. */
   const [goal, setGoal] = useState('')
   const [adding, setAdding] = useState(false)
@@ -151,119 +153,138 @@ export function questGoals(quest: Quest, markers: MapMarker[]): Array<{ key: str
   return goals
 }
 
-/** The map-hud button and, while editing, the panel: quest search, objective / stage, note, points. */
-export function QuestPointControls({ state, maps, markers, quests, onSelectMap, onFocus, onToggle }: {
+/** The map-hud button «Редактировать квесты» (owner app): switches the quest constructor on and off. */
+export function QuestEditorButton({ state, onToggle }: { state: QuestPointEditorState; onToggle?: (active: boolean) => void }) {
+  if (!state.enabled) return null
+  const toggle = () => { const next = !state.active; state.setActive(next); onToggle?.(next) }
+  return (
+    <div className="map-tools quest-point-editor">
+      <button type="button" className={`map-tool${state.active ? ' active' : ''}`} aria-pressed={state.active} onClick={toggle} title={uiText('Конструктор квестов: точки на карте и тексты. Изменения сохраняются сразу и видны всем игрокам')}>
+        <PencilRuler size={14} />{uiText('Редактировать квесты')}
+      </button>
+    </div>
+  )
+}
+
+/** Quests for the constructor's list: matching the search, or all of them with the ones plotted on this map first. */
+export function constructorQuests(quests: Quest[], text: string, mapId: string, counts: Map<string, Map<string, number>>): Quest[] {
+  if (normalize(text).length >= 2) return searchQuests(quests, text, mapId, counts, 60)
+  const here = (quest: Quest) => (counts.get(quest.id)?.get(mapId) ?? 0) > 0
+  return [...quests].sort((a, b) => Number(here(b)) - Number(here(a)) || a.trader.localeCompare(b.trader, 'ru') || a.name.localeCompare(b.name, 'ru'))
+}
+
+/** The first plotted point of a quest on a map (the constructor flies there). */
+export function firstQuestPoint(markers: MapMarker[], questId: string, mapId: string) {
+  return markers.find((marker) => marker.questId === questId && marker.mapId === mapId && isQuestPoint(marker))
+}
+
+/**
+ * The quest constructor in the map's right panel (owner, 13.10.2026: «нажимаю справа список квестов, либо нахожу в
+ * поиске, открывается карта с этим квестом, я могу добавить удалить точку или перенести ее»): every quest of the mode
+ * (those plotted on this map first) or the search results; a picked quest shows its objective / stage, a note, its
+ * points here (drag on the map to move, hide, return the original) and the maps it has points on. Its texts are edited
+ * in the quest window at the bottom of the map (components/QuestTextEditor.tsx).
+ */
+export function QuestEditorPanel({ state, maps, markers, quests, onPick, onFocus, onSelectMap }: {
   state: QuestPointEditorState
   maps: GameMap[]
   markers: MapMarker[]
   quests: Quest[]
-  onSelectMap: (mapId: string) => void
+  onPick: (quest: Quest) => void
   onFocus: (marker: MapMarker) => void
-  onToggle?: (active: boolean) => void
+  onSelectMap: (mapId: string) => void
 }) {
   const [query, setQuery] = useState('')
-  const results = useMemo(() => (state.active ? searchQuests(quests, query, state.mapId, state.pointCounts) : []), [state.active, quests, query, state.mapId, state.pointCounts])
+  const list = useMemo(() => (state.active && !state.quest ? constructorQuests(quests, query, state.mapId, state.pointCounts) : []), [state.active, state.quest, quests, query, state.mapId, state.pointCounts])
   const goals = useMemo(() => (state.quest ? questGoals(state.quest, markers) : []), [state.quest, markers])
-  if (!state.enabled) return null
-  const toggle = () => { const next = !state.active; state.setActive(next); onToggle?.(next) }
+  if (!state.active) return null
   const quest = state.quest
   const otherMaps = quest ? [...(state.pointCounts.get(quest.id) ?? new Map<string, number>())].filter(([mapId]) => mapId !== state.mapId) : []
   const mapName = (id: string) => maps.find((map) => map.id === id)?.name ?? id
+  const total = (id: string) => [...(state.pointCounts.get(id)?.values() ?? [])].reduce((sum, count) => sum + count, 0)
   return (
-    <>
-      <div className="map-tools quest-point-editor">
-        <button type="button" className={`map-tool${state.active ? ' active' : ''}`} aria-pressed={state.active} onClick={toggle} title={uiText('Исправить точку квеста вручную (например, по баг-репорту): исправление увидят все игроки')}>
-          <PencilRuler size={14} />{uiText('Квесты: правка точек')}
-        </button>
-      </div>
-      {state.active && (
-        <div className="quest-point-panel">
-          {!quest ? (
-            <>
-              <label className="quest-point-search">
-                <Search size={13} />
-                <input className="input" value={query} autoFocus onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти квест по названию (RU / EN)…')} aria-label={uiText('Найти квест')} />
-              </label>
-              {query.trim().length >= 2 && !results.length && <small className="dim">{uiText('Квест не найден')}</small>}
-              <ul className="quest-point-results">
-                {results.map((entry) => {
-                  const here = state.pointCounts.get(entry.id)?.get(state.mapId) ?? 0
-                  return (
-                    <li key={entry.id}>
-                      <button type="button" onClick={() => {
-                        state.pick(entry.id); setQuery('')
-                        // Fly to the quest's first point on this map, if it has one.
-                        const first = markers.find((marker) => marker.questId === entry.id && marker.mapId === state.mapId && isQuestPoint(marker))
-                        if (first) onFocus(first)
-                      }}>
-                        <strong>{uiText(entry.name)}</strong>
-                        <small className="dim">{uiText(entry.trader)} · {uiText(`Точек на этой карте: ${here}`)}</small>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </>
-          ) : (
-            <>
-              <div className="quest-point-head">
-                <strong>{uiText(quest.name)}</strong>
-                <button type="button" className="icon-button" onClick={() => state.pick('')} aria-label={uiText('Другой квест')} title={uiText('Другой квест')}><X size={14} /></button>
-              </div>
-              {goals.length > 0 && (
-                <select className="input quest-point-select" value={state.goal} onChange={(event) => state.setGoal(event.target.value)} aria-label={uiText('Цель / этап')}>
-                  <option value="">{uiText('Все цели и этапы')}</option>
-                  {goals.map((entry) => <option key={entry.key} value={entry.key}>{uiText(entry.label)}</option>)}
-                </select>
-              )}
-              <input className="input quest-point-note" value={state.note} maxLength={300} onChange={(event) => state.setNote(event.target.value)} placeholder={uiText('Заметка (например, «по баг-репорту»)')} aria-label={uiText('Заметка')} />
-              <div className="quest-point-actions">
-                <button type="button" className={`map-tool${state.adding ? ' active' : ''}`} aria-pressed={state.adding} disabled={state.busy} onClick={() => state.setAdding(!state.adding)} title={uiText('Клик по карте — поставить новую точку квеста на выбранный этаж')}>
-                  <MapPinPlus size={14} />{uiText('Добавить точку')}
-                </button>
-                {(state.busy || state.error) && <span className="boss-placement-hint">{state.busy ? <LoaderCircle size={13} className="spin" /> : uiText(state.error)}</span>}
-              </div>
-              <small className="dim">{uiText('Точку можно перетащить мышью — сохраняется сразу. Новая и перенесённая точка встают на выбранный этаж.')}</small>
-              <ul className="quest-point-list">
-                {state.points.map((marker, index) => {
-                  const override = state.overrideOf(marker)
-                  const status = override?.kind === 'add' ? 'Добавлена' : override ? 'Перемещена' : 'Исходная'
-                  return (
-                    <li key={marker.id}>
-                      <button type="button" className="quest-point-name" onClick={() => onFocus(marker)} title={uiText('Показать на карте')}>
-                        <Crosshair size={12} />{index + 1}. {uiText(status)}
-                        <small className="dim">x {Math.round(marker.position[1])}, z {Math.round(marker.position[0])}</small>
-                      </button>
-                      <span className="quest-point-row-actions">
-                        {override && override.kind !== 'add' && (
-                          <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.reset(override.id)} title={uiText('Вернуть исходную точку')} aria-label={uiText('Вернуть исходную точку')}><RotateCcw size={13} /></button>
-                        )}
-                        <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.hide(marker)} title={uiText(override?.kind === 'add' ? 'Удалить добавленную точку' : 'Скрыть неверную точку')} aria-label={uiText('Скрыть')}><EyeOff size={13} /></button>
-                      </span>
-                    </li>
-                  )
-                })}
-                {state.hidden.map((entry) => (
-                  <li key={entry.id} className="is-hidden">
-                    <span className="quest-point-name"><EyeOff size={12} />{uiText('Скрыта')}<small className="dim">x {Math.round(entry.x)}, z {Math.round(entry.z)}</small></span>
-                    <span className="quest-point-row-actions">
-                      <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.reset(entry.id)} title={uiText('Вернуть исходную точку')} aria-label={uiText('Вернуть исходную точку')}><RotateCcw size={13} /></button>
-                    </span>
-                  </li>
-                ))}
-                {!state.points.length && !state.hidden.length && <li className="dim">{uiText('На этой карте у квеста нет точек — нажмите «Добавить точку» и кликните по карте.')}</li>}
-              </ul>
-              {otherMaps.length > 0 && (
-                <div className="quest-point-maps">
-                  <small className="dim">{uiText('Точки на других картах:')}</small>
-                  {otherMaps.map(([id, count]) => <button key={id} type="button" className="map-tool small" onClick={() => onSelectMap(id)}>{uiText(mapName(id))} · {count}</button>)}
-                </div>
-              )}
-            </>
+    <div className="quest-point-panel quest-editor-panel">
+      {!quest ? (
+        <>
+          <label className="quest-point-search">
+            <Search size={13} />
+            <input className="input" value={query} autoFocus onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти квест по названию (RU / EN)…')} aria-label={uiText('Найти квест')} />
+          </label>
+          {query.trim().length >= 2 && !list.length && <small className="dim">{uiText('Квест не найден')}</small>}
+          <ul className="quest-point-results quest-editor-list" aria-label={uiText('Квесты')}>
+            {list.map((entry) => {
+              const here = state.pointCounts.get(entry.id)?.get(state.mapId) ?? 0
+              const all = total(entry.id)
+              return (
+                <li key={entry.id}>
+                  <button type="button" onClick={() => { setQuery(''); onPick(entry) }}>
+                    <strong>{uiText(entry.name)}</strong>
+                    <small className="dim">{uiText(entry.trader)} · {here ? uiText(`здесь точек: ${here}`) : all ? uiText(`точек на других картах: ${all}`) : uiText('без точек')}</small>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      ) : (
+        <>
+          <div className="quest-point-head">
+            <strong>{uiText(quest.name)}</strong>
+            <button type="button" className="icon-button" onClick={() => state.pick('')} aria-label={uiText('Другой квест')} title={uiText('Другой квест')}><X size={14} /></button>
+          </div>
+          <small className="dim">{uiText('Текст квеста правится в окне квеста внизу карты.')}</small>
+          {goals.length > 0 && (
+            <select className="input quest-point-select" value={state.goal} onChange={(event) => state.setGoal(event.target.value)} aria-label={uiText('Цель / этап')}>
+              <option value="">{uiText('Все цели и этапы')}</option>
+              {goals.map((entry) => <option key={entry.key} value={entry.key}>{uiText(entry.label)}</option>)}
+            </select>
           )}
-        </div>
+          <input className="input quest-point-note" value={state.note} maxLength={300} onChange={(event) => state.setNote(event.target.value)} placeholder={uiText('Заметка (например, «по баг-репорту»)')} aria-label={uiText('Заметка')} />
+          <div className="quest-point-actions">
+            <button type="button" className={`map-tool${state.adding ? ' active' : ''}`} aria-pressed={state.adding} disabled={state.busy} onClick={() => state.setAdding(!state.adding)} title={uiText('Клик по карте — поставить новую точку квеста на выбранный этаж')}>
+              <MapPinPlus size={14} />{uiText('Добавить точку')}
+            </button>
+            {(state.busy || state.error) && <span className="boss-placement-hint">{state.busy ? <LoaderCircle size={13} className="spin" /> : uiText(state.error)}</span>}
+          </div>
+          <small className="dim">{uiText('Точку можно перетащить мышью — сохраняется сразу. Новая и перенесённая точка встают на выбранный этаж.')}</small>
+          <ul className="quest-point-list">
+            {state.points.map((marker, index) => {
+              const override = state.overrideOf(marker)
+              const status = override?.kind === 'add' ? 'Добавлена' : override ? 'Перемещена' : 'Исходная'
+              return (
+                <li key={marker.id}>
+                  <button type="button" className="quest-point-name" onClick={() => onFocus(marker)} title={uiText('Показать на карте')}>
+                    <Crosshair size={12} />{index + 1}. {uiText(status)}
+                    <small className="dim">x {Math.round(marker.position[1])}, z {Math.round(marker.position[0])}</small>
+                  </button>
+                  <span className="quest-point-row-actions">
+                    {override && override.kind !== 'add' && (
+                      <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.reset(override.id)} title={uiText('Вернуть исходную точку')} aria-label={uiText('Вернуть исходную точку')}><RotateCcw size={13} /></button>
+                    )}
+                    <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.hide(marker)} title={uiText(override?.kind === 'add' ? 'Удалить добавленную точку' : 'Скрыть неверную точку')} aria-label={uiText(override?.kind === 'add' ? 'Удалить добавленную точку' : 'Скрыть неверную точку')}><EyeOff size={13} /></button>
+                  </span>
+                </li>
+              )
+            })}
+            {state.hidden.map((entry) => (
+              <li key={entry.id} className="is-hidden">
+                <span className="quest-point-name"><EyeOff size={12} />{uiText('Скрыта')}<small className="dim">x {Math.round(entry.x)}, z {Math.round(entry.z)}</small></span>
+                <span className="quest-point-row-actions">
+                  <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.reset(entry.id)} title={uiText('Вернуть исходную точку')} aria-label={uiText('Вернуть исходную точку')}><RotateCcw size={13} /></button>
+                </span>
+              </li>
+            ))}
+            {!state.points.length && !state.hidden.length && <li className="dim">{uiText('На этой карте у квеста нет точек — нажмите «Добавить точку» и кликните по карте.')}</li>}
+          </ul>
+          {otherMaps.length > 0 && (
+            <div className="quest-point-maps">
+              <small className="dim">{uiText('Точки на других картах:')}</small>
+              {otherMaps.map(([id, count]) => <button key={id} type="button" className="map-tool small" onClick={() => onSelectMap(id)}>{uiText(mapName(id))} · {count}</button>)}
+            </div>
+          )}
+        </>
       )}
-    </>
+    </div>
   )
 }
 

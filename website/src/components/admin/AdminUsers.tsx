@@ -1,6 +1,7 @@
-import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
+import { countryName, REGION_LABELS, regionOf } from '../../../../src/shared/countries'
+import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
@@ -16,6 +17,17 @@ const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'streamers', label: 'Стримеры' },
   { id: 'blocked', label: 'Заблокированы' },
 ]
+/** owner, 13.10.2026: «сделать в админ панели, в разделе пользователи, разделение снг и Европа. список аккаунтов». */
+const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
+  { id: 'all', label: 'Все' },
+  { id: 'cis', label: 'СНГ' },
+  { id: 'europe', label: 'Европа' },
+  { id: 'other', label: 'Другие' },
+  { id: 'none', label: 'Не указана' },
+]
+
+/** «Казахстан · СНГ» for the owner (the panel is in Russian); the code itself where the browser has no country names. */
+const countryText = (code: string) => `${countryName(code, 'ru')} · ${REGION_LABELS.ru[regionOf(code)]}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
@@ -32,10 +44,13 @@ export function AdminUsers() {
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<AdminUserFilter>('all')
+  const [region, setRegion] = useState<AdminUserRegion>('all')
   const [page, setPage] = useState(0)
   const [open, setOpen] = useState<string | null>(null)
-  const users = useAdminData(useCallback((token: string) => api.adminUsers(token, q, filter, PAGE, page * PAGE), [q, filter, page]))
+  const users = useAdminData(useCallback((token: string) => api.adminUsers(token, q, filter, PAGE, page * PAGE, region), [q, filter, page, region]))
   const data = users.data
+  // Users per region within the search and the status filter (an older server sends none: the tabs go without numbers).
+  const counts = data?.regions
 
   const submit = (event: FormEvent) => { event.preventDefault(); setQ(search.trim()); setPage(0) }
   const updated = (user: AdminUser) => users.setData((current) => current && { ...current, users: current.users.map((item) => (item.id === user.id ? user : item)) })
@@ -49,6 +64,13 @@ export function AdminUsers() {
           <input className="input" type="search" aria-label="Поиск по e-mail" placeholder="Поиск по e-mail" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
           <button type="submit" className="button ghost"><Search aria-hidden="true" />Найти</button>
         </form>
+        <div role="group" aria-label="Регион" className="admin-regions">
+          {REGIONS.map(({ id, label }) => (
+            <button key={id} type="button" aria-pressed={region === id} aria-label={counts ? `${label}: ${numberFormat.format(counts[id])}` : undefined} className={`button small ${region === id ? 'primary' : 'ghost'}`} onClick={() => { setRegion(id); setPage(0); setOpen(null) }}>
+              {label}{counts && <span className="mono admin-region-count">{numberFormat.format(counts[id])}</span>}
+            </button>
+          ))}
+        </div>
         <div role="group" aria-label="Фильтр" className="admin-chips">
           {FILTERS.map(({ id, label }) => <button key={id} type="button" aria-pressed={filter === id} className={`button small ${filter === id ? 'primary' : 'ghost'}`} onClick={() => { setFilter(id); setPage(0); setOpen(null) }}>{label}</button>)}
         </div>
@@ -83,7 +105,15 @@ export function AdminUsers() {
                               {user.autopay?.status === 'active' && <span className="tag green admin-mini">автопродление</span>}
                             </span>
                           </th>
-                          <td className="mono" data-label="Регистрация">{dateOnly.format(new Date(user.createdAt))}</td>
+                          {/* The country under the date: a column of its own pushed «Действия» out of the table. */}
+                          <td data-label="Регистрация">
+                            <span className="admin-registered">
+                              <span className="mono">{dateOnly.format(new Date(user.createdAt))}</span>
+                              {user.country
+                                ? <span className="admin-country" title={countryText(user.country)}>{countryName(user.country, 'ru')}</span>
+                                : <span className="admin-country dim">страна не указана</span>}
+                            </span>
+                          </td>
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
                           <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
@@ -215,7 +245,7 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
             <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('sessions', (t) => api.adminRevokeSessions(t, id), (result) => `Сброшено сессий: ${result.revoked ?? 0}`)}><LogOut aria-hidden="true" />Сбросить сессии</button>
             <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => void remove(user.email)}>{busy === 'delete' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}Удалить аккаунт</button>
             {user.autopay?.status === 'active' && (
-              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as 'yookassa' | 'lava'] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
+              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as keyof typeof PROVIDER_LABEL] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.${user.autopay!.provider === 'yookassa' ? '' : ' Сервер с прежним платёжным сервисом больше не связан: остановите подписку и там, вручную.'}`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
             )}
           </div>
           {user.owner && <span className="field-hint">Аккаунт владельца заблокировать и удалить нельзя.</span>}
@@ -254,6 +284,12 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
           )}
         </div>
         <UserDevices id={id} lastSeenAt={user.lastSeenAt} />
+        <div>
+          <div className="field-label"><Globe size={13} aria-hidden="true" />Страна</div>
+          {user.country
+            ? <span className="field-hint">{countryText(user.country)} · <span className="mono">{user.country}</span></span>
+            : <span className="field-hint">Не указана: аккаунт создан до вопроса о стране — пользователь может указать её в личном кабинете.</span>}
+        </div>
       </div>
     </div>
   )
@@ -288,7 +324,7 @@ function UserDevices({ id, lastSeenAt }: { id: string; lastSeenAt?: string }) {
           ))}
         </ul>
       )}
-      {lastSeenAt && <span className="field-hint">Был в сети (сайт, телефон или ПК): <span className="mono">{dateTime.format(new Date(lastSeenAt))}</span></span>}
+      {lastSeenAt && <div className="field-hint">Был в сети (сайт, телефон или ПК): <span className="mono">{dateTime.format(new Date(lastSeenAt))}</span></div>}
     </div>
   )
 }

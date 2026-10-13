@@ -9,7 +9,7 @@
  */
 import fontkit from '@pdf-lib/fontkit'
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
-import type { BugReportView, ImageMime } from './bugReportStore.js'
+import { reportDetails, type BugReportView, type ImageMime } from './bugReportStore.js'
 import { DEJAVU_SANS, DEJAVU_SANS_BOLD } from './fonts/dejavuSans.js'
 
 export interface BugReportPdfInput extends Omit<BugReportView, 'files'> {
@@ -193,11 +193,12 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
     ['Система', report.platform],
     ['Статус', report.status === 'closed' ? 'закрыт' : 'открыт'],
     [idea ? 'Изображения' : 'Скриншоты', report.files.length ? String(report.files.length) : 'нет'],
+    ...reportDetails(report),
   ])
   out.heading('Тема')
   out.text(report.topic)
   out.heading('Описание')
-  out.text(report.description)
+  out.text(report.description || '—')
 
   const skipped: number[] = []
   if (report.files.length) {

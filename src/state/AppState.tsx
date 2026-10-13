@@ -359,3 +359,8 @@ export function useAppState() {
   if (!value) throw new Error('useAppState must be used within AppStateProvider')
   return value
 }
+
+/** The app state when there is one (a dialog that also opens outside the app's providers, e.g. in tests). */
+export function useOptionalAppState() {
+  return useContext(AppStateContext)
+}

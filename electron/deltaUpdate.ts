@@ -57,8 +57,10 @@ function localResources() {
 /**
  * The release's partial update when this copy can take it: same build, version and commit as the signed manifest, the
  * same Electron and files outside the archive; `signed`: (a player's copy) only with the update key's signature.
+ * `onWholeExe`: the release is published but another Electron or other files outside the archive keep it from coming in
+ * parts — only a whole exe brings it (the reason, e.g. «Electron 44.4.5 → 45.0.0»).
  */
-export async function fetchDeltaInfo(base: string, release: { build: number; version: string; commit: string }, options: { signed: boolean }): Promise<DeltaInfo | null> {
+export async function fetchDeltaInfo(base: string, release: { build: number; version: string; commit: string }, options: { signed: boolean; onWholeExe?: (reason: string) => void }): Promise<DeltaInfo | null> {
   if (!base.startsWith('https://') || !process.env.PORTABLE_EXECUTABLE_FILE || !runningArchive()) return null
   try {
     const response = await fetch(`${base}/app-delta/info.json?ts=${Date.now()}`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' }, cache: 'no-store' })
@@ -67,7 +69,7 @@ export async function fetchDeltaInfo(base: string, release: { build: number; ver
     if (!info || info.build !== release.build || info.version !== release.version || info.commit !== release.commit) return null
     if (options.signed && !deltaSignatureValid(info, UPDATE_SIGNING_PUBLIC_KEY)) return null
     const mismatch = deltaMismatch(info, { electron: process.versions.electron, resources: localResources() })
-    if (mismatch) { console.warn(`Raid OS: partial update not possible (${mismatch}), the whole exe is needed`); return null }
+    if (mismatch) { console.warn(`Raid OS: partial update not possible (${mismatch}), the whole exe is needed`); options.onWholeExe?.(mismatch); return null }
     return info
   } catch {
     return null // no partial update published (the site answers with its page) or offline

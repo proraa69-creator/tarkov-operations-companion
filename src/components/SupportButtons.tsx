@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Bug, CheckCircle2, Gift, ImagePlus, Lightbulb, LoaderCircle, LogIn, MessageCircle, Send, X } from 'lucide-react'
+import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { useOptionalAppState } from '../state/AppState'
+import { useOptionalTarkovData } from '../data/DataProvider'
+import { QUEST_ISSUE_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type ReportCategory } from '../shared/reportCategories'
+import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
 import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
@@ -67,15 +71,32 @@ const WORDS: Record<ReportKind, Record<'title' | 'topic' | 'description' | 'drop
   },
 }
 
+const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
+  quest: ScrollText, map: MapIcon, minimap: MapPinned, progress: RefreshCw, kappa: Package, 'item-info': Info, bosses: Skull,
+  traders: Store, flea: ShoppingCart, hideout: House, gunsmith: Wrench, ballistics: Crosshair, squad: Users, account: User,
+  subscription: CreditCard, update: Download, performance: Gauge, interface: Languages, other: CircleHelp,
+}
+
 /**
  * «Сообщить об ошибке» and «Ваши предложения» (owner, 13.10.2026: «там люди могут предложить свои идеи для приложения и
  * отправить фото»): topic, description, up to five images (file picker, drag & drop, Ctrl+V). On top of a bug report:
  * «Нашёл баг или ошибку? +1 день» (owner, 11.10.2026); of an idea, what to write. The server forwards every one to the
  * owner as a PDF.
+ *
+ * A bug report starts with its category (owner, 13.10.2026: «сделай окно, которое раскладывается и прокручивается вверх
+ * низ, там должна быть категория бага, типо квест, функция итд»): the form unfolds under the chosen one, and «Квест»
+ * adds the quest search, what is wrong, the quest's map to mark the wrong point and the right place, and notes
+ * (components/QuestReportSection.tsx).
  */
 export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () => void }) {
   const words = WORDS[kind]
   const { status, checking } = useServerAccount()
+  const raidMode = useOptionalAppState()?.raidMode ?? 'pvp'
+  const quests = useOptionalTarkovData()?.data.quests
+  const [category, setCategory] = useState<ReportCategory | ''>('')
+  const [questDraft, setQuestDraft] = useState<QuestReportDraft | null>(null)
+  /** The topic the window wrote itself for the chosen quest (a topic the player typed is never replaced). */
+  const [autoTopic, setAutoTopic] = useState('')
   const version = useAppVersion()
   const signedIn = Boolean(status?.signedIn)
   const [topic, setTopic] = useState('')
@@ -131,15 +152,33 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
     void addFiles(Array.from(event.dataTransfer?.files ?? []))
   }
 
+  const isBug = kind === 'bug'
+  const questReport = isBug && category === 'quest' && questDraft ? questDraft : null
+  // A quest correction (a place, a wrong point or a note) is a report on its own; anything else needs a description.
+  const needsDescription = !questReportHasContent(questReport)
+  const ready = Boolean(topic.trim()) && (!needsDescription || Boolean(description.trim())) && (!isBug || Boolean(category))
+  const changeQuest = (draft: QuestReportDraft | null) => {
+    setQuestDraft(draft)
+    const quest = draft ? quests?.find((entry) => entry.id === draft.questId) : undefined
+    if (!quest || !draft || (topic.trim() && topic !== autoTopic)) return
+    const next = `${uiText('Квест')} «${uiText(quest.name)}»: ${uiText(QUEST_ISSUE_LABELS[draft.issue]).toLowerCase()}`.slice(0, BUG_REPORT_LIMITS.topic)
+    setTopic(next)
+    setAutoTopic(next)
+  }
+
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!topic.trim() || !description.trim()) { setError(uiText('Заполните тему и описание.')); return }
+    if (isBug && !category) { setError(uiText('Выберите, где проблема.')); return }
+    if (!topic.trim() || (needsDescription && !description.trim())) { setError(uiText('Заполните тему и описание.')); return }
     const request = serviceClient()
     if (!request) { setError(uiText(words.appOnly)); return }
     setSending(true)
     setError('')
     try {
-      const answer = await request('POST', '/v1/bug-reports', { kind, topic: topic.trim(), description: description.trim(), appVersion, platform, screenshots: shots.map((shot) => ({ data: shot.dataUrl })) })
+      const answer = await request('POST', '/v1/bug-reports', {
+        kind, ...(isBug && category ? { category } : {}), ...(questReport ? { quest: questReportPayload(questReport, raidMode) } : {}),
+        topic: topic.trim(), description: description.trim(), appVersion, platform, screenshots: shots.map((shot) => ({ data: shot.dataUrl })),
+      })
       if (!answer) { setError(uiText(words.signInFirst)); return }
       setSent(true)
     } catch (reason) {
@@ -151,7 +190,7 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
 
   // Rendered into <body>: the sidebar it is opened from clips and positions fixed children (it was drawn inside it).
   return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText(words.title)} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
-    <section className="panel registration-dialog bug-report-dialog" onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
+    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}`} onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
       <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>
       <h2>{uiText(words.title)}</h2>
@@ -178,11 +217,29 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
           <button type="button" className="button primary" onClick={() => { onClose(); openAccountSignIn('login') }}><LogIn size={15} />{uiText('Войти')}</button>
         </div>
       </div> : <form className="bug-report-form" onSubmit={(event) => void submit(event)}>
+        {isBug && (
+          <fieldset className="bug-report-categories" disabled={sending}>
+            <legend>{uiText('Где проблема?')}</legend>
+            <div className="bug-report-category-grid" role="radiogroup" aria-label={uiText('Где проблема?')}>
+              {REPORT_CATEGORIES.map((entry) => {
+                const Icon = CATEGORY_ICONS[entry]
+                return (
+                  <button key={entry} type="button" role="radio" aria-checked={category === entry} className={`bug-report-chip${category === entry ? ' active' : ''}`} onClick={() => { setCategory(entry); setError('') }}>
+                    <Icon size={14} aria-hidden="true" />{uiText(REPORT_CATEGORY_LABELS[entry])}
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
+        )}
+        <div className={`bug-report-expand${!isBug || category ? ' is-open' : ''}`} inert={isBug && !category}>
+        <div className="bug-report-expand-body">
+        {category === 'quest' && <QuestReportSection value={questDraft} onChange={changeQuest} disabled={sending} />}
         <label className="field-label">{uiText('Тема')}
           <input className="input" value={topic} maxLength={BUG_REPORT_LIMITS.topic} required disabled={sending} onChange={(event) => setTopic(event.target.value)} placeholder={uiText(words.topic)} />
         </label>
         <label className="field-label">{uiText('Описание')}
-          <textarea className="input bug-report-text" value={description} maxLength={BUG_REPORT_LIMITS.description} required disabled={sending} rows={6} onChange={(event) => setDescription(event.target.value)} placeholder={uiText(words.description)} />
+          <textarea className="input bug-report-text" value={description} maxLength={BUG_REPORT_LIMITS.description} required={needsDescription} disabled={sending} rows={category === 'quest' ? 3 : 6} onChange={(event) => setDescription(event.target.value)} placeholder={uiText(category === 'quest' && !needsDescription ? 'Можно добавить подробности (необязательно)' : words.description)} />
           <small className="bug-report-count">{description.length} / {BUG_REPORT_LIMITS.description}</small>
         </label>
         <div
@@ -210,10 +267,12 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
           <span>{uiText('Система')}: {platform}</span>
           {status?.email && <span>{uiText('Аккаунт')}: {status.email}</span>}
         </div>
+        </div>
+        </div>
         {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{error}</span></div>}
         <div className="bug-report-actions">
           <button type="button" className="button ghost" onClick={() => setContact(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
-          <button type="submit" className="button primary" disabled={sending || !topic.trim() || !description.trim()}>
+          <button type="submit" className="button primary" disabled={sending || !ready}>
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : words.send)}
           </button>
         </div>

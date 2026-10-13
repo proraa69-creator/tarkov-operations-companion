@@ -1,28 +1,14 @@
-/** Owner web controls for non-secret Lava.top settings. Keys are entered only in the Electron owner app. */
+/** Owner web controls for the non-secret ЮKassa settings. The secret key is entered only in the Electron owner app. */
 import express from 'express'
 import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { ownerApp, OwnerAppError, type OwnerAppLink } from '../services/ownerApp.js'
-import { lavaConfigFromEnv } from '../services/lavaTop.js'
 import { paymentConfigFromEnv, type PaymentStore } from '../services/paymentStore.js'
 import type { AdminStore } from '../services/adminStore.js'
-
-const BASE = '/v1/accounts/me/admin/payment-settings/lava'
-const fields = {
-  offerId: z.string().trim().uuid(),
-  currency: z.enum(['USD', 'EUR']),
-  rubRate: z.number().finite().positive().max(100_000),
-  paymentMethod: z.enum(['', 'UNLIMINT', 'PAYPAL', 'STRIPE']),
-}
-const inputSchema = z.object(fields).strict()
-// Explicit allowlist: even a malformed bridge reply cannot expose a secret to the browser.
-const settingsSchema = z.object({ ...fields, rubRate: z.number().finite().min(0).max(100_000), hasApiKey: z.boolean(), hasWebhookKey: z.boolean() })
 
 export function createPaymentSettingsRouter(accounts: AccountStore, payments: PaymentStore, admin?: AdminStore, suppliedLink?: OwnerAppLink) {
   const router = express.Router()
   const reads = new FixedWindowRateLimiter(120, 60_000)
-  const writes = new FixedWindowRateLimiter(6, 60_000)
-  const checks = new FixedWindowRateLimiter(3, 60_000)
   const link = suppliedLink ?? ownerApp()
   const owner = (limiter: FixedWindowRateLimiter, run: (req: express.Request, res: express.Response, actor: string) => Promise<void>) => async (req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store')
@@ -39,25 +25,6 @@ export function createPaymentSettingsRouter(accounts: AccountStore, payments: Pa
       res.status(error instanceof OwnerAppError ? 409 : 502).json({ error: 'Приложение не выполнило запрос. Проверьте, что Raid OS запущен и хранилище ключей доступно.' })
     }
   }
-  router.get(BASE, owner(reads, async (_req, res) => {
-    const settings = settingsSchema.parse(await link.request('payments:lava:get'))
-    res.json({ settings, configured: Boolean(payments.lava) })
-  }))
-  router.put(BASE, owner(writes, async (req, res, actor) => {
-    const input = inputSchema.parse(req.body)
-    const result = await link.request<{ settings: unknown; env: NodeJS.ProcessEnv }>('payments:lava:set', input)
-    const settings = settingsSchema.parse(result.settings)
-    payments.configureLava(lavaConfigFromEnv(result.env))
-    admin?.audit(actor, 'payments.lava-settings', undefined, {
-      offerId: input.offerId, currency: input.currency, rubRate: input.rubRate, paymentMethod: input.paymentMethod,
-    })
-    res.json({ settings, configured: Boolean(payments.lava) })
-  }))
-  router.post(`${BASE}/test`, owner(checks, async (_req, res, actor) => {
-    const result = z.object({ ok: z.boolean(), message: z.string().max(1000), publicUrl: z.enum(['ok', 'unreachable', 'unexpected', 'skipped']) }).parse(await link.request('payments:lava:test', undefined, 25_000))
-    admin?.audit(actor, 'payments.lava-test', undefined, { ok: result.ok, publicUrl: result.publicUrl })
-    res.json(result)
-  }))
   const yooBase = '/v1/accounts/me/admin/payment-settings/yookassa'
   const yooFields = { shopId: z.string().trim().regex(/^\d{1,12}$/), monthPrice: z.number().finite().min(1).max(100_000), receipts: z.boolean(), streamerPercent: z.number().finite().min(0).max(100), autopay: z.boolean() }
   const yooInput = z.object(yooFields).strict()

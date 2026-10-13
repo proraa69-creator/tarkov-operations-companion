@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api, errorMessage, STREAMER_INVITE_PATTERN, type PendingRegistration, type StreamerInvite } from '../api'
 import { useAuth } from '../auth'
+import { CountrySelect } from '../components/CountrySelect'
 import { Notice } from '../components/Notice'
 import { RegistrationCodeStep } from '../components/EmailAuth'
 import { localeTag, tr } from '../i18n'
@@ -98,6 +99,8 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
+  // A new streamer account names its country like any registration (owner, 13.10.2026).
+  const [country, setCountry] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -118,6 +121,7 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
     if (!haveAccount) {
       if (password.length < 8) { setLocalError(tr('Пароль должен быть не короче 8 символов.')); return }
       if (password !== repeat) { setLocalError(tr('Пароли не совпадают.')); return }
+      if (!country) { setLocalError(tr('Выберите страну.')); return }
     }
     setLocalError(null)
     setBusy(true)
@@ -125,7 +129,7 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
     let signedInNow = false
     try {
       // No referral code on purpose, even if one is remembered from an earlier /r/<code> visit.
-      const result = haveAccount ? await auth.login(email, password) : await auth.register(email, password)
+      const result = haveAccount ? await auth.login(email, password) : await auth.register(email, password, undefined, country)
       if ('pending' in result && result.pending) { setPending(result.pending); setBusy(false); return }
       if (!('token' in result)) return
       signedInNow = true
@@ -227,6 +231,7 @@ function InviteCard({ invite, inviteToken }: { invite: StreamerInvite; inviteTok
                   <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
                 </label>
               )}
+              {!haveAccount && <CountrySelect value={country} onChange={setCountry} />}
               <button type="submit" className="button primary large block" disabled={busy}>
                 {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : haveAccount ? <LogIn aria-hidden="true" /> : <UserPlus aria-hidden="true" />}
                 {haveAccount ? tr('Войти и стать стримером') : tr('Создать аккаунт стримера')}

@@ -461,3 +461,73 @@ test('bug reports: no days for a deleted account, and without e-mail settings th
     await t.close()
   }
 })
+
+interface QuestReportView { id: number; category?: string; quest?: Record<string, unknown>; matches?: number; group?: string }
+
+test('quest corrections (owner, 13.10.2026): a category, a proposed point and notes; agreeing players are counted; the owner app waits for new ones', async () => {
+  const t = await setup({ perAccount: 50, perIp: 50 })
+  try {
+    const owner = await t.login('owner@example.com')
+    const players = [await t.register('a@example.com'), await t.register('b@example.com'), await t.register('c@example.com'), await t.register('d@example.com')]
+    const proposal = (point: { x: number; z: number }) => ({
+      topic: 'Квест «Посылка»: точка стоит не там', description: '', category: 'quest',
+      quest: { questId: 'q1', issue: 'wrong-point', mode: 'pvp', mapId: 'customs', markerId: 'customs-quest-zone-q1-z1', objectiveId: 'o1', point, pointNote: 'за гаражами' },
+    })
+    // Unknown category or issue, a point without its map, a place off the map, an empty report without a quest.
+    assert.equal((await t.call('POST', '/bug-reports', players[0], { ...proposal({ x: 1, z: 2 }), category: 'weather' })).status, 400)
+    assert.equal((await t.call('POST', '/bug-reports', players[0], { ...proposal({ x: 1, z: 2 }), quest: { questId: 'q1', issue: 'teleport' } })).status, 400)
+    assert.equal((await t.call('POST', '/bug-reports', players[0], { ...proposal({ x: 1, z: 2 }), quest: { questId: 'q1', issue: 'wrong-point', point: { x: 1, z: 2 } } })).status, 400)
+    assert.equal((await t.call('POST', '/bug-reports', players[0], proposal({ x: 99_999, z: 2 }))).status, 400)
+    assert.equal((await t.call('POST', '/bug-reports', players[0], { topic: 'Пусто', description: '', category: 'map' })).status, 400)
+
+    // «Заявки»: only the owner waits; a new report wakes the wait with the open count.
+    assert.equal((await t.call('GET', '/accounts/me/admin/requests/events', players[0])).status, 404)
+    assert.equal((await t.call('GET', '/accounts/me/admin/requests/events')).status, 401)
+    const first = await t.call<{ version: number; open: number }>('GET', '/accounts/me/admin/requests/events', owner)
+    assert.equal(first.json.open, 0)
+    const waiting = t.call<{ version: number; open: number }>('GET', `/accounts/me/admin/requests/events?since=${first.json.version}`, owner)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const a = await t.call<{ id: number }>('POST', '/bug-reports', players[0], proposal({ x: 100, z: -40 }))
+    assert.equal(a.status, 201, JSON.stringify(a.json))
+    const woke = await waiting
+    assert.ok(woke.json.version > first.json.version)
+    assert.equal(woke.json.open, 1)
+
+    await t.call('POST', '/bug-reports', players[1], proposal({ x: 108, z: -35 })) // 9.4 m away: agrees
+    await t.call('POST', '/bug-reports', players[2], proposal({ x: 160, z: -40 })) // 60 m away: a place of its own
+    await t.call('POST', '/bug-reports', players[3], { topic: 'Квест «Посылка»: неверная цель', category: 'quest', quest: { questId: 'q1', issue: 'wrong-text', questNote: 'Нужно 2 посылки, не 1' } })
+
+    const open = async () => (await t.call<{ reports: QuestReportView[] }>('GET', '/accounts/me/admin/bug-reports?status=open', owner)).json.reports
+    const reports = await open()
+    assert.deepEqual(reports.map((entry) => entry.matches).sort(), [1, 1, 2, 2])
+    const mine = reports.find((entry) => entry.id === a.json.id)!
+    assert.equal(mine.category, 'quest')
+    assert.deepEqual(mine.quest, { questId: 'q1', issue: 'wrong-point', mode: 'pvp', mapId: 'customs', markerId: 'customs-quest-zone-q1-z1', objectiveId: 'o1', point: { x: 100, z: -40 }, pointNote: 'за гаражами' })
+    assert.equal(reports.filter((entry) => entry.group === mine.group).length, 2)
+    const detail = await t.call<{ report: QuestReportView }>('GET', `/accounts/me/admin/bug-reports/${a.json.id}`, owner)
+    assert.equal(detail.json.report.matches, 2)
+
+    // Closing one: its group shrinks, and the badge counts what is still open.
+    assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/${a.json.id}/status`, owner, { status: 'closed' })).status, 200)
+    assert.deepEqual((await open()).map((entry) => entry.matches), [1, 1, 1])
+    assert.equal((await t.call<{ open: number }>('GET', '/accounts/me/admin/requests/events', owner)).json.open, 3)
+  } finally {
+    await t.close()
+  }
+})
+
+test('bug reports: the owner app reads a screenshot as base64 JSON (its gateway forwards JSON only)', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const created = await t.call<{ id: number }>('POST', '/bug-reports', player, { ...report, screenshots: [shot(PNG)] })
+    assert.equal((await t.call('GET', `/accounts/me/admin/bug-reports/${created.json.id}/files/0/data`, player)).status, 404)
+    const file = await t.call<{ mime: string; data: string }>('GET', `/accounts/me/admin/bug-reports/${created.json.id}/files/0/data`, owner)
+    assert.equal(file.status, 200)
+    assert.deepEqual([file.json.mime, Buffer.from(file.json.data, 'base64').equals(PNG)], ['image/png', true])
+    assert.equal((await t.call('GET', `/accounts/me/admin/bug-reports/${created.json.id}/files/3/data`, owner)).status, 404)
+  } finally {
+    await t.close()
+  }
+})

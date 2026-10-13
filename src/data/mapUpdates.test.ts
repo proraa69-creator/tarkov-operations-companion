@@ -18,6 +18,26 @@ describe('live map updates', () => {
     expect(paths.slice(0, 4)).toEqual(['/v1/map-updates', '/v1/map-updates?since=5', '/v1/map-updates?since=5', '/v1/map-updates?since=6'])
   })
 
+  it('pauses before asking again when an unchanged version comes back at once (a full waiting room)', async () => {
+    vi.useFakeTimers()
+    try {
+      const stop = new AbortController()
+      const request = vi.fn(async () => ({ version: 5 }))
+      const done = watchMapUpdates(request, vi.fn(), stop.signal, 30_000)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(request).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(4_900)
+      expect(request).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(200)
+      expect(request).toHaveBeenCalledTimes(3)
+      stop.abort()
+      await vi.advanceTimersByTimeAsync(10_000)
+      await done
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('waits and tries again when the server has no such route', async () => {
     const stop = new AbortController()
     let calls = 0

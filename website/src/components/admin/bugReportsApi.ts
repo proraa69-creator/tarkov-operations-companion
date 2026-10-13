@@ -8,9 +8,27 @@ import { API_URL } from '../../config'
 export type BugReportStatus = 'open' | 'closed'
 /** 'bug': «Сообщить об ошибке»; 'idea': «Ваши предложения» (owner, 13.10.2026). Absent from servers before that: a bug. */
 export type ReportKind = 'bug' | 'idea'
+/** A quest correction a player proposed (category «Квест», owner 13.10.2026; the app's «Заявки» groups them). */
+export interface BugReportQuest {
+  questId: string
+  issue: string
+  mode?: string
+  mapId?: string
+  markerId?: string
+  objectiveId?: string
+  stageIndex?: number
+  point?: { x: number; z: number; floor?: string }
+  pointNote?: string
+  questNote?: string
+}
 export interface BugReportSummary {
   id: number
   kind?: ReportKind
+  /** What the bug is about (src/shared/reportCategories.ts); absent on reports before 13.10.2026. */
+  category?: string
+  quest?: BugReportQuest
+  /** Open quest reports agreeing with this one, itself included. */
+  matches?: number
   email?: string
   /** The reporter's account (cleared when it is deleted): days can be granted only while it exists. */
   accountId?: string

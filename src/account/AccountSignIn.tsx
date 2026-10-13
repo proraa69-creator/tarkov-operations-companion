@@ -5,6 +5,7 @@ import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { isDesktopShell } from '../platform'
+import { countryGroups } from '../shared/countries'
 import { confirmRegistrationOnServer, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { LEGAL_VERSION, legalUrl, PHONE_AUTH_UI } from './authFeatures'
 import { CodeInput, Warning } from './codeFields'
@@ -29,8 +30,8 @@ interface StepProps {
  * Step 1 of the account window (AccountController): «Вход» / «Регистрация» right in the app.
  * - Вход: e-mail + password, a code from the e-mail, «Забыли пароль?» by e-mail code (both only while the server sends
  *   e-mail codes), on the phone a hint for the QR sign-in from the PC.
- * - Регистрация: e-mail, password twice, an optional invitation code and the consent with the documents on raidos.app;
- *   with e-mail codes on, the code from the e-mail creates the account, otherwise it is signed in at once.
+ * - Регистрация: e-mail, password twice, the country, an optional invitation code and the consent with the documents on
+ *   raidos.app; with e-mail codes on, the code from the e-mail creates the account, otherwise it is signed in at once.
  * The desktop app goes through the main process (electron/serviceGateway.ts: the session never reaches this page),
  * the phone through sync/webAccount.ts. Phone / SMS options stay hidden while PHONE_AUTH_UI is off.
  */
@@ -153,6 +154,9 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
+  // owner, 13.10.2026: «при регистрации нужно указать страну» — required, never chosen in advance (src/shared/countries.ts).
+  const [country, setCountry] = useState('')
+  const { locale } = useLocale()
   const [referral, setReferral] = useState('')
   const [showCode, setShowCode] = useState(false)
   const [consent, setConsent] = useState(false)
@@ -184,11 +188,12 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
     if (password.length < 8) { setError('Пароль должен быть не короче 8 символов.'); return }
     if (password !== repeat) { setError('Пароли не совпадают.'); return }
     if (invite && !REFERRAL_CODE.test(invite)) { setError('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».'); return }
+    if (!country) { setError('Выберите страну.'); return }
     if (!consent) { setError('Отметьте согласие с офертой и на обработку персональных данных.'); return }
     setBusy(true); setError('')
     onSigningIn()
     try {
-      const result = await registerOnServer(email, password, invite || undefined)
+      const result = await registerOnServer(email, password, invite || undefined, country)
       if (result.pending) {
         setPending({ registration: result.pending, email: email.trim() })
         setCode('')
@@ -267,6 +272,16 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
       </label>
       <label className="field-label">{uiText('Повторите пароль')}
         <input className="input" type="password" autoComplete="new-password" value={repeat} minLength={8} maxLength={128} onChange={(event) => setRepeat(event.target.value)} required />
+      </label>
+      <label className="field-label">{uiText('Страна')}
+        <select className="input" autoComplete="country" value={country} onChange={(event) => setCountry(event.target.value)} required>
+          <option value="" disabled>{uiText('Выберите страну')}</option>
+          {countryGroups(locale).map((group) => (
+            <optgroup key={group.region} label={group.label}>
+              {group.countries.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}
+            </optgroup>
+          ))}
+        </select>
       </label>
       {showCode ? (
         <label className="field-label">{uiText('Код приглашения (необязательно)')}

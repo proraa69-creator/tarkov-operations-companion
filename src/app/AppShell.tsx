@@ -2,6 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
+import { RequestsNavButton } from '../components/RequestsNavButton'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
@@ -27,8 +28,9 @@ import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { useMobileLayout } from '../platform'
+import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
+import { AndroidUpdateBanner } from '../mobile/AndroidUpdate'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
@@ -230,6 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
+        <RequestsNavButton locale={locale} />
         <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
@@ -273,6 +276,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>)}
       {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
     </div>
   )

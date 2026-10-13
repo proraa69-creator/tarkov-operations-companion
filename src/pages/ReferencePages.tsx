@@ -1,4 +1,4 @@
-import { uiText } from '../i18n/renderText'
+import { uiLabel, uiText } from '../i18n/renderText'
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
@@ -605,6 +605,8 @@ export function TradersPage() {
 
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
+import { AndroidUpdateSettings } from "../mobile/AndroidUpdate";
+import { isAndroidApp } from "../platform";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 
@@ -677,7 +679,8 @@ export function SettingsPage() {
         </section>
         <section className="panel">
           <div className="panel-header">
-            <div className="panel-title">{uiText("Данные")}</div>
+            {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}
+            <div className="panel-title">{uiLabel("Данные")}</div>
           </div>
           <div className="panel-body">
             {uiText(counts && (
@@ -694,7 +697,7 @@ export function SettingsPage() {
                 </span>
               </div>
             ))}
-            <AppUpdateSettings />
+            {isAndroidApp() ? <AndroidUpdateSettings /> : <AppUpdateSettings />}
           </div>
         </section>
         <section className="panel">

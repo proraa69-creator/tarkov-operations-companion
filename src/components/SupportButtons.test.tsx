@@ -61,6 +61,9 @@ describe('SupportButtons', () => {
     const user = userEvent.setup({ applyAccept: false })
     render(<SupportButtons variant="nav" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
+    // A bug report starts with its category; until then the form stays folded and nothing can be sent.
+    expect(await screen.findByRole('button', { name: 'Отправить отчёт' })).toBeDisabled()
+    await user.click(screen.getByRole('radio', { name: 'Карта и метки' }))
     const topic = await screen.findByLabelText('Тема')
     await user.type(topic, 'Карта не открывается')
     await user.type(screen.getByLabelText(/Описание/), 'Чёрный экран на Таможне')
@@ -78,6 +81,7 @@ describe('SupportButtons', () => {
     const [method, path, body] = serviceRequest.mock.calls[0] as [string, string, { kind: string; topic: string; description: string; appVersion: string; platform: string; screenshots: Array<{ data: string }> }]
     expect([method, path]).toEqual(['POST', '/v1/bug-reports'])
     expect(body.kind).toBe('bug')
+    expect((body as unknown as { category: string }).category).toBe('map')
     expect(body.topic).toBe('Карта не открывается')
     expect(body.description).toBe('Чёрный экран на Таможне')
     expect(body.appVersion).toMatch(/^\d+\.\d+\.\d+(?:\.\d+)? · client$/)
@@ -91,6 +95,7 @@ describe('SupportButtons', () => {
     const user = userEvent.setup()
     render(<SupportButtons variant="panel" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
+    await user.click(await screen.findByRole('radio', { name: 'Другое' }))
     await user.upload(await screen.findByLabelText('Скриншоты'), new File([PNG_BYTES], 'a.png', { type: 'image/png' }))
     await user.click(await screen.findByRole('button', { name: 'Убрать скриншот a.png' }))
     await waitFor(() => expect(screen.queryByRole('img')).toBeNull())

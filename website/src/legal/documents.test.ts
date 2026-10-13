@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LEGAL_VERSION, SELLER_DETAILS, legalDocument } from './documents'
+import { LEGAL_VERSION, LEGAL_VERSION_LABEL, SELLER_DETAILS, legalDocument } from './documents'
 
 describe('published seller details', () => {
   it('uses the confirmed self-employed identity without inventing missing details', () => {
@@ -11,7 +11,8 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-10-13.2')
+    expect(LEGAL_VERSION).toBe('2026-10-13.3')
+    expect(LEGAL_VERSION_LABEL).toBe('13 октября 2026 г., ред. 15')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -47,5 +48,13 @@ describe('published seller details', () => {
 
   it('does not claim that a notification has already been filed', () => {
     expect(JSON.stringify(legalDocument('privacy'))).not.toContain('Оператор направил уведомление')
+  })
+
+  it('names the country among the personal data, with its purpose (owner, 13.10.2026: «при регистрации нужно указать страну»)', () => {
+    for (const slug of ['privacy', 'consent'] as const) {
+      const document = JSON.stringify(legalDocument(slug))
+      expect(document, slug).toContain('страна (указывается при регистрации')
+      expect(document, slug).toMatch(/[Сс]татистика аудитории по регионам и выбор способов оплаты/)
+    }
   })
 })

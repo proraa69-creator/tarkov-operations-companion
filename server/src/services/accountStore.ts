@@ -19,6 +19,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
+import { normalizeCountry } from '../../../src/shared/countries'
 import { openDatabase } from './database.js'
 
 export type AccountKind = 'user' | 'streamer'
@@ -56,6 +57,8 @@ interface Account {
   referredBy?: string
   referredAt?: number
   nicknames: Partial<Record<AccountMode, string>>
+  /** The country named at registration (ISO 3166-1 alpha-2); none for accounts from before 13.10.2026 until they set it. */
+  country?: string
   /** End of the free period once it has started. None for older accounts and while it waits for the first app sign-in. */
   trialEndsAt?: number
   /** The free period not started yet (a day, three with a streamer's code): it starts at the first sign-in in an app. */
@@ -113,6 +116,11 @@ export interface AccountView {
   nickname?: string
   /** The same nickname under every mode (for builds before the single nickname); empty without one. */
   nicknames: Partial<Record<AccountMode, string>>
+  /**
+   * The country named at registration (ISO 3166-1 alpha-2, src/shared/countries.ts); absent for accounts from before
+   * the question (13.10.2026) until the player sets it in the cabinet.
+   */
+  country?: string
   /** `lifetime`: streamers use the service free of charge, for good. */
   subscription: {
     status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true
@@ -191,6 +199,20 @@ export function signupDigest(ip: string) {
 /** An Escape from Tarkov AccountId (digits from the game logs) is kept only as this digest. */
 export function eftDigest(eftAccountId: string) {
   return createHash('sha256').update(`eft\u0000${eftAccountId}`).digest('hex')
+}
+
+/** A country that is not an assigned ISO 3166-1 code (src/shared/countries.ts). */
+export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. Выберите страну из списка.'
+
+/**
+ * The country of a registration or of «Страна» in the cabinet as stored: the upper-case code, or null when none was
+ * given (apps from before the question). Anything that is not an assigned code is refused with 400.
+ */
+function storedCountry(raw: string | undefined) {
+  if (raw === undefined) return null
+  const code = normalizeCountry(raw)
+  if (!code) throw new AccountError(400, COUNTRY_INVALID_MESSAGE)
+  return code
 }
 
 /** The answer when the game account already belongs to another Raid OS account. */
@@ -287,6 +309,7 @@ function toAccount(row: Row | undefined): Account | undefined {
     referredBy: row.referred_by == null ? undefined : String(row.referred_by),
     referredAt: row.referred_at == null ? undefined : Number(row.referred_at),
     nicknames: parseNicknames(row.nicknames),
+    country: row.country == null ? undefined : String(row.country),
     trialEndsAt: row.trial_ends_at == null ? undefined : Number(row.trial_ends_at),
     trialPendingMs: row.trial_pending_ms == null ? undefined : Number(row.trial_pending_ms),
     trialDenied: row.trial_denied != null,
@@ -411,6 +434,9 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['trial_ends_at', 'INTEGER'],
   // The length of a free period that has not started yet: it starts at the first sign-in in an app (claimTrialDevice).
   ['trial_pending_ms', 'INTEGER'],
+  // The country named at registration (owner, 13.10.2026: «при регистрации нужно указать страну»): an ISO 3166-1
+  // alpha-2 code from src/shared/countries.ts. NULL for the accounts from before; they can set it in the cabinet.
+  ['country', 'TEXT'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -514,8 +540,9 @@ export class AccountStore {
    * unconfirmed e-mail. With e-mail codes on, registration goes through services/emailAuth.ts instead and the account
    * is created by createVerifiedAccount() only after the code is confirmed.
    */
-  async register(email: string, password: string, referralCode?: string, ip?: string) {
+  async register(email: string, password: string, referralCode?: string, ip?: string, country?: string) {
     const key = email.trim().toLowerCase()
+    const code = storedCountry(country)
     // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
     // here at all (and even if it were, isOwner() would refuse an unconfirmed account). A taken address and an owner
     // address get the same answer, so the reply does not show which e-mail is the owner's.
@@ -524,18 +551,19 @@ export class AccountStore {
     // period stays once per mailbox (claimTrialByEmail).
     if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
-    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip))
+    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip), code)
   }
 
   /**
    * Registration completed with an e-mail code (services/emailAuth.ts): the address is proven, so the account starts
    * confirmed — this is also how a listed owner e-mail can be registered once e-mail codes are on. Throws 409 when the
-   * address got an account meanwhile.
+   * address got an account meanwhile. `country`: the one given when the registration started.
    */
-  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string) {
+  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string, country?: string) {
     const key = email.trim().toLowerCase()
+    const code = storedCountry(country)
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
-    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp)
+    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code)
   }
 
   /**
@@ -589,7 +617,7 @@ export class AccountStore {
   }
 
   /** `signupIp`: digest of the registration address (signupDigest), kept only to spot invitation abuse. */
-  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string) {
+  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string, country: string | null = null) {
     const id = randomBytes(12).toString('hex')
     const createdAt = this.now()
     let referredBy: string | null = null
@@ -604,8 +632,8 @@ export class AccountStore {
     // The free period starts at the first sign-in in an app (claimTrialDevice), not now.
     const trialPendingMs = referredBy && this.streamerTrial ? REFERRAL_TRIAL_MS : WELCOME_TRIAL_MS
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs)
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms, country) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs, country)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
@@ -650,6 +678,7 @@ export class AccountStore {
       createdAt: new Date(account.createdAt).toISOString(),
       ...(primaryNickname(account.nicknames) ? { nickname: primaryNickname(account.nicknames) } : {}),
       nicknames: nicknamesFor(primaryNickname(account.nicknames)),
+      ...(account.country ? { country: account.country } : {}),
       // An ended free period stays in the view while nothing was ever paid: the app then says the trial is over.
       subscription: trialEndsAt === undefined || (trialEndsAt <= this.now() && paidUntil !== undefined) ? { status: 'inactive' }
         : { status: trialEndsAt > this.now() ? 'trial' : 'inactive', trialEndsAt: new Date(trialEndsAt).toISOString() },
@@ -901,6 +930,15 @@ export class AccountStore {
     this.db.prepare('UPDATE accounts SET nicknames = ? WHERE id = ?').run(JSON.stringify(nicknamesFor(nickname)), account.id)
   }
 
+  /**
+   * «Страна» in the cabinet: an account from before the question at registration (13.10.2026) sets it here, and any
+   * player may correct it. An unassigned code is refused with 400 (COUNTRY_INVALID_MESSAGE).
+   */
+  setCountry(accountId: string, country: string) {
+    const account = this.mustGet(accountId)
+    this.db.prepare('UPDATE accounts SET country = ? WHERE id = ?').run(storedCountry(country), account.id)
+  }
+
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
   recordReferralVisit(rawCode: string, visitorKey: string, campaign?: string) {
     const code = normalizeReferralCode(rawCode)
@@ -1068,7 +1106,7 @@ export class AccountStore {
 
   /**
    * «Удалить аккаунт» (the user's own request, password confirmed by the route). Everything personal goes: e-mail, phone,
-   * password, nicknames, sessions and devices, friends, squads, game progress, settings, positions, payout details.
+   * password, nicknames, country, sessions and devices, friends, squads, game progress, settings, positions, payout details.
    * The row itself stays as an anonymous stub, because payments, autopayment records and streamer payouts refer to it and
    * are kept for accounting; the e-mail is free for a new registration at once. The owner's account cannot be deleted
    * this way, and an active autopayment must be cancelled first (cancelling needs the payment provider).
@@ -1099,7 +1137,7 @@ export class AccountStore {
       // Bug reports (services/bugReportStore.ts) stay for the owner to handle, without the e-mail and the account link.
       if (has('bug_reports')) this.db.prepare('UPDATE bug_reports SET account_id = NULL, email = NULL WHERE account_id = ?').run(account.id)
       // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
-      this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', phone = NULL, phone_verified_at = NULL,
+      this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', country = NULL, phone = NULL, phone_verified_at = NULL,
         email_canon = NULL, email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
         .run(`deleted-${account.id}@deleted.invalid`, randomBytes(16), randomBytes(64), this.now(), this.now(), this.now(), account.id)
       this.db.exec('COMMIT')
@@ -1277,7 +1315,7 @@ export interface AccountsHandlerOptions {
 /** What registration needs from services/emailAuth.ts (kept as an interface to avoid an import cycle). */
 export interface PendingRegistrations {
   readonly enabled: boolean
-  startRegistration(email: string, password: string, referralCode?: string, ip?: string): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
+  startRegistration(email: string, password: string, referralCode?: string, ip?: string, country?: string): Promise<{ challengeId: string; expiresAt: string; resendSeconds: number }>
 }
 
 /** The single answer to every registration while e-mail codes are on, whatever the address (anti-enumeration). */
@@ -1286,7 +1324,9 @@ export const REGISTRATION_PENDING_MESSAGE = 'Мы отправили код на
 const emailSchema = z.string().trim().toLowerCase().max(254).email()
 const passwordSchema = z.string().min(8).max(128)
 const credentialsSchema = z.object({ email: emailSchema, password: passwordSchema })
-const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional() })
+// `country` is checked after the parse (its own message, COUNTRY_INVALID_MESSAGE); apps from before 13.10.2026 omit it.
+const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional(), country: z.unknown().optional() })
+const countrySchema = z.object({ country: z.string().max(16) })
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
 const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
@@ -1314,6 +1354,8 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
   const visitLimiter = new FixedWindowRateLimiter(60, 60 * 60 * 1000, options.now)
   // The desktop app sends the game account once per sign-in / log scan: 30 a day is plenty, more is probing.
   const eftLimiter = new FixedWindowRateLimiter(30, 24 * 60 * 60 * 1000, options.now)
+  // «Страна» in the cabinet is set once and seldom corrected: 20 changes a day per account.
+  const countryLimiter = new FixedWindowRateLimiter(20, 24 * 60 * 60 * 1000, options.now)
   const loginFailures = new FixedWindowRateLimiter(options.loginFailuresPerEmail ?? LOGIN_FAILURES_PER_EMAIL, 60 * 60 * 1000, options.now)
   /** The per-e-mail failure counter keeps only a digest of the (canonical) address. */
   const loginKey = (email: string) => createHash('sha256').update(`login\u0000${canonicalEmail(email)}`).digest('hex')
@@ -1358,14 +1400,20 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = registerSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Укажите корректный e-mail и пароль от 8 до 128 символов')
       const { email, password, referralCode } = parsed.data
+      // Every registration form asks the country since 13.10.2026 (owner: «при регистрации нужно указать страну»); older
+      // apps send none and still register. Whatever is given must be an assigned code — checked the same way for every
+      // address, so the refusal says nothing about the e-mail.
+      const givenCountry = parsed.data.country ?? ''
+      const country = givenCountry === '' ? undefined : normalizeCountry(givenCountry)
+      if (givenCountry !== '' && !country) return invalid(COUNTRY_INVALID_MESSAGE)
       const registrations = options.registrations
       if (registrations?.enabled) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or
         // nothing at all) is never visible here. The account is created by POST /register/confirm.
-        const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown')
+        const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country)
         return { status: 202, body: { pending: true, message: REGISTRATION_PENDING_MESSAGE, ...challenge } }
       }
-      const result = await store.register(email, password, referralCode || undefined, req.ip)
+      const result = await store.register(email, password, referralCode || undefined, req.ip, country)
       return { status: 201, body: { token: result.token, referralApplied: result.referralApplied, account: store.view(store.authenticate(result.token)!) } }
     }),
 
@@ -1448,6 +1496,16 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = nicknamesSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Никнейм: 3–15 символов, латиница, цифры, «_» или «-»')
       store.setNicknames(accountId, parsed.data)
+      return { status: 200, body: store.view(accountId) }
+    }),
+
+    /** «Страна» in the cabinet (see AccountStore.setCountry): the account view comes back. */
+    setCountry: (req: AccountsRequest) => authed(req, (accountId) => {
+      const blocked = limited(countryLimiter, `country:${accountId}`)
+      if (blocked) return blocked
+      const parsed = countrySchema.safeParse(req.body)
+      if (!parsed.success) return invalid(COUNTRY_INVALID_MESSAGE)
+      store.setCountry(accountId, parsed.data.country)
       return { status: 200, body: store.view(accountId) }
     }),
 
