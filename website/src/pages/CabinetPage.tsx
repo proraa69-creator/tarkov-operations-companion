@@ -255,7 +255,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
     setPaying(true)
     setPayError(null)
     try {
-      const { confirmationUrl } = await api.createPayment(token, selectedPlan.id, LEGAL_VERSION, { region: 'ru', method, language: 'ru', ...(autoRenew ? { autopayVersion: LEGAL_VERSION } : {}) })
+      const { confirmationUrl } = await api.createPayment(token, selectedPlan.id, LEGAL_VERSION, { method, ...(autoRenew ? { autopayVersion: LEGAL_VERSION } : {}) })
       window.location.assign(confirmationUrl)
     } catch (reason) {
       setPayError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
@@ -411,7 +411,7 @@ function PaymentHistory({ payments }: { payments: Payment[] }) {
               return (
                 <tr key={payment.id}>
                   <td className="mono">{formatShortDate(payment.paidAt ?? payment.createdAt)}</td>
-                  <td>{shortPlanLabel(payment.plan)}{payment.renewal ? ` · ${tr('автопродление')}` : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}{payment.discountPercent ? <span className="tag brass tag-mini">{tr('скидка {percent} %', { percent: payment.discountPercent })}</span> : null}</td>
+                  <td>{shortPlanLabel(payment.plan)}{payment.renewal ? ` · ${tr('автопродление')}` : ''}{payment.discountPercent ? <span className="tag brass tag-mini">{tr('скидка {percent} %', { percent: payment.discountPercent })}</span> : null}</td>
                   <td className="num mono">{formatMoney(payment.amount, payment.currency)}</td>
                   <td><span className={`tag ${status.tone}`}>{tr(status.label)}</span></td>
                 </tr>

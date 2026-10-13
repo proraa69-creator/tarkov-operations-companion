@@ -11,7 +11,8 @@ export const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month
 export const dateOnly = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Moscow' })
 export const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
 export const PLAN_LABEL: Record<PlanId, string> = { '1m': '1 мес', '3m': '3 мес', '6m': '6 мес', '12m': '12 мес' }
-export const PROVIDER_LABEL: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', lava: 'Lava.top' }
+/** «Архив»: a payment service that is no longer connected (owner, 13.10.2026); its payments stay as history. */
+export const PROVIDER_LABEL: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', archive: 'Архив' }
 export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string }> = {
   pending: { label: 'Ожидает', tone: '' },
   succeeded: { label: 'Оплачен', tone: 'green' },

@@ -7,7 +7,6 @@ import { openDatabase, resolveDbPath } from './services/database.js'
 import { PaymentStore, paymentConfigFromEnv } from './services/paymentStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { InviteProgram } from './services/invites.js'
-import { LavaClient, lavaConfigFromEnv } from './services/lavaTop.js'
 import { PhoneAuthService } from './services/phoneAuth.js'
 import { createSmsSender, smsConfigFromEnv, smsLimitsFromEnv } from './services/sms/index.js'
 import { EmailAuthService } from './services/emailAuth.js'
@@ -35,8 +34,7 @@ const db = openDatabase(dbPath)
 const store = new ProgressStore(db)
 // The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days.
 const accounts = new AccountStore({ db, streamerTrial: false })
-const lavaConfig = lavaConfigFromEnv()
-const payments = new PaymentStore(db, paymentConfigFromEnv(), lavaConfig ? { lava: new LavaClient(lavaConfig) } : {})
+const payments = new PaymentStore(db, paymentConfigFromEnv())
 accounts.attachSubscriptions(payments)
 const payouts = new PayoutStore(db, payments)
 // «Пригласи друга»: every hour, grant the rewards whose 14-day check is over (services/invites.ts).
@@ -101,7 +99,7 @@ const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: ne
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
-const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.lava ? ', Lava.top on' : ''}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
+const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
   mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop()
   listener.close(() => { db.close(); process.exit(0) })

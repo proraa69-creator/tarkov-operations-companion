@@ -244,7 +244,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const phones = options.phones ?? new PhoneAuthService(accounts)
   app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
-  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails, payments))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
   let circle: (accountId: string) => string[] = (accountId) => [accountId]

@@ -15,7 +15,7 @@ import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
-import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, lavaWebhookStatus, testLavaWebhook, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
+import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
@@ -205,16 +205,6 @@ app.whenReady().then(async () => {
       const environment = await apiEnvironment('https://raidos.app')
       return { settings: { shopId: saved.shopId, monthPrice: saved.monthPrice, receipts: saved.receipts, streamerPercent: saved.streamerPercent, autopay: saved.autopay, hasKey: saved.hasKey }, env: Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith('YOOKASSA_') || ['TARKOV_PRICE_MONTH_RUB', 'TARKOV_STREAMER_PERCENT', 'TARKOV_PUBLIC_URL'].includes(key))) }
     })
-    handleApiRequest('payments:lava:get' , async () => (await paymentSettings()).lava)
-    handleApiRequest('payments:lava:set', async (payload) => {
-      const input = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
-      // Only these fields can cross the owner web control; no deletion or other providers' settings.
-      const saved = await setPaymentSettings({ section: 'lava', offerId: input.offerId, currency: input.currency, rubRate: input.rubRate, paymentMethod: input.paymentMethod })
-      const environment = await apiEnvironment('')
-      // These secrets go only to the trusted API utility process, never into the HTTP response.
-      return { settings: saved.lava, env: Object.fromEntries(Object.entries(environment).filter(([key]) => key.startsWith('LAVA_'))) }
-    })
-    handleApiRequest('payments:lava:test', () => testLavaWebhook('https://raidos.app/v1/payments/lava/webhook'))
     handleApiRequest('self-update:status', () => selfUpdateStatus())
     handleApiRequest('self-update:check', () => checkSelfUpdateNow())
     handleApiRequest('self-update:install', (payload) => installSelfUpdateNow(payload))
@@ -303,7 +293,6 @@ const OWNER_CHANNELS = [
   'server-watchdog:status', 'server-watchdog:restart', 'server-watchdog:check',
   'owner:payments', 'owner:set-payments', 'owner:streamers', 'owner:invite-streamer', 'owner:emails', 'owner:set-emails',
   'owner:sms', 'owner:set-sms', 'owner:sms-status', 'owner:sms-test',
-  'owner:lava-webhook-status', 'owner:lava-webhook-test',
   'owner:email', 'owner:set-email', 'owner:email-status', 'owner:email-test',
   'owner:error-reports', 'owner:set-error-reports', 'owner:error-reports-test',
   'owner:server-update', 'owner:set-server-update', 'owner:server-update-check', 'owner:server-update-install', 'owner:server-update-rollback',
@@ -475,9 +464,6 @@ function registerIpc() {
     await restartApi()
     return result
   })
-  // «Оплата: другие страны (Lava.top)»: last webhook seen and the self-test (no payment is created).
-  ipcMain.handle('owner:lava-webhook-status', () => lavaWebhookStatus())
-  ipcMain.handle('owner:lava-webhook-test', () => testLavaWebhook('https://raidos.app/v1/payments/lava/webhook'))
   ipcMain.handle('owner:sms-status', () => smsServerStatus())
   ipcMain.handle('owner:sms-test', (_event, phone: unknown) => sendTestSms(phone))
   // «Почта: коды подтверждения»: the same rule — provider and key only from this app, never from the website.
