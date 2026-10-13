@@ -152,7 +152,7 @@ export async function sendSupportMessage(raw: string): Promise<SupportMessage> {
   return message
 }
 
-/** The player has seen the answers: the badge goes at once, the server tells his other devices. */
+/** The player has seen the answers: the badge goes at once, the server tells their other devices. */
 export async function markSupportRead() {
   if (!state.unread) return
   const mine = generation

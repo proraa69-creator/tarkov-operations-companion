@@ -17,10 +17,10 @@
  *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text } -> 201 { message } (audit: support.reply);
  *        an answer also marks the player's messages seen
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
- *   404 for an account that never wrote: the owner answers, he does not start conversations.
+ *   404 for an account that never wrote: the owner answers and does not start conversations.
  *
  * At once on the other side, through what the apps already wait on: an answer (or the owner's read mark) moves the
- * player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's own read mark for his other
+ * player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's own read mark for their other
  * devices; a player's message (or the owner's read mark) moves the owner app's GET /v1/accounts/me/admin/requests/events
  * (routes/bugReports.ts), whose answers carry `unreadChats` next to `open`.
  */
@@ -193,7 +193,7 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     const marked = store.markRead(accountId, 'owner')
     res.status(204).end()
     if (!marked) return
-    // The owner's other devices drop the count; the player's open chat shows his messages as read.
+    // The owner's other devices drop the count; the player's open chat shows their messages as read.
     signal(() => options.ownerSignals?.changed())
     signal(() => options.social?.changed([accountId]))
   })

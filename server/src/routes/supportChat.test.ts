@@ -77,7 +77,7 @@ test('support chat: a player writes, the owner reads and answers; unread marks o
     assert.deepEqual(opened.json.account, { id: playerId, email: 'player@example.com', nickname: 'Shturman_77', nicknames: { pvp: 'Shturman_77', pve: 'Shturman_77', seasonal: 'Shturman_77' } })
     assert.deepEqual(opened.json.messages.map((message) => message.text), ['Здравствуйте!\nНе открывается карта Таможни.'])
 
-    // The owner has seen it: the conversation leaves the unread ones, the player sees his message as read.
+    // The owner has seen it: the conversation leaves the unread ones, the player sees their message as read.
     assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/read`, owner)).status, 204)
     assert.equal((await t.call<Threads>('GET', '/accounts/me/admin/support/threads', owner)).json.unread, 0)
     assert.equal((await t.call<{ messages: Message[] }>('GET', '/me/support/messages', player)).json.messages[0]!.read, true)
@@ -143,7 +143,7 @@ test('support chat: a session is required; the owner routes answer 404 to everyb
       assert.equal((await t.call(method, path, undefined, body)).status, 401, path)
       assert.equal((await t.call(method, path, player, body)).status, 404, path)
     }
-    assert.equal((await t.call<{ messages: Message[] }>('GET', '/me/support/messages', player)).json.messages.length, 1, 'a player cannot answer himself')
+    assert.equal((await t.call<{ messages: Message[] }>('GET', '/me/support/messages', player)).json.messages.length, 1, 'a player cannot answer themselves')
 
     // The owner answers only a player who wrote, and never an id that is not an account's.
     const silent = await t.register('silent@example.com')
@@ -226,7 +226,7 @@ test('support chat: the answer wakes the player\'s app at once, a player\'s mess
     // Answering was reading: the owner app's count is back to 0.
     assert.equal((await t.call<Events>('GET', '/accounts/me/admin/requests/events', owner)).json.unreadChats, 0)
 
-    // The player reads the answer: his other devices are told (the badge goes there too).
+    // The player reads the answer: their other devices are told (the badge goes there too).
     const seen = (await t.call<{ version: number }>('GET', '/me/social-events', player)).json.version
     const otherDevice = t.call<{ version: number }>('GET', `/me/social-events?since=${seen}`, player)
     await new Promise((resolve) => setTimeout(resolve, 50))

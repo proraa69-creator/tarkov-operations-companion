@@ -8,7 +8,7 @@ import { SupportComposer, SupportMessageList } from './SupportChat'
 import { supportTime } from './supportChatClient'
 import './supportChat.css'
 
-/** The player as the owner knows him: the game nickname, else the e-mail. */
+/** The player as the owner knows them: the game nickname, else the e-mail. */
 const playerName = (player: { nickname?: string; email: string } | undefined) => player?.nickname || player?.email || uiText('аккаунт удалён')
 
 /**

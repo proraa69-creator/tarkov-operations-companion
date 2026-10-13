@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 /**
  * «Чат с поддержкой» through the desktop app's request gateway against a real API server (server/src/app.ts on a random
- * port): the player writes and reads with his session, the owner answers from «Заявки» → «Чаты»; only these paths
+ * port): the player writes and reads with their session, the owner answers from «Заявки» → «Чаты»; only these paths
  * pass the renderer's whitelist, and the server keeps the owner's routes to the owner.
  */
 const state = vi.hoisted(() => ({ dir: '', remote: '' }))
