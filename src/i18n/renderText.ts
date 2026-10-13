@@ -8,6 +8,14 @@ export function installCatalogTranslations(entries: Array<[string, string]>) {
   catalog = new Map(entries.flatMap(([ru, en]) => [[ru, en], [cleanQuestText(ru), cleanQuestText(en)]] as Array<[string, string]>))
   window.dispatchEvent(new Event('companion-translations-ready'))
 }
+/**
+ * An interface label that is also the Russian name of a game item: the interface dictionary, never the catalog. The map
+ * tool «Рулетка» read «MTape» in English (the measuring tape item, 13.10.2026), because uiText looks the catalog up first.
+ */
+export function uiLabel(value: string): string {
+  if (language !== 'en') return value
+  return exactUiText(value) ?? translateUiText(value)
+}
 /** Translate display values only. IDs, filters, persisted progress and event handlers stay intact. */
 export function uiText<T>(value: T): T {
   if (language !== 'en') return value

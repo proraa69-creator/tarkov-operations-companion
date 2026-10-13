@@ -1,4 +1,4 @@
-import { uiText } from '../i18n/renderText'
+import { uiLabel, uiText } from '../i18n/renderText'
 import { useState } from 'react'
 import { Circle, CircleMarker, Marker, Polyline, Tooltip, useMapEvents } from 'react-leaflet'
 import { divIcon, type LatLngTuple } from 'leaflet'
@@ -40,7 +40,7 @@ export function MapToolbar({ value, onChange }: { value: MapToolsState; onChange
   return (
     <div className="map-tools" role="toolbar" aria-label={uiText('Инструменты карты')}>
       <button type="button" className={`map-tool${value.tool === 'ruler' ? ' active' : ''}`} onClick={() => pick('ruler')} title={uiText('Рулетка: левая кнопка ставит точку, правая отменяет последний участок')}>
-        <Ruler size={14} /><span>{uiText('Рулетка')}</span>{value.rulerPoints.length > 1 && <em>{uiText(formatMetres(total))}</em>}
+        <Ruler size={14} /><span>{uiLabel('Рулетка')}</span>{value.rulerPoints.length > 1 && <em>{uiText(formatMetres(total))}</em>}
       </button>
       <button type="button" className={`map-tool${value.tool === 'sniper' ? ' active' : ''}`} onClick={() => pick('sniper')} title={uiText('Радиус снайперской стрельбы: кликните по карте и перетаскивайте прицел; правая кнопка мыши — убрать')}>
         <Crosshair size={14} /><span>{uiText('Снайпер')}</span>
