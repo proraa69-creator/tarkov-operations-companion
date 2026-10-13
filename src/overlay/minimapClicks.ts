@@ -11,6 +11,9 @@
  * - `forgetApplied` (window shown or restored, game in front again, display change) forces a re-apply;
  * - the state is re-applied every REAPPLY_MS anyway, so a window style changed behind our back heals itself;
  * - a press over a control keeps the window catching the mouse only until the button is up, or HOLD_MAX_MS.
+ *
+ * Presses dropped while the window does catch the mouse (it worked again once the size slider moved) were not this
+ * state: Chromium's input window stayed hidden after the minimap was hidden (electron/experimental/inputReattach.ts).
  */
 
 export interface ClickZone { x: number; y: number; width: number; height: number }
