@@ -607,7 +607,6 @@ import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
-import { GameLogsSettings } from "../components/GameLogsSettings";
 
 export function SettingsPage() {
   const { data, source, updatedAt } = useTarkovData();
@@ -676,7 +675,6 @@ export function SettingsPage() {
             <div className="support-row"><SupportButtons variant="panel" /></div>
           </div>
         </section>
-        <GameLogsSettings />
         <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Данные")}</div>

@@ -550,9 +550,8 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
     throw error
   }
   const { response, result } = sent
-  // Accounts live per server: a wrong address is the usual reason for «wrong password» (the server never says
-  // whether an e-mail exists, so the app names the server instead).
-  if (response.status === 401) throw new Error(`Неверный e-mail или пароль для сервера ${server}. Аккаунты на разных серверах не общие: если вы регистрировались на другом сайте (например, raidos.app), укажите его адрес сервера выше.`)
+  // The short answer only (owner, 13.10.2026: «много лишнего текста»); the server never says whether an e-mail exists.
+  if (response.status === 401) throw new Error('Неверный e-mail или пароль')
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
