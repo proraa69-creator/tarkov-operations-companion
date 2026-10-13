@@ -9,9 +9,11 @@ features stay in the Windows app, which sends its results to the API server. The
 
 | Desktop | Phone |
 | --- | --- |
-| Sidebar + top bar with search | Bottom tab bar: Обзор · Задания · Карты · Мини Карта · Ещё (Барахолка, Торговцы, Галерея, Предметы для Каппы, Профиль, Настройки, поиск, обновить, RU/EN) |
+| Sidebar + top bar with search | Bottom tab bar: Обзор · Квесты · Карты · Оружейник · Ещё (Барахолка, Торговцы, Баллистика, Боссы, Предметы для Каппы, Отряд, Профиль, Настройки, поиск, обновить, RU/EN, the app version) |
 | Task progress from EFT logs | Task progress from the server (`GET /v1/me/progress/:mode`), which the desktop app uploads |
-| «Мини Карта»: overlay window, hotkeys, screenshot folder, item OCR | «Мини Карта»: the map the player is on now, with his live position (see below) |
+| «Мини Карта»: overlay window, hotkeys, screenshot folder, item OCR | No «Мини Карта» tab (owner, 13.10.2026): «Карты» show the player's position (see below) |
+| Overview: rows and two columns, blocks dragged with the mouse | One column; «Настроить блоки» moves every block with ↑ / ↓, «Текущие задания» and «Прогресс» can stand side by side (`src/overview/phoneLayout.ts`) |
+| Quests: the card next to the list | A tap opens the quest's card as a sheet over the list |
 | Collector screen scan | Manual ticks only (synced through the server account) |
 | Theme decorations (gear kit, helmet badge, telnyashka still life) | Hidden. The textures and colours of every theme stay |
 | Default theme «Олива» (id `tarkov`) | Default theme «Олива» (the same; until 08.10.2026 the phone started on «Чёрный мультикам») |
@@ -20,16 +22,16 @@ The code gates this with `src/platform.ts`: `isNative()`, `isDesktopShell()`, `i
 is `<html data-layout="mobile">` + `src/styles/mobile.css`. A desktop browser narrower than 700 px also gets
 the phone layout. The Windows app never does.
 
-## Live position («Мини Карта»)
+## Live position («Карты»)
 
 1. The desktop app reads the position from each EFT screenshot and posts it to `POST /v1/me/position/:mode`
    (`{x, y, z, yaw, at, map}`), at most every 2 s (`src/sync/serverSync.ts`).
-2. The phone polls `GET /v1/me/position/:mode` every 3 s while «Мини Карта» is open. It stops polling while the app
-   is in the background. The mode is the PvP/PvE/Season switch.
-3. The map comes from `position.map`. The player arrow shows the heading. The map zooms to the player on the
-   first fix and then follows him. Dragging the map stops following, and «Ко мне» turns it back on.
-4. A position older than 3 minutes, or no position at all, shows «Не в рейде · нет свежей позиции» on the last
-   known map, with a hint that the desktop app must be running and signed in to the same account.
+2. The phone polls `GET /v1/me/position/:mode` every 3 s while «Карты» are open (`src/mobile/PhoneMapsPage.tsx`).
+   It stops polling while the app is in the background. The mode is the PvP/PvE/Season switch.
+3. A new fresh position (the player took a screenshot in the game) opens the map it names (`position.map`) and the
+   player arrow shows the heading. The map zooms to the player on the first fix and then follows him; dragging the
+   map stops following until the next new position. Any other map can be looked at in between.
+4. A position older than 3 minutes is drawn dimmed and does not move the map.
 
 ## Connecting the phone to the server
 
@@ -48,8 +50,9 @@ The phone cannot reach `127.0.0.1` of the PC. It needs the PC's address in the s
    ```
    Windows asks whether to allow Node.js on private networks. Allow it for **private** networks only. This is a
    firewall change: do it yourself, the agent does not change firewall settings.
-3. On the phone: Ещё → Настройки → «Адрес сервера» → `http://192.168.1.20:8787` → Сохранить. Then sign in to the
-   same account as in the desktop app («Аккаунт сервера»).
+3. The phone has no «Адрес сервера» setting any more (owner, 13.10.2026). Build it for the LAN server with
+   `VITE_TARKOV_API_URL=http://192.168.1.20:8787`, or sign in with the QR code of a desktop app that uses that
+   server (the QR brings its server along). Then sign in to the same account as in the desktop app («Аккаунт сервера»).
 
 Plain HTTP is accepted only for localhost and private LAN addresses (`10.*`, `172.16–31.*`, `192.168.*`,
 `*.local`). Any other address must be HTTPS (`src/sync/webAccount.ts`). Do not expose port 8787 to the internet.

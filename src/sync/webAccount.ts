@@ -2,9 +2,10 @@
  * Server account for the phone app (Capacitor) and the browser preview — the same contract as the desktop
  * gateway in electron/serviceGateway.ts, but over `fetch` from the renderer, because there is no main process.
  *
- * - The server address is set by the user in Settings → «Адрес сервера» (a phone cannot reach 127.0.0.1 of the PC:
- *   use the PC's LAN address, e.g. http://192.168.1.20:8787, or an HTTPS address). Plain HTTP is accepted only
- *   for localhost and private LAN addresses; anything public must be HTTPS.
+ * - The server is https://raidos.app (VITE_TARKOV_API_URL at build time); a QR sign-in from the desktop app brings its
+ *   own server (mobile/DeepLinkLogin.tsx). Settings has no «Адрес сервера» since 13.10.2026. A phone cannot reach
+ *   127.0.0.1 of the PC: a development server is the PC's LAN address, e.g. http://192.168.1.20:8787. Plain HTTP is
+ *   accepted only for localhost and private LAN addresses; anything public must be HTTPS.
  * - The session token is kept in the app's private WebView storage (never logged, never put in a URL).
  * - Only the whitelisted paths below can be requested.
  */

@@ -15,6 +15,8 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Открыть сайт', 'Open website'],
   ['Сервер не входит в эту сборку приложения.', 'This build of the app does not include the server.'],
   ['Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.', 'Server unavailable: turn on “Server and website on this PC” above or start the server another way.'],
+  ['Сервер недоступен. Проверьте интернет и нажмите «Проверить».', 'Server unavailable. Check the internet connection and tap «Check».'],
+  ['Войдите тем же e-mail и паролем, что на сайте и в приложении для ПК.', 'Sign in with the same e-mail and password as on the website and in the PC app.'],
   ['Аккаунт сервера', 'Server account'],
   ['Проверяем сервер…', 'Checking the server…'],
   ['Сервер доступен', 'Server online'],

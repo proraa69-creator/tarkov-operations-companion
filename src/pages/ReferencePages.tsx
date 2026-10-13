@@ -23,7 +23,6 @@ import { formatPrice, timeAgo } from "../shared/format";
 import { bestSale, displayPrice, fleaSale, traderQuotes } from "../domain/itemPrices";
 import { useLocale } from "../i18n/LocaleProvider";
 import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
-import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
@@ -709,9 +708,10 @@ export function SettingsPage() {
           </div>
         </section>
       </div>
+      {/* The phone always talks to raidos.app (owner, 13.10.2026: «убрать в настройках адрес сервера»); a QR sign-in from
+          the desktop app still brings its own server along (mobile/DeepLinkLogin.tsx). */}
       {usesWebAccount() && (
         <div className="settings-server stack">
-          <ServerAddressPanel />
           <ServerAccountPanel />
         </div>
       )}

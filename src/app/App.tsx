@@ -23,7 +23,7 @@ import { GalleryPage } from '../pages/GalleryPage'
 import { SquadPage } from '../pages/SquadPage'
 import { RequestsPage } from '../pages/RequestsPage'
 import { useLocale } from '../i18n/LocaleProvider'
-import { LiveMapPage } from '../mobile/LiveMapPage'
+import { PhoneMapsPage } from '../mobile/PhoneMapsPage'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { startAppActivity } from './appActivity'
 import { useDataAccess } from '../account/dataAccess'
@@ -49,10 +49,11 @@ export function App() {
   useEffect(() => startAppActivity(), [])
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
-  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
+  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
   return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><AppShell key={`${locale}:${revision}`}><Routes>
-    <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
-    <Route path="/live" element={<LiveMapPage />} />
+    <Route path="/experimental" element={mobile ? <Navigate to="/maps" replace /> : <ExperimentalPage />} />
+    {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
+    <Route path="/live" element={<Navigate to="/maps" replace />} />
     <Route path="/gallery" element={<GalleryPage />} />
     {/* «Тактика боя»: not in the menu, opened only from a boss's button (Gallery, the raid card). */}
     <Route path="/bosses/:key/tactics" element={<Suspense fallback={null}><BossTacticsPage /></Suspense>} />
@@ -60,8 +61,8 @@ export function App() {
     <Route path="/keep-items" element={featureEnabled('keepItems') ? <KeepItemsPage /> : <Navigate to="/kappa-items" replace />} />
     <Route path="/briefing" element={featureEnabled('raidBriefing') ? <RaidBriefingPage /> : <Navigate to="/" replace />} />
     <Route path="/" element={<DashboardPage />} />
-    <Route path="/maps" element={<MapsPage />} />
-    <Route path="/maps/:mapId" element={<MapsPage />} />
+    <Route path="/maps" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
+    <Route path="/maps/:mapId" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
     {/* «Оружейник»: not in the menu, opened from the Overview block («Посмотреть все»). */}
     <Route path="/gunsmith" element={<Suspense fallback={null}><GunsmithPage /></Suspense>} />
