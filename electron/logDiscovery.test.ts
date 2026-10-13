@@ -2,7 +2,7 @@ import { mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildLogFolderCandidates, buildUserLogFolderCandidates, freshestLogsFolder, launchTime, normalizeSelectedLogsFolder, parseLauncherGamesRoot, parseSteamInstallDir, parseSteamLibraryFolders, steamLogFolderCandidates, steamRoots, type SteamFiles } from './logDiscovery.js'
+import { buildLogFolderCandidates, buildUserLogFolderCandidates, freshestLogsFolder, gameLogFolders, launchTime, normalizeSelectedLogsFolder, parseLauncherGamesRoot, parseRegExport, parseSteamInstallDir, parseSteamLibraryFolders, registeredGameFolders, searchDrivesForLogFolders, steamLibraries, steamLogFolderCandidates, steamRoots, type SteamFiles } from './logDiscovery.js'
 
 describe('EFT log discovery', () => {
   it('reads the games root from BSG Launcher settings', () => {
@@ -144,5 +144,79 @@ describe('EFT log discovery: the Steam version', () => {
     expect(await normalizeSelectedLogsFolder(game)).toBe(join(game, 'build', 'Logs'))
     expect(await normalizeSelectedLogsFolder(join(game, 'build'))).toBe(join(game, 'build', 'Logs'))
     expect(await normalizeSelectedLogsFolder(join(game, 'build', 'Logs'))).toBe(join(game, 'build', 'Logs'))
+  })
+})
+
+
+// Still not found for the player after 0.6.0.29 (owner, 13.10.2026: «человеку не помог наш способ», «до сих пор не находит»).
+describe('EFT log discovery: wherever the game is', () => {
+  it('reads a registry value in any letters from `reg export` (UTF-16), not from its subkeys', () => {
+    const steam = '\uFEFFWindows Registry Editor Version 5.00\r\n\r\n[HKEY_CURRENT_USER\\Software\\Valve\\Steam]\r\n"SteamExe"="d:/игры/steam/steam.exe"\r\n"SteamPath"="d:/игры/steam"\r\n\r\n[HKEY_CURRENT_USER\\Software\\Valve\\Steam\\Apps]\r\n"Language"="russian"\r\n'
+    expect(parseRegExport(Buffer.from(steam, 'utf16le').toString('utf16le'), 'steampath')).toBe('d:/игры/steam')
+    expect(parseRegExport(steam, 'Language')).toBeUndefined()
+    const entry = '[HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 3932890]\r\n"DisplayName"="Escape from Tarkov"\r\n"InstallLocation"="E:\\\\Игры\\\\SteamLibrary\\\\steamapps\\\\common\\\\Escape from Tarkov"\r\n'
+    expect(parseRegExport(entry, 'InstallLocation')).toBe('E:\\Игры\\SteamLibrary\\steamapps\\common\\Escape from Tarkov')
+    expect(parseRegExport(entry, 'Missing')).toBeUndefined()
+  })
+
+  it('takes the game folder from Windows\' entries of Steam\'s app and of the BSG launcher', async () => {
+    const folders = await registeredGameFolders(async (key, name) => {
+      if (name !== 'InstallLocation') return undefined
+      if (key === 'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 3932890') return 'E:\\Игры\\SteamLibrary\\steamapps\\common\\Escape from Tarkov\\'
+      if (key === 'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\EscapeFromTarkov') return '"C:\\Battlestate Games\\EFT"'
+      if (key.startsWith('HKCU')) return 'not\\a\\full\\path'
+      throw new Error('no such key')
+    })
+    expect(folders).toEqual(['E:\\Игры\\SteamLibrary\\steamapps\\common\\Escape from Tarkov', 'C:\\Battlestate Games\\EFT'])
+    expect(gameLogFolders(folders[0]!)).toEqual(['E:\\Игры\\SteamLibrary\\steamapps\\common\\Escape from Tarkov\\build\\Logs', 'E:\\Игры\\SteamLibrary\\steamapps\\common\\Escape from Tarkov\\Logs'])
+  })
+
+  it('a Steam folder is a library with only config\\libraryfolders.vdf, or with steamapps and no list at all', async () => {
+    const disk = fakeDisk(
+      { 'D:\\Игры\\Steam\\config\\libraryfolders.vdf': '"libraryfolders" { "1" { "path" "F:\\\\Библиотека" } }' },
+      { 'C:\\Steam\\steamapps': ['common'] },
+    )
+    expect(await steamLibraries(['D:\\Игры\\Steam', 'C:\\Steam', 'X:\\Nope'], disk)).toEqual(['D:\\Игры\\Steam', 'F:\\Библиотека', 'C:\\Steam'])
+  })
+
+  it('looks through the drives: Steam libraries and game folders three levels down, not Windows\' or the users\' folders', async () => {
+    const disk = fakeDisk(
+      { 'G:\\Игры\\Steam\\steamapps\\appmanifest_3932890.acf': MANIFEST },
+      {
+        'C:\\': ['Windows', 'Users', 'Program Files'],
+        'C:\\Windows': ['Escape from Tarkov'],
+        'C:\\Users': ['Tarkov'],
+        'C:\\Program Files': ['Common Files'],
+        'G:\\': ['Фото', 'Игры'],
+        'G:\\Игры': ['Steam'],
+        'G:\\Игры\\Steam': ['bin', 'steamapps'],
+        'G:\\Игры\\Steam\\steamapps': ['common'],
+        'G:\\Игры\\Steam\\steamapps\\common': ['Escape from Tarkov', 'Escape from Tarkov Arena'],
+        'H:\\': ['Games'],
+        'H:\\Games': ['Battlestate Games'],
+        'H:\\Games\\Battlestate Games': ['Escape from Tarkov'],
+      },
+    )
+    const found = await searchDrivesForLogFolders(['C:', 'G:', 'H:', 'Q:'], disk)
+    expect(found).toContain('G:\\Игры\\Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs')
+    expect(found).toContain('H:\\Games\\Battlestate Games\\Escape from Tarkov\\Logs')
+    expect(found.some((path) => /^C:\\(Windows|Users)|arena/i.test(path))).toBe(false)
+    // Out of time: nothing more is listed.
+    expect(await searchDrivesForLogFolders(['G:'], disk, Date.now() - 1)).toEqual([])
+  })
+
+  it('«Выбрать папку Logs» takes the game\'s Logs from a Steam library, steamapps, common, a launch folder or a drive', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'raidos-pick-'))
+    const library = join(root, 'SteamLibrary')
+    const logs = join(library, 'steamapps', 'common', 'Escape from Tarkov', 'build', 'Logs')
+    const launch = join(logs, 'log_2026.10.13_9-00-00_1.0.0.1')
+    await mkdir(launch, { recursive: true })
+    await mkdir(join(library, 'steamapps', 'common', 'Escape from Tarkov Arena', 'Logs', 'log_2026.10.14_9-00-00_0.4.0.1'), { recursive: true })
+    for (const picked of [root, library, join(library, 'steamapps'), join(library, 'steamapps', 'common'), launch]) {
+      expect(await normalizeSelectedLogsFolder(picked), picked).toBe(logs)
+    }
+    const empty = join(root, 'Пусто')
+    await mkdir(empty)
+    expect(await normalizeSelectedLogsFolder(empty)).toBe(empty)
   })
 })

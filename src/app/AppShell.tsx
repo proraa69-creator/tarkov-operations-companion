@@ -20,6 +20,7 @@ import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
+import { updateLogStatus } from '../import/logStatus'
 import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -133,6 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     let detectedMode = sessionStorage.getItem('eft-last-detected-mode')
     const applyLogResult = (result: ModeLogScanResult) => {
       if (!active) return
+      updateLogStatus({ scan: result, notFound: false })
       if (result.latestMode) {
         if (detectedMode !== result.latestMode) stateRef.current.setRaidMode(result.latestMode)
         detectedMode = result.latestMode
@@ -166,7 +168,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     void window.tarkovDesktop.autoFindAndScanLogs(savedFolder ?? undefined).then((result) => {
       if (!active) return
-      if (!result) { watchSaved(); return }
+      if (!result) { updateLogStatus({ notFound: true }); watchSaved(); return }
+      updateLogStatus({ folder: result.folder })
       applyLogResult(result)
       localStorage.setItem(LOG_FOLDER_STORAGE_KEY, result.folder)
       void window.tarkovDesktop?.startWatchingLogs(result.folder)

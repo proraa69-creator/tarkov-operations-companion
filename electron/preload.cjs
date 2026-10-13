@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   },
   autoFindAndScanLogs: (current) => ipcRenderer.invoke('logs:auto-find-and-scan', current),
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan'),
+  logSearchReport: () => ipcRenderer.invoke('logs:search-report'),
   startWatchingLogs: (folder) => ipcRenderer.invoke('logs:start-watching', folder),
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data'),
   onLogsUpdated: (callback) => {
