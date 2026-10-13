@@ -12,6 +12,7 @@ import { candidateDistance, decideByPicture, decodeIcon, iconSignature, isItemIc
 import type { PictureSignature } from '../overlay/iconSignature'
 import { loadItemNameVariants } from '../overlay/itemNames'
 import { describeItem } from '../overlay/itemInfo'
+import { isKappaBadgeMissingOnly } from '../kappa/kappaBadgeSetting'
 import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
 import type { Item, MarkerLayerId } from '../domain/types'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
@@ -143,7 +144,8 @@ export function ExperimentalBridge() {
       const progress = state.activeProfile.modes[state.raidMode]
       // Two independent overlay slots: the keep badge («Что не продавать») and who of the friends / squad needs the item.
       const card = (item: Item, source?: ItemOverlayInfo['source']): ItemOverlayPayload => ({
-        ...describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id))),
+        // «Значок «Каппа» в рейде только на недостающих» (Kappa page): no badge on items already checked in this mode.
+        ...describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id)), isKappaBadgeMissingOnly() ? loadCollected(state.raidMode) : undefined),
         ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true, mateNames: mateNamesFor(state.raidMode, item.id) ?? [] } : {}),
         ...(source ? { source } : {}),
       })

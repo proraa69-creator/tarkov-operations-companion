@@ -6,6 +6,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { KappaCongrats } from '../components/KappaCongrats'
 import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected, scanForCollectorItems } from '../kappa/collector'
+import { setKappaBadgeMissingOnly, useKappaBadgeMissingOnly } from '../kappa/kappaBadgeSetting'
 
 /** One press scans for this long, so a whole stash can be scrolled through. */
 const SCAN_WINDOW_MS = 45_000
@@ -22,6 +23,7 @@ export function KappaItemsPage() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const desktop = Boolean(window.tarkovDesktop)
+  const missingOnly = useKappaBadgeMissingOnly()
 
   useEffect(() => {
     const reload = () => setCollected(loadCollected(raidMode))
@@ -108,7 +110,14 @@ export function KappaItemsPage() {
       ) : (
         <>
           <KappaCongrats profileId={activeProfile.id} mode={raidMode} complete={complete} total={entries.length} />
-          <div className="kappa-items-progress"><strong>{uiText(done)} / {uiText(entries.length)}</strong><span>{uiText('предметов собрано')}</span></div>
+          <div className="kappa-items-progress">
+            <strong>{uiText(done)} / {uiText(entries.length)}</strong><span>{uiText('предметов собрано')}</span>
+            {/* The in-raid item card exists in the Windows app only (owner, 13.10.2026: a switch like «Дым за боссами»). */}
+            {desktop && <label className="kappa-badge-switch" title={uiText('Уже отмеченные здесь предметы карточка в рейде не помечает. Выключите — значок будет на всех предметах для «Коллекционера».')}>
+              <span>{uiText('Значок «Каппа» в рейде только на недостающих')}</span>
+              <button type="button" role="switch" aria-checked={missingOnly} className={`toggle ${missingOnly ? 'on' : ''}`} onClick={() => setKappaBadgeMissingOnly(!missingOnly)}><span /></button>
+            </label>}
+          </div>
           <div className="kappa-items-grid">
             {entries.map(({ item, count }) => {
               const has = collected.includes(item.id)

@@ -772,7 +772,10 @@ a.quest-stage:hover { color: var(--text); }
 .kappa-card .stat-label { padding-right: 104px; line-height: 1.35; }
 .kappa-items-actions { display: flex; gap: 8px; align-items: center; }
 .kappa-items-message { margin: 0 0 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); }
-.kappa-items-progress { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.kappa-items-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+/* «Значок «Каппа» в рейде только на недостающих» (owner, 13.10.2026) */
+.kappa-badge-switch { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; align-self: center; cursor: pointer; }
+.kappa-badge-switch > span { font-size: 13px; }
 .kappa-items-progress strong { font-size: 22px; color: var(--brass-strong); }
 .kappa-items-progress span { color: var(--text-muted); }
 .kappa-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }

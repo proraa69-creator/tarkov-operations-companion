@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Item } from '../domain/types'
 import { describeItem } from './itemInfo'
+import { item as catalogItem, quest } from '../raidprep/fixtures'
 
 const item: Item = { id: 'gun', name: 'Weapon', shortName: 'Weapon', category: 'Оружие', description: '', types: ['gun'], iconUrl: 'receiver.webp', presetImageUrl: 'assembled.webp', fleaPrice: 123, prices: [{ source: 'Mechanic', price: 99, updatedAt: '', mode: 'pvp' }] }
 const progress = { taskProgress: {} }
@@ -36,5 +37,17 @@ describe('item overlay prices per mode', () => {
     // Season has no flea quote here: no price rather than the PvP one in `fleaPrice`.
     expect(describeItem(salewa, [], progress, 'seasonal').fleaPrice).toBeUndefined()
     expect(describeItem(salewa, [], progress, 'pvp').fleaAverage).toBeUndefined()
+  })
+})
+
+describe('«Каппа» badge only on missing items (owner, 13.10.2026)', () => {
+  const egg = catalogItem('egg', 'Golden egg')
+  const collector = quest('5c51aac186f77432ea65c552', 'Коллекционер', { trader: 'Скупщик', kappa: true, requiredItems: ['egg'] })
+  it('drops the badge for an item already checked on the Kappa page and keeps it for the missing ones', () => {
+    expect(describeItem(egg, [collector], progress, 'pvp').collector).toBe(true)
+    expect(describeItem(egg, [collector], progress, 'pvp', undefined, ['egg']).collector).toBe(false)
+    expect(describeItem(egg, [collector], progress, 'pvp', undefined, ['other']).collector).toBe(true)
+    // The quest itself is still listed: only the badge goes.
+    expect(describeItem(egg, [collector], progress, 'pvp', undefined, ['egg']).quests.map((need) => need.name)).toEqual(['Коллекционер'])
   })
 })
