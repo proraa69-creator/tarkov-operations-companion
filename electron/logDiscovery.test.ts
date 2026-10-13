@@ -2,7 +2,7 @@ import { mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildLogFolderCandidates, freshestLogsFolder, launchTime, parseLauncherGamesRoot } from './logDiscovery.js'
+import { buildLogFolderCandidates, buildUserLogFolderCandidates, freshestLogsFolder, launchTime, parseLauncherGamesRoot } from './logDiscovery.js'
 
 describe('EFT log discovery', () => {
   it('reads the games root from BSG Launcher settings', () => {
@@ -26,6 +26,12 @@ describe('EFT log discovery', () => {
   it('knows the Steam version\'s folders too', () => {
     const candidates = buildLogFolderCandidates(undefined, ['D:'])
     expect(candidates).toContain('D:\\SteamLibrary\\steamapps\\common\\Escape from Tarkov\\build\\Logs')
+  })
+
+  it('checks per-user locations when the launcher does not expose the install root', () => {
+    const candidates = buildUserLogFolderCandidates('C:\\Users\\Tester\\AppData\\Roaming')
+    expect(candidates).toContain('C:\\Users\\Tester\\AppData\\Local\\Battlestate Games\\Escape from Tarkov\\Logs')
+    expect(candidates).toContain('C:\\Users\\Tester\\Documents\\Escape from Tarkov\\Logs')
   })
 
   it('reads the launch time from the folder name (the hour is not zero-padded)', () => {
