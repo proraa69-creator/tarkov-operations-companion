@@ -71,6 +71,25 @@ describe('admin users: СНГ and Европа', () => {
     expect(await screen.findByText(/Не указана: аккаунт создан до вопроса о стране/)).toBeInTheDocument()
   })
 
+  // owner, 13.10.2026: «под каждым аккаунтом … должен писаться найденный ник, в приложении на пк».
+  it('shows the nickname the PC app found under each e-mail and in the card; the search hint names it', async () => {
+    const found = { ...almaty, nickname: 'Shaurma_1' }
+    mocks.users.mockResolvedValue({ users: [found, old], total: 2, regions: { all: 2, cis: 1, europe: 0, other: 0, none: 1 } })
+    mocks.user.mockImplementation(async (_token: string, id: string): Promise<AdminUserDetail> => ({ user: id === found.id ? found : old, payments: [], grants: [] }))
+    mocks.devices.mockResolvedValue({ devices: [], limit: 3 })
+    render(<AdminUsers />)
+    const row = (email: string) => screen.getByText(email).closest('tr')!
+    expect(await screen.findByText('Shaurma_1')).toBeInTheDocument()
+    expect(within(row('almaty@mail.ru')).getByText('Shaurma_1')).toBeInTheDocument()
+    expect(within(row('old@mail.ru')).getByText('ник не найден')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Поиск по e-mail или нику' })).toBeInTheDocument()
+    const [first, second] = screen.getAllByRole('button', { name: /Действия/ })
+    fireEvent.click(first!)
+    expect(await screen.findByText((_, element) => element?.classList.contains('admin-eft-nick') === true && element.textContent === 'Ник из логов игры: Shaurma_1')).toBeInTheDocument()
+    fireEvent.click(second!)
+    expect(await screen.findByText('Ник ещё не найден: его находит приложение для ПК в логах игры.')).toBeInTheDocument()
+  })
+
   it('an older server without the counts: the tabs work without numbers', async () => {
     mocks.users.mockResolvedValue({ users: [almaty], total: 1 })
     render(<AdminUsers />)
