@@ -39,6 +39,8 @@ the same catalog and images.
    1080×1920: logo card with the scene-1 voice, six crops of the finished video with big captions, the end card with
    the scene-20 voice. The browser draws every whole frame and pipes it to one encoder (multi-input ffmpeg graphs
    stalled in ffmpeg 7.0 here); `--reuse` keeps the rendered picture and redoes only the sound.
+   `node vertical/previews.mjs <lang>` → `-sfx`, `-ambient`, `-tension`: the same cut with other sound (`sound.mjs`:
+   interface sounds only, a calm pad bed, a tense drone; all with key presses, chimes and whooshes on its events).
 6. `node ads/build.mjs <lang>` → `promo/out/ads-<lang>/`: cover 1920×1080, squares 1080×1080 (Kappa, item, minimap),
    feed 1080×1350, story 1080×1920, from frames in `ads/frames-<lang>/`.
 
