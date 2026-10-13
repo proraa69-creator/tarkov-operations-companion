@@ -101,6 +101,15 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Точка перенесена вручную, её видят все игроки.', 'Moved by hand; every player sees this point.'],
   ['Исходная точка: перетащите её, скройте или добавьте новую — изменения сохраняются сразу и видны всем игрокам.', 'Original point: drag it, hide it or add a new one; changes are saved at once and every player sees them.'],
   ['Править точки квестов может только аккаунт владельца.', 'Only the owner account can fix quest points.'], ['Сначала выберите квест.', 'Pick a quest first.'],
+  // The quest constructor «Редактировать квесты» (QuestPointEditor.tsx, QuestTextEditor.tsx).
+  ['Редактировать квесты', 'Edit quests'], ['Конструктор квестов', 'Quest constructor'],
+  ['Конструктор квестов: точки на карте и тексты. Изменения сохраняются сразу и видны всем игрокам', 'Quest constructor: map points and texts. Changes are saved at once and every player sees them'],
+  ['без точек', 'no points'], ['Текст квеста правится в окне квеста внизу карты.', 'The quest texts are edited in the quest window at the bottom of the map.'],
+  ['Текст квеста', 'Quest text'], ['Исправленный текст сохраняется на сервере и сразу виден всем игрокам на этом языке.', 'A corrected text is saved on the server and every player sees it at once in this language.'],
+  ['Описание квеста (страница «Задания»)', 'Quest description (the Tasks page)'], ['Описание главы (страница «Задания»)', 'Chapter description (the Tasks page)'],
+  ['исправлено вручную', 'corrected by hand'], ['Сохранить (Ctrl+Enter)', 'Save (Ctrl+Enter)'], ['Вернуть текст из игры', "Return the game's text"],
+  ['Вернуть исходный', 'Restore the original'], ['Сохранено — видят все игроки', 'Saved: every player sees it'],
+  ['Править тексты квестов может только аккаунт владельца.', 'Only the owner account can edit quest texts.'],
   ['Применить расстановку боссов PvP ко всем режимам?\n\nВсе боссы PvP на всех картах закрепятся там, где стоят сейчас, и PvE и Сезон будут показывать ту же расстановку. Дальше изменения, сделанные в одном режиме, меняют только этот режим.',
     'Apply the PvP boss placement to every mode?\n\nEvery PvP boss on every map is pinned where it stands now, and PvE and Season will show the same placement. Changes made later in one mode change only that mode.'],
   // Certain spawns and jewelry spots (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx).
@@ -111,6 +120,11 @@ export const MAP_PHRASES: Array<[string, string]> = [
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
+  [/здесь точек:\s*/g, 'points here: '],
+  [/точек на других картах:\s*/g, 'points on other maps: '],
+  [/^Этап (\d+): заголовок$/g, 'Stage $1: title'],
+  [/^Этап (\d+): задача$/g, 'Stage $1: task'],
+  [/^Цель (\d+)$/g, 'Objective $1'],
   [/^Этап (\d+):\s*/g, 'Stage $1: '],
   [/^Точка (\d+) из (\d+)$/g, 'Point $1 of $2'],
   [/Переход на карту\s+/g, 'Transit to '],

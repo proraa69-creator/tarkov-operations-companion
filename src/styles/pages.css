@@ -1114,6 +1114,20 @@ a.quest-stage:hover { color: var(--text); }
 .quest-point-name { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px; border: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-align: left; }
 .quest-point-name small { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .quest-point-row-actions { display: inline-flex; gap: 2px; }
+/* «Редактировать квесты» (owner app): the constructor takes the map's right panel — the whole quest list or the picked
+   quest's points (components/QuestPointEditor.tsx); its texts are fields in the quest window (QuestTextEditor.tsx). */
+.quest-editor-panel { max-width: none; max-height: none; overflow: visible; margin: 12px; background: rgb(255 255 255 / 2%); backdrop-filter: none; }
+.quest-editor-list { max-height: calc(100vh - 260px); overflow: auto; overscroll-behavior: contain; }
+.map-quest-sheet.is-editing { max-height: min(72%, 600px); }
+.quest-text-editor { display: grid; gap: 10px; }
+.quest-text-editor h4 { margin: 0; }
+.quest-text-row { display: grid; gap: 4px; }
+.quest-text-row label { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.quest-text-row label .tag { font-size: 9px; }
+.quest-text-row textarea, .quest-text-row input { width: 100%; min-height: 30px; padding: 6px 8px; font-size: 12px; line-height: 1.4; resize: vertical; }
+.quest-text-row.is-corrected textarea, .quest-text-row.is-corrected input { border-color: #7c6a3f; }
+.quest-text-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.quest-text-saved { color: var(--success); }
 
 /* ── Overview (DashboardPage): current tasks, raid requirements grid, Kappa task list ── */
 /* «11 на Таможне»: set in the heading's own type (.panel-title, themed too) in the accent colour — it is the second

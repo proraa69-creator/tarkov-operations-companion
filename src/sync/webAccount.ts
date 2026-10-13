@@ -44,6 +44,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
+  { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
