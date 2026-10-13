@@ -6,7 +6,7 @@ import './announcement.css'
 /**
  * The owner's notice at the top of the app («Ведутся технические работы…»), on every page (`shell`: under the top bar,
  * the pages move down by its height) and on the locked screens (`page`), until the owner turns it off. Not closable: it
- * stays while it is true. The owner's own words, shown as written.
+ * stays while it is true (the app checks every 3–6 minutes). The owner's own words, shown as written.
  */
 export function AnnouncementBanner({ placement = 'shell' }: { placement?: 'shell' | 'page' }) {
   const announcement = useAnnouncement()

@@ -1,8 +1,9 @@
 /**
- * The owner's notice over every app (owner, 13.10.2026: «окно уведомления сверху… появлятся у всех моментально, пока я
- * не отключу его… что ведутся технические работы»). The app waits on GET /v1/announcement?since=<version> (long polling,
- * server/src/routes/announcement.ts): the answer comes the moment the owner changes the notice, else after ~25 s and the
- * app asks again. Offline: a growing pause, the last notice stays on screen.
+ * The owner's notice over every app (owner, 13.10.2026: «окно уведомления сверху… пока я не отключу его… что ведутся
+ * технические работы»; «сделай просто разовое уведомление… с разбросом несколько минут что бы не было разовой
+ * нагрузки»). The app asks GET /v1/announcement (server/src/routes/announcement.ts) once at start and then once every
+ * 3–6 minutes, the moment drawn at random for each check, so the apps never ask all at once and no connection is held
+ * open. Offline: the last notice stays on screen until the next answer.
  */
 import { useEffect, useSyncExternalStore } from 'react'
 import { usesWebAccount } from '../sync/serverSync'
@@ -41,22 +42,20 @@ export function setAnnouncement(next: AnnouncementView | null) {
   for (const listener of listeners) listener()
 }
 
-/** One loop per app: waits for the owner's changes as long as the app runs. */
-async function follow() {
-  let version: number | undefined
-  let pause = 0
-  for (;;) {
+/** Between two checks: 3 minutes and a random part of 3 more, drawn anew each time. */
+export const CHECK_MIN_MS = 3 * 60_000
+export const CHECK_SPREAD_MS = 3 * 60_000
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** One loop per app: a single request now and then, as long as the app runs. `ask`, `sleep`, `random` for the tests. */
+export async function followAnnouncement(ask: (path: string) => Promise<unknown> = request, sleep: (ms: number) => Promise<unknown> = wait, rounds = Infinity, random: () => number = Math.random) {
+  for (let round = 0; round < rounds; round += 1) {
     try {
-      const answer = parseAnnouncement(await request(version === undefined ? '/v1/announcement' : `/v1/announcement?since=${version}`))
-      if (!answer) throw new Error('no answer')
-      setAnnouncement(answer.announcement)
-      version = answer.version
-      pause = 0
-    } catch {
-      // Offline or an old server: try again a little later, longer each time (up to a minute).
-      pause = Math.min(60_000, pause ? pause * 2 : 5_000)
-      await new Promise((resolve) => setTimeout(resolve, pause))
-    }
+      const answer = parseAnnouncement(await ask('/v1/announcement'))
+      if (answer) setAnnouncement(answer.announcement)
+    } catch { /* offline or an older server: the last notice stays until the next check */ }
+    await sleep(CHECK_MIN_MS + Math.floor(random() * CHECK_SPREAD_MS))
   }
 }
 
@@ -65,7 +64,7 @@ export function useAnnouncement() {
   useEffect(() => {
     if (running || typeof window === 'undefined' || (!window.tarkovDesktop?.serviceRequest && !usesWebAccount())) return
     running = true
-    void follow()
+    void followAnnouncement()
   }, [])
   return useSyncExternalStore(subscribe, () => current, () => current)
 }
