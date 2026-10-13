@@ -20,6 +20,7 @@ const TEXT = {
     fairEyebrow: 'И главное', fairTitle: 'Raid OS не нарушает правила игры',
     fairRows: ['Не внедряется в игру', 'Не читает её память', 'Не меняет её файлы', 'Ничего не делает за тебя'],
     tag1: 'Меньше вкладок,', tag2: 'больше рейдов.', download: 'Скачать для Windows', soonPhones: 'Скоро — на iPhone и Android',
+    disclaimer: ['Raid OS — неофициальное приложение, не связанное с Battlestate Games (BSG).', 'Escape from Tarkov и связанные с ней материалы принадлежат Battlestate Games.'],
   },
   en: {
     introSub: 'The companion app for <em>Escape from Tarkov</em>',
@@ -27,6 +28,7 @@ const TEXT = {
     fairEyebrow: 'Most importantly', fairTitle: 'Raid OS doesn’t break the game’s rules',
     fairRows: ['Doesn’t inject into the game', 'Doesn’t read its memory', 'Doesn’t change its files', 'Doesn’t play for you'],
     tag1: 'Fewer tabs,', tag2: 'more raids.', download: 'Download for Windows', soonPhones: 'Soon on iPhone and Android',
+    disclaimer: ['Raid OS is an unofficial app, not affiliated with Battlestate Games (BSG).', 'Escape from Tarkov and related content belong to Battlestate Games.'],
   },
 }
 // Phrase starts inside the voice clips (seconds from the clip start), from silencedetect at -34 dB / 70 ms.
