@@ -24,4 +24,8 @@ export const CHARACTER_PHRASES: Array<[string, string]> = [
   ['Приложения игроков проверяют уведомление раз в 3–6 минут.', 'Players’ apps check for the notice every 3–6 minutes.'],
   ['Сейчас не показывается.', 'Not shown now.'],
   ['Текст уведомления: не пустой, до 500 символов', 'Notice text: not empty, up to 500 characters'],
+  ['Поддержать проект — откроется страница DonatePay', 'Support the project — opens the DonatePay page'],
+  ['Поддержать проект', 'Support the project'],
+  ['Помогите развивать компаньон для Escape from Tarkov', 'Help us build the companion for Escape from Tarkov'],
+  ['Спасибо!', 'Thank you!'],
 ]

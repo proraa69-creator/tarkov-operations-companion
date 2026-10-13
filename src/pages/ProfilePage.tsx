@@ -12,6 +12,7 @@ import { useAccountNickname } from '../account/useAccountNickname'
 import { NicknameEditor } from '../account/NicknameEditor'
 import { outdatedProfile } from '../account/logNickname'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
+import { DonateCard } from '../components/DonateCard'
 import '../account/account.css'
 
 export function ProfilePage() {
@@ -47,6 +48,8 @@ export function ProfilePage() {
     {owner && <OwnerAnnouncementPanel />}
     {accountBlock}
     {status?.kind === 'streamer' && <StreamerCabinetPanel />}
+    {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026). */}
+    <div className="profile-donate"><DonateCard /></div>
   </div>
 }
 

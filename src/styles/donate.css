@@ -1,0 +1,34 @@
+/*
+ * «Поддержать проект» (components/DonateCard.tsx), after the owner's design: a dark card with a dashed inner frame, the
+ * emblem tile on the left, «ПОДДЕРЖАТЬ / ПРОЕКТ» in the condensed face. Every colour comes from the theme; the accent is
+ * the olive of the logo in «Олива» and «Чёрный мультикам», the theme's own accent in the others.
+ */
+.donate-card {
+  --donate-accent: var(--brand-os, #a9b973);
+  position: relative; display: flex; align-items: center; gap: clamp(14px, 3vw, 22px); width: 100%; max-width: 560px;
+  padding: clamp(14px, 2.6vw, 20px) clamp(16px, 3vw, 26px); border: 1px solid var(--line); border-radius: 16px;
+  background: radial-gradient(ellipse 70% 90% at 0% 0%, color-mix(in srgb, var(--donate-accent) 9%, transparent), transparent 70%), linear-gradient(160deg, var(--panel-2), var(--panel));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 10px 28px rgb(0 0 0 / 28%);
+  color: var(--text); text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+:root:is([data-theme="slate"], [data-theme="telnyashka"], [data-theme="gear"]) .donate-card { --donate-accent: var(--brass); }
+/* The dashed inner frame of the design. */
+.donate-card::after {
+  content: ''; position: absolute; inset: 7px; border: 1px dashed color-mix(in srgb, var(--text) 20%, transparent); border-radius: 11px; pointer-events: none;
+}
+.donate-card:focus-visible { outline: 2px solid var(--donate-accent); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .donate-card:hover { border-color: color-mix(in srgb, var(--donate-accent) 60%, var(--line)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%), 0 12px 32px rgb(0 0 0 / 34%), 0 0 0 1px color-mix(in srgb, var(--donate-accent) 25%, transparent); }
+}
+.donate-emblem { flex: none; width: clamp(64px, 12vw, 92px); aspect-ratio: 1; }
+.donate-emblem .brand-mark { width: 100%; height: 100%; border-radius: 14px; box-shadow: 0 6px 18px rgb(0 0 0 / 40%); }
+.donate-copy { display: grid; gap: 4px; min-width: 0; }
+.donate-brand { color: var(--text-muted); font-family: "Oswald", "Bahnschrift", sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .28em; }
+.donate-title { font-family: "Oswald", "Bahnschrift", sans-serif; font-size: clamp(22px, 3.4vw, 30px); font-weight: 700; line-height: 1.05; letter-spacing: .02em; text-transform: uppercase; overflow-wrap: anywhere; }
+.donate-accent { color: var(--donate-accent); }
+.donate-text { color: var(--text-muted); font-size: 13px; line-height: 1.4; }
+.donate-thanks { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--donate-accent); font-family: "Oswald", "Bahnschrift", sans-serif; font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+@media (prefers-reduced-motion: reduce) { .donate-card { transition: none; } }
+/* Places: Settings → «Поддержка», «Профиль» under the cabinet. */
+.profile-donate { display: flex; margin-top: 16px; }

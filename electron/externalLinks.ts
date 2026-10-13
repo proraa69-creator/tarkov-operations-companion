@@ -16,9 +16,10 @@ const TRUSTED_DOMAINS = [
   't.me',
   'youtube.com',
   'youtu.be',
-  // Payment pages (ЮKassa / ЮMoney).
+  // Payment pages (ЮKassa / ЮMoney) and the donation page («Поддержать проект», src/components/DonateCard.tsx).
   'yookassa.ru',
   'yoomoney.ru',
+  'donatepay.ru',
   // Boss guides linked from the boss cards (src/data/bossInfo.ts).
   'timesaver.gg',
   'v-tarkov.ru',

@@ -24,6 +24,7 @@ import { LEGAL_VERSION } from '../legal/documents'
 import { localeTag, siteLocale, tr } from '../i18n'
 import { countryName, REGION_LABELS, regionOf } from '../../../src/shared/countries'
 import '../invites.css'
+import { DonateCard } from '../components/DonateCard'
 
 /** «12 октября 2026» / «October 12, 2026»: dates and numbers in the site's language (src/i18n). */
 const formatDate = (value: string) => new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(value))
@@ -115,6 +116,8 @@ export function CabinetPage() {
             <CountryPanel account={account} />
           </div>
           <div className="cabinet-col">
+            {/* «Поддержать проект» (owner, 13.10.2026). */}
+            <DonateCard />
             <AppPanel />
             {account.kind === 'user' && <InviteCodePanel account={account} />}
             <PasswordPanel />

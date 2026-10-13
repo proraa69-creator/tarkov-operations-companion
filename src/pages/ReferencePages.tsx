@@ -606,6 +606,7 @@ export function TradersPage() {
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
+import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 
 export function SettingsPage() {
@@ -673,6 +674,8 @@ export function SettingsPage() {
               </span>
             </div>
             <div className="support-row"><SupportButtons variant="panel" /></div>
+            {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
+            <div className="support-row"><DonateCard /></div>
           </div>
         </section>
         <section className="panel">
