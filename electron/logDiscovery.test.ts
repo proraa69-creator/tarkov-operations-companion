@@ -2,7 +2,7 @@ import { mkdir, mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildLogFolderCandidates, buildUserLogFolderCandidates, freshestLogsFolder, launchTime, parseLauncherGamesRoot } from './logDiscovery.js'
+import { buildLogFolderCandidates, buildUserLogFolderCandidates, freshestLogsFolder, launchTime, normalizeSelectedLogsFolder, parseLauncherGamesRoot, parseSteamInstallDir, parseSteamLibraryFolders, steamLogFolderCandidates, steamRoots, type SteamFiles } from './logDiscovery.js'
 
 describe('EFT log discovery', () => {
   it('reads the games root from BSG Launcher settings', () => {
@@ -50,5 +50,99 @@ describe('EFT log discovery', () => {
     expect(await freshestLogsFolder([current, old])).toBe(current)
     expect(await freshestLogsFolder([undefined, old])).toBe(old)
     expect(await freshestLogsFolder([])).toBeUndefined()
+  })
+})
+
+// The Steam version (owner, 13.10.2026: «у него стим версия таркова, скорее всего логи лежат вообще в другом месте»).
+const LIBRARIES = `"libraryfolders"
+{
+\t"0"
+\t{
+\t\t"path"\t\t"C:\\\\Program Files (x86)\\\\Steam"
+\t\t"label"\t\t""
+\t\t"apps"
+\t\t{
+\t\t\t"228980"\t\t"3459012"
+\t\t}
+\t}
+\t"1"
+\t{
+\t\t"path"\t\t"E:\\\\Games\\\\SteamLib"
+\t\t"apps"
+\t\t{
+\t\t\t"3932890"\t\t"52345671234"
+\t\t}
+\t}
+}`
+const MANIFEST = `"AppState"
+{
+\t"appid"\t\t"3932890"
+\t"name"\t\t"Escape from Tarkov"
+\t"installdir"\t\t"Escape from Tarkov"
+}`
+
+function fakeDisk(files: Record<string, string>, folders: Record<string, string[]>): SteamFiles {
+  return {
+    read: async (path) => { if (!(path in files)) throw new Error(`ENOENT ${path}`); return files[path]! },
+    list: async (path) => { if (!(path in folders)) throw new Error(`ENOENT ${path}`); return folders[path]! },
+  }
+}
+
+describe('EFT log discovery: the Steam version', () => {
+  it('reads every library from libraryfolders.vdf and the game folder from its app manifest', () => {
+    expect(parseSteamLibraryFolders(LIBRARIES)).toEqual(['C:\\Program Files (x86)\\Steam', 'E:\\Games\\SteamLib'])
+    expect(parseSteamInstallDir(MANIFEST)).toBe('Escape from Tarkov')
+    expect(parseSteamInstallDir('"installdir"  "..\\\\Windows"')).toBeUndefined()
+    expect(parseSteamInstallDir('"installdir"  "C:\\\\x"')).toBeUndefined()
+    expect(parseSteamLibraryFolders('not a vdf')).toEqual([])
+  })
+
+  it('looks in build\\Logs of the game in a library on any drive and folder, not in Arena', async () => {
+    const disk = fakeDisk(
+      {
+        'C:\\Program Files (x86)\\Steam\\steamapps\\libraryfolders.vdf': LIBRARIES,
+        'E:\\Games\\SteamLib\\steamapps\\appmanifest_3932890.acf': MANIFEST,
+      },
+      { 'E:\\Games\\SteamLib\\steamapps\\common': ['Escape from Tarkov', 'Escape from Tarkov Arena', 'Counter-Strike Global Offensive'] },
+    )
+    const candidates = await steamLogFolderCandidates(['C:\\Program Files (x86)\\Steam', 'D:\\Steam'], disk)
+    expect(candidates).toContain('E:\\Games\\SteamLib\\steamapps\\common\\Escape from Tarkov\\build\\Logs')
+    expect(candidates).toContain('E:\\Games\\SteamLib\\steamapps\\common\\Escape from Tarkov\\Logs')
+    expect(candidates).toContain('C:\\Program Files (x86)\\Steam\\steamapps\\common\\Escape from Tarkov\\build\\Logs')
+    expect(candidates.some((path) => /arena|counter-strike/i.test(path))).toBe(false)
+    // A folder without Steam's library list is no library.
+    expect(candidates.some((path) => path.startsWith('D:'))).toBe(false)
+    expect(new Set(candidates.map((path) => path.toLowerCase())).size).toBe(candidates.length)
+  })
+
+  it('finds a renamed game folder through the manifest or its name', async () => {
+    const disk = fakeDisk(
+      {
+        'D:\\Steam\\steamapps\\libraryfolders.vdf': '"libraryfolders" { "0" { "path" "D:\\\\Steam" } }',
+        'D:\\Steam\\steamapps\\appmanifest_3932890.acf': '"AppState" { "installdir" "EscapeFromTarkov" }',
+      },
+      { 'D:\\Steam\\steamapps\\common': ['Tarkov Old Copy'] },
+    )
+    const candidates = await steamLogFolderCandidates(['D:\\Steam'], disk)
+    expect(candidates[0]).toBe('D:\\Steam\\steamapps\\common\\EscapeFromTarkov\\build\\Logs')
+    expect(candidates).toContain('D:\\Steam\\steamapps\\common\\Tarkov Old Copy\\build\\Logs')
+  })
+
+  it('takes Steam from the registry first, then the usual folders', async () => {
+    const roots = await steamRoots(async (key, name) => (key.startsWith('HKCU') && name === 'SteamPath' ? 'd:/games/steam' : undefined), ['C:'])
+    expect(roots[0]).toBe('d:\\games\\steam')
+    expect(roots).toContain('C:\\Program Files (x86)\\Steam')
+    expect(roots).toContain('C:\\Steam')
+    const failing = await steamRoots(async () => { throw new Error('reg.exe is missing') }, ['C:'])
+    expect(failing[0]).toBe('C:\\Program Files (x86)\\Steam')
+  })
+
+  it('«Выбрать папку Logs» on the Steam game folder takes build/Logs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'raidos-steam-'))
+    const game = join(root, 'steamapps', 'common', 'Escape from Tarkov')
+    await mkdir(join(game, 'build', 'Logs', 'log_2026.10.13_9-00-00_1.0.0.1'), { recursive: true })
+    expect(await normalizeSelectedLogsFolder(game)).toBe(join(game, 'build', 'Logs'))
+    expect(await normalizeSelectedLogsFolder(join(game, 'build'))).toBe(join(game, 'build', 'Logs'))
+    expect(await normalizeSelectedLogsFolder(join(game, 'build', 'Logs'))).toBe(join(game, 'build', 'Logs'))
   })
 })
