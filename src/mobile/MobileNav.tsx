@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Skull, Target, UserRound, Users, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, MessagesSquare, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Skull, Target, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
 import { nativePlatform } from '../platform'
 import { useLocale } from '../i18n/LocaleProvider'
+import { SupportChatDialog } from '../support/SupportChat'
+import { useSupportUnread } from '../support/supportChatClient'
 
 /**
  * Owner, 13.10.2026: «в нижнем меню убери раздел миникарта … вместо миникарты сделай оружейника туда» (the position
@@ -36,12 +38,19 @@ const MORE = [
   { to: '/settings', ru: 'Настройки', en: 'Settings', icon: Settings },
 ]
 
-/** Phone layout: the bottom tab bar and the «Ещё» sheet (replaces the desktop sidebar). */
+/**
+ * Phone layout: the bottom tab bar and the «Ещё» sheet (replaces the desktop sidebar). «Чат с поддержкой» is in the sheet
+ * (support/SupportChat.tsx, a sheet of its own above the tab bar; any tab closes it); «Ещё» counts the friend and squad
+ * requests and the support answers not read yet.
+ */
 export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number }) {
-  const badge = (count: number) => count > 0 ? <span className="nav-badge" aria-label={uiText(`Новых заявок: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
+  const badge = (count: number, label = 'Новых заявок') => count > 0 ? <span className="nav-badge" aria-label={uiText(`${label}: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
   const { locale, setLocale } = useLocale()
   const version = useAppVersion()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const closeChat = useCallback(() => setChatOpen(false), [])
+  const chatUnread = useSupportUnread()
   const location = useLocation()
   const moreActive = MORE.some((entry) => location.pathname.startsWith(entry.to))
   const label = (entry: { ru: string; en: string }) => uiText(locale === 'en' ? entry.en : entry.ru)
@@ -69,6 +78,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
                 const Icon = entry.icon
                 return <NavLink key={entry.to} to={entry.to} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{entry.to === '/squad' && badge(squadBadge)}</NavLink>
               })}
+              <button type="button" className="nav-link mobile-more-link" onClick={() => { setMoreOpen(false); setChatOpen(true) }}><MessagesSquare size={20} /><span>{uiText(locale === 'en' ? 'Support chat' : 'Чат с поддержкой')}</span>{badge(chatUnread, 'Новых сообщений')}</button>
             </nav>
             <div className="mobile-more-tools">
               <button type="button" className="button" onClick={() => { setMoreOpen(false); onSearch() }}><Search size={16} />{uiText(locale === 'en' ? 'Search' : 'Поиск')}</button>
@@ -83,10 +93,11 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
       <nav className="sidebar mobile-tabbar" aria-label={uiText('Основная навигация')}>
         {TABS.map((entry) => {
           const Icon = entry.icon
-          return <NavLink key={entry.to} to={entry.to} end={entry.to === '/'} className={({ isActive }) => `nav-link mobile-tab${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon /><span>{label(entry)}</span></NavLink>
+          return <NavLink key={entry.to} to={entry.to} end={entry.to === '/'} className={({ isActive }) => `nav-link mobile-tab${isActive ? ' active' : ''}`} onClick={() => { setMoreOpen(false); setChatOpen(false) }}><Icon /><span>{label(entry)}</span></NavLink>
         })}
-        <button type="button" className={`nav-link mobile-tab${moreActive || moreOpen ? ' active' : ''}`} aria-expanded={moreOpen} onClick={() => setMoreOpen((open) => !open)}><Menu /><span>{uiText(locale === 'en' ? 'More' : 'Ещё')}</span>{badge(squadBadge)}</button>
+        <button type="button" className={`nav-link mobile-tab${moreActive || moreOpen || chatOpen ? ' active' : ''}`} aria-expanded={moreOpen} onClick={() => { setChatOpen(false); setMoreOpen((open) => !open) }}><Menu /><span>{uiText(locale === 'en' ? 'More' : 'Ещё')}</span>{badge(squadBadge + chatUnread, chatUnread ? 'Новых уведомлений' : 'Новых заявок')}</button>
       </nav>
+      {chatOpen && <SupportChatDialog onClose={closeChat} />}
     </>
   )
 }

@@ -1,8 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SupportButtons } from './SupportButtons'
 import { describePlatform, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { resetSupportChat } from '../support/supportChatClient'
+import { refreshServerStatus } from '../sync/serverSync'
 
 const signedIn = { signedIn: true, email: 'player@example.com', kind: 'user', online: true, serverUrl: 'https://raidos.app', persistent: true }
 const signedOut = { signedIn: false, online: true, serverUrl: 'https://raidos.app', persistent: true }
@@ -15,44 +17,45 @@ function mockDesktop(status: unknown, answer: unknown = { id: 7, createdAt: '202
 }
 
 describe('SupportButtons', () => {
-  afterEach(() => { Reflect.deleteProperty(window, 'tarkovDesktop') })
+  // The account status and the support chat are one copy for the whole app: every test starts signed out and empty.
+  afterEach(async () => {
+    cleanup()
+    mockDesktop(signedOut)
+    await refreshServerStatus()
+    Reflect.deleteProperty(window, 'tarkovDesktop')
+    resetSupportChat()
+  })
 
-  it('asks before «Связаться» opens the owner\'s Telegram channel: «Да» goes there, «Нет» stays', async () => {
+  it('«Связаться» opens the support chat (owner, 13.10.2026); Telegram stays as a small line in it; Escape and × close it', async () => {
     mockDesktop(signedOut)
     const user = userEvent.setup()
     render(<SupportButtons variant="panel" />)
-    expect(screen.queryByRole('link', { name: 'Связаться' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Связаться' })).toHaveAttribute('title', 'Чат с поддержкой')
     await user.click(screen.getByRole('button', { name: 'Связаться' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Связаться с нами' })
-    expect(dialog).toHaveTextContent('Перейти в Telegram-канал Raid OS, чтобы написать нам?')
-    const yes = screen.getByRole('link', { name: 'Да' })
-    expect(yes).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    expect(await within(dialog).findByText('Войдите в аккаунт, чтобы написать нам')).toBeInTheDocument()
+    const telegram = within(dialog).getByRole('link', { name: '@raidosapp' })
+    expect(telegram).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
     expect(SUPPORT_TELEGRAM_URL).toBe('https://t.me/raidosapp')
-    expect(yes).toHaveAttribute('target', '_blank')
-    await user.click(screen.getByRole('button', { name: 'Нет' }))
-    expect(screen.queryByRole('dialog')).toBeNull()
-
-    await user.click(screen.getByRole('button', { name: 'Связаться' }))
+    expect(telegram).toHaveAttribute('target', '_blank')
+    expect(dialog).toHaveTextContent('Или напишите нам в Telegram')
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
-    // «Да»: the link opens (not followed in jsdom), then the question closes.
     await user.click(screen.getByRole('button', { name: 'Связаться' }))
-    const again = screen.getByRole('link', { name: 'Да' })
-    again.addEventListener('click', (event) => event.preventDefault())
-    await user.click(again)
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await user.click(within(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('over the bug report, Escape closes only the «Связаться» question', async () => {
-    mockDesktop(signedIn)
+  it('over the bug report, «Связаться» opens the chat and Escape closes only the chat', async () => {
+    mockDesktop(signedIn, { messages: [], unread: 0 })
     const user = userEvent.setup()
     render(<SupportButtons variant="nav" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
     await screen.findByLabelText('Тема')
     await user.click(within(screen.getByRole('dialog', { name: 'Сообщить об ошибке' })).getByRole('button', { name: 'Связаться' }))
-    expect(await screen.findByRole('dialog', { name: 'Связаться с нами' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Связаться с нами' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Чат с поддержкой' })).toBeNull()
     expect(screen.getByRole('dialog', { name: 'Сообщить об ошибке' })).toBeInTheDocument()
   })
 
@@ -77,8 +80,10 @@ describe('SupportButtons', () => {
 
     await user.click(screen.getByRole('button', { name: 'Отправить отчёт' }))
     expect(await screen.findByText('Спасибо! Отчёт отправлен')).toBeInTheDocument()
-    expect(serviceRequest).toHaveBeenCalledTimes(1)
-    const [method, path, body] = serviceRequest.mock.calls[0] as [string, string, { kind: string; topic: string; description: string; appVersion: string; platform: string; screenshots: Array<{ data: string }> }]
+    // The other calls are the support chat's (the badge on «Связаться»).
+    const reports = serviceRequest.mock.calls.filter(([, path]) => path === '/v1/bug-reports')
+    expect(reports).toHaveLength(1)
+    const [method, path, body] = reports[0] as [string, string, { kind: string; topic: string; description: string; appVersion: string; platform: string; screenshots: Array<{ data: string }> }]
     expect([method, path]).toEqual(['POST', '/v1/bug-reports'])
     expect(body.kind).toBe('bug')
     expect((body as unknown as { category: string }).category).toBe('map')
@@ -136,7 +141,7 @@ describe('SupportButtons', () => {
     await user.click(screen.getByRole('button', { name: 'Отправить предложение' }))
     expect(await screen.findByText('Спасибо! Предложение отправлено')).toBeInTheDocument()
     expect(dialog).not.toHaveTextContent('Если ошибка подтвердится')
-    const [method, path, body] = serviceRequest.mock.calls[0] as [string, string, { kind: string; topic: string; description: string; screenshots: Array<{ data: string }> }]
+    const [method, path, body] = serviceRequest.mock.calls.find(([, called]) => called === '/v1/bug-reports') as [string, string, { kind: string; topic: string; description: string; screenshots: Array<{ data: string }> }]
     expect([method, path]).toEqual(['POST', '/v1/bug-reports'])
     expect(body.kind).toBe('idea')
     expect(body.topic).toBe('Таймер рейда')
@@ -166,9 +171,7 @@ describe('SupportButtons', () => {
     setRenderLanguage('en')
     try {
       expect(uiText('Связаться')).toBe('Contact us')
-      expect(uiText('Перейти в Telegram-канал Raid OS, чтобы написать нам?')).toBe('Open the Raid OS Telegram channel to message us?')
-      expect(uiText('Да')).toBe('Yes')
-      expect(uiText('Нет')).toBe('No')
+      expect(uiText('Чат с поддержкой')).toBe('Support chat')
       expect(uiText('Сообщить об ошибке')).toBe('Report a bug')
       expect(uiText('Спасибо! Отчёт отправлен')).toBe('Thank you! The report has been sent')
       expect(uiText('Скриншоты принимаются только в PNG, JPEG или WEBP')).toBe('Screenshots are accepted only as PNG, JPEG or WEBP')

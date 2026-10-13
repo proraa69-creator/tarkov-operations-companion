@@ -93,6 +93,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
   // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only.
   { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
+  // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }

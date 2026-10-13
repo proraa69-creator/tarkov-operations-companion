@@ -165,6 +165,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 }
 .mobile-more-grid .nav-link.mobile-more-link span { display: block; overflow-wrap: anywhere; }
 .mobile-more-grid .nav-link.mobile-more-link.active::before { display: none; }
+/* «Чат с поддержкой» opens a sheet, not a page: a button that looks like the links. */
+.mobile-more-grid button.nav-link.mobile-more-link { font-family: inherit; background-color: transparent; cursor: pointer; }
 .mobile-more-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .mobile-more-tools .button { flex: 1 1 120px; }
 .mobile-more-tools .locale-switch button { min-width: 48px; min-height: 38px; }
