@@ -18,7 +18,9 @@
   position: relative; margin: 0 0 0 calc(var(--overlap) * -1); height: 100%; min-width: 0;
   flex: 0 1 calc((100% + (var(--n) - 1) * var(--overlap)) / var(--n)); max-width: 250px;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-  animation: boss-figures-in .45s ease-out both; /* on the figures, so the row's own transform (is-picking) is not overridden */
+  /* on the figures, so the row's own transform (is-picking) is not overridden; `backwards`: once in, nothing of the
+     animation stays on them (a held transform kept each figure a separate layer on the iPhone) */
+  animation: boss-figures-in .45s ease-out backwards;
 }
 .boss-figure:first-child { margin-left: 0; }
 /* sized by height in body heights (--fig-h, from the stills' sizes.json): every boss at one real-world scale */
@@ -41,9 +43,15 @@
 /* A boss with a «Тактика боя» page: the figure itself is the button (the row stays click-through elsewhere). */
 .boss-figure-link { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; }
 .boss-figure-link img { display: block; width: auto; max-width: none; height: calc(var(--fig-h, 1) * 64%); flex: none; filter: drop-shadow(0 3px 4px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%)); transition: filter .2s var(--ease-soft), transform .2s var(--ease-soft); }
-.boss-figure-link:hover img, .boss-figure-link:focus-visible img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
+/* The lift and the hint follow a real mouse only: a finger «hovered» the boss it touched and it stayed lit while the page
+   scrolled (owner's iPhone, 14.10.2026). */
+@media (hover: hover) and (pointer: fine) {
+  .boss-figure-link:hover img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
+  .boss-figure-link:hover .boss-figure-hint { opacity: 1; transform: none; }
+}
+.boss-figure-link:focus-visible img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
 .boss-figure-hint { position: absolute; bottom: 6px; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; color: #0e1210; background: var(--brass); opacity: 0; transform: translateY(4px); transition: opacity .18s var(--ease-soft), transform .18s var(--ease-soft); pointer-events: none; }
-.boss-figure-link:hover .boss-figure-hint, .boss-figure-link:focus-visible .boss-figure-hint { opacity: 1; transform: none; }
+.boss-figure-link:focus-visible .boss-figure-hint { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .boss-figure { animation: none; } .boss-figures { transition: none; } }
 @media (max-width: 1100px) { .boss-figures { display: none; } }
 .raid-content { position: relative; z-index: 2; padding: 25px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; overflow: hidden; }

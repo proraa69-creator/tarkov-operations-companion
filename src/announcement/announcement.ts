@@ -35,6 +35,22 @@ function request(path: string) {
   return usesWebAccount() ? webServiceRequest('GET', path) : Promise.resolve(null)
 }
 
+/**
+ * The notice in the reader's language. The owner writes it once in Russian and once in English, as paragraphs with an
+ * empty line between them (13.10.2026); everyone gets the paragraphs of their interface language, so the phone shows
+ * half the text. A notice in one language, or a paragraph in neither alphabet (emoji, numbers), is shown as written.
+ */
+export function announcementForLocale(text: string, locale: 'ru' | 'en') {
+  const paragraphs = text.split(/\n[ \t]*\n+/).map((part) => part.trim()).filter(Boolean)
+  const scripts = paragraphs.map((part) => {
+    const cyrillic = part.match(/[Ѐ-ӿ]/g)?.length ?? 0
+    const latin = part.match(/[a-z]/gi)?.length ?? 0
+    return cyrillic > latin ? 'ru' : latin > cyrillic ? 'en' : null
+  })
+  if (!scripts.includes('ru') || !scripts.includes('en')) return text
+  return paragraphs.filter((_, index) => scripts[index] === null || scripts[index] === locale).join('\n\n')
+}
+
 /** Shows `next` (another text or none) to the pages. */
 export function setAnnouncement(next: AnnouncementView | null) {
   if (next?.text === current?.text && next?.updatedAt === current?.updatedAt) return
