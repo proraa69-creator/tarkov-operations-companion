@@ -1,11 +1,11 @@
-import { Bug, CalendarPlus, ChevronDown, LoaderCircle, Mail, RefreshCw, RotateCcw, CheckCheck } from 'lucide-react'
+import { Bug, CalendarPlus, ChevronDown, Lightbulb, LoaderCircle, Mail, RefreshCw, RotateCcw, CheckCheck } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { Pager } from './AdminPayments'
 import { dateTime, failure, numberFormat, useAdminData, type Failure } from './adminData'
-import { bugReportsApi, type BugReportFile, type BugReportStatus } from './bugReportsApi'
+import { bugReportsApi, type BugReportFile, type BugReportStatus, type ReportKind } from './bugReportsApi'
 
 const PAGE = 50
 
@@ -14,51 +14,85 @@ const FILTERS: Array<{ id: BugReportStatus; label: string }> = [
   { id: 'closed', label: 'Закрытые' },
 ]
 
+/** «Ошибки» / «Предложения» (owner, 13.10.2026: «Ваши предложения» in the app sends ideas with photos). */
+const KINDS: Array<{ id: ReportKind; label: string }> = [
+  { id: 'bug', label: 'Ошибки' },
+  { id: 'idea', label: 'Предложения' },
+]
+
+/** The panel's words for each kind. */
+const WORDS = {
+  bug: {
+    hint: 'Отчёты из приложения: кнопка «Сообщить об ошибке» («Нашёл баг или ошибку? +1 день»). Каждый отчёт приходит PDF-файлом на почту. Проверьте отчёт и выдайте дни в подробностях.',
+    loading: 'Загружаем отчёты…', noneOpen: 'Открытых отчётов нет.', noneClosed: 'Закрытых отчётов нет.',
+    files: 'Скриншоты', file: 'Скриншот', rewarded: 'Выдано за отчёт', daysFor: 'Дней за отчёт', forIt: 'за отчёт',
+  },
+  idea: {
+    hint: 'Предложения из приложения: кнопка «Ваши предложения» (идея и до 5 фото). Каждое приходит PDF-файлом на почту. За полезную идею можно выдать дни в подробностях.',
+    loading: 'Загружаем предложения…', noneOpen: 'Открытых предложений нет.', noneClosed: 'Закрытых предложений нет.',
+    files: 'Фото', file: 'Фото', rewarded: 'Выдано за предложение', daysFor: 'Дней за предложение', forIt: 'за предложение',
+  },
+} satisfies Record<ReportKind, Record<string, string>>
+
 const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`)
 
 /**
  * «Отчёты» (owner, 11.10.2026): bug reports sent from the app («Сообщить об ошибке», «Нашёл баг или ошибку? +1 день»),
  * open first, with the reporter's e-mail. A row opens the description and screenshots; after checking it the owner grants
  * the reporter days of subscription right there (default 1). Each report also comes to the owner's mailbox as a PDF.
+ * «Предложения» (owner, 13.10.2026): the ideas from «Ваши предложения», the same way.
  */
 export function AdminBugReports() {
+  const [kind, setKind] = useState<ReportKind>('bug')
   const [status, setStatus] = useState<BugReportStatus>('open')
   const [page, setPage] = useState(0)
   const [open, setOpen] = useState<number | null>(null)
-  const list = useAdminData(useCallback((token: string) => bugReportsApi.list(token, status, PAGE, page * PAGE), [status, page]))
+  const list = useAdminData(useCallback((token: string) => bugReportsApi.list(token, status, PAGE, page * PAGE, kind), [status, page, kind]))
   const data = list.data
+  const words = WORDS[kind]
 
   return (
     <div className="admin-stack">
       <div className="admin-section-head">
-        <div role="group" aria-label="Статус отчёта" className="admin-chips">
-          {FILTERS.map(({ id, label }) => {
-            const count = data?.counts[id]
-            return (
-              <button key={id} type="button" aria-pressed={status === id} className={`button small ${status === id ? 'primary' : 'ghost'}`} onClick={() => { setStatus(id); setPage(0); setOpen(null) }}>
-                {label}{count !== undefined ? <span className="mono"> · {numberFormat.format(count)}</span> : null}
-              </button>
-            )
-          })}
+        <div className="admin-chips">
+          <div role="group" aria-label="Тип отчёта" className="admin-chips">
+            {KINDS.map(({ id, label }) => {
+              const count = data?.kinds?.[id]
+              return (
+                <button key={id} type="button" aria-pressed={kind === id} className={`button small ${kind === id ? 'primary' : 'ghost'}`} onClick={() => { setKind(id); setStatus('open'); setPage(0); setOpen(null) }}>
+                  {id === 'idea' ? <Lightbulb aria-hidden="true" /> : <Bug aria-hidden="true" />}{label}{count ? <span className="mono" title="Открытые"> · {numberFormat.format(count)}</span> : null}
+                </button>
+              )
+            })}
+          </div>
+          <div role="group" aria-label="Статус отчёта" className="admin-chips">
+            {FILTERS.map(({ id, label }) => {
+              const count = data?.counts[id]
+              return (
+                <button key={id} type="button" aria-pressed={status === id} className={`button small ${status === id ? 'primary' : 'ghost'}`} onClick={() => { setStatus(id); setPage(0); setOpen(null) }}>
+                  {label}{count !== undefined ? <span className="mono"> · {numberFormat.format(count)}</span> : null}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <button type="button" className="button ghost small" disabled={list.loading} onClick={() => void list.refresh()}>
           {list.loading ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}Обновить
         </button>
       </div>
       <p className="field-hint" style={{ margin: 0 }}>
-        Отчёты из приложения: кнопка «Сообщить об ошибке» («Нашёл баг или ошибку? +1 день»). Каждый отчёт приходит PDF-файлом на почту.
-        Проверьте отчёт и выдайте дни в подробностях. E-mail — адрес аккаунта на момент отправки; у удалённых аккаунтов его нет.
+        {words.hint} E-mail — адрес аккаунта на момент отправки; у удалённых аккаунтов его нет.
       </p>
       {list.error && <Notice tone={list.error.offline ? 'offline' : 'error'}>{list.error.message}</Notice>}
-      {!data && !list.error && <Loading text="Загружаем отчёты…" />}
-      {data && data.reports.length === 0 && <div className="muted admin-empty">{status === 'open' ? 'Открытых отчётов нет.' : 'Закрытых отчётов нет.'}</div>}
+      {!data && !list.error && <Loading text={words.loading} />}
+      {data && data.reports.length === 0 && <div className="muted admin-empty">{status === 'open' ? words.noneOpen : words.noneClosed}</div>}
       {data && data.reports.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table admin-table admin-bug-table">
             <thead>
               <tr>
                 <th scope="col">Дата</th><th scope="col">E-mail</th><th scope="col">Тема</th><th scope="col">Версия</th>
-                <th scope="col" className="num">Скриншоты</th><th scope="col">Награда</th><th scope="col"><span className="visually-hidden">Подробнее</span></th>
+                <th scope="col" className="num">{words.files}</th><th scope="col">Награда</th><th scope="col"><span className="visually-hidden">Подробнее</span></th>
               </tr>
             </thead>
             <tbody>
@@ -103,13 +137,14 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
   const [days, setDays] = useState('1')
   const [done, setDone] = useState('')
   const report = detail.data?.report
+  const words = WORDS[report?.kind === 'idea' ? 'idea' : 'bug']
 
   /** Grants the reporter days of subscription (owner, 11.10.2026: «+1 день я буду выдавать сам»). */
   async function reward() {
     const n = Number(days)
     if (!detail.token || !report) return
     if (!Number.isInteger(n) || n < 1 || n > 365) { setActionError({ message: 'Число дней: от 1 до 365.', offline: false }); return }
-    if (!window.confirm(`Выдать ${n} дн. подписки ${report.email ?? 'отправителю'} за отчёт №${report.id}?`)) return
+    if (!window.confirm(`Выдать ${n} дн. подписки ${report.email ?? 'отправителю'} ${words.forIt} №${report.id}?`)) return
     setBusy(true); setActionError(null); setDone('')
     try {
       const result = await bugReportsApi.reward(detail.token, id, n)
@@ -159,7 +194,7 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
         <div><dt>Версия приложения</dt><dd className="mono">{report.appVersion || '—'}</dd></div>
         <div><dt>Система</dt><dd className="mono">{report.platform || '—'}</dd></div>
         <div><dt>E-mail</dt><dd>{report.email ?? <span className="dim">аккаунт удалён</span>}</dd></div>
-        <div><dt>Выдано за отчёт</dt><dd>{report.rewardDays ? <><span className="tag green">+{report.rewardDays} дн.</span>{report.rewardedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.rewardedAt))}</span> : null}</> : <span className="dim">ещё нет</span>}</dd></div>
+        <div><dt>{words.rewarded}</dt><dd>{report.rewardDays ? <><span className="tag green">+{report.rewardDays} дн.</span>{report.rewardedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.rewardedAt))}</span> : null}</> : <span className="dim">ещё нет</span>}</dd></div>
         <div><dt>PDF на почту</dt><dd>{report.mailedAt ? <span className="mono">{dateTime.format(new Date(report.mailedAt))}</span> : report.mailError ? <span className="admin-danger-text">{report.mailError}</span> : <span className="dim">ещё не отправлен</span>}</dd></div>
       </dl>
       <div>
@@ -168,9 +203,9 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
       </div>
       {report.files.length > 0 && (
         <div>
-          <div className="field-label">Скриншоты · {report.files.length}</div>
+          <div className="field-label">{words.files} · {report.files.length}</div>
           <ul className="admin-bug-shots">
-            {report.files.map((file) => <Screenshot key={file.idx} reportId={report.id} file={file} />)}
+            {report.files.map((file) => <Screenshot key={file.idx} reportId={report.id} file={file} label={`${words.file} ${file.idx + 1}`} />)}
           </ul>
         </div>
       )}
@@ -179,7 +214,7 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
       <div className="admin-bug-actions">
         {report.accountId
           ? <div className="inline-form admin-bug-reward">
-            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней за отчёт" value={days} disabled={busy} onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 3))} />
+            <input className="input mono admin-days" inputMode="numeric" aria-label={words.daysFor} value={days} disabled={busy} onChange={(e) => setDays(e.target.value.replace(/\D/g, '').slice(0, 3))} />
             <button type="button" className="button primary small" disabled={busy} onClick={() => void reward()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}Выдать +{Number(days) || 1} дн.</button>
           </div>
           : <span className="field-hint">Аккаунт отправителя удалён: выдать дни некому.</span>}
@@ -192,8 +227,8 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
   )
 }
 
-/** One screenshot: fetched with the owner's token as a blob → object URL (revoked when the row closes). */
-function Screenshot({ reportId, file }: { reportId: number; file: BugReportFile }) {
+/** One screenshot or photo: fetched with the owner's token as a blob → object URL (revoked when the row closes). */
+function Screenshot({ reportId, file, label }: { reportId: number; file: BugReportFile; label: string }) {
   const { token } = useAuth()
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState(false)
@@ -208,7 +243,6 @@ function Screenshot({ reportId, file }: { reportId: number; file: BugReportFile 
     }, () => { if (active) setError(true) })
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [token, reportId, file.idx])
-  const label = `Скриншот ${file.idx + 1}`
   return (
     <li>
       {url

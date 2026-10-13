@@ -1,4 +1,7 @@
-/** English for «Связаться» / «Сообщить об ошибке» (src/components/SupportButtons.tsx) and the server's bug report errors. */
+/**
+ * English for «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx) and the server's
+ * bug report errors.
+ */
 export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Связаться', 'Contact us'],
   ['Сообщить об ошибке', 'Report a bug'],
@@ -10,7 +13,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Если ошибка подтвердится, к подписке добавится 1 день.', 'If the bug is confirmed, 1 day is added to your subscription.'],
   ['Поддержка', 'Support'],
   ['Нашли ошибку или есть вопрос?', 'Found a bug or have a question?'], ['+1 день за ошибку', '+1 day per bug'],
-  ['Напишите нам в Telegram или отправьте отчёт об ошибке со скриншотами.', 'Message us on Telegram or send a bug report with screenshots.'],
+  ['Напишите нам в Telegram, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.', 'Message us on Telegram, send a bug report with screenshots or share an idea for the app.'],
   ['Написать в Telegram', 'Message on Telegram'],
   ['Тема', 'Topic'],
   ['Коротко: что сломалось', 'In short: what broke'],
@@ -45,4 +48,22 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Скриншоты принимаются только в PNG, JPEG или WEBP', 'Screenshots are accepted only as PNG, JPEG or WEBP'],
   ['Повреждённый файл скриншота', 'Damaged screenshot file'],
   ['Слишком много отчётов. Попробуйте через час.', 'Too many reports. Try again in an hour.'],
+  // «Ваши предложения» (owner, 13.10.2026): the same dialog for ideas, with photos
+  ['Ваши предложения', 'Your suggestions'],
+  ['Есть идея для Raid OS?', 'Have an idea for Raid OS?'],
+  ['Расскажите, что добавить или изменить. Можно приложить фото или скриншоты.', 'Tell us what to add or change. You can attach photos or screenshots.'],
+  ['Коротко: ваша идея', 'In short: your idea'],
+  ['Что добавить или изменить в приложении и чем это поможет', 'What to add or change in the app and how it would help'],
+  ['Перетащите фото сюда, вставьте из буфера (Ctrl+V) или', 'Drop photos here, paste from the clipboard (Ctrl+V) or'],
+  ['Фото', 'Photos'],
+  ['Убрать фото', 'Remove photo'],
+  ['Каждое фото — не больше 5 МБ.', 'Each photo must be 5 MB or less.'],
+  ['Не больше 5 фото.', 'No more than 5 photos.'],
+  ['К предложению автоматически добавятся:', 'Added to the suggestion automatically:'],
+  ['Отправить предложение', 'Send suggestion'],
+  ['Спасибо! Предложение отправлено', 'Thank you! The suggestion has been sent'],
+  ['Мы обязательно его прочитаем. Если захотите что-то добавить — пишите в Telegram.', 'We will read it. If you want to add something, message us on Telegram.'],
+  ['Предложение можно отправить после входа в аккаунт: так мы сможем ответить вам. Без входа напишите нам в Telegram.', 'Sign in to send a suggestion, so we can get back to you. Without an account, message us on Telegram.'],
+  ['Войдите в аккаунт, чтобы отправить предложение.', 'Sign in to send a suggestion.'],
+  ['Отправка предложений работает в приложении. Напишите нам в Telegram.', 'Suggestions are sent from the app. Message us on Telegram.'],
 ]

@@ -6,8 +6,11 @@ import { ApiError, NETWORK_ERROR_MESSAGE } from '../../api'
 import { API_URL } from '../../config'
 
 export type BugReportStatus = 'open' | 'closed'
+/** 'bug': «Сообщить об ошибке»; 'idea': «Ваши предложения» (owner, 13.10.2026). Absent from servers before that: a bug. */
+export type ReportKind = 'bug' | 'idea'
 export interface BugReportSummary {
   id: number
+  kind?: ReportKind
   email?: string
   /** The reporter's account (cleared when it is deleted): days can be granted only while it exists. */
   accountId?: string
@@ -27,7 +30,8 @@ export interface BugReportSummary {
 }
 export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
-export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
+/** `counts`: open / closed of the listed kind; `kinds`: open reports of each kind. */
+export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number>; kinds?: Record<ReportKind, number> }
 
 const BASE = '/v1/accounts/me/admin/bug-reports'
 
@@ -56,11 +60,11 @@ async function call<T>(token: string, path: string, body?: unknown): Promise<T> 
 }
 
 export const bugReportsApi = {
-  list: (token: string, status: BugReportStatus, limit: number, offset: number) =>
-    call<BugReportList>(token, `?status=${status}&limit=${limit}&offset=${offset}`),
+  list: (token: string, status: BugReportStatus, limit: number, offset: number, kind: ReportKind = 'bug') =>
+    call<BugReportList>(token, `?kind=${kind}&status=${status}&limit=${limit}&offset=${offset}`),
   get: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}`),
   setStatus: (token: string, id: number, status: BugReportStatus) => call<{ report: BugReportDetail }>(token, `/${id}/status`, { status }),
-  /** Grants the reporter `days` of subscription for this report (reason «Отчёт об ошибке №N»). */
+  /** Grants the reporter `days` of subscription for this report (reason «Отчёт об ошибке №N» / «Предложение №N»). */
   reward: (token: string, id: number, days: number) => call<{ report: BugReportDetail }>(token, `/${id}/reward`, { days }),
   /** Sends the report's PDF to the owner's mailbox again. */
   mail: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}/mail`, {}),

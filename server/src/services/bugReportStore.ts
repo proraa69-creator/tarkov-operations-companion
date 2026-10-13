@@ -1,9 +1,11 @@
 /**
- * «Сообщить об ошибке» (routes/bugReports.ts): reports the players send from the app (topic, description, up to five
- * screenshots, app version and OS) and the owner reads in the website's «Админ-панель» → «Отчёты».
+ * «Сообщить об ошибке» and «Ваши предложения» (routes/bugReports.ts): reports and ideas the players send from the app
+ * (topic, description, up to five screenshots or photos, app version and OS) and the owner reads in the website's
+ * «Админ-панель» → «Отчёты».
  *
  * Tables are created with IF NOT EXISTS; later columns are added when missing (ADDED_COLUMNS), nothing is ever dropped:
- *   bug_reports       — one report; `email` is the account's address at the time it was sent; reward_days: subscription
+ *   bug_reports       — one report; `kind`: 'bug' («Сообщить об ошибке») or 'idea' («Ваши предложения», owner
+ *                       13.10.2026); `email` is the account's address at the time it was sent; reward_days: subscription
  *                       days the owner granted for it («+1 день», owner 11.10.2026); mailed_at / mail_error: the PDF the
  *                       server e-mails to the owner (services/bugReportMail.ts);
  *   bug_report_files  — its screenshots (PNG / JPEG / WEBP, checked by their magic bytes, never by the declared type).
@@ -42,6 +44,8 @@ export const BUG_REPORT_STORAGE = {
 export const STORAGE_FULL_MESSAGE = 'Хранилище скриншотов сейчас заполнено. Отправьте отчёт без скриншотов — опишите проблему словами.'
 
 export type BugReportStatus = 'open' | 'closed'
+/** 'bug': «Сообщить об ошибке»; 'idea': «Ваши предложения». */
+export type ReportKind = 'bug' | 'idea'
 export type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp'
 
 const SCHEMA = `
@@ -73,6 +77,7 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['rewarded_at', 'INTEGER'],
   ['mailed_at', 'INTEGER'],
   ['mail_error', 'TEXT'],
+  ['kind', "TEXT NOT NULL DEFAULT 'bug'"],
 ]
 
 export class BugReportError extends Error {
@@ -92,6 +97,8 @@ export function sniffImage(data: Uint8Array): ImageMime | undefined {
 }
 
 export interface BugReportInput {
+  /** 'bug' when not given. */
+  kind?: ReportKind
   topic: string
   description: string
   appVersion: string
@@ -102,6 +109,7 @@ export interface BugReportInput {
 export interface BugReportFileView { idx: number; mime: ImageMime; size: number }
 export interface BugReportSummary {
   id: number
+  kind: ReportKind
   email?: string
   accountId?: string
   topic: string
@@ -156,6 +164,7 @@ export class BugReportStore {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(bug_reports)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE bug_reports ADD COLUMN ${name} ${type}`)
+    this.db.exec('CREATE INDEX IF NOT EXISTS bug_reports_kind ON bug_reports(kind, status, created_at)')
     this.pruneScreenshots()
   }
 
@@ -191,8 +200,8 @@ export class BugReportStore {
     const incoming = input.files.reduce((sum, file) => sum + file.length, 0)
     return transaction(this.db, () => {
       if (incoming > 0 && this.storedBytes() + incoming > this.maxStoredBytes) throw new BugReportError(507, STORAGE_FULL_MESSAGE)
-      const result = this.db.prepare('INSERT INTO bug_reports (account_id, email, topic, description, app_version, platform, status, created_at) VALUES (?, ?, ?, ?, ?, ?, \'open\', ?)')
-        .run(accountId, email ?? null, input.topic, input.description, input.appVersion, input.platform, at)
+      const result = this.db.prepare('INSERT INTO bug_reports (kind, account_id, email, topic, description, app_version, platform, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, \'open\', ?)')
+        .run(input.kind ?? 'bug', accountId, email ?? null, input.topic, input.description, input.appVersion, input.platform, at)
       const id = Number(result.lastInsertRowid)
       const insert = this.db.prepare('INSERT INTO bug_report_files (report_id, idx, mime, size, data) VALUES (?, ?, ?, ?, ?)')
       input.files.forEach((file, idx) => insert.run(id, idx, mimes[idx], file.length, file))
@@ -200,16 +209,24 @@ export class BugReportStore {
     })
   }
 
-  list(status: BugReportStatus | undefined, limit: number, offset: number): { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> } {
+  /**
+   * A page of reports, newest first, of one status and / or kind; `counts`: open / closed of that kind (all kinds when
+   * none is given); `kinds`: open reports of each kind (the admin panel's «Ошибки» / «Предложения» switch).
+   */
+  list(status: BugReportStatus | undefined, limit: number, offset: number, kind?: ReportKind): { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number>; kinds: Record<ReportKind, number> } {
     const counts = { open: 0, closed: 0 }
-    for (const row of this.db.prepare('SELECT status, COUNT(*) AS n FROM bug_reports GROUP BY status').all() as Row[]) {
-      if (row.status === 'open' || row.status === 'closed') counts[row.status] = Number(row.n)
+    const kinds = { bug: 0, idea: 0 }
+    for (const row of this.db.prepare('SELECT kind, status, COUNT(*) AS n FROM bug_reports GROUP BY kind, status').all() as Row[]) {
+      const rowKind: ReportKind = row.kind === 'idea' ? 'idea' : 'bug'
+      if (row.status === 'open') kinds[rowKind] += Number(row.n)
+      if ((!kind || rowKind === kind) && (row.status === 'open' || row.status === 'closed')) counts[row.status] += Number(row.n)
     }
-    const where = status ? 'WHERE r.status = ?' : ''
-    const params = status ? [status] : []
+    const conditions = [...(status ? ['r.status = ?'] : []), ...(kind ? ['r.kind = ?'] : [])]
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+    const params = [...(status ? [status] : []), ...(kind ? [kind] : [])]
     const rows = this.db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM bug_report_files f WHERE f.report_id = r.id) AS file_count
       FROM bug_reports r ${where} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as Row[]
-    return { reports: rows.map((row) => ({ ...this.base(row), files: Number(row.file_count) })), total: status ? counts[status] : counts.open + counts.closed, counts }
+    return { reports: rows.map((row) => ({ ...this.base(row), files: Number(row.file_count) })), total: status ? counts[status] : counts.open + counts.closed, counts, kinds }
   }
 
   get(id: number): BugReportView | undefined {
@@ -256,6 +273,7 @@ export class BugReportStore {
   private base(row: Row): Omit<BugReportSummary, 'files'> {
     return {
       id: Number(row.id),
+      kind: row.kind === 'idea' ? 'idea' : 'bug',
       ...(row.email == null ? {} : { email: String(row.email) }),
       ...(row.account_id == null ? {} : { accountId: String(row.account_id) }),
       topic: String(row.topic),
