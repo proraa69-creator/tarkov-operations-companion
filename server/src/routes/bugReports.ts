@@ -18,8 +18,9 @@
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx                 -> the image bytes (inline, no-store, nosniff)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx/data            -> { mime, data: base64 } (the owner app's gateway
  *        forwards JSON only)
- *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open } long polling (~25 s): the
- *        owner app's «Заявки» badge moves the moment a report arrives or is closed
+ *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open, unreadChats } long polling
+ *        (~25 s): the owner app's «Заявки» badge moves the moment a report arrives or is closed, or a player writes to
+ *        «Чат с поддержкой» (`unreadChats`: conversations with unseen messages, routes/supportChat.ts)
  *   POST /v1/accounts/me/admin/bug-reports/:id/status  { status }         -> { report } (audit: bug.status)
  *   POST /v1/accounts/me/admin/bug-reports/:id/reward  { days 1–365 }     -> { report } subscription days for the reporter
  *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason
