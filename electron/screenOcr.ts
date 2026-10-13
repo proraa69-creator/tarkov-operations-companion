@@ -10,6 +10,7 @@ import { reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/im
 import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { confirmCards, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, parseTraderLevel, parseTraderNickname, traderScreenParts, type CardReadings, type ModeSelectCard, type NameLevel, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import type { RaidMode } from '../src/domain/types.js'
+import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
 
 let worker: OcrWorker | null = null
 let preparing: Promise<OcrWorker> | null = null
@@ -312,8 +313,9 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<
  * what the whole pass and the close-up agree on is returned; null when neither agrees.
  */
 async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promise<TraderScreenReading | null> {
+  const loyalty = readTraderLoyalty(image, words)
   const parts = traderScreenParts(words, image.getSize())
-  if (!parts.level && !parts.nickname) return null
+  if (!parts.level && !parts.nickname) return loyalty ? { loyalty } : null
   const ocr = await getWorker()
   try {
     return await runOcrJob(ocr, async () => {
@@ -331,11 +333,37 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
         const close = parseTraderNickname(await read(parts.nickname.box))
         if (close && foldNickname(close) === foldNickname(parts.nickname.value)) reading.nickname = close
       }
-      return reading.level || reading.nickname ? reading : null
+      if (loyalty) reading.loyalty = loyalty
+      return reading.level || reading.nickname || reading.loyalty ? reading : null
     })
   } finally {
     touchQuestWorker()
   }
+}
+
+/** The loyalty badges of the last frames: a level counts once the next frame shows it too (confirmLoyalty). */
+let lastLoyalty: { at: number; levels: Record<string, number> } | null = null
+
+/**
+ * The traders' loyalty levels: each badge in the top left of a portrait (I, II, III, a crown for IV), read from its
+ * shape, not by OCR (src/import/traderLoyalty.ts). A few dozen pixels a trader, no OCR at all.
+ */
+function readTraderLoyalty(image: NativeImage, words: OcrWordBox[]): Record<string, number> | undefined {
+  const levels: Record<string, number> = {}
+  for (const badge of traderBadgeRects(words, image.getSize())) {
+    const bitmap = image.crop(badge.rect).toBitmap()
+    const { width, height } = badge.rect
+    if (bitmap.length < width * height * 4) continue
+    const gray = new Uint8Array(width * height)
+    for (let index = 0; index < gray.length; index += 1) gray[index] = Math.round((bitmap[index * 4]! + bitmap[index * 4 + 1]! + bitmap[index * 4 + 2]!) / 3)
+    const level = classifyLoyaltyBadge(gray, width, height)
+    if (level) levels[badge.key] = level
+  }
+  const now = Date.now()
+  const previous = lastLoyalty && now - lastLoyalty.at < 30_000 ? lastLoyalty.levels : {}
+  lastLoyalty = { at: now, levels }
+  const confirmed = confirmLoyalty(levels, previous)
+  return Object.keys(confirmed).length ? confirmed : undefined
 }
 
 const touchQuestWorker = idleRelease(2 * 60_000, () => {

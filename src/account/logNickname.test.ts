@@ -125,6 +125,19 @@ describe('the game\'s screens', () => {
     applyTraderScreen({ level: 20 }, undefined, Date.parse('2026-10-13T18:50:00Z'), () => state)
     expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
   })
+
+  it('the traders\' loyalty badges set that mode\'s trader levels, other modes untouched', async () => {
+    vi.resetModules()
+    localStorage.clear()
+    const { applyTraderScreen } = await import('./logNickname')
+    const { readManualTraderLevels } = await import('../gunsmith/traderLevels')
+    const state = target()
+    applyTraderScreen({ loyalty: { prapor: 4, fence: 1, ragman: 3 } }, 'pve', Date.parse('2026-10-13T18:30:00Z'), () => state)
+    expect(readManualTraderLevels('pve')).toEqual({ prapor: 4, fence: 1, ragman: 3 })
+    expect(readManualTraderLevels('pvp')).toEqual({})
+    applyTraderScreen({ loyalty: { prapor: 4 } }, undefined, Date.parse('2026-10-13T18:31:00Z'), () => state)
+    expect(readManualTraderLevels('pvp')).toEqual({})
+  })
 })
 
 describe('Tarkov.dev in the background', () => {

@@ -276,5 +276,8 @@ export function parseTraderNickname(text: string) {
   return words.at(-1) ?? null
 }
 
-/** What the traders' screen gives once the whole pass and the close-ups agree. */
-export interface TraderScreenReading { nickname?: string; level?: number }
+/**
+ * What the traders' screen gives once the whole pass and the close-ups agree; `loyalty`: each trader's loyalty level
+ * from the badges two frames agree on (src/import/traderLoyalty.ts), by trader key.
+ */
+export interface TraderScreenReading { nickname?: string; level?: number; loyalty?: Record<string, number> }
