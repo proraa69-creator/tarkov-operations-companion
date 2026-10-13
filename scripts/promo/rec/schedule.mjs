@@ -7,7 +7,7 @@ const LEAD = 0.35
 const TAIL = 0.5
 // Extra seconds a scene's picture needs beyond its voice (navigation, a hover that has to land).
 const EXTRA_BEFORE = { 1: 0.6, 4: 0.0, 5: 0.3, 8: 0.2, 11: 0.4, 18: 0.3, 20: 0.2 }
-// Scene 20 holds the end card after the last line long enough to read the disclaimer under it (silent).
+// Scene 20 holds the end card after the last line, so the disclaimer under it can be read to the end (silent).
 const EXTRA_AFTER = { 1: 0.2, 5: 0.6, 7: 0.6, 10: 0.3, 11: 0.5, 13: 0.6, 19: 0.4, 20: 4.7 }
 
 export function schedule(lang = 'ru') {
