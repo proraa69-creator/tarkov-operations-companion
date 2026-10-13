@@ -186,7 +186,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 :root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .layer-button { min-height: 42px; }
-:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px); min-height: 360px; }
+/* The page scrolls under the top bar and the tab bar: the map's own layers (Leaflet panes, z-index 400+) stay inside the
+   map instead of being drawn over both bars. */
+:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px); min-height: 360px; isolation: isolate; }
 :root[data-layout="mobile"] .map-hud { left: 8px; top: 8px; gap: 5px; max-width: calc(100% - 64px); }
 :root[data-layout="mobile"] .map-hud > span:nth-child(2), :root[data-layout="mobile"] .map-hud > span:nth-child(3) { display: none; }
 :root[data-layout="mobile"] .map-layers-toggle {
