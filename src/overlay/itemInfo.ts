@@ -14,8 +14,12 @@ const PURPOSE: Record<string, string> = {
 
 const COLLECTOR = /коллекционер|collector/i
 
-/** What the player still needs this item for: open quests, Kappa, and what it sells for. */
-export function describeItem(item: Item, quests: Quest[], progress: Pick<ModeProgress, 'taskProgress'>, mode?: RaidMode, keep?: KeepBadge): ItemOverlayInfo {
+/**
+ * What the player still needs this item for: open quests, Kappa, and what it sells for. `collected`: the Collector
+ * items already checked on «Предметы для «Коллекционера»» in this mode, given only while «Значок «Каппа» в рейде только
+ * на недостающих» is on (kappa/kappaBadgeSetting.ts): those get no «Каппа» badge.
+ */
+export function describeItem(item: Item, quests: Quest[], progress: Pick<ModeProgress, 'taskProgress'>, mode?: RaidMode, keep?: KeepBadge, collected?: readonly string[]): ItemOverlayInfo {
   const needs: QuestNeed[] = []
   for (const quest of quests) {
     const status = progress.taskProgress[quest.id]?.status
@@ -54,7 +58,7 @@ export function describeItem(item: Item, quests: Quest[], progress: Pick<ModePro
     bestTrader: bestTrader ? { name: bestTrader.source, price: bestTrader.price } : undefined,
     quests: needs,
     kappa: needs.some((need) => need.kappa),
-    collector: needs.some((need) => COLLECTOR.test(need.name)),
+    collector: needs.some((need) => COLLECTOR.test(need.name)) && !collected?.includes(item.id),
     ...(keep ? { keep } : {}),
   }
 }

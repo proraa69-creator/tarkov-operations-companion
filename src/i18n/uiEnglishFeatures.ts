@@ -15,6 +15,9 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Предметы', 'Items'], ['Предметы для «Коллекционера»', 'Collector items'],
   ['Поместите предметы для квеста в одном экране (схрон или инвентарь), нажмите «Сканировать» — найденные предметы отметятся сами. Остальные можно отметить вручную.', 'Put the quest items on one screen (stash or inventory) and press “Scan” — found items are ticked automatically. You can tick the rest by hand.'],
   ['Сканировать', 'Scan'], ['Сканирую…', 'Scanning…'], ['предметов собрано', 'items collected'],
+  // «Значок «Каппа» в рейде только на недостающих» (owner, 13.10.2026)
+  ['Значок «Каппа» в рейде только на недостающих', 'Kappa badge in raid only on missing items'],
+  ['Уже отмеченные здесь предметы карточка в рейде не помечает. Выключите — значок будет на всех предметах для «Коллекционера».', 'Items already checked here get no badge on the in-raid card. Turn it off to see the badge on every Collector item.'],
   ['Сканирование работает только в приложении для Windows.', 'Scanning works only in the Windows app.'],
   ['Окно игры не найдено — распознан весь экран. Откройте игру и повторите.', 'Game window not found — the whole screen was read. Open the game and try again.'],
   ['Все найденные предметы уже отмечены.', 'All found items are already ticked.'],
