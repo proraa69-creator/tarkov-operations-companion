@@ -4,8 +4,11 @@
  * player's own computer (electron/screenOcr.ts; no picture leaves it), it gives the nickname and the level of every mode
  * at once («после обнаружения этого экрана, приложение моментально корректирует все данные по этим данным»).
  *
- * No guessing («что бы он не брал случайные цифры»): a card counts only when two independent readings agree — the
- * whole-screen pass and a close-up of its line, or close-ups of two frames — and the level is one the game has (1–79).
+ * No guessing («что бы он не брал случайные цифры»): a level counts only when two independent readings agree — an OCR
+ * reading of its line and its digits read from their shapes (src/import/levelDigits.ts) — and it is one the game has
+ * (1–79). OCR alone is not enough (player's report, 14.10.2026: PvE 39 shown as 59): Tesseract takes the game's «3» for a
+ * «5» about every other time, and the whole-screen pass, the close-up and two frames of this still screen all look at
+ * the same pixels, so they agreed on «59». The nickname counts when the whole pass and the close-up read the same one.
  */
 import type { RaidMode } from '../domain/types.js'
 import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
@@ -15,7 +18,8 @@ export const MAX_PLAYER_LEVEL = 79
 const NICKNAME = /^[A-Za-z0-9_-]{3,15}$/
 
 export interface NameLevel { nickname: string; level: number }
-export interface ModeSelectCard extends NameLevel { mode: RaidMode }
+/** A card's confirmed level, and its nickname when two readings agreed on that too. */
+export interface ModeSelectCard { mode: RaidMode; level: number; nickname?: string }
 
 /** A card found on the screen: its mode, where its «ник | уровень» line is looked for and what the whole pass read. */
 export interface ModeSelectHeader {
@@ -51,8 +55,6 @@ export function interfaceUnit(size: { width: number; height: number }) {
 export function foldNickname(value: string) {
   return value.toLowerCase().replace(/[_\-\s]/g, '').replace(/0/g, 'o').replace(/[1l|]/g, 'i').replace(/5/g, 's')
 }
-
-export const sameNameLevel = (a: NameLevel, b: NameLevel) => a.level === b.level && foldNickname(a.nickname) === foldNickname(b.nickname)
 
 /**
  * «♛ Raid_OS | 41» → Raid_OS, 41. The icon before the name (edition) reads as anything and is dropped; the bar between
@@ -173,41 +175,65 @@ function lineInBand(words: OcrWordBox[], band: PaneRect): { reading: NameLevel; 
   return null
 }
 
-/** One card's readings in one frame: the whole-screen pass and the close-up of its line. */
-export interface CardReadings { mode: RaidMode; full?: NameLevel; line?: NameLevel }
-
 /**
- * The cards two readings agree on: the whole pass and the close-up of this frame, or a close-up (or whole pass) of this
- * frame and the last frame's. `seen` is what this frame read, for the next one.
+ * One card's readings in one frame: the whole-screen pass, the close-up of its line, and `digits` — the number the
+ * level's glyphs in the close-up show by their shapes (src/import/levelDigits.ts), for each count of digits the OCR
+ * readings have (null: the shapes could not be read).
  */
-export function confirmCards(readings: CardReadings[], previous: Partial<Record<RaidMode, NameLevel>>) {
-  const confirmed: ModeSelectCard[] = []
-  const seen: Partial<Record<RaidMode, NameLevel>> = {}
-  for (const { mode, full, line } of readings) {
-    const current = line ?? full
-    if (current) seen[mode] = current
-    const before = previous[mode]
-    const agreed = full && line && sameNameLevel(full, line) ? line
-      : line && before && sameNameLevel(line, before) ? line
-        : full && before && sameNameLevel(full, before) ? full
-          : undefined
-    if (agreed) confirmed.push({ mode, nickname: agreed.nickname, level: agreed.level })
-  }
-  return { confirmed, seen }
+export interface CardReadings { mode: RaidMode; full?: NameLevel; line?: NameLevel; digits?: Partial<Record<number, number | null>> }
+
+/** An OCR reading of a level that the digits' shapes confirm. */
+function shapedLevel(level: number | null | undefined, digits: CardReadings['digits']) {
+  return typeof level === 'number' && digits?.[String(level).length] === level ? level : undefined
 }
 
 /**
- * The nickname the cards show: one name on every card (the same character name in every mode). The spelling the app
- * already knows wins when the screen shows the same name (OCR may read «Raid_0S»); cards that disagree give null.
+ * The cards whose level an OCR reading (the close-up or the whole pass) and the digits' shapes agree on. Two OCR
+ * readings agreeing are not enough, nor the same close-up in two frames: the screen does not move, so they look at the
+ * same pixels and share a misread «3». The nickname comes with a card when the whole pass and the close-up read it alike.
+ */
+export function confirmCards(readings: CardReadings[]): ModeSelectCard[] {
+  const confirmed: ModeSelectCard[] = []
+  for (const { mode, full, line, digits } of readings) {
+    const level = shapedLevel(line?.level, digits) ?? shapedLevel(full?.level, digits)
+    if (level === undefined) continue
+    const nickname = full && line && foldNickname(full.nickname) === foldNickname(line.nickname) ? line.nickname : undefined
+    confirmed.push({ mode, level, ...(nickname ? { nickname } : {}) })
+  }
+  return confirmed
+}
+
+/**
+ * The nickname the cards show: one name on every card that has one (the same character name in every mode). The
+ * spelling the app already knows wins when the screen shows the same name (OCR may read «Raid_0S»); cards that disagree
+ * give null.
  */
 export function screenNickname(cards: Array<Pick<ModeSelectCard, 'nickname'>>, known?: string | null) {
-  if (!cards.length) return null
-  const folded = foldNickname(cards[0]!.nickname)
-  if (cards.some((card) => foldNickname(card.nickname) !== folded)) return null
+  const names = cards.map((card) => card.nickname).filter((name): name is string => Boolean(name))
+  if (!names.length) return null
+  const folded = foldNickname(names[0]!)
+  if (names.some((name) => foldNickname(name) !== folded)) return null
   if (known && foldNickname(known) === folded) return known
   const counts = new Map<string, number>()
-  for (const card of cards) counts.set(card.nickname, (counts.get(card.nickname) ?? 0) + 1)
+  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1)
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]![0]
+}
+
+/** The words of each line of a Tesseract result (its `blocks` output). */
+export function ocrLines(blocks: Array<{ paragraphs: Array<{ lines: Array<{ words: OcrWordBox[] }> }> }> | null | undefined): OcrWordBox[][] {
+  return (blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.map((line) => line.words)))
+}
+
+const hasDigit = (word: OcrWordBox) => /\d/.test(word.text)
+
+/**
+ * Where the level is in a close-up of a card: the last word with digits on the line that reads «ник | уровень». When the
+ * close-up is of that line alone (`lineOnly`), its last word with digits even if the rest of it was misread.
+ */
+export function cardLevelWord(lines: OcrWordBox[][], lineOnly: boolean): OcrWordBox | null {
+  const named = lines.find((words) => parseNameLevel(words.map((word) => word.text).join(' ')))
+  const words = named ?? (lineOnly ? lines.flat() : [])
+  return words.filter(hasDigit).at(-1) ?? null
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -268,6 +294,22 @@ export function parseTraderLevel(text: string) {
   const match = /(?:lvl|lvi|lv1|lul)\s*[:.]?\s*(\d{1,2})\b/i.exec(latinize(text).replace(/\s+/g, ' '))
   const value = match ? Number(match[1]) : NaN
   return Number.isInteger(value) && value >= 1 && value <= MAX_PLAYER_LEVEL ? value : null
+}
+
+/** Where the level is in a close-up of «LVL 12»: the word after «LVL» (or «LVL12» itself), else the first word with digits. */
+export function traderLevelWord(lines: OcrWordBox[][]): OcrWordBox | null {
+  const words = lines.flat()
+  const at = words.findIndex((word) => /^(lvl|lvi|lv1|lul|iv1|ivl)/.test(token(word.text)))
+  if (at >= 0) return words.slice(at).find(hasDigit) ?? null
+  return words.find(hasDigit) ?? null
+}
+
+/**
+ * The traders' level two readings agree on, one of them the digits' shapes (`digits`, by count of digits): the close-up
+ * or the whole pass with the shapes. The whole pass and the close-up alone read the game's «39» as «59» together.
+ */
+export function confirmTraderLevel(whole: number | undefined, close: number | null, digits: CardReadings['digits']) {
+  return shapedLevel(close, digits) ?? shapedLevel(whole, digits)
 }
 
 /** The nickname a close-up of «Raid_OS» reads (the icon or «(вы)» around it dropped). */

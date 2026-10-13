@@ -8,8 +8,8 @@ import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/import/storyScanTiming.js'
 import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
-import { confirmCards, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, parseTraderLevel, parseTraderNickname, traderScreenParts, type CardReadings, type ModeSelectCard, type NameLevel, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
-import type { RaidMode } from '../src/domain/types.js'
+import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
+import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
 import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
 
 let worker: OcrWorker | null = null
@@ -268,12 +268,17 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
   }
 }
 
-/** What the last frames of the mode selection screen read: a reading counts once a second one agrees (confirmCards). */
-let lastModeSelect: { at: number; seen: Partial<Record<RaidMode, NameLevel>> } | null = null
+/** The grey pixels of a close-up, for reading the level's digits from their shapes (src/import/levelDigits.ts). */
+function closeUpPicture(image: NativeImage) {
+  const { width, height } = image.getSize()
+  const bitmap = image.toBitmap()
+  return bitmap.length >= width * height * 4 ? grayPicture(bitmap, width, height) : null
+}
 
 /**
- * The mode selection screen: each card's «ник | уровень» line once more, close up (3×), next to what the whole pass read.
- * Only the cards two readings agree on are returned. A few small reads, and only while this screen is open.
+ * The mode selection screen: each card's «ник | уровень» line once more, close up (3×), next to what the whole pass read,
+ * and the level's digits read from their shapes in that close-up. Only the levels an OCR reading and the shapes agree on
+ * are returned (confirmCards). A few small reads, and only while this screen is open.
  */
 async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<ModeSelectCard[]> {
   const headers = modeSelectHeaders(words, image.getSize())
@@ -287,30 +292,31 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<
         const rect = header.full?.box ?? header.band
         const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
         if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
-        let text: string
+        let data: Awaited<ReturnType<OcrWorker['recognize']>>['data']
         try {
-          text = (await ocr.recognize(scaled.toPNG())).data.text ?? ''
+          data = (await ocr.recognize(scaled.toPNG(), {}, { text: true, blocks: true })).data
         } finally {
           if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
         }
-        const line = findNameLevel(text)
-        result.push({ mode: header.mode, ...(header.full ? { full: { nickname: header.full.nickname, level: header.full.level } } : {}), ...(line ? { line } : {}) })
+        const line = findNameLevel(data.text ?? '')
+        const full = header.full ? { nickname: header.full.nickname, level: header.full.level } : undefined
+        const word = cardLevelWord(ocrLines(data.blocks), Boolean(header.full))
+        const picture = word ? closeUpPicture(scaled) : null
+        const digits = word && picture ? readLevelShapes(picture, word.bbox, [line?.level, full?.level]) : undefined
+        result.push({ mode: header.mode, ...(full ? { full } : {}), ...(line ? { line } : {}), ...(digits ? { digits } : {}) })
       }
       return result
     })
-    const now = Date.now()
-    const previous = lastModeSelect && now - lastModeSelect.at < 30_000 ? lastModeSelect.seen : {}
-    const { confirmed, seen } = confirmCards(readings, previous)
-    lastModeSelect = { at: now, seen }
-    return confirmed
+    return confirmCards(readings)
   } finally {
     touchQuestWorker()
   }
 }
 
 /**
- * The traders' screen: «LVL 12» of the current standing and the name before «(вы)», each once more close up (3×). Only
- * what the whole pass and the close-up agree on is returned; null when neither agrees.
+ * The traders' screen: «LVL 12» of the current standing and the name before «(вы)», each once more close up (3×). The
+ * level counts when an OCR reading and its digits' shapes agree, the name when the whole pass and the close-up do; null
+ * when nothing does.
  */
 async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promise<TraderScreenReading | null> {
   const loyalty = readTraderLoyalty(image, words)
@@ -320,17 +326,27 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
   try {
     return await runOcrJob(ocr, async () => {
       const read = async (rect: { x: number; y: number; width: number; height: number }) => {
+        const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
         await ocr.setParameters({ tessedit_pageseg_mode: '7' })
         try {
-          return (await ocr.recognize(image.crop(rect).resize({ width: rect.width * 3, quality: 'best' }).toPNG())).data.text ?? ''
+          const { data } = await ocr.recognize(scaled.toPNG(), {}, { text: true, blocks: true })
+          return { text: data.text ?? '', lines: ocrLines(data.blocks), scaled }
         } finally {
           await ocr.setParameters({ tessedit_pageseg_mode: '6' })
         }
       }
       const reading: TraderScreenReading = {}
-      if (parts.level && parseTraderLevel(await read(parts.level.box)) === parts.level.value) reading.level = parts.level.value
+      if (parts.level) {
+        const close = await read(parts.level.box)
+        const closeLevel = parseTraderLevel(close.text)
+        const word = traderLevelWord(close.lines)
+        const picture = word ? closeUpPicture(close.scaled) : null
+        const digits = word && picture ? readLevelShapes(picture, word.bbox, [closeLevel, parts.level.value]) : undefined
+        const level = confirmTraderLevel(parts.level.value, closeLevel, digits)
+        if (level) reading.level = level
+      }
       if (parts.nickname) {
-        const close = parseTraderNickname(await read(parts.nickname.box))
+        const close = parseTraderNickname((await read(parts.nickname.box)).text)
         if (close && foldNickname(close) === foldNickname(parts.nickname.value)) reading.nickname = close
       }
       if (loyalty) reading.loyalty = loyalty

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { confirmCards, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, parseNameLevel, parseTraderLevel, parseTraderNickname, screenNickname, traderScreenParts } from './modeSelectScreen'
+import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseNameLevel, parseTraderLevel, parseTraderNickname, screenNickname, traderLevelWord, traderScreenParts } from './modeSelectScreen'
+import { readLevelShapes } from './levelDigits'
+import { closeUp, wholeBox } from './__fixtures__/levelDigitLines'
 import type { OcrWordBox } from './storyPaneLayout'
 
 /** A word box the way Tesseract gives it. */
@@ -90,21 +92,63 @@ describe('the mode selection screen', () => {
 describe('confirmCards', () => {
   const card = (nickname: string, level: number) => ({ nickname, level })
 
-  it('takes a card when the whole pass and the close-up agree', () => {
-    const { confirmed } = confirmCards([{ mode: 'pve', full: card('Raid_OS', 41), line: card('Raid_OS', 41) }], {})
-    expect(confirmed).toEqual([{ mode: 'pve', nickname: 'Raid_OS', level: 41 }])
+  it('the player\'s PvE card (report of 14.10.2026): a «39» Tesseract read as «59» is 39', () => {
+    // What Tesseract (the app's models) read in «Raid_OS | 39» drawn in the game's font at 18 and 22 px: the whole pass
+    // «39», the ×3 close-up «59». The old rule took the close-up once the next frame — the same pixels — repeated it.
+    const full = parseNameLevel('Raid_OS | 39')!, line = findNameLevel('Raid_OS | 59')!
+    const picture = closeUp('card-39-18')
+    const digits = readLevelShapes(picture, wholeBox(picture), [line.level, full.level])
+    expect(digits).toEqual({ 2: 39 })
+    expect(confirmCards([{ mode: 'pve', full, line, digits }])).toEqual([{ mode: 'pve', level: 39, nickname: 'Raid_OS' }])
   })
 
-  it('waits for the next frame when they disagree, and takes it when that frame repeats the close-up', () => {
-    const first = confirmCards([{ mode: 'pvp', full: card('Raid_OS', 1), line: card('Raid_OS', 12) }], {})
-    expect(first.confirmed).toEqual([])
-    const second = confirmCards([{ mode: 'pvp', line: card('Raid_OS', 12) }], first.seen)
-    expect(second.confirmed).toEqual([{ mode: 'pvp', nickname: 'Raid_OS', level: 12 }])
+  it('OCR readings alone are never enough: not two of them, not the same close-up twice', () => {
+    // «Raid_OS | 50» at 16 px: Tesseract read «58» in the whole pass and in the close-up; the shapes say 50.
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 58), line: card('Raid_OS', 58), digits: { 2: 50 } }])).toEqual([])
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Raid_OS', 41) }])).toEqual([])
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Raid_OS', 41), digits: { 2: null } }])).toEqual([])
   })
 
-  it('a single reading is never enough', () => {
-    expect(confirmCards([{ mode: 'seasonal', line: card('Raid_OS', 14) }], {}).confirmed).toEqual([])
-    expect(confirmCards([{ mode: 'seasonal', line: card('Raid_OS', 14) }], { seasonal: card('Raid_OS', 15) }).confirmed).toEqual([])
+  it('an OCR reading the shapes confirm is the level; the nickname needs the whole pass and the close-up alike', () => {
+    expect(confirmCards([{ mode: 'pve', full: card('Raid_OS', 41), line: card('Raid_0S', 41), digits: { 2: 41 } }])).toEqual([{ mode: 'pve', level: 41, nickname: 'Raid_0S' }])
+    // The whole pass missed the line: the close-up of the band and the shapes still give the level, not the name.
+    expect(confirmCards([{ mode: 'seasonal', line: card('Raid_OS', 14), digits: { 2: 14 } }])).toEqual([{ mode: 'seasonal', level: 14 }])
+    // Readings of different lengths («3» and «35») each meet the shapes of their own count.
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 3), line: card('Raid_OS', 35), digits: { 1: null, 2: 35 } }])).toEqual([{ mode: 'pvp', level: 35, nickname: 'Raid_OS' }])
+  })
+})
+
+describe('where the level is in a close-up', () => {
+  const at = (text: string, x0: number, x1: number, y0 = 10): OcrWordBox => ({ text, bbox: { x0, y0, x1, y1: y0 + 30 } })
+
+  it('a card: the last word with digits on the «ник | уровень» line, not a timer under it', () => {
+    const lines = [[at('W', 0, 20), at('Raid_OS', 30, 120), at('|', 130, 134), at('41', 140, 170)], [at('54', 10, 40, 60), at('ДН.', 45, 70, 60), at('22:26:01', 80, 160, 60)]]
+    expect(cardLevelWord(lines, false)?.text).toBe('41')
+    expect(cardLevelWord([lines[1]!], false)).toBeNull()
+    // A close-up of the line alone: its last word with digits even when the name was misread.
+    expect(cardLevelWord([[at('~~', 0, 20), at('R@id', 30, 80), at('|41', 130, 170)]], true)?.text).toBe('|41')
+  })
+
+  it('the traders\' screen: the word after «LVL», not «0.20» next to it', () => {
+    expect(traderLevelWord([[at('LVL', 0, 40), at('12', 50, 70), at('0.20', 120, 160)]])?.text).toBe('12')
+    expect(traderLevelWord([[at('LVL12', 0, 70)]])?.text).toBe('LVL12')
+    expect(traderLevelWord([[at('ЦУЬ', 0, 40), at('12', 50, 70)]])?.text).toBe('12')
+  })
+
+  it('the words of each line of a Tesseract result', () => {
+    const blocks = [{ paragraphs: [{ lines: [{ words: [at('LVL', 0, 40)] }, { words: [at('12', 50, 70)] }] }] }]
+    expect(ocrLines(blocks).map((words) => words.map((entry) => entry.text))).toEqual([['LVL'], ['12']])
+    expect(ocrLines(null)).toEqual([])
+  })
+})
+
+describe('confirmTraderLevel', () => {
+  it('needs the shapes: «LVL 39» read as «59» by the whole pass and the close-up gives nothing', () => {
+    expect(confirmTraderLevel(59, 59, { 2: 39 })).toBeUndefined()
+    expect(confirmTraderLevel(39, 59, { 2: 39 })).toBe(39)
+    expect(confirmTraderLevel(undefined, 12, { 2: 12 })).toBe(12)
+    expect(confirmTraderLevel(12, 12, { 2: null })).toBeUndefined()
+    expect(confirmTraderLevel(12, 12, undefined)).toBeUndefined()
   })
 })
 
@@ -115,9 +159,11 @@ describe('screenNickname', () => {
     expect(screenNickname([{ nickname: 'NewName' }], 'Raid_OS')).toBe('NewName')
   })
 
-  it('cards with different names give none', () => {
+  it('cards with different names give none; cards without a confirmed name do not count', () => {
     expect(screenNickname([{ nickname: 'Raid_OS' }, { nickname: 'Other' }])).toBeNull()
     expect(screenNickname([])).toBeNull()
+    expect(screenNickname([{}, { nickname: 'Raid_OS' }])).toBe('Raid_OS')
+    expect(screenNickname([{}, {}])).toBeNull()
   })
 
   it('folds what OCR mixes up', () => {
