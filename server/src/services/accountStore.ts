@@ -720,8 +720,9 @@ export class AccountStore {
    * account). A free game account binds to an account that has none; a game account another Raid OS account holds
    * (EFT_IN_USE_MESSAGE) and, for a bound account, any other game account (EFT_OTHER_MESSAGE) are refused with 409.
    * Allowed or not, the report is kept for the device of this session (`sessionDigest`): eftBlock then refuses that
-   * device the entitlement and the paid data until it reports a game account that fits. The owner's accounts are never
-   * refused, and a game account an owner account holds refuses nobody: the owner tests the players' app on his own PC.
+   * device the entitlement and the paid data until it reports a game account that fits. Only the owner's own accounts are
+   * never refused; a game account an owner account holds refuses every other Raid OS account like any other (owner,
+   * 13.10.2026: a test account he made on his own PC still got in — «привязка не работает»).
    * A free period goes to one Raid OS account per game account (eft_trial_claims, kept after «Удалить аккаунт»).
    * The logs are the player's own; this keeps honest players apart, it is not proof against a forged request.
    */
@@ -748,13 +749,12 @@ export class AccountStore {
 
   /**
    * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
-   * fits. The owner's accounts and game accounts held by an owner account are exempt.
+   * fits. The owner's own accounts are exempt.
    */
   private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
     if (this.isOwner(accountId)) return undefined
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const holderId = holder ? String(holder.account_id) : undefined
-    if (holderId !== undefined && holderId !== accountId && this.isOwner(holderId)) return undefined
     const seen = `••••${hint}`
     if (holderId !== undefined && holderId !== accountId) return { kind: 'in-use', seen }
     const own = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_accounts WHERE account_id = ?').get(accountId) as Row | undefined
@@ -769,7 +769,11 @@ export class AccountStore {
    */
   eftBlock(accountId: string, deviceId: string | undefined): EftBlock | undefined {
     if (!deviceId) return undefined
-    const report = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
+    // This account's own report from this device; before it has one (a new account's first sign-in), the game account
+    // this device reported last for any account — the same PC's logs — so a second account is refused from the start,
+    // not a few seconds later when its own report arrives.
+    const report = (this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE account_id = ? AND device_id = ?').get(accountId, deviceId)
+      ?? this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE device_id = ? ORDER BY at DESC LIMIT 1').get(deviceId)) as Row | undefined
     return report ? this.eftRule(accountId, String(report.eft_digest), String(report.eft_hint)) : undefined
   }
 

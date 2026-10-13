@@ -21,7 +21,15 @@ let api: {
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
   gdi: Gdi | null
   windows: Windows | null
+  inputChild: InputChild | null
 } | null | undefined
+
+/** Window handles as numbers (intptr_t): Electron's getNativeWindowHandle() is a buffer holding the handle, and a buffer
+ * passed as a pointer would hand over the buffer's address instead. */
+interface InputChild {
+  find: (parent: number | bigint, after: number | bigint, className: string, title: string | null) => number | bigint
+  visible: (hwnd: number | bigint) => boolean
+}
 
 interface Windows {
   find: (className: string | null, title: string | null) => unknown
@@ -101,12 +109,37 @@ function win32() {
           address: (pointer: unknown) => koffi.address(pointer),
         } as unknown as Windows
       }),
+      inputChild: optional(() => ({
+        find: user32.func('intptr_t __stdcall FindWindowExW(intptr_t hWndParent, intptr_t hWndChildAfter, const char16_t* lpszClass, const char16_t* lpszWindow)'),
+        visible: user32.func('bool __stdcall IsWindowVisible(intptr_t hWnd)'),
+      }) as unknown as InputChild),
     }
   } catch (error) {
     api = null
     loadError = process.platform === 'win32' ? (error instanceof Error ? error.message : String(error)) || 'unknown error' : ''
   }
   return api
+}
+
+/**
+ * Whether Chromium's input window inside an app window is shown. Chromium takes the mouse through a child window of
+ * class «Chrome_RenderWidgetHostHWND»; while it is hidden, every press on a window that cannot be activated (the
+ * overlays) is dropped by Windows. `handle` is Electron's getNativeWindowHandle(). Null when it cannot be told: not
+ * Windows, the functions are missing, or no such child.
+ */
+export function inputChildVisible(handle: Buffer): boolean | null {
+  const calls = win32()?.inputChild
+  if (!calls || handle.length < 4) return null
+  try {
+    const raw = handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0))
+    const parent = raw <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(raw) : raw
+    if (!parent) return null
+    const child = calls.find(parent, 0, 'Chrome_RenderWidgetHostHWND', null)
+    if (!child) return null
+    return Boolean(calls.visible(child))
+  } catch {
+    return null
+  }
 }
 
 /** Empty when the Windows functions (game window, key state, key presses) are available. */

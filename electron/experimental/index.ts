@@ -14,14 +14,15 @@ import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidate
 import { itemCardBounds } from '../../src/overlay/itemCardPlacement.js'
 import { MapScreenshotRetention } from './mapScreenshotRetention.js'
 import { relaunchAsAdmin } from './elevation.js'
+import { InputWatch, reattachInput } from './inputReattach.js'
 import { isTrustedAppPage } from '../ipcGuard.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
-import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
+import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
-  captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
+  captureScreenRegion, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
   type DisplayMode, type KeyStroke,
 } from './win32.js'
 
@@ -102,7 +103,16 @@ function watchMinimapHits(window: BrowserWindow) {
     // The page may never get the release (it happened outside the window): release the page ourselves.
     if (step.releaseHold) window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x - bounds.x, y: point.y - bounds.y, button: 'left', clickCount: 1 })
     if (step.interactive !== null) setMinimapInteractive(window, step.interactive)
+    // The cursor is on a control: make sure a press there is not dropped (inputReattach.ts).
+    if (visible && !dragTimer && isOverZone(minimapZones, { x: point.x - bounds.x, y: point.y - bounds.y })) checkMinimapInput(window)
   }, 50)
+}
+
+/** The minimap's input window hidden without a show event: shown again while the cursor is on a control. */
+const inputWatch = new InputWatch()
+
+function checkMinimapInput(window: BrowserWindow) {
+  inputWatch.check(window, Date.now(), () => inputChildVisible(window.getNativeWindowHandle()))
 }
 
 /** Shown again, game back in front, display changed: set the minimap's click-through state up again. */
@@ -588,6 +598,8 @@ function showOverlay(window: BrowserWindow) {
   zoomToDisplay(window)
   window.showInactive()
   reassertOverlay(window)
+  // Presses on the minimap are dropped after it was hidden until its size changes once (inputReattach.ts).
+  if (window === minimapWindow) reattachInput(window)
   // Some borderless/full-screen games reorder native windows one or two frames after a hotkey.
   // Reasserting without taking focus keeps the overlay visible above EFT.
   for (const delay of [60, 240]) setTimeout(() => {
@@ -617,9 +629,15 @@ const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed()
 function ensureMinimapWindow() {
   if (!minimapWindow || minimapWindow.isDestroyed()) {
     const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
-    // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again.
-    window.on('show', resyncMinimapClicks)
-    window.on('restore', resyncMinimapClicks)
+    // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again, and
+    // show Chromium's input window again once the show is through (inputReattach.ts).
+    const shown = () => {
+      resyncMinimapClicks()
+      inputWatch.reset()
+      setTimeout(() => reattachInput(window), 0)
+    }
+    window.on('show', shown)
+    window.on('restore', shown)
     window.on('hide', () => {
       if (dragTimer) clearInterval(dragTimer)
       dragTimer = null

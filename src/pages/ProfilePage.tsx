@@ -10,7 +10,9 @@ import { StreamerCabinetPanel } from '../account/StreamerCabinetPanel'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { NicknameEditor } from '../account/NicknameEditor'
+import { outdatedProfile } from '../account/logNickname'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
+import { DonateCard } from '../components/DonateCard'
 import '../account/account.css'
 
 export function ProfilePage() {
@@ -19,6 +21,9 @@ export function ProfilePage() {
   const owner = isOwnerApp()
   const progress = state.activeProfile.modes[state.raidMode]
   const modeName = state.raidMode === 'seasonal' ? 'Сезон' : state.raidMode.toUpperCase()
+  const currentNickname = useAccountNickname()
+  // A Tarkov.dev profile with another name was captured before the rename: not shown (account/logNickname.ts).
+  const snapshot = progress.playerSnapshot && !outdatedProfile(progress.playerSnapshot, currentNickname) ? progress.playerSnapshot : undefined
   // Owner build: «Аккаунт сервера» with the server controls. Players (and the phone): «Личный кабинет»; the phone
   // signs in with the form of «Аккаунт сервера» (Settings has the server address).
   const accountBlock = owner
@@ -33,8 +38,9 @@ export function ProfilePage() {
     <div className="profile-operator-layout">
       <NicknamePanel />
       <section className="panel profile-live-card">
-        <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(progress.playerSnapshot?.nickname ?? state.activeProfile.displayName)}</div></div>{uiText(progress.playerSnapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(progress.playerSnapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
-        <div className="panel-body"><PlayerLoadoutSummary snapshot={progress.playerSnapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /></div>
+        {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
+        <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div></div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
+        <div className="panel-body"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>
     </div>
@@ -42,6 +48,8 @@ export function ProfilePage() {
     {owner && <OwnerAnnouncementPanel />}
     {accountBlock}
     {status?.kind === 'streamer' && <StreamerCabinetPanel />}
+    {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026). */}
+    <div className="profile-donate"><DonateCard /></div>
   </div>
 }
 

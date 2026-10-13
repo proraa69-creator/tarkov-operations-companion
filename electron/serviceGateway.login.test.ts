@@ -45,9 +45,8 @@ describe('owner sign-in from the desktop app', () => {
     expect(status).toMatchObject({ signedIn: true, email: 'owner@example.com', online: true, serverUrl: state.remote })
   })
 
-  it('names the server when the password or account does not match it', async () => {
-    const host = new URL(state.remote).host
-    await expect(accountLogin('nobody@example.com', password)).rejects.toThrow(`Неверный e-mail или пароль для сервера этот компьютер (${host})`)
+  it('says only «Неверный e-mail или пароль» when the password or account does not match', async () => {
+    await expect(accountLogin('nobody@example.com', password)).rejects.toThrow(/^Неверный e-mail или пароль$/)
   })
 
   it('switches to this PC only while the local server mode is on, and drops the other server\'s session', async () => {
