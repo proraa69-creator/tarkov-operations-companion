@@ -5,7 +5,23 @@ import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { Pager } from './AdminPayments'
 import { dateTime, failure, numberFormat, useAdminData, type Failure } from './adminData'
-import { bugReportsApi, type BugReportFile, type BugReportStatus, type ReportKind } from './bugReportsApi'
+import { bugReportsApi, type BugReportFile, type BugReportQuest, type BugReportStatus, type ReportKind } from './bugReportsApi'
+import { QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS, type QuestIssue, type ReportCategory } from '../../../../src/shared/reportCategories'
+
+const categoryLabel = (category?: string) => (category ? REPORT_CATEGORY_LABELS[category as ReportCategory] ?? category : '')
+/** A player's quest correction as «label: value» rows (the owner applies them in the app's «Заявки»). */
+function questFacts(quest: BugReportQuest, matches?: number): Array<[string, string]> {
+  return [
+    ['Квест (id)', quest.questId], ['Что не так', QUEST_ISSUE_LABELS[quest.issue as QuestIssue] ?? quest.issue],
+    ...(quest.mode ? [['Режим', quest.mode === 'seasonal' ? 'Сезон' : quest.mode.toUpperCase()] as [string, string]] : []),
+    ...(quest.mapId ? [['Карта', quest.mapId] as [string, string]] : []),
+    ...(quest.markerId ? [['Неверная точка', quest.markerId] as [string, string]] : []),
+    ...(quest.point ? [['Предложенное место', `x ${Math.round(quest.point.x)}, z ${Math.round(quest.point.z)}${quest.point.floor ? ` · ${quest.point.floor}` : ''}`] as [string, string]] : []),
+    ...(quest.pointNote ? [['Заметка к точке', quest.pointNote] as [string, string]] : []),
+    ...(quest.questNote ? [['Заметка к квесту', quest.questNote] as [string, string]] : []),
+    ...(matches && matches > 1 ? [['Совпадает с отчётами', String(matches - 1)] as [string, string]] : []),
+  ]
+}
 
 const PAGE = 50
 
@@ -103,7 +119,7 @@ export function AdminBugReports() {
                     <tr className={expanded ? 'is-open' : undefined}>
                       <td className="mono">{dateTime.format(new Date(report.createdAt))}</td>
                       <td className="admin-email">{report.email ?? <span className="dim">аккаунт удалён</span>}</td>
-                      <th scope="row" className="admin-wrap">{report.topic}</th>
+                      <th scope="row" className="admin-wrap">{report.topic}{report.category ? <span className="tag admin-mini"> {categoryLabel(report.category)}</span> : null}{report.matches && report.matches > 1 ? <span className="tag green admin-mini"> совпадает у {report.matches}</span> : null}</th>
                       <td className="mono">{report.appVersion || '—'}</td>
                       <td className="num mono">{report.files || '—'}</td>
                       <td>{report.rewardDays ? <span className="tag green admin-mini">+{report.rewardDays} дн.</span> : <span className="dim">—</span>}</td>
@@ -194,6 +210,8 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
         <div><dt>Версия приложения</dt><dd className="mono">{report.appVersion || '—'}</dd></div>
         <div><dt>Система</dt><dd className="mono">{report.platform || '—'}</dd></div>
         <div><dt>E-mail</dt><dd>{report.email ?? <span className="dim">аккаунт удалён</span>}</dd></div>
+        {report.category ? <div><dt>Категория</dt><dd>{categoryLabel(report.category)}</dd></div> : null}
+        {report.quest ? questFacts(report.quest, report.matches).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>) : null}
         <div><dt>{words.rewarded}</dt><dd>{report.rewardDays ? <><span className="tag green">+{report.rewardDays} дн.</span>{report.rewardedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.rewardedAt))}</span> : null}</> : <span className="dim">ещё нет</span>}</dd></div>
         <div><dt>PDF на почту</dt><dd>{report.mailedAt ? <span className="mono">{dateTime.format(new Date(report.mailedAt))}</span> : report.mailError ? <span className="admin-danger-text">{report.mailError}</span> : <span className="dim">ещё не отправлен</span>}</dd></div>
       </dl>
