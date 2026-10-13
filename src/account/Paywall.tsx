@@ -36,6 +36,16 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
     const timer = window.setInterval(() => { void refresh() }, PAYWALL_REFRESH_MS)
     return () => window.clearInterval(timer)
   }, [refresh])
+  // No subscription yet (a new account, or one without a free day): the game account of this PC is reported here too, so
+  // a second Raid OS account for the same game account learns it is already in use (owner, 13.10.2026) instead of
+  // only «Нужна подписка»; a free one is bound as at any first sign-in.
+  const reportGame = access.state === 'locked' && access.reason === 'subscription' && Boolean(status?.signedIn)
+  useEffect(() => {
+    if (!reportGame) return
+    let alive = true
+    void recheckEftAccount().then((reported) => { if (alive && reported) void refresh() })
+    return () => { alive = false }
+  }, [reportGame, refresh])
 
   if (access.state === 'checking') {
     return <div className="paywall" role="status"><section className="panel paywall-card"><RefreshCw className="spin" size={22} /><p className="muted">{uiText('Проверяем подписку…')}</p></section></div>

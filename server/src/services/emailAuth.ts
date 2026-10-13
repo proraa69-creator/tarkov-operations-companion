@@ -276,7 +276,7 @@ export class EmailAuthService implements PendingRegistrations {
     const email = normalize(rawEmail)
     if (ip !== undefined) this.hitIp(ip)
     this.checkQuota(email, ip, 'register')
-    // «Existing» also covers the canonical form of a working account (name+x@…, n.a.m.e@gmail.com): same decoy path.
+    // A taken address takes the decoy path (a similar one — name+x@…, n.a.m.e@gmail.com — registers, owner 13.10.2026).
     if (this.accounts.emailTaken(email)) {
       await this.accounts.dummyPasswordHash(password)
       const challenge = this.createChallenge('register', email, undefined, null)
