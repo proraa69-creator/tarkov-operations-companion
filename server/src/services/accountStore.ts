@@ -519,8 +519,10 @@ export class AccountStore {
     // Without e-mail confirmation nobody proves the address is theirs, so a listed owner e-mail cannot be registered
     // here at all (and even if it were, isOwner() would refuse an unconfirmed account). A taken address and an owner
     // address get the same answer, so the reply does not show which e-mail is the owner's.
-    // The canonical form counts too (name+x@, n.a.m.e@gmail.com): same answer, so nothing about the account leaks.
-    if (this.findByEmail(key) || this.ownerEmails.has(key) || this.canonicalTaken(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
+    // Similar addresses (name+x@, n.a.m.e@gmail.com) register (owner, 13.10.2026: «блокировать по созданию похожей почты
+    // не нужно»): the app then refuses a game account another Raid OS account holds (bindEftAccount), and the free
+    // period stays once per mailbox (claimTrialByEmail).
+    if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
     return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip))
   }
@@ -532,21 +534,16 @@ export class AccountStore {
    */
   createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string) {
     const key = email.trim().toLowerCase()
-    if (this.findByEmail(key) || this.canonicalTaken(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
+    if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
     return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp)
   }
 
   /**
-   * An address that cannot get a new account: it has one, or its canonical form (canonicalEmail) belongs to a working
-   * account. Registration answers exactly as for a taken address (anti-enumeration).
+   * An address that cannot get a new account: it has one (a similar address — name+x@, n.a.m.e@gmail.com — can, see
+   * register()). Registration answers exactly as for a free address (anti-enumeration).
    */
   emailTaken(email: string) {
-    const key = email.trim().toLowerCase()
-    return this.findByEmail(key) !== undefined || this.canonicalTaken(key)
-  }
-
-  private canonicalTaken(email: string) {
-    return this.db.prepare('SELECT 1 FROM accounts WHERE email_canon = ? AND deleted_at IS NULL').get(canonicalEmail(email)) !== undefined
+    return this.findByEmail(email.trim().toLowerCase()) !== undefined
   }
 
   /**

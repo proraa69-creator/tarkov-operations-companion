@@ -486,17 +486,11 @@ test('wrong e-mail codes on /email/login and /email/reset are failed sign-ins (4
   }
 })
 
-test('registration of a canonical alias of a working account takes the decoy path (same answer, no code)', async () => {
+test('a similar address of a working account registers with its code (owner, 13.10.2026), without a second free day', async () => {
   const t = setup()
-  await t.signUp('jane.doe@gmail.com')
-  await t.emails.settled()
-  const before = t.sender.sent.length
-  const started = await t.api.register({ ip: 'alias', body: { email: 'Jane.Doe+farm@googlemail.com', password } })
-  assert.equal(started.status, 202)
-  assert.deepEqual(Object.keys(started.body as object).sort(), ['challengeId', 'expiresAt', 'message', 'pending', 'resendSeconds'])
-  await t.emails.settled()
-  assert.ok(t.sender.sent.length <= before + 1, 'at most the «someone tried to register» notice')
-  assert.equal(t.sender.lastCode('jane.doe+farm@googlemail.com'), undefined, 'no registration code')
-  assert.equal((await t.email.registerConfirm({ ip: 'alias', body: { challengeId: challenge(started.body), code: '123456' } })).status, 400)
-  assert.equal(t.accounts.hasAccount('jane.doe+farm@googlemail.com'), false)
+  const first = await t.signUp('jane.doe@gmail.com')
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  const alias = await t.signUp('jane.doe+farm@googlemail.com')
+  assert.equal(t.accounts.hasAccount('jane.doe+farm@googlemail.com'), true)
+  assert.deepEqual(alias.account.subscription, { status: 'inactive' }, 'the mailbox had its free day')
 })

@@ -262,20 +262,23 @@ test('failed password sign-ins are limited per e-mail across IPs; success does n
   assert.equal((await api.login({ ip: '10.0.2.2', body: { email: 'target@example.com', password } })).status, 200)
 })
 
-test('canonical e-mail: Gmail dots / googlemail and +tags are one mailbox; registration refuses it like a taken address', async () => {
+test('canonical e-mail: Gmail dots / googlemail and +tags are one mailbox; a similar address registers, without a second free day (owner, 13.10.2026)', async () => {
   assert.equal(canonicalEmail(' J.O.H.N+stream@GoogleMail.com '), 'john@gmail.com')
   assert.equal(canonicalEmail('j.o.h.n+a+b@example.com'), 'j.o.h.n@example.com', 'dots matter outside Gmail')
   assert.equal(canonicalEmail('+only@example.com'), '+only@example.com')
-  const { api, store } = setup()
-  assert.equal((await api.register({ ip: '1', body: { email: 'john.doe@gmail.com', password } })).status, 201)
+  const { api } = setup()
+  const first = await api.register({ ip: '1', body: { email: 'john.doe@gmail.com', password } })
+  assert.equal(first.status, 201)
+  assert.deepEqual((first.body as { account: AccountView }).account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  // «Блокировать по созданию похожей почты не нужно»: the app refuses the game account another Raid OS account holds.
   for (const alias of ['johndoe@gmail.com', 'John.Doe+farm@googlemail.com', 'j.o.h.n.d.o.e+1@gmail.com']) {
-    const refused = await api.register({ ip: '1', body: { email: alias, password } })
-    assert.deepEqual([refused.status, refused.body], [409, { error: REGISTRATION_REFUSED_MESSAGE }], alias)
+    const registered = await api.register({ ip: '1', body: { email: alias, password } })
+    assert.equal(registered.status, 201, alias)
+    assert.deepEqual((registered.body as { account: AccountView }).account.subscription, { status: 'inactive' }, `${alias}: the mailbox had its free day`)
   }
-  // Once the account is deleted the canonical form is free again.
-  const token = ((await api.login({ ip: '1', body: { email: 'john.doe@gmail.com', password } })).body as { token: string }).token
-  store.deleteAccount(store.authenticate(token)!)
-  assert.equal((await api.register({ ip: '1', body: { email: 'johndoe+new@gmail.com', password } })).status, 201)
+  // The very same address stays taken.
+  const taken = await api.register({ ip: '1', body: { email: 'John.Doe@gmail.com', password } })
+  assert.deepEqual([taken.status, taken.body], [409, { error: REGISTRATION_REFUSED_MESSAGE }])
 })
 
 test('streamer-code trial: once per canonical e-mail, also after deleting the account; the referral still counts', async () => {
@@ -291,15 +294,17 @@ test('streamer-code trial: once per canonical e-mail, also after deleting the ac
   assert.equal(view.referralApplied, true)
   assert.equal(view.account.referredBy, 'HUNTER_TV')
   assert.deepEqual(view.account.subscription, { status: 'inactive' }, 'no second trial for the same mailbox')
-  // Applying the code later does not help either.
-  const later = ((await api.register({ ip: '4', body: { email: 'fan.one+3@gmail.com', password } })).body as { token: string })
-  assert.equal(later.token, undefined, 'the canonical form belongs to a working account: refused')
+  // Another spelling of the mailbox registers (owner, 13.10.2026), still without a trial, also with the code applied later.
+  const later = ((await api.register({ ip: '4', body: { email: 'fan.one+3@gmail.com', password } })).body as { token: string; account: AccountView })
+  assert.deepEqual(later.account.subscription, { status: 'inactive' })
+  const laterApplied = await api.applyReferral({ authorization: auth(later.token), body: { code: 'hunter_tv' } })
+  assert.deepEqual((laterApplied.body as AccountView).subscription, { status: 'inactive' }, 'no trial for the same mailbox')
   // A different mailbox gets its trial; both registrations count for the streamer.
   const other = (await api.register({ ip: '5', body: { email: 'fan.two@gmail.com', password } })).body as { token: string }
   const applied = await api.applyReferral({ authorization: auth(other.token), body: { code: 'hunter_tv' } })
   assert.deepEqual((applied.body as AccountView).subscription, { status: 'inactive', trialPendingDays: 3 }, 'three days, from the first sign-in in an app')
   const streamer = ((await api.login({ ip: '1', body: { email: 'tv@example.com', password } })).body as { account: AccountView }).account
-  assert.equal(streamer.stats?.registrations, 3)
+  assert.equal(streamer.stats?.registrations, 4)
 })
 
 test('one free day for every new account, from the first sign-in in an app (owner, 12.10.2026): once per mailbox and device; when it is over the view keeps its end', async () => {

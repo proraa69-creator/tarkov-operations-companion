@@ -205,6 +205,45 @@ test('a report from a session without an app device (the website) binds or refus
   })
 })
 
+test('the whole AccountId decides, not the last three digits shown on screen (owner, 13.10.2026)', async () => {
+  await withApi(async ({ register, entitle, report }) => {
+    const a = await register('player@gmail.com')
+    await entitle(a, device(1))
+    assert.equal((await report(a, '7654321')).status, 200)
+    // Another game account that also ends with 321: a different account for the server.
+    const b = await register('other@mail.ru')
+    await entitle(b, device(2))
+    const other = await report(b, '1111321')
+    assert.equal(other.status, 200)
+    assert.equal((other.body.eftAccount as { masked: string }).masked, '••••321', 'the same digits on screen')
+    assert.equal((await entitle(b, device(2))).status, 200)
+    assert.notEqual(eftDigest('7654321'), eftDigest('1111321'))
+    // And a number that only differs elsewhere is not the first one either.
+    const c = await register('third@mail.ru')
+    await entitle(c, device(3))
+    assert.equal((await report(c, '7654322')).status, 200)
+  })
+})
+
+test('a second account without a free day sees «already in use», not «Нужна подписка» (owner, 13.10.2026)', async () => {
+  await withApi(async ({ register, entitle, report }) => {
+    const a = await register('player@gmail.com')
+    await entitle(a, device(1))
+    await report(a, X)
+    // A similar mailbox registers (no block on similar e-mails) and signs in on the same PC: no free day there.
+    const b = await register('p.layer+2@gmail.com')
+    const paywall = await entitle(b, device(1))
+    assert.equal(paywall.status, 402)
+    // The locked app reports the game account of the PC: from then on the reason is the game account.
+    const refused = await report(b, X)
+    assert.equal(refused.status, 409)
+    const locked = await entitle(b, device(1))
+    assert.equal(locked.status, 403)
+    assert.equal(locked.body.code, 'eft_conflict')
+    assert.equal(locked.body.error, 'Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.')
+  })
+})
+
 test('game accounts bound before this change keep their free day counted (filled in on start)', () => {
   const db = openDatabase(':memory:')
   let clock = Date.parse('2026-10-13T12:00:00Z')
