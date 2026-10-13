@@ -50,7 +50,9 @@ export interface ServerAccountStatus {
 }
 
 /** Why the players' app has no access right now (docs/subscription-protection.md). */
-export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'eft-conflict' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+/** One Escape from Tarkov account — one Raid OS account (electron/entitlement.ts EftConflict). */
+export interface EftConflict { conflict: 'in-use' | 'other-account'; seen?: string; bound?: string }
 export interface EntitlementView {
   valid: boolean
   plan?: 'owner' | 'streamer' | 'paid' | 'trial'
@@ -60,6 +62,8 @@ export interface EntitlementView {
   /** Devices this sign-in switched off (three-device limit): shown once. */
   revokedDevices?: Array<{ name: string; lastSeenAt: string }>
   message?: string
+  /** What the one-to-one game account rule refused (reason `eft-conflict`). */
+  eft?: EftConflict
 }
 
 /** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */

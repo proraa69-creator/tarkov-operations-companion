@@ -49,6 +49,7 @@ export type AuditAction =
   | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
   | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'eft.unbind'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -79,6 +80,8 @@ export interface AdminUser {
   pcSeenAt?: string
   blockedAt?: string
   payments: { count: number; total: number }
+  /** The bound Escape from Tarkov account, masked (one game account — one Raid OS account, owner 13.10.2026). */
+  eftAccount?: { masked: string; boundAt: string }
 }
 
 export interface AdminPayment {
@@ -360,8 +363,9 @@ export class AdminStore {
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
-      (SELECT r.provider || '|' || r.status || '|' || r.plan FROM recurring_subscriptions r WHERE r.account_id = a.id ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1) AS autopay
-    FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id`
+      (SELECT r.provider || '|' || r.status || '|' || r.plan FROM recurring_subscriptions r WHERE r.account_id = a.id ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1) AS autopay,
+      e.eft_hint, e.bound_at AS eft_bound_at
+    FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id`
   }
 
   users(q: string, filter: UserFilter, limit: number, offset: number) {
@@ -419,6 +423,7 @@ export class AdminStore {
       ...(row.pc_seen_at == null ? {} : { pcSeenAt: iso(row.pc_seen_at) }),
       ...(row.blocked_at == null ? {} : { blockedAt: iso(row.blocked_at) }),
       payments: { count: Number(row.paid_count ?? 0), total: rub(row.paid_total) },
+      ...(row.eft_hint == null ? {} : { eftAccount: { masked: `••••${String(row.eft_hint)}`, boundAt: iso(row.eft_bound_at)! } }),
     }
   }
 
@@ -517,6 +522,16 @@ export class AdminStore {
       }
       this.audit(actor, blocked ? 'account.block' : 'account.unblock', target.email, reason ? { reason } : undefined)
     })
+    return this.user(id)
+  }
+
+  /**
+   * «Отвязать аккаунт Escape from Tarkov» (a player changed game accounts, support case): the game account is free and
+   * the player's app binds the one in its logs at the next start (AccountStore.unbindEftAccount).
+   */
+  unbindEftAccount(actor: string, id: string) {
+    const target = this.mustUser(id)
+    if (this.accounts.unbindEftAccount(id)) this.audit(actor, 'eft.unbind', target.email)
     return this.user(id)
   }
 

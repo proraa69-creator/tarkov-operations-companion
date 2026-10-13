@@ -17,7 +17,7 @@ vi.mock('electron', () => ({
 vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => state.owner, buildDefaultServerUrl: () => 'https://raidos.app', buildEntitlementKeys: () => state.keys }))
 vi.mock('./localServer.js', () => ({ localServerEnabled: async () => false }))
 
-const { pinServerKey, trustedKey, mayPinServerKeys } = await import('./entitlement')
+const { entitlementFor, pinServerKey, refuseEntitlement, trustedKey, mayPinServerKeys } = await import('./entitlement')
 const { serverUrlAllowed, setServerUrl } = await import('./serviceGateway')
 
 const newKey = () => (generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' }) as { x: string }).x
@@ -75,5 +75,16 @@ describe('server address in the players’ app', () => {
   it('setServerUrl refuses another server in the players’ app', async () => {
     await expect(setServerUrl('https://evil.example')).rejects.toThrow('адрес сервера не меняется')
     await expect(setServerUrl('evil.example')).rejects.toThrow('адрес сервера не меняется')
+  })
+})
+
+describe('one Escape from Tarkov account — one Raid OS account (owner, 13.10.2026)', () => {
+  it('the server\'s eft_conflict refusal is kept with what was refused, for the lock screen', async () => {
+    const eft = { conflict: 'other-account' as const, seen: '••••999', bound: '••••321' }
+    await refuseEntitlement('eft-conflict', 'К этому аккаунту Raid OS привязан другой аккаунт Escape from Tarkov.', eft)
+    expect(await entitlementFor(OFFICIAL)).toEqual({ valid: false, reason: 'eft-conflict', message: 'К этому аккаунту Raid OS привязан другой аккаунт Escape from Tarkov.', eft })
+    // Another refusal replaces it entirely.
+    await refuseEntitlement('subscription')
+    expect(await entitlementFor(OFFICIAL)).toEqual({ valid: false, reason: 'subscription' })
   })
 })

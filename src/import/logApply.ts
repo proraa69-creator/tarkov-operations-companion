@@ -1,6 +1,9 @@
 import type { ModeProgress, ModeRegistration, RaidMode, TaskProgressRecord } from '../domain/types'
 import type { ParsedTaskEvent } from './logParser'
 
+/** The game's Logs folder the desktop app found or was given (AppShell; the locked app's re-check, eftAccountLink.ts). */
+export const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
+
 export interface ModeLogEvents {
   eventsByMode: Record<RaidMode, ParsedTaskEvent[]>
   latestAccountIdByMode?: Partial<Record<RaidMode, number>>

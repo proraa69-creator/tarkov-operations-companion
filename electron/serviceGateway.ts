@@ -15,7 +15,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './buildEdition.js'
 import { localServerEnabled } from './localServer.js'
-import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EntitlementStatus } from './entitlement.js'
+import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EftConflict, type EntitlementStatus } from './entitlement.js'
 import { clearGameCache, type CacheAccess } from './gameDataCache.js'
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
@@ -317,8 +317,24 @@ export async function serviceRequest(method: string, path: string, body?: unknow
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
   if (gated && (response.status === 402 || response.status === 403)) await refusedByServer(response.status, result)
+  // The game account of this PC was reported (src/account/EftAccountBinding.tsx): the server may now refuse or allow this
+  // device (one game account — one Raid OS account), so the next status asks for the entitlement at once.
+  if (path === EFT_ACCOUNT_PATH && method === 'POST') entitlementDue = true
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
   return result
+}
+
+const EFT_ACCOUNT_PATH = '/v1/accounts/me/eft-account'
+const MASKED_EFT = /^••••\d{1,3}$/
+
+/** The server's eft_conflict answer, shape-checked (AccountStore.eftConflictBody). */
+function eftConflictOf(result: unknown): EftConflict | undefined {
+  const body = result && typeof result === 'object' ? result as { conflict?: unknown; seen?: unknown; bound?: unknown } : {}
+  if (body.conflict !== 'in-use' && body.conflict !== 'other-account') return undefined
+  const masked = (value: unknown) => (typeof value === 'string' && MASKED_EFT.test(value) ? value : undefined)
+  const seen = masked(body.seen)
+  const bound = masked(body.bound)
+  return { conflict: body.conflict, ...(seen ? { seen } : {}), ...(bound ? { bound } : {}) }
 }
 
 /** 402 / 403 from a paid route: the entitlement and the encrypted cache go at once (the app shows the paywall). */
@@ -326,6 +342,7 @@ async function refusedByServer(status: number, result: { error?: string; code?: 
   const code = result?.code
   if (status === 402) await refuseEntitlement('subscription', result?.error)
   else if (code === 'device_revoked' || code === 'device_inactive') await refuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
+  else if (code === 'eft_conflict') await refuseEntitlement('eft-conflict', result?.error, eftConflictOf(result))
   else return
   await clearGameCache()
 }
@@ -366,6 +383,12 @@ async function doRefreshEntitlement(force: boolean): Promise<EntitlementStatus> 
       await refuseEntitlement('subscription', (result as { error?: string } | null)?.error)
       await clearGameCache()
       return { ...(await entitlementFor(server)), revokedDevices: takeDeviceNotice() }
+    }
+    // One game account — one Raid OS account: the game account in this PC's logs breaks it (the app shows why).
+    if (response.status === 403 && (result as { code?: unknown } | null)?.code === 'eft_conflict') {
+      await refuseEntitlement('eft-conflict', (result as { error?: string } | null)?.error, eftConflictOf(result))
+      await clearGameCache()
+      return entitlementFor(server)
     }
     if (response.ok) {
       const status = await acceptIssued(server, result)
