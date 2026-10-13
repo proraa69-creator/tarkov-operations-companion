@@ -1,4 +1,4 @@
-/** English for Settings → «Журналы игры», its report (src/import/logSearchReport.ts) and the «Ник ещё не найден» help. */
+/** English for Settings → «Журналы игры», its report (src/import/logSearchReport.ts) and «Сменить ник» (account/NicknameEditor.tsx). */
 export const LOG_SEARCH_PHRASES: Array<[string, string]> = [
   ['Где искали журналы', 'Where the logs were looked for'],
   ['Скопировать отчёт', 'Copy the report'],
@@ -29,15 +29,14 @@ export const LOG_SEARCH_PHRASES: Array<[string, string]> = [
   ['нет в журналах', 'not in the logs'],
   ['Ник', 'Nickname'],
   ['Найти снова', 'Find again'],
-  ['Аккаунт игры в логах найден, но tarkov.dev ещё не опубликовал его профиль, а ник приложение берёт оттуда. Откройте свой профиль на tarkov.dev один раз — ник появится сам через минуту-другую.',
-    'The game account is in the logs, but tarkov.dev has not published its profile yet, and the app takes the nickname from there. Open your profile on tarkov.dev once and the nickname will appear by itself in a minute or two.'],
-  ['Открыть мой профиль на tarkov.dev', 'Open my profile on tarkov.dev'],
-  ['Проверяем ник каждую минуту…', 'Checking the nickname every minute…'],
-  ['Или введите ник вручную', 'Or type the nickname'],
   ['Сохранить ник', 'Save the nickname'],
-  ['Ник сохранится за аккаунтом игры из логов этого компьютера. Когда tarkov.dev начнёт отвечать, приложение само сверит его с настоящим.', 'The nickname is saved for the game account in this PC’s logs. Once tarkov.dev answers, the app checks it against the real one by itself.'],
+  ['не указан', 'not set'],
+  ['Ник не указан', 'Nickname not set'],
   ['Ник в игре: 3–15 символов, латиница, цифры, «_» или «-».', 'In-game nickname: 3–15 characters, Latin letters, digits, «_» or «-».'],
-  ['В логах этого компьютера нет аккаунта игры без ника.', 'The logs of this PC have no game account without a nickname.'],
-  ['Ник введён вручную. Когда tarkov.dev начнёт отвечать, приложение само сверит его с настоящим.', 'The nickname was typed. Once tarkov.dev answers, the app checks it against the real one by itself.'],
+  ['Один ник для PvP, PvE и Сезона, как в игре. Он привяжется к аккаунту игры из логов этого компьютера.', 'One nickname for PvP, PvE and Season, as in the game. It is bound to the game account in this PC’s logs.'],
+  ['Один ник для PvP, PvE и Сезона, как в игре.', 'One nickname for PvP, PvE and Season, as in the game.'],
+  ['Один ник для PvP, PvE и Сезона. Его видят друзья и отряд.', 'One nickname for PvP, PvE and Season. Friends and your squad see it.'],
+  ['Впишите ник из игры — его увидят друзья и отряд.', 'Type your in-game nickname — friends and your squad will see it.'],
+  ['Ник указываете вы, задания приходят из логов игры.', 'You set the nickname; quests come from the game logs.'],
   ['Если журналы так и не нашлись, скопируйте отчёт и пришлите его в поддержку.', 'If the logs are still not found, copy the report and send it to support.'],
 ]

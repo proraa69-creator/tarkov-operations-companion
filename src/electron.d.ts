@@ -5,6 +5,7 @@ import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
 import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
+import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
 import type { LogSearchReport } from './import/logSearchReport'
 
 type DesktopLogScanResult = ModeLogScanResult
@@ -217,7 +218,8 @@ interface TarkovDesktopApi {
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading }>
+  /** `profiles`: the game's «Выбор профиля и режима» cards two readings agree on (src/import/modeSelectScreen.ts). */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */

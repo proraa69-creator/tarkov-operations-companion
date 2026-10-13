@@ -126,10 +126,25 @@ export interface PlayerProfileSnapshot {
   upstreamUpdatedAt?: string
 }
 
+/**
+ * Where the mode's level last came from (owner, 13.10.2026: «побеждают свежие, но приоритет у тарков дев»): the newer
+ * reading wins; Tarkov.dev keeps the anchor when the game's screen shows the same level (it knows the exact experience).
+ */
+export interface LevelAnchor {
+  level: number
+  /** When the level was true: the game's screen at that moment, or Tarkov.dev's update time of the profile. */
+  observedAt: string
+  source: 'screen' | 'tarkov-dev'
+  /** Total experience (Tarkov.dev only): quest experience after the anchor adds to it. */
+  experience?: number
+}
+
 export interface ModeProgress {
   registration: ModeRegistration
   playerSnapshot?: PlayerProfileSnapshot
   playerLevel: number
+  /** The level's source and time; `playerLevel` may be higher by the experience of quests completed since. */
+  levelAnchor?: LevelAnchor
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
   taskProgress: Record<string, TaskProgressRecord>

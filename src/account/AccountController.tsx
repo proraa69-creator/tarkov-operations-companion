@@ -2,12 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
-import { canResolvePlayerProfiles } from '../profile/playerProfileGateway'
 import { useServerAccount } from '../sync/serverSync'
 import { isNative } from '../platform'
 import { DeepLinkLogin } from '../mobile/DeepLinkLogin'
 import { OPEN_ACCOUNT_SIGN_IN_EVENT } from './accountEvents'
-import { accountNickname, findNickname, profileNickname, RAID_MODE_ORDER, saveNicknameOnServer } from './nicknameBinding'
+import { accountNickname, profileNickname, RAID_MODE_ORDER, saveNicknameOnServer } from './nicknameBinding'
 import { SignInStep, type AccountGateTab } from './AccountSignIn'
 import { logNickname } from './logNickname'
 import { accountGateEnabled } from './accountGate'
@@ -83,28 +82,16 @@ function useNicknameAccountSync(status: Status) {
   const key = registrations.map((entry) => `${entry.status}:${entry.nickname ?? ''}`).join('|')
 
   useEffect(() => {
-    if (!status?.signedIn || !status.online || !status.nicknames || !canResolvePlayerProfiles()) return
-    const profile = state.activeProfile
+    if (!status?.signedIn || !status.online || !status.nicknames) return
     const remote = accountNickname(status.nicknames)
-    const local = profileNickname(profile, state.raidMode)
-    // The game logs are the source (logNickname.ts): read before the sign-in, their nickname replaces the account's.
-    const logs = logNickname()
-    const push = logs && logs.toLowerCase() !== remote?.toLowerCase() ? logs : local && !remote ? local : undefined
+    const local = profileNickname(state.activeProfile, state.raidMode)
+    // The nickname typed before the sign-in (logNickname.ts) replaces the account's; a bound one fills an empty account.
+    // Nothing is looked up on Tarkov.dev (owner, 13.10.2026): the modes are bound to the game accounts of the logs.
+    const typed = logNickname()
+    const push = typed && typed.toLowerCase() !== remote?.toLowerCase() ? typed : local && !remote ? local : undefined
     if (push && !attempted.current.has(`push:${push.toLowerCase()}`)) {
       attempted.current.add(`push:${push.toLowerCase()}`)
       void saveNicknameOnServer(push)
-    }
-    const nickname = push ?? remote
-    if (!nickname) return
-    for (const mode of RAID_MODE_ORDER) {
-      if (profile.modes[mode].registration.status === 'registered') continue
-      const attempt = `${profile.id}:${mode}:${nickname.toLowerCase()}`
-      if (attempted.current.has(attempt)) continue
-      attempted.current.add(attempt)
-      void findNickname(mode, nickname).then((candidate) => {
-        state.registerModeProfile(mode, { accountId: candidate.accountId, enteredNickname: nickname, nickname: candidate.nickname, verifiedAt: new Date().toISOString() })
-        if (candidate.snapshot) state.updatePlayerSnapshot(mode, candidate.snapshot)
-      }).catch(() => { /* no profile in this mode yet, or Tarkov.dev / the server is unavailable: tried again next session */ })
     }
   // `key` covers the registrations; the state functions update through the profile setter.
   // eslint-disable-next-line react-hooks/exhaustive-deps

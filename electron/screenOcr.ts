@@ -7,7 +7,9 @@ import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/import/storyScanTiming.js'
-import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { confirmCards, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, parseTraderLevel, parseTraderNickname, traderScreenParts, type CardReadings, type ModeSelectCard, type NameLevel, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
+import type { RaidMode } from '../src/domain/types.js'
 
 let worker: OcrWorker | null = null
 let preparing: Promise<OcrWorker> | null = null
@@ -17,7 +19,7 @@ const PROBE_SIZE = { width: 160, height: 90 }
 /** Mean per-channel difference (0–255) below which two probes count as the same picture. */
 const SAME_FRAME_DIFF = 3
 /** The last reading of the game: a coarse print (moves a little: re-read soon), a fine one (unchanged: see reuseStableReading). */
-let lastWatch: { fingerprint: Buffer; fine: Buffer; text: string; sourceName: string; story?: StoryPaneReading; at: number; detail: boolean; reads: number } | null = null
+let lastWatch: { fingerprint: Buffer; fine: Buffer; text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; at: number; detail: boolean; reads: number } | null = null
 let lastScreenshot: { key: string; text: string; sourceName: string; story?: StoryPaneReading; observedAt: number } | null = null
 /** Where the parts of the last story pane were: while it stays open (flipping chapters) no whole-screen pass is needed. */
 let storyLayout: { width: number; height: number; rects: StoryPaneRects } | null = null
@@ -50,7 +52,7 @@ export async function captureQuestFrame(watch = false, detail = false) {
       const capturedAt = Date.now()
       const unchanged = unchangedFrame(lastWatch?.fine, fine)
       if (lastWatch && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
-        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}) }
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
       }
       const result = await readQuestFrame(image, detail, 'EscapeFromTarkov')
       lastWatch = { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 }
@@ -75,7 +77,7 @@ export async function captureQuestFrame(watch = false, detail = false) {
     const unchanged = Boolean(fine && unchangedFrame(lastWatch?.fine, fine))
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
     if (fingerprint && lastWatch && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
-      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}) }
+      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
     const game = sources.find((source) => isTarkovWindow(source.name))
@@ -206,7 +208,7 @@ async function recognizeQuestWords(image: NativeImage) {
  * stays open — the player flips chapters — straight from the last layout, without the whole-screen pass; otherwise
  * after a whole-screen pass has found it. Menu probes (`detail` off) are read as before.
  */
-async function readQuestFrame(image: NativeImage, detail: boolean, sourceName: string, remember = true): Promise<{ text: string; sourceName: string; story?: StoryPaneReading }> {
+async function readQuestFrame(image: NativeImage, detail: boolean, sourceName: string, remember = true): Promise<{ text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }> {
   const prepared = prepareImage(image, detail ? 1920 : 1100, !detail)
   if (!detail) {
     const { text } = await recognizeQuestImage(prepared, sourceName)
@@ -219,14 +221,22 @@ async function readQuestFrame(image: NativeImage, detail: boolean, sourceName: s
     if (remember) storyLayout = null
   }
   const full = await recognizeQuestWords(prepared)
-  if (!isStoryPaneOcr(full.text)) return { text: full.text, sourceName }
+  // «Выбор профиля и режима» at the game's start: the nickname and every mode's level (src/import/modeSelectScreen.ts).
+  if (isModeSelectText(full.text)) {
+    const profiles = await readModeSelect(prepared, full.words)
+    return { text: full.text, sourceName, ...(profiles.length ? { profiles } : {}) }
+  }
+  // The traders' screen: the nickname and the level of the mode the game is in (the player is there often).
+  const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared, full.words) : null
+  const extra = trader ? { trader } : {}
+  if (!isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
   const rects = storyPaneRects(size, full.words, true)
   const story = rects ? await readStoryPane(prepared, rects) : null
-  if (!story) return { text: full.text, sourceName }
+  if (!story) return { text: full.text, sourceName, ...extra }
   // The next frames start the body under the banner: another chapter's description has another length.
   const layout = storyPaneRects(size, full.words)
   if (remember) storyLayout = layout ? { width: size.width, height: size.height, rects: layout } : null
-  return { text: full.text, sourceName, story }
+  return { text: full.text, sourceName, story, ...extra }
 }
 
 /** Title column 2× (the name on the banner art), status label 2× as one line, description and objectives as they are. */
@@ -251,6 +261,77 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
       if (!isStoryTitleText(title) && !isStoryObjectivesText(body)) return null
       const status = await read(rects.status, 2, '7')
       return { title, status, body }
+    })
+  } finally {
+    touchQuestWorker()
+  }
+}
+
+/** What the last frames of the mode selection screen read: a reading counts once a second one agrees (confirmCards). */
+let lastModeSelect: { at: number; seen: Partial<Record<RaidMode, NameLevel>> } | null = null
+
+/**
+ * The mode selection screen: each card's «ник | уровень» line once more, close up (3×), next to what the whole pass read.
+ * Only the cards two readings agree on are returned. A few small reads, and only while this screen is open.
+ */
+async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<ModeSelectCard[]> {
+  const headers = modeSelectHeaders(words, image.getSize())
+  if (!headers.length) return []
+  const ocr = await getWorker()
+  try {
+    const readings = await runOcrJob(ocr, async () => {
+      const result: CardReadings[] = []
+      for (const header of headers) {
+        // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
+        const rect = header.full?.box ?? header.band
+        const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
+        if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
+        let text: string
+        try {
+          text = (await ocr.recognize(scaled.toPNG())).data.text ?? ''
+        } finally {
+          if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+        }
+        const line = findNameLevel(text)
+        result.push({ mode: header.mode, ...(header.full ? { full: { nickname: header.full.nickname, level: header.full.level } } : {}), ...(line ? { line } : {}) })
+      }
+      return result
+    })
+    const now = Date.now()
+    const previous = lastModeSelect && now - lastModeSelect.at < 30_000 ? lastModeSelect.seen : {}
+    const { confirmed, seen } = confirmCards(readings, previous)
+    lastModeSelect = { at: now, seen }
+    return confirmed
+  } finally {
+    touchQuestWorker()
+  }
+}
+
+/**
+ * The traders' screen: «LVL 12» of the current standing and the name before «(вы)», each once more close up (3×). Only
+ * what the whole pass and the close-up agree on is returned; null when neither agrees.
+ */
+async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promise<TraderScreenReading | null> {
+  const parts = traderScreenParts(words, image.getSize())
+  if (!parts.level && !parts.nickname) return null
+  const ocr = await getWorker()
+  try {
+    return await runOcrJob(ocr, async () => {
+      const read = async (rect: { x: number; y: number; width: number; height: number }) => {
+        await ocr.setParameters({ tessedit_pageseg_mode: '7' })
+        try {
+          return (await ocr.recognize(image.crop(rect).resize({ width: rect.width * 3, quality: 'best' }).toPNG())).data.text ?? ''
+        } finally {
+          await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+        }
+      }
+      const reading: TraderScreenReading = {}
+      if (parts.level && parseTraderLevel(await read(parts.level.box)) === parts.level.value) reading.level = parts.level.value
+      if (parts.nickname) {
+        const close = parseTraderNickname(await read(parts.nickname.box))
+        if (close && foldNickname(close) === foldNickname(parts.nickname.value)) reading.nickname = close
+      }
+      return reading.level || reading.nickname ? reading : null
     })
   } finally {
     touchQuestWorker()

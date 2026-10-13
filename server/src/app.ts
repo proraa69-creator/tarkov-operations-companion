@@ -29,6 +29,7 @@ import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
+import { createAnnouncementRouter } from './routes/announcement.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
 import { createDataMirrorRouter } from './routes/dataMirror.js'
@@ -43,6 +44,7 @@ import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
+import { AnnouncementStore } from './services/announcementStore.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
@@ -237,6 +239,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once.
+  const announcements = new AnnouncementStore(accounts.database)
+  const announcementSignals = new MapUpdates(Date.now(), undefined, () => ({ announcement: announcements.publicView() }))
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))

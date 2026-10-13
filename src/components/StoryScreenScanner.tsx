@@ -6,6 +6,7 @@ import { isTasksMenuText } from '../import/screenScanSync'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
 
 /** Game open, but not on the story pane: look again every few seconds. */
 const MENU_CHECK_MS = STORY_SCAN_TIMING.menuMs
@@ -15,8 +16,9 @@ const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
 const IDLE_MS = STORY_SCAN_TIMING.idleMs
 
 /**
- * Background reader for story chapters — the game does not log them. Runs only outside raids,
- * only while the game window is open, and only applies frames that show the story pane.
+ * Background reader for story chapters — the game does not log them — and for the game's «Выбор профиля и режима»
+ * screen (nickname and every mode's level). Runs only outside raids, only while the game window is open, and only
+ * applies frames that show those screens.
  */
 export function StoryScreenScanner() {
   const { data } = useTarkovData()
@@ -26,6 +28,8 @@ export function StoryScreenScanner() {
   const profileRef = useRef(state.activeProfile.id)
   const applyRef = useRef(state.applyStoryScanForMode)
   const applyQuestsRef = useRef(state.applyQuestScanForMode)
+  // The game's «Выбор профиля и режима» screen: nickname and levels of every mode (account/logNickname.ts).
+  const stateRef = useRef(state)
 
   useEffect(() => {
     questsRef.current = data.quests
@@ -33,6 +37,7 @@ export function StoryScreenScanner() {
     profileRef.current = state.activeProfile.id
     applyRef.current = state.applyStoryScanForMode
     applyQuestsRef.current = state.applyQuestScanForMode
+    stateRef.current = state
   })
 
   useEffect(() => {
@@ -69,6 +74,10 @@ export function StoryScreenScanner() {
             // The first observation must retain small objective text too: a menu-quality probe
             // would require a third OCR pass before an exact stage can be confirmed.
             let frame = await desktop.captureQuestFrame(true, true).catch(() => null)
+            // Shown on every game start, for all modes at once: applied right away, whatever mode the app shows.
+            if (frame?.gameWindow && frame.profiles?.length) applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current)
+            // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».
+            if (frame?.gameWindow && frame.trader) applyTraderScreen(frame.trader, detectedMode(), frame.observedAt ?? Date.now(), () => stateRef.current)
             let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current, frame.story) : []
             if (!matches.some((match) => match.stageIndex != null) && desktop.captureQuestScreenshot) {
               const screenshot = await desktop.captureQuestScreenshot(contextStartedAt)

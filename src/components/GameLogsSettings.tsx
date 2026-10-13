@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { Check, Copy, FolderOpen, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { useAppVersion } from '../app/appVersion'
-import { profileNickname } from '../account/nicknameBinding'
-import { NicknameMissingHelp } from '../account/NicknameMissingHelp'
+import { useAccountNickname } from '../account/useAccountNickname'
+import { NicknameEditor } from '../account/NicknameEditor'
 import { uiLabel } from '../i18n/renderText'
 import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { logSearchReportText, modeLines, type LogSearchReport } from '../import/logSearchReport'
 import { updateLogStatus, useLogStatus } from '../import/logStatus'
 import type { DesktopLogScan } from '../electron'
-import { useAppState } from '../state/AppState'
 import '../styles/gameLogs.css'
 
 /**
@@ -20,13 +19,12 @@ import '../styles/gameLogs.css'
 export function GameLogsSettings() {
   const desktop = window.tarkovDesktop
   const status = useLogStatus()
-  const state = useAppState()
+  const nickname = useAccountNickname()
   const version = useAppVersion()
   const [busy, setBusy] = useState<'find' | 'pick' | 'report' | null>(null)
   const [report, setReport] = useState<LogSearchReport | null>(null)
   const [copied, setCopied] = useState(false)
   if (!desktop?.autoFindAndScanLogs || desktop.serverMode) return null
-  const nickname = profileNickname(state.activeProfile)
 
   // A folder found or picked: the app reads it from now on (the main process sends its scan to AppShell, which applies it).
   const adopt = async (found: DesktopLogScan | null) => {
@@ -81,8 +79,8 @@ export function GameLogsSettings() {
         )}
         <div className="setting-row game-logs-row">
           <span>
-            <strong>{uiLabel('Ник')}: {nickname ?? uiLabel('не найден')}</strong>
-            {!nickname && <NicknameMissingHelp />}
+            <strong>{uiLabel('Ник')}: {nickname ?? uiLabel('не указан')}</strong>
+            <NicknameEditor />
           </span>
         </div>
         <div className="game-logs-actions">

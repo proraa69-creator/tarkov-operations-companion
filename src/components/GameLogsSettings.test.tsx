@@ -6,18 +6,18 @@ import type { ModeLogScanResult } from '../import/eftLogTimeline'
 
 /**
  * Settings → «Журналы игры» (owner, 13.10.2026: a Steam player's nickname stayed «not found» and the app said nothing about
- * what it read): the folder, the launches read, each mode's game account, the nickname with the tarkov.dev link, «Найти
- * снова», «Выбрать папку Logs» and the report to copy.
+ * what it read): the folder, the launches read, each mode's game account, the nickname with «Сменить ник», «Найти снова»,
+ * «Выбрать папку Logs» and the report to copy.
  */
-const missing = vi.hoisted(() => ({ list: [] as Array<{ mode: 'pvp' | 'pve' | 'seasonal'; accountId: number }>, retries: 0, typed: [] as string[] }))
+const nick = vi.hoisted(() => ({ current: undefined as string | undefined, typed: [] as string[] }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ activeProfile: createLocalProfile('Оператор'), raidMode: 'pve' }) }))
+vi.mock('../account/useAccountNickname', () => ({ useAccountNickname: () => nick.current }))
 vi.mock('../account/logNickname', async (original) => ({
   ...(await original<typeof import('../account/logNickname')>()),
-  useMissingNicknameAccounts: () => missing.list,
-  retryNicknameLookups: async () => { missing.retries += 1; return null },
-  bindTypedNickname: async (raw: string) => {
+  useLogAccounts: () => ({ pve: 5550123 }),
+  setTypedNickname: async (raw: string) => {
     if (!/^[a-zA-Z0-9_-]{3,15}$/.test(raw.trim())) throw new Error('Ник в игре: 3–15 символов, латиница, цифры, «_» или «-».')
-    missing.typed.push(raw.trim())
+    nick.typed.push(raw.trim())
     return raw.trim()
   },
 }))
@@ -51,9 +51,8 @@ function desktop(overrides: Record<string, unknown> = {}) {
 afterEach(() => {
   cleanup()
   setRenderLanguage('ru')
-  missing.list = []
-  missing.retries = 0
-  missing.typed = []
+  nick.current = undefined
+  nick.typed = []
   updateLogStatus({ folder: undefined, scan: undefined, notFound: false })
   delete (window as { tarkovDesktop?: unknown }).tarkovDesktop
 })
@@ -63,32 +62,27 @@ describe('Settings → «Журналы игры»', () => {
     desktop()
     const writeText = vi.fn(async () => {})
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-    missing.list = [{ mode: 'pve', accountId: 5550123 }]
     act(() => updateLogStatus({ folder: FOLDER, scan }))
     render(<GameLogsSettings />)
     const panel = screen.getByRole('region', { name: 'Журналы игры' })
     expect(within(panel).getByText(FOLDER)).toBeInTheDocument()
     expect(within(panel).getByText('Прочитано запусков игры: 214')).toBeInTheDocument()
     expect(within(panel).getByText('PvP: нет в журналах · PvE: аккаунт найден, заданий: 37 · Сезон: нет в журналах')).toBeInTheDocument()
-    expect(within(panel).getByText('Ник: не найден')).toBeInTheDocument()
+    expect(within(panel).getByText('Ник: не указан')).toBeInTheDocument()
+    expect(within(panel).queryByRole('link')).toBeNull()
 
-    const link = within(panel).getByRole('link', { name: 'Открыть мой профиль на tarkov.dev' })
-    expect(link).toHaveAttribute('href', 'https://tarkov.dev/players/pve/5550123')
-    expect(link).toHaveAttribute('target', '_blank')
-    fireEvent.click(link)
-    expect(within(panel).getByText('Проверяем ник каждую минуту…')).toBeInTheDocument()
-    // Back in the app from the browser: asked again at once.
-    fireEvent.focus(window)
-    expect(missing.retries).toBe(1)
-
-    // Or typed by hand (owner, 13.10.2026: «вернуть ручной ввод ника»).
-    const typed = within(panel).getByLabelText('Или введите ник вручную')
+    // The nickname comes from the game's screen by itself; typing it is the fallback behind «Указать вручную».
+    expect(within(panel).getByText(/Ник и уровень появятся сами/)).toBeInTheDocument()
+    expect(within(panel).queryByLabelText('Ник в игре')).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Указать вручную' }))
+    expect(within(panel).getByText(/привяжется к аккаунту игры из логов этого компьютера/)).toBeInTheDocument()
+    const typed = within(panel).getByLabelText('Ник в игре')
     fireEvent.change(typed, { target: { value: 'Ник' } })
     fireEvent.click(within(panel).getByRole('button', { name: 'Сохранить ник' }))
     expect(await within(panel).findByRole('alert')).toHaveTextContent('Ник в игре: 3–15 символов')
     fireEvent.change(typed, { target: { value: 'Bear_Hunter' } })
     fireEvent.click(within(panel).getByRole('button', { name: 'Сохранить ник' }))
-    await waitFor(() => expect(missing.typed).toEqual(['Bear_Hunter']))
+    await waitFor(() => expect(nick.typed).toEqual(['Bear_Hunter']))
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Где искали журналы' }))
     const shown = await within(panel).findByRole('region', { name: 'Где искали журналы' })
@@ -98,6 +92,23 @@ describe('Settings → «Журналы игры»', () => {
     expect(shown.textContent).not.toContain('5550123')
     fireEvent.click(within(shown).getByRole('button', { name: 'Скопировать отчёт' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('PvE: аккаунт найден, заданий: 37')))
+  })
+
+  it('«Сменить ник» opens the field with the nickname, «Отмена» closes it', async () => {
+    desktop()
+    nick.current = 'Bear_Hunter'
+    render(<GameLogsSettings />)
+    const panel = screen.getByRole('region', { name: 'Журналы игры' })
+    expect(within(panel).getByText('Ник: Bear_Hunter')).toBeInTheDocument()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Сменить ник' }))
+    expect(within(panel).getByLabelText('Ник в игре')).toHaveValue('Bear_Hunter')
+    expect(within(panel).getByLabelText('Ник в игре')).toHaveFocus()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Отмена' }))
+    expect(within(panel).queryByLabelText('Ник в игре')).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Сменить ник' }))
+    fireEvent.change(within(panel).getByLabelText('Ник в игре'), { target: { value: 'Wolf_77' } })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Сохранить ник' }))
+    await waitFor(() => expect(nick.typed).toEqual(['Wolf_77']))
   })
 
   it('«Найти снова» without a result says so and opens the report; «Выбрать папку Logs» reads the picked folder', async () => {
