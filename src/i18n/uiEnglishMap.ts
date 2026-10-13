@@ -121,6 +121,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
+  [/Точек квеста на этой карте:\s*/g, 'Task points on this map: '],
   [/точек на других картах:\s*/g, 'points on other maps: '],
   [/^Этап (\d+): заголовок$/g, 'Stage $1: title'],
   [/^Этап (\d+): задача$/g, 'Stage $1: task'],

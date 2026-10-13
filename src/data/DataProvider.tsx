@@ -89,3 +89,8 @@ export function useTarkovData() {
   if (!value) throw new Error('useTarkovData must be used within DataProvider')
   return value
 }
+
+/** The game data when there is a provider (a dialog that also opens outside it, e.g. in tests). */
+export function useOptionalTarkovData() {
+  return useContext(DataContext)
+}
