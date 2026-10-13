@@ -4,7 +4,7 @@ export const STORY_SCAN_TIMING = { menuMs: 1200, storyMs: 600, idleMs: 1500, qui
 /**
  * The game is in front but shows none of the screens read here (a raid the logs did not report, the stash, a loading
  * screen): every such look waits longer — 1.2 s, then ×1.6 up to 4 s — so a raid costs a screen copy every few seconds
- * instead of almost every second (players, 14.10.2026: «Micro freezes», «мышь дёргается»). A recognised screen (story
+ * instead of almost every second (players, 13.10.2026: «Micro freezes», «мышь дёргается»). A recognised screen (story
  * pane, tasks, mode select, traders) brings back the quick pace.
  */
 export function quietScanDelay(quietLooks: number) {

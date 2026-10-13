@@ -69,7 +69,7 @@ const minimapClicks = initialMinimapClicks()
 /**
  * Click-through without Electron's `forward` option: forwarding mouse moves to an ignoring window installs a low-level
  * mouse hook on the main process's thread, and every pause of that thread (OCR, a screen copy, garbage collection)
- * then froze the cursor in every program, the game included (players, 14.10.2026: «мышь дёргается и замораживается»,
+ * then froze the cursor in every program, the game included (players, 13.10.2026: «мышь дёргается и замораживается»,
  * «Micro freezes»). The overlays need no forwarded moves: the hit loop below decides when a window takes the mouse.
  */
 function setMinimapInteractive(window: BrowserWindow, value: boolean) {
