@@ -10,7 +10,9 @@
 .announcement-banner.is-shell { position: fixed; top: var(--topbar); left: var(--sidebar); right: 0; z-index: 34; }
 .content { margin-top: var(--announcement-height, 0px); }
 @media (max-width: 760px) { .announcement-banner.is-shell { left: 0; } }
-:root[data-layout="mobile"] .announcement-banner.is-shell { left: 0; }
+/* The phone: the notice is the top of every page and scrolls away with it. Fixed, it covered a third of the screen and
+   the map's buttons under it (owner's iPhone, 14.10.2026). */
+:root[data-layout="mobile"] .announcement-banner.is-shell { position: absolute; left: 0; padding: 7px 12px; font-size: 12px; line-height: 1.35; }
 .owner-announcement-body { display: grid; gap: 8px; }
 .owner-announcement-body textarea { width: 100%; resize: vertical; min-height: 64px; }
 .owner-announcement-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
