@@ -98,6 +98,8 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.', "You joined with a friend's invite: 20% off the first month applies until your first payment."],
   ['Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.', "Have a friend's code? Enter it once before your first payment to get 20% off the first month."],
   ['КОД', 'CODE'], ['Применить', 'Apply'], ['Код: 3–24 символа, латиница, цифры, «_» или «-».', 'Code: 3–24 characters — Latin letters, digits, "_" or "-".'],
+  // «Страна» (CabinetPage.tsx CountryPanel)
+  ['Страна не указана', 'Country not set'], ['указать', 'set it'],
 
   // Password, account deletion, sessions (PasswordPanel.tsx, DeleteAccountPanel.tsx, SignOutEverywherePanel.tsx).
   ['Пароль', 'Password'], ['Пароль изменён. Входы на других устройствах завершены.', 'Password changed. You have been signed out on other devices.'],

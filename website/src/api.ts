@@ -30,6 +30,11 @@ export interface Account {
   /** The same nickname under every mode (older servers: one per mode). */
   nicknames: Partial<Record<AccountMode, string>>
   /**
+   * The country named at registration (ISO 3166-1 alpha-2, src/shared/countries.ts; owner, 13.10.2026). Missing for
+   * accounts from before it until «Страна» in the cabinet is set, and on older servers.
+   */
+  country?: string
+  /**
    * `lifetime`: streamers use the service free of charge, for good. `trialPendingDays`: the free period starts with the
    * first sign-in in the app (status stays 'inactive' until then; owner, 12.10.2026).
    */
@@ -277,6 +282,8 @@ export interface AdminPayment {
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; provider?: PaymentProvider; plan?: PlanId; q?: string }
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
+/** The region tabs of «Пользователи» by the country named at registration (СНГ / Европа / Другие / Не указана). */
+export type AdminUserRegion = 'all' | 'cis' | 'europe' | 'other' | 'none'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
@@ -285,7 +292,11 @@ export interface AdminUser {
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }
   /** The bound Escape from Tarkov account, masked (one game account — one Raid OS account; servers before 13.10.2026 omit it). */
   eftAccount?: { masked: string; boundAt: string }
+  /** The country named at registration (ISO 3166-1 alpha-2); absent when the user has not named one. */
+  country?: string
 }
+/** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
+export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
 export interface AdminDevice { id: string; name: string; createdAt: string; lastSeenAt: string; active: boolean; revokedAt?: string; revokedReason?: 'limit' | 'owner' | 'user' }
 export interface AdminDevices { devices: AdminDevice[]; limit: number }
@@ -394,8 +405,8 @@ export async function downloadAdminPaymentsCsv(token: string, filter: AdminPayme
 
 export const api = {
   /** 201 AuthResult (e-mail codes off) or 202 PendingRegistration (e-mail codes on). */
-  register: (email: string, password: string, referralCode?: string) =>
-    request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}) } }),
+  register: (email: string, password: string, referralCode?: string, country?: string) =>
+    request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) } }),
   registerConfirm: (challengeId: string, code: string) => request<AuthResult>('/register/confirm', { method: 'POST', body: { challengeId, code } }),
   registerResend: (challengeId: string) => request<CodeChallenge>('/register/resend', { method: 'POST', body: { challengeId } }),
   /** The same answer whether or not the address has an account; the code goes only to an existing one. */
@@ -415,6 +426,8 @@ export const api = {
   revokeAllSessions: (token: string) => request<{ revoked: number }>('/me/sessions/revoke-all', { method: 'POST', token, body: {} }),
   authConfig: () => request<AuthConfig>('/auth-config'),
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
+  /** «Страна» in the cabinet: sets or changes the country (ISO 3166-1 alpha-2). */
+  setCountry: (token: string, country: string) => request<Account>('/me/country', { method: 'PUT', token, body: { country } }),
   /** One nickname for all modes; '' removes it. */
   /** `kind`: whose code it is — a streamer's (3 days free) or a player's (friend: −20 % on the first month). Missing on older servers. */
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string; kind?: 'streamer' | 'friend' }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),
@@ -435,7 +448,7 @@ export const api = {
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
   adminLavaEvents: (token: string) => request<AdminLavaEvents>('/me/admin/lava/events', { token }),
   adminLavaConfirm: (token: string, id: number) => request<AdminLavaEvents & { already: boolean; paymentId: string }>(`/me/admin/lava/events/${id}/confirm`, { method: 'POST', token, body: {} }),
-  adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number) => request<{ users: AdminUser[]; total: number }>(`/me/admin/users${adminQuery({ q, filter, limit, offset })}`, { token }),
+  adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number, region: AdminUserRegion = 'all') => request<AdminUserList>(`/me/admin/users${adminQuery({ q, filter, region: region === 'all' ? undefined : region, limit, offset })}`, { token }),
   adminUser: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}`, { token }),
   adminGrant: (token: string, id: string, days: number, reason: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/grant`, { method: 'POST', token, body: { days, reason } }),
   /** Takes paid days off the end of the subscription (never back past today); logged with the grants as −N. */
