@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { basename, dirname, join, win32 } from 'node:path'
 
@@ -62,12 +63,109 @@ export function buildUserLogFolderCandidates(appDataDirectory: string) {
   ]
 }
 
+/**
+ * Escape from Tarkov on Steam (store app 3932890) writes its logs to <library>\steamapps\common\Escape from Tarkov\build\Logs,
+ * and a Steam library can be any folder on any drive (owner, 13.10.2026: a player with the Steam version had no logs
+ * found — only <drive>:\SteamLibrary and Program Files (x86)\Steam were tried).
+ */
+export const STEAM_EFT_APP_ID = '3932890'
+
+const unescapeVdf = (value: string) => value.replace(/\\(.)/g, '$1')
+
+/** The library folders listed in Steam's steamapps\libraryfolders.vdf («"path"  "D:\\SteamLibrary"»). */
+export function parseSteamLibraryFolders(raw: string): string[] {
+  return [...raw.matchAll(/"path"\s+"((?:[^"\\]|\\.)*)"/gi)].map((match) => unescapeVdf(match[1]!).trim()).filter(Boolean)
+}
+
+/** The folder under steamapps\common named by an appmanifest_<app>.acf («"installdir"  "Escape from Tarkov"»). */
+export function parseSteamInstallDir(raw: string): string | undefined {
+  const match = /"installdir"\s+"((?:[^"\\]|\\.)*)"/i.exec(raw)
+  const folder = match ? unescapeVdf(match[1]!).trim() : ''
+  return folder && !/[\\/:]|\.\./.test(folder) ? folder : undefined
+}
+
+type RegistryQuery = (key: string, name: string) => Promise<string | undefined>
+
+/** One REG_SZ value through reg.exe (read only); undefined off Windows or when it is missing. */
+const registryValue: RegistryQuery = (key, name) => new Promise((resolve) => {
+  if (process.platform !== 'win32') { resolve(undefined); return }
+  execFile('reg', ['query', key, '/v', name], { windowsHide: true, timeout: 4000 }, (error, stdout) => {
+    if (error) { resolve(undefined); return }
+    const line = String(stdout).split(/\r?\n/).find((entry) => entry.trim().toLowerCase().startsWith(`${name.toLowerCase()} `))
+    resolve(/REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/i.exec(line ?? '')?.[1] || undefined)
+  })
+})
+
+/** Where Steam itself may be: the registry (the player's SteamPath, the machine's InstallPath), then the usual folders. */
+export async function steamRoots(query: RegistryQuery = registryValue, drives = windowsDriveRoots()): Promise<string[]> {
+  const roots: string[] = []
+  const add = (value: string | undefined) => {
+    if (!value) return
+    const normalized = win32.normalize(value).replace(/\\+$/, '')
+    if (!roots.some((entry) => entry.toLowerCase() === normalized.toLowerCase())) roots.push(normalized)
+  }
+  for (const [key, name] of [['HKCU\\Software\\Valve\\Steam', 'SteamPath'], ['HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam', 'InstallPath'], ['HKLM\\SOFTWARE\\Valve\\Steam', 'InstallPath']] as const) {
+    add(await query(key, name).catch(() => undefined))
+  }
+  for (const drive of drives) for (const relative of [['Program Files (x86)', 'Steam'], ['Program Files', 'Steam'], ['Steam']]) add(win32.join(`${drive}\\`, ...relative))
+  return roots
+}
+
+export interface SteamFiles {
+  read(path: string): Promise<string>
+  list(path: string): Promise<string[]>
+}
+const diskFiles: SteamFiles = { read: (path) => readFile(path, 'utf8'), list: (path) => readdir(path) }
+
+/**
+ * The Logs folders Escape from Tarkov on Steam can write to: in every library of every Steam found (its
+ * libraryfolders.vdf), the game's folder from appmanifest_3932890.acf, any «…Tarkov…» folder in steamapps\common
+ * (not Arena) and «Escape from Tarkov» — each with build\Logs (where the Steam build writes) and Logs.
+ */
+export async function steamLogFolderCandidates(roots: string[], files: SteamFiles = diskFiles): Promise<string[]> {
+  const libraries: string[] = []
+  const addLibrary = (value: string) => {
+    const normalized = win32.normalize(value).replace(/\\+$/, '')
+    if (!libraries.some((entry) => entry.toLowerCase() === normalized.toLowerCase())) libraries.push(normalized)
+  }
+  for (const root of roots) {
+    const listed = await files.read(win32.join(root, 'steamapps', 'libraryfolders.vdf')).catch(() => '')
+    if (!listed) continue
+    addLibrary(root)
+    for (const library of parseSteamLibraryFolders(listed)) addLibrary(library)
+  }
+  const candidates: string[] = []
+  const add = (value: string) => { if (!candidates.some((entry) => entry.toLowerCase() === value.toLowerCase())) candidates.push(value) }
+  for (const library of libraries) {
+    const common = win32.join(library, 'steamapps', 'common')
+    const folders: string[] = []
+    const manifest = await files.read(win32.join(library, 'steamapps', `appmanifest_${STEAM_EFT_APP_ID}.acf`)).catch(() => '')
+    const installed = manifest ? parseSteamInstallDir(manifest) : undefined
+    if (installed) folders.push(installed)
+    for (const name of await files.list(common).catch(() => [] as string[])) if (/tarkov/i.test(name) && !/arena/i.test(name)) folders.push(name)
+    folders.push('Escape from Tarkov')
+    for (const folder of folders) {
+      add(win32.join(common, folder, 'build', 'Logs'))
+      add(win32.join(common, folder, 'Logs'))
+    }
+  }
+  return candidates
+}
+
+/** Steam's libraries change rarely: looked up once a minute at most (reg.exe and the .vdf files). */
+let steamCache: { at: number; candidates: Promise<string[]> } | undefined
+function cachedSteamCandidates() {
+  if (process.platform !== 'win32') return Promise.resolve([] as string[])
+  if (!steamCache || Date.now() - steamCache.at > 60_000) steamCache = { at: Date.now(), candidates: steamRoots().then((roots) => steamLogFolderCandidates(roots)).catch(() => []) }
+  return steamCache.candidates
+}
+
 export async function discoverEftLogs(appDataDirectory: string): Promise<EftLogDiscovery> {
   const launcherSettings = join(appDataDirectory, 'Battlestate Games', 'BsgLauncher', 'settings')
   const settingsRaw = await readFile(launcherSettings, 'utf8').catch(() => '')
   const gamesRoot = parseLauncherGamesRoot(settingsRaw)
 
-  for (const candidate of [...buildLogFolderCandidates(gamesRoot), ...buildUserLogFolderCandidates(appDataDirectory)]) {
+  for (const candidate of [...buildLogFolderCandidates(gamesRoot), ...await cachedSteamCandidates(), ...buildUserLogFolderCandidates(appDataDirectory)]) {
     if (await isDirectory(candidate)) {
       return { logsFolder: candidate, gameFolder: dirname(candidate), gamesRoot }
     }
@@ -84,7 +182,7 @@ export async function discoverEftLogs(appDataDirectory: string): Promise<EftLogD
 export async function discoverAllEftLogs(appDataDirectory: string): Promise<string[]> {
   const settingsRaw = await readFile(join(appDataDirectory, 'Battlestate Games', 'BsgLauncher', 'settings'), 'utf8').catch(() => '')
   const found: string[] = []
-  for (const candidate of [...buildLogFolderCandidates(parseLauncherGamesRoot(settingsRaw)), ...buildUserLogFolderCandidates(appDataDirectory)]) {
+  for (const candidate of [...buildLogFolderCandidates(parseLauncherGamesRoot(settingsRaw)), ...await cachedSteamCandidates(), ...buildUserLogFolderCandidates(appDataDirectory)]) {
     if (await isDirectory(candidate) && !found.some((entry) => entry.toLowerCase() === candidate.toLowerCase())) found.push(candidate)
   }
   return found
@@ -125,10 +223,11 @@ export async function freshestLogsFolder(folders: Array<string | undefined>): Pr
   return best?.folder
 }
 
+/** The picked folder → its Logs folder: the folder itself, its Logs, or build\Logs (the Steam game folder). */
 export async function normalizeSelectedLogsFolder(selectedFolder: string) {
   if (basename(selectedFolder).toLowerCase() === 'logs') return selectedFolder
-  const childLogs = join(selectedFolder, 'Logs')
-  return await isDirectory(childLogs) ? childLogs : selectedFolder
+  for (const child of [join(selectedFolder, 'Logs'), join(selectedFolder, 'build', 'Logs')]) if (await isDirectory(child)) return child
+  return selectedFolder
 }
 
 async function isDirectory(path: string) {
