@@ -49,12 +49,25 @@ export function buildLogFolderCandidates(gamesRoot?: string, drives = windowsDri
   return candidates
 }
 
+/** Common per-user locations used by installs that do not appear in launcher settings. */
+export function buildUserLogFolderCandidates(appDataDirectory: string) {
+  const userRoot = win32.dirname(win32.dirname(appDataDirectory))
+  const localAppData = win32.join(userRoot, 'AppData', 'Local')
+  const documents = win32.join(userRoot, 'Documents')
+  return [
+    win32.join(localAppData, 'Battlestate Games', 'Escape from Tarkov', 'Logs'),
+    win32.join(localAppData, 'Battlestate Games', 'EFT', 'Logs'),
+    win32.join(documents, 'Escape from Tarkov', 'Logs'),
+    win32.join(documents, 'EFT', 'Logs'),
+  ]
+}
+
 export async function discoverEftLogs(appDataDirectory: string): Promise<EftLogDiscovery> {
   const launcherSettings = join(appDataDirectory, 'Battlestate Games', 'BsgLauncher', 'settings')
   const settingsRaw = await readFile(launcherSettings, 'utf8').catch(() => '')
   const gamesRoot = parseLauncherGamesRoot(settingsRaw)
 
-  for (const candidate of buildLogFolderCandidates(gamesRoot)) {
+  for (const candidate of [...buildLogFolderCandidates(gamesRoot), ...buildUserLogFolderCandidates(appDataDirectory)]) {
     if (await isDirectory(candidate)) {
       return { logsFolder: candidate, gameFolder: dirname(candidate), gamesRoot }
     }
@@ -71,7 +84,9 @@ export async function discoverEftLogs(appDataDirectory: string): Promise<EftLogD
 export async function discoverAllEftLogs(appDataDirectory: string): Promise<string[]> {
   const settingsRaw = await readFile(join(appDataDirectory, 'Battlestate Games', 'BsgLauncher', 'settings'), 'utf8').catch(() => '')
   const found: string[] = []
-  for (const candidate of buildLogFolderCandidates(parseLauncherGamesRoot(settingsRaw))) if (await isDirectory(candidate)) found.push(candidate)
+  for (const candidate of [...buildLogFolderCandidates(parseLauncherGamesRoot(settingsRaw)), ...buildUserLogFolderCandidates(appDataDirectory)]) {
+    if (await isDirectory(candidate) && !found.some((entry) => entry.toLowerCase() === candidate.toLowerCase())) found.push(candidate)
+  }
   return found
 }
 

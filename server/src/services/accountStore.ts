@@ -285,6 +285,11 @@ export function nicknamesFor(nickname: string | undefined): Partial<Record<Accou
   return nickname ? Object.fromEntries(ACCOUNT_MODES.map((mode) => [mode, nickname])) : {}
 }
 
+/** The one Escape from Tarkov nickname kept in an `accounts.nicknames` value (found by the PC app in the game logs). */
+export function storedNickname(raw: unknown): string | undefined {
+  return primaryNickname(parseNicknames(raw))
+}
+
 function parseNicknames(raw: unknown): Partial<Record<AccountMode, string>> {
   try {
     const parsed = JSON.parse(String(raw ?? '{}')) as Record<string, unknown>

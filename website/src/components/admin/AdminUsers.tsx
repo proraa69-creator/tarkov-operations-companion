@@ -61,7 +61,7 @@ export function AdminUsers() {
     <div className="admin-stack">
       <div className="admin-filters">
         <form className="inline-form admin-search" onSubmit={submit} role="search">
-          <input className="input" type="search" aria-label="Поиск по e-mail" placeholder="Поиск по e-mail" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input" type="search" aria-label="Поиск по e-mail или нику" placeholder="Поиск по e-mail или нику в игре" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
           <button type="submit" className="button ghost"><Search aria-hidden="true" />Найти</button>
         </form>
         <div role="group" aria-label="Регион" className="admin-regions">
@@ -98,6 +98,10 @@ export function AdminUsers() {
                         <tr className={expanded ? 'is-open' : undefined}>
                           <th scope="row" className="admin-email">
                             {user.email}
+                            {/* The nickname the PC app found in the game logs (owner, 13.10.2026: «под каждым аккаунтом … найденный ник»). */}
+                            <span className={`admin-nick${user.nickname ? '' : ' dim'}`} title="Ник в Escape from Tarkov из логов игры (приложение для ПК)">
+                              <Gamepad2 aria-hidden="true" />{user.nickname ?? 'ник не найден'}
+                            </span>
                             <span className="admin-badges">
                               {user.owner && <span className="tag brass admin-mini">владелец</span>}
                               {user.kind === 'streamer' && <span className="tag brass admin-mini">{user.referralCode}</span>}
@@ -254,6 +258,11 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
             writes to support, the owner frees the old one here. */}
         <div className="admin-action">
           <div className="field-label"><Gamepad2 size={13} aria-hidden="true" />Аккаунт Escape from Tarkov</div>
+          <span className="field-hint admin-eft-nick">
+            {user.nickname
+              ? <>Ник из логов игры: <strong className="mono">{user.nickname}</strong></>
+              : 'Ник ещё не найден: его находит приложение для ПК в логах игры.'}
+          </span>
           {user.eftAccount
             ? <span className="field-hint">Привязан <span className="mono">{user.eftAccount.masked}</span> с {dateTime.format(new Date(user.eftAccount.boundAt))}. Другие аккаунты Raid OS с ним не откроются, а этот — с другим аккаунтом игры.</span>
             : <span className="field-hint">Не привязан: приложение для Windows привяжет аккаунт игры из логов при входе.</span>}

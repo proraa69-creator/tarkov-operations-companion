@@ -292,6 +292,39 @@ test('users by region: «Все · СНГ · Европа · Другие · Н�
   } finally { await t.close() }
 })
 
+test('users show the Escape from Tarkov nickname the PC app found, and the search finds it (owner, 13.10.2026)', async () => {
+  const t = await setup()
+  try {
+    const found = await t.register('found@example.com')
+    await t.register('waiting@example.com')
+    const broken = await t.register('broken@example.com')
+    // What the PC app sends once it read the nickname in the game logs.
+    assert.equal((await t.call('PUT', '/accounts/me/nicknames', found, { nickname: 'Shaurma_1' })).status, 200)
+    assert.equal((await t.call('PUT', '/accounts/me/nicknames', broken, { nickname: 'Broken_1' })).status, 200)
+    t.db.prepare("UPDATE accounts SET nicknames = '{not json' WHERE email = 'broken@example.com'").run()
+    const owner = await t.login('owner@example.com')
+    type List = { users: Array<{ id: string; email: string; nickname?: string }>; total: number }
+    const list = async (query = '') => {
+      const response = await t.call<List>('GET', `/accounts/me/admin/users${query}`, owner)
+      assert.equal(response.status, 200, JSON.stringify(response.json))
+      return response.json
+    }
+    const all = await list()
+    const nick = (email: string) => all.users.find((user) => user.email === email)!.nickname
+    assert.equal(nick('found@example.com'), 'Shaurma_1')
+    assert.equal(nick('waiting@example.com'), undefined)
+    assert.equal(nick('broken@example.com'), undefined, 'a broken value reads as «not found», the list still loads')
+    // The search takes the e-mail or the nickname, in any letter case; the JSON keys (pvp, pve…) are not a match.
+    assert.deepEqual((await list('?q=shaurma')).users.map((user) => user.email), ['found@example.com'])
+    assert.deepEqual((await list('?q=waiting')).users.map((user) => user.email), ['waiting@example.com'])
+    assert.equal((await list('?q=pvp')).total, 0)
+    assert.equal((await list('?q=broken_1')).total, 0)
+    // The user card has it as well.
+    const id = all.users.find((user) => user.email === 'found@example.com')!.id
+    assert.equal((await t.call<{ user: { nickname?: string } }>('GET', `/accounts/me/admin/users/${id}`, owner)).json.user.nickname, 'Shaurma_1')
+  } finally { await t.close() }
+})
+
 test('«Удалить аккаунт» from the admin panel: owner only, erased like the user\'s own deletion, logged; not the owner, not with an active autopay (owner, 13.10.2026)', async () => {
   const t = await setup()
   try {
