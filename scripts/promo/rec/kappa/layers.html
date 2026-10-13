@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;font-family:"DejaVu Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body.bg{background:radial-gradient(ellipse 70% 60% at 30% 35%,#1b2a1f 0%,#0d1410 55%,#080c09 100%)}
+body.bg::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgb(255 255 255 / 2.2%) 1px,transparent 1px),linear-gradient(90deg,rgb(255 255 255 / 2.2%) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse 80% 70% at 50% 50%,#000 40%,transparent 100%)}
+body.ov{background:transparent}
+.shadow{position:absolute;border-radius:16px;box-shadow:0 30px 80px rgb(0 0 0 / 70%),0 0 0 1px rgb(255 255 255 / 4%)}
+.frame{position:absolute;border-radius:14px;box-shadow:0 0 0 1.5px rgb(196 166 101 / 55%),inset 0 0 0 1px rgb(0 0 0 / 40%)}
+.label{position:absolute;display:flex;align-items:center;gap:10px;color:#c4a665;font-weight:800;font-size:20px;letter-spacing:.16em;text-transform:uppercase;text-shadow:0 2px 8px rgb(0 0 0 / 80%)}
+.label i{width:9px;height:9px;border-radius:50%;background:#c4a665;box-shadow:0 0 12px #c4a665}
+.key{position:absolute;min-width:104px;height:104px;padding:0 26px;box-sizing:border-box;display:grid;place-items:center;border-radius:18px;font-weight:800;font-size:44px;color:#1a1d18;
+  background:linear-gradient(180deg,#f8f2de,#d8ceb1);box-shadow:0 11px 0 #9d916f,0 22px 40px rgb(0 0 0 / 60%)}
+.key small{position:absolute;bottom:124px;left:50%;transform:translateX(-50%);white-space:nowrap;font-weight:800;font-size:18px;letter-spacing:.14em;text-transform:uppercase;color:#f1d98f;padding:7px 14px;border-radius:999px;background:rgb(8 12 9 / 82%);box-shadow:0 0 0 1px rgb(196 166 101 / 45%)}
+.wave{position:absolute;border-radius:22px;border:3px solid #f1d98f}
+svg.beam{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:visible}
+.ring{position:absolute;border-radius:10px;box-shadow:0 0 0 3px #c4a665}
+.card{position:absolute;width:440px;padding:20px 24px 22px;box-sizing:border-box;border:1px solid rgb(196 166 101 / 45%);border-radius:14px;
+  background:radial-gradient(ellipse 90% 40% at 50% 0%,rgb(196 166 101 / 12%),transparent 70%),linear-gradient(180deg,#18211b,#111814);box-shadow:inset 0 1px 0 rgb(255 255 255 / 6%),0 26px 64px rgb(0 0 0 / 62%)}
+.card .eb{color:#c4a665;font-size:13.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.card h3{margin:9px 0 8px;color:#f1ead6;font-size:26px;line-height:1.2;font-weight:800}
+.card p{margin:0;color:#b9c2b5;font-size:18px;line-height:1.5}
+</style></head><body>
+<script>
+const P = JSON.parse(decodeURIComponent(location.search.slice(3)))
+const G = P.game, A = P.app
+document.body.className = P.layer
+const add = (html) => { document.body.insertAdjacentHTML('beforeend', html); return document.body.lastElementChild }
+if (P.layer === 'bg') {
+  add(`<div class="shadow" style="left:${G.x}px;top:${G.y}px;width:${G.w}px;height:${G.h}px"></div>`)
+  add(`<div class="shadow" style="left:${A.x}px;top:${A.y}px;width:${A.w}px;height:${A.h}px"></div>`)
+} else {
+  add(`<div class="frame" style="left:${G.x}px;top:${G.y}px;width:${G.w}px;height:${G.h}px"></div>`)
+  add(`<div class="frame" style="left:${A.x}px;top:${A.y}px;width:${A.w}px;height:${A.h}px"></div>`)
+  const lg = add(`<div class="label" style="left:${G.x + 4}px;top:${G.y - 44}px"><i></i><span></span></div>`); lg.querySelector('span').textContent = P.text.game
+  const la = add(`<div class="label" style="left:${A.x + 4}px;top:${A.y - 44}px"><i></i><span></span></div>`); la.querySelector('span').textContent = P.text.app
+  var key = add(`<div class="key"><small></small><span></span></div>`); key.querySelector('small').textContent = P.text.keyCaption; key.querySelector('span').textContent = P.key
+  var wave = add(`<div class="wave"></div>`)
+  var beam = add(`<svg class="beam"><defs><linearGradient id="bg" x1="0" x2="1"><stop offset="0" stop-color="#f1d98f" stop-opacity=".2"/><stop offset="1" stop-color="#f1d98f"/></linearGradient></defs><path d="" fill="none" stroke="url(#bg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="14 12"/><circle r="9" fill="#f1d98f"/></svg>`)
+  var ring = add(`<div class="ring"></div>`)
+  var card = add(`<div class="card"><div class="eb"></div><h3></h3><p></p></div>`)
+  card.querySelector('.eb').textContent = P.text.card.eyebrow; card.querySelector('h3').textContent = P.text.card.title; card.querySelector('p').textContent = P.text.card.text
+}
+const ease = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3)
+const io = (t) => { t = Math.min(1, Math.max(0, t)); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 }
+window.render = (t) => {
+  if (P.layer === 'bg') return
+  const k = P.keyAt, kx = G.x + G.w / 2 - 52, ky = G.y + G.h - 190
+  // Key: in at k-0.6, pressed at k (0.12 s), out at k+2.6.
+  const kin = ease((t - (k - 0.6)) / 0.3), kout = ease((t - (k + 2.6)) / 0.3)
+  const down = t >= k && t < k + 0.14
+  key.style.left = `${kx}px`; key.style.top = `${ky + (down ? 10 : 0)}px`
+  key.style.opacity = String(kin * (1 - kout))
+  key.style.transform = `scale(${0.6 + 0.4 * kin})`
+  key.style.boxShadow = down ? '0 1px 0 #9d916f,0 8px 18px rgb(0 0 0 / 45%)' : ''
+  const wt = (t - k) / 0.7
+  wave.style.opacity = wt >= 0 && wt <= 1 ? String(0.9 * (1 - wt)) : '0'
+  Object.assign(wave.style, { left: `${kx}px`, top: `${ky}px`, width: '104px', height: '104px', transform: `scale(${1 + 0.7 * Math.max(0, wt)})` })
+  // Beam from the key to the app's counter: drawn over 0.9 s after the press.
+  const sx = kx + 52, sy = ky + 10, ex = A.x + A.counter.x * A.s, ey = A.y + A.counter.y * A.s
+  const path = beam.querySelector('path'), dot = beam.querySelector('circle')
+  const d = `M${sx} ${sy} C ${sx + 160} ${sy - 380}, ${ex - 260} ${ey - 160}, ${ex} ${ey - 26}`
+  path.setAttribute('d', d)
+  const len = path.getTotalLength(), bt = io((t - k - 0.05) / 0.9), fade = 1 - ease((t - (k + 1.6)) / 0.4)
+  path.style.strokeDashoffset = '0'
+  path.style.opacity = t > k ? String(0.95 * fade) : '0'
+  path.setAttribute('stroke-dasharray', `${len * bt} ${len}`)
+  const p = path.getPointAtLength(len * bt)
+  dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); dot.style.opacity = t > k && bt < 1 ? '1' : String(Math.max(0, fade * (bt >= 1 ? 0 : 1)))
+  // Counter ring and the tip card once the items are in (k + 1.0).
+  const r = ease((t - (k + 1.0)) / 0.3), pulse = ((t - (k + 1.0)) % 1.4) / 1.4
+  const c = A.counterBox
+  Object.assign(ring.style, { left: `${A.x + c.x * A.s - 8}px`, top: `${A.y + c.y * A.s - 6}px`, width: `${c.w * A.s + 16}px`, height: `${c.h * A.s + 12}px`, opacity: String(r) })
+  ring.style.boxShadow = `0 0 0 3px #c4a665, 0 0 0 ${3 + 16 * pulse}px rgb(241 217 143 / ${0.5 * (1 - pulse) * (t > k + 1 ? 1 : 0)})`
+  const ci = ease((t - (k + 1.3)) / 0.35)
+  Object.assign(card.style, { left: `${A.x + A.w - 470}px`, top: `${A.y + A.h * 0.66 + 14 * (1 - ci)}px`, opacity: String(ci) })
+}
+window.render(0)
+</script></body></html>
