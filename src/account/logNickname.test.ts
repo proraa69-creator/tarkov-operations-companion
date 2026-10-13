@@ -3,7 +3,8 @@ import { createLocalProfile, registerModeProfile } from '../domain/progress'
 import type { RaidMode } from '../domain/types'
 
 const profiles = vi.hoisted(() => ({ byMode: {} as Partial<Record<RaidMode, { nickname: string; upstreamUpdatedAt: string }>>, calls: [] as string[] }))
-vi.mock('../profile/playerProfileGateway', () => ({
+vi.mock('../profile/playerProfileGateway', async (original) => ({
+  ...(await original<typeof import('../profile/playerProfileGateway')>()),
   desktopPlayerProfileGateway: () => ({
     fetchByAccountId: async (mode: RaidMode, accountId: number) => {
       profiles.calls.push(`${mode}:${accountId}`)
@@ -42,5 +43,60 @@ describe('the nickname from the game logs (owner, 10.10.2026)', () => {
     expect(profiles.calls).toEqual([])
     expect(await bindNicknameFromLogs({ latestAccountIdByMode: {} }, () => state)).toBeNull()
     expect(state.registerModeProfile).not.toHaveBeenCalled()
+  })
+})
+
+// A player whose profile Tarkov.dev had never published (owner, 13.10.2026: «до сих пор не находит» — his logs were read).
+describe('a profile Tarkov.dev has not published yet', () => {
+  it('is named for the player with a link to it, asked again later and at once after «Открыть мой профиль на tarkov.dev»', async () => {
+    const { retryNicknameLookups, tarkovDevProfileUrl, NICKNAME_RETRY_MS } = await import('./logNickname')
+    profiles.byMode = {}
+    const state = { activeProfile: createLocalProfile('Оператор'), registerModeProfile: vi.fn(), updatePlayerSnapshot: vi.fn() }
+    const scan = { latestAccountIdByMode: { pve: 5550123 } }
+    expect(await bindNicknameFromLogs(scan, () => state)).toBeNull()
+    expect(profiles.calls).toEqual(['pve:5550123'])
+    expect(tarkovDevProfileUrl('pve', 5550123)).toBe('https://tarkov.dev/players/pve/5550123')
+    expect(tarkovDevProfileUrl('pvp', 1)).toBe('https://tarkov.dev/players/regular/1')
+    expect(tarkovDevProfileUrl('seasonal', 1)).toBe('https://tarkov.dev/players/pvp-season/1')
+
+    // Log scans come every few seconds: not asked again before NICKNAME_RETRY_MS.
+    await bindNicknameFromLogs(scan, () => state)
+    expect(profiles.calls).toHaveLength(1)
+    const later = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + NICKNAME_RETRY_MS + 1)
+    await bindNicknameFromLogs(scan, () => state)
+    later.mockRestore()
+    expect(profiles.calls).toHaveLength(2)
+
+    // The player opened the profile on tarkov.dev: published now, and found on the retry.
+    profiles.byMode = { pve: { nickname: 'Bear_Hunter', upstreamUpdatedAt: '2026-10-13T12:00:00.000Z' } }
+    expect(await retryNicknameLookups()).toBe('Bear_Hunter')
+    expect(state.registerModeProfile).toHaveBeenCalledWith('pve', expect.objectContaining({ accountId: 5550123, enteredNickname: 'Bear_Hunter' }))
+    expect(await retryNicknameLookups()).toBeNull()
+    expect(profiles.calls).toHaveLength(3)
+  })
+})
+
+// owner, 13.10.2026: «что если нам вернуть ручной ввод ника в приложении?»
+describe('a typed nickname while Tarkov.dev gives none', () => {
+  it('is bound to the game account of the logs and saved; Tarkov.dev\'s real name replaces it later', async () => {
+    const { bindTypedNickname, retryNicknameLookups, typedNickname } = await import('./logNickname')
+    profiles.byMode = {}
+    const state = { activeProfile: createLocalProfile('Оператор'), registerModeProfile: vi.fn(), updatePlayerSnapshot: vi.fn() }
+    await bindNicknameFromLogs({ latestAccountIdByMode: { pvp: 4440321 } }, () => state)
+    await expect(bindTypedNickname('a', () => state)).rejects.toThrow(/3–15 символов/)
+    await expect(bindTypedNickname('Имя', () => state)).rejects.toThrow(/латиница/)
+    expect(await bindTypedNickname(' Wolf_77 ', () => state)).toBe('Wolf_77')
+    expect(state.registerModeProfile).toHaveBeenCalledWith('pvp', expect.objectContaining({ accountId: 4440321, enteredNickname: 'Wolf_77', nickname: 'Wolf_77' }))
+    expect(saved).toEqual(['Wolf_77'])
+    expect(typedNickname()).toBe('Wolf_77')
+    expect(logNickname()).toBe('Wolf_77')
+
+    profiles.byMode = { pvp: { nickname: 'Wolf_78', upstreamUpdatedAt: '2026-10-13T12:00:00.000Z' } }
+    server.status = { signedIn: true, nicknames: { nickname: 'Wolf_77' } }
+    expect(await retryNicknameLookups()).toBe('Wolf_78')
+    expect(typedNickname()).toBeUndefined()
+    expect(saved).toEqual(['Wolf_77', 'Wolf_78'])
+    // Every account has its nickname now: nothing left to type.
+    await expect(bindTypedNickname('Wolf_79', () => state)).rejects.toThrow(/нет аккаунта игры без ника/)
   })
 })

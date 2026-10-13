@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LogParseResult } from '../src/import/logParser.js'
+import type { EftLogSearchReport } from './logDiscovery.js'
 
 contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
@@ -81,6 +82,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   },
   autoFindAndScanLogs: (current?: string) => ipcRenderer.invoke('logs:auto-find-and-scan', current) as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
+  logSearchReport: () => ipcRenderer.invoke('logs:search-report') as Promise<EftLogSearchReport>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data') as Promise<boolean>,
   onLogsUpdated: (callback: (result: LogParseResult) => void) => {

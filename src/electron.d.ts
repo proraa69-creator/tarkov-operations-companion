@@ -5,8 +5,11 @@ import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
 import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
+import type { LogSearchReport } from './import/logSearchReport'
 
 type DesktopLogScanResult = ModeLogScanResult
+/** A scan of the game's Logs folder and that folder. */
+export type DesktopLogScan = DesktopLogScanResult & { folder: string }
 
 /** running: started by this app; external: something else already answers on the port (e.g. start-local.ps1). */
 export type LocalServiceState = 'running' | 'external' | 'stopped' | 'error'
@@ -199,6 +202,8 @@ interface TarkovDesktopApi {
   /** `current`: the folder used last; the Logs folder where the game started last is scanned (it or one found). */
   autoFindAndScanLogs: (current?: string) => Promise<(DesktopLogScanResult & { folder: string }) | null>
   scanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  /** «Где искали журналы»: every place the app looked for the game's logs (electron/logDiscovery.ts). */
+  logSearchReport?: () => Promise<LogSearchReport>
   startWatchingLogs: (folder: string) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void

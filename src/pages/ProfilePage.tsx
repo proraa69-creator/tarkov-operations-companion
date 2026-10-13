@@ -9,6 +9,8 @@ import { ClientCabinetPanel } from '../account/ClientCabinetPanel'
 import { StreamerCabinetPanel } from '../account/StreamerCabinetPanel'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { useAccountNickname } from '../account/useAccountNickname'
+import { typedNickname, useMissingNicknameAccounts } from '../account/logNickname'
+import { NicknameMissingHelp } from '../account/NicknameMissingHelp'
 import '../account/account.css'
 
 export function ProfilePage() {
@@ -47,12 +49,17 @@ export function ProfilePage() {
  */
 function NicknamePanel() {
   const nickname = useAccountNickname()
+  const missing = useMissingNicknameAccounts()
   return (
     <section className="panel profile-character-panel is-compact">
       <div className="panel-header"><div><div className="eyebrow">{uiText('Ник · PvP · PvE · Сезон')}</div><div className="panel-title">{nickname ?? uiText('Ник ещё не найден')}</div></div><UserRound size={18} className="dim" /></div>
-      <div className="panel-body"><p className="profile-nick-message">{uiText(nickname
-        ? 'Ник берётся из логов игры автоматически и один для всех режимов.'
-        : 'Ник появится сам, когда приложение прочитает логи игры. Запустите Escape from Tarkov.')}</p></div>
+      <div className="panel-body">
+        {nickname || !missing.length
+          ? <p className="profile-nick-message">{uiText(nickname
+            ? nickname === typedNickname() ? 'Ник введён вручную. Когда tarkov.dev начнёт отвечать, приложение само сверит его с настоящим.' : 'Ник берётся из логов игры автоматически и один для всех режимов.'
+            : 'Ник появится сам, когда приложение прочитает логи игры. Запустите Escape from Tarkov.')}</p>
+          : <NicknameMissingHelp />}
+      </div>
     </section>
   )
 }
