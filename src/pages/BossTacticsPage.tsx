@@ -5,6 +5,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { allBossFigures, bossMapIds, BOSS_NAMES } from '../data/bossFigures'
 import { bossDetails } from '../data/bossInfo'
 import { bossTactics, figureKeyOf } from '../data/bossTactics'
+import { BOSS_TACTICS_EN } from '../data/bossTacticsEn'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import './bossTactics.css'
 
@@ -23,7 +24,9 @@ export function BossTacticsPage() {
   const { key = '' } = useParams()
   const navigate = useNavigate()
   const { locale } = useLocale()
-  const tactics = bossTactics(key)
+  const found = bossTactics(key)
+  // English lines when the interface is English (owner, 13.10.2026); the Russian ones are the source.
+  const tactics = found && locale === 'en' && BOSS_TACTICS_EN[found.key] ? { ...found, ...BOSS_TACTICS_EN[found.key] } : found
   const figureKey = figureKeyOf(key)
   const figure = allBossFigures().find((entry) => entry.key === figureKey)
   const names = BOSS_NAMES[figureKey] ?? EXTRA_NAMES[key]
