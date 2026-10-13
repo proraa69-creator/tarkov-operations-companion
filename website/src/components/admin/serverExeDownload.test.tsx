@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { ServerExeSection } from './AdminUpdate'
+import { ServerExeSection } from './ServerExeSection'
 
 vi.mock('../../config', () => ({ API_URL: '/api' }))
 

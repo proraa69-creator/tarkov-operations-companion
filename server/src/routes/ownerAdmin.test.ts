@@ -250,6 +250,39 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
   } finally { await t.close() }
 })
 
+test('«Удалить аккаунт» from the admin panel: owner only, erased like the user\'s own deletion, logged; not the owner, not with an active autopay (owner, 13.10.2026)', async () => {
+  const t = await setup()
+  try {
+    const player = await t.register('player@example.com')
+    const owner = await t.login('owner@example.com')
+    const users = () => t.call<{ users: Array<{ id: string; email: string }> }>('GET', '/accounts/me/admin/users', owner)
+    const list = (await users()).json.users
+    const id = list.find((user) => user.email === 'player@example.com')!.id
+    const ownerId = list.find((user) => user.email === 'owner@example.com')!.id
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/delete`, player)).status, 404, 'nobody but the owner')
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${ownerId}/delete`, owner)).status, 409)
+
+    // An active autopayment has to be cancelled first (the provider is told by «Отменить автопродление»).
+    const other = await t.register('payer@example.com')
+    const payerId = (await users()).json.users.find((user) => user.email === 'payer@example.com')!.id
+    t.db.prepare("INSERT INTO recurring_subscriptions (id, account_id, provider, plan, amount, currency, status, consent_version, consent_at, created_at) VALUES ('r1', ?, 'yookassa', '1m', 300, 'RUB', 'active', '2026-10-13.2', 0, 0)").run(payerId)
+    const refused = await t.call<{ error: string }>('POST', `/accounts/me/admin/users/${payerId}/delete`, owner)
+    assert.equal(refused.status, 409)
+    assert.match(refused.json.error, /Отменить автопродление/)
+    assert.equal((await t.call('GET', '/accounts/me', other)).status, 200)
+
+    const deleted = await t.call('POST', `/accounts/me/admin/users/${id}/delete`, owner)
+    assert.equal(deleted.status, 200)
+    assert.deepEqual(deleted.json, { deleted: true })
+    assert.equal((await t.call('GET', '/accounts/me', player)).status, 401, 'signed out everywhere')
+    assert.equal((await users()).json.users.some((user) => user.email === 'player@example.com'), false)
+    // The e-mail is free again, and the journal names the deleted account.
+    assert.equal((await t.call('POST', '/accounts/register', undefined, { email: 'player@example.com', password: 'correct horse battery staple' })).status, 201)
+    const entries = (await t.call<{ entries: Array<{ action: string; target?: string }> }>('GET', '/accounts/me/admin/audit', owner)).json.entries
+    assert.deepEqual(entries.map((entry) => [entry.action, entry.target]), [['account.delete', 'player@example.com']])
+  } finally { await t.close() }
+})
+
 test('statistics: users, revenue by provider and plan per day / month, payouts, filters and CSV', async () => {
   const t = await setup()
   try {
