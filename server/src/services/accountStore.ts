@@ -1115,7 +1115,8 @@ export class AccountStore {
 
   /**
    * «Удалить аккаунт» (the user's own request, password confirmed by the route). Everything personal goes: e-mail, phone,
-   * password, nicknames, country, sessions and devices, friends, squads, game progress, settings, positions, payout details.
+   * password, nicknames, country, sessions and devices, friends, squads, game progress, settings, positions, payout details,
+   * the support chat.
    * The row itself stays as an anonymous stub, because payments, autopayment records and streamer payouts refer to it and
    * are kept for accounting; the e-mail is free for a new registration at once. The owner's account cannot be deleted
    * this way, and an active autopayment must be cancelled first (cancelling needs the payment provider).
@@ -1136,6 +1137,7 @@ export class AccountStore {
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
       ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
+      ['support_messages', 'account_id'],
     ]
     const progressOwner = `user:${account.id}`
     this.db.exec('BEGIN')

@@ -15,6 +15,8 @@ import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HAND
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
 import { openAccountSignIn } from '../account/accountEvents'
+import { SupportChatDialog } from '../support/SupportChat'
+import { useSupportUnread } from '../support/supportChatClient'
 import '../styles/support.css'
 
 interface Shot { id: number; name: string; type: string; size: number; dataUrl: string }
@@ -124,8 +126,8 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [contact, setContact] = useState(false)
-  const closeContact = useCallback(() => setContact(false), [])
+  const [chat, setChat] = useState(false)
+  const closeChat = useCallback(() => setChat(false), [])
   const fileInput = useRef<HTMLInputElement>(null)
   const shotsRef = useRef(shots)
   useEffect(() => { shotsRef.current = shots }, [shots])
@@ -293,58 +295,37 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
         </div>
         {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{error}</span></div>}
         <div className="bug-report-actions">
-          <button type="button" className="button ghost" onClick={() => setContact(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
+          <button type="button" className="button ghost" onClick={() => setChat(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
           <button type="submit" className="button primary" disabled={sending || !ready}>
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : words.send)}
           </button>
         </div>
       </form>}
-      {contact && <ContactDialog onClose={closeContact} />}
+      {chat && <SupportChatDialog onClose={closeChat} />}
     </section>
   </div>, document.body)
 }
 
 /**
- * «Связаться» (owner, 12.10.2026: «при нажатии всплывающее окно, и предлагает перейти в телеграм канал для связи. кнопки
- * да нет»): «Да» opens the Telegram channel (the system browser, as every outside link), «Нет» closes.
- */
-export function ContactDialog({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    // Captured on the window: over the bug report dialog, Escape closes only this one.
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); onClose() } }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
-  return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText('Связаться с нами')} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-    <section className="panel registration-dialog contact-dialog" onMouseDown={(event) => event.stopPropagation()}>
-      <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
-      <div className="registration-icon"><MessageCircle size={26} /></div>
-      <h2>{uiText('Связаться с нами')}</h2>
-      <p className="muted">{uiText('Перейти в Telegram-канал Raid OS, чтобы написать нам?')} <strong className="contact-handle">{SUPPORT_TELEGRAM_HANDLE}</strong></p>
-      <div className="contact-actions">
-        <button type="button" className="button ghost" onClick={onClose}>{uiText('Нет')}</button>
-        {/* Closed after the click: the link opens first. */}
-        <a className="button primary" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer" autoFocus onClick={() => window.setTimeout(onClose, 0)}><Send size={15} />{uiText('Да')}</a>
-      </div>
-    </section>
-  </div>, document.body)
-}
-
-/**
- * «Связаться» (asks, then Telegram), «Сообщить об ошибке» and under it «Ваши предложения» (owner, 13.10.2026): in the
- * sidebar's «Система» group (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which
- * has no sidebar).
+ * «Связаться» (the support chat, owner 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»; it asked
+ * to open Telegram before), «Сообщить об ошибке» and under it «Ваши предложения» (owner, 13.10.2026): in the sidebar's
+ * «Система» group (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which has no
+ * sidebar). «Связаться» counts the answers not read yet.
  */
 export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
-  const [open, setOpen] = useState<'' | 'contact' | ReportKind>('')
+  const [open, setOpen] = useState<'' | 'chat' | ReportKind>('')
   const close = useCallback(() => setOpen(''), [])
+  const unread = useSupportUnread()
   const className = variant === 'nav' ? 'nav-link support-nav-link' : 'button ghost'
   const icon = variant === 'nav' ? undefined : 15
   return <>
-    <button type="button" className={className} onClick={() => setOpen('contact')} title={`Telegram ${SUPPORT_TELEGRAM_HANDLE}`}><MessageCircle size={icon} /><span>{uiText('Связаться')}</span></button>
+    <button type="button" className={className} onClick={() => setOpen('chat')} title={uiText('Чат с поддержкой')}>
+      <MessageCircle size={icon} /><span>{uiText('Связаться')}</span>
+      {unread > 0 && <span className="nav-badge" aria-label={uiText(`Новых сообщений: ${unread}`)}>{unread > 99 ? '99+' : unread}</span>}
+    </button>
     <button type="button" className={className} onClick={() => setOpen('bug')}><Bug size={icon} /><span>{uiText('Сообщить об ошибке')}</span></button>
     <button type="button" className={className} onClick={() => setOpen('idea')}><Lightbulb size={icon} /><span>{uiText('Ваши предложения')}</span></button>
-    {open === 'contact' && <ContactDialog onClose={close} />}
+    {open === 'chat' && <SupportChatDialog onClose={close} />}
     {(open === 'bug' || open === 'idea') && <ReportDialog key={open} kind={open} onClose={close} />}
   </>
 }

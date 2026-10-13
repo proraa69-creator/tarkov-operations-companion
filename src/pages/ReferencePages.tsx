@@ -669,7 +669,7 @@ export function SettingsPage() {
               <span>
                 {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
                 <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
-                <small>{uiText("Напишите нам в Telegram, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
+                <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
               </span>
             </div>
             <div className="support-row"><SupportButtons variant="panel" /></div>
