@@ -141,8 +141,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
-      // The nickname from the logs: their AccountId of each mode → its Tarkov.dev profile → bound, nothing to type.
-      void bindNicknameFromLogs(result, () => stateRef.current).catch(() => {})
+      // Each mode's game account from the logs, bound under the nickname the player typed (account/logNickname.ts).
+      bindNicknameFromLogs(result, () => stateRef.current)
       applyScanToModes(
         result,
         (mode) => stateRef.current.activeProfile.modes[mode].registration,

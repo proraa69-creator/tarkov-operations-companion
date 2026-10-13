@@ -1,126 +1,85 @@
 /**
- * The nickname straight from the game logs (owner, 10.10.2026: «читать ник из логов, очень быстро»). The EFT logs give the
- * game AccountId of every mode the player started; its Tarkov.dev profile gives the nickname. Each such mode is bound to
- * its account at once — nothing to type, there is no manual binding — and the account gets the nickname. When the
- * modes' Tarkov.dev names differ (one lags behind a rename), the most recently updated profile's name is the nickname;
- * every other bound mode takes it too.
+ * The Escape from Tarkov nickname of the app — typed by the player (owner, 13.10.2026: «делай ручной ввод, не обращаясь к
+ * тарков дев», «возвращай кнопку сменить ник»). Tarkov.dev is not asked any more: Cloudflare refuses our server there,
+ * and the owner chose not to depend on it. One nickname for PvP, PvE and «Сезон»; each mode the logs of this PC show is
+ * bound to its own game account (from the logs) under that nickname, and the nickname is saved on the signed-in account.
  */
 import { useSyncExternalStore } from 'react'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
-import type { LocalProfile, PlayerProfileSnapshot, RaidMode } from '../domain/types'
-import { desktopPlayerProfileGateway, upstreamModeByRaidMode } from '../profile/playerProfileGateway'
+import type { LocalProfile, RaidMode } from '../domain/types'
 import { currentServerStatus } from '../sync/serverSync'
-import { accountNickname, cleanNickname, NICKNAME_PATTERN, RAID_MODE_ORDER, renameBoundModes, saveNicknameOnServer } from './nicknameBinding'
+import { accountNickname, cleanNickname, NICKNAME_PATTERN, profileNickname, RAID_MODE_ORDER, renameBoundModes, saveNicknameOnServer } from './nicknameBinding'
 
-/** The app state (read when the lookups finish, so a fresh one). */
+/** The app state (read when needed, so a fresh one). */
 export interface LogNicknameTarget {
   activeProfile: LocalProfile
   registerModeProfile: (mode: RaidMode, registration: { accountId: number; enteredNickname: string; nickname: string; verifiedAt: string }) => void
-  updatePlayerSnapshot: (mode: RaidMode, snapshot: PlayerProfileSnapshot) => void
 }
 
-/**
- * Each (mode, AccountId) the logs show: when its Tarkov.dev profile was last asked for and whether it was there. A found
- * one is not asked again in this session (log scans come often); a missing one again after NICKNAME_RETRY_MS — Tarkov.dev
- * publishes a profile only once somebody has opened it on tarkov.dev (owner, 13.10.2026: a player's nickname was «not
- * found» with his logs read: his profile had never been opened there).
- */
-const lookups = new Map<string, { at: number; found: boolean }>()
-export const NICKNAME_RETRY_MS = 10 * 60_000
-let lastBind: { result: Pick<ModeLogScanResult, 'latestAccountIdByMode'>; state: () => LogNicknameTarget } | undefined
-
-/** The game accounts of the logs whose Tarkov.dev profile was not there at the last look (Profile → «Ник ещё не найден»). */
-let missing: Array<{ mode: RaidMode; accountId: number }> = []
-const listeners = new Set<() => void>()
-function setMissing(next: typeof missing) {
-  if (JSON.stringify(next) === JSON.stringify(missing)) return
-  missing = next
-  for (const listener of listeners) listener()
-}
-export function useMissingNicknameAccounts() {
-  return useSyncExternalStore((listener) => {
-    listeners.add(listener)
-    return () => { listeners.delete(listener) }
-  }, () => missing)
-}
-
-/** The player's own profile on tarkov.dev: opening it once in the browser makes Tarkov.dev publish it. */
-export function tarkovDevProfileUrl(mode: RaidMode, accountId: number) {
-  return `https://tarkov.dev/players/${upstreamModeByRaidMode[mode]}/${accountId}`
-}
-
-/** The nickname the player typed for the game account of the logs (until Tarkov.dev gives the real one). */
+/** The game account of each mode the logs of this PC showed last. */
+let accounts: Partial<Record<RaidMode, number>> = {}
 let typed: string | undefined
-export function typedNickname() {
+const listeners = new Set<() => void>()
+const notify = () => { for (const listener of listeners) listener() }
+
+/** The nickname typed in this session (AccountController saves it on an account signed in later). */
+export function logNickname() {
   return typed
 }
 
+/** The game accounts of the logs, by mode (Settings → «Журналы игры», the nickname form). */
+export function useLogAccounts() {
+  return useSyncExternalStore((listener) => {
+    listeners.add(listener)
+    return () => { listeners.delete(listener) }
+  }, () => accounts)
+}
+
+/** The nickname this app knows: typed now, the signed-in account's, or a bound mode's. */
+function knownNickname(profile: LocalProfile) {
+  return typed ?? accountNickname(currentServerStatus()?.nicknames) ?? profileNickname(profile)
+}
+
+/** Binds each mode the logs show to its game account under `nickname` (unless it is bound so already). */
+function bindModes(state: () => LogNicknameTarget, nickname: string, verifiedAt: string) {
+  for (const mode of RAID_MODE_ORDER) {
+    const accountId = accounts[mode]
+    if (!accountId) continue
+    const registration = state().activeProfile.modes[mode].registration
+    if (registration.status === 'registered' && registration.accountId === accountId && (registration.enteredNickname || registration.nickname) === nickname) continue
+    state().registerModeProfile(mode, { accountId, enteredNickname: nickname, nickname, verifiedAt })
+  }
+}
+
 /**
- * The nickname typed by the player while Tarkov.dev gives no profile for the game account the logs show (owner,
- * 13.10.2026: «вернуть ручной ввод ника»). It is bound to that account — the one of the logs of this PC, never another —
- * in every mode the logs showed, and saved on the signed-in account. Tarkov.dev's real name replaces it as soon as
- * Tarkov.dev answers (the lookups go on).
+ * Called with every log scan (AppShell): remembers each mode's game account and, when a nickname is known, binds the
+ * modes to their accounts under it. Returns that nickname, or null while none is typed yet.
  */
-export async function bindTypedNickname(raw: string, state: () => LogNicknameTarget) {
-  const nickname = cleanNickname(raw)
-  if (!NICKNAME_PATTERN.test(nickname)) throw new Error('Ник в игре: 3–15 символов, латиница, цифры, «_» или «-».')
-  if (!missing.length) throw new Error('В логах этого компьютера нет аккаунта игры без ника.')
-  const verifiedAt = new Date().toISOString()
-  for (const { mode, accountId } of missing) state().registerModeProfile(mode, { accountId, enteredNickname: nickname, nickname, verifiedAt })
-  renameBoundModes(state(), nickname, missing.map((entry) => entry.mode), verifiedAt)
-  typed = nickname
-  fromLogs = nickname
-  await saveNicknameOnServer(nickname)
+export function bindNicknameFromLogs(result: Pick<ModeLogScanResult, 'latestAccountIdByMode'>, state: () => LogNicknameTarget) {
+  const next = { ...accounts, ...Object.fromEntries(Object.entries(result.latestAccountIdByMode ?? {}).filter(([, id]) => typeof id === 'number' && id > 0)) }
+  if (RAID_MODE_ORDER.some((mode) => next[mode] !== accounts[mode])) {
+    accounts = next
+    notify()
+  }
+  const nickname = knownNickname(state().activeProfile)
+  if (!nickname) return null
+  bindModes(state, nickname, new Date().toISOString())
   return nickname
 }
 
-/** Asks Tarkov.dev again now for every account whose profile was missing (after «Открыть мой профиль на tarkov.dev»). */
-export async function retryNicknameLookups() {
-  for (const [key, lookup] of lookups) if (!lookup.found) lookups.delete(key)
-  return lastBind ? bindNicknameFromLogs(lastBind.result, lastBind.state) : null
-}
-
-const updatedAt = (snapshot: PlayerProfileSnapshot) => snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt
-
-let fromLogs: string | undefined
-
-/** The nickname the game logs gave in this session (AccountController saves it on an account signed in later). */
-export function logNickname() {
-  return fromLogs
-}
-
-export async function bindNicknameFromLogs(result: Pick<ModeLogScanResult, 'latestAccountIdByMode'>, state: () => LogNicknameTarget) {
-  lastBind = { result, state }
-  const byMode = result.latestAccountIdByMode ?? {}
-  const now = Date.now()
-  const asked = RAID_MODE_ORDER.flatMap((mode) => {
-    const accountId = byMode[mode]
-    if (!accountId) return []
-    const key = `${mode}:${accountId}`
-    const last = lookups.get(key)
-    if (last && (last.found || now - last.at < NICKNAME_RETRY_MS)) return []
-    lookups.set(key, { at: now, found: false })
-    return [desktopPlayerProfileGateway().fetchByAccountId(mode, accountId).then((snapshot) => ({ mode, accountId, snapshot }), () => null)]
-  })
-  if (!asked.length) return null
-  const found = (await Promise.all(asked)).filter((entry): entry is { mode: RaidMode; accountId: number; snapshot: PlayerProfileSnapshot } => Boolean(entry?.snapshot?.nickname))
-  for (const { mode, accountId } of found) lookups.set(`${mode}:${accountId}`, { at: now, found: true })
-  setMissing(RAID_MODE_ORDER.flatMap((mode) => {
-    const accountId = byMode[mode]
-    return accountId && !lookups.get(`${mode}:${accountId}`)?.found ? [{ mode, accountId }] : []
-  }))
-  if (!found.length) return null
-  const nickname = [...found].sort((a, b) => updatedAt(b.snapshot).localeCompare(updatedAt(a.snapshot)))[0].snapshot.nickname
-  fromLogs = nickname
-  typed = undefined
+/**
+ * «Сменить ник» / the first nickname: checked like the game's (3–15 Latin letters, digits, «_» or «-»), bound to the game
+ * accounts the logs of this PC show, given to every other bound mode, saved on the signed-in account.
+ */
+export async function setTypedNickname(raw: string, state: () => LogNicknameTarget) {
+  const nickname = cleanNickname(raw)
+  if (!NICKNAME_PATTERN.test(nickname)) throw new Error('Ник в игре: 3–15 символов, латиница, цифры, «_» или «-».')
   const verifiedAt = new Date().toISOString()
-  for (const { mode, accountId, snapshot } of found) {
-    state().registerModeProfile(mode, { accountId, enteredNickname: nickname, nickname: snapshot.nickname, verifiedAt })
-    state().updatePlayerSnapshot(mode, snapshot)
-  }
-  // A bound mode the logs did not show this time takes the same nickname (its own game account and progress stay).
-  renameBoundModes(state(), nickname, found.map((entry) => entry.mode), verifiedAt)
+  typed = nickname
+  bindModes(state, nickname, verifiedAt)
+  renameBoundModes(state(), nickname, RAID_MODE_ORDER.filter((mode) => accounts[mode]), verifiedAt)
+  notify()
   const status = currentServerStatus()
-  if (status?.signedIn && (accountNickname(status.nicknames) ?? '').toLowerCase() !== nickname.toLowerCase()) void saveNicknameOnServer(nickname)
+  if (status?.signedIn && (accountNickname(status.nicknames) ?? '') !== nickname) await saveNicknameOnServer(nickname)
   return nickname
 }

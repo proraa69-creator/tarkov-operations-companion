@@ -9,8 +9,7 @@ import { ClientCabinetPanel } from '../account/ClientCabinetPanel'
 import { StreamerCabinetPanel } from '../account/StreamerCabinetPanel'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { useAccountNickname } from '../account/useAccountNickname'
-import { typedNickname, useMissingNicknameAccounts } from '../account/logNickname'
-import { NicknameMissingHelp } from '../account/NicknameMissingHelp'
+import { NicknameEditor } from '../account/NicknameEditor'
 import '../account/account.css'
 
 export function ProfilePage() {
@@ -27,7 +26,7 @@ export function ProfilePage() {
 
   return <div className="page">
     <header className="page-header">
-      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Данные персонажа обновляются каждую минуту.")}</p></div>
+      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник указываете вы, задания приходят из логов игры.")}</p></div>
       <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
     </header>
     <div className="profile-operator-layout">
@@ -44,21 +43,17 @@ export function ProfilePage() {
 }
 
 /**
- * «Персонаж»: one Escape from Tarkov nickname for PvP, PvE and «Сезон» (owner, 10.10.2026). Read only — the app takes it
- * from the game logs by itself (account/logNickname.ts); there is no manual binding any more.
+ * «Персонаж»: one Escape from Tarkov nickname for PvP, PvE and «Сезон» (owner, 10.10.2026), typed by the player with
+ * «Сменить ник» (owner, 13.10.2026: «делай ручной ввод, не обращаясь к тарков дев», «возвращай кнопку сменить ник»).
  */
 function NicknamePanel() {
   const nickname = useAccountNickname()
-  const missing = useMissingNicknameAccounts()
   return (
     <section className="panel profile-character-panel is-compact">
-      <div className="panel-header"><div><div className="eyebrow">{uiText('Ник · PvP · PvE · Сезон')}</div><div className="panel-title">{nickname ?? uiText('Ник ещё не найден')}</div></div><UserRound size={18} className="dim" /></div>
+      <div className="panel-header"><div><div className="eyebrow">{uiText('Ник · PvP · PvE · Сезон')}</div><div className="panel-title">{nickname ?? uiText('Ник не указан')}</div></div><UserRound size={18} className="dim" /></div>
       <div className="panel-body">
-        {nickname || !missing.length
-          ? <p className="profile-nick-message">{uiText(nickname
-            ? nickname === typedNickname() ? 'Ник введён вручную. Когда tarkov.dev начнёт отвечать, приложение само сверит его с настоящим.' : 'Ник берётся из логов игры автоматически и один для всех режимов.'
-            : 'Ник появится сам, когда приложение прочитает логи игры. Запустите Escape from Tarkov.')}</p>
-          : <NicknameMissingHelp />}
+        <p className="profile-nick-message">{uiText(nickname ? 'Один ник для PvP, PvE и Сезона. Его видят друзья и отряд.' : 'Впишите ник из игры — его увидят друзья и отряд.')}</p>
+        <NicknameEditor />
       </div>
     </section>
   )
