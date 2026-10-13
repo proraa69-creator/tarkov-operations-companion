@@ -178,8 +178,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).
   const bugReports = new BugReportStore(accounts.database, { now: accounts.clock })
   const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
+  // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed (routes/bugReports.ts).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount() }))
   app.use(createBugReportsRouter(accounts, bugReports, {
     limits: options.bugReportLimits,
+    signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
     mail: bugReportMail,
     grant: (actor, accountId, days, reason) => {

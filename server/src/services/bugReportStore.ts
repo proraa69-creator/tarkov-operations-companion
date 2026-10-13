@@ -10,6 +10,14 @@
  *                       server e-mails to the owner (services/bugReportMail.ts);
  *   bug_report_files  — its screenshots (PNG / JPEG / WEBP, checked by their magic bytes, never by the declared type).
  *
+ * Categories and quest corrections (owner, 13.10.2026: «там должна быть категория бага… человек может предложить свою
+ * точку на карте этого квеста… и может написать заметку к квесту или точке»): `category` (src/shared/
+ * reportCategories.ts); a quest report keeps the quest, what is wrong (`quest_issue`), the game mode, and optionally
+ * the map, the point the player says is wrong (`marker_id`), the objective / story stage, the place the player
+ * proposes (`point_x` / `point_z` in game metres, `point_floor`) and notes to the point and to the quest. Nothing is
+ * changed by a report: the owner reads «Заявки», sees how many players agree (`matches`, see `questGroups`) and
+ * corrects the quest himself.
+ *
  * Deleting an account (AccountStore.deleteAccount) clears `account_id` and `email` of its reports: the report itself
  * stays for the owner to handle, without the personal link.
  *
@@ -20,6 +28,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
+import { MATCH_RADIUS_M, QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS, type QuestIssue, type ReportCategory, type ReportMode } from '../../../src/shared/reportCategories.js'
 
 type Row = Record<string, unknown>
 
@@ -78,6 +87,19 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['mailed_at', 'INTEGER'],
   ['mail_error', 'TEXT'],
   ['kind', "TEXT NOT NULL DEFAULT 'bug'"],
+  ['category', 'TEXT'],
+  ['quest_id', 'TEXT'],
+  ['quest_issue', 'TEXT'],
+  ['game_mode', 'TEXT'],
+  ['map_id', 'TEXT'],
+  ['marker_id', 'TEXT'],
+  ['objective_id', 'TEXT'],
+  ['stage_index', 'INTEGER'],
+  ['point_x', 'REAL'],
+  ['point_z', 'REAL'],
+  ['point_floor', 'TEXT'],
+  ['point_note', 'TEXT'],
+  ['quest_note', 'TEXT'],
 ]
 
 export class BugReportError extends Error {
@@ -96,9 +118,27 @@ export function sniffImage(data: Uint8Array): ImageMime | undefined {
   return undefined
 }
 
+/** A quest correction proposed by a player (the «Квест» category). */
+export interface QuestReport {
+  questId: string
+  issue: QuestIssue
+  mode?: ReportMode
+  mapId?: string
+  /** The point on the map the player says is wrong. */
+  markerId?: string
+  objectiveId?: string
+  stageIndex?: number
+  /** Where the player says it really is (game metres, the map's floor name). */
+  point?: { x: number; z: number; floor?: string }
+  pointNote?: string
+  questNote?: string
+}
+
 export interface BugReportInput {
   /** 'bug' when not given. */
   kind?: ReportKind
+  category?: ReportCategory
+  quest?: QuestReport
   topic: string
   description: string
   appVersion: string
@@ -110,6 +150,12 @@ export interface BugReportFileView { idx: number; mime: ImageMime; size: number 
 export interface BugReportSummary {
   id: number
   kind: ReportKind
+  category?: ReportCategory
+  quest?: QuestReport
+  /** Open quest reports that agree with this one, itself included (same point area, same wrong point or same issue). */
+  matches?: number
+  /** What this report agrees on with the others of its group (the owner's «Заявки» groups by it). */
+  group?: string
   email?: string
   accountId?: string
   topic: string
@@ -165,6 +211,7 @@ export class BugReportStore {
     const columns = new Set((this.db.prepare('PRAGMA table_info(bug_reports)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE bug_reports ADD COLUMN ${name} ${type}`)
     this.db.exec('CREATE INDEX IF NOT EXISTS bug_reports_kind ON bug_reports(kind, status, created_at)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS bug_reports_quest ON bug_reports(status, quest_id)')
     this.pruneScreenshots()
   }
 
@@ -200,8 +247,14 @@ export class BugReportStore {
     const incoming = input.files.reduce((sum, file) => sum + file.length, 0)
     return transaction(this.db, () => {
       if (incoming > 0 && this.storedBytes() + incoming > this.maxStoredBytes) throw new BugReportError(507, STORAGE_FULL_MESSAGE)
-      const result = this.db.prepare('INSERT INTO bug_reports (kind, account_id, email, topic, description, app_version, platform, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, \'open\', ?)')
-        .run(input.kind ?? 'bug', accountId, email ?? null, input.topic, input.description, input.appVersion, input.platform, at)
+      const quest = input.quest
+      const result = this.db.prepare(`INSERT INTO bug_reports (kind, account_id, email, topic, description, app_version, platform, status, created_at,
+          category, quest_id, quest_issue, game_mode, map_id, marker_id, objective_id, stage_index, point_x, point_z, point_floor, point_note, quest_note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(input.kind ?? 'bug', accountId, email ?? null, input.topic, input.description, input.appVersion, input.platform, at,
+          input.category ?? null, quest?.questId ?? null, quest?.issue ?? null, quest?.mode ?? null, quest?.mapId ?? null, quest?.markerId ?? null,
+          quest?.objectiveId ?? null, quest?.stageIndex ?? null, quest?.point?.x ?? null, quest?.point?.z ?? null, quest?.point?.floor ?? null,
+          quest?.pointNote ?? null, quest?.questNote ?? null)
       const id = Number(result.lastInsertRowid)
       const insert = this.db.prepare('INSERT INTO bug_report_files (report_id, idx, mime, size, data) VALUES (?, ?, ?, ?, ?)')
       input.files.forEach((file, idx) => insert.run(id, idx, mimes[idx], file.length, file))
@@ -226,7 +279,46 @@ export class BugReportStore {
     const params = [...(status ? [status] : []), ...(kind ? [kind] : [])]
     const rows = this.db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM bug_report_files f WHERE f.report_id = r.id) AS file_count
       FROM bug_reports r ${where} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as Row[]
-    return { reports: rows.map((row) => ({ ...this.base(row), files: Number(row.file_count) })), total: status ? counts[status] : counts.open + counts.closed, counts, kinds }
+    const groups = rows.some((row) => row.quest_id != null) ? this.questGroups() : new Map<number, { group: string; matches: number }>()
+    return { reports: rows.map((row) => ({ ...this.base(row), ...groups.get(Number(row.id)), files: Number(row.file_count) })), total: status ? counts[status] : counts.open + counts.closed, counts, kinds }
+  }
+
+  /** Open reports of every kind (the owner app's «Заявки» badge). */
+  openCount() {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM bug_reports WHERE status = 'open'").get() as { n: number }).n)
+  }
+
+  /**
+   * «Статистика по изменениям» (owner, 13.10.2026: «анализируй информацию и если она сходится 2-3-4 раза значит буду в
+   * ручную менять»): open quest reports that agree, report id → its group and how many reports are in it.
+   * - a proposed place: the same quest on the same map within MATCH_RADIUS_M of the group's first place;
+   * - «this point is wrong» without a place: the same point;
+   * - anything else: the same quest and the same issue.
+   * Nothing is changed by it: the owner decides.
+   */
+  questGroups(): Map<number, { group: string; matches: number }> {
+    const rows = this.db.prepare("SELECT id, quest_id, quest_issue, map_id, marker_id, point_x, point_z FROM bug_reports WHERE status = 'open' AND quest_id IS NOT NULL ORDER BY created_at, id").all() as Row[]
+    const members = new Map<string, number[]>()
+    const places: Array<{ key: string; quest: string; map: string; x: number; z: number }> = []
+    for (const row of rows) {
+      const id = Number(row.id)
+      const quest = String(row.quest_id)
+      let key: string
+      if (row.point_x != null && row.point_z != null && row.map_id != null) {
+        const x = Number(row.point_x), z = Number(row.point_z), map = String(row.map_id)
+        const near = places.find((place) => place.quest === quest && place.map === map && Math.hypot(place.x - x, place.z - z) <= MATCH_RADIUS_M)
+        if (near) key = near.key
+        else {
+          key = `point:${quest}:${map}:${places.filter((place) => place.quest === quest && place.map === map).length}`
+          places.push({ key, quest, map, x, z })
+        }
+      } else if (row.marker_id != null) key = `marker:${quest}:${String(row.marker_id)}`
+      else key = `issue:${quest}:${String(row.quest_issue ?? 'other')}`
+      members.set(key, [...(members.get(key) ?? []), id])
+    }
+    const groups = new Map<number, { group: string; matches: number }>()
+    for (const [group, ids] of members) for (const id of ids) groups.set(id, { group, matches: ids.length })
+    return groups
   }
 
   get(id: number): BugReportView | undefined {
@@ -234,7 +326,8 @@ export class BugReportStore {
     if (!row) return undefined
     const files = (this.db.prepare('SELECT idx, mime, size FROM bug_report_files WHERE report_id = ? ORDER BY idx').all(id) as Row[])
       .map((file) => ({ idx: Number(file.idx), mime: String(file.mime) as ImageMime, size: Number(file.size) }))
-    return { ...this.base(row), description: String(row.description), files }
+    const group = row.quest_id != null && row.status === 'open' ? this.questGroups().get(id) : undefined
+    return { ...this.base(row), ...group, description: String(row.description), files }
   }
 
   file(id: number, idx: number): { mime: ImageMime; data: Buffer } | undefined {
@@ -274,6 +367,8 @@ export class BugReportStore {
     return {
       id: Number(row.id),
       kind: row.kind === 'idea' ? 'idea' : 'bug',
+      ...(row.category == null ? {} : { category: String(row.category) as ReportCategory }),
+      ...(row.quest_id == null ? {} : { quest: questOf(row) }),
       ...(row.email == null ? {} : { email: String(row.email) }),
       ...(row.account_id == null ? {} : { accountId: String(row.account_id) }),
       topic: String(row.topic),
@@ -288,4 +383,42 @@ export class BugReportStore {
       ...(row.mail_error == null ? {} : { mailError: String(row.mail_error) }),
     }
   }
+}
+
+function questOf(row: Row): QuestReport {
+  const text = (value: unknown) => (value == null ? undefined : String(value))
+  const mode = text(row.game_mode)
+  return {
+    questId: String(row.quest_id),
+    issue: (text(row.quest_issue) ?? 'other') as QuestIssue,
+    ...(mode === 'pvp' || mode === 'pve' || mode === 'seasonal' ? { mode } : {}),
+    ...(row.map_id == null ? {} : { mapId: String(row.map_id) }),
+    ...(row.marker_id == null ? {} : { markerId: String(row.marker_id) }),
+    ...(row.objective_id == null ? {} : { objectiveId: String(row.objective_id) }),
+    ...(row.stage_index == null ? {} : { stageIndex: Number(row.stage_index) }),
+    ...(row.point_x == null || row.point_z == null ? {} : { point: { x: Number(row.point_x), z: Number(row.point_z), ...(row.point_floor == null ? {} : { floor: String(row.point_floor) }) } }),
+    ...(row.point_note == null ? {} : { pointNote: String(row.point_note) }),
+    ...(row.quest_note == null ? {} : { questNote: String(row.quest_note) }),
+  }
+}
+
+const MODE_LABELS: Record<ReportMode, string> = { pvp: 'PvP', pve: 'PvE', seasonal: 'Сезон' }
+
+/** The category and the quest correction as «label: value» rows (the owner's PDF and e-mail). */
+export function reportDetails(report: Pick<BugReportSummary, 'category' | 'quest' | 'matches'>): Array<[string, string]> {
+  const rows: Array<[string, string]> = []
+  if (report.category) rows.push(['Категория', REPORT_CATEGORY_LABELS[report.category] ?? report.category])
+  const quest = report.quest
+  if (!quest) return rows
+  rows.push(['Квест (id)', quest.questId], ['Что не так', QUEST_ISSUE_LABELS[quest.issue] ?? quest.issue])
+  if (quest.mode) rows.push(['Режим', MODE_LABELS[quest.mode]])
+  if (quest.mapId) rows.push(['Карта', quest.mapId])
+  if (quest.objectiveId) rows.push(['Цель (id)', quest.objectiveId])
+  if (quest.stageIndex != null) rows.push(['Этап', String(quest.stageIndex + 1)])
+  if (quest.markerId) rows.push(['Неверная точка', quest.markerId])
+  if (quest.point) rows.push(['Предложенное место', `x ${Math.round(quest.point.x)}, z ${Math.round(quest.point.z)}${quest.point.floor ? ` · ${quest.point.floor}` : ''}`])
+  if (quest.pointNote) rows.push(['Заметка к точке', quest.pointNote])
+  if (quest.questNote) rows.push(['Заметка к квесту', quest.questNote])
+  if (report.matches && report.matches > 1) rows.push(['Совпадает с отчётами', String(report.matches - 1)])
+  return rows
 }

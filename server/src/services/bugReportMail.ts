@@ -10,7 +10,7 @@
  */
 import { EmailSendError, type EmailAttachment, type EmailSender } from './email/types.js'
 import { bugReportPdf } from './bugReportPdf.js'
-import type { BugReportStore, BugReportView } from './bugReportStore.js'
+import { reportDetails, type BugReportStore, type BugReportView } from './bugReportStore.js'
 
 export const DEFAULT_BUG_REPORT_EMAIL = 'raidosapp@gmail.com'
 const ADDRESS = /^[^\s@<>"]{1,64}@[^\s@<>"]{1,190}\.[A-Za-z]{2,}$/
@@ -37,13 +37,15 @@ function message(report: BugReportView) {
   const from = report.email ?? 'аккаунт удалён'
   const words = reportWords(report.kind)
   const footer = `PDF с ${report.kind === 'idea' ? 'предложением' : 'отчётом'} и ${words.files} — во вложении. Открыть и выдать дни: raidos.app → Админ-панель → «Отчёты».`
+  const details = reportDetails(report)
   const lines = [
     `${words.fresh} №${report.id}`,
     `От: ${from}`,
     `Тема: ${oneLine(report.topic, 200)}`,
     `Версия: ${report.appVersion || '—'} · ${report.platform || '—'}`,
+    ...details.map(([label, value]) => `${label}: ${oneLine(value, 400)}`),
     '',
-    report.description,
+    report.description || '—',
     '',
     footer,
   ]
@@ -53,7 +55,8 @@ function message(report: BugReportView) {
 <p style="margin:0">От: <b>${escapeHtml(from)}</b></p>
 <p style="margin:0">Тема: <b>${escapeHtml(oneLine(report.topic, 200))}</b></p>
 <p style="margin:0 0 12px;color:#69706c">Версия: ${escapeHtml(report.appVersion || '—')} · ${escapeHtml(report.platform || '—')}</p>
-<div style="white-space:pre-wrap;padding:12px;border:1px solid #d6d8d2;border-radius:8px">${escapeHtml(report.description)}</div>
+${details.map(([label, value]) => `<p style="margin:0">${escapeHtml(label)}: <b>${escapeHtml(oneLine(value, 400))}</b></p>`).join('\n')}
+<div style="white-space:pre-wrap;padding:12px;margin-top:${details.length ? 12 : 0}px;border:1px solid #d6d8d2;border-radius:8px">${escapeHtml(report.description || '—')}</div>
 <p style="margin:12px 0 0;color:#69706c">${footer}</p>
 </div>`
   return { subject: `Raid OS · ${words.subject} №${report.id}: ${oneLine(report.topic, 100)}`, text: lines.join('\n'), html }

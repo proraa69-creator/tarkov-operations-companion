@@ -1,8 +1,11 @@
 /**
  * «Сообщить об ошибке» and «Ваши предложения» (services/bugReportStore.ts): one endpoint, `kind` tells them apart.
  *
- *   POST /v1/bug-reports  { kind?: 'bug' | 'idea', topic, description, appVersion?, platform?, screenshots?: [{ data: base64 }] }
- *        -> 201 { id, createdAt }. `kind` is 'bug' when not given (apps before 13.10.2026).
+ *   POST /v1/bug-reports  { kind?: 'bug' | 'idea', category?, quest?, topic, description, appVersion?, platform?, screenshots?: [{ data: base64 }] }
+ *        -> 201 { id, createdAt }. `kind` is 'bug' when not given (apps before 13.10.2026). `category`: what the bug is
+ *        about (src/shared/reportCategories.ts); `quest` (category «Квест»): { questId, issue, mode?, mapId?, markerId?,
+ *        objectiveId?, stageIndex?, point?: { x, z, floor? }, pointNote?, questNote? } — a quest correction the player
+ *        proposes (owner, 13.10.2026); with it the description may be empty.
  *        Signed-in accounts only (Bearer). Up to 5 screenshots, PNG / JPEG / WEBP by magic bytes, ≤ 5 MB each,
  *        ≤ 25 MB together. 5 reports per hour per account and per IP (an IPv6 /64 counts as one address). At most
  *        MAX_CONCURRENT_UPLOADS bodies are read at a time (503 + Retry-After past that). Screenshots past the global
@@ -13,6 +16,10 @@
  *        -> { reports, total, counts: { open, closed } (of that kind), kinds: { bug, idea } (open ones) }
  *   GET  /v1/accounts/me/admin/bug-reports/:id                            -> { report } (description, file metadata)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx                 -> the image bytes (inline, no-store, nosniff)
+ *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx/data            -> { mime, data: base64 } (the owner app's gateway
+ *        forwards JSON only)
+ *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open } long polling (~25 s): the
+ *        owner app's «Заявки» badge moves the moment a report arrives or is closed
  *   POST /v1/accounts/me/admin/bug-reports/:id/status  { status }         -> { report } (audit: bug.status)
  *   POST /v1/accounts/me/admin/bug-reports/:id/reward  { days 1–365 }     -> { report } subscription days for the reporter
  *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason
@@ -33,6 +40,8 @@ import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { BUG_REPORT_LIMITS, BugReportError, STORAGE_FULL_MESSAGE, type BugReportStore } from '../services/bugReportStore.js'
 import { ipRateKey } from '../services/securityGuard.js'
+import type { MapUpdates } from './mapUpdates.js'
+import { QUEST_ISSUES, REPORT_CATEGORIES, REPORT_MODES } from '../../../src/shared/reportCategories.js'
 
 /** Base64 of 25 MB is ~33.4 MB; the topic, description and JSON around it fit in the rest. */
 export const BUG_REPORT_BODY_LIMIT = '36mb'
@@ -40,14 +49,33 @@ const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
 const DATA_URL_PREFIX = /^data:image\/(?:png|jpeg|webp);base64,/
 
 const kindSchema = z.enum(['bug', 'idea'])
+const ident = z.string().trim().regex(/^[A-Za-z0-9_.:-]{1,200}$/)
+/** Game metres; the largest maps are well within ±2000. */
+const metres = z.number().finite().min(-5000).max(5000)
+const questSchema = z.object({
+  questId: ident,
+  issue: z.enum(QUEST_ISSUES),
+  mode: z.enum(REPORT_MODES).optional(),
+  mapId: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/).optional(),
+  markerId: ident.optional(),
+  objectiveId: ident.optional(),
+  stageIndex: z.number().int().min(0).max(200).optional(),
+  point: z.object({ x: metres, z: metres, floor: z.string().trim().min(1).max(40).optional() }).optional(),
+  pointNote: z.string().trim().max(300).optional().transform((value) => value || undefined),
+  questNote: z.string().trim().max(1000).optional().transform((value) => value || undefined),
+}).refine((quest) => !quest.point || quest.mapId, { message: 'A proposed point needs its map' })
 const uploadSchema = z.object({
   kind: kindSchema.default('bug'),
+  category: z.enum(REPORT_CATEGORIES).optional(),
+  quest: questSchema.optional(),
   topic: z.string().trim().min(1).max(BUG_REPORT_LIMITS.topic),
-  description: z.string().trim().min(1).max(BUG_REPORT_LIMITS.description),
+  // A quest correction may be the whole report (a proposed point and notes): its description may stay empty.
+  description: z.string().trim().max(BUG_REPORT_LIMITS.description).default(''),
   appVersion: z.string().trim().max(80).default(''),
   platform: z.string().trim().max(160).default(''),
   screenshots: z.array(z.object({ data: z.string().max(Math.ceil(BUG_REPORT_LIMITS.fileBytes / 3) * 4 + 64) })).max(20).default([]),
-})
+}).refine((report) => report.description.length > 0 || report.quest, { message: 'Describe the problem' })
+const eventsSchema = z.object({ since: z.string().regex(/^\d{1,16}$/).optional() })
 const pageSchema = z.object({
   status: z.enum(['open', 'closed']).optional(),
   kind: kindSchema.optional(),
@@ -87,7 +115,8 @@ function decodeScreenshot(raw: string) {
   return Buffer.from(data, 'base64')
 }
 
-export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays } = {}) {
+/** `signals`: the owner app's «Заявки» long polling (a MapUpdates whose answers carry `open`), told on every new or closed report. */
+export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays; signals?: MapUpdates } = {}) {
   const router = express.Router()
   const maxUploads = options.maxConcurrentUploads ?? MAX_CONCURRENT_UPLOADS
   let uploads = 0
@@ -127,8 +156,12 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
       const files = body.data.screenshots.map((shot) => decodeScreenshot(shot.data))
       const retry = accountLimiter.hit(accountId) || ipLimiter.hit(ipRateKey(req.ip))
       if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много отчётов. Попробуйте через час.' }); return }
-      const created = store.create(accountId, accounts.emailOf(accountId), { kind: body.data.kind, topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files })
+      const created = store.create(accountId, accounts.emailOf(accountId), {
+        kind: body.data.kind, category: body.data.kind === 'bug' ? body.data.category : undefined, quest: body.data.kind === 'bug' ? body.data.quest : undefined,
+        topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files,
+      })
       res.status(201).json(created)
+      try { options.signals?.changed() } catch { /* the badge catches up on its next wait */ }
       try { options.mail?.queue(created.id) } catch { /* the report is saved; the owner can send the PDF from the panel */ }
     } catch (error) {
       if (error instanceof BugReportError) { res.status(error.status).json({ error: error.message }); return }
@@ -181,6 +214,27 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     res.end(file.data)
   })
 
+  router.get('/v1/accounts/me/admin/bug-reports/:id/files/:idx/data', (req, res) => {
+    if (!owner('read', req, res)) return
+    const id = idSchema.safeParse(req.params.id)
+    const idx = idxSchema.safeParse(req.params.idx)
+    const file = id.success && idx.success ? store.file(id.data, idx.data) : undefined
+    if (!file) { res.status(404).json({ error: 'Файл не найден' }); return }
+    res.json({ mime: file.mime, data: file.data.toString('base64') })
+  })
+
+  // «Заявки» (owner app, bottom left): waits for the next new or closed report and answers with the open count.
+  router.get('/v1/accounts/me/admin/requests/events', (req, res) => {
+    res.set('Cache-Control', 'no-store')
+    const id = accounts.authenticate(bearer(req.get('authorization')))
+    if (!id) { res.status(401).json({ error: 'Требуется вход в аккаунт' }); return }
+    if (!accounts.isOwner(id)) { res.status(404).json({ error: 'Не найдено' }); return }
+    const query = eventsSchema.safeParse(req.query)
+    if (!query.success) { res.status(400).json({ error: 'Некорректный запрос' }); return }
+    if (!options.signals) { res.json({ version: 0, open: store.openCount() }); return }
+    options.signals.wait(res, `owner:${id}`, query.data.since === undefined ? undefined : Number(query.data.since))
+  })
+
   router.post('/v1/accounts/me/admin/bug-reports/:id/status', express.json({ limit: '4kb' }), (req, res) => {
     const actor = owner('write', req, res)
     if (!actor) return
@@ -190,6 +244,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     const report = id.success ? store.setStatus(id.data, body.data.status) : undefined
     if (!report) { notFound(res); return }
     try { options.audit?.(actor, 'bug.status', String(report.id), { status: report.status }) } catch { /* the status is already saved */ }
+    try { options.signals?.changed() } catch { /* the badge catches up on its next wait */ }
     res.json({ report })
   })
 
