@@ -9,8 +9,8 @@ const PATH = '/v1/accounts/me/admin/announcement'
 interface Saved { text: string; active: boolean; updatedAt: string }
 
 /**
- * The owner app: «Уведомление для всех». The text appears at the top of every player's app at once («Показать всем») and
- * stays until «Скрыть» (server/src/routes/announcement.ts).
+ * The owner app: «Уведомление сверху». The text appears at the top of every player's app within a few minutes («Показать
+ * всем») and stays until «Скрыть» (server/src/routes/announcement.ts; the apps check every 3–6 minutes).
  */
 export function OwnerAnnouncementPanel() {
   const request = window.tarkovDesktop?.serviceRequest
@@ -64,7 +64,7 @@ export function OwnerAnnouncementPanel() {
           </button>
           <small className="dim">{text.length}/{MAX}</small>
         </div>
-        <small className={shown ? 'owner-announcement-state is-on' : 'owner-announcement-state'}>{uiLabel(shown ? 'Сейчас показывается у всех.' : 'Сейчас не показывается.')}</small>
+        <small className={shown ? 'owner-announcement-state is-on' : 'owner-announcement-state'}>{uiLabel(shown ? 'Показывается у всех.' : 'Сейчас не показывается.')} {uiLabel('Приложения игроков проверяют уведомление раз в 3–6 минут.')}</small>
         {error && <small className="nickname-editor-error" role="alert">{uiLabel(error)}</small>}
       </div>
     </section>

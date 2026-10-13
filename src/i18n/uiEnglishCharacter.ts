@@ -20,7 +20,8 @@ export const CHARACTER_PHRASES: Array<[string, string]> = [
   ['Например: ведутся технические работы, приложение заработает через 15 минут.', 'For example: maintenance is under way, the app will be back in 15 minutes.'],
   ['Обновить у всех', 'Update for everyone'],
   ['Показать всем', 'Show to everyone'],
-  ['Сейчас показывается у всех.', 'Shown to everyone now.'],
+  ['Показывается у всех.', 'Shown to everyone.'],
+  ['Приложения игроков проверяют уведомление раз в 3–6 минут.', 'Players’ apps check for the notice every 3–6 minutes.'],
   ['Сейчас не показывается.', 'Not shown now.'],
   ['Текст уведомления: не пустой, до 500 символов', 'Notice text: not empty, up to 500 characters'],
 ]

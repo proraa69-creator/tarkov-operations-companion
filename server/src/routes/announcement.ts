@@ -6,8 +6,8 @@
  *   GET /v1/accounts/me/admin/announcement -> { announcement } (owner: with the hidden text, to edit it)
  *   PUT /v1/accounts/me/admin/announcement { text, active } -> { announcement }
  *
- * The waiting is routes/mapUpdates.ts's (long polling through the desktop app's gateway); every saved change wakes every
- * waiting app at once. Owner routes as the quest texts (routes/questTexts.ts): 401 without a session, 404 for everybody but
+ * The apps ask once every 3–6 minutes, at a random moment each (src/announcement/announcement.ts: no connection held
+ * open, no burst); `since` (long polling, routes/mapUpdates.ts) still works for a client that wants to wait. Owner routes as the quest texts (routes/questTexts.ts): 401 without a session, 404 for everybody but
  * the owner; changes go to the audit log as `announcement.set`.
  */
 import express from 'express'
