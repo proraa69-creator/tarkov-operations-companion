@@ -15,6 +15,7 @@ const OUTCOME_TEXT: Record<UpdateCheckResult['outcome'], string> = {
   'not-portable': 'Обновление работает только в собранной portable-версии',
   disabled: 'В этой сборке обновление выключено',
   busy: 'Обновление уже загружается',
+  'owner-exe': 'Новую версию частями не поставить: скачайте «Raid OS Server.exe» в админ-панели, раздел «Серверная версия»',
 }
 
 /**
@@ -63,7 +64,7 @@ export function AppUpdateSettings() {
   if (status.state === 'downloading') line += ` · ${uiText('Загрузка обновления')} ${status.progress ?? 0}%`
   else if (status.state === 'installing') line += ` · ${uiText('Перезапуск…')}`
   else if (status.state === 'error') line += ` · ${uiText(status.error ?? 'Ошибка обновления')}`
-  else if (status.state === 'available') line += ` · ${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}${status.ready ? ` · ${uiText('уже загружена')}` : ''}`
+  else if (status.state === 'available') line += ` · ${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}${status.ready ? ` · ${uiText('уже загружена')}` : ''}${status.ownerExe ? ` · ${uiText(OUTCOME_TEXT['owner-exe'])}` : ''}`
   else if (result) line += ` · ${uiText(OUTCOME_TEXT[result.outcome])} (${time})`
   const autoCheck = settings?.autoCheck ?? true
   const autoInstall = settings?.autoInstall ?? false
@@ -80,7 +81,7 @@ export function AppUpdateSettings() {
           {found && api && (
             <button type="button" className={`button small${status.state === 'error' ? '' : ' primary'}`} disabled={busy} onClick={() => void api.install().then(setStatus)}>
               {busy ? <LoaderCircle size={13} className="spin" /> : <Download size={13} />}
-              {status.state === 'error' ? uiText(' Повторить') : locale === 'en' ? ' Update' : ' Обновить'}
+              {status.state === 'error' ? uiText(' Повторить') : status.ownerExe ? uiText(' Открыть админ-панель') : locale === 'en' ? ' Update' : ' Обновить'}
             </button>
           )}
           <button type="button" className="button small" disabled={!api?.check || checking || busy} onClick={() => void check()}>

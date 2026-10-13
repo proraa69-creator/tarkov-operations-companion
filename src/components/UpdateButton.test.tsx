@@ -28,6 +28,15 @@ describe('desktop update controls', () => {
     act(() => listener({ state: 'downloading', version: '0.5.4', progress: 42 }))
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42')
   })
+  it('the owner\'s copy and a release only a whole owner exe brings: «Скачать новую версию» opens the admin panel, no download window', async () => {
+    status = { state: 'available', version: '0.6.0-29', notify: true, ownerExe: true }
+    render(<UpdateButton />)
+    const button = await screen.findByRole('button', { name: 'Скачать новую версию' })
+    expect(button.getAttribute('title')).toContain('«Raid OS Server.exe»')
+    fireEvent.click(button)
+    expect(install).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
   it('opens a startup download already in progress when the UI mounts', async () => {
     status = { state: 'downloading', progress: 10, notify: false }
     render(<UpdateButton />)
@@ -46,5 +55,12 @@ describe('desktop update controls', () => {
     await waitFor(() => expect(button).not.toBeDisabled())
     fireEvent.click(button)
     expect(setSettings).toHaveBeenCalledWith({ autoInstall: true })
+  })
+  it('settings say where the owner\'s whole exe is and the button opens the admin panel', async () => {
+    status = { state: 'available', version: '0.6.0-29', notify: true, ownerExe: true }
+    render(<AppUpdateSettings />)
+    expect(await screen.findByText(/скачайте «Raid OS Server\.exe» в админ-панели, раздел «Серверная версия»/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Открыть админ-панель/ }))
+    expect(install).toHaveBeenCalledOnce()
   })
 })

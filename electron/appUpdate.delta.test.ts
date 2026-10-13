@@ -15,7 +15,8 @@ const keys = await vi.hoisted(async () => {
 const build = vi.hoisted(() => ({ owner: false, defaultServer: 'https://raidos.app', userData: '' }))
 
 vi.mock('./updateSigningKey.js', () => ({ UPDATE_SIGNING_PUBLIC_KEY: keys.publicPem }))
-vi.mock('electron', () => ({ app: { isPackaged: false, on: vi.fn(), quit: vi.fn(), getPath: () => build.userData } }))
+const shellMock = vi.hoisted(() => ({ openExternal: vi.fn(async () => {}) }))
+vi.mock('electron', () => ({ app: { isPackaged: false, on: vi.fn(), quit: vi.fn(), getPath: () => build.userData }, shell: shellMock }))
 vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => build.owner, buildDefaultServerUrl: () => build.defaultServer }))
 vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.3', build: 100, commit: 'old', trialLaunches: 0, edition: build.owner ? 'owner' : 'client' }) }))
 // The address typed in the app: a player's copy must never update from it.
@@ -67,7 +68,7 @@ describe('the owner\'s partial update (electron/deltaUpdate.ts)', () => {
     delta.fetchDeltaInfo.mockResolvedValue(info)
     expect((await checkForUpdateNow()).outcome).toBe('available')
     // Its own server's release, no signature needed: it turns the players' archive into an owner build.
-    expect(delta.fetchDeltaInfo).toHaveBeenLastCalledWith('https://typed-in.example', expect.objectContaining({ build: 200, version: '0.5.4', commit: 'abc1234' }), { signed: false })
+    expect(delta.fetchDeltaInfo).toHaveBeenLastCalledWith('https://typed-in.example', expect.objectContaining({ build: 200, version: '0.5.4', commit: 'abc1234' }), expect.objectContaining({ signed: false }))
     await installUpdate({ manual: true })
     expect(delta.stageDeltaUpdate).toHaveBeenCalledWith('https://typed-in.example', info, expect.any(Function))
     expect(delta.activateDeltaUpdate).toHaveBeenCalledWith(info)
@@ -75,6 +76,29 @@ describe('the owner\'s partial update (electron/deltaUpdate.ts)', () => {
     expect(updateStatus()).toMatchObject({ state: 'installing', progress: 100 })
     // The whole exe was never downloaded.
     expect(wholeExeDownloaded()).toBe(false)
+  })
+
+  it('a release parts cannot bring (another Electron): the owner copy says so, and only the owner\'s click opens the admin panel (owner, 13.10.2026)', async () => {
+    build.owner = true
+    const { checkForUpdateNow, installUpdate, updateStatus } = await updater()
+    const electronChanged = async (_base: string, _release: unknown, options: { onWholeExe?: (reason: string) => void }) => { options.onWholeExe?.('Electron 44.4.5 → 45.0.0'); return null }
+    delta.fetchDeltaInfo.mockImplementation(electronChanged)
+    expect((await checkForUpdateNow()).outcome).toBe('owner-exe')
+    expect(updateStatus()).toMatchObject({ state: 'available', version: '0.5.4', ownerExe: true })
+    // An automatic installation never opens a browser by itself.
+    await installUpdate()
+    expect(shellMock.openExternal).not.toHaveBeenCalled()
+    // «Скачать новую версию»: the admin panel, where «Серверная версия» hands out the owner's exe; nothing is swapped here.
+    await installUpdate({ manual: true })
+    expect(shellMock.openExternal).toHaveBeenCalledWith('https://typed-in.example/admin')
+    expect(updateStatus()).toMatchObject({ state: 'available', ownerExe: true })
+    expect(delta.stageDeltaUpdate).not.toHaveBeenCalled()
+    expect(wholeExeDownloaded()).toBe(false)
+    expect(child.spawn).not.toHaveBeenCalled()
+    // A later release that parts can bring again is a normal update.
+    delta.fetchDeltaInfo.mockReset().mockResolvedValue(info)
+    expect((await checkForUpdateNow()).outcome).toBe('available')
+    expect(updateStatus().ownerExe).toBeUndefined()
   })
 
   it('a failed part stops the owner\'s update: the players\' whole exe is never put in its place', async () => {
@@ -97,7 +121,7 @@ describe('a player\'s partial update (owner, 11.10.2026: «частичное о
     delta.fetchDeltaInfo.mockResolvedValue(info)
     expect((await checkForUpdateNow()).outcome).toBe('available')
     // From the server built into the copy, and only with the update key's signature.
-    expect(delta.fetchDeltaInfo).toHaveBeenLastCalledWith('https://raidos.app', expect.objectContaining({ build: 200 }), { signed: true })
+    expect(delta.fetchDeltaInfo).toHaveBeenLastCalledWith('https://raidos.app', expect.objectContaining({ build: 200 }), expect.objectContaining({ signed: true }))
     await installUpdate({ manual: true })
     expect(delta.stageDeltaUpdate).toHaveBeenCalledWith('https://raidos.app', info, expect.any(Function))
     expect(delta.activateDeltaUpdate).toHaveBeenCalledWith(info)
@@ -116,6 +140,15 @@ describe('a player\'s partial update (owner, 11.10.2026: «частичное о
     expect(wholeExeDownloaded()).toBe(true)
     expect(child.spawn).toHaveBeenCalledTimes(1)
     expect(updateStatus()).toMatchObject({ state: 'installing' })
+  })
+
+  it('a release parts cannot bring is the signed whole exe for a player, as before', async () => {
+    build.owner = false
+    const { checkForUpdateNow, updateStatus } = await updater()
+    delta.fetchDeltaInfo.mockImplementation(async (_base: string, _release: unknown, options: { onWholeExe?: (reason: string) => void }) => { options.onWholeExe?.('Electron 44.4.5 → 45.0.0'); return null })
+    expect((await checkForUpdateNow()).outcome).toBe('available')
+    expect(updateStatus()).toMatchObject({ state: 'available', version: '0.5.4' })
+    expect(updateStatus().ownerExe).toBeUndefined()
   })
 
   it('falls back to the whole exe when a part fails, and does not try the parts of that release again', async () => {

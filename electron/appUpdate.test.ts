@@ -90,7 +90,7 @@ describe('auto-update: signed manifests only (electron/appUpdate.ts)', () => {
     delta.fetchDeltaInfo.mockClear()
     served = { manifest: signedBy(keys.privateKey), exe }
     await checkForUpdateNow()
-    expect(delta.fetchDeltaInfo).toHaveBeenCalledWith('https://raidos.app', expect.objectContaining({ build: 200 }), { signed: true })
+    expect(delta.fetchDeltaInfo).toHaveBeenCalledWith('https://raidos.app', expect.objectContaining({ build: 200 }), expect.objectContaining({ signed: true }))
   })
 
   it('the downloaded exe must match the signed SHA-256', async () => {
