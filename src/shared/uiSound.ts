@@ -81,15 +81,16 @@ function loadClickSample(ctx: AudioContext) {
   edge (peak −38 %, spectral centroid ≈ 10.5 → 5.2 kHz). The first-press fallback is softened the same way:
   lower, darker and with a 4 ms linear fade-in.
 */
-const CLICK_LEVEL = 1.3
+/** Half of the earlier 1.3 (owner, 13.10.2026: «уменьши звук щелчка в 2 раза»). */
+const CLICK_LEVEL = 0.65
 const CLICK_LOWPASS_HZ = 4500
 const CLICK_ATTACK = 0.004
 
 function playClickSample(ctx: AudioContext, at: number) {
   if (!clickSample) {
     // First press: fall back to a synthesized tick while the recording loads.
-    burst(ctx, at, 1800, 1.5, 0.14, 0.022, CLICK_ATTACK)
-    burst(ctx, at, 750, 0.9, 0.19, 0.048, CLICK_ATTACK)
+    burst(ctx, at, 1800, 1.5, 0.07, 0.022, CLICK_ATTACK)
+    burst(ctx, at, 750, 0.9, 0.095, 0.048, CLICK_ATTACK)
     void loadClickSample(ctx)
     return
   }

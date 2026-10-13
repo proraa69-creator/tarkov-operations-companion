@@ -8,6 +8,9 @@ import { QUEST_ISSUE_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type Rep
 import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
+import { isDesktopShell, isNative, nativePlatform } from '../platform'
+import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
+import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
@@ -71,6 +74,21 @@ const WORDS: Record<ReportKind, Record<'title' | 'topic' | 'description' | 'drop
   },
 }
 
+/** «Версия Таркова» in the report (owner, 13.10.2026: «какая версия таркова, стим или не стим»). */
+const TARKOV_EDITION_LABELS: Record<TarkovEdition, string> = {
+  steam: 'Steam',
+  launcher: 'не Steam (лаунчер BSG)',
+  'not-found': 'не определена — журналы игры не найдены',
+}
+const TARKOV_EDITION_SHORT: Record<TarkovEdition, string> = { steam: 'Steam', launcher: 'BSG launcher', 'not-found': 'logs not found' }
+const savedLogsFolder = () => { try { return localStorage.getItem(LOG_FOLDER_STORAGE_KEY) } catch { return null } }
+
+/** The phone app names its system, the desktop app its build («client» / «owner»). */
+function editionLabel() {
+  if (!isNative()) return appEdition()
+  return nativePlatform() === 'ios' ? 'iPhone' : nativePlatform() === 'android' ? 'Android' : 'phone'
+}
+
 const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
   quest: ScrollText, map: MapIcon, minimap: MapPinned, progress: RefreshCw, kappa: Package, 'item-info': Info, bosses: Skull,
   traders: Store, flea: ShoppingCart, hideout: House, gunsmith: Wrench, ballistics: Crosshair, squad: Users, account: User,
@@ -111,8 +129,11 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
   const fileInput = useRef<HTMLInputElement>(null)
   const shotsRef = useRef(shots)
   useEffect(() => { shotsRef.current = shots }, [shots])
-  const appVersion = `${version} · ${appEdition()}`
-  const platform = describePlatform()
+  const appVersion = `${version} · ${editionLabel()}`
+  // The game runs on the PC only: the phone has no Tarkov to tell.
+  const edition = useTarkovEdition(savedLogsFolder)
+  const gameEdition = isDesktopShell() ? edition : null
+  const platform = gameEdition ? `${describePlatform()} · EFT: ${TARKOV_EDITION_SHORT[gameEdition]}` : describePlatform()
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !sending) onClose() }
@@ -264,7 +285,8 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
         <div className="bug-report-meta">
           <strong>{uiText(words.meta)}</strong>
           <span>{uiText('Версия приложения')}: {appVersion}</span>
-          <span>{uiText('Система')}: {platform}</span>
+          <span>{uiText('Система')}: {describePlatform()}</span>
+          {gameEdition && <span>{uiText('Версия Таркова')}: {uiText(TARKOV_EDITION_LABELS[gameEdition])}</span>}
           {status?.email && <span>{uiText('Аккаунт')}: {status.email}</span>}
         </div>
         </div>

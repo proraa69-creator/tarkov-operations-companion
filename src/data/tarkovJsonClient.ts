@@ -25,7 +25,7 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
     // or answers garbage falls back to the direct fetch below.
     const service = locale !== 'ru' ? undefined
       : window.tarkovDesktop ? await window.tarkovDesktop.serviceRequest('GET', `/v1/catalog/${mode}`).catch(() => null)
-        // The phone app asks the configured server too (Settings → «Адрес сервера»).
+        // The phone app asks its server too (https://raidos.app, or the one its QR sign-in brought).
         : usesWebAccount() ? await webServiceRequest('GET', `/v1/catalog/${mode}`).catch(() => null) : undefined
     let dataset: AppDataset
     if (isDataset(service, mode)) dataset = service

@@ -25,6 +25,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Убрать скриншот', 'Remove screenshot'],
   ['К отчёту автоматически добавятся:', 'Added to the report automatically:'],
   ['Версия приложения', 'App version'],
+  ['Версия Таркова', 'Tarkov version'], ['не Steam (лаунчер BSG)', 'not Steam (BSG launcher)'], ['не определена — журналы игры не найдены', 'unknown — game logs not found'],
   ['Отправляем…', 'Sending…'],
   ['Отправить отчёт', 'Send report'],
   ['Спасибо! Отчёт отправлен', 'Thank you! The report has been sent'],

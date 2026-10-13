@@ -2,16 +2,22 @@ import { useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Skull, Target, UserRound, Users, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Skull, Target, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { useAppVersion } from '../app/appVersion'
+import { nativePlatform } from '../platform'
 import { useLocale } from '../i18n/LocaleProvider'
 
+/**
+ * Owner, 13.10.2026: «в нижнем меню убери раздел миникарта … вместо миникарты сделай оружейника туда» (the position
+ * from the game's screenshots already shows on «Карты»), and «Задания» is called «Квесты».
+ */
 const TABS = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
-  { to: '/quests', ru: 'Задания', en: 'Tasks', icon: Target },
+  { to: '/quests', ru: 'Квесты', en: 'Quests', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
-  { to: '/live', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
+  { to: '/gunsmith', ru: 'Оружейник', en: 'Gunsmith', icon: Wrench },
 ]
 
 const MORE = [
@@ -34,6 +40,7 @@ const MORE = [
 export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number }) {
   const badge = (count: number) => count > 0 ? <span className="nav-badge" aria-label={uiText(`Новых заявок: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
   const { locale, setLocale } = useLocale()
+  const version = useAppVersion()
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
   const moreActive = MORE.some((entry) => location.pathname.startsWith(entry.to))
@@ -68,6 +75,8 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
               <button type="button" className="button" onClick={onRefresh}><RefreshCw size={16} className={refreshing ? 'spin' : ''} />{uiText(locale === 'en' ? 'Refresh' : 'Обновить')}</button>
               <div className="locale-switch" aria-label={uiText('Язык интерфейса')}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
             </div>
+            {/* Owner, 13.10.2026: «на телефоне тоже пиши, какая версия приложения». */}
+            <p className="mobile-more-version">{uiText(locale === 'en' ? 'Version' : 'Версия')} {version}{nativePlatform() === 'ios' ? ' · iPhone' : nativePlatform() === 'android' ? ' · Android' : ''}</p>
           </div>
         </div>
       )}
