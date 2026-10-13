@@ -150,7 +150,8 @@ export function HelmetBadge({ reduced }: { reduced: boolean }) {
     }
   }, [live])
 
-  // The head turns toward the cursor (strongly while it is on the mask or on «Обзор»); read at most once per frame.
+  // The head looks at the cursor (closer while it is on the mask or on «Обзор»), read at most once per frame; when the
+  // cursor leaves the window it turns back to its resting pose, toward the page.
   useEffect(() => {
     if (!live || reduced) return
     let frame = 0, x = 0, y = 0
@@ -165,14 +166,20 @@ export function HelmetBadge({ reduced }: { reduced: boolean }) {
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2
       if (!link?.isConnected) link = document.querySelector(OVERVIEW)
       const hover = (Math.abs(x - cx) <= r.width / 2 && Math.abs(y - cy) <= r.height / 2) || !!link?.matches(':hover')
-      handle.setPointer((x - cx) / (hover ? 90 : 420), (y - cy) / (hover ? 70 : 420), hover)
+      handle.setPointer(x - cx, y - cy, hover)
     }
     const onMove = (event: PointerEvent) => {
       x = event.clientX; y = event.clientY
       if (!frame) frame = requestAnimationFrame(apply)
     }
+    const onLeave = (event: MouseEvent) => { if (!event.relatedTarget) handleRef.current?.clearPointer() }
     window.addEventListener('pointermove', onMove, { passive: true })
-    return () => { window.removeEventListener('pointermove', onMove); if (frame) cancelAnimationFrame(frame) }
+    document.addEventListener('mouseout', onLeave)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      document.removeEventListener('mouseout', onLeave)
+      if (frame) cancelAnimationFrame(frame)
+    }
   }, [live, reduced])
 
   // Keep the open menu inside the window.

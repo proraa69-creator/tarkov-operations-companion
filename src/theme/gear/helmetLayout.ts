@@ -29,8 +29,13 @@ export const LAYOUT_KEY = 'gear-helmet-layout-v2'
 /** Older layout: absolute three.js angles (rotX / rotY / rotZ, Euler 'YXZ', degrees) plus dx / dy / scale / size. */
 export const LEGACY_LAYOUT_KEY = 'gear-helmet-layout-v1'
 
-/** The resting pose in three.js Euler 'YXZ' degrees: nodding 12° down, turned 35° to the left, leaning 8° right. */
-export const REST_POSE = { rotX: 12, rotY: -35, rotZ: -8 } as const
+/**
+ * The resting pose in three.js Euler 'YXZ' degrees: turned 50° to the right and nodding 20° down, toward the page
+ * and its map below (owner, 13.10: «чтобы она смотрела в сторону карты»), leaning 6° left.
+ */
+export const REST_POSE = { rotX: 20, rotY: 50, rotZ: 6 } as const
+/** The resting pose before 13.10 (turned to the left): the oldest layouts' absolute angles are offsets from it. */
+const LEGACY_REST_POSE = { rotX: 12, rotY: -35, rotZ: -8 } as const
 
 /** Slider range of each angle, ± degrees from the resting pose. */
 export const ANGLE_LIMITS: Record<AngleKey, number> = { pitch: 45, roll: 45, yaw: 90 }
@@ -44,6 +49,23 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const numberOr = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? value : fallback
 /** −180..180 */
 const wrapDegrees = (degrees: number) => ((((degrees + 180) % 360) + 360) % 360) - 180
+
+/** Pointer distance (px) that turns the head 45°: like eyes this far in front of the screen; smaller = livelier. */
+export const LOOK_DEPTH = { far: 420, near: 110 }
+/** The furthest the head turns toward the pointer (degrees): any further and the face turns away from the viewer. */
+export const LOOK_LIMITS = { yaw: 62, pitch: 34 }
+
+/**
+ * Turn (+ right) and nod (+ down), degrees, that point the face at a pointer dx, dy px from the mask's centre; `near`
+ * (the pointer on the mask or on «Обзор») looks closer, so small moves there still turn the head well.
+ */
+export function lookAt(dx: number, dy: number, near = false) {
+  const depth = near ? LOOK_DEPTH.near : LOOK_DEPTH.far
+  return {
+    yaw: clamp(Math.atan2(dx, depth) * 180 / Math.PI, -LOOK_LIMITS.yaw, LOOK_LIMITS.yaw),
+    pitch: clamp(Math.atan2(dy, depth) * 180 / Math.PI, -LOOK_LIMITS.pitch, LOOK_LIMITS.pitch),
+  }
+}
 
 export function clampAngle(key: AngleKey, degrees: number) {
   return clamp(Math.round(degrees), -ANGLE_LIMITS[key], ANGLE_LIMITS[key])
@@ -64,15 +86,15 @@ export function sanitizeLayout(saved: Record<string, unknown>): HelmetLayout {
 }
 
 /**
- * The older absolute angles as offsets from the resting pose, so the mask keeps looking the way it did: the old
- * «Наклон» slider (rotZ) becomes the left / right tilt, the first editor's rotX / rotY the nod and the turn.
- * The position (dx / dy), scale and size carry over unchanged.
+ * The older absolute angles as offsets from the resting pose of their time, so a player's own nod, tilt and turn
+ * carry over: the old «Наклон» slider (rotZ) becomes the left / right tilt, the first editor's rotX / rotY the nod
+ * and the turn. The position (dx / dy), scale and size carry over unchanged.
  */
 export function migrateLegacyLayout(saved: Record<string, unknown>): HelmetLayout {
   return sanitizeLayout({
-    pitch: REST_POSE.rotX - numberOr(saved.rotX, REST_POSE.rotX),
-    roll: REST_POSE.rotZ - numberOr(saved.rotZ, REST_POSE.rotZ),
-    yaw: wrapDegrees(numberOr(saved.rotY, REST_POSE.rotY) - REST_POSE.rotY),
+    pitch: LEGACY_REST_POSE.rotX - numberOr(saved.rotX, LEGACY_REST_POSE.rotX),
+    roll: LEGACY_REST_POSE.rotZ - numberOr(saved.rotZ, LEGACY_REST_POSE.rotZ),
+    yaw: wrapDegrees(numberOr(saved.rotY, LEGACY_REST_POSE.rotY) - LEGACY_REST_POSE.rotY),
     dx: saved.dx, dy: saved.dy, scale: saved.scale, size: saved.size,
   })
 }
