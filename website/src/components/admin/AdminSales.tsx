@@ -12,8 +12,6 @@ const ACTION_LABEL: Record<string, string> = {
   'map.boss-place': 'Босс поставлен на карту',
   'map.boss-remove': 'Босс убран с карты',
   'map.quest-point': 'Исправлена точка квеста',
-  'payments.lava-settings': 'Настройки оплаты Lava.top',
-  'payments.lava-test': 'Проверка вебхука Lava.top',
   'subscription.grant': 'Выдана подписка',
   'autopay.cancel': 'Отменено автопродление',
   'account.block': 'Заблокирован вход',

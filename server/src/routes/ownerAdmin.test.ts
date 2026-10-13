@@ -283,10 +283,10 @@ test('«Удалить аккаунт» from the admin panel: owner only, erased
   } finally { await t.close() }
 })
 
-test('statistics: users, revenue by provider and plan per day / month, payouts, filters and CSV', async () => {
+test('statistics: users, revenue by plan per day / month, payouts, filters and CSV', async () => {
   const t = await setup()
   try {
-    // A streamer and two referred players; one pays 1 month, the other 12 months the next day; a Lava payment by SQL.
+    // A streamer and two referred players; one pays 1 month, the other 12 months the next day; one more payment by SQL.
     await t.register('streamer@example.com')
     t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
     const a = await t.register('a@example.com', 'HUNTER')
@@ -295,31 +295,30 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     const b = await t.register('b@example.com', 'HUNTER')
     await t.pay(b, '12m')
     const bId = t.accounts.authenticate(b)!
-    t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider, currency, amount_original) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaa', ?, '3m', 90000, 'succeeded', ?, ?, 'lava', 'USD', 1000)").run(bId, Date.parse('2026-10-02T11:00:00.000Z'), Date.parse('2026-10-02T11:00:00.000Z'))
+    t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider, currency, amount_original) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaa', ?, '3m', 90000, 'succeeded', ?, ?, 'yookassa', 'RUB', 90000)").run(bId, Date.parse('2026-10-02T11:00:00.000Z'), Date.parse('2026-10-02T11:00:00.000Z'))
     t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, provider, currency) VALUES ('bbbbbbbbbbbbbbbbbbbbbbbb', ?, '6m', 180000, 'canceled', ?, 'yookassa', 'RUB')").run(bId, Date.parse('2026-10-02T11:30:00.000Z'))
     const owner = await t.login('owner@example.com')
 
     const overview = (await t.call('GET', '/accounts/me/admin/overview', owner)).json as unknown as {
       users: { total: number; today: number; days7: number }; subscriptions: { active: number; trials: number; streamers: number }
-      revenue: { today: { yookassa: number; lava: number; total: number }; month: { total: number }; all: { total: number; payments: number }; lavaOriginal: Array<{ currency: string; amount: number }> }
+      revenue: { today: { total: number; payments: number }; month: { total: number }; all: { total: number; payments: number } }
       payouts: { earned: number }
     }
     assert.deepEqual([overview.users.total, overview.users.today, overview.users.days7], [4, 1, 4])
     assert.equal(overview.subscriptions.active, 2)
     assert.equal(overview.subscriptions.streamers, 1)
-    // 12 months: 2400 ₽ today (ЮKassa) + 900 ₽ (Lava at the owner's rate).
-    assert.deepEqual(overview.revenue.today, { yookassa: 2400, lava: 900, total: 3300, payments: 2 })
+    // 12 months: 2400 ₽ today + 900 ₽ (the 3 months inserted by SQL).
+    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2 })
     assert.equal(overview.revenue.all.total, 3600)
     assert.equal(overview.revenue.all.payments, 3)
-    assert.deepEqual(overview.revenue.lavaOriginal, [{ currency: 'USD', amount: 10 }])
-    // 10 % of the two referred ЮKassa payments (the Lava row was inserted without a referral code); no streamer discount.
+    // 10 % of the two referred payments (the SQL row was inserted without a referral code); no streamer discount.
     assert.equal(overview.payouts.earned, 270)
 
-    const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<string, { count: number; revenue: number }> }> }
+    const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; plans: Record<string, { count: number; revenue: number }> }> }
     assert.equal(days.rows.length, 31)
     const [today, yesterday] = days.rows
     assert.equal(today!.period, '2026-10-02')
-    assert.deepEqual([today!.registrations, today!.payments, today!.revenue, today!.yookassa, today!.lava], [1, 2, 3300, 2400, 900])
+    assert.deepEqual([today!.registrations, today!.payments, today!.revenue], [1, 2, 3300])
     assert.deepEqual(today!.plans['12m'], { count: 1, revenue: 2400 })
     assert.deepEqual(today!.plans['3m'], { count: 1, revenue: 900 })
     assert.deepEqual([yesterday!.period, yesterday!.registrations, yesterday!.payments, yesterday!.revenue], ['2026-10-01', 3, 1, 300])
@@ -331,10 +330,8 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.equal((await t.call('GET', '/accounts/me/admin/series?period=week', owner)).status, 400)
 
     // Payments: filters and totals.
-    const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; lava: number; yookassa: number } }
-    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.lava, all.totals.yookassa], [4, 3, 3600, 900, 2700])
-    const lava = (await t.call('GET', '/accounts/me/admin/payments?provider=lava', owner)).json as unknown as { payments: Array<{ original: { amount: number; currency: string } }> }
-    assert.deepEqual(lava.payments.map((item) => item.original), [{ amount: 10, currency: 'USD' }])
+    const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
+    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.streamerEarnings], [4, 3, 3600, 270])
     const canceled = (await t.call('GET', '/accounts/me/admin/payments?status=canceled&plan=6m', owner)).json as unknown as { total: number }
     assert.equal(canceled.total, 1)
     const byEmail = (await t.call('GET', '/accounts/me/admin/payments?q=A%40EXAMPLE', owner)).json as unknown as { total: number; payments: Array<{ email: string }> }
@@ -354,7 +351,7 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.equal(lines.length, 4)
     assert.equal(lines[0]!.split(';')[2], 'E-mail')
     assert.ok(lines.some((line) => line.includes('b@example.com;12m;ЮKassa;Оплачен;2400,00')), lines.join('\n'))
-    assert.ok(lines.some((line) => line.includes('Lava.top;Оплачен;900,00;10,00;USD')))
+    assert.ok(lines.some((line) => line.includes('b@example.com;3m;ЮKassa;Оплачен;900,00;;;')), lines.join('\n'))
     const exported = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; details: { rows: number } }> }).entries[0]!
     assert.deepEqual([exported.action, exported.details.rows], ['payments.export', 3])
   } finally { await t.close() }

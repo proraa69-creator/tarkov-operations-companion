@@ -7,7 +7,7 @@ import { apiChildEnv, apiProcessEnv } from './apiEnv'
 describe('API process environment (L6)', () => {
   const parent = {
     PATH: 'C:\\Windows', SystemRoot: 'C:\\Windows', TEMP: 'C:\\Temp', APPDATA: 'C:\\Users\\me\\AppData\\Roaming', NODE_ENV: 'production',
-    TARKOV_MAX_DEVICES: '3', YOOKASSA_SHOP_ID: '1', LAVA_API_KEY: 'k', TARKOV_SMS_PROVIDER: 'x', TARKOV_EMAIL_FROM: 'a@b.c',
+    TARKOV_MAX_DEVICES: '3', YOOKASSA_SHOP_ID: '1', YOOKASSA_RECEIPTS: '1', TARKOV_SMS_PROVIDER: 'x', TARKOV_EMAIL_FROM: 'a@b.c',
     RAIDOS_UPDATE_SIGNING_KEY: 'private', RAIDOS_UPDATE_SIGNING_KEY_FILE: 'C:\\keys\\update.pem', GITHUB_TOKEN: 'ghp_x', AWS_SECRET_ACCESS_KEY: 'aws',
     ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: '--require evil.js', PORTABLE_EXECUTABLE_FILE: 'C:\\Raid OS.exe',
   }
@@ -15,7 +15,7 @@ describe('API process environment (L6)', () => {
   it('passes the run-time basics and the variables the server reads', () => {
     expect(apiProcessEnv(parent)).toEqual({
       PATH: 'C:\\Windows', SystemRoot: 'C:\\Windows', TEMP: 'C:\\Temp', APPDATA: 'C:\\Users\\me\\AppData\\Roaming', NODE_ENV: 'production',
-      TARKOV_MAX_DEVICES: '3', YOOKASSA_SHOP_ID: '1', LAVA_API_KEY: 'k', TARKOV_SMS_PROVIDER: 'x', TARKOV_EMAIL_FROM: 'a@b.c',
+      TARKOV_MAX_DEVICES: '3', YOOKASSA_SHOP_ID: '1', YOOKASSA_RECEIPTS: '1', TARKOV_SMS_PROVIDER: 'x', TARKOV_EMAIL_FROM: 'a@b.c',
     })
   })
 

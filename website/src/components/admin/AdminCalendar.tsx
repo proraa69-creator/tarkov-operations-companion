@@ -5,14 +5,13 @@ import { api, type AdminCalendarDay, type AdminDay } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
-import { failure, formatRub, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, useAdminData, type Failure } from './adminData'
+import { failure, formatRub, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 import '../../admin-calendar.css'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const monthTitle = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 const dayTitle = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 const timeOnly = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
-const PROVIDER: Record<string, string> = { yookassa: 'ЮKassa', lava: 'Lava.top' }
 const INVITE_STATUS: Record<string, string> = { pending: 'на проверке', review: 'у администрации', granted: 'начислено', canceled: 'не засчитано' }
 const RANK: Record<string, string> = { friend: 'за друга', operator: 'ранг Operator', 'squad-leader': 'ранг Squad Leader', 'raid-commander': 'ранг Raid Commander', legend: 'ранг Legend' }
 
@@ -166,10 +165,8 @@ function DayDetails({ day }: { day: AdminDay }) {
         <div><dt>Регистраций</dt><dd className="mono">{numberFormat.format(totals.registrations)}</dd></div>
         <div><dt>Доля стримеров</dt><dd className="mono">{rub(totals.streamerEarnings)}</dd></div>
       </dl>
-      {(totals.yookassa > 0 || totals.lava > 0 || plans.length > 0) && (
+      {plans.length > 0 && (
         <p className="day-split">
-          {totals.yookassa > 0 && <span>ЮKassa <strong className="mono">{rub(totals.yookassa)}</strong></span>}
-          {totals.lava > 0 && <span>Lava.top <strong className="mono">{rub(totals.lava)}</strong></span>}
           {plans.map((id) => <span key={id}>{PLAN_LABEL[id]}: <strong className="mono">{numberFormat.format(totals.plans[id].count)}</strong> · {rub(totals.plans[id].revenue)}</span>)}
         </p>
       )}
@@ -188,7 +185,7 @@ function DayDetails({ day }: { day: AdminDay }) {
                       <td className="mono">{timeOnly.format(new Date(payment.paidAt ?? payment.createdAt))}</td>
                       <td className="day-email">{payment.email}{payment.referralCode && <span className="tag">{payment.referralCode}</span>}</td>
                       <td>{PLAN_LABEL[payment.plan]}{payment.renewal && ' · продление'}</td>
-                      <td>{PROVIDER[payment.provider] ?? payment.provider}</td>
+                      <td>{PROVIDER_LABEL[payment.provider] ?? payment.provider}</td>
                       <td><span className={`tag ${status.tone}`}>{status.label}</span></td>
                       <td className="num mono">{rub(payment.amount)}{payment.original && <span className="day-original"> · {formatRub(payment.original.amount)} {payment.original.currency}</span>}</td>
                     </tr>
