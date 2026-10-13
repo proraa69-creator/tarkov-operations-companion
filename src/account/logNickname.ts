@@ -11,7 +11,7 @@
 import { useSyncExternalStore } from 'react'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import type { ModeSelectCard, TraderScreenReading } from '../import/modeSelectScreen'
-import { screenNickname } from '../import/modeSelectScreen'
+import { foldNickname, screenNickname } from '../import/modeSelectScreen'
 import type { LocalProfile, PlayerProfileSnapshot, RaidMode } from '../domain/types'
 import { canResolvePlayerProfiles, desktopPlayerProfileGateway } from '../profile/playerProfileGateway'
 import { readManualTraderLevels, setManualTraderLevel } from '../gunsmith/traderLevels'
@@ -118,6 +118,19 @@ function spreadNickname(state: () => LogNicknameTarget, nickname: string) {
   void saveOnAccount(nickname)
 }
 
+/**
+ * A profile Tarkov.dev captured before the player's last rename (owner, 13.10.2026: «я уже давно поменял ник, а справа
+ * пишется мой старый… данные должны обновляться»): its name is not the one the app knows now, and it is not newer than
+ * the reading that gave that name. Such a profile is not used at all — not its name, not its level — and is asked for
+ * again later, until Tarkov.dev has the current one.
+ */
+export function outdatedProfile(snapshot: Pick<PlayerProfileSnapshot, 'nickname' | 'upstreamUpdatedAt' | 'fetchedAt'>, known: string | undefined, knownAt?: string) {
+  if (!known || foldNickname(known) === foldNickname(snapshot.nickname)) return false
+  // A newer Tarkov.dev profile with another name: the player renamed after the app's last reading.
+  if (knownAt && (snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt) > knownAt) return false
+  return true
+}
+
 /** A profile Tarkov.dev gave: the mode's snapshot (its level unless the game showed a newer one), and its name if newest. */
 function adopt(mode: RaidMode, accountId: number, snapshot: PlayerProfileSnapshot, state: () => LogNicknameTarget) {
   const updatedAt = snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt
@@ -146,13 +159,15 @@ async function lookUp(mode: RaidMode, accountId: number, state: () => LogNicknam
   // The logs moved on to another game account meanwhile: that one has its own lookup.
   if (accounts[mode] !== accountId) return
   const again = (ms: number) => timers.set(mode, setTimeout(() => void lookUp(mode, accountId, state, true), ms))
-  if (snapshot?.nickname) {
+  // A profile from before the last rename counts as none yet: asked for again on the same schedule.
+  const outdated = snapshot?.nickname ? outdatedProfile(snapshot, knownNickname(state().activeProfile), best?.updatedAt) : false
+  if (snapshot?.nickname && !outdated) {
     setLookup(mode, { state: 'found', level: snapshot.level })
     adopt(mode, accountId, snapshot, state)
     again(REFRESH_MS)
     return
   }
-  if (current?.state === 'found') { again(REFRESH_MS); return }
+  if (current?.state === 'found' && !outdated) { again(REFRESH_MS); return }
   const minutes = RETRY_MINUTES[Math.min(tries, RETRY_MINUTES.length - 1)]!
   setLookup(mode, { state: 'waiting', next: Date.now() + minutes * 60_000, tries: tries + 1 })
   again(minutes * 60_000)

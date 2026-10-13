@@ -185,3 +185,42 @@ describe('Tarkov.dev in the background', () => {
     expect([profile.modes.pvp.playerLevel, profile.modes.pvp.levelAnchor?.source]).toEqual([14, 'tarkov-dev'])
   })
 })
+
+describe('a Tarkov.dev profile from before a rename (owner, 13.10.2026: «я уже давно поменял ник, а справа пишется мой старый»)', () => {
+  it('is outdated when its name is not the one the app knows and it is not newer than that reading', async () => {
+    const { outdatedProfile } = await import('./logNickname')
+    const old = { nickname: 'SHAURMA', upstreamUpdatedAt: '2026-09-28T00:46:10.000Z', fetchedAt: '2026-10-13T19:00:00.000Z' }
+    expect(outdatedProfile(old, 'Raid_OS')).toBe(true)
+    expect(outdatedProfile(old, 'Raid_OS', '2026-10-13T18:00:00.000Z')).toBe(true)
+    // The same name (OCR spelling aside), no name known yet, or a profile captured after the reading: in use.
+    expect(outdatedProfile({ ...old, nickname: 'Raid_0S' }, 'Raid_OS')).toBe(false)
+    expect(outdatedProfile(old, undefined)).toBe(false)
+    expect(outdatedProfile({ ...old, upstreamUpdatedAt: '2026-10-13T18:30:00.000Z' }, 'Raid_OS', '2026-10-13T18:00:00.000Z')).toBe(false)
+  })
+
+  it('is neither applied nor shown, and is asked for again later', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.resetModules()
+      const stale = { accountId: 5550123, nickname: 'SHAURMA', experience: 0, level: 41, faction: 'bear' as const, prestige: 0, fetchedAt: '2026-10-13T19:00:00.000Z', upstreamUpdatedAt: '2026-09-28T00:46:10.000Z' }
+      const refreshPlayerProfile = vi.fn(async () => stale)
+      vi.stubGlobal('tarkovDesktop', { refreshPlayerProfile })
+      const { bindNicknameFromLogs, logNickname, setTypedNickname } = await import('./logNickname')
+      server.status = { signedIn: false, nicknames: {} }
+      const state = target()
+      await setTypedNickname('Raid_OS', () => state)
+      bindNicknameFromLogs({ latestAccountIdByMode: { pve: 5550123 } }, () => state)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(refreshPlayerProfile).toHaveBeenCalled()
+      expect(state.updatePlayerSnapshot).not.toHaveBeenCalled()
+      expect(logNickname()).toBe('Raid_OS')
+      const calls = refreshPlayerProfile.mock.calls.length
+      await vi.advanceTimersByTimeAsync(2 * 60_000)
+      expect(refreshPlayerProfile.mock.calls.length).toBeGreaterThan(calls)
+    } finally {
+      vi.unstubAllGlobals()
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('no network in this test') }))
+      vi.useRealTimers()
+    }
+  })
+})
