@@ -4,7 +4,7 @@ import { beginTake } from '../take.mjs'
 import { ready, settleImages } from '../rec.mjs'
 const lang = process.argv[2] ?? 'ru'
 const L = lang === 'en'
-  ? { tasksNav: 'Current tasks', mapsNav: 'Maps', story: 'Story', tour: 'Tour', showOnMap: 'Show on map', customs: 'Customs', sat: 'Satellite', scheme: 'Scheme', ruler: 'Ruler', bosses: 'Bosses', doors: 'Doors', gunsmithAll: 'View all' }
+  ? { tasksNav: 'Current tasks', mapsNav: 'Maps', story: 'Story', tour: 'Tour', showOnMap: 'Show on map', customs: 'Customs', sat: 'Satellite', scheme: 'Schematic', ruler: 'Ruler', bosses: 'Bosses', doors: 'Doors', gunsmithAll: 'View all' }
   : { tasksNav: 'Текущие задания', mapsNav: 'Карты', story: 'Сюжетные', tour: 'Тур', showOnMap: 'Показать на карте', customs: 'Таможня', sat: 'Спутник', scheme: 'Схема', ruler: 'Рулетка', bosses: 'Боссы', doors: 'Двери', gunsmithAll: 'Посмотреть все' }
 let donePoint = null
 const go = async (page, hash) => { await page.evaluate((h) => { location.hash = h }, hash); await ready(page, 800) }

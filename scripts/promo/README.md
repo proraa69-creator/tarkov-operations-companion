@@ -25,14 +25,19 @@ the same catalog and images.
 1. Demo profile: `node dump-catalog.mjs` (catalog of the running app), `python3 build-profile.py ru|en` →
    `seed-<lang>.json` (real quest ids, a level-27 USEC with prerequisites done; nothing from a real account).
 2. Timeline: `schedule.mjs` builds the global timeline from the voice clips (`promo/voice/<lang>/timing.json`):
-   every scene is lead-in + its voice + tail; takes record spans of it.
+   every scene is lead-in + its voice + tail; takes record spans of it. The takes were timed on the Russian voice:
+   `align()` moves each step to the same words of another language's line (matching sentence starts, `ALIGN`), and
+   `mapGlobal()` does the same for moments of the finished video (the vertical cut).
 3. Takes (each is `node <file> <lang>`): `closing/build.mjs <lang> intro` (t01), `takes/t02-overview.mjs`,
    `kappa/build.mjs` (t03, the owner's stash and app clips with the key press), `takes/t04-gunsmith-tasks-maps.mjs`,
    `takes/t05-iteminfo.mjs`, `takes/t06-minimap.mjs` (needs `minimap-payload.mjs` and `minimap/backdrop.mjs` first),
    `takes/t07-squad.mjs`, `takes/t08-bosses.mjs`, `takes/t09a…t09d`, `closing/build.mjs <lang> closing` (t10; the
    phones need `closing/phones.mjs`).
    The recorder (`rec.mjs` + `timewarp.js`) slows the page clock and CSS animations, so the video plays at normal
-   speed however slow the machine renders; a take that runs late prints `late by … s`.
+   speed however slow the machine renders; a take that runs late prints `late by … s` — retake it with a slower
+   clock, e.g. `PROMO_RATE=0.1 node takes/t02-overview.mjs en` (the English interface renders slower).
+   The owner's app clip in the Kappa scene is in Russian: for another language `kappa/app-clip.mjs <lang>` records the
+   same moment in the app itself (0 → the owner's 21 found items, `kappa-owner-21.json`) before `kappa/build.mjs`.
 4. `node assemble.mjs <lang>` → `promo/out/raidos-promo-<lang>.mp4` (+ `-nomusic`), 1920×1080, 30 fps, −14 LUFS:
    takes cut to exact frame counts, 8-frame dissolves centred on the cuts, voice per scene, music ducked under it.
 5. `node vertical/build.mjs <lang> [--reuse]` → `promo/out/raidos-vertical-<lang>.mp4` (+ `-nomusic`, voice only),

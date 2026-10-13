@@ -6,7 +6,7 @@ import { chromium, stageAssets } from '../../env.mjs'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { schedule } from '../schedule.mjs'
+import { mapGlobal, schedule } from '../schedule.mjs'
 import { S, FF } from '../rec.mjs'
 import { REPO } from '../../env.mjs'
 const lang = process.argv[2] ?? 'ru'
@@ -34,7 +34,8 @@ const TEXT = {
   },
 }
 const text = TEXT[lang]
-// Shots: source span in the landscape video (global seconds) and a crop of aspect 1000:1080; `pan` slides the crop to
+// Shots: source span in the landscape video (global seconds of the Russian timeline; mapGlobal moves them to the same
+// moment of another language's video) and a crop of aspect 1000:1080; `pan` slides the crop to
 // x over `dur` seconds from `at` (shot time): the Kappa shot goes from the key press in the stash to the app.
 const crop = (x, y, w) => ({ x, y, w, h: Math.round(w * 1.08) })
 const SHOTS = [
@@ -55,7 +56,9 @@ const shots = SHOTS.map((s) => { const from = t; t += s.dur; return { ...s, from
 const endStart = t
 const duration = endStart + END
 const frames = Math.round(duration * FPS)
-const at = { introEnd: INTRO, v1: 0.3, p1: 1.17, endStart, v20: endStart + 0.3, p20: [1.08, 2.18, 3.41], duration }
+// Phrase starts of the scene-1 and scene-20 voice clips (closing/build.mjs PHRASES).
+const P = lang === 'en' ? { p1: 1.18, p20: [1.09, 2.15, 3.43] } : { p1: 1.17, p20: [1.08, 2.18, 3.41] }
+const at = { introEnd: INTRO, v1: 0.3, p1: P.p1, endStart, v20: endStart + 0.3, p20: P.p20, duration }
 
 const video = `${OUT}/vertical-video-${lang}.mp4`
 /** Frames of a video, decoded (a stream copy reports no frame count). */
@@ -74,7 +77,7 @@ if (!reuse) {
   shots.forEach((s, i) => {
     const pad = [i === 0 ? `tpad=start_mode=clone:start=${introFrames}` : '', i === shots.length - 1 ? `tpad=stop_mode=clone:stop=${endFrames}` : ''].filter(Boolean)
     const n = Math.round(s.dur * FPS) + (i === 0 ? introFrames : 0) + (i === shots.length - 1 ? endFrames : 0)
-    execFileSync(FF, ['-v', 'error', '-y', '-ss', s.src.toFixed(3), '-t', (s.dur + 0.3).toFixed(3), '-i', `${OUT}/video-${lang}.mp4`,
+    execFileSync(FF, ['-v', 'error', '-y', '-ss', mapGlobal(lang, s.src).toFixed(3), '-t', (s.dur + 0.3).toFixed(3), '-i', `${OUT}/video-${lang}.mp4`,
       '-vf', [`fps=${FPS}`, 'setpts=PTS-STARTPTS', `crop=${s.crop.w}:${s.crop.h}:${cropX(s)}:${s.crop.y}`, 'scale=1000:1080:flags=lanczos', 'setsar=1', `trim=end_frame=${Math.round(s.dur * FPS)}`, `setpts=N/(${FPS}*TB)`, `fps=${FPS}`, ...pad].join(','),
       '-frames:v', String(n), '-fps_mode', 'passthrough', '-start_number', String(next), '-q:v', '1', '-qmin', '1', `${zdir}/%04d.jpg`])
     next += n

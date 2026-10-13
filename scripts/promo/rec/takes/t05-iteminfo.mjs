@@ -6,8 +6,8 @@ import { beginTake } from '../take.mjs'
 import { S } from '../rec.mjs'
 const lang = process.argv[2] ?? 'ru'
 const L = lang === 'en'
-  ? { book: 'Battered antique book', cable: 'Military cable', therapist: 'Therapist' }
-  : { book: 'Потрепанная антикварная книга', cable: 'Военный кабель', therapist: 'Терапевт' }
+  ? { book: 'Battered antique book', bookShort: 'Book', cable: 'Military cable', cableShort: 'MCable', therapist: 'Therapist' }
+  : { book: 'Потрепанная антикварная книга', bookShort: 'Книга', cable: 'Военный кабель', cableShort: 'ВКабель', therapist: 'Терапевт' }
 const BRIDGE = `(() => {
   const l = {}
   window.tarkovDesktop = { overlaySetInteractive() {}, overlayResize() {}, overlayDrag() {}, experimental: { updateSettings: async () => ({}) }, onOverlay(c, cb) { l[c] = cb; return () => {} } }
@@ -19,8 +19,8 @@ const BG = `data:image/jpeg;base64,${readFileSync(`${S}/promo/rec/item/stash-bg.
 const ZOOM = 1.9, X0 = 900, Y0 = 250
 const screen = ([x, y]) => ({ x: (x - X0) * ZOOM, y: (y - Y0) * ZOOM })
 const BOOK = [1677, 586], CABLE = [1647, 487]
-const book = { state: 'found', itemId: '5bc9c049d4351e44f824d360', name: L.book, shortName: 'Книга', iconUrl: 'https://assets.tarkov.dev/5bc9c049d4351e44f824d360-icon.webp', fleaPrice: 30000, bestTrader: { name: L.therapist, price: 32144 }, quests: [], kappa: true, collector: true }
-const cable = { state: 'found', itemId: '5d0375ff86f774186372f685', name: L.cable, shortName: 'ВКабель', iconUrl: 'https://assets.tarkov.dev/5d0375ff86f774186372f685-icon.webp', fleaPrice: 74100, bestTrader: { name: L.therapist, price: 21012 }, quests: [], kappa: false, collector: false, mate: true, mateNames: ['Wolfhound'] }
+const book = { state: 'found', itemId: '5bc9c049d4351e44f824d360', name: L.book, shortName: L.bookShort, iconUrl: 'https://assets.tarkov.dev/5bc9c049d4351e44f824d360-icon.webp', fleaPrice: 30000, bestTrader: { name: L.therapist, price: 32144 }, quests: [], kappa: true, collector: true }
+const cable = { state: 'found', itemId: '5d0375ff86f774186372f685', name: L.cable, shortName: L.cableShort, iconUrl: 'https://assets.tarkov.dev/5d0375ff86f774186372f685-icon.webp', fleaPrice: 74100, bestTrader: { name: L.therapist, price: 21012 }, quests: [], kappa: false, collector: false, mate: true, mateNames: ['Wolfhound'] }
 
 const { page, rec, at, v, scenes, tx, finish } = await beginTake('t05-iteminfo', {
   lang, hash: '#/overlay/item', mouse: { x: 640, y: 860 }, extraInit: [BRIDGE],

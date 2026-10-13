@@ -82,7 +82,7 @@ export async function warmModes(page, mode = 'pvp') {
 
 /** The catalog is loaded and the images on screen have arrived. */
 export async function ready(page, extra = 1500) {
-  await page.waitForFunction(() => !/Загружаем актуальную базу|Loading the latest data/i.test(document.body?.innerText ?? ''), null, { timeout: 180_000 }).catch(() => console.log('  still loading'))
+  await page.waitForFunction(() => !/Загружаем актуальную базу|Loading current database|Loading the latest data/i.test(document.body?.innerText ?? ''), null, { timeout: 180_000 }).catch(() => console.log('  still loading'))
   await page.waitForLoadState('networkidle', { timeout: 60_000 }).catch(() => {})
   await settleImages(page)
   await sleep(extra)

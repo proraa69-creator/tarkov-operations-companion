@@ -1,15 +1,15 @@
 // Scene 4b: the owner's stash clip and app clip side by side, a key press, the items in the app a second later.
 import { chromium } from '../../env.mjs'
-import { mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { schedule, takes } from '../schedule.mjs'
+import { align, schedule, takes } from '../schedule.mjs'
 import { T } from '../texts.mjs'
 import { S, FF } from '../rec.mjs'
 const lang = process.argv[2] ?? 'ru'
 const { scenes } = schedule(lang)
 const take = takes(lang).list.find((entry) => entry.id === 't03-kappa')
 const frames = Math.round((take.to - take.from) * 30)
-const keyAt = scenes[4].voice + 2.4 - take.from
+const keyAt = scenes[4].voice + align(lang, 4, 2.4) - take.from
 const appOffset = 9.2 - (keyAt + 1.0)
 const G = { x: 80, y: 200, w: 590, h: 800 }
 const A = { x: 710, y: 290, w: 1130, h: 624, s: 1130 / 1920, counter: { x: 330, y: 230 }, counterBox: { x: 284, y: 210, w: 214, h: 40 } }
@@ -32,7 +32,8 @@ const dur = (frames / 30).toFixed(4)
 execFileSync(FF, ['-v', 'error', '-y',
   '-loop', '1', '-framerate', '30', '-i', `${dir}/bg.png`,
   '-i', `${S}/promo/src/game-stash.mp4`,
-  '-ss', appOffset.toFixed(3), '-i', `${S}/promo/src/app-kappa.mp4`,
+  // The owner's app clip is in Russian; another language uses the same moment recorded in its interface (app-clip.mjs).
+  '-ss', appOffset.toFixed(3), '-i', existsSync(`${S}/promo/src/app-kappa-${lang}.mp4`) ? `${S}/promo/src/app-kappa-${lang}.mp4` : `${S}/promo/src/app-kappa.mp4`,
   '-framerate', '30', '-i', `${dir}/ov/%04d.png`,
   '-filter_complex',
   `[1:v]fps=30,crop=520:705:1150:160,scale=${G.w}:${G.h}:flags=lanczos,tpad=stop_mode=clone:stop_duration=10[g];` +

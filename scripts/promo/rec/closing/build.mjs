@@ -35,6 +35,8 @@ const TEXT = {
 // Phrase starts inside the voice clips (seconds from the clip start), from silencedetect at -34 dB / 70 ms.
 const PHRASES = {
   ru: { s1: 1.17, s18: 3.17, s19: [0.98, 3.56, 4.75, 5.99, 7.17], s20: [1.08, 2.18, 3.41] },
+  // «doesn't change its files» has no pause before it at -34 dB: its start from a -22 dB / 40 ms pass.
+  en: { s1: 1.18, s18: 3.02, s19: [1.44, 3.87, 5.5, 5.99, 6.75], s20: [1.09, 2.15, 3.43] },
 }
 const ph = PHRASES[lang] ?? PHRASES.ru
 
