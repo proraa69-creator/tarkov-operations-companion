@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_LAYOUT, LAYOUT_KEY, LEGACY_LAYOUT_KEY, badgeBoxes, clampOffset, loadLayout, migrateLegacyLayout, sanitizeLayout, saveLayout } from './helmetLayout'
+import { DEFAULT_LAYOUT, LAYOUT_KEY, LEGACY_LAYOUT_KEY, LOOK_DEPTH, LOOK_LIMITS, REST_POSE, badgeBoxes, clampOffset, loadLayout, lookAt, migrateLegacyLayout, sanitizeLayout, saveLayout } from './helmetLayout'
 
 const storage = (entries: Record<string, string>) => ({ getItem: (key: string) => entries[key] ?? null })
 
@@ -49,5 +49,21 @@ describe('mask badge layout', () => {
       expect(inside(offset.dx, offset.dy)).toBe(true)
     }
     expect(clampOffset(spot, 300, 200, size)).toEqual({ dx: 300, dy: 200 })
+  })
+
+  it('rests turned toward the page and its map, and looks at the cursor', () => {
+    // owner, 13.10: the mask by «Обзор» faces the page (to its right), not the window's edge
+    expect(REST_POSE.rotY).toBeGreaterThan(0)
+    expect(lookAt(0, 0)).toEqual({ yaw: 0, pitch: 0 })
+    // a pointer as far to the side as the look depth turns the head 45°; below the mask it nods down (+)
+    expect(lookAt(LOOK_DEPTH.far, 0).yaw).toBeCloseTo(45)
+    expect(lookAt(0, LOOK_DEPTH.far).pitch).toBeCloseTo(34)
+    expect(lookAt(-LOOK_DEPTH.far, 0).yaw).toBeCloseTo(-45)
+    // on the mask or «Обзор» small moves count more
+    expect(lookAt(LOOK_DEPTH.near, 0, true).yaw).toBeCloseTo(45)
+    expect(lookAt(LOOK_DEPTH.near, 0).yaw).toBeLessThan(20)
+    // never so far that the face turns away
+    expect(lookAt(5000, 5000)).toEqual({ yaw: LOOK_LIMITS.yaw, pitch: LOOK_LIMITS.pitch })
+    expect(lookAt(-5000, -5000)).toEqual({ yaw: -LOOK_LIMITS.yaw, pitch: -LOOK_LIMITS.pitch })
   })
 })
