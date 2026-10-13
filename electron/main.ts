@@ -332,7 +332,7 @@ function registerIpc() {
   // The same after an e-mail code (sign-in or «Забыли пароль?» by e-mail).
   ipcMain.handle('account:email-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountEmailSignIn(kind, challengeId, code, password))
   // Registration in the app (the account window): the session of a new account stays in the main process as well.
-  ipcMain.handle('account:register', (_event, email: unknown, password: unknown, referralCode: unknown) => accountRegister(email, password, referralCode))
+  ipcMain.handle('account:register', (_event, email: unknown, password: unknown, referralCode: unknown, country: unknown) => accountRegister(email, password, referralCode, country))
   ipcMain.handle('account:register-confirm', (_event, challengeId: unknown, code: unknown) => accountRegisterConfirm(challengeId, code))
   ipcMain.handle('account:open-website', async (_event, page: unknown) => {
     // 'admin': the owner's «Админ-панель» on the site (the server itself refuses it to anybody but the owner).

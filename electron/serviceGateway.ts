@@ -600,6 +600,8 @@ export type RegistrationResult = { pending: PendingRegistration } | { status: Ac
 
 const CHALLENGE_ID = /^[A-Za-z0-9_-]{32}$/
 const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
+/** An ISO 3166-1 alpha-2 shape; the server checks the code against its list (src/shared/countries.ts). */
+const COUNTRY_CODE = /^[A-Z]{2}$/
 
 /** A session answer ({ token, account }) of the server: kept in this process, only the status goes back. */
 async function adoptSessionAnswer(result: unknown) {
@@ -622,15 +624,18 @@ async function sendAccountRequest(path: string, body: unknown) {
 /**
  * Registration in the app (POST /v1/accounts/register). With e-mail codes on the server answers 202 for every address
  * and the account appears only after the code (accountRegisterConfirm); otherwise 201 with a session, kept here.
+ * `rawCountry`: the country of the form (owner, 13.10.2026: «при регистрации нужно указать страну»).
  */
-export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown): Promise<RegistrationResult> {
+export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown, rawCountry?: unknown): Promise<RegistrationResult> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
   const password = typeof rawPassword === 'string' ? rawPassword : ''
   const referralCode = typeof rawReferral === 'string' ? rawReferral.trim() : ''
+  const country = typeof rawCountry === 'string' ? rawCountry.trim().toUpperCase() : ''
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
   if (referralCode && !REFERRAL_CODE.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
-  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}) })
+  if (country && !COUNTRY_CODE.test(country)) throw new Error('Выберите страну из списка')
+  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) })
   if (response.status === 202) {
     const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
     if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')

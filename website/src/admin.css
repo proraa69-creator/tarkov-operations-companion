@@ -59,6 +59,11 @@
 .admin-audit td { font-size: 12px; }
 
 .admin-filters { display: grid; gap: 10px; }
+/* «Пользователи» → регион (owner, 13.10.2026): «Все · СНГ · Европа · Другие · Не указана», one segmented control with counts. */
+.admin-regions { display: flex; flex-wrap: wrap; gap: 4px; justify-self: start; max-width: 100%; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); }
+.admin-regions .button.ghost { border-color: transparent; box-shadow: none; }
+.admin-region-count { color: var(--text-dim); font-size: 11px; }
+.admin-regions .button.primary .admin-region-count { color: inherit; opacity: .78; }
 .admin-selects { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .admin-selects .input, .admin-dates .input { height: 38px; font-size: 13px; }
 .admin-dates { display: flex; gap: 10px; flex-wrap: wrap; }

@@ -1,6 +1,7 @@
-import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
+import { countryName, REGION_LABELS, regionOf } from '../../../../src/shared/countries'
+import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
@@ -16,6 +17,17 @@ const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'streamers', label: 'Стримеры' },
   { id: 'blocked', label: 'Заблокированы' },
 ]
+/** owner, 13.10.2026: «сделать в админ панели, в разделе пользователи, разделение снг и Европа. список аккаунтов». */
+const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
+  { id: 'all', label: 'Все' },
+  { id: 'cis', label: 'СНГ' },
+  { id: 'europe', label: 'Европа' },
+  { id: 'other', label: 'Другие' },
+  { id: 'none', label: 'Не указана' },
+]
+
+/** «Казахстан · СНГ» for the owner (the panel is in Russian); the code itself where the browser has no country names. */
+const countryText = (code: string) => `${countryName(code, 'ru')} · ${REGION_LABELS.ru[regionOf(code)]}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
@@ -32,10 +44,13 @@ export function AdminUsers() {
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<AdminUserFilter>('all')
+  const [region, setRegion] = useState<AdminUserRegion>('all')
   const [page, setPage] = useState(0)
   const [open, setOpen] = useState<string | null>(null)
-  const users = useAdminData(useCallback((token: string) => api.adminUsers(token, q, filter, PAGE, page * PAGE), [q, filter, page]))
+  const users = useAdminData(useCallback((token: string) => api.adminUsers(token, q, filter, PAGE, page * PAGE, region), [q, filter, page, region]))
   const data = users.data
+  // Users per region within the search and the status filter (an older server sends none: the tabs go without numbers).
+  const counts = data?.regions
 
   const submit = (event: FormEvent) => { event.preventDefault(); setQ(search.trim()); setPage(0) }
   const updated = (user: AdminUser) => users.setData((current) => current && { ...current, users: current.users.map((item) => (item.id === user.id ? user : item)) })
@@ -49,6 +64,13 @@ export function AdminUsers() {
           <input className="input" type="search" aria-label="Поиск по e-mail" placeholder="Поиск по e-mail" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
           <button type="submit" className="button ghost"><Search aria-hidden="true" />Найти</button>
         </form>
+        <div role="group" aria-label="Регион" className="admin-regions">
+          {REGIONS.map(({ id, label }) => (
+            <button key={id} type="button" aria-pressed={region === id} aria-label={counts ? `${label}: ${numberFormat.format(counts[id])}` : undefined} className={`button small ${region === id ? 'primary' : 'ghost'}`} onClick={() => { setRegion(id); setPage(0); setOpen(null) }}>
+              {label}{counts && <span className="mono admin-region-count">{numberFormat.format(counts[id])}</span>}
+            </button>
+          ))}
+        </div>
         <div role="group" aria-label="Фильтр" className="admin-chips">
           {FILTERS.map(({ id, label }) => <button key={id} type="button" aria-pressed={filter === id} className={`button small ${filter === id ? 'primary' : 'ghost'}`} onClick={() => { setFilter(id); setPage(0); setOpen(null) }}>{label}</button>)}
         </div>
@@ -63,7 +85,7 @@ export function AdminUsers() {
               <table className="pay-table admin-table admin-users">
                 <thead>
                   <tr>
-                    <th scope="col">E-mail</th><th scope="col">Регистрация</th><th scope="col">Подписка</th><th scope="col">Пришёл от</th>
+                    <th scope="col">E-mail</th><th scope="col">Регистрация</th><th scope="col">Страна</th><th scope="col">Подписка</th><th scope="col">Пришёл от</th>
                     <th scope="col" className="num">Оплаты, ₽</th><th scope="col" title="Последний вход в приложение Raid OS на компьютере">Вход с ПК</th><th scope="col"><span className="visually-hidden">Действия</span></th>
                   </tr>
                 </thead>
@@ -84,13 +106,14 @@ export function AdminUsers() {
                             </span>
                           </th>
                           <td className="mono" data-label="Регистрация">{dateOnly.format(new Date(user.createdAt))}</td>
+                          <td data-label="Страна" title={user.country ? countryText(user.country) : undefined}>{user.country ? countryName(user.country, 'ru') : <span className="dim">—</span>}</td>
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
                           <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
                           <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
                         </tr>
-                        {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} onDeleted={deleted} /></td></tr>}
+                        {expanded && <tr className="owner-detail"><td colSpan={8}><UserActions id={user.id} onChange={updated} onDeleted={deleted} /></td></tr>}
                       </Fragment>
                     )
                   })}
@@ -254,6 +277,12 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
           )}
         </div>
         <UserDevices id={id} lastSeenAt={user.lastSeenAt} />
+        <div>
+          <div className="field-label"><Globe size={13} aria-hidden="true" />Страна</div>
+          {user.country
+            ? <span className="field-hint">{countryText(user.country)} · <span className="mono">{user.country}</span></span>
+            : <span className="field-hint">Не указана: аккаунт создан до вопроса о стране — пользователь может указать её в личном кабинете.</span>}
+        </div>
       </div>
     </div>
   )

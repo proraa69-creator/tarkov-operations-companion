@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
-import { AccountStore, createAccountsHandlers, type AccountView } from '../services/accountStore.js'
+import { AccountStore, COUNTRY_INVALID_MESSAGE, createAccountsHandlers, type AccountView } from '../services/accountStore.js'
 import { createEmailHandlers, EmailAuthService, EMAIL_CODE_TTL_MS, EMAIL_RESEND_COOLDOWN_MS, MAX_WRONG_CODES_PER_DAY, REGISTRATION_TTL_MS } from '../services/emailAuth.js'
 import { createEmailSender, DEFAULT_EMAIL_FROM, emailConfigFromEnv, FakeEmailSender, validFrom, type FetchLike } from '../services/email/index.js'
 import { renderEmail } from '../services/email/templates.js'
@@ -493,4 +493,30 @@ test('a similar address of a working account registers with its code (owner, 13.
   const alias = await t.signUp('jane.doe+farm@googlemail.com')
   assert.equal(t.accounts.hasAccount('jane.doe+farm@googlemail.com'), true)
   assert.deepEqual(alias.account.subscription, { status: 'inactive' }, 'the mailbox had its free day')
+})
+
+test('registration with an e-mail code keeps the country until the code (owner, 13.10.2026); an unassigned code sends nothing', async () => {
+  const t = setup()
+  const started = await t.api.register({ ip: 'reg', body: { email: 'minsk@example.com', password, country: 'by' } })
+  assert.equal(started.status, 202)
+  // The pending registration holds the country (and, as before, no password — only its scrypt hash).
+  const pending = t.accounts.database.prepare("SELECT payload FROM email_challenges WHERE purpose = 'register' AND email = ?").get('minsk@example.com') as { payload: string }
+  assert.equal((JSON.parse(pending.payload) as { country?: string }).country, 'BY')
+  assert.equal(pending.payload.includes(password), false)
+  await t.emails.settled()
+  const confirmed = await t.email.registerConfirm({ ip: 'reg', body: { challengeId: challenge(started.body), code: t.sender.lastCode('minsk@example.com') } })
+  assert.equal(confirmed.status, 201)
+  assert.equal((confirmed.body as { account: AccountView }).account.country, 'BY')
+  // An unassigned code: refused at once, for any address, without an e-mail or a challenge.
+  const sent = t.sender.sent.length
+  for (const email of ['new@example.com', 'minsk@example.com']) {
+    const refused = await t.api.register({ ip: 'reg', body: { email, password, country: 'XK' } })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], email)
+  }
+  await t.emails.settled()
+  assert.equal(t.sender.sent.length, sent)
+  assert.equal((t.accounts.database.prepare("SELECT COUNT(*) AS n FROM email_challenges WHERE email = 'new@example.com'").get() as { n: number }).n, 0)
+  // An app from before the question registers without one.
+  t.advance(EMAIL_RESEND_COOLDOWN_MS)
+  assert.equal((await t.signUp('old-app@example.com')).account.country, undefined)
 })

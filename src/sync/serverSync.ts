@@ -121,12 +121,13 @@ export async function emailSignInToServer(kind: 'login' | 'reset', challengeId: 
 /**
  * Registration in the app's account window. `pending`: the server sends e-mail codes — finish with
  * confirmRegistrationOnServer(). Otherwise the new account is signed in like after a password sign-in.
+ * `country`: the ISO 3166-1 alpha-2 code from the form (src/shared/countries.ts).
  */
-export async function registerOnServer(email: string, password: string, referralCode?: string): Promise<ServerRegistrationResult> {
+export async function registerOnServer(email: string, password: string, referralCode?: string, country?: string): Promise<ServerRegistrationResult> {
   const api = accountApi()
   if (!api?.register) throw new Error('Обновите приложение: регистрация в приложении появилась в новой версии')
   try {
-    const result = await api.register(email, password, referralCode)
+    const result = await api.register(email, password, referralCode, country)
     if (result.status) { setState({ status: result.status }); void runFullSync() }
     return result
   } catch (error) {

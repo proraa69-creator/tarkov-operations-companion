@@ -250,6 +250,48 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
   } finally { await t.close() }
 })
 
+test('users by region: «Все · СНГ · Европа · Другие · Не указана» with counts, the country in rows and the card (owner, 13.10.2026)', async () => {
+  const t = await setup()
+  try {
+    for (const [email, country] of [['moscow@example.com', 'RU'], ['almaty@example.com', 'KZ'], ['kyiv@example.com', 'UA'], ['berlin@example.com', 'DE'], ['tbilisi@example.com', 'GE'], ['old-app@example.com', undefined]] as const) {
+      const registered = await t.call('POST', '/accounts/register', undefined, { email, password, ...(country ? { country } : {}) })
+      assert.equal(registered.status, 201, JSON.stringify(registered.json))
+    }
+    const owner = await t.login('owner@example.com')
+    type List = { users: Array<{ id: string; email: string; country?: string }>; total: number; regions: Record<string, number> }
+    const list = async (query = '') => {
+      const response = await t.call<List>('GET', `/accounts/me/admin/users${query}`, owner)
+      assert.equal(response.status, 200, JSON.stringify(response.json))
+      return response.json
+    }
+    const emails = (body: List) => body.users.map((user) => user.email).sort()
+    const all = await list()
+    // The owner registered before the question: with the older app's account under «Не указана». Georgia is not Europe.
+    assert.deepEqual(all.regions, { all: 7, cis: 2, europe: 2, other: 1, none: 2 })
+    assert.equal(all.total, 7)
+    assert.equal(all.users.find((user) => user.email === 'almaty@example.com')!.country, 'KZ')
+    assert.equal(all.users.find((user) => user.email === 'old-app@example.com')!.country, undefined)
+    const cis = await list('?region=cis')
+    assert.deepEqual([emails(cis), cis.total], [['almaty@example.com', 'moscow@example.com'], 2])
+    assert.deepEqual(cis.regions, all.regions, 'the counts do not follow the chosen tab')
+    assert.deepEqual(emails(await list('?region=europe')), ['berlin@example.com', 'kyiv@example.com'])
+    assert.deepEqual(emails(await list('?region=other')), ['tbilisi@example.com'])
+    assert.deepEqual(emails(await list('?region=none')), ['old-app@example.com', 'owner@example.com'])
+    // The search and the status filter narrow the counts and combine with the region.
+    assert.deepEqual((await list('?q=kyiv')).regions, { all: 1, cis: 0, europe: 1, other: 0, none: 0 })
+    assert.deepEqual(emails(await list('?q=example&region=europe&filter=trial')), [])
+    assert.deepEqual((await list('?filter=streamers')).regions, { all: 0, cis: 0, europe: 0, other: 0, none: 0 })
+    assert.equal((await t.call('GET', '/accounts/me/admin/users?region=asia', owner)).status, 400)
+    // A player from before the question sets it in the cabinet: he moves from «Не указана» to his region.
+    const late = await t.login('old-app@example.com')
+    assert.equal((await t.call('PUT', '/accounts/me/country', late, { country: 'AM' })).status, 200)
+    assert.deepEqual((await list()).regions, { all: 7, cis: 3, europe: 2, other: 1, none: 1 })
+    // The user card has the country too.
+    const kyiv = all.users.find((user) => user.email === 'kyiv@example.com')!.id
+    assert.equal((await t.call<{ user: { country?: string } }>('GET', `/accounts/me/admin/users/${kyiv}`, owner)).json.user.country, 'UA')
+  } finally { await t.close() }
+})
+
 test('«Удалить аккаунт» from the admin panel: owner only, erased like the user\'s own deletion, logged; not the owner, not with an active autopay (owner, 13.10.2026)', async () => {
   const t = await setup()
   try {
@@ -478,8 +520,10 @@ test('sales settings show prices and providers, never keys; the database migrati
     new AdminStore(accounts, new PaymentStore(db, undefined))
   }
   const columns = (db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>).map((row) => row.name)
-  for (const name of ['blocked_at', 'last_seen_at', 'referral_disabled_at']) assert.ok(columns.includes(name), name)
-  assert.equal((db.prepare('SELECT email, blocked_at FROM accounts').get() as { email: string; blocked_at: null }).blocked_at, null)
+  for (const name of ['blocked_at', 'last_seen_at', 'referral_disabled_at', 'country']) assert.ok(columns.includes(name), name)
+  const old = db.prepare('SELECT email, blocked_at, country FROM accounts').get() as { email: string; blocked_at: null; country: null }
+  assert.equal(old.blocked_at, null)
+  assert.equal(old.country, null)
   assert.throws(() => new AdminStore(new AccountStore({ db, ownerEmails: [] }), new PaymentStore(openDatabase(':memory:'), undefined)), /share one database/)
 })
 

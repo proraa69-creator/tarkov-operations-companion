@@ -329,13 +329,16 @@ async function adoptSession(result: unknown) {
  * Registration on the phone (POST /v1/accounts/register), the same contract as electron/serviceGateway.ts
  * accountRegister: 202 → the code from the e-mail (webAccountRegisterConfirm), or 201 with a session right away.
  */
-export async function webAccountRegister(rawEmail: string, password: string, rawReferral?: string): Promise<ServerRegistrationResult> {
+export async function webAccountRegister(rawEmail: string, password: string, rawReferral?: string, rawCountry?: string): Promise<ServerRegistrationResult> {
   const email = rawEmail.trim().toLowerCase()
   const referralCode = (rawReferral ?? '').trim()
+  // The country of the form (owner, 13.10.2026); the server checks it against the list (src/shared/countries.ts).
+  const country = (rawCountry ?? '').trim().toUpperCase()
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
   if (referralCode && !/^[a-zA-Z0-9_-]{3,24}$/.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
-  const { response, result } = await send('POST', '/v1/accounts/register', { body: { email, password, ...(referralCode ? { referralCode } : {}) } })
+  if (country && !/^[A-Z]{2}$/.test(country)) throw new Error('Выберите страну из списка')
+  const { response, result } = await send('POST', '/v1/accounts/register', { body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) } })
   if (response.status === 202) {
     const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
     if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')

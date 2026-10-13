@@ -12,6 +12,7 @@
  * paid in its own currency.
  */
 import type { DatabaseSync } from 'node:sqlite'
+import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
 import { AccountError, periodKeySql, REFERRAL_TRIAL_MS, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { transaction } from './database.js'
 import { paidInOtherCurrency, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
@@ -55,6 +56,10 @@ export type AuditAction =
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
 export type UserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
+/** «Пользователи» by the country named at registration: «СНГ», «Европа», «Другие», «Не указана» (src/shared/countries.ts). */
+export type RegionFilter = 'all' | CountryRegion | 'none'
+/** Users per region tab, within the search and the status filter. */
+export type RegionCounts = Record<RegionFilter, number>
 export interface PaymentFilter {
   from?: string
   to?: string
@@ -82,6 +87,8 @@ export interface AdminUser {
   payments: { count: number; total: number }
   /** The bound Escape from Tarkov account, masked (one game account — one Raid OS account, owner 13.10.2026). */
   eftAccount?: { masked: string; boundAt: string }
+  /** The country named at registration (ISO 3166-1 alpha-2); absent for accounts from before 13.10.2026 that did not set it. */
+  country?: string
 }
 
 export interface AdminPayment {
@@ -115,6 +122,19 @@ function mskDayRange(day: string) {
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
 /** «Способ» in the CSV: ЮKassa, or «Архив» for a payment service that is no longer connected. */
 const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', archive: 'Архив' }
+const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
+
+/**
+ * The condition of a region tab of «Пользователи» (owner, 13.10.2026: «в разделе пользователи, разделение снг и Европа»).
+ * The lists are those of src/shared/countries.ts; «Другие» is every other country, «Не указана» an account without one.
+ */
+function regionCondition(region: Exclude<RegionFilter, 'all'>): { sql: string; args: string[] } {
+  if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
+  if (region === 'cis') return { sql: `a.country IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
+  if (region === 'europe') return { sql: `a.country IN (${placeholders(EUROPE_COUNTRIES)})`, args: [...EUROPE_COUNTRIES] }
+  const listed = [...CIS_COUNTRIES, ...EUROPE_COUNTRIES]
+  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(listed)})`, args: listed }
+}
 
 export class AdminStore {
   private readonly db: DatabaseSync
@@ -352,7 +372,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -361,7 +381,11 @@ export class AdminStore {
     FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id`
   }
 
-  users(q: string, filter: UserFilter, limit: number, offset: number) {
+  /**
+   * `region`: the tab of «Пользователи» by country. `regions` counts the users of every tab within the search and the
+   * status filter (not the chosen tab), so the numbers stay put while the owner switches tabs.
+   */
+  users(q: string, filter: UserFilter, limit: number, offset: number, region: RegionFilter = 'all') {
     const now = this.now()
     // Deleted accounts (anonymous stubs kept for the payment records) are not users any more.
     const where: string[] = ['a.deleted_at IS NULL']
@@ -374,10 +398,20 @@ export class AdminStore {
     if (filter === 'inactive') { where.push("(a.kind = 'user' AND COALESCE(s.paid_until, 0) <= ? AND NOT (COALESCE(a.trial_denied, 0) = 0 AND COALESCE(a.trial_ends_at, 0) > ?))"); args.push(now, now) }
     if (filter === 'streamers') where.push("a.kind = 'streamer'")
     if (filter === 'blocked') where.push('a.blocked_at IS NOT NULL')
+    const regions: RegionCounts = { all: 0, cis: 0, europe: 0, other: 0, none: 0 }
+    for (const row of this.db.prepare(`SELECT a.country AS country, COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE ${where.join(' AND ')} GROUP BY a.country`).all(...args) as Row[]) {
+      regions.all += Number(row.n)
+      regions[row.country == null ? 'none' : regionOf(String(row.country))] += Number(row.n)
+    }
+    if (region !== 'all') {
+      const condition = regionCondition(region)
+      where.push(condition.sql)
+      args.push(...condition.args)
+    }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id ${clause}`).get(...args) as Row).n)
     const rows = this.db.prepare(`${this.userSelect()} ${clause} ORDER BY a.created_at DESC, a.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
-    return { users: rows.map((row) => this.toUser(row)), total }
+    return { users: rows.map((row) => this.toUser(row)), total, regions }
   }
 
   /** One user with his last payments and the owner's manual grants. */
@@ -417,6 +451,7 @@ export class AdminStore {
       ...(row.blocked_at == null ? {} : { blockedAt: iso(row.blocked_at) }),
       payments: { count: Number(row.paid_count ?? 0), total: rub(row.paid_total) },
       ...(row.eft_hint == null ? {} : { eftAccount: { masked: `••••${String(row.eft_hint)}`, boundAt: iso(row.eft_bound_at)! } }),
+      ...(row.country == null ? {} : { country: String(row.country) }),
     }
   }
 

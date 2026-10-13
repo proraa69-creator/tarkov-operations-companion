@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ApiError, api, errorMessage, type PendingRegistration } from '../api'
 import { useAuth } from '../auth'
 import { ConsentCheckbox } from '../components/ConsentCheckbox'
+import { CountrySelect } from '../components/CountrySelect'
 import { Notice } from '../components/Notice'
 import { RegistrationCodeStep } from '../components/EmailAuth'
 import { tr } from '../i18n'
@@ -16,6 +17,8 @@ export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [repeat, setRepeat] = useState('')
+  // owner, 13.10.2026: «при регистрации нужно указать страну» — required, never chosen in advance.
+  const [country, setCountry] = useState('')
   // A code remembered from a streamer's link (/r/CODE) is applied automatically: no promo code to type.
   const [linkCode] = useState(() => loadReferralCode())
   const [referral, setReferral] = useState(() => linkCode ?? '')
@@ -59,11 +62,12 @@ export function RegisterPage() {
     if (password.length < 8) { setLocalError(tr('Пароль должен быть не короче 8 символов.')); return }
     if (password !== repeat) { setLocalError(tr('Пароли не совпадают.')); return }
     if (code && !REFERRAL_CODE_PATTERN.test(code)) { setLocalError(tr('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')); return }
+    if (!country) { setLocalError(tr('Выберите страну.')); return }
     if (!consent) { setLocalError(tr('Отметьте согласие с офертой и на обработку персональных данных.')); return }
     setLocalError(null)
     setBusy(true)
     try {
-      const result = await auth.register(email, password, code || undefined)
+      const result = await auth.register(email, password, code || undefined, country)
       // E-mail codes on: the same answer for every address; the account appears after the code.
       if (result.pending) setPending({ registration: result.pending, email: email.trim(), code })
       else finished(result.token, result.referralApplied, code)
@@ -103,6 +107,7 @@ export function RegisterPage() {
             <span className="field-label">{tr('Повторите пароль')}</span>
             <input className="input" type="password" autoComplete="new-password" required minLength={8} maxLength={128} value={repeat} onChange={(e) => setRepeat(e.target.value)} />
           </label>
+          <CountrySelect value={country} onChange={setCountry} />
           {linkCode && !showCode ? (
             <div className="notice success" role="status">
               <Gift aria-hidden="true" />

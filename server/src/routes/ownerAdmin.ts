@@ -10,7 +10,9 @@
  *   GET  /me/admin/day?date=YYYY-MM-DD               -> { date, totals, registrations, payments, grants, invites } (the calendar day window)
  *   GET  /me/admin/payments?from&to&status&plan&q&limit&offset -> { payments, total, totals }
  *   GET  /me/admin/payments.csv?…same filters        -> text/csv (UTF-8 BOM, «;»)
- *   GET  /me/admin/users?q&filter&limit&offset       -> { users, total }
+ *   GET  /me/admin/users?q&filter&region&limit&offset -> { users, total, regions: { all, cis, europe, other, none } }
+ *                                                       (region: the country named at registration — СНГ / Европа /
+ *                                                       Другие / Не указана; the counts ignore the chosen region)
  *   GET  /me/admin/users/:id                         -> { user, payments, grants }
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
  *   POST /me/admin/users/:id/revoke          { days 1–3650, reason }   -> { user, payments, grants } (takes paid days off; 409 when none)
@@ -34,7 +36,7 @@ import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
-import type { AdminStore, PaymentFilter, UserFilter } from '../services/adminStore.js'
+import type { AdminStore, PaymentFilter, RegionFilter, UserFilter } from '../services/adminStore.js'
 import { PaymentError } from '../services/paymentStore.js'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -52,6 +54,7 @@ const paymentFilterSchema = z.object({
 const userQuerySchema = z.object({
   q: z.string().trim().max(254).default(''),
   filter: z.enum(['all', 'active', 'trial', 'inactive', 'streamers', 'blocked']).default('all'),
+  region: z.enum(['all', 'cis', 'europe', 'other', 'none']).default('all'),
 })
 const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
@@ -148,9 +151,9 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }))
 
   router.get('/me/admin/users', owner('read', (req, res) => {
-    const { q, filter } = userQuerySchema.parse(req.query)
+    const { q, filter, region } = userQuerySchema.parse(req.query)
     const { limit, offset } = pageSchema.parse(req.query)
-    res.json(admin.users(q, filter as UserFilter, limit, offset))
+    res.json(admin.users(q, filter as UserFilter, limit, offset, region as RegionFilter))
   }))
   router.get('/me/admin/users/:id', owner('read', (req, res) => { res.json(admin.user(idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/grant', owner('write', (req, res, actor) => {

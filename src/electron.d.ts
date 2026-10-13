@@ -168,8 +168,11 @@ interface TarkovDesktopApi {
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
     /** Sign-in or password reset by e-mail code; the session stays in the main process. */
     emailSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
-    /** Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process). */
-    register?: (email: string, password: string, referralCode?: string) => Promise<ServerRegistrationResult>
+    /**
+     * Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process).
+     * `country`: ISO 3166-1 alpha-2 from the form (src/shared/countries.ts); apps before 13.10.2026 sent none.
+     */
+    register?: (email: string, password: string, referralCode?: string, country?: string) => Promise<ServerRegistrationResult>
     /** The code from the registration e-mail: the account appears and is signed in (the session stays in the main process). */
     registerConfirm?: (challengeId: string, code: string) => Promise<{ status: ServerAccountStatus; referralApplied: boolean }>
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
