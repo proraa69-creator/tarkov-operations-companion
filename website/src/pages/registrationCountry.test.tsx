@@ -7,8 +7,9 @@ import type { Account } from '../api'
 
 /**
  * The country at registration (owner, 13.10.2026: «научись понимать из какого региона зарегистрировался человек … при
- * регистрации нужно указать страну»): every registration form of the site asks it and sends it, the cabinet shows it and
- * lets an account from before the question set it.
+ * регистрации нужно указать страну»; then «при нажатии выбора страны окно с ручным вводом» and «не разделяй СНГ, Европу
+ * и другие страны, просто общий список»): every registration form of the site asks it in a window with a search over one
+ * list and sends it, the cabinet shows it and lets an account from before the question set it.
  */
 const mocks = vi.hoisted(() => ({
   status: 'signed-out' as string,
@@ -46,7 +47,14 @@ const { setSiteLocale } = await import('../i18n')
 
 const password = 'correct horse'
 const pending = { pending: { pending: true, message: 'Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.', challengeId: 'c'.repeat(32), expiresAt: '2026-10-13T10:10:00.000Z', resendSeconds: 60 } }
-const groupsOf = (select: HTMLElement) => [...select.querySelectorAll('optgroup')].map((group) => ({ label: group.label, names: [...group.querySelectorAll('option')].map((option) => option.textContent ?? '') }))
+const optionNames = () => screen.getAllByRole('option').map((option) => option.textContent ?? '')
+
+/** Opens the field's window, types into its search box and clicks the country. */
+async function pick(user: ReturnType<typeof userEvent.setup>, field: HTMLElement, query: string, name: string, search = 'Поиск страны') {
+  await user.click(field)
+  await user.type(screen.getByRole('combobox', { name: search }), query)
+  await user.click(screen.getByRole('option', { name }))
+}
 
 afterEach(() => {
   cleanup()
@@ -57,47 +65,78 @@ afterEach(() => {
 })
 
 describe('registration on the site asks the country', () => {
-  it('«Страна» is required, nothing is chosen in advance, the groups are «СНГ», «Европа», «Другие страны» sorted by name', async () => {
+  it('a window with a search over one list of all countries; nothing chosen in advance; required', async () => {
     mocks.register.mockResolvedValue(pending)
     const user = userEvent.setup()
     render(<MemoryRouter><RegisterPage /></MemoryRouter>)
-    const country = screen.getByRole('combobox', { name: 'Страна' }) as HTMLSelectElement
-    expect(country).toBeRequired()
-    expect(country.value).toBe('')
-    expect(country).toHaveAccessibleDescription('Для статистики по регионам и выбора способов оплаты.')
-    const groups = groupsOf(country)
-    expect(groups.map((group) => group.label)).toEqual(['СНГ', 'Европа', 'Другие страны'])
-    expect(groups[0]!.names).toEqual(['Азербайджан', 'Армения', 'Беларусь', 'Казахстан', 'Киргизия', 'Молдова', 'Россия', 'Таджикистан', 'Туркменистан', 'Узбекистан'])
-    // Ukraine is Europe; Georgia and Türkiye are Western Asia in the UN scheme, so «Другие страны».
-    expect(groups[1]!.names).toEqual(expect.arrayContaining(['Украина', 'Германия', 'Кипр', 'Польша']))
-    expect(groups[1]!.names).not.toContain('Грузия')
-    expect(groups[2]!.names).toEqual(expect.arrayContaining(['Грузия', 'Турция', 'Соединенные Штаты']))
-    for (const group of groups) expect(group.names).toEqual([...group.names].sort((a, b) => a.localeCompare(b, 'ru')))
-    expect(groups.reduce((sum, group) => sum + group.names.length, 0)).toBe(249)
+    const field = screen.getByRole('combobox', { name: 'Страна' })
+    expect(field).toHaveAttribute('aria-required', 'true')
+    expect(field).toHaveTextContent('Выберите страну')
+    expect(field).toHaveAccessibleDescription('Для статистики по регионам и выбора способов оплаты.')
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await user.click(field)
+    expect(screen.getByRole('dialog', { name: 'Выбор страны' })).toBeInTheDocument()
+    const search = screen.getByRole('combobox', { name: 'Поиск страны' })
+    expect(search).toHaveFocus()
+    // One list, no «СНГ» / «Европа» / «Другие страны» groups, sorted by name.
+    const names = optionNames()
+    expect(names).toHaveLength(249)
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'ru')))
+    expect(screen.queryByText('СНГ')).toBeNull()
+    expect(screen.queryByText('Другие страны')).toBeNull()
+    await user.type(search, 'каз')
+    expect(optionNames()).toEqual(['Казахстан'])
+    await user.clear(search)
+    await user.type(search, 'сша')
+    expect(optionNames()[0]).toBe('Соединенные Штаты')
+    await user.clear(search)
+    await user.type(search, 'zzzz')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(screen.getByText('Ничего не найдено')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(field).toHaveFocus()
 
     await user.type(screen.getByLabelText('E-mail'), 'player@mail.ru')
     await user.type(screen.getByLabelText(/^Пароль/), password)
     await user.type(screen.getByLabelText('Повторите пароль'), password)
     await user.click(screen.getByRole('checkbox'))
-    // Without a country the form is not sent.
+    // Without a country the form is not sent, and the field says why.
     await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }))
-    expect(country).toBeInvalid()
     expect(mocks.register).not.toHaveBeenCalled()
-    await user.selectOptions(country, 'KZ')
+    expect(await screen.findAllByText('Выберите страну.')).not.toHaveLength(0)
+
+    // From the keyboard: arrows open it, typing filters, Enter picks the first match.
+    field.focus()
+    await user.keyboard('{ArrowDown}')
+    await user.type(screen.getByRole('combobox', { name: 'Поиск страны' }), 'kz{Enter}')
+    expect(field).toHaveTextContent('Казахстан')
+    expect(field).not.toHaveAttribute('aria-invalid')
     await user.click(screen.getByRole('button', { name: 'Зарегистрироваться' }))
     await waitFor(() => expect(mocks.register).toHaveBeenCalledWith('player@mail.ru', password, undefined, 'KZ'))
     expect(await screen.findByText('Проверьте почту')).toBeInTheDocument()
   })
 
-  it('speaks English: the country names and the groups in English', () => {
+  it('speaks English: the country names, the window and the search', async () => {
     setSiteLocale('en')
+    const user = userEvent.setup()
     render(<MemoryRouter><RegisterPage /></MemoryRouter>)
-    const country = screen.getByRole('combobox', { name: 'Country' })
-    const groups = groupsOf(country)
-    expect(groups.map((group) => group.label)).toEqual(['CIS', 'Europe', 'Other countries'])
-    expect(groups[0]!.names).toEqual(['Armenia', 'Azerbaijan', 'Belarus', 'Kazakhstan', 'Kyrgyzstan', 'Moldova', 'Russia', 'Tajikistan', 'Turkmenistan', 'Uzbekistan'])
-    expect(screen.getByRole('option', { name: 'Choose your country' })).toBeInTheDocument()
-    expect(country).toHaveAccessibleDescription('Used for statistics by region and to offer suitable payment methods.')
+    const field = screen.getByRole('combobox', { name: 'Country' })
+    expect(field).toHaveTextContent('Choose your country')
+    expect(field).toHaveAccessibleDescription('Used for statistics by region and to offer suitable payment methods.')
+    await user.click(field)
+    expect(screen.getByRole('dialog', { name: 'Choose a country' })).toBeInTheDocument()
+    const names = optionNames()
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en')))
+    expect(names).toContain('Germany')
+    await user.type(screen.getByRole('combobox', { name: 'Search for a country' }), 'герм')
+    expect(optionNames()).toEqual(['Germany'])
+    await user.click(screen.getByRole('option', { name: 'Germany' }))
+    expect(field).toHaveTextContent('Germany')
+    await user.click(field)
+    await user.type(screen.getByRole('combobox', { name: 'Search for a country' }), 'zzzz')
+    expect(screen.getByText('Nothing found')).toBeInTheDocument()
   })
 
   it('the streamer invitation: a new account names its country too, signing in to an existing one does not ask it', async () => {
@@ -105,14 +144,14 @@ describe('registration on the site asks the country', () => {
     mocks.register.mockResolvedValue(pending)
     const user = userEvent.setup()
     render(<MemoryRouter initialEntries={[`/streamer/${'s'.repeat(32)}`]}><Routes><Route path="/streamer/:token" element={<StreamerInvitePage />} /></Routes></MemoryRouter>)
-    const country = await screen.findByRole('combobox', { name: 'Страна' })
-    expect(country).toBeRequired()
+    const field = await screen.findByRole('combobox', { name: 'Страна' })
+    expect(field).toHaveAttribute('aria-required', 'true')
     await user.type(screen.getByLabelText('E-mail'), 'tv@mail.ru')
     await user.type(screen.getByLabelText(/^Пароль/), password)
     await user.type(screen.getByLabelText('Повторите пароль'), password)
     await user.click(screen.getByRole('button', { name: 'Создать аккаунт стримера' }))
     expect(mocks.register).not.toHaveBeenCalled()
-    await user.selectOptions(country, 'AM')
+    await pick(user, field, 'арм', 'Армения')
     await user.click(screen.getByRole('button', { name: 'Создать аккаунт стримера' }))
     // No referral code on purpose: a streamer account is not somebody's referral.
     await waitFor(() => expect(mocks.register).toHaveBeenCalledWith('tv@mail.ru', password, undefined, 'AM'))
@@ -135,9 +174,9 @@ describe('the cabinet shows the country', () => {
     const panel = screen.getByRole('region', { name: 'Страна' })
     expect(within(panel).getByText('Страна не указана')).toBeInTheDocument()
     await user.click(within(panel).getByRole('button', { name: 'указать' }))
-    const select = within(panel).getByRole('combobox', { name: 'Страна' })
+    const field = within(panel).getByRole('combobox', { name: 'Страна' })
     expect(within(panel).getByRole('button', { name: 'Сохранить' })).toBeDisabled()
-    await user.selectOptions(select, 'BY')
+    await pick(user, field, 'бела', 'Беларусь')
     await user.click(within(panel).getByRole('button', { name: 'Сохранить' }))
     expect(mocks.setCountry).toHaveBeenCalledWith('session-token', 'BY')
     expect(await within(panel).findByText('Беларусь')).toBeInTheDocument()
@@ -156,8 +195,13 @@ describe('the cabinet shows the country', () => {
     expect(within(panel).getByText('Украина')).toBeInTheDocument()
     expect(within(panel).getByText('Европа')).toBeInTheDocument()
     await user.click(within(panel).getByRole('button', { name: 'Изменить' }))
-    expect((within(panel).getByRole('combobox', { name: 'Страна' }) as HTMLSelectElement).value).toBe('UA')
-    await user.selectOptions(within(panel).getByRole('combobox', { name: 'Страна' }), 'PL')
+    const field = within(panel).getByRole('combobox', { name: 'Страна' })
+    expect(field).toHaveTextContent('Украина')
+    // The window opens on the chosen country.
+    await user.click(field)
+    expect(screen.getByRole('option', { name: 'Украина' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Escape}')
+    await pick(user, field, 'польш', 'Польша')
     await user.click(within(panel).getByRole('button', { name: 'Сохранить' }))
     expect(await within(panel).findByText('Неизвестная страна. Выберите страну из списка.')).toBeInTheDocument()
     await user.click(within(panel).getByRole('button', { name: 'Отмена' }))

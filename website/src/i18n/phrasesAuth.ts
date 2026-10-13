@@ -33,6 +33,8 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   // The country of every registration form and of the cabinet (components/CountrySelect.tsx)
   ['Страна', 'Country'], ['Выберите страну', 'Choose your country'], ['Выберите страну.', 'Choose your country.'],
   ['Для статистики по регионам и выбора способов оплаты.', 'Used for statistics by region and to offer suitable payment methods.'],
+  ['Выбор страны', 'Choose a country'], ['Поиск страны', 'Search for a country'], ['Начните вводить название', 'Start typing the name'],
+  ['Страны', 'Countries'], ['Ничего не найдено', 'Nothing found'],
 
   // Password reset (pages/ResetPasswordPage.tsx)
   ['Восстановление пароля', 'Password reset'],
