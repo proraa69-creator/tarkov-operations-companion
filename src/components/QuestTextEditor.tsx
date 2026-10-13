@@ -92,9 +92,11 @@ function QuestTextRow({ spec, override, onSave, onReset }: { spec: QuestTextSpec
         ? <textarea id={id} className="input" rows={Math.min(5, Math.max(2, Math.ceil(draft.length / 90)))} maxLength={QUEST_TEXT_MAX_LENGTH} value={draft} disabled={busy} onChange={(event) => { setDraft(event.target.value); setSaved(false) }} onKeyDown={onKeyDown} />
         : <input id={id} className="input" maxLength={QUEST_TEXT_MAX_LENGTH} value={draft} disabled={busy} onChange={(event) => { setDraft(event.target.value); setSaved(false) }} onKeyDown={onKeyDown} />}
       <div className="quest-text-actions">
-        <button type="button" className="button small primary" disabled={busy || !text || !dirty} onClick={save} title={uiText('Сохранить (Ctrl+Enter)')}>
-          {busy ? <LoaderCircle size={13} className="spin" /> : <Check size={13} />}{uiText('Сохранить')}
-        </button>
+        {(dirty || busy) && (
+          <button type="button" className="button small primary" disabled={busy || !text} onClick={save} title={uiText('Сохранить (Ctrl+Enter)')}>
+            {busy ? <LoaderCircle size={13} className="spin" /> : <Check size={13} />}{uiText('Сохранить')}
+          </button>
+        )}
         {dirty && !busy && <button type="button" className="button small ghost" onClick={() => { setDraft(spec.value); setError('') }}>{uiText('Отменить')}</button>}
         {onReset && !dirty && (
           <button type="button" className="button small ghost" disabled={busy} onClick={() => void run(onReset)} title={uiText('Вернуть текст из игры')}>

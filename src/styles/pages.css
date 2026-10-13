@@ -1116,9 +1116,9 @@ a.quest-stage:hover { color: var(--text); }
 .quest-point-row-actions { display: inline-flex; gap: 2px; }
 /* «Редактировать квесты» (owner app): the constructor takes the map's right panel — the whole quest list or the picked
    quest's points (components/QuestPointEditor.tsx); its texts are fields in the quest window (QuestTextEditor.tsx). */
-.quest-editor-panel { max-width: none; max-height: none; overflow: visible; margin: 12px; background: rgb(255 255 255 / 2%); backdrop-filter: none; }
+.quest-editor-panel { max-width: none; max-height: none; overflow: visible; margin: 12px; align-content: start; background: rgb(255 255 255 / 2%); backdrop-filter: none; }
 .quest-editor-list { max-height: calc(100vh - 260px); overflow: auto; overscroll-behavior: contain; }
-.map-quest-sheet.is-editing { max-height: min(72%, 600px); }
+.map-quest-sheet.is-editing { max-height: min(56%, 460px); }
 .quest-text-editor { display: grid; gap: 10px; }
 .quest-text-editor h4 { margin: 0; }
 .quest-text-row { display: grid; gap: 4px; }

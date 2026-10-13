@@ -22,7 +22,7 @@
 .requests-notes li { display: grid; gap: 2px; padding: 6px 8px; border-left: 2px solid var(--line-strong); font-size: 13px; }
 .requests-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .requests-reward { display: inline-flex; align-items: center; gap: 4px; }
-.requests-reward .input { width: 64px; height: 28px; padding: 2px 6px; font-size: 12px; }
+.requests-page .requests-reward input.input { width: 64px; min-width: 0; flex: none; height: 28px; padding: 2px 6px; font-size: 12px; }
 .requests-detail { display: grid; gap: 10px; }
 .requests-detail p { margin: 0; white-space: pre-wrap; }
 .requests-images { display: flex; flex-wrap: wrap; gap: 8px; }

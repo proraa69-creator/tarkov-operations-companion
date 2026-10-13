@@ -50,10 +50,10 @@ describe('quest constructor: texts in the quest window (owner, 13.10.2026)', () 
     const { requests, wrapper } = ownerApp()
     const view = render(<QuestTextEditor quest={quest} stageIndex={null} />, { wrapper })
     const field = screen.getByLabelText('Цель 1')
-    const save = () => screen.getAllByRole('button', { name: /Сохранить/ })[1]
-    expect(save()).toBeDisabled()
+    // Nothing changed: no «Сохранить» at all; the button appears under the field being edited.
+    expect(screen.queryByRole('button', { name: /Сохранить/ })).toBeNull()
     fireEvent.change(field, { target: { value: '  Найти посылку на заправке  ' } })
-    fireEvent.click(save())
+    fireEvent.click(screen.getByRole('button', { name: /Сохранить/ }))
     await waitFor(() => expect(requests.some(([method]) => method === 'PUT')).toBe(true))
     expect(requests.find(([method]) => method === 'PUT')).toEqual(['PUT', '/v1/accounts/me/admin/quest-texts', { questId: 'q1', field: 'objective', target: 'o1', lang: 'ru', text: 'Найти посылку на заправке' }])
     // The app lays the saved text over the quest (DataProvider): the window shows it as saved and corrected.
