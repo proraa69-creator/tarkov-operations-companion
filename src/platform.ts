@@ -18,6 +18,11 @@ export function nativePlatform() {
   try { return Capacitor.getPlatform() } catch { return 'web' }
 }
 
+/** The Android app (Capacitor): it updates itself from the site (src/mobile/androidUpdate.ts). */
+export function isAndroidApp() {
+  return isNative() && nativePlatform() === 'android'
+}
+
 export function isDesktopShell() {
   return typeof window !== 'undefined' && Boolean(window.tarkovDesktop)
 }

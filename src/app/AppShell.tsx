@@ -28,8 +28,9 @@ import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { useMobileLayout } from '../platform'
+import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
+import { AndroidUpdateBanner } from '../mobile/AndroidUpdate'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
@@ -275,6 +276,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>)}
       {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
     </div>
   )

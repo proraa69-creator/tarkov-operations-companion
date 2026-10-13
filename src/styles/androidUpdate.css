@@ -1,0 +1,31 @@
+/* Android app: the update card above the tab bar (src/mobile/AndroidUpdate.tsx). Themed through .panel. */
+.android-update {
+  position: fixed; z-index: 46;
+  left: calc(10px + var(--safe-left, 0px)); right: calc(10px + var(--safe-right, 0px)); bottom: calc(var(--tabbar, 70px) + 10px);
+  /* The text gets the whole width; the action sits under it on the right. */
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icon text close" ". actions actions";
+  align-items: start; column-gap: 10px; row-gap: 8px;
+  padding: 10px 10px 10px 12px; border-color: var(--line-strong);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 52%);
+  animation: android-update-in .22s var(--ease-out) both;
+}
+.android-update-icon { grid-area: icon; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--brass); background: rgb(255 255 255 / 5%); }
+.android-update-text { grid-area: text; align-self: center; display: grid; gap: 2px; min-width: 0; }
+.android-update-close { grid-area: close; }
+.android-update-text strong { font-size: 13px; line-height: 1.25; }
+.android-update-text small { color: var(--text-muted); font-size: 11.5px; line-height: 1.3; overflow-wrap: anywhere; }
+.android-update-actions { grid-area: actions; justify-self: end; display: flex; align-items: center; gap: 6px; }
+.android-update-actions .button { gap: 5px; white-space: nowrap; }
+.android-update-bar { display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: rgb(255 255 255 / 8%); overflow: hidden; }
+.android-update-bar > span { display: block; height: 100%; background: var(--brass); transform-origin: left; transition: transform .2s linear; }
+.android-update.is-error .android-update-icon { color: var(--danger); }
+
+@keyframes android-update-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .android-update { animation-name: android-update-fade; }
+  .android-update-bar > span { transition: none; }
+}
+@keyframes android-update-fade { from { opacity: 0; } to { opacity: 1; } }
