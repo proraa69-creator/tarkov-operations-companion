@@ -336,7 +336,11 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const allBossMarkers = useMemo(() => data.markers.filter((marker) => marker.type === 'boss'), [data.markers])
   const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor, plottedMarkersForBosses, allBossMarkers, state.raidMode)
   // «Квесты: правка точек» (owner app): one editing mode at a time with «Расставить боссов».
-  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers })
+  // «Заявки» → «Открыть в конструкторе» (owner app): ?quest=<id>&edit=1 opens the constructor on that quest, and
+  // &proposal=<x>,<z> shows where the players say the point is.
+  const editQuestId = params.get('edit') === '1' ? params.get('quest') ?? undefined : undefined
+  const proposal = proposalOf(params.get('proposal'))
+  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers, initialQuestId: editQuestId })
   const editingQuest = questEditor.editingQuest
   const questEditorShows = questEditor.shows
   const setBossActive = bossPlacement.setActive
@@ -624,6 +628,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
+          {questEditor.active && proposal && <Marker position={[proposal.z, proposal.x]} icon={PROPOSAL_ICON} interactive={false} keyboard={false}><Tooltip permanent direction="top">{uiText('Место из заявок игроков')}</Tooltip></Marker>}
           <MapToolLayer value={tools} onChange={setTools} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
@@ -1031,6 +1036,14 @@ function bossFanOut(markers: MapMarker[]) {
 function isPlottedMarker(marker: MapMarker) {
   return marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
 }
+
+/** «Заявки» → «Открыть в конструкторе»: the place the players agree on (?proposal=<x>,<z>, game metres). */
+function proposalOf(raw: string | null): { x: number; z: number } | null {
+  const [x, z] = (raw ?? '').split(',').map(Number)
+  return raw && Number.isFinite(x) && Number.isFinite(z) && Math.abs(x!) <= 5000 && Math.abs(z!) <= 5000 ? { x: x!, z: z! } : null
+}
+
+const PROPOSAL_ICON = divIcon({ className: 'marker-icon', html: '<div class="quest-report-pin"><span></span></div>', iconSize: [24, 24], iconAnchor: [12, 12] })
 
 function questInfoMarker(quest: Quest, mapId: string): MapMarker {
   return {

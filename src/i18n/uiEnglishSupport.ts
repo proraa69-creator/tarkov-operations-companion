@@ -87,4 +87,16 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Заметка к точке: например, «в подвале за красной дверью»', 'Note to the point, e.g. “in the basement behind the red door”'],
   ['Заметка к квесту', 'Note to the task'], ['Заметка к квесту: что изменилось или что написано неверно', 'Note to the task: what changed or what is written wrong'],
   ['Карта квеста', 'Task map'], ['Неверная точка', 'Wrong point'], ['Точка квеста', 'Task point'],
+  // «Заявки» (owner app: src/components/RequestsNavButton.tsx, src/pages/RequestsPage.tsx)
+  ['Заявки', 'Requests'], ['Админ', 'Admin'], ['Ошибки', 'Bugs'], ['Предложения', 'Ideas'], ['Закрытые', 'Closed'],
+  ['Ошибки, предложения и исправления квестов от игроков. Совпадающие исправления собраны вместе — ничего не меняется, пока вы не примените.', 'Bugs, ideas and task corrections from players. Matching corrections are grouped; nothing changes until you apply it.'],
+  ['Заявки видит только аккаунт владельца. Войдите в него в профиле.', 'Only the owner account sees the requests. Sign in to it in the profile.'],
+  ['Загружаем заявки…', 'Loading requests…'], ['Исправлений квестов пока нет.', 'No task corrections yet.'], ['Открытых отчётов об ошибках нет.', 'No open bug reports.'],
+  ['Новых предложений нет.', 'No new ideas.'], ['Закрытых заявок нет.', 'No closed requests.'],
+  ['Сколько игроков указали одно и то же', 'How many players said the same'], ['1 игрок', '1 player'], ['аккаунт удалён', 'account deleted'], ['дн.', 'd'],
+  ['К точке', 'To the point'], ['К квесту', 'To the task'], ['Открыть в конструкторе', 'Open in the constructor'], ['Перенести точку сюда', 'Move the point here'],
+  ['Добавить точку сюда', 'Add the point here'], ['Дней подписки', 'Subscription days'], ['Начислить дни', 'Grant days'],
+  ['Точка применена, заявки закрыты', 'Point applied, requests closed'], ['Дни начислены', 'Days granted'], ['Заявки закрыты', 'Requests closed'],
+  ['Предложение', 'Idea'], ['Ошибка', 'Bug'], ['изображений', 'images'], ['Изображение', 'Image'], ['Открыть снова', 'Reopen'],
+  ['Место из заявок игроков', 'The place from players\' requests'],
 ]

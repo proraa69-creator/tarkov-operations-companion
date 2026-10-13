@@ -1,0 +1,30 @@
+/* «Заявки» (owner app): the sidebar link pinned above the nickname patch, and the page (src/pages/RequestsPage.tsx). */
+.sidebar .requests-nav { margin-top: auto; padding-top: 12px; }
+.sidebar .requests-nav + .sidebar-operator { margin-top: 0; }
+
+.requests-page { display: grid; gap: 14px; align-content: start; }
+.requests-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.requests-tab {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: 99px;
+  background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer;
+}
+.requests-tab.is-active { border-color: var(--brass); color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+.requests-tab-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: var(--danger, #d4513b); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; }
+.requests-empty { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--text-dim); }
+.requests-group, .requests-report { display: grid; gap: 10px; padding: 14px 16px; }
+.requests-group.is-confirmed { border-color: color-mix(in srgb, var(--success, #3fb27f) 55%, var(--line-strong)); }
+.requests-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.requests-group-head h2 { margin: 2px 0 6px; font-size: 17px; }
+.requests-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.requests-matches { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+.requests-matches.is-confirmed { border-color: var(--success, #3fb27f); color: var(--success, #3fb27f); font-weight: 700; }
+.requests-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.requests-notes li { display: grid; gap: 2px; padding: 6px 8px; border-left: 2px solid var(--line-strong); font-size: 13px; }
+.requests-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.requests-reward { display: inline-flex; align-items: center; gap: 4px; }
+.requests-reward .input { width: 64px; height: 28px; padding: 2px 6px; font-size: 12px; }
+.requests-detail { display: grid; gap: 10px; }
+.requests-detail p { margin: 0; white-space: pre-wrap; }
+.requests-images { display: flex; flex-wrap: wrap; gap: 8px; }
+.requests-images img { max-width: min(420px, 100%); max-height: 260px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
+.requests-report .is-flipped { rotate: 180deg; }

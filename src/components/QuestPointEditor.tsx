@@ -15,12 +15,13 @@ import type { GameMap, MapMarker, Quest } from '../domain/types'
  * (src/data/questPointOverrides.ts). The floor selected on the map goes with a moved / added point when it is not the
  * main level. The quest's texts are edited in the quest window at the bottom (components/QuestTextEditor.tsx).
  */
-export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[] }) {
+/** `initialQuestId`: open the constructor on that quest (the owner's «Заявки» → «Открыть в конструкторе», ?edit=1). */
+export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, initialQuestId }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string }) {
   const enabled = isOwnerApp()
   const overrides = useQuestPointOverrides(enabled)
   const writer = useQuestPointWriter()
-  const [active, setActive] = useState(false)
-  const [questId, setQuestId] = useState('')
+  const [active, setActive] = useState(Boolean(initialQuestId))
+  const [questId, setQuestId] = useState(initialQuestId ?? '')
   /** '' = all points; `o:<objective id>`; `s:<stage index>`. */
   const [goal, setGoal] = useState('')
   const [adding, setAdding] = useState(false)
