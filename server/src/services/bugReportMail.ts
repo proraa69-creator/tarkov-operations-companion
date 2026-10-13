@@ -1,8 +1,8 @@
 /**
- * Every bug report to the owner's mailbox as a PDF (owner, 11.10.2026: «в случае отчёта об ошибке от пользователей будешь
- * пересылать мне данную заявку в пдф файле на почту raidosapp@gmail.com»). The PDF is services/bugReportPdf.ts; it goes
- * out through the same provider as the e-mail codes (TARKOV_EMAIL_PROVIDER / TARKOV_EMAIL_API_KEY, Resend), to
- * TARKOV_BUG_REPORT_EMAIL (default raidosapp@gmail.com; «off» turns it off).
+ * Every bug report — and every idea from «Ваши предложения» — to the owner's mailbox as a PDF (owner, 11.10.2026: «в
+ * случае отчёта об ошибке от пользователей будешь пересылать мне данную заявку в пдф файле на почту raidosapp@gmail.com»).
+ * The PDF is services/bugReportPdf.ts; it goes out through the same provider as the e-mail codes (TARKOV_EMAIL_PROVIDER /
+ * TARKOV_EMAIL_API_KEY, Resend), to TARKOV_BUG_REPORT_EMAIL (default raidosapp@gmail.com; «off» turns it off).
  *
  * New reports are sent in the background one after another (a PDF with screenshots is built in memory), so the player's
  * answer never waits for the mail. The outcome is kept on the report (mailed_at / mail_error) and shown in the admin
@@ -26,28 +26,37 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&'
 /** One line, no header tricks. */
 const oneLine = (value: string, max: number) => value.replace(/[\r\n\t]+/g, ' ').trim().slice(0, max)
 
+/** How a report of each kind is called in the mail and the PDF. */
+export function reportWords(kind: BugReportView['kind']) {
+  return kind === 'idea'
+    ? { title: 'Предложение', fresh: 'Новое предложение', subject: 'предложение', files: 'изображениями', file: 'idea' }
+    : { title: 'Отчёт об ошибке', fresh: 'Новый отчёт об ошибке', subject: 'отчёт об ошибке', files: 'скриншотами', file: 'bug-report' }
+}
+
 function message(report: BugReportView) {
   const from = report.email ?? 'аккаунт удалён'
+  const words = reportWords(report.kind)
+  const footer = `PDF с ${report.kind === 'idea' ? 'предложением' : 'отчётом'} и ${words.files} — во вложении. Открыть и выдать дни: raidos.app → Админ-панель → «Отчёты».`
   const lines = [
-    `Новый отчёт об ошибке №${report.id}`,
+    `${words.fresh} №${report.id}`,
     `От: ${from}`,
     `Тема: ${oneLine(report.topic, 200)}`,
     `Версия: ${report.appVersion || '—'} · ${report.platform || '—'}`,
     '',
     report.description,
     '',
-    'PDF с отчётом и скриншотами — во вложении. Выдать дни за отчёт: raidos.app → Админ-панель → «Отчёты».',
+    footer,
   ]
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1c211f">
 <p style="margin:0 0 8px;font-size:12px;letter-spacing:.08em;color:#9a7a2c">RAID OS</p>
-<h2 style="margin:0 0 12px;font-size:20px">Отчёт об ошибке №${report.id}</h2>
+<h2 style="margin:0 0 12px;font-size:20px">${words.title} №${report.id}</h2>
 <p style="margin:0">От: <b>${escapeHtml(from)}</b></p>
 <p style="margin:0">Тема: <b>${escapeHtml(oneLine(report.topic, 200))}</b></p>
 <p style="margin:0 0 12px;color:#69706c">Версия: ${escapeHtml(report.appVersion || '—')} · ${escapeHtml(report.platform || '—')}</p>
 <div style="white-space:pre-wrap;padding:12px;border:1px solid #d6d8d2;border-radius:8px">${escapeHtml(report.description)}</div>
-<p style="margin:12px 0 0;color:#69706c">PDF с отчётом и скриншотами — во вложении. Выдать дни за отчёт: raidos.app → Админ-панель → «Отчёты».</p>
+<p style="margin:12px 0 0;color:#69706c">${footer}</p>
 </div>`
-  return { subject: `Raid OS · отчёт об ошибке №${report.id}: ${oneLine(report.topic, 100)}`, text: lines.join('\n'), html }
+  return { subject: `Raid OS · ${words.subject} №${report.id}: ${oneLine(report.topic, 100)}`, text: lines.join('\n'), html }
 }
 
 export class BugReportMailer {
@@ -82,10 +91,11 @@ export class BugReportMailer {
     try {
       const files = this.store.files(id)
       const { pdf, skipped } = await bugReportPdf({ ...report, files })
+      const name = `raidos-${reportWords(report.kind).file}-${id}`
       const attachments: EmailAttachment[] = [
-        { filename: `raidos-bug-report-${id}.pdf`, content: Buffer.from(pdf).toString('base64'), contentType: 'application/pdf' },
+        { filename: `${name}.pdf`, content: Buffer.from(pdf).toString('base64'), contentType: 'application/pdf' },
         ...files.filter((file) => skipped.includes(file.idx)).map((file) => ({
-          filename: `raidos-bug-report-${id}-${file.idx + 1}.${file.mime.slice('image/'.length).replace('jpeg', 'jpg')}`,
+          filename: `${name}-${file.idx + 1}.${file.mime.slice('image/'.length).replace('jpeg', 'jpg')}`,
           content: file.data.toString('base64'),
           contentType: file.mime,
         })),

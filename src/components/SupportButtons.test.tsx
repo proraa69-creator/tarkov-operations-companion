@@ -75,8 +75,9 @@ describe('SupportButtons', () => {
     await user.click(screen.getByRole('button', { name: 'Отправить отчёт' }))
     expect(await screen.findByText('Спасибо! Отчёт отправлен')).toBeInTheDocument()
     expect(serviceRequest).toHaveBeenCalledTimes(1)
-    const [method, path, body] = serviceRequest.mock.calls[0] as [string, string, { topic: string; description: string; appVersion: string; platform: string; screenshots: Array<{ data: string }> }]
+    const [method, path, body] = serviceRequest.mock.calls[0] as [string, string, { kind: string; topic: string; description: string; appVersion: string; platform: string; screenshots: Array<{ data: string }> }]
     expect([method, path]).toEqual(['POST', '/v1/bug-reports'])
+    expect(body.kind).toBe('bug')
     expect(body.topic).toBe('Карта не открывается')
     expect(body.description).toBe('Чёрный экран на Таможне')
     expect(body.appVersion).toMatch(/^\d+\.\d+\.\d+(?:\.\d+)? · client$/)
@@ -110,6 +111,46 @@ describe('SupportButtons', () => {
     expect(serviceRequest).not.toHaveBeenCalled()
   })
 
+  it('«Ваши предложения» under «Сообщить об ошибке»: the same dialog sends an idea with a photo, without the bug reward (owner, 13.10.2026)', async () => {
+    const serviceRequest = mockDesktop(signedIn)
+    const user = userEvent.setup({ applyAccept: false })
+    render(<SupportButtons variant="nav" />)
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Связаться', 'Сообщить об ошибке', 'Ваши предложения'])
+    await user.click(screen.getByRole('button', { name: 'Ваши предложения' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Ваши предложения' })
+    expect(dialog).toHaveTextContent('Есть идея для Raid OS?')
+    expect(dialog).not.toHaveTextContent('+1 день')
+    await user.type(await screen.findByLabelText('Тема'), 'Таймер рейда')
+    expect(screen.getByLabelText('Тема')).toHaveAttribute('placeholder', 'Коротко: ваша идея')
+    await user.type(screen.getByLabelText(/Описание/), 'Показывать, сколько осталось до конца рейда')
+    await user.upload(screen.getByLabelText('Фото'), new File([PNG_BYTES], 'idea.png', { type: 'image/png' }))
+    expect(await screen.findByRole('img', { name: 'idea.png' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Убрать фото idea.png' })).toBeInTheDocument()
+    expect(screen.getByText('К предложению автоматически добавятся:')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Отправить предложение' }))
+    expect(await screen.findByText('Спасибо! Предложение отправлено')).toBeInTheDocument()
+    expect(dialog).not.toHaveTextContent('Если ошибка подтвердится')
+    const [method, path, body] = serviceRequest.mock.calls[0] as [string, string, { kind: string; topic: string; description: string; screenshots: Array<{ data: string }> }]
+    expect([method, path]).toEqual(['POST', '/v1/bug-reports'])
+    expect(body.kind).toBe('idea')
+    expect(body.topic).toBe('Таймер рейда')
+    expect(body.description).toBe('Показывать, сколько осталось до конца рейда')
+    expect(body.screenshots).toHaveLength(1)
+    expect(body.screenshots[0]!.data).toMatch(/^data:image\/png;base64,/)
+  })
+
+  it('asks to sign in before sending an idea', async () => {
+    const serviceRequest = mockDesktop(signedOut)
+    const user = userEvent.setup()
+    render(<SupportButtons variant="panel" />)
+    await user.click(screen.getByRole('button', { name: 'Ваши предложения' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Ваши предложения' })
+    expect(await screen.findByText(/Предложение можно отправить после входа в аккаунт/)).toBeInTheDocument()
+    expect(dialog.querySelector('form')).toBeNull()
+    expect(serviceRequest).not.toHaveBeenCalled()
+  })
+
   it('describes the system from the user agent', () => {
     expect(describePlatform('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Electron/33')).toBe('Windows 10/11 x64 · browser')
     expect(describePlatform('Mozilla/5.0 (Linux; Android 14; Pixel 8)')).toBe('Android 14 · browser')
@@ -126,6 +167,10 @@ describe('SupportButtons', () => {
       expect(uiText('Сообщить об ошибке')).toBe('Report a bug')
       expect(uiText('Спасибо! Отчёт отправлен')).toBe('Thank you! The report has been sent')
       expect(uiText('Скриншоты принимаются только в PNG, JPEG или WEBP')).toBe('Screenshots are accepted only as PNG, JPEG or WEBP')
+      expect(uiText('Ваши предложения')).toBe('Your suggestions')
+      expect(uiText('Отправить предложение')).toBe('Send suggestion')
+      expect(uiText('Фото')).toBe('Photos')
+      expect(uiText('Спасибо! Предложение отправлено')).toBe('Thank you! The suggestion has been sent')
     } finally {
       setRenderLanguage('ru')
     }

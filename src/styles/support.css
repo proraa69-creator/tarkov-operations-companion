@@ -1,4 +1,4 @@
-/* «Связаться» / «Сообщить об ошибке» (src/components/SupportButtons.tsx). The dialog reuses .registration-overlay /
+/* «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx). The dialog reuses .registration-overlay /
    .registration-dialog (pages.css) so every theme styles it like the other dialogs. */
 .support-nav-link { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .support-overlay { overflow-y: auto; }
@@ -13,6 +13,8 @@
 .bug-report-reward b { color: var(--brass-strong, var(--brass)); white-space: nowrap; }
 .bug-report-reward span { color: var(--text-dim); font-size: 12px; }
 .bug-report-reward-note { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--brass-strong, var(--brass)); font-size: 13px; }
+/* «Ваши предложения» (owner, 13.10.2026): the same dialog with a brass lightbulb and, instead of the reward, what to write */
+.registration-icon.idea-icon { color: var(--brass-strong, var(--brass)); background: color-mix(in srgb, var(--brass) 12%, var(--panel)); }
 .bug-report-form .field-label { display: grid; gap: 6px; }
 .bug-report-text { min-height: 120px; resize: vertical; font: inherit; line-height: 1.45; padding-block: 9px; }
 .bug-report-count { justify-self: end; color: var(--text-dim); font-size: 11px; }

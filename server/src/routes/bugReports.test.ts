@@ -400,9 +400,47 @@ test('bug report PDF: a PNG claiming a huge image is attached as the file, never
   assert.equal(pngPixels(Buffer.concat([PNG.subarray(0, 33), chunk('IHDR', huge), PNG.subarray(33)])), 0)
   assert.equal(pngPixels(Buffer.concat([PNG.subarray(0, 33), chunk('fcTL', Buffer.alloc(26)), PNG.subarray(33)])), 0)
   assert.equal(pngPixels(Buffer.concat([PNG.subarray(0, 8), chunk('tEXt', Buffer.from('a')), PNG.subarray(8)])), 0)
-  const { pdf, skipped } = await bugReportPdf({ id: 9, topic: 'т', description: 'д', appVersion: '', platform: '', status: 'open', createdAt: new Date().toISOString(), rewardDays: 0, files: [{ idx: 0, mime: 'image/png', data: bomb }, { idx: 1, mime: 'image/png', data: PNG }] })
+  const { pdf, skipped } = await bugReportPdf({ id: 9, kind: 'bug', topic: 'т', description: 'д', appVersion: '', platform: '', status: 'open', createdAt: new Date().toISOString(), rewardDays: 0, files: [{ idx: 0, mime: 'image/png', data: bomb }, { idx: 1, mime: 'image/png', data: PNG }] })
   assert.deepEqual(skipped, [0])
   assert.equal(Buffer.from(pdf.subarray(0, 5)).toString('latin1'), '%PDF-')
+})
+
+test('«Ваши предложения»: ideas go through the same endpoint as kind «idea», are mailed as «Предложение» and filtered in the panel (owner, 13.10.2026)', async () => {
+  const mail = new FakeEmailSender()
+  const t = await setup(undefined, mail)
+  try {
+    const player = await t.register('player@example.com')
+    const owner = await t.login('owner@example.com')
+    const idea = await t.call<{ id: number }>('POST', '/bug-reports', player, { ...report, kind: 'idea', topic: 'Таймер рейда', description: 'Добавьте таймер до конца рейда на мини-карту.', screenshots: [shot(PNG)] })
+    assert.equal(idea.status, 201, JSON.stringify(idea.json))
+    // no kind: a bug report (apps before 13.10.2026); an unknown kind is refused
+    const bug = await t.call<{ id: number }>('POST', '/bug-reports', player, report)
+    assert.equal(bug.status, 201)
+    assert.equal((await t.call('POST', '/bug-reports', player, { ...report, kind: 'wish' })).status, 400)
+
+    await waitFor(() => mail.sent.length === 2)
+    const ideaMail = mail.sent.find((entry) => entry.subject.includes(`№${idea.json.id}:`))!
+    assert.match(ideaMail.subject, new RegExp(`предложение №${idea.json.id}: Таймер рейда`))
+    assert.match(ideaMail.text, /Новое предложение/)
+    assert.equal(ideaMail.attachments![0]!.filename, `raidos-idea-${idea.json.id}.pdf`)
+    assert.match(mail.sent.find((entry) => entry.subject.includes(`№${bug.json.id}:`))!.subject, /отчёт об ошибке/)
+
+    type List = { reports: Array<{ id: number; kind: string }>; total: number; counts: { open: number; closed: number }; kinds: { bug: number; idea: number } }
+    const ideas = await t.call<List>('GET', '/accounts/me/admin/bug-reports?status=open&kind=idea', owner)
+    assert.deepEqual(ideas.json.reports.map((entry) => [entry.id, entry.kind]), [[idea.json.id, 'idea']])
+    assert.deepEqual([ideas.json.total, ideas.json.counts, ideas.json.kinds], [1, { open: 1, closed: 0 }, { bug: 1, idea: 1 }])
+    assert.deepEqual((await t.call<List>('GET', '/accounts/me/admin/bug-reports?status=open&kind=bug', owner)).json.reports.map((entry) => entry.kind), ['bug'])
+    assert.equal((await t.call<List>('GET', '/accounts/me/admin/bug-reports?status=open', owner)).json.total, 2)
+    assert.equal((await t.call('GET', '/accounts/me/admin/bug-reports?kind=wish', owner)).status, 400)
+
+    // days for a good idea: the grant names the idea
+    const playerId = t.accounts.accountByEmail('player@example.com')!.id
+    assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/${idea.json.id}/reward`, owner, { days: 3 })).status, 200)
+    const user = (await t.call<UserDetail>('GET', `/accounts/me/admin/users/${playerId}`, owner)).json
+    assert.deepEqual(user.grants.map((grant) => [grant.days, grant.reason]), [[3, `Предложение №${idea.json.id}`]])
+  } finally {
+    await t.close()
+  }
 })
 
 test('bug reports: no days for a deleted account, and without e-mail settings the PDF button says so', async () => {

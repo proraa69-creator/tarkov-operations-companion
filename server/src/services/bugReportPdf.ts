@@ -1,7 +1,8 @@
 /**
- * A bug report as a PDF for the owner's mailbox (owner, 11.10.2026: «пересылать мне данную заявку в пдф файле на почту»):
- * the report's number, date (Moscow time), the reporter's e-mail, app version and system, topic, description and the
- * screenshots, one under another, scaled to the page. A4, DejaVu Sans (Cyrillic; fonts/dejavuSans.ts).
+ * A bug report or an idea («Ваши предложения») as a PDF for the owner's mailbox (owner, 11.10.2026: «пересылать мне данную
+ * заявку в пдф файле на почту»): the report's number, date (Moscow time), the reporter's e-mail, app version and system,
+ * topic, description and the screenshots or photos, one under another, scaled to the page. A4, DejaVu Sans (Cyrillic;
+ * fonts/dejavuSans.ts).
  *
  * JPEG screenshots go in as they are; PNG ones are re-compressed by pdf-lib. WEBP cannot be embedded in a PDF: such a
  * screenshot is listed by number and `skipped`, so the mail sends the original file next to the PDF.
@@ -172,7 +173,8 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
   doc.registerFontkit(fontkit)
   const regular = await doc.embedFont(Buffer.from(DEJAVU_SANS, 'base64'), { subset: false })
   const bold = await doc.embedFont(Buffer.from(DEJAVU_SANS_BOLD, 'base64'), { subset: false })
-  doc.setTitle(`Raid OS — отчёт об ошибке №${report.id}`)
+  const idea = report.kind === 'idea'
+  doc.setTitle(`Raid OS — ${idea ? 'предложение' : 'отчёт об ошибке'} №${report.id}`)
   doc.setAuthor(report.email ?? 'Raid OS')
   doc.setSubject(report.topic)
   doc.setCreator('Raid OS')
@@ -181,7 +183,7 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
 
   const out = new Writer(doc, regular, bold)
   out.text('RAID OS', { size: 9.5, font: bold, color: ACCENT })
-  out.text(`Отчёт об ошибке №${report.id}`, { size: 20, font: bold, gap: 2 })
+  out.text(`${idea ? 'Предложение' : 'Отчёт об ошибке'} №${report.id}`, { size: 20, font: bold, gap: 2 })
   out.text(`${moscow.format(new Date(report.createdAt))} (МСК)`, { size: 10.5, color: DIM })
   out.rule()
   out.facts([
@@ -190,7 +192,7 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
     ['Версия приложения', report.appVersion],
     ['Система', report.platform],
     ['Статус', report.status === 'closed' ? 'закрыт' : 'открыт'],
-    ['Скриншоты', report.files.length ? String(report.files.length) : 'нет'],
+    [idea ? 'Изображения' : 'Скриншоты', report.files.length ? String(report.files.length) : 'нет'],
   ])
   out.heading('Тема')
   out.text(report.topic)
@@ -199,11 +201,11 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
 
   const skipped: number[] = []
   if (report.files.length) {
-    out.heading(`Скриншоты · ${report.files.length}`)
+    out.heading(`${idea ? 'Изображения' : 'Скриншоты'} · ${report.files.length}`)
     let budget = IMAGE_BUDGET
     let pixelBudget = PNG_PIXEL_BUDGET
     for (const file of report.files) {
-      const name = `Скриншот ${file.idx + 1}`
+      const name = `${idea ? 'Изображение' : 'Скриншот'} ${file.idx + 1}`
       let image: PDFImage | undefined
       const pixels = file.mime === 'image/png' ? pngPixels(file.data) : 0
       const tooLarge = file.mime === 'image/png' && (pixels === 0 || pixels > pixelBudget)

@@ -1,20 +1,23 @@
 /**
- * «Сообщить об ошибке» (services/bugReportStore.ts).
+ * «Сообщить об ошибке» and «Ваши предложения» (services/bugReportStore.ts): one endpoint, `kind` tells them apart.
  *
- *   POST /v1/bug-reports  { topic, description, appVersion?, platform?, screenshots?: [{ data: base64 }] }  -> 201 { id, createdAt }
+ *   POST /v1/bug-reports  { kind?: 'bug' | 'idea', topic, description, appVersion?, platform?, screenshots?: [{ data: base64 }] }
+ *        -> 201 { id, createdAt }. `kind` is 'bug' when not given (apps before 13.10.2026).
  *        Signed-in accounts only (Bearer). Up to 5 screenshots, PNG / JPEG / WEBP by magic bytes, ≤ 5 MB each,
  *        ≤ 25 MB together. 5 reports per hour per account and per IP (an IPv6 /64 counts as one address). At most
  *        MAX_CONCURRENT_UPLOADS bodies are read at a time (503 + Retry-After past that). Screenshots past the global
  *        storage quota: 507 (text-only reports still go through); see services/bugReportStore.ts for retention.
  *
  * Owner only (TARKOV_OWNER_EMAILS with a confirmed e-mail): 401 without a session, 404 for everybody else.
- *   GET  /v1/accounts/me/admin/bug-reports?status=open|closed&limit&offset -> { reports, total, counts: { open, closed } }
+ *   GET  /v1/accounts/me/admin/bug-reports?status=open|closed&kind=bug|idea&limit&offset
+ *        -> { reports, total, counts: { open, closed } (of that kind), kinds: { bug, idea } (open ones) }
  *   GET  /v1/accounts/me/admin/bug-reports/:id                            -> { report } (description, file metadata)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx                 -> the image bytes (inline, no-store, nosniff)
  *   POST /v1/accounts/me/admin/bug-reports/:id/status  { status }         -> { report } (audit: bug.status)
  *   POST /v1/accounts/me/admin/bug-reports/:id/reward  { days 1–365 }     -> { report } subscription days for the reporter
  *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason
- *        «Отчёт об ошибке №N» and added to the report's reward_days (audit: bug.reward); 409 when the account is gone.
+ *        «Отчёт об ошибке №N» («Предложение №N» for an idea) and added to the report's reward_days (audit: bug.reward);
+ *        409 when the account is gone.
  *   POST /v1/accounts/me/admin/bug-reports/:id/mail                       -> { report } sends the report's PDF to the
  *        owner's mailbox again (audit: bug.mail); 503 when e-mail is not configured.
  *
@@ -36,7 +39,9 @@ export const BUG_REPORT_BODY_LIMIT = '36mb'
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
 const DATA_URL_PREFIX = /^data:image\/(?:png|jpeg|webp);base64,/
 
+const kindSchema = z.enum(['bug', 'idea'])
 const uploadSchema = z.object({
+  kind: kindSchema.default('bug'),
   topic: z.string().trim().min(1).max(BUG_REPORT_LIMITS.topic),
   description: z.string().trim().min(1).max(BUG_REPORT_LIMITS.description),
   appVersion: z.string().trim().max(80).default(''),
@@ -45,6 +50,7 @@ const uploadSchema = z.object({
 })
 const pageSchema = z.object({
   status: z.enum(['open', 'closed']).optional(),
+  kind: kindSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 })
@@ -121,7 +127,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
       const files = body.data.screenshots.map((shot) => decodeScreenshot(shot.data))
       const retry = accountLimiter.hit(accountId) || ipLimiter.hit(ipRateKey(req.ip))
       if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много отчётов. Попробуйте через час.' }); return }
-      const created = store.create(accountId, accounts.emailOf(accountId), { topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files })
+      const created = store.create(accountId, accounts.emailOf(accountId), { kind: body.data.kind, topic: body.data.topic, description: body.data.description, appVersion: body.data.appVersion, platform: body.data.platform, files })
       res.status(201).json(created)
       try { options.mail?.queue(created.id) } catch { /* the report is saved; the owner can send the PDF from the panel */ }
     } catch (error) {
@@ -146,7 +152,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     if (!owner('read', req, res)) return
     const query = pageSchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректные данные запроса' }); return }
-    res.json(store.list(query.data.status, query.data.limit, query.data.offset))
+    res.json(store.list(query.data.status, query.data.limit, query.data.offset, query.data.kind))
   })
 
   router.get('/v1/accounts/me/admin/bug-reports/:id', (req, res) => {
@@ -198,7 +204,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     if (!options.grant) { res.status(503).json({ error: 'Выдача подписки на этом сервере недоступна' }); return }
     if (!report.accountId) { res.status(409).json({ error: 'Аккаунт отправителя удалён: дни выдать некому' }); return }
     try {
-      options.grant(actor, report.accountId, body.data.days, `Отчёт об ошибке №${report.id}`)
+      options.grant(actor, report.accountId, body.data.days, `${report.kind === 'idea' ? 'Предложение' : 'Отчёт об ошибке'} №${report.id}`)
     } catch (error) {
       // AccountError (404 «Пользователь не найден», …) answers as it is; anything else is a server fault
       const status = (error as { status?: unknown }).status
