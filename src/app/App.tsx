@@ -31,6 +31,8 @@ import { DeviceLimitNotice, Paywall } from '../account/Paywall'
 import { EftAccountBinding } from '../account/EftAccountBinding'
 import { UpdateButton } from '../components/UpdateButton'
 import { FirstRunGuide } from '../onboarding/FirstRunGuide'
+import { GameRestartNotice } from '../onboarding/GameRestartNotice'
+import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
@@ -46,9 +48,9 @@ export function App() {
   // Decorative motion sleeps while the window is not in use (the player is in the game), see appActivity.ts.
   useEffect(() => startAppActivity(), [])
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
-  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
     <Route path="/live" element={<LiveMapPage />} />
     <Route path="/gallery" element={<GalleryPage />} />

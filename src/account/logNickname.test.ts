@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createLocalProfile, registerModeProfile } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, createLocalProfile, registerModeProfile } from '../domain/progress'
+import type { PlayerProfileSnapshot, RaidMode } from '../domain/types'
 
 /**
- * The nickname typed by the player (owner, 13.10.2026: «делай ручной ввод, не обращаясь к тарков дев», «возвращай кнопку
- * сменить ник»): bound to each mode's game account from the logs of this PC, saved on the account; nothing looked up.
+ * The nickname and level without waiting or typing (owner, 13.10.2026): Tarkov.dev in the background from the player's
+ * PC, the game's mode selection and traders' screens, and typing as the last resort. Bound to each mode's game account
+ * from the logs of this PC and saved on the account.
  */
 const server = vi.hoisted(() => ({ status: { signedIn: true, nicknames: {} as Record<string, string> } as { signedIn: boolean; nicknames: Record<string, string> } | null }))
 vi.mock('../sync/serverSync', async (original) => ({ ...(await original<typeof import('../sync/serverSync')>()), currentServerStatus: () => server.status }))
@@ -17,7 +19,12 @@ const { bindNicknameFromLogs, logNickname, setTypedNickname } = await import('./
 afterEach(() => { saved.length = 0 })
 
 function target() {
-  const state = { activeProfile: createLocalProfile('Оператор'), registerModeProfile: vi.fn((mode, registration) => { state.activeProfile = registerModeProfile(state.activeProfile, mode, registration) }) }
+  const state = {
+    activeProfile: createLocalProfile('Оператор'),
+    registerModeProfile: vi.fn((mode: RaidMode, registration: Parameters<typeof registerModeProfile>[2]) => { state.activeProfile = registerModeProfile(state.activeProfile, mode, registration) }),
+    updatePlayerSnapshot: vi.fn((mode: RaidMode, snapshot: PlayerProfileSnapshot) => { state.activeProfile = applyPlayerSnapshot(state.activeProfile, mode, snapshot) }),
+    applyScreenLevel: vi.fn((mode: RaidMode, level: number, observedAt: string, raiseOnly?: boolean) => { state.activeProfile = applyScreenLevel(state.activeProfile, mode, level, observedAt, raiseOnly) }),
+  }
   return state
 }
 
@@ -64,5 +71,104 @@ describe('the nickname typed in the app', () => {
     server.status = { signedIn: true, nicknames: { pvp: 'Wolf_77', pve: 'Wolf_77', seasonal: 'Wolf_77' } }
     await setTypedNickname('Wolf_77', () => state)
     expect(saved).toEqual(['Wolf_77'])
+  })
+})
+
+describe('the game\'s screens', () => {
+  const cards = [
+    { mode: 'pve' as const, nickname: 'Raid_OS', level: 41 },
+    { mode: 'pvp' as const, nickname: 'Raid_OS', level: 12 },
+    { mode: 'seasonal' as const, nickname: 'Raid_0S', level: 14 },
+  ]
+
+  it('«Выбор профиля и режима» sets every mode\'s level and the nickname at once', async () => {
+    vi.resetModules()
+    const { applyModeSelectScreen, bindNicknameFromLogs, logNickname } = await import('./logNickname')
+    server.status = { signedIn: true, nicknames: {} }
+    const state = target()
+    bindNicknameFromLogs({ latestAccountIdByMode: { pvp: 5550123, pve: 5550123 } }, () => state)
+    applyModeSelectScreen(cards, Date.parse('2026-10-13T18:00:00Z'), () => state)
+    expect([state.activeProfile.modes.pve.playerLevel, state.activeProfile.modes.pvp.playerLevel, state.activeProfile.modes.seasonal.playerLevel]).toEqual([41, 12, 14])
+    expect(state.activeProfile.modes.pvp.levelAnchor).toMatchObject({ source: 'screen', level: 12 })
+    expect(logNickname()).toBe('Raid_OS')
+    expect(state.activeProfile.modes.pvp.registration).toMatchObject({ accountId: 5550123, enteredNickname: 'Raid_OS' })
+    expect(saved).toEqual(['Raid_OS'])
+    // The same screen a second later: nothing new.
+    state.applyScreenLevel.mockClear()
+    applyModeSelectScreen(cards, Date.parse('2026-10-13T18:00:02Z'), () => state)
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+  })
+
+  it('keeps the spelling the app knows, and cards with different names change no nickname', async () => {
+    vi.resetModules()
+    const { applyModeSelectScreen, logNickname, setTypedNickname } = await import('./logNickname')
+    server.status = { signedIn: false, nicknames: {} }
+    const state = target()
+    await setTypedNickname('Raid_OS', () => state)
+    applyModeSelectScreen([{ mode: 'pvp', nickname: 'Raid_0S', level: 12 }], Date.now(), () => state)
+    expect(logNickname()).toBe('Raid_OS')
+    applyModeSelectScreen([{ mode: 'pvp', nickname: 'Other', level: 13 }, { mode: 'pve', nickname: 'Raid_OS', level: 41 }], Date.now() + 1000, () => state)
+    expect(logNickname()).toBe('Raid_OS')
+    expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
+  })
+
+  it('the traders\' screen raises the level of the mode the game is in, never lowers it', async () => {
+    vi.resetModules()
+    const { applyTraderScreen } = await import('./logNickname')
+    const state = target()
+    state.activeProfile = applyScreenLevel(state.activeProfile, 'pvp', 12, '2026-10-13T18:00:00.000Z')
+    applyTraderScreen({ level: 13 }, 'pvp', Date.parse('2026-10-13T18:30:00Z'), () => state)
+    expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
+    applyTraderScreen({ level: 11 }, 'pvp', Date.parse('2026-10-13T18:40:00Z'), () => state)
+    expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
+    // Without the game's mode from the logs nothing is set.
+    applyTraderScreen({ level: 20 }, undefined, Date.parse('2026-10-13T18:50:00Z'), () => state)
+    expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
+  })
+})
+
+describe('Tarkov.dev in the background', () => {
+  const snapshot = (level: number, upstreamUpdatedAt: string): PlayerProfileSnapshot => ({ accountId: 5550123, nickname: 'Raid_OS', experience: 0, level, faction: 'usec', prestige: 0, fetchedAt: upstreamUpdatedAt, upstreamUpdatedAt })
+
+  it('asks from this PC, again after 2, 5 and 10 minutes while it has nothing, and applies what it finds', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.resetModules()
+      const answers: Array<PlayerProfileSnapshot | null> = [null, null, snapshot(12, '2026-10-13T17:00:00.000Z')]
+      const refreshPlayerProfile = vi.fn(async () => answers.shift() ?? null)
+      vi.stubGlobal('tarkovDesktop', { refreshPlayerProfile })
+      const { bindNicknameFromLogs, logNickname } = await import('./logNickname')
+      const state = target()
+      bindNicknameFromLogs({ latestAccountIdByMode: { pvp: 5550123 } }, () => state)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(refreshPlayerProfile).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(2 * 60_000)
+      expect(refreshPlayerProfile).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      expect(refreshPlayerProfile).toHaveBeenCalledTimes(3)
+      expect(logNickname()).toBe('Raid_OS')
+      expect(state.activeProfile.modes.pvp.playerLevel).toBe(12)
+      expect(state.activeProfile.modes.pvp.levelAnchor).toMatchObject({ source: 'tarkov-dev', level: 12 })
+    } finally {
+      vi.unstubAllGlobals()
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('no network in this test') }))
+      vi.useRealTimers()
+    }
+  })
+
+  it('a newer screen reading wins over an older Tarkov.dev profile, Tarkov.dev keeps the same level', () => {
+    let profile = createLocalProfile('Оператор')
+    profile = applyPlayerSnapshot(profile, 'pvp', snapshot(12, '2026-10-13T17:00:00.000Z'))
+    // The game's screen showed the same level later: Tarkov.dev's anchor (exact experience) stays.
+    profile = applyScreenLevel(profile, 'pvp', 12, '2026-10-13T18:00:00.000Z')
+    expect(profile.modes.pvp.levelAnchor?.source).toBe('tarkov-dev')
+    // A higher level on the screen: the screen wins.
+    profile = applyScreenLevel(profile, 'pvp', 13, '2026-10-13T18:05:00.000Z')
+    expect([profile.modes.pvp.playerLevel, profile.modes.pvp.levelAnchor?.source]).toEqual([13, 'screen'])
+    // An older Tarkov.dev profile does not take it back; a newer one does.
+    profile = applyPlayerSnapshot(profile, 'pvp', snapshot(12, '2026-10-13T18:01:00.000Z'))
+    expect(profile.modes.pvp.playerLevel).toBe(13)
+    profile = applyPlayerSnapshot(profile, 'pvp', snapshot(14, '2026-10-13T19:00:00.000Z'))
+    expect([profile.modes.pvp.playerLevel, profile.modes.pvp.levelAnchor?.source]).toEqual([14, 'tarkov-dev'])
   })
 })

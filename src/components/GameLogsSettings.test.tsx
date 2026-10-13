@@ -71,7 +71,10 @@ describe('Settings → «Журналы игры»', () => {
     expect(within(panel).getByText('Ник: не указан')).toBeInTheDocument()
     expect(within(panel).queryByRole('link')).toBeNull()
 
-    // Typed by hand, nothing looked up (owner, 13.10.2026: «делай ручной ввод, не обращаясь к тарков дев»).
+    // The nickname comes from the game's screen by itself; typing it is the fallback behind «Указать вручную».
+    expect(within(panel).getByText(/Ник и уровень появятся сами/)).toBeInTheDocument()
+    expect(within(panel).queryByLabelText('Ник в игре')).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Указать вручную' }))
     expect(within(panel).getByText(/привяжется к аккаунту игры из логов этого компьютера/)).toBeInTheDocument()
     const typed = within(panel).getByLabelText('Ник в игре')
     fireEvent.change(typed, { target: { value: 'Ник' } })

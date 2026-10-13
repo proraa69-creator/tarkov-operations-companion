@@ -14,3 +14,6 @@
 .nickname-editor .button { gap: 5px; white-space: nowrap; }
 .nickname-editor-error { color: var(--danger, #bd6d60); font-size: 12px; }
 .nickname-editor-note { color: var(--text-dim); font-size: 12px; line-height: 1.45; }
+
+/* No nickname yet: it comes from the game's screen; typing it is the fallback (NicknameEditor.tsx). */
+.nickname-editor-wait { display: grid; justify-items: start; gap: 8px; }

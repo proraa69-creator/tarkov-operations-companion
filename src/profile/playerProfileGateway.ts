@@ -41,12 +41,11 @@ function serverPlayerProfileGateway(): PlayerProfileGateway {
 }
 
 /**
- * Tarkov.dev player profiles are not asked for any more (owner, 13.10.2026: Cloudflare refuses our server on
- * players.tarkov.dev — «делай ручной ввод, не обращаясь к тарков дев»): the nickname is typed by the player
- * (account/NicknameEditor.tsx), the level is to come from the game's screen. usePlayerProfileSync stays idle.
+ * Tarkov.dev player profiles are asked for by the desktop app only, from the player's own computer (owner, 13.10.2026:
+ * Cloudflare refuses our server on players.tarkov.dev, so the phone, which would ask through it, does not ask).
  */
 export function canResolvePlayerProfiles() {
-  return false
+  return Boolean(window.tarkovDesktop)
 }
 
 export function desktopPlayerProfileGateway(): PlayerProfileGateway {

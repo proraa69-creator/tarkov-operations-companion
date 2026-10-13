@@ -18,7 +18,8 @@ import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
-import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
+import { useQuestExperienceLevel } from '../profile/questExperience'
+import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { updateLogStatus } from '../import/logStatus'
 import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
@@ -83,7 +84,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
   const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
-  const { syncError, isSyncing } = usePlayerProfileSync()
+  // Quests turned in since the level was read raise it (src/profile/questExperience.ts).
+  useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
   const mobile = useMobileLayout()
@@ -241,6 +243,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {!mobile && <><GearDecor /><MaskBadge /><TelnyashkaTable /></>}
       <AlcantaraNap />
 
+      {/* The owner's notice («ведутся технические работы»), until he turns it off (src/announcement). */}
+      <AnnouncementBanner />
       {mobile ? (
         <header className="topbar mobile-topbar">
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
@@ -253,7 +257,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="topbar">
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
-        <button className="icon-button" onClick={refresh} title={uiText(syncError || 'Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching || isSyncing ? 'spin' : ''} /></button>
+        <button className="icon-button" onClick={refresh} title={uiText('Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching ? 'spin' : ''} /></button>
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
@@ -277,7 +281,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>)}
-      {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching} />}
       <AccountController />
     </div>
   )

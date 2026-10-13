@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url'
 import type { RaidMode } from '../src/domain/types.js'
 import { discoverAllEftLogs, discoverEftLogs, eftLogSearchReport, freshestLogsFolder, normalizeSelectedLogsFolder } from './logDiscovery.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
-import { resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
+import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
+import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
@@ -49,6 +50,17 @@ else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : U
 let mainWindow: BrowserWindow | null = null
 const LOG_POLL_MS = 5000
 let watchedFolder = ''
+/**
+ * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
+ * 13.10.2026: Cloudflare refuses our VPS on players.tarkov.dev; «если все таки запрос будет от компьютера пользователя,
+ * то блокировка маловероятна, поэтому давай все таки искать через тарков дев»). A session of its own: the page's session
+ * cancels every request of the page to players.tarkov.dev in the players' build, and this one is the main process's.
+ */
+const profileFetch: JsonFetch = async (url) => {
+  const response = await session.fromPartition('raidos-player-profiles').fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) })
+  return { status: response.status, json: () => response.json() }
+}
+const playerProfileFromPc = cachedProfileLookup(profileFetch)
 let scanInterval: NodeJS.Timeout | null = null
 let scanning = false
 let lastPublished = ''
@@ -541,11 +553,14 @@ function registerIpc() {
   })
 
   ipcMain.handle('profile:refresh', async (_event, rawMode: unknown, rawAccountId: unknown) => {
-    validateMode(rawMode)
+    const mode = validateMode(rawMode)
     const accountId = Number(rawAccountId)
     if (!Number.isSafeInteger(accountId) || accountId <= 0) throw new Error('Некорректный идентификатор профиля')
-    // No Tarkov.dev profiles (owner, 13.10.2026): the nickname is typed in the app, the level is to come from the screen.
-    return null
+    // From this PC only (see profileFetch), in the background (account/logNickname.ts); the owner's development copy may
+    // still try Node's fetch.
+    const snapshot = await playerProfileFromPc(mode, accountId)
+    if (snapshot || dataGatewayOnly) return snapshot
+    return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {

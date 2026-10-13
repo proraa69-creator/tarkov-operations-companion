@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, clearModeRegistration, createLocalProfile, migrateProfile, normalizeTaskKeys, registerModeProfile } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, clearModeRegistration, createLocalProfile, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -43,6 +43,10 @@ interface AppStateValue extends UiState {
   registerModeProfile: (mode: RaidMode, registration: { accountId: number; enteredNickname: string; nickname: string; verifiedAt: string }) => void
   clearModeProfile: (mode: RaidMode) => void
   updatePlayerSnapshot: (mode: RaidMode, snapshot: PlayerProfileSnapshot) => void
+  /** The level the game's mode selection screen showed (src/import/modeSelectScreen.ts). */
+  applyScreenLevel: (mode: RaidMode, level: number, observedAt: string, raiseOnly?: boolean) => void
+  /** Quest experience since the level's anchor (src/profile/questExperience.ts); never lowers the level. */
+  raisePlayerLevel: (mode: RaidMode, level: number) => void
   setSelectedMapId: (id: string) => void
   toggleTrackedQuest: (id: string) => void
   toggleCompletedQuest: (id: string) => void
@@ -170,6 +174,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     registerModeProfile: (selectedMode, registration) => updateActive((profile) => registerModeProfile(profile, selectedMode, registration)),
     clearModeProfile: (selectedMode) => updateActive((profile) => clearModeRegistration(profile, selectedMode)),
     updatePlayerSnapshot: (selectedMode, snapshot) => updateActive((profile) => applyPlayerSnapshot(profile, selectedMode, snapshot)),
+    applyScreenLevel: (selectedMode, level, observedAt, raiseOnly) => updateActive((profile) => applyScreenLevel(profile, selectedMode, level, observedAt, raiseOnly)),
+    raisePlayerLevel: (selectedMode, level) => updateActive((profile) => raisePlayerLevel(profile, selectedMode, level)),
     setSelectedMapId: (selectedMapId) => setUi((current) => ({ ...current, selectedMapId })),
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
     toggleCompletedQuest: (id) => updateMode((progress) => {

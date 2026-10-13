@@ -7,9 +7,10 @@ import { useAccountNickname } from './useAccountNickname'
 import '../styles/gameLogs.css'
 
 /**
- * «Сменить ник» and the first nickname (owner, 13.10.2026: «делай ручной ввод, не обращаясь к тарков дев», «возвращай
- * кнопку сменить ник»): the player types the nickname, nothing is looked up. It is one for PvP, PvE and «Сезон» and is
- * bound to the game account of each mode the logs of this PC show (account/logNickname.ts).
+ * The nickname comes by itself (owner, 13.10.2026: «при старте не нужно вводить ник»): from Tarkov.dev in the background
+ * and from the game's «Выбор профиля и режима» and traders' screens (account/logNickname.ts). Typing it stays as the last
+ * resort — «Указать вручную» while none is known, «Сменить ник» to correct one. One nickname for PvP, PvE and «Сезон»,
+ * bound to the game account of each mode the logs of this PC show.
  */
 export function NicknameEditor() {
   const nickname = useAccountNickname()
@@ -27,6 +28,16 @@ export function NicknameEditor() {
       <button type="button" className="button small" onClick={() => { setValue(nickname); setError(''); setEditing(true) }}>
         <Pencil size={13} aria-hidden="true" />{uiLabel('Сменить ник')}
       </button>
+    )
+  }
+  if (!editing) {
+    return (
+      <div className="nickname-editor-wait">
+        <small className="nickname-editor-note">{uiLabel('Ник и уровень появятся сами: запустите игру — Raid OS прочитает их с экрана «Выбор профиля и режима».')}</small>
+        <button type="button" className="button small ghost" onClick={() => { setValue(''); setError(''); setEditing(true) }}>
+          <Pencil size={13} aria-hidden="true" />{uiLabel('Указать вручную')}
+        </button>
+      </div>
     )
   }
 
@@ -54,7 +65,7 @@ export function NicknameEditor() {
         <button type="submit" className="button small primary" disabled={saving || !value.trim()}>
           {saving ? <LoaderCircle size={13} className="spin" aria-hidden="true" /> : <Check size={13} aria-hidden="true" />}{uiLabel('Сохранить ник')}
         </button>
-        {editing && <button type="button" className="button small ghost" onClick={() => setEditing(false)}><X size={13} aria-hidden="true" />{uiLabel('Отмена')}</button>}
+        <button type="button" className="button small ghost" onClick={() => setEditing(false)}><X size={13} aria-hidden="true" />{uiLabel('Отмена')}</button>
       </div>
       {error && <small className="nickname-editor-error" role="alert">{uiLabel(error)}</small>}
       <small className="nickname-editor-note">{uiLabel(fromLogs ? 'Один ник для PvP, PvE и Сезона, как в игре. Он привяжется к аккаунту игры из логов этого компьютера.' : 'Один ник для PvP, PvE и Сезона, как в игре.')}</small>
