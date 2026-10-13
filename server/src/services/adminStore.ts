@@ -49,7 +49,7 @@ export type AuditAction =
   | 'payment.lava-confirm' | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.lava-settings' | 'payments.lava-test' | 'payments.yookassa-settings'
   | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind'
+  | 'eft.unbind' | 'account.delete'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -533,6 +533,24 @@ export class AdminStore {
     const target = this.mustUser(id)
     if (this.accounts.unbindEftAccount(id)) this.audit(actor, 'eft.unbind', target.email)
     return this.user(id)
+  }
+
+  /**
+   * «Удалить аккаунт» from the admin panel (owner, 13.10.2026): the same erasure as the user's own «Удалить аккаунт»
+   * (AccountStore.deleteAccount — personal data gone, payments kept anonymously, the e-mail free again). Not the owner's
+   * account, and an active autopayment is cancelled first (its own button, the provider has to be told).
+   */
+  deleteUser(actor: string, id: string) {
+    const target = this.mustUser(id)
+    if (this.accounts.owners.has(target.email)) throw new AccountError(409, 'Аккаунт владельца удалить нельзя')
+    if (this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recurring_subscriptions'").get()
+      && this.db.prepare("SELECT 1 FROM recurring_subscriptions WHERE account_id = ? AND status = 'active'").get(id)) {
+      throw new AccountError(409, 'Сначала отмените автопродление — кнопка «Отменить автопродление» выше')
+    }
+    // deleteAccount runs its own transaction; the e-mail for the journal was read before it was erased.
+    this.accounts.deleteAccount(id)
+    this.audit(actor, 'account.delete', target.email)
+    return { deleted: true as const }
   }
 
   /** «Сбросить сессии»: the user is signed out everywhere (site, app, phone) and signs in again. */

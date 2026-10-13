@@ -1,64 +1,11 @@
-import { CircleCheck, CircleSlash, MonitorCog, ScrollText } from 'lucide-react'
+/** «Журнал действий» of the admin panel (the «Настройки продаж» section was removed, owner 13.10.2026). */
+import { ScrollText } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { api } from '../../api'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
 import { Loading } from './adminShared'
-import { dateTime, formatRub, PLAN_LABEL, useAdminData } from './adminData'
-import { AdminYookassaSettings } from './AdminYookassaSettings'
-import { AdminLavaSettings } from './AdminLavaSettings'
-
-const On = ({ on, children }: { on: boolean; children: string }) => (
-  <span className={`tag ${on ? 'green' : ''}`}>{on ? <CircleCheck aria-hidden="true" /> : <CircleSlash aria-hidden="true" />}{children}</span>
-)
-
-/** Sales overview and owner-only Lava controls; secrets remain encrypted in the owner app. */
-export function AdminSales() {
-  const sales = useAdminData(useCallback((token: string) => api.adminSalesSettings(token), []))
-  const data = sales.data
-  return (
-    <div className="admin-stack">
-      <Notice tone="info">Lava.top можно настроить ниже. Стоимость подписки задаётся в кабинете Lava.top. Настройки ЮKassa и общая доля стримеров меняются в приложении: «Сервер» → «Оплата».</Notice>
-      <AdminYookassaSettings />
-      <AdminLavaSettings />
-      {sales.error && <Notice tone={sales.error.offline ? 'offline' : 'error'}>{sales.error.message}</Notice>}
-      {!data && !sales.error && <Loading />}
-      {data && (
-        <>
-          <div className="admin-chips">
-            <On on={data.providers.yookassa}>ЮKassa (Россия и СНГ)</On>
-            <On on={data.providers.lava}>Lava.top (другие страны)</On>
-            <On on={data.providers.autopay}>Автоплатежи ЮKassa</On>
-            <On on={Boolean(data.yookassa?.receipts)}>Чеки 54-ФЗ</On>
-          </div>
-          {!data.enabled && <Notice tone="warn">Оплата сейчас выключена: тарифы на сайте не продаются.</Notice>}
-          {data.plans.length > 0 && (
-            <div className="table-scroll">
-              <table className="pay-table admin-table">
-                <thead><tr><th scope="col">Тариф</th><th scope="col" className="num">Цена, ₽</th><th scope="col" className="num">Скидка</th></tr></thead>
-                <tbody>
-                  {data.plans.map((plan) => (
-                    <tr key={plan.id}><th scope="row">{PLAN_LABEL[plan.id]}</th><td className="num mono">{plan.price === null ? 'на странице Lava.top' : formatRub(plan.price)}</td><td className="num mono">{plan.discountPercent ? `${plan.discountPercent} %` : '—'}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <dl className="admin-facts">
-            <div><dt>Цена месяца</dt><dd className="mono">{data.yookassa ? `${formatRub(data.yookassa.monthPrice)} ₽` : '—'}</dd></div>
-            <div><dt>Общая доля стримеров</dt><dd className="mono">{data.streamerPercent} %</dd></div>
-            <div><dt>Бесплатно с первого входа в приложение</dt><dd className="mono">{data.welcomeTrialDays ?? 1} дн.</dd></div>
-            <div><dt>Пробный период по ссылке</dt><dd className="mono">{data.trialDays} дн.</dd></div>
-            <div><dt>Адрес сайта для возврата</dt><dd className="mono">{data.yookassa?.publicUrl ?? '—'}</dd></div>
-            <div><dt>Lava.top: валюта и курс</dt><dd className="mono">{data.lava ? `${data.lava.currency} · ${formatRub(data.lava.rubRate)} ₽` : '—'}</dd></div>
-            <div><dt>Lava.top: способ оплаты</dt><dd className="mono">{data.lava ? data.lava.paymentMethod ?? 'любой' : '—'}</dd></div>
-          </dl>
-          <span className="field-hint"><MonitorCog size={13} aria-hidden="true" style={{ verticalAlign: '-2px', marginRight: 5 }} />Индивидуальная доля и отключение ссылки отдельного стримера — во вкладке «Стримеры».</span>
-        </>
-      )}
-    </div>
-  )
-}
+import { dateTime, useAdminData } from './adminData'
 
 const ACTION_LABEL: Record<string, string> = {
   'payments.yookassa-settings': 'Настройки оплаты ЮKassa',
@@ -73,6 +20,7 @@ const ACTION_LABEL: Record<string, string> = {
   'account.unblock': 'Разблокирован вход',
   'sessions.revoke': 'Сброшены сессии',
   'eft.unbind': 'Отвязан аккаунт Escape from Tarkov',
+  'account.delete': 'Удалён аккаунт',
   'streamer.percent': 'Доля стримера',
   'streamer.link': 'Ссылка стримера',
   'streamer.revoke': 'Снят статус стримера',

@@ -1,4 +1,4 @@
-import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Unlink, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
 import { useAuth } from '../../auth'
@@ -39,6 +39,8 @@ export function AdminUsers() {
 
   const submit = (event: FormEvent) => { event.preventDefault(); setQ(search.trim()); setPage(0) }
   const updated = (user: AdminUser) => users.setData((current) => current && { ...current, users: current.users.map((item) => (item.id === user.id ? user : item)) })
+  // «Удалить аккаунт»: the card closes and the list is read again (the account is gone from it).
+  const deleted = () => { setOpen(null); void users.reload() }
 
   return (
     <div className="admin-stack">
@@ -88,7 +90,7 @@ export function AdminUsers() {
                           <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
                         </tr>
-                        {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} /></td></tr>}
+                        {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} onDeleted={deleted} /></td></tr>}
                       </Fragment>
                     )
                   })}
@@ -103,7 +105,7 @@ export function AdminUsers() {
   )
 }
 
-function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser) => void }) {
+function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user: AdminUser) => void; onDeleted: () => void }) {
   const { token } = useAuth()
   const detail = useAdminData(useCallback((t: string) => api.adminUser(t, id), [id]))
   const [days, setDays] = useState('30')
@@ -126,6 +128,25 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
     } catch (reason) {
       setError(failure(reason))
     } finally {
+      setBusy(null)
+    }
+  }
+
+  /**
+   * «Удалить аккаунт» (owner, 13.10.2026): irreversible, so the owner types the e-mail of the account to confirm; the server
+   * erases it like the user's own «Удалить аккаунт» (payments stay, anonymously).
+   */
+  const remove = async (email: string) => {
+    const typed = window.prompt(`Удалить аккаунт ${email} навсегда? Будут стёрты e-mail, ники, прогресс, друзья, отряды, устройства и привязка аккаунта Escape from Tarkov; платежи останутся без имени. Чтобы подтвердить, введите e-mail аккаунта:`)
+    if (typed === null) return
+    if (typed.trim().toLowerCase() !== email.toLowerCase()) { setError({ message: 'E-mail не совпал — аккаунт не удалён.', offline: false }); setDone(''); return }
+    if (!token) return
+    setBusy('delete'); setError(null); setDone('')
+    try {
+      await api.adminDeleteUser(token, id)
+      onDeleted()
+    } catch (reason) {
+      setError(failure(reason))
       setBusy(null)
     }
   }
@@ -192,11 +213,12 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
               ? <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('block', (t) => api.adminBlock(t, id, false), () => 'Вход разблокирован')}><ShieldCheck aria-hidden="true" />Разблокировать вход</button>
               : <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => { if (window.confirm(`Заблокировать вход для ${user.email}? Все его сессии будут сброшены.`)) void run('block', (t) => api.adminBlock(t, id, true, blockReason.trim() || undefined), () => 'Вход заблокирован, сессии сброшены') }}><Ban aria-hidden="true" />Заблокировать вход</button>}
             <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('sessions', (t) => api.adminRevokeSessions(t, id), (result) => `Сброшено сессий: ${result.revoked ?? 0}`)}><LogOut aria-hidden="true" />Сбросить сессии</button>
+            <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => void remove(user.email)}>{busy === 'delete' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}Удалить аккаунт</button>
             {user.autopay?.status === 'active' && (
               <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as 'yookassa' | 'lava'] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
             )}
           </div>
-          {user.owner && <span className="field-hint">Аккаунт владельца заблокировать нельзя.</span>}
+          {user.owner && <span className="field-hint">Аккаунт владельца заблокировать и удалить нельзя.</span>}
         </div>
         {/* One Escape from Tarkov account — one Raid OS account (owner, 13.10.2026): a player who changed game accounts
             writes to support, the owner frees the old one here. */}

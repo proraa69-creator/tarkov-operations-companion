@@ -444,6 +444,7 @@ export const api = {
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
   adminUnbindEft: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/eft-account/unbind`, { method: 'POST', token, body: {} }),
+  adminDeleteUser: (token: string, id: string) => request<{ deleted: true }>(`/me/admin/users/${encodeURIComponent(id)}/delete`, { method: 'POST', token, body: {} }),
   adminDevices: (token: string, id: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices`, { token }),
   adminRevokeDevice: (token: string, id: string, deviceId: string) => request<AdminDevices>(`/me/admin/users/${encodeURIComponent(id)}/devices/${encodeURIComponent(deviceId)}/revoke`, { method: 'POST', token, body: {} }),
   adminStreamerSettings: (token: string) => request<AdminStreamerSettings>('/me/admin/streamer-settings', { token }),
