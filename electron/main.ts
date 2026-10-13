@@ -7,7 +7,8 @@ import { readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RaidMode } from '../src/domain/types.js'
-import { discoverAllEftLogs, discoverEftLogs, freshestLogsFolder, normalizeSelectedLogsFolder } from './logDiscovery.js'
+import { discoverAllEftLogs, discoverEftLogs, eftLogSearchReport, freshestLogsFolder, normalizeSelectedLogsFolder } from './logDiscovery.js'
+import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
 import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
 import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
@@ -49,6 +50,17 @@ else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : U
 let mainWindow: BrowserWindow | null = null
 const LOG_POLL_MS = 5000
 let watchedFolder = ''
+/**
+ * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
+ * 13.10.2026: Cloudflare refuses our VPS on players.tarkov.dev — «запросы с сервера не делаем, а только с пк
+ * пользователя»). A session of its own: the page's session cancels every request of the page to players.tarkov.dev in
+ * the players' build, and this one is the main process's.
+ */
+const profileFetch: JsonFetch = async (url) => {
+  const response = await session.fromPartition('raidos-player-profiles').fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) })
+  return { status: response.status, json: () => response.json() }
+}
+const playerProfileFromPc = cachedProfileLookup(profileFetch)
 let scanInterval: NodeJS.Timeout | null = null
 let scanning = false
 let lastPublished = ''
@@ -358,6 +370,9 @@ function registerIpc() {
     return { ...parsed, folder }
   })
 
+  // «Где искали журналы»: every place looked at and every Logs folder found — paths only, shown to the player.
+  ipcMain.handle('logs:search-report', async () => eftLogSearchReport(app.getPath('appData')))
+
   ipcMain.handle('logs:select-and-scan', async () => {
     const discovered = await discoverEftLogs(app.getPath('appData'))
     const result = await dialog.showOpenDialog(mainWindow!, {
@@ -541,8 +556,10 @@ function registerIpc() {
     const mode = validateMode(rawMode)
     const accountId = Number(rawAccountId)
     if (!Number.isSafeInteger(accountId) || accountId <= 0) throw new Error('Некорректный идентификатор профиля')
-    if (dataGatewayOnly) return serviceRequest('GET', `/v1/players/${mode}/${accountId}`)
-    return await serviceRequest('GET', `/v1/players/${mode}/${accountId}`).catch(() => null) ?? fetchPlayerProfile(mode, accountId)
+    // From this PC only (see profileFetch); the owner's development copy may still try Node's fetch.
+    const snapshot = await playerProfileFromPc(mode, accountId)
+    if (snapshot || dataGatewayOnly) return snapshot
+    return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
   ipcMain.handle('game:get-raid-state', () => raidState)
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
