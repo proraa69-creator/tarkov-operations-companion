@@ -85,7 +85,7 @@ export function AdminUsers() {
               <table className="pay-table admin-table admin-users">
                 <thead>
                   <tr>
-                    <th scope="col">E-mail</th><th scope="col">Регистрация</th><th scope="col">Страна</th><th scope="col">Подписка</th><th scope="col">Пришёл от</th>
+                    <th scope="col">E-mail</th><th scope="col">Регистрация</th><th scope="col">Подписка</th><th scope="col">Пришёл от</th>
                     <th scope="col" className="num">Оплаты, ₽</th><th scope="col" title="Последний вход в приложение Raid OS на компьютере">Вход с ПК</th><th scope="col"><span className="visually-hidden">Действия</span></th>
                   </tr>
                 </thead>
@@ -105,15 +105,22 @@ export function AdminUsers() {
                               {user.autopay?.status === 'active' && <span className="tag green admin-mini">автопродление</span>}
                             </span>
                           </th>
-                          <td className="mono" data-label="Регистрация">{dateOnly.format(new Date(user.createdAt))}</td>
-                          <td data-label="Страна" title={user.country ? countryText(user.country) : undefined}>{user.country ? countryName(user.country, 'ru') : <span className="dim">—</span>}</td>
+                          {/* The country under the date: a column of its own pushed «Действия» out of the table. */}
+                          <td data-label="Регистрация">
+                            <span className="admin-registered">
+                              <span className="mono">{dateOnly.format(new Date(user.createdAt))}</span>
+                              {user.country
+                                ? <span className="admin-country" title={countryText(user.country)}>{countryName(user.country, 'ru')}</span>
+                                : <span className="admin-country dim">страна не указана</span>}
+                            </span>
+                          </td>
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
                           <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
                           <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
                         </tr>
-                        {expanded && <tr className="owner-detail"><td colSpan={8}><UserActions id={user.id} onChange={updated} onDeleted={deleted} /></td></tr>}
+                        {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} onDeleted={deleted} /></td></tr>}
                       </Fragment>
                     )
                   })}
@@ -317,7 +324,7 @@ function UserDevices({ id, lastSeenAt }: { id: string; lastSeenAt?: string }) {
           ))}
         </ul>
       )}
-      {lastSeenAt && <span className="field-hint">Был в сети (сайт, телефон или ПК): <span className="mono">{dateTime.format(new Date(lastSeenAt))}</span></span>}
+      {lastSeenAt && <div className="field-hint">Был в сети (сайт, телефон или ПК): <span className="mono">{dateTime.format(new Date(lastSeenAt))}</span></div>}
     </div>
   )
 }

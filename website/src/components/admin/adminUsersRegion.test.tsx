@@ -40,11 +40,11 @@ describe('admin users: СНГ and Европа', () => {
     await waitFor(() => expect(within(tabs).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Все: 3', 'СНГ: 1', 'Европа: 1', 'Другие: 0', 'Не указана: 1']))
     expect(within(tabs).getByRole('button', { name: 'Все: 3' })).toHaveAttribute('aria-pressed', 'true')
     expect(mocks.users).toHaveBeenLastCalledWith('owner-token', '', 'all', 50, 0, 'all')
-    // The country in the rows: the name in Russian, «—» without one.
+    // The country in the rows (under the registration date): the name in Russian, «страна не указана» without one.
     const row = (email: string) => screen.getByText(email).closest('tr')!
     expect(within(row('almaty@mail.ru')).getByText('Казахстан')).toBeInTheDocument()
     expect(within(row('kyiv@mail.ru')).getByText('Украина')).toBeInTheDocument()
-    expect(within(row('old@mail.ru')).getByText('—', { selector: '[data-label="Страна"] *' })).toBeInTheDocument()
+    expect(within(row('old@mail.ru')).getByText('страна не указана')).toBeInTheDocument()
 
     fireEvent.click(within(tabs).getByRole('button', { name: 'СНГ: 1' }))
     await waitFor(() => expect(mocks.users).toHaveBeenLastCalledWith('owner-token', '', 'all', 50, 0, 'cis'))

@@ -52,6 +52,9 @@
 .admin-table tr.owner-detail > td { padding: 12px; white-space: normal; background: var(--surf-1); }
 .admin-email { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .admin-users .admin-email { white-space: normal; word-break: break-all; min-width: 200px; }
+.admin-registered { display: inline-grid; gap: 1px; }
+.admin-country { color: var(--text-muted); font-size: 12px; white-space: normal; }
+.admin-country.dim { color: var(--text-dim); }
 .admin-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
 .tag.admin-mini { min-height: 18px; padding: 0 6px; font-size: 10px; margin-left: 4px; }
 .admin-badges .tag.admin-mini { margin-left: 0; }
