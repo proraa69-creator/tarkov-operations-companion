@@ -1,6 +1,7 @@
 // The vertical 9:16 cut (~27.6 s): a logo card with the scene-1 voice, six crops of the finished landscape video with
 // big captions, and the end card with the scene-20 voice; the project's own synthesised music under it.
-//   node vertical/build.mjs ru      (needs promo/out/<lang>/video-<lang>.mp4 from assemble.mjs)
+//   node vertical/build.mjs ru [--reuse]   (needs promo/out/<lang>/video-<lang>.mp4 from assemble.mjs; --reuse keeps the
+//   rendered picture and redoes the sound) → promo/out/raidos-vertical-<lang>.mp4 and -nomusic
 import { chromium, stageAssets } from '../../env.mjs'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
@@ -104,14 +105,21 @@ const got = countFrames(video)
 if (got !== frames) throw new Error(`vertical video has ${got} frames, expected ${frames}`)
 }
 
-// ---- audio: two voice lines, the music ducked under them -------------------------------------------------------------
+// ---- audio: two voice lines, the music ducked under them; and a voice-only variant (for the platform's own music) ------
 const times = { intro: [0, INTRO], ...Object.fromEntries(shots.map((s) => [s.id, [s.from, s.to]])), outro: [endStart, duration] }
 times.boss = times.minimap; times.fair = times.bosses
 writeFileSync(`${OUT}/vertical-cues.json`, JSON.stringify({ duration, fade: 0, times, cues: [{ t: 0.15, kind: 'logo' }] }))
 execFileSync('node', [`${REPO}/scripts/trailer/music.mjs`, `--cues=${OUT}/vertical-cues.json`, `--out=${OUT}/vertical-music-${lang}.wav`], { stdio: 'inherit' })
 const ms = (x) => Math.round(x * 1000)
-execFileSync(FF, ['-v', 'error', '-y', '-i', `${S}/promo/voice/${lang}/s01.mp3`, '-i', `${S}/promo/voice/${lang}/s20.mp3`, '-i', `${OUT}/vertical-music-${lang}.wav`, '-i', video,
-  '-filter_complex', `[0:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${ms(at.v1)}|${ms(at.v1)}[a1];[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${ms(at.v20)}|${ms(at.v20)}[a2];` +
-  `[a1][a2]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${duration.toFixed(3)},asplit=2[vo][sc];[2:a]volume=0.5[mu];[mu][sc]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=420[duck];[vo][duck]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-14:TP=-1.5:LRA=11[a]`,
-  '-map', '3:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-shortest', '-movflags', '+faststart', `${S}/promo/out/raidos-vertical-${lang}.mp4`], { stdio: 'inherit' })
-console.log('vertical', duration.toFixed(2), 's,', frames, 'frames →', `${S}/promo/out/raidos-vertical-${lang}.mp4`)
+function mux(withMusic, out) {
+  const voice = `[0:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${ms(at.v1)}|${ms(at.v1)}[a1];[1:a]aresample=48000,aformat=channel_layouts=stereo,adelay=${ms(at.v20)}|${ms(at.v20)}[a2];` +
+    `[a1][a2]amix=inputs=2:normalize=0:duration=longest,apad,atrim=0:${duration.toFixed(3)}`
+  const audio = withMusic
+    ? `${voice},asplit=2[vo][sc];[2:a]volume=0.5[mu];[mu][sc]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=420[duck];[vo][duck]amix=inputs=2:normalize=0:duration=first,loudnorm=I=-14:TP=-1.5:LRA=11[a]`
+    : `${voice},loudnorm=I=-14:TP=-1.5:LRA=11[a]`
+  execFileSync(FF, ['-v', 'error', '-y', '-i', `${S}/promo/voice/${lang}/s01.mp3`, '-i', `${S}/promo/voice/${lang}/s20.mp3`, ...(withMusic ? ['-i', `${OUT}/vertical-music-${lang}.wav`] : []), '-i', video,
+    '-filter_complex', audio, '-map', `${withMusic ? 3 : 2}:v`, '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-shortest', '-movflags', '+faststart', out], { stdio: 'inherit' })
+}
+mux(true, `${S}/promo/out/raidos-vertical-${lang}.mp4`)
+mux(false, `${S}/promo/out/raidos-vertical-${lang}-nomusic.mp4`)
+console.log('vertical', duration.toFixed(2), 's,', frames, 'frames →', `${S}/promo/out/raidos-vertical-${lang}.mp4`, '(+ -nomusic)')
