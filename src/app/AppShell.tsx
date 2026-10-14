@@ -15,10 +15,9 @@ import {
   Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
-import { useTarkovData } from '../data/DataProvider'
+import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
-import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
@@ -82,8 +81,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mirrorServer = useServerAccount().status?.serverUrl
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
-  const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
-  const { syncError, isSyncing } = usePlayerProfileSync()
+  const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
+  const { isFetching } = useTarkovDataStatus()
+  const syncError = ''
+  const isSyncing = false
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
   const mobile = useMobileLayout()
@@ -141,7 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
       // The nickname from the logs: their AccountId of each mode → its Tarkov.dev profile → bound, nothing to type.
-      void bindNicknameFromLogs(result, () => stateRef.current).catch(() => {})
+      void Promise.resolve(bindNicknameFromLogs(result, () => stateRef.current)).catch(() => {})
       applyScanToModes(
         result,
         (mode) => stateRef.current.activeProfile.modes[mode].registration,
