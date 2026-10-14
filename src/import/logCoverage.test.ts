@@ -92,37 +92,64 @@ describe('each mode on its own', () => {
     ...events.map((event): LogSignal => ({ kind: 'quest', at: tick(), taskId: event.taskId, status: event.status })),
   ]
   const PVP = 'a'.repeat(24), PVE = 'b'.repeat(24), SEASON = 'c'.repeat(24)
+  /** An older launch on disk that logged something before these profiles first appeared (they started inside the logs). */
+  const before = () => ({ oldestLaunchUntil: at })
 
   it('never lends one mode the history of another', () => {
     // PvP from its start; PvE took «Search Mission» after a «Debut» only PvP's logs show; the season handed in a quest it
     // never accepted in its logs.
+    const options = before()
     const scan = buildScanResult([
       ...session('pvp', PVP, FRESH),
       ...session('pve', PVE, [accept(SEARCH)]),
       ...session('seasonal', SEASON, [done(DEBUT)]),
-    ], 3)
+    ], 3, 0, options)
     expect(logsCoverModes(scan, QUESTS)).toEqual({ pvp: true, pve: false, seasonal: false })
     expect(loggedQuestHistory(scan, 'pve')).toEqual([accept(SEARCH), expect.objectContaining(accept(SEARCH))])
   })
 
   it('follows the logs: whole in PvE, cut in PvP, and the screen comes back once a gap shows', () => {
-    const scan = buildScanResult([...session('pvp', PVP, FRESH.slice(4)), ...session('pve', PVE, FRESH)], 2)
-    expect(logsCoverModes(scan, QUESTS)).toEqual({ pvp: false, pve: true, seasonal: false })
+    const options = before()
+    const signals = [...session('pvp', PVP, FRESH.slice(4)), ...session('pve', PVE, FRESH)]
+    expect(logsCoverModes(buildScanResult(signals, 2, 0, options), QUESTS)).toEqual({ pvp: false, pve: true, seasonal: false })
     // The next launch logs a quest handed in that was accepted in a log the game has deleted since.
-    const later = buildScanResult([...session('pvp', PVP, FRESH.slice(4)), ...session('pve', PVE, [...FRESH, done(id(60))])], 3)
+    const later = buildScanResult([...signals, { kind: 'quest', at: tick(), taskId: id(60), status: 'completed' }], 3, 0, options)
     expect(logsCoverModes(later, QUESTS).pve).toBe(false)
   })
 
-  it('reads only the history since the last profile reset', () => {
-    // An old profile (its «Debut» handed in), reset: «Debut» accepted again starts the history anew.
-    const scan = buildScanResult([...session('pvp', PVP, [accept(SANITARY_2), done(DEBUT)]), ...session('pvp', PVP, FRESH)], 2)
+  it('reads only the history since the last trusted profile reset, which starts the history inside the logs', () => {
+    // An old profile (its «Debut» handed in), reset: «Debut» accepted again starts the history anew — a catalog quest.
+    const signals = [...session('pvp', PVP, [accept(SANITARY_2), done(DEBUT)]), ...session('pvp', PVP, FRESH)]
+    const trusted = { trustedQuestIds: { pvp: new Set(QUESTS.map((entry) => entry.id)) } }
+    const scan = buildScanResult(signals, 2, 0, trusted)
     expect(scan.summaryByMode.pvp.resetAt).toBeDefined()
+    expect(scan.summaryByMode.pvp.historyStartsInLogs).toBe(true)
     expect(logsCoverModes(scan, QUESTS).pvp).toBe(true)
+    // Before the catalog told its ids, nothing counts as a reset: the old «Debut» stays in the history, the profile goes
+    // back to the oldest launch on disk, and the logs do not hold its history.
+    const untrusted = buildScanResult(signals, 2)
+    expect(untrusted.summaryByMode.pvp.resetAt).toBeUndefined()
+    expect(logsCoverModes(untrusted, QUESTS).pvp).toBe(false)
+  })
+
+  it('not for a profile seen in the oldest launch on disk, even when nothing is missing from its history', () => {
+    const signals = session('pvp', PVP, FRESH)
+    const profileLine = signals.find((signal) => signal.kind === 'profile')!.at
+    // The oldest launch logged this profile: it may be older than every log, whatever the history looks like.
+    const inOldest = buildScanResult(signals, 1, 0, { oldestLaunchUntil: profileLine })
+    expect(inOldest.summaryByMode.pvp.historyStartsInLogs).toBeUndefined()
+    expect(logsCoverModes(inOldest, QUESTS).pvp).toBe(false)
+    // An older launch logged something else before: the profile started inside the logs.
+    const later = buildScanResult(signals, 2, 0, { oldestLaunchUntil: profileLine - 1 })
+    expect(later.summaryByMode.pvp.historyStartsInLogs).toBe(true)
+    expect(logsCoverModes(later, QUESTS).pvp).toBe(true)
   })
 
   it('knows nothing from a scan of an older app', () => {
-    const scan = buildScanResult(session('pve', PVE, FRESH), 1)
+    const scan = buildScanResult(session('pve', PVE, FRESH), 2, 0, before())
     expect(logsCoverModes({ ...scan, acceptedByMode: undefined }, QUESTS).pve).toBe(false)
+    // Without the time signal (an app from before it) the content alone never counts.
+    expect(logsCoverModes({ eventsByMode: scan.eventsByMode, acceptedByMode: scan.acceptedByMode }, QUESTS).pve).toBe(false)
     expect(logsCoverModes(undefined, QUESTS)).toEqual({ pvp: false, pve: false, seasonal: false })
   })
 })

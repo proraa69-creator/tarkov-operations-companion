@@ -31,7 +31,7 @@ function wholeLog() {
     { kind: 'quest', at: at + 2, taskId: quests[0]!.id, status: 'active' },
     { kind: 'quest', at: at + 3, taskId: quests[0]!.id, status: 'completed' },
     { kind: 'quest', at: at + 4, taskId: quests[1]!.id, status: 'active' },
-  ], 1)
+  ], 2, 0, { oldestLaunchUntil: at - 1 })
 }
 
 let looks: number[] = []
