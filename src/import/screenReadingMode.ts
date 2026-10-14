@@ -18,8 +18,9 @@ export function logsGameMode(status: Pick<LogStatus, 'scan'>): RaidMode | undefi
  * mode the app shows, which the player may switch to look around (that is a view change only). While the logs have not
  * named the game's mode yet but a Logs folder may exist (the search still runs, or found one), null: the readings are
  * held, not applied to the app's mode, which after a restart is simply the one shown last. Only when no Logs folder was
- * found at all is the app's mode the best there is, as before.
+ * found at all — or the logs found were read and name no mode at all, so waiting would not tell — is the app's mode the
+ * best there is, as before.
  */
 export function screenReadingMode(status: Pick<LogStatus, 'scan' | 'notFound'>, appMode: RaidMode): RaidMode | null {
-  return logsGameMode(status) ?? (status.notFound ? appMode : null)
+  return logsGameMode(status) ?? (status.notFound || status.scan ? appMode : null)
 }

@@ -25,7 +25,8 @@ describe('the mode screen readings go to (audit P12)', () => {
     expect(screenReadingMode({ notFound: false }, 'pvp')).toBeNull()
   })
 
-  it('is the app\'s mode only when no Logs folder was found at all', () => {
+  it('is the app\'s mode only when no Logs folder was found at all, or the logs read name no mode', () => {
     expect(screenReadingMode({ notFound: true }, 'seasonal')).toBe('seasonal')
+    expect(screenReadingMode({ scan: buildScanResult([], 1) }, 'pve')).toBe('pve')
   })
 })
