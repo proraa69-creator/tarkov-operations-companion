@@ -23,6 +23,7 @@ import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteAppli
 import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
+import { foregroundWindowKey } from './win32.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
   captureScreenRegion, disablePrintScreenSnipping, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping, wasVirtualKeyPressed,
@@ -185,12 +186,20 @@ let gameWasForeground = false
 /** W A S D: the player walks — a raid or the hideout, no screen the quest scanner reads. */
 const MOVE_KEYS = [0x57, 0x41, 0x53, 0x44]
 let movingBefore = false
+/** The window in front at the last look (its handle), and whether the overlays are raised once more at the next look. */
+let lastForeground = ''
+let raiseAgain = false
 /**
  * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
- * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, clicks and
- * loading screens, which would otherwise push a topmost overlay under it.
+ * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, which would
+ * otherwise push a topmost overlay under it. Done when the window in front changes (and once more at the
+ * next look, after the game's own raise), no longer every 800 ms: each raise is two window-position
+ * calls and a style write per overlay, and asking Windows how the game is displayed is not free either.
  */
 function watchGame() {
+  const foreground = foregroundWindowKey()
+  const changed = foreground !== lastForeground
+  lastForeground = foreground
   const front = isTarkovForeground()
   // Alt+Tab back into the game (or out of it): the game may have re-raised itself over the overlay.
   if (front !== gameWasForeground) {
@@ -206,6 +215,10 @@ function watchGame() {
   const moving = MOVE_KEYS.some(isVirtualKeyDown)
   if (moving && movingBefore) noteRaidSignal('movement')
   movingBefore = moving
+  if (!changed && !raiseAgain) return
+  raiseAgain = changed
+  // How the game is displayed (the Mini Map page's note on exclusive full screen), asked as it comes to the front and
+  // once more a look later, when a switch of the display mode is through; an item lookup asks for itself.
   displayMode = foregroundDisplayMode()
   for (const window of [itemWindow, minimapWindow]) {
     if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
