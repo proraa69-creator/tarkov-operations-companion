@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
 import type { Quest, RaidMode, TaskProgressStatus, Trader } from '../domain/types'
-import { useOptionalAppState } from '../state/AppState'
 
 /**
  * The player's trader loyalty levels for «Оружейник» (owner, 11.10.2026: show whether a part can be bought from the
@@ -166,13 +165,12 @@ export function playerAccess(infos: TraderLevelInfo[], playerLevel: number, flea
 }
 
 /**
- * The levels of this mode, live: the estimate, the traders' screen's reading of this mode's character (the logs' profile
- * id the app holds for the mode) and the player's own choices.
+ * The levels of this mode, live: the estimate, the traders' screen's reading of this mode's character (`character`: the
+ * logs' profile id the app holds for the mode, ModeProgress.logCharacterId) and the player's own choices.
  */
-export function useTraderLevels(mode: RaidMode, traders: Trader[], quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined, playerLevel: number) {
+export function useTraderLevels(mode: RaidMode, traders: Trader[], quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined, playerLevel: number, character?: string) {
   const manual = useSyncExternalStore(manualStore.subscribe, manualStore.read, () => NONE as ManualStored)[mode]
-  const character = useOptionalAppState()?.activeProfile.modes[mode]?.logCharacterId ?? ''
-  const screen = useSyncExternalStore(screenStore.subscribe, screenStore.read, () => NONE as ScreenStored)[mode]?.[character]?.levels
+  const screen = useSyncExternalStore(screenStore.subscribe, screenStore.read, () => NONE as ScreenStored)[mode]?.[character ?? '']?.levels
   const infos = useMemo(() => traderLevelInfos(traders, quests, statusOf, playerLevel, manual, screen), [manual, playerLevel, quests, screen, statusOf, traders])
   const setLevel = useCallback((key: string, level: number | null) => setManualTraderLevel(mode, key, level), [mode])
   return { infos, setLevel }
