@@ -273,6 +273,7 @@ async function openApp(browser, route, { spin = false, locale = 'ru' } = {}) {
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', (error) => errors.push(String(error.message ?? error)))
+  page.on('crash', () => errors.push('the page crashed'))
   await page.goto(`${BASE}/#${route}`, { waitUntil: 'load', timeout: 120_000 })
   const cdp = await context.newCDPSession(page)
   await cdp.send('Performance.enable')
@@ -408,25 +409,31 @@ function table(results) {
   return lines.join('\n')
 }
 
-const browser = await chromium.launch({
+const launch = () => chromium.launch({
   executablePath: chromiumPath(),
   headless: true,
   // WebGL for the boss viewer without a GPU.
   args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist', '--enable-precise-memory-info'],
 })
 const results = []
-try {
-  if (SCENARIOS.includes('pages')) {
-    for (const name of PAGES) {
-      if (!ROUTES[name]) continue
-      process.stderr.write(`page ${name}…\n`)
-      results.push(await pageScenario(browser, name))
-    }
+const steps = [
+  ...(SCENARIOS.includes('pages') ? PAGES.filter((name) => ROUTES[name]).map((name) => ({ label: `page ${name}`, run: (browser) => pageScenario(browser, name) })) : []),
+  ...(SCENARIOS.includes('catalog') ? [{ label: 'catalog', run: catalogScenario }] : []),
+  ...(SCENARIOS.includes('refresh') ? [{ label: 'refresh', run: refreshScenario }] : []),
+]
+// Each step in a browser of its own: a crash or a closed page costs that step only, and what was measured is kept.
+for (const step of steps) {
+  process.stderr.write(`${step.label}…\n`)
+  const browser = await launch()
+  try {
+    results.push(await step.run(browser))
+  } catch (error) {
+    process.stderr.write(`${step.label} failed: ${error instanceof Error ? error.message : String(error)}\n`)
+    results.push({ failed: step.label, error: String(error instanceof Error ? error.message : error) })
+  } finally {
+    await browser.close().catch(() => {})
   }
-  if (SCENARIOS.includes('catalog')) { process.stderr.write('catalog…\n'); results.push(await catalogScenario(browser)) }
-  if (SCENARIOS.includes('refresh')) { process.stderr.write('refresh…\n'); results.push(await refreshScenario(browser)) }
-} finally {
-  await browser.close()
+  if (args.json) writeFileSync(String(args.json), JSON.stringify(results, null, 2))
 }
-console.log(table(results))
-if (args.json) writeFileSync(String(args.json), JSON.stringify(results, null, 2))
+console.log(table(results.filter((entry) => !entry.failed)))
+for (const entry of results.filter((item) => item.failed)) console.log(`${entry.failed}: failed (${entry.error})`)
