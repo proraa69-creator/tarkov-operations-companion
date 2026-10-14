@@ -291,6 +291,8 @@ export interface AdminUser {
   eftAccount?: { masked: string; boundAt: string }
   /** The country named at registration (ISO 3166-1 alpha-2); absent when the user has not named one. */
   country?: string
+  /** The Escape from Tarkov nickname the PC app found in the game logs; absent until it is found. */
+  nickname?: string
 }
 /** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
 export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }

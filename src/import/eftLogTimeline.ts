@@ -8,15 +8,31 @@ import type { ParsedTaskEvent } from './logParser.js'
  * (gw-pvp / gw-pve / gw-pvp-season) and the selected profile id, which differs per mode.
  */
 export type LogSignal =
-  | { kind: 'mode'; at: number; mode: RaidMode }
+  /** `via: 'gateway'`: told by the host of a backend request, not by a «Session mode» line (see explicitModesWin). */
+  | { kind: 'mode'; at: number; mode: RaidMode; via?: 'gateway' }
   | { kind: 'profile'; at: number; profileId: string; accountId: number }
   | { kind: 'quest'; at: number; taskId: string; status: ParsedTaskEvent['status'] }
 
 export interface ModeLogSummary {
   profileId?: string
   accountId?: number
-  /** Latest profile reset (quests handed in before were accepted again). Earlier events are ignored. */
+  /**
+   * Latest profile reset: a catalog trader quest handed in before was accepted again (see dropBeforeReset). Earlier
+   * events are ignored, and the server deletes this character's older events (server/src/services/progressStore.ts).
+   */
   resetAt?: string
+  /**
+   * Since when the logs show this profile in this mode: its first profile load after another profile's (a new character
+   * after a wipe, or the other game account of a shared PC), else its first one. Records of the mode older than this
+   * belong to the character before (src/import/logApply.ts logEpochChange).
+   */
+  profileSince?: string
+  /**
+   * The mode's quest history starts inside the logs on disk: its profile first appears after the oldest game launch that
+   * logged anything (the profile started within the logs' coverage), or a trusted reset happened inside them. With the
+   * content check of src/import/logCoverage.ts it tells that the logs hold the mode's whole quest history.
+   */
+  historyStartsInLogs?: boolean
   lastActivityAt?: string
   /** Every quest event since the last reset, oldest first. */
   history: ParsedTaskEvent[]
@@ -44,22 +60,48 @@ export interface ModeLogScanResult {
   latestMode?: RaidMode
   latestAccountIdByMode: Partial<Record<RaidMode, number>>
   latestCharacterIdByMode: Partial<Record<RaidMode, string>>
+  /**
+   * Per mode, every quest whose acceptance (notification type 10) the logs hold since the last reset. With
+   * `eventsByMode` (each quest's latest status) it tells whether the logs reach back to the profile's start
+   * (src/import/logCoverage.ts). Missing from an older app: then they never do.
+   */
+  acceptedByMode?: Record<RaidMode, string[]>
+  /**
+   * Only who plays and where, from the newest launches' application logs (electron/logScanner.ts scanLogIdentity): the
+   * first thing the app learns at a start, within seconds. No quest events: nothing to apply or push, the full scan follows.
+   */
+  identityOnly?: boolean
+  /** A short hash of everything the app applies from this scan (logScanSignature): an equal one changes nothing. */
+  signature?: string
 }
 
-export function buildScanResult(signals: LogSignal[], sessionCount: number, ignoredRecords = 0): ModeLogScanResult {
-  const summary = summarizeLogSignals(signals)
+/** What the summary needs besides the signals. */
+export interface LogSummaryOptions {
+  /**
+   * Per mode, the catalog's trader quest ids (traderQuestIdsForResets): only an id of these accepted again after its
+   * hand-in reveals a profile reset. Without a mode's ids no reset is detected in that mode — nothing is dropped.
+   */
+  trustedQuestIds?: Partial<Record<RaidMode, ReadonlySet<string>>>
+  /** The time of the last signal of the oldest game launch on disk that logged any (historyStartsInLogs). */
+  oldestLaunchUntil?: number
+}
+
+export function buildScanResult(signals: LogSignal[], sessionCount: number, ignoredRecords = 0, options: LogSummaryOptions = {}): ModeLogScanResult {
+  const summary = summarizeLogSignals(signals, options)
   const modesList: RaidMode[] = ['pvp', 'pve', 'seasonal']
   const eventsByMode = { pvp: summary.modes.pvp.quests, pve: summary.modes.pve.quests, seasonal: summary.modes.seasonal.quests }
   const latestAccountIdByMode: Partial<Record<RaidMode, number>> = {}
   const latestCharacterIdByMode: Partial<Record<RaidMode, string>> = {}
   const summaryByMode = {} as ModeLogScanResult['summaryByMode']
+  const acceptedByMode = {} as Record<RaidMode, string[]>
   for (const mode of modesList) {
-    const { profileId, accountId, resetAt, lastActivityAt, quests } = summary.modes[mode]
-    summaryByMode[mode] = { profileId, accountId, resetAt, lastActivityAt, questCount: quests.length }
+    acceptedByMode[mode] = [...new Set(summary.modes[mode].history.filter((event) => event.status === 'active').map((event) => event.taskId))]
+    const { profileId, accountId, resetAt, profileSince, historyStartsInLogs, lastActivityAt, quests } = summary.modes[mode]
+    summaryByMode[mode] = { profileId, accountId, resetAt, profileSince, historyStartsInLogs, lastActivityAt, questCount: quests.length }
     if (accountId) latestAccountIdByMode[mode] = accountId
     if (profileId) latestCharacterIdByMode[mode] = profileId
   }
-  return {
+  const result: ModeLogScanResult = {
     events: [...eventsByMode.pvp, ...eventsByMode.pve, ...eventsByMode.seasonal],
     detectedModes: modesList.filter((mode) => summary.modes[mode].lastActivityAt),
     accountIds: [...new Set(Object.values(latestAccountIdByMode))],
@@ -72,7 +114,90 @@ export function buildScanResult(signals: LogSignal[], sessionCount: number, igno
     latestMode: summary.latestMode,
     latestAccountIdByMode,
     latestCharacterIdByMode,
+    acceptedByMode,
   }
+  return { ...result, signature: logScanSignature(result) }
+}
+
+const SCAN_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
+
+/**
+ * A short hash of everything the app takes from a scan: every mode's quests (task, status, time), its profile and game
+ * account, its reset, whether its history starts in the logs and its acceptances, plus the latest mode and the number of
+ * launches read. The desktop app publishes a scan only when this changes (electron/logWatcher.ts), and applies one only
+ * once (src/import/logResults.ts). The last quest of the list alone is not enough: a PvP hand-in while a Season event is
+ * last in the list changed neither the count nor that event, and was never published.
+ */
+export function logScanSignature(result: Pick<ModeLogScanResult, 'eventsByMode' | 'summaryByMode' | 'latestMode' | 'sessionCount'> & Partial<Pick<ModeLogScanResult, 'acceptedByMode' | 'identityOnly'>>): string {
+  const parts: Array<string | number> = [result.identityOnly ? 'identity' : 'full', result.latestMode ?? '', result.sessionCount]
+  for (const mode of SCAN_MODES) {
+    const summary = result.summaryByMode?.[mode]
+    parts.push(mode, summary?.profileId ?? '', summary?.accountId ?? 0, summary?.resetAt ?? '', summary?.historyStartsInLogs ? 1 : 0, (result.acceptedByMode?.[mode] ?? []).join(','))
+    for (const event of result.eventsByMode?.[mode] ?? []) parts.push(event.taskId, event.status, event.timestamp)
+  }
+  return shortHash(JSON.stringify(parts))
+}
+
+/** cyrb53: a 53-bit string hash, plenty to tell two states of one player's logs apart. */
+function shortHash(text: string) {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    h1 = Math.imul(h1 ^ code, 2654435761)
+    h2 = Math.imul(h2 ^ code, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36)
+}
+
+/**
+ * The identity part of a scan (identityOnly): the latest mode, each mode's game account and profile, nothing about quests.
+ * No mode has `lastActivityAt`, so nothing is applied or pushed from it even by code that does not check `identityOnly`.
+ */
+export function identityScanResult(result: ModeLogScanResult): ModeLogScanResult {
+  const summaryByMode = {} as ModeLogScanResult['summaryByMode']
+  for (const mode of SCAN_MODES) {
+    const { profileId, accountId } = result.summaryByMode[mode]
+    summaryByMode[mode] = { profileId, accountId, questCount: 0 }
+  }
+  const identity: ModeLogScanResult = {
+    events: [],
+    detectedModes: SCAN_MODES.filter((mode) => summaryByMode[mode].profileId),
+    accountIds: result.accountIds,
+    profileIds: result.profileIds,
+    ignoredRecords: result.ignoredRecords,
+    eventsByMode: { pvp: [], pve: [], seasonal: [] },
+    summaryByMode,
+    unresolvedEvents: 0,
+    sessionCount: result.sessionCount,
+    latestMode: result.latestMode,
+    latestAccountIdByMode: result.latestAccountIdByMode,
+    latestCharacterIdByMode: result.latestCharacterIdByMode,
+    identityOnly: true,
+  }
+  return { ...identity, signature: logScanSignature(identity) }
+}
+
+/**
+ * The quest ids that may reveal a profile reset: the catalog's trader quests of a mode — not a story chapter, not a
+ * wiki-only page, a game id. A daily or weekly quest is accepted again and again under one template id the catalog does
+ * not list, and must never count as «accepted after handed in».
+ */
+export function traderQuestIdsForResets(quests: ReadonlyArray<{ id: string; kind?: string; storyChapterId?: string }>): string[] {
+  return quests.filter((quest) => quest.kind !== 'story' && !quest.storyChapterId && /^[a-f0-9]{24}$/i.test(quest.id)).map((quest) => quest.id)
+}
+
+/**
+ * P23: one launch that logged «Session mode» takes its modes from those lines (and profile ids) only. The gateway host of
+ * backend requests used to switch the mode too, so one stray request to another mode's gateway in mid-session moved the
+ * quests after it to that mode — and could look like a reset there. Gateway hosts still tell the mode of a launch that
+ * logged no «Session mode» line at all. `launch`: every signal of one launch folder.
+ */
+export function explicitModesWin(launch: LogSignal[]): LogSignal[] {
+  const explicit = launch.some((signal) => signal.kind === 'mode' && signal.via !== 'gateway')
+  return explicit ? launch.filter((signal) => !(signal.kind === 'mode' && signal.via === 'gateway')) : launch
 }
 
 const STATUS_BY_TYPE: Record<number, ParsedTaskEvent['status']> = { 10: 'active', 11: 'failed', 12: 'completed' }
@@ -135,7 +260,7 @@ export function readLogSignalsFrom(text: string, gatewayMode?: RaidMode): { sign
     const gateway = line.match(GATEWAY)
     if (gateway) {
       const mode = modeFromGateway(gateway[1]!)
-      if (mode !== lastGatewayMode) signals.push({ kind: 'mode', at, mode })
+      if (mode !== lastGatewayMode) signals.push({ kind: 'mode', at, mode, via: 'gateway' })
       lastGatewayMode = mode
       continue
     }
@@ -169,10 +294,14 @@ function emptySummary(): ModeLogSummary {
   return { history: [], quests: [] }
 }
 
-export function summarizeLogSignals(signals: LogSignal[]): LogTimelineSummary {
+export function summarizeLogSignals(signals: LogSignal[], options: LogSummaryOptions = {}): LogTimelineSummary {
   const ordered = [...signals].sort((a, b) => a.at - b.at || KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
   const modeOfProfile = new Map<string, RaidMode>()
+  /** The first profile load of every profile id: whether the profile started inside the logs (historyStartsInLogs). */
+  const firstSeen = new Map<string, number>()
   const profileOfMode: Partial<Record<RaidMode, { profileId: string; accountId: number }>> = {}
+  /** Per mode, the profile loaded last and since when it has been, without another profile of the mode in between. */
+  const profileRun: Partial<Record<RaidMode, { profileId: string; since: number }>> = {}
   const profileTimes: Record<RaidMode, number[]> = { pvp: [], pve: [], seasonal: [] }
   const raw: Record<RaidMode, ParsedTaskEvent[]> = { pvp: [], pve: [], seasonal: [] }
   const lastActivity: Partial<Record<RaidMode, number>> = {}
@@ -191,6 +320,8 @@ export function summarizeLogSignals(signals: LogSignal[]): LogTimelineSummary {
       if (known) mode = known
       if (!mode) continue
       if (!known) modeOfProfile.set(signal.profileId, mode)
+      if (!firstSeen.has(signal.profileId)) firstSeen.set(signal.profileId, signal.at)
+      if (profileRun[mode]?.profileId !== signal.profileId) profileRun[mode] = { profileId: signal.profileId, since: signal.at }
       profileOfMode[mode] = { profileId: signal.profileId, accountId: signal.accountId }
       profileTimes[mode].push(signal.at)
       lastActivity[mode] = signal.at
@@ -216,11 +347,17 @@ export function summarizeLogSignals(signals: LogSignal[]): LogTimelineSummary {
   for (const key of Object.keys(modes) as RaidMode[]) {
     const identity = profileOfMode[key]
     const events = identity ? raw[key].filter((event) => !event.profileId || event.profileId === identity.profileId) : raw[key]
-    const { history, resetAt } = dropBeforeReset(events, profileTimes[key])
+    const trusted = options.trustedQuestIds?.[key]
+    const { history, resetAt } = dropBeforeReset(events, profileTimes[key], (taskId) => trusted?.has(taskId) ?? false)
+    const since = identity && profileRun[key]?.profileId === identity.profileId ? profileRun[key]!.since : undefined
+    const first = identity ? firstSeen.get(identity.profileId) : undefined
+    const startsInLogs = resetAt !== undefined || (first !== undefined && options.oldestLaunchUntil !== undefined && first > options.oldestLaunchUntil)
     modes[key] = {
       profileId: identity?.profileId,
       accountId: identity?.accountId,
       resetAt: resetAt === undefined ? undefined : new Date(resetAt).toISOString(),
+      profileSince: since === undefined ? undefined : new Date(since).toISOString(),
+      historyStartsInLogs: startsInLogs || undefined,
       lastActivityAt: lastActivity[key] === undefined ? undefined : new Date(lastActivity[key]!).toISOString(),
       history,
       quests: latestPerTask(history),
@@ -230,15 +367,17 @@ export function summarizeLogSignals(signals: LogSignal[]): LogTimelineSummary {
 }
 
 /**
- * A quest that was handed in cannot be accepted again, so «accepted after handed in» means the
- * profile was reset. Everything before the profile load that preceded it belongs to the old profile.
+ * A quest that was handed in cannot be accepted again, so «accepted after handed in» means the profile was reset (a
+ * prestige keeps the profile id). Everything before the profile load that preceded it belongs to the old profile.
+ * Only a `trusted` quest — a trader quest of the mode's catalog — counts: dailies and weeklies are accepted again and
+ * again under one template id, and every reset drops history here and deletes the character's older events on the server.
  */
-function dropBeforeReset(events: ParsedTaskEvent[], profileTimes: number[]) {
+function dropBeforeReset(events: ParsedTaskEvent[], profileTimes: number[], trusted: (taskId: string) => boolean) {
   let kept: ParsedTaskEvent[] = []
   let resetAt: number | undefined
   for (const event of events) {
     const at = Date.parse(event.timestamp)
-    if (event.status === 'active' && kept.some((entry) => entry.taskId === event.taskId && entry.status === 'completed')) {
+    if (event.status === 'active' && trusted(event.taskId) && kept.some((entry) => entry.taskId === event.taskId && entry.status === 'completed')) {
       const boundary = [...profileTimes].reverse().find((time) => time <= at) ?? at
       kept = kept.filter((entry) => Date.parse(entry.timestamp) >= boundary)
       if (kept.some((entry) => entry.taskId === event.taskId && entry.status === 'completed')) {

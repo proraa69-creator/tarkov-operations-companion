@@ -28,6 +28,10 @@ import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
 import { CountUp } from '../components/CountUp'
 import { OverviewBlock } from '../overview/OverviewBlock'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
+import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
+import { usePhoneOverview } from '../overview/usePhoneOverview'
+import { useMobileLayout } from '../platform'
+import { PositionSetupNotice } from '../overlay/PositionSetupCard'
 import '../styles/overviewEdit.css'
 
 type Blocks = Record<string, { label: string; node: ReactNode }>
@@ -44,6 +48,10 @@ export function DashboardPage() {
   // «Настроить блоки» (owner, 12.10.2026): every block but the big map can be moved, each keeps its shape.
   const editor = useOverviewEditor()
   const { layout } = editor
+  // The phone: one column where every block moves up or down (overview/phoneLayout.ts).
+  const mobile = useMobileLayout()
+  const phone = usePhoneOverview()
+  const layoutEditor = mobile ? phone : editor
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
@@ -148,10 +156,11 @@ export function DashboardPage() {
   }
   const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
     <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={blocks[id]?.label ?? id}>{blocks[id]?.node}</OverviewBlock>
+  // A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026).
+  const priority = { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> }
   const rows: Blocks = {
     stats: { label: 'Карточки', node: <section className="stat-grid">{layout.stats.map(block('stats', statCards))}</section> },
-    // A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026).
-    priority: { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> },
+    priority,
     columns: {
       label: '',
       node: <div className="dashboard-layout">
@@ -161,20 +170,27 @@ export function DashboardPage() {
     },
   }
 
-  return <div className={`page${editor.editing ? ' overview-editing' : ''}`}>
+  const phoneBlocks: Blocks = { ...statCards, priority, ...leftBlocks, ...rightBlocks }
+  const order = phone.layout.order
+  return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1></div>
       <div className="overview-header-actions">
         <div className="overview-layout-actions">
-          {editor.editing && <button type="button" className="button small ghost" onClick={editor.reset} disabled={editor.isDefault}><RotateCcw size={14} />{uiText(' Сбросить')}</button>}
-          <button type="button" className={`button small ${editor.editing ? 'primary' : 'ghost'}`} aria-pressed={editor.editing} onClick={editor.toggleEditing}>{editor.editing ? <Check size={14} /> : <LayoutDashboard size={14} />}{uiText(editor.editing ? ' Готово' : ' Настроить блоки')}</button>
+          {layoutEditor.editing && <button type="button" className="button small ghost" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={14} />{uiText(' Сбросить')}</button>}
+          <button type="button" className={`button small ${layoutEditor.editing ? 'primary' : 'ghost'}`} aria-pressed={layoutEditor.editing} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={14} /> : <LayoutDashboard size={14} />}{uiText(layoutEditor.editing ? ' Готово' : ' Настроить блоки')}</button>
         </div>
         <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>
-    {editor.editing && <p className="overview-edit-hint" role="status">{uiText('Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
+    {!mobile && <PositionSetupNotice />}
+    {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
+      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Прогресс» можно сделать узкими и поставить рядом.'
+      : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
-    <div className="overview-rows">{layout.rows.map(block('rows', rows))}</div>
+    {mobile
+      ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={phoneBlocks[id].label} index={index} count={order.length}>{phoneBlocks[id].node}</PhoneOverviewBlock>)}</div>
+      : <div className="overview-rows">{layout.rows.map(block('rows', rows))}</div>}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
   </div>
 }

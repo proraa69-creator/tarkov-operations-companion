@@ -41,9 +41,19 @@ export function UiSounds() {
       lastHoverAt = now
       playUiSound('hover')
     }
+    // A finger plays the click on the tap itself (the click event), not when it touches the screen: a touch that
+    // turns into a scroll is no press (owner, 13.10.2026: «при листании вверх вниз не нажимались кнопки, только при
+    // конкретном нажатии»). The mouse keeps the instant click on press.
+    let touchPress = false
     const onDown = (event: PointerEvent) => {
-      if (event.button !== 0 || !interactiveTarget(event.target)) return
+      touchPress = event.pointerType === 'touch' || event.pointerType === 'pen'
+      if (touchPress || event.button !== 0 || !interactiveTarget(event.target)) return
       playUiSound('click')
+    }
+    const onClick = (event: MouseEvent) => {
+      if (!touchPress) return
+      touchPress = false
+      if (interactiveTarget(event.target)) playUiSound('click')
     }
     const onKey = (event: KeyboardEvent) => {
       if ((event.key === 'Enter' || event.key === ' ') && !event.repeat && interactiveTarget(event.target)) playUiSound('click')
@@ -51,10 +61,12 @@ export function UiSounds() {
 
     document.addEventListener('pointerover', onOver, { passive: true })
     document.addEventListener('pointerdown', onDown, { passive: true })
+    document.addEventListener('click', onClick, { capture: true, passive: true })
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('pointerover', onOver)
       document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('click', onClick, { capture: true })
       document.removeEventListener('keydown', onKey)
     }
   }, [])

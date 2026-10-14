@@ -150,7 +150,7 @@ test('the free day: once per game account, also after the first Raid OS account 
   })
 })
 
-test('the owner: never locked, and his own game account locks nobody out (testing the players\' app on his PC)', async () => {
+test('the owner: never locked himself, but his game account locks every other Raid OS account out', async () => {
   await withApi(async ({ accounts, register, entitle, report }) => {
     const { salt, hash } = await newPasswordHash(PASSWORD)
     const owner = accounts.createVerifiedAccount('owner@example.com', salt, hash).token
@@ -158,13 +158,33 @@ test('the owner: never locked, and his own game account locks nobody out (testin
     assert.equal((await report(owner, X)).status, 200)
     assert.equal((await report(owner, Y)).status, 200, 'another game account on the owner\'s account: no refusal')
     assert.equal((await entitle(owner, device(1))).status, 200)
-    // A test account on the owner's PC: allowed, nothing bound to it.
+    // Back to his own game account (bound to him by the first report): the PC's logs show X.
+    assert.equal((await report(owner, X)).status, 200)
+    // A new account on the owner's PC (owner, 13.10.2026: «создал еще один аккаунт с пробным периодом и получил доступ»):
+    // refused from its very first access — the PC's last report is the owner's game account — and on its own report.
     const tester = await register('tester@example.com')
-    assert.equal((await entitle(tester, device(1))).status, 200)
+    const first = await entitle(tester, device(1))
+    assert.equal(first.status, 403)
+    assert.equal(first.body.code, 'eft_conflict')
     const seen = await report(tester, X)
-    assert.equal(seen.status, 200)
-    assert.equal(seen.body.eftAccount, undefined)
-    assert.equal((await entitle(tester, device(1))).status, 200)
+    assert.equal(seen.status, 409)
+    assert.equal(seen.body.code, 'eft-in-use')
+    assert.equal((await entitle(tester, device(1))).status, 403)
+    assert.equal((await entitle(owner, device(1))).status, 200, 'the owner himself stays in')
+  })
+})
+
+test('a new account on a PC whose logs show a bound game account is refused before it reports anything', async () => {
+  await withApi(async ({ register, entitle, report }) => {
+    const a = await register('player@gmail.com')
+    await entitle(a, device(1))
+    assert.equal((await report(a, X)).status, 200)
+    const b = await register('second@gmail.com')
+    const first = await entitle(b, device(1))
+    assert.equal(first.status, 403, 'the PC reported X for the first account a moment ago')
+    assert.equal(first.body.code, 'eft_conflict')
+    // The first account on that PC is not affected.
+    assert.equal((await entitle(a, device(1))).status, 200)
   })
 })
 
@@ -232,9 +252,11 @@ test('a second account without a free day sees «already in use», not «Нуж�
     await report(a, X)
     // A similar mailbox registers (no block on similar e-mails) and signs in on the same PC: no free day there.
     const b = await register('p.layer+2@gmail.com')
-    const paywall = await entitle(b, device(1))
-    assert.equal(paywall.status, 402)
-    // The locked app reports the game account of the PC: from then on the reason is the game account.
+    // The PC reported X for the first account: the second one hears «already in use» at once, not «Нужна подписка».
+    const first = await entitle(b, device(1))
+    assert.equal(first.status, 403)
+    assert.equal(first.body.code, 'eft_conflict')
+    // Its own report of the PC's game account keeps it so.
     const refused = await report(b, X)
     assert.equal(refused.status, 409)
     const locked = await entitle(b, device(1))

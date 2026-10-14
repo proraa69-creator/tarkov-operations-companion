@@ -2,9 +2,10 @@
  * Server account for the phone app (Capacitor) and the browser preview — the same contract as the desktop
  * gateway in electron/serviceGateway.ts, but over `fetch` from the renderer, because there is no main process.
  *
- * - The server address is set by the user in Settings → «Адрес сервера» (a phone cannot reach 127.0.0.1 of the PC:
- *   use the PC's LAN address, e.g. http://192.168.1.20:8787, or an HTTPS address). Plain HTTP is accepted only
- *   for localhost and private LAN addresses; anything public must be HTTPS.
+ * - The server is https://raidos.app (VITE_TARKOV_API_URL at build time); a QR sign-in from the desktop app brings its
+ *   own server (mobile/DeepLinkLogin.tsx). Settings has no «Адрес сервера» since 13.10.2026. A phone cannot reach
+ *   127.0.0.1 of the PC: a development server is the PC's LAN address, e.g. http://192.168.1.20:8787. Plain HTTP is
+ *   accepted only for localhost and private LAN addresses; anything public must be HTTPS.
  * - The session token is kept in the app's private WebView storage (never logged, never put in a URL).
  * - Only the whitelisted paths below can be requested.
  */
@@ -47,6 +48,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
+  // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
+  { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
@@ -90,6 +93,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
   // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only.
   { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
+  // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -183,9 +189,12 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
+  // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):
+  // it goes with the session too. Public all the same: an expired session gets the notice as without one.
+  const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  const { response, result } = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

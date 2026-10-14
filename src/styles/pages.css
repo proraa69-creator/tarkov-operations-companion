@@ -18,7 +18,9 @@
   position: relative; margin: 0 0 0 calc(var(--overlap) * -1); height: 100%; min-width: 0;
   flex: 0 1 calc((100% + (var(--n) - 1) * var(--overlap)) / var(--n)); max-width: 250px;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-  animation: boss-figures-in .45s ease-out both; /* on the figures, so the row's own transform (is-picking) is not overridden */
+  /* on the figures, so the row's own transform (is-picking) is not overridden; `backwards`: once in, nothing of the
+     animation stays on them (a held transform kept each figure a separate layer on the iPhone) */
+  animation: boss-figures-in .45s ease-out backwards;
 }
 .boss-figure:first-child { margin-left: 0; }
 /* sized by height in body heights (--fig-h, from the stills' sizes.json): every boss at one real-world scale */
@@ -41,9 +43,15 @@
 /* A boss with a «Тактика боя» page: the figure itself is the button (the row stays click-through elsewhere). */
 .boss-figure-link { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; }
 .boss-figure-link img { display: block; width: auto; max-width: none; height: calc(var(--fig-h, 1) * 64%); flex: none; filter: drop-shadow(0 3px 4px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%)); transition: filter .2s var(--ease-soft), transform .2s var(--ease-soft); }
-.boss-figure-link:hover img, .boss-figure-link:focus-visible img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
+/* The lift and the hint follow a real mouse only: a finger «hovered» the boss it touched and it stayed lit while the page
+   scrolled (owner's iPhone, 14.10.2026). */
+@media (hover: hover) and (pointer: fine) {
+  .boss-figure-link:hover img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
+  .boss-figure-link:hover .boss-figure-hint { opacity: 1; transform: none; }
+}
+.boss-figure-link:focus-visible img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
 .boss-figure-hint { position: absolute; bottom: 6px; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; color: #0e1210; background: var(--brass); opacity: 0; transform: translateY(4px); transition: opacity .18s var(--ease-soft), transform .18s var(--ease-soft); pointer-events: none; }
-.boss-figure-link:hover .boss-figure-hint, .boss-figure-link:focus-visible .boss-figure-hint { opacity: 1; transform: none; }
+.boss-figure-link:focus-visible .boss-figure-hint { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .boss-figure { animation: none; } .boss-figures { transition: none; } }
 @media (max-width: 1100px) { .boss-figures { display: none; } }
 .raid-content { position: relative; z-index: 2; padding: 25px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; overflow: hidden; }
@@ -133,7 +141,7 @@
 .priority-bar span { display: block; height: 100%; background: linear-gradient(90deg, #7c6a3f, var(--brass)); }
 
 .map-page { max-width: none; }
-.map-shell { height: calc(100vh - var(--topbar) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
+.map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
 .map-sidebar { overflow: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--surf-1); }
 .map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 9px; letter-spacing: .15em; font-weight: 800; }
 .map-layer-hint { margin: -4px 7px 10px; color: var(--text-dim); font-size: 11px; line-height: 1.35; }
@@ -473,7 +481,7 @@
 .catalog-card h3 { margin: 0 0 5px; font-size: 14px; }
 .catalog-card p { margin: 0; color: var(--text-dim); font-size: 11px; }
 .catalog-card .item-thumb { width: 46px; height: 46px; }
-.detail-panel { position: sticky; top: calc(var(--topbar) + 28px); max-height: calc(100vh - var(--topbar) - 58px); overflow: auto; }
+.detail-panel { position: sticky; top: calc(var(--topbar) + var(--notice-room, 0px) + 28px); max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px); overflow: auto; }
 .quest-objective { padding: 11px 0; border-bottom: 1px solid var(--line); display: flex; gap: 9px; color: #b6c1b8; line-height: 1.45; }
 .quest-objective:last-child { border: 0; }
 .quest-stage { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: color-mix(in srgb, var(--text) 36%, var(--text-muted)); line-height: 1.4; text-decoration: none; }
@@ -824,7 +832,7 @@ a.quest-stage:hover { color: var(--text); }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }
 
 /* Map window: no dead space around the map and side panels */
-.map-shell { height: calc(100vh - var(--topbar) - 48px); min-height: 560px; }
+.map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 48px); min-height: 560px; }
 .map-detail { display: flex; flex-direction: column; min-height: 0; }
 .map-detail-empty { flex: 1; align-content: center; padding: 16px; }
 .map-detail-empty h3 { margin: 8px 0 4px; font-size: 14px; }

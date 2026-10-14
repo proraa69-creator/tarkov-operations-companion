@@ -203,6 +203,8 @@ export function eftDigest(eftAccountId: string) {
 
 /** A country that is not an assigned ISO 3166-1 code (src/shared/countries.ts). */
 export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. Выберите страну из списка.'
+/** A registration without a country: only an app from before the question (13.10.2026) sends one, its form has no field. */
+export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
  * The country of a registration or of «Страна» in the cabinet as stored: the upper-case code, or null when none was
@@ -283,6 +285,11 @@ export function primaryNickname(nicknames: Partial<Record<AccountMode, string>>)
 /** The per-mode map for builds that still read `nicknames[mode]`: the one nickname in every mode, or nothing. */
 export function nicknamesFor(nickname: string | undefined): Partial<Record<AccountMode, string>> {
   return nickname ? Object.fromEntries(ACCOUNT_MODES.map((mode) => [mode, nickname])) : {}
+}
+
+/** The one Escape from Tarkov nickname kept in an `accounts.nicknames` value (found by the PC app in the game logs). */
+export function storedNickname(raw: unknown): string | undefined {
+  return primaryNickname(parseNicknames(raw))
 }
 
 function parseNicknames(raw: unknown): Partial<Record<AccountMode, string>> {
@@ -715,8 +722,9 @@ export class AccountStore {
    * account). A free game account binds to an account that has none; a game account another Raid OS account holds
    * (EFT_IN_USE_MESSAGE) and, for a bound account, any other game account (EFT_OTHER_MESSAGE) are refused with 409.
    * Allowed or not, the report is kept for the device of this session (`sessionDigest`): eftBlock then refuses that
-   * device the entitlement and the paid data until it reports a game account that fits. The owner's accounts are never
-   * refused, and a game account an owner account holds refuses nobody: the owner tests the players' app on his own PC.
+   * device the entitlement and the paid data until it reports a game account that fits. Only the owner's own accounts are
+   * never refused; a game account an owner account holds refuses every other Raid OS account like any other (owner,
+   * 13.10.2026: a test account he made on his own PC still got in — «привязка не работает»).
    * A free period goes to one Raid OS account per game account (eft_trial_claims, kept after «Удалить аккаунт»).
    * The logs are the player's own; this keeps honest players apart, it is not proof against a forged request.
    */
@@ -743,13 +751,12 @@ export class AccountStore {
 
   /**
    * The one-to-one rule for `accountId` and a game account seen in its logs (bindEftAccount), or undefined when it
-   * fits. The owner's accounts and game accounts held by an owner account are exempt.
+   * fits. The owner's own accounts are exempt.
    */
   private eftRule(accountId: string, digest: string, hint: string): EftBlock | undefined {
     if (this.isOwner(accountId)) return undefined
     const holder = this.db.prepare('SELECT account_id FROM eft_accounts WHERE eft_digest = ?').get(digest) as Row | undefined
     const holderId = holder ? String(holder.account_id) : undefined
-    if (holderId !== undefined && holderId !== accountId && this.isOwner(holderId)) return undefined
     const seen = `••••${hint}`
     if (holderId !== undefined && holderId !== accountId) return { kind: 'in-use', seen }
     const own = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_accounts WHERE account_id = ?').get(accountId) as Row | undefined
@@ -764,7 +771,11 @@ export class AccountStore {
    */
   eftBlock(accountId: string, deviceId: string | undefined): EftBlock | undefined {
     if (!deviceId) return undefined
-    const report = this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
+    // This account's own report from this device; before it has one (a new account's first sign-in), the game account
+    // this device reported last for any account — the same PC's logs — so a second account is refused from the start,
+    // not a few seconds later when its own report arrives.
+    const report = (this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE account_id = ? AND device_id = ?').get(accountId, deviceId)
+      ?? this.db.prepare('SELECT eft_digest, eft_hint FROM eft_reports WHERE device_id = ? ORDER BY at DESC LIMIT 1').get(deviceId)) as Row | undefined
     return report ? this.eftRule(accountId, String(report.eft_digest), String(report.eft_hint)) : undefined
   }
 
@@ -852,6 +863,11 @@ export class AccountStore {
   /** Whether an account exists for this e-mail (the owner's app checks it before listing an owner e-mail). */
   hasAccount(email: string) {
     return this.findByEmail(email) !== undefined
+  }
+
+  /** Whether this id is a live account: a deleted one stays only as an anonymous stub (deleteAccount). */
+  exists(accountId: string) {
+    return this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND deleted_at IS NULL').get(accountId) !== undefined
   }
 
   /** Remembers that the account accepted the documents of `version` (registration or a payment). */
@@ -1038,6 +1054,12 @@ export class AccountStore {
     return row ? String(row.email) : undefined
   }
 
+  /** The country named at registration or in «Страна» (two letters); undefined when none was given (routes/announcement.ts). */
+  countryOf(accountId: string) {
+    const row = this.db.prepare('SELECT country FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.country == null ? undefined : String(row.country)
+  }
+
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
   streamerSeries(rawCode: string, period: StatsPeriod) {
     const code = normalizeReferralCode(rawCode)
@@ -1106,7 +1128,8 @@ export class AccountStore {
 
   /**
    * «Удалить аккаунт» (the user's own request, password confirmed by the route). Everything personal goes: e-mail, phone,
-   * password, nicknames, country, sessions and devices, friends, squads, game progress, settings, positions, payout details.
+   * password, nicknames, country, sessions and devices, friends, squads, game progress and levels, settings, positions,
+   * payout details, the support chat.
    * The row itself stays as an anonymous stub, because payments, autopayment records and streamer payouts refer to it and
    * are kept for accounting; the e-mail is free for a new registration at once. The owner's account cannot be deleted
    * this way, and an active autopayment must be cancelled first (cancelling needs the payment provider).
@@ -1125,8 +1148,9 @@ export class AccountStore {
       ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
       ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
-      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
+      ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
+      ['support_messages', 'account_id'],
     ]
     const progressOwner = `user:${account.id}`
     this.db.exec('BEGIN')
@@ -1324,7 +1348,7 @@ export const REGISTRATION_PENDING_MESSAGE = 'Мы отправили код на
 const emailSchema = z.string().trim().toLowerCase().max(254).email()
 const passwordSchema = z.string().min(8).max(128)
 const credentialsSchema = z.object({ email: emailSchema, password: passwordSchema })
-// `country` is checked after the parse (its own message, COUNTRY_INVALID_MESSAGE); apps from before 13.10.2026 omit it.
+// `country` is checked after the parse, with its own messages (COUNTRY_REQUIRED_MESSAGE, COUNTRY_INVALID_MESSAGE).
 const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional(), country: z.unknown().optional() })
 const countrySchema = z.object({ country: z.string().max(16) })
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
@@ -1400,12 +1424,14 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = registerSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Укажите корректный e-mail и пароль от 8 до 128 символов')
       const { email, password, referralCode } = parsed.data
-      // Every registration form asks the country since 13.10.2026 (owner: «при регистрации нужно указать страну»); older
-      // apps send none and still register. Whatever is given must be an assigned code — checked the same way for every
-      // address, so the refusal says nothing about the e-mail.
-      const givenCountry = parsed.data.country ?? ''
-      const country = givenCountry === '' ? undefined : normalizeCountry(givenCountry)
-      if (givenCountry !== '' && !country) return invalid(COUNTRY_INVALID_MESSAGE)
+      // Every registration form asks the country since 13.10.2026 (owner: «при регистрации нужно указать страну»), and it is
+      // mandatory (owner, 14.10.2026: «на сайте сделай указывать страну обязательно при регистрации»): only an app from
+      // before the question sends none, and it is told to update. It must be an assigned code — both checked the same way
+      // for every address, so the refusal says nothing about the e-mail.
+      const givenCountry = parsed.data.country
+      if (givenCountry == null || (typeof givenCountry === 'string' && givenCountry.trim() === '')) return invalid(COUNTRY_REQUIRED_MESSAGE)
+      const country = normalizeCountry(givenCountry)
+      if (!country) return invalid(COUNTRY_INVALID_MESSAGE)
       const registrations = options.registrations
       if (registrations?.enabled) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or

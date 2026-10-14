@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cheapestOffer, offerAccess } from '../arsenal/buildStats'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
-import { estimateTraderLevel, loyaltyNumeral, playerAccess, traderLevelInfos } from './traderLevels'
+import { estimateTraderLevel, loyaltyNumeral, playerAccess, readManualTraderLevels, readScreenTraderLevels, saveScreenTraderLevels, traderLevelInfos } from './traderLevels'
 
 const trader = (id: string, normalizedName: string, levelPlayerLevels = [1, 15, 26, 36]): Trader => ({ id, name: normalizedName, normalizedName, role: '', loyalty: 4, accent: '', levelPlayerLevels })
 const quest = (id: string, loyalty: Quest['traderLoyalty']): Quest => ({ id, name: id, trader: '', level: 1, kappa: false, description: '', objectives: [], rewards: [], traderLoyalty: loyalty })
@@ -42,6 +42,39 @@ describe('trader loyalty estimate (EFT logs carry no loyalty)', () => {
     expect(offerAccess(part.offers[0], part, access)).toEqual({ ok: false, reason: 'flea-closed' })
     expect(offerAccess(part.offers[3], part, access)).toEqual({ ok: false, reason: 'task' })
     expect(cheapestOffer(part, access)?.priceRUB).toBe(7000)
+  })
+
+  it('takes the traders\' screen as proof of at least its level, not as an override (audit P18)', () => {
+    // Read 3 on the screen: the estimate alone said 1.
+    expect(traderLevelInfos([prapor], quests, () => undefined, 40, {}, { prapor: 3 }).map((info) => [info.level, info.min, info.screen])).toEqual([[3, 3, 3]])
+    // The tasks prove 3 since a reading of 2: the higher wins.
+    expect(traderLevelInfos([prapor], quests, () => 'completed', 40, {}, { prapor: 2 })[0]!.level).toBe(3)
+    // The character's level bound (20 → 2) never hides what the game showed.
+    expect(traderLevelInfos([prapor], quests, () => undefined, 20, {}, { prapor: 4 }).map((info) => [info.level, info.max])).toEqual([[4, 4]])
+    // A player's own choice still wins.
+    expect(traderLevelInfos([prapor], quests, () => undefined, 40, { prapor: 1 }, { prapor: 3 })[0]!.level).toBe(1)
+  })
+
+  it('keeps a reading per mode and per character, with its time; a new character starts without it', () => {
+    localStorage.clear()
+    saveScreenTraderLevels('pve', 'old-wipe', { prapor: 4, skier: 3 }, '2026-10-01T10:00:00.000Z')
+    saveScreenTraderLevels('pve', 'old-wipe', { prapor: 3 }, '2026-10-02T10:00:00.000Z')
+    expect(readScreenTraderLevels('pve', 'old-wipe')).toEqual({ at: '2026-10-02T10:00:00.000Z', levels: { prapor: 3, skier: 3 } })
+    expect(readScreenTraderLevels('pve', 'new-wipe')).toBeUndefined()
+    expect(readScreenTraderLevels('pvp', 'old-wipe')).toBeUndefined()
+    // Unknown character (no profile line in the logs): its own entry, used only while it stays unknown.
+    saveScreenTraderLevels('seasonal', undefined, { ref: 2 }, '2026-10-02T10:00:00.000Z')
+    expect(readScreenTraderLevels('seasonal', undefined)?.levels).toEqual({ ref: 2 })
+    expect(readScreenTraderLevels('seasonal', 'known-now')).toBeUndefined()
+    // An older reading than the stored one changes nothing it already has; it may fill in a trader it lacks.
+    saveScreenTraderLevels('pve', 'old-wipe', { prapor: 4, ref: 2 }, '2026-09-30T10:00:00.000Z')
+    expect(readScreenTraderLevels('pve', 'old-wipe')).toEqual({ at: '2026-10-02T10:00:00.000Z', levels: { prapor: 3, skier: 3, ref: 2 } })
+  })
+
+  it('no longer reads the old store, which held the traders\' screen as a permanent override of every character', () => {
+    localStorage.clear()
+    localStorage.setItem('raid-os-trader-levels-v1', JSON.stringify({ pve: { prapor: 4 } }))
+    expect(readManualTraderLevels('pve')).toEqual({})
   })
 
   it('writes loyalty like the game: I, II, III, then a crown', () => {

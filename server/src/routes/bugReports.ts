@@ -13,13 +13,16 @@
  *
  * Owner only (TARKOV_OWNER_EMAILS with a confirmed e-mail): 401 without a session, 404 for everybody else.
  *   GET  /v1/accounts/me/admin/bug-reports?status=open|closed&kind=bug|idea&limit&offset
- *        -> { reports, total, counts: { open, closed } (of that kind), kinds: { bug, idea } (open ones) }
+ *        -> { reports, total, counts: { open, closed } (of that kind), kinds: { bug, idea } (open ones) }; a report
+ *        carries its author's `accountId` and `email` until the account is deleted: «Открыть чат» on the report in the
+ *        owner app writes to that account (routes/supportChat.ts)
  *   GET  /v1/accounts/me/admin/bug-reports/:id                            -> { report } (description, file metadata)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx                 -> the image bytes (inline, no-store, nosniff)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx/data            -> { mime, data: base64 } (the owner app's gateway
  *        forwards JSON only)
- *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open } long polling (~25 s): the
- *        owner app's «Заявки» badge moves the moment a report arrives or is closed
+ *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open, unreadChats } long polling
+ *        (~25 s): the owner app's «Заявки» badge moves the moment a report arrives or is closed, or a player writes to
+ *        «Чат с поддержкой» (`unreadChats`: conversations with unseen messages, routes/supportChat.ts)
  *   POST /v1/accounts/me/admin/bug-reports/:id/status  { status }         -> { report } (audit: bug.status)
  *   POST /v1/accounts/me/admin/bug-reports/:id/reward  { days 1–365 }     -> { report } subscription days for the reporter
  *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason

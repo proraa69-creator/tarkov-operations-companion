@@ -9,7 +9,8 @@
  * Feature code calls `tarkovGraphql()` / `tarkovJson()`. Code that still calls `fetch('https://api.tarkov.dev/graphql')`
  * or `fetch('https://json.tarkov.dev/…')` directly is routed through the same functions by `installTarkovFetchGuard()`
  * (installed at start in src/main.tsx), so a newly added query cannot bypass the gateway by accident; requests to
- * players.tarkov.dev are refused there (player lookups go through /v1/players/*). The Electron main process cancels any
+ * players.tarkov.dev are refused there (the player's own profile is asked for by the Electron main process from the
+ * player's computer, electron/ownProfileLookup.ts, never by the page). The Electron main process cancels any
  * request that still reaches those hosts (electron/main.ts).
  */
 import { appEdition, type AppEdition } from '../app/buildEdition'

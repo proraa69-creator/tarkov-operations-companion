@@ -64,7 +64,11 @@ img { max-width: 100%; }
 .locale-switch button.active { background: #3a3221; color: #efd9a0; }
 .icon-button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); color: var(--text-muted); cursor: pointer; }
 .icon-button:hover { color: var(--text); border-color: var(--line-strong); }
-.content { min-height: 100vh; padding: calc(var(--topbar) + 30px) 30px 42px calc(var(--sidebar) + 30px); }
+.content { min-height: calc(100vh - var(--notice-room, 0px)); padding: calc(var(--topbar) + 30px) 30px 42px calc(var(--sidebar) + 30px); }
+/* A page is one layer under the menu, the top bar and the owner's notice: what it raises inside (the map's markers and
+   buttons, z-index 400–1000) scrolls under them, never over (owner, 14.10.2026). Its dialogs open in document.body. Not
+   on the phone, whose quest sheet and its backdrop cover the top bar. */
+:root:not([data-layout="mobile"]) .content { isolation: isolate; }
 .startup-recovery {
   min-height: 100vh;
   display: grid;

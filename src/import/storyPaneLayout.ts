@@ -21,13 +21,14 @@ const FRACTION = {
   titleTop: 0.115,
   titleBottom: 0.205,
   titleWidth: 0.29,
-  statusWidth: 0.08,
+  // Inside the status box only: 8 px of the banner art on its left turned «ACTIVE» into «seme» (English game, 14.10.2026).
+  statusWidth: 0.075,
   bodyBottom: 0.955,
 } as const
 
-/** The header word «ИСТОРИЯ» (OCR sometimes keeps only «ТОРИЯ»). */
+/** The header word «ИСТОРИЯ» (OCR sometimes keeps only «ТОРИЯ»); the English game's «CHAPTER», maybe in Cyrillic look-alikes. */
 export function isStoryTitleText(text: string) {
-  return /истори|тори[яи]|(?:^|\s)story(?:\s|$)/i.test(text)
+  return /истори|тори[яи]|(?:^|\s)story(?:\s|$)|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i.test(text)
 }
 
 /** The objective block headings of the story pane («Главные задачи», «Опциональные задачи»; the left edge may be cut). */
@@ -35,10 +36,22 @@ export function isStoryObjectivesText(text: string) {
   return /главн(?:ые|ая)\s*задач|[а-яё]{0,4}иональн[а-яё]*\s*задач|main\s+(?:tasks|objectives)|optional\s+(?:tasks|objectives)/i.test(text)
 }
 
-/** A full-screen reading that shows the story pane: the header or the objective blocks under the «Сюжетные» tab. */
+/**
+ * The pane's own header on a whole-screen pass: «ИСТОРИЯ» (or the clipped «ТОРИЯ»), the English «CHAPTER». Never the
+ * «СЮЖЕТНЫЕ» / «STORY» tab: that tab sits above every Tasks screen, the side table included.
+ */
+const PANE_HEADER = /истори|тори[яи]|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i
+const STORY_TAB = /сюжетн|(?:^|\s)story(?:\s|$)/i
+
+/**
+ * A full-screen reading that shows the story pane: the pane's own marks — its header or its objective blocks — under
+ * the «Сюжетные» tab, or both of them. The «STORY» tab alone is not the pane: the English side table showed it on every
+ * frame and cost two or three part reads a look (audit P5c).
+ */
 export function isStoryPaneOcr(text: string) {
   const objectives = isStoryObjectivesText(text)
-  return (isStoryTitleText(text) && (objectives || /сюжетн|story/i.test(text))) || (objectives && /сюжетн/i.test(text))
+  const header = PANE_HEADER.test(text)
+  return (header && objectives) || ((header || objectives) && STORY_TAB.test(text))
 }
 
 /** One text the story parsers read: title column, status, then description and objectives. */
@@ -57,10 +70,13 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
   if (!(W >= 640 && H >= 360)) return undefined
   const find = (pattern: RegExp, where: (box: OcrWordBox['bbox']) => boolean = () => true) =>
     words.find((word) => pattern.test(word.text.trim()) && where(word.bbox))?.bbox
-  const history = find(/истори|тори[яи]/i, (box) => box.y0 < H * 0.35)
-  const main = find(/^главн(?:ые|ая)$/i, (box) => box.y0 > H * 0.15) ?? find(/^[а-яё]{0,4}иональн/i, (box) => box.y0 > H * 0.15)
-  const panel = find(/^предметы$/i, (box) => box.y0 < H * 0.12 && box.x0 > W * 0.5)
-  const menu = find(/^главное$/i, (box) => box.y0 > H * 0.9)
+  // The English game (owner's screenshots, 14.10.2026): «CHAPTER», «Main / Optional objectives», «Task items on
+  // character» over the right panel, «MAIN MENU» in the bottom bar.
+  const history = find(/истори|тори[яи]|^[cс][hн][aа][pр][tт]/i, (box) => box.y0 < H * 0.35)
+  const main = find(/^главн(?:ые|ая)$|^main$/i, (box) => box.y0 > H * 0.15 && box.y0 < H * 0.9)
+    ?? find(/^[а-яё]{0,4}иональн|^optional$/i, (box) => box.y0 > H * 0.15 && box.y0 < H * 0.9)
+  const panel = find(/^предметы$|^task$/i, (box) => box.y0 < H * 0.12 && box.x0 > W * 0.5)
+  const menu = find(/^главное$|main\s*menu$/i, (box) => box.y0 > H * 0.9)
   const ratio = W / H
   if (!history && !main && (ratio < 1.7 || ratio > 1.85)) return undefined
 

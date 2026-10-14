@@ -42,7 +42,8 @@ describe('App', () => {
       expect(localStorage.getItem('tarkov-operations-profiles-v2')).toBe(saved)
     }
     expect(document.querySelector('.sidebar-footer')).toBeNull()
-  })
+    // The whole app is rendered three times: 2–3 s alone, over the default 5 s when the full suite runs on a busy machine.
+  }, 15_000)
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()

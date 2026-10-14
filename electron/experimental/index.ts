@@ -2,10 +2,10 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type Display, type Point, type Rectangle, type WebContents } from 'electron'
-import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
+import { gameKeyLabel, parseScreenshotBinding, screenshotOnKey } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
-import { readScreenshotBinding } from '../logScanner.js'
+import { readScreenshotBindingAt } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
 import { TOOLTIP_CAPTURE, type Bitmap, type Rect } from '../../src/overlay/tooltipDetect.js'
 import { readGameTooltip, retryOcrReadings, type TooltipReading } from '../../src/overlay/tooltipLookup.js'
@@ -14,15 +14,20 @@ import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidate
 import { itemCardBounds } from '../../src/overlay/itemCardPlacement.js'
 import { MapScreenshotRetention } from './mapScreenshotRetention.js'
 import { relaunchAsAdmin } from './elevation.js'
+import { InputWatch, reattachInput } from './inputReattach.js'
 import { isTrustedAppPage } from '../ipcGuard.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
-import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
-import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { positionProblem } from '../../src/overlay/positionReadiness.js'
+import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
+import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
+import { holdBackgroundScans } from '../ocrQueue.js'
+import { foregroundWindowKey } from './win32.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
-  captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
-  type DisplayMode, type KeyStroke,
+  captureScreenRegion, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
+  type DisplayMode,
 } from './win32.js'
 
 const require = createRequire(import.meta.url)
@@ -64,10 +69,16 @@ let hitTimer: NodeJS.Timeout | null = null
 /** Click-through state of the minimap window (see src/overlay/minimapClicks.ts). */
 const minimapClicks = initialMinimapClicks()
 
+/**
+ * Click-through without Electron's `forward` option: forwarding mouse moves to an ignoring window installs a low-level
+ * mouse hook on the main process's thread, and every pause of that thread (OCR, a screen copy, garbage collection)
+ * then froze the cursor in every program, the game included (players, 13.10.2026: «мышь дёргается и замораживается»,
+ * «Micro freezes»). The overlays need no forwarded moves: the hit loop below decides when a window takes the mouse.
+ */
 function setMinimapInteractive(window: BrowserWindow, value: boolean) {
   if (value) interactive.add(window)
   else interactive.delete(window)
-  window.setIgnoreMouseEvents(!value, { forward: true })
+  window.setIgnoreMouseEvents(!value)
 }
 
 /**
@@ -102,7 +113,16 @@ function watchMinimapHits(window: BrowserWindow) {
     // The page may never get the release (it happened outside the window): release the page ourselves.
     if (step.releaseHold) window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x - bounds.x, y: point.y - bounds.y, button: 'left', clickCount: 1 })
     if (step.interactive !== null) setMinimapInteractive(window, step.interactive)
+    // The cursor is on a control: make sure a press there is not dropped (inputReattach.ts).
+    if (visible && !dragTimer && isOverZone(minimapZones, { x: point.x - bounds.x, y: point.y - bounds.y })) checkMinimapInput(window)
   }, 50)
+}
+
+/** The minimap's input window hidden without a show event: shown again while the cursor is on a control. */
+const inputWatch = new InputWatch()
+
+function checkMinimapInput(window: BrowserWindow) {
+  inputWatch.check(window, Date.now(), () => inputChildVisible(window.getNativeWindowHandle()))
 }
 
 /** Shown again, game back in front, display changed: set the minimap's click-through state up again. */
@@ -137,6 +157,8 @@ function sendOverlay(window: BrowserWindow | null, channel: string, payload: unk
 }
 const tracker = new PositionTracker((position) => {
   lastPosition = position
+  // The game writes coordinates only in a raid: the quest scanner holds its screen copies back for a while (raidSignals.ts).
+  noteRaidSignal('screenshot', position.at)
   options.mainWindow()?.webContents.send('experimental:position', position)
   // Raid detection from the logs can lag or miss offline/training raids, so the position is not
   // gated on it: a fresh screenshot from the game is proof enough of where the player stands.
@@ -157,29 +179,58 @@ export function startExperimental(next: Options) {
   screen.on('display-metrics-changed', resyncMinimapClicks)
   screen.on('display-added', resyncMinimapClicks)
   screen.on('display-removed', resyncMinimapClicks)
-  // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
-  if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
+  // The item card's OCR engine is no longer loaded at every start: it loads at the first key press (lookupItem).
 }
 
 let gameWasForeground = false
+/** W A S D: the player walks — a raid or the hideout, no screen the quest scanner reads. */
+const MOVE_KEYS = [0x57, 0x41, 0x53, 0x44]
+let movingBefore = false
+/** The window in front at the last look (its handle), and whether the overlays are raised once more at the next look. */
+let lastForeground = ''
+let raiseAgain = false
+/**
+ * Even when no other window came to the front, visible overlays are raised again this often: a borderless game also
+ * re-raises itself after loading screens (the start of a raid) and some clicks, and a minimap left under it would look
+ * gone. Once every few seconds costs next to nothing; every 800 ms was the old pace.
+ */
+const OVERLAY_SAFETY_RAISE_MS = 4000
+let raisedAt = 0
 /**
  * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
- * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, clicks and
- * loading screens, which would otherwise push a topmost overlay under it.
+ * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, loading screens
+ * and clicks, which would otherwise push a topmost overlay under it. Done when the window in front changes
+ * (and once more at the next look, after the game's own raise), and otherwise every OVERLAY_SAFETY_RAISE_MS,
+ * no longer every 800 ms: each raise is two window-position calls and a style write per overlay. How the game
+ * is displayed is asked only when the window in front changes.
  */
 function watchGame() {
+  const foreground = foregroundWindowKey()
+  const changed = foreground !== lastForeground
+  lastForeground = foreground
   const front = isTarkovForeground()
   // Alt+Tab back into the game (or out of it): the game may have re-raised itself over the overlay.
   if (front !== gameWasForeground) {
     gameWasForeground = front
     resyncMinimapClicks()
   }
-  if (!front) return
+  if (!front) { movingBefore = false; return }
   lastGameSeenAt = Date.now()
   gameFrontMs += WATCH_MS
   // Held movement keys or mouse buttons prove that Windows lets this app see the game's keys.
   if (!gameKeysSeenAt && PROBE_KEYS.some(isVirtualKeyDown)) gameKeysSeenAt = Date.now()
-  displayMode = foregroundDisplayMode()
+  // A movement key held at two looks in a row (typing does not hold a key that long): a raid sign (raidSignals.ts).
+  const moving = MOVE_KEYS.some(isVirtualKeyDown)
+  if (moving && movingBefore) noteRaidSignal('movement')
+  movingBefore = moving
+  const now = Date.now()
+  const switched = changed || raiseAgain
+  if (!switched && now - raisedAt < OVERLAY_SAFETY_RAISE_MS) return
+  raiseAgain = changed
+  raisedAt = now
+  // How the game is displayed (the Mini Map page's note on exclusive full screen), asked as it comes to the front and
+  // once more a look later, when a switch of the display mode is through; an item lookup asks for itself.
+  if (switched) displayMode = foregroundDisplayMode()
   for (const window of [itemWindow, minimapWindow]) {
     if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
   }
@@ -295,11 +346,10 @@ function registerIpc() {
     screenshotsFolder: screenshotsFolder(),
     screenshotCandidates: screenshotFolderCandidates(),
     lastScreenshot: tracker.lastSeen,
-    screenshotPresses,
-    filesAfterPress,
     screenshotKey: await resolveScreenshotKey(),
+    minimapKey: readSettings().minimapKey,
+    otherKeys: [readSettings().itemKey, readSettings().collectorKey].filter(Boolean),
     elevated: isElevated(),
-    snipping: await snippingState(),
     nativeError: nativeError(),
     gameSeenAt: lastGameSeenAt || null,
     gameKeys: gameKeysState(),
@@ -329,8 +379,6 @@ function registerIpc() {
     return (await shell.openPath(lookupLogDir())) === ''
   })
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
-  // Only opens the Windows settings page; the player changes the setting there.
-  ipcMain.handle('experimental:open-keyboard-settings', () => shell.openExternal('ms-settings:easeofaccess-keyboard').then(() => true, () => false))
 }
 
 let appliedScreenshotsDir: string | null = null
@@ -356,23 +404,29 @@ function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: {
     if (echoMinimap) sendOverlay(minimapWindow, 'overlay:minimap', next)
     else overlayPayloads.get(minimapWindow!)?.set('overlay:minimap', next)
   }
-  if (settings.tracking) void tracker.start()
+  // «Отключить мини-карту»: the window goes at once, and nothing watches the screenshots folder for a position.
+  if (!minimapOn(settings)) releaseMinimap()
+  if (settings.tracking && minimapOn(settings)) void tracker.start()
   else tracker.stop()
-  // No automatic screenshots any more (the game's «screenshot taken» notice distracted the player): the app
-  // presses the screenshot key once when the minimap opens, and the player's own screenshots move the marker.
+  // The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу. не программа»): the screenshots the
+  // player takes with the game's own key — best the minimap's key too — move the marker.
 }
 
 function startHook() {
-  // A native polling fallback works even when a low-level hook misses a game input event.
+  // The keys are polled (GetAsyncKeyState, 40 ms; a press shorter than that still sets its «pressed» bit). The global
+  // uiohook hook is started only where that is unavailable: it hooked the mouse too, and every move of a 1–8 kHz mouse
+  // became an event on the main process's thread, only to read a few hotkeys.
+  const keyDown = (vk: number) => wasVirtualKeyPressed(vk)
   let previousMap = false
   let previousItem = false
   let previousCollector = false
   keyTimer = setInterval(() => {
     const settings = readSettings()
-    const map = isVirtualKeyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d)
-    const item = isVirtualKeyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
+    // Read even while the minimap is off, so a press from back then does not open it the moment it is turned on.
+    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d) && minimapOn(settings)
+    const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
     const collectorVk = HOTKEYS[settings.collectorKey]?.vk
-    const collector = collectorVk ? isVirtualKeyDown(collectorVk) : false
+    const collector = collectorVk ? keyDown(collectorVk) : false
     if (collector && !previousCollector && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       options.mainWindow()?.webContents.send('experimental:collector-scan')
@@ -384,8 +438,7 @@ function startHook() {
         lastKeyAt = now
         if (item && !previousItem) void lookupItem(false)
         else {
-          // A screenshot only when the minimap opens — closing it needs no new position.
-          if (settings.tracking && !minimapShown()) void takeScreenshot()
+          if (settings.tracking) void noteMinimapKey(settings, now)
           void toggleMinimap(false)
         }
       }
@@ -393,6 +446,8 @@ function startHook() {
     previousMap = map
     previousItem = item
   }, 40)
+  // The global hook only where the key state cannot be polled; the app never presses keys with it either.
+  if (nativeKeysAvailable()) return
   try {
     hook = require('uiohook-napi') as UiohookModule
     const { uIOhook, UiohookKey } = hook
@@ -400,7 +455,7 @@ function startHook() {
       if (event.ctrlKey || event.altKey || event.metaKey) return
       const settings = readSettings()
       const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
-      const isMapKey = event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
+      const isMapKey = minimapOn(settings) && event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
       const collectorHook = HOTKEYS[settings.collectorKey]?.hook
       if (collectorHook && event.keycode === UiohookKey[collectorHook]) {
         if (!isTarkovForeground()) return
@@ -418,9 +473,7 @@ function startHook() {
       lastKeyAt = now
       if (isItemKey) void lookupItem(false)
       else {
-        // Opening the map should immediately request a fresh coordinate-bearing EFT screenshot.
-        // The tracker will update the marker as soon as the game writes the file.
-        if (settings.tracking && !minimapShown()) void takeScreenshot()
+        if (settings.tracking) void noteMinimapKey(settings, now)
         void toggleMinimap(false)
       }
     })
@@ -431,68 +484,25 @@ function startHook() {
   }
 }
 
-let lastScreenshotPress = 0
-let screenshotPresses = 0
-/** Screenshots the game wrote right after a press by the app. */
-let filesAfterPress = 0
-/** Presses by the app since the last screenshot that followed one. */
-let pressesSinceFile = 0
-/** Times of the latest presses by the app, to tell its screenshots from the player's own. */
-const recentPresses: number[] = []
-/** The game writes the file this long after the key press at most. */
-const PRESS_FILE_MS = 3000
-const MISSES_BEFORE_BACKOFF = 8
-
 /**
- * One press of the game's screenshot key for the position tracker. False when the app cannot press it:
- * no key bound in the game, a mouse button, or PrtSc while Windows gives that key to the Snipping Tool
- * (pressing it would open the snipping overlay over the game).
+ * The minimap key was pressed with the game in front. The app presses nothing (owner, 14.10.2026: «человек сам меняет
+ * клавишу нажатия скриншота и привязывает ее на ту же кнопку что и карта, и он сам нажимает клавишу. не программа»). When
+ * the game's «Скриншот» is on this same key («сделай что бы человек билдил кнопку в игре одну и туже куда он билдит
+ * миникарту в приложении»), the game writes a screenshot right now: it belongs to the minimap, and only the newest of
+ * those is kept (MapScreenshotRetention), so they do not pile up in the player's folder.
  */
-async function takeScreenshot() {
-  const now = Date.now()
-  if (now - lastScreenshotPress < 500) return false
-  lastScreenshotPress = now
+async function noteMinimapKey(settings: ExperimentalSettings, at: number) {
   const key = await resolveScreenshotKey()
-  if (!key.sendable) return false
-  if (isPrintScreen(key.keys) && await snippingState() === 'on') return false
+  if (!screenshotOnKey(key.keys, HOTKEYS[settings.minimapKey]?.vk)) return
   const request = await mapScreenshotRetention.prepare(screenshotsFolder())
-  const successful = await pressScreenshotKeys(key)
-  mapScreenshotRetention.sent(request, successful, now)
-  return successful
+  mapScreenshotRetention.sent(request, true, at)
 }
 
-async function pressScreenshotKeys(key: ScreenshotKeyInfo) {
-  const strokes = key.keys.map(unityKey).filter((stroke): stroke is KeyStroke => Boolean(stroke))
-  screenshotPresses += 1
-  pressesSinceFile += 1
-  recentPresses.push(Date.now())
-  if (recentPresses.length > 12) recentPresses.shift()
-  if (await pressKeys(strokes)) return true
-  if (!hook || !isPrintScreen(key.keys)) return false
-  try {
-    hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'down')
-    await new Promise((resolve) => setTimeout(resolve, 60))
-    hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'up')
-  } catch {
-    hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
-  }
-  return true
-}
-
-const pressedBefore = (at: number) => recentPresses.some((press) => at >= press - 300 && at <= press + PRESS_FILE_MS)
-/** The app's own presses bring screenshots right now: automatic screenshots keep the minimap fresh by themselves. */
-const autoScreenshotsWork = () => filesAfterPress > 0 && pressesSinceFile < MISSES_BEFORE_BACKOFF && Date.now() - (recentPresses.at(-1) ?? 0) < 10_000
-
-/** Every new screenshot: counts the ones that followed the app's presses; the player's own may open the minimap. */
+/** Every new screenshot: the minimap's own are kept to the newest; another may open the minimap (when that is on). */
 function noteScreenshotFile(file: { folder: string; name: string; withCoordinates: boolean; at: number }) {
   void mapScreenshotRetention.observe(file)
-  if (pressedBefore(file.at)) {
-    filesAfterPress += 1
-    pressesSinceFile = 0
-    return
-  }
   const settings = readSettings()
-  if (!file.withCoordinates || !settings.minimap || !settings.showOnScreenshot || Date.now() - file.at > 10_000 || autoScreenshotsWork()) return
+  if (!file.withCoordinates || !minimapOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000) return
   // Taken with the game in front: the player pressed the screenshot key in a raid.
   if (isTarkovForeground()) void peekMinimap()
 }
@@ -500,38 +510,40 @@ function noteScreenshotFile(file: { folder: string; name: string; withCoordinate
 const GAME_SETTINGS = () => join(app.getPath('appData'), 'Battlestate Games', 'Escape from Tarkov', 'Settings', 'Control.ini')
 const KEY_CACHE_MS = 30_000
 let keyCache: { at: number; key: ScreenshotKeyInfo } | null = null
+/** The Logs folder for the logged keys: looking for it may sweep the drives, so not more than every 10 minutes. */
+const ROOT_CACHE_MS = 10 * 60_000
+let rootCache: { at: number; root: string } | null = null
+
+async function logsRoot() {
+  if (rootCache && Date.now() - rootCache.at < ROOT_CACHE_MS) return rootCache.root
+  const root = await options.logsRoot().catch(() => '')
+  rootCache = { at: Date.now(), root }
+  return root
+}
 
 /**
- * The key the app presses for a screenshot: PrtSc, the game's standard key, unless another one is chosen on the Mini Map
- * page; with «По настройкам игры» the one set in the game — its settings file, then the bindings it logs at start —
- * else PrtSc.
+ * The game's screenshot key: the one the player presses (the app only reads it, to tell whether it is the minimap's key).
+ * Its Control.ini and the keys it logs at start are both read and the fresher wins: the Steam game (store app 3932890)
+ * logs into its own Steam library while a Control.ini may be left from the launcher's game, and a key changed during a
+ * session is only in Control.ini. Neither found: PrtSc, the game's default.
  */
 async function resolveScreenshotKey(fresh = false): Promise<ScreenshotKeyInfo> {
-  const chosen = readSettings().screenshotKey
-  if (chosen) return describeKey([chosen], chosen === 'Print' ? 'standard' : 'setting')
   if (!fresh && keyCache && Date.now() - keyCache.at < KEY_CACHE_MS) return keyCache.key
-  let keys: string[] | null = parseScreenshotBinding(await readFile(GAME_SETTINGS(), 'utf8').catch(() => ''))
-  let source: ScreenshotKeyInfo['source'] = keys ? 'game-settings' : 'default'
-  if (!keys) {
-    const root = await options.logsRoot().catch(() => '')
-    keys = root ? await readScreenshotBinding(root).catch(() => null) : null
-    if (keys) source = 'game-log'
-  }
-  const key = describeKey(keys ?? ['Print'], source)
+  const [ini, logged] = await Promise.all([
+    Promise.all([readFile(GAME_SETTINGS(), 'utf8'), stat(GAME_SETTINGS())])
+      .then(([text, info]) => ({ keys: parseScreenshotBinding(text), at: info.mtimeMs }), () => null),
+    logsRoot().then((root) => (root ? readScreenshotBindingAt(root) : null)).catch(() => null),
+  ])
+  const fromIni = ini?.keys ? { keys: ini.keys, at: ini.at, source: 'game-settings' as const } : null
+  const fromLog = logged ? { keys: logged.keys, at: logged.at, source: 'game-log' as const } : null
+  const chosen = fromIni && fromLog ? (fromLog.at > fromIni.at ? fromLog : fromIni) : fromIni ?? fromLog
+  const key = describeKey(chosen?.keys ?? ['Print'], chosen?.source ?? 'default')
   keyCache = { at: Date.now(), key }
   return key
 }
 
 function describeKey(keys: string[], source: ScreenshotKeyInfo['source']): ScreenshotKeyInfo {
-  return { keys, label: gameKeyLabel(keys), source, unbound: keys.length === 0, sendable: keys.length > 0 && keys.every((key) => unityKey(key)) }
-}
-
-let snipping: { at: number; value: 'on' | 'off' | 'unknown' } | null = null
-async function snippingState() {
-  if (snipping && Date.now() - snipping.at < 60_000) return snipping.value
-  const value = await printScreenOpensSnipping().catch(() => 'unknown' as const)
-  snipping = { at: Date.now(), value }
-  return value
+  return { keys, label: gameKeyLabel(keys), source, unbound: keys.length === 0 }
 }
 
 /** Asks the main window (which holds the catalog and quest progress) to answer a query. */
@@ -565,7 +577,7 @@ function overlayWindow(route: 'item' | 'minimap', size: { width: number; height:
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => { if (!isTrustedAppPage(url)) event.preventDefault() })
   window.setAlwaysOnTop(true, 'screen-saver')
-  window.setIgnoreMouseEvents(true, { forward: true })
+  window.setIgnoreMouseEvents(true)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   options.load(window, `/overlay/${route}`)
   return window
@@ -578,7 +590,7 @@ function reassertOverlay(window: BrowserWindow) {
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   // Reasserting the native topmost styles can reset hit testing after hide/show.
-  window.setIgnoreMouseEvents(!interactive.has(window), { forward: true })
+  window.setIgnoreMouseEvents(!interactive.has(window))
   window.moveTop()
 }
 
@@ -588,6 +600,8 @@ function showOverlay(window: BrowserWindow) {
   zoomToDisplay(window)
   window.showInactive()
   reassertOverlay(window)
+  // Presses on the minimap are dropped after it was hidden until its size changes once (inputReattach.ts).
+  if (window === minimapWindow) reattachInput(window)
   // Some borderless/full-screen games reorder native windows one or two frames after a hotkey.
   // Reasserting without taking focus keeps the overlay visible above EFT.
   for (const delay of [60, 240]) setTimeout(() => {
@@ -596,9 +610,24 @@ function showOverlay(window: BrowserWindow) {
 }
 
 function ensureItemWindow() {
-  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), 5 * 60_000, () => { itemWindow = null; itemCardAnchor = null })
+  if (!itemWindow || itemWindow.isDestroyed()) {
+    const window = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), OVERLAY_RELEASE_MS, () => { itemWindow = null; itemCardAnchor = null })
+    // Hidden while it was still «reading…»: the overlays keep drawing while hidden, and the spinner would turn on for minutes.
+    window.on('hide', () => {
+      const shown = overlayPayloads.get(window)?.get('overlay:item') as { state?: string } | undefined
+      if (shown?.state === 'loading') sendOverlay(window, 'overlay:item', { state: 'idle' })
+    })
+    itemWindow = window
+  }
   return itemWindow
 }
+
+/**
+ * A hidden overlay window still holds a whole page (~60–100 MB) and Chromium keeps drawing it (backgroundThrottling is
+ * off for the instant show): closed after 2 minutes hidden (was 5 for the card, 10 for the minimap), reopened on demand —
+ * the next opening then loads the page again, about a second.
+ */
+const OVERLAY_RELEASE_MS = 2 * 60_000
 
 /** A hidden overlay window still holds a whole page (~60–100 MB): close it after a while hidden, reopen on demand. */
 function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void) {
@@ -612,20 +641,35 @@ function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void
   return window
 }
 
-const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed() && minimapWindow.isVisible())
+/** «Отключить мини-карту»: the window (and its renderer process) goes now, not ten minutes after it was hidden. */
+function releaseMinimap() {
+  stopPeek()
+  const window = minimapWindow
+  minimapWindow = null
+  if (window && !window.isDestroyed()) window.destroy()
+}
 
 function ensureMinimapWindow() {
   if (!minimapWindow || minimapWindow.isDestroyed()) {
-    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
-    // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again.
-    window.on('show', resyncMinimapClicks)
-    window.on('restore', resyncMinimapClicks)
+    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), OVERLAY_RELEASE_MS, () => { minimapWindow = null })
+    // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again, and
+    // show Chromium's input window again once the show is through (inputReattach.ts).
+    const shown = () => {
+      resyncMinimapClicks()
+      inputWatch.reset()
+      setMinimapShown(true)
+      setTimeout(() => reattachInput(window), 0)
+    }
+    window.on('show', shown)
+    window.on('restore', shown)
     window.on('hide', () => {
       if (dragTimer) clearInterval(dragTimer)
       dragTimer = null
       noteHold(minimapClicks, false, Date.now())
+      setMinimapShown(false)
       sendOverlay(window, 'overlay:visibility', false)
     })
+    window.on('closed', () => setMinimapShown(false))
     minimapWindow = window
   }
   return minimapWindow
@@ -638,7 +682,14 @@ function whenLoaded(window: BrowserWindow) {
 async function lookupItem(test: boolean) {
   const settings = readSettings()
   if (!settings.itemLookup || lookupBusy) return null
+  // An exclusive full-screen game hides from screen copies (they come out black, and the fallback copied the whole display
+  // again and again), and no card can be drawn over it: no copies at all.
+  if (!test && foregroundDisplayMode() === 'exclusive') return null
   lookupBusy = true
+  // The quest scanner yields while the player waits for the card (electron/ocrQueue.ts).
+  const release = holdBackgroundScans()
+  // The engine loads (the first time, or after 5 idle minutes) while the screen is searched for the tooltip.
+  if (!test) void warmUpOcr().catch(() => {})
   try {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
@@ -659,9 +710,10 @@ async function lookupItem(test: boolean) {
     // Only the game's own name tooltip is read: it holds the name of exactly the hovered item. It appears a moment
     // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
     const started = Date.now()
+    // The area around the cursor only, never the whole display; the slow whole-screen fallback once a lookup at most.
+    const fallback = { left: 1 }
     const reading = await readGameTooltip({
-      grab: () => grabAroundCursor(point, display),
-      grabWide: () => grabAroundCursor(point, display, true),
+      grab: () => grabAroundCursor(point, display, fallback),
       recognize: (bitmap) => recognizeTooltip(bitmap),
       match: async (text) => {
         const reply = await askRenderer('item', { text, tooltip: true })
@@ -683,6 +735,7 @@ async function lookupItem(test: boolean) {
     return answer
   } finally {
     lookupBusy = false
+    release()
   }
 }
 
@@ -867,17 +920,17 @@ function placeItemCard(window: BrowserWindow, point: Point, display: Display, si
 
 /**
  * The screen around the cursor in physical pixels (BGRA) with the cursor position in it: a GDI copy of just
- * that area when possible (milliseconds), otherwise a crop of a full desktopCapturer grab.
+ * that area when possible (milliseconds), otherwise — `fallback.left` times a lookup — a crop of a full desktopCapturer grab.
  */
-async function grabAroundCursor(point: Point, display: Display, wide = false) {
+async function grabAroundCursor(point: Point, display: Display, fallback: { left: number }) {
   const physicalDisplay = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
   const unit = physicalDisplay.height / 1080
   const cursor = process.platform === 'win32' ? screen.dipToScreenPoint(point) : point
   // Generous around the cursor: over a big item the tooltip may sit at the item's corner (TOOLTIP_CAPTURE).
-  const left = wide ? physicalDisplay.x : Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
-  const top = wide ? physicalDisplay.y : Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
-  const right = wide ? physicalDisplay.x + physicalDisplay.width : Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
-  const bottom = wide ? physicalDisplay.y + physicalDisplay.height : Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
+  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
+  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
+  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
+  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
   if (right - left < 40 || bottom - top < 20) return null
   const toScreen = (rect: Rectangle) => {
     const physical = { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height }
@@ -885,7 +938,9 @@ async function grabAroundCursor(point: Point, display: Display, wide = false) {
   }
   const fast = captureScreenRegion(left, top, right - left, bottom - top)
   if (fast && !isBlank(fast.data)) return { image: fast, cursor: { x: cursor.x - left, y: cursor.y - top }, unit, toScreen }
-  // Fallback: one full-screen grab (slower), cropped to the same area.
+  // Fallback: one full-screen grab (slower), cropped to the same area — not again and again within one lookup.
+  if (fallback.left <= 0) return null
+  fallback.left -= 1
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: physicalDisplay.width, height: physicalDisplay.height } })
   const source = sources.find((entry) => entry.display_id === String(display.id)) ?? sources[0]
   if (!source || source.thumbnail.isEmpty()) return null
@@ -901,14 +956,24 @@ function isBlank(data: Uint8Array) {
 }
 
 async function toggleMinimap(fromApp: boolean) {
-  if (!readSettings().minimap) return false
+  if (!minimapOn(readSettings())) return false
   stopPeek()
   const window = ensureMinimapWindow()
   if (window.isVisible()) {
     window.hide()
     return false
   }
+  void sendPositionHint()
   return openMinimap(window, fromApp)
+}
+
+/**
+ * The minimap's line about the player's dot when it cannot come (src/overlay/positionReadiness.ts): what stops the
+ * game's screenshot, in the minimap itself, so the player learns it in the raid instead of guessing. Null clears it.
+ */
+async function sendPositionHint() {
+  const problem = positionProblem({ native: nativeKeysAvailable(), key: await resolveScreenshotKey(), minimapKey: readSettings().minimapKey, elevated: isElevated(), gameKeys: gameKeysState() })
+  sendOverlay(minimapWindow, 'overlay:hint', problem)
 }
 
 /** How long the minimap stays open after a screenshot the player took. */
@@ -941,6 +1006,8 @@ async function peekMinimap() {
 }
 
 async function openMinimap(window: BrowserWindow, fromApp: boolean) {
+  // Opened over the game (its key, or a screenshot the player took): a raid sign for the quest scanner (raidSignals.ts).
+  if (!fromApp) noteRaidSignal('minimap')
   await whenLoaded(window)
   reassertOverlay(window)
   const raid = options.raidState()
@@ -966,14 +1033,15 @@ async function openMinimap(window: BrowserWindow, fromApp: boolean) {
 
 const IMAGE = /\.(png|jpe?g|bmp)$/i
 const CHECK_WAIT_GAME_S = 20
-const CHECK_WAIT_FILE_MS = 6000
+/** The player presses the game's screenshot key themselves: time for that once the game is in front. */
+const CHECK_WAIT_FILE_MS = 20_000
 let check: ScreenshotCheck | null = null
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * The «Проверить скриншоты» button: where the game saves screenshots and whether coordinates can be read
- * from their names, which key the app presses, then one real press with the game in front and the file
- * it brings. A screenshot the player takes meanwhile counts too. Progress goes to the page as it happens.
+ * The «Проверить скриншоты» check: where the game saves screenshots and whether coordinates can be read from their
+ * names, the game's screenshot key, then — with the game in front — the screenshot the player takes with that key. The
+ * app presses nothing. Progress goes to the page as it happens.
  */
 async function checkScreenshots(): Promise<ScreenshotCheck> {
   if (check && check.phase !== 'done') return { ...check }
@@ -983,10 +1051,8 @@ async function checkScreenshots(): Promise<ScreenshotCheck> {
     countdown: 0,
     folder: { path: folder, exists: false, images: 0, withCoordinates: 0, newest: null },
     key: await resolveScreenshotKey(true),
-    snipping: await snippingState(),
     elevated: isElevated(),
     nativeError: nativeError(),
-    pressed: false,
     file: null,
     raid: options.raidState(),
     verdict: null,
@@ -1009,8 +1075,7 @@ async function checkScreenshots(): Promise<ScreenshotCheck> {
     }
     emit()
     if (report.nativeError) return 'no-native'
-    if (!report.key.sendable) return 'no-key'
-    if (isPrintScreen(report.key.keys) && report.snipping === 'on') return 'snipping'
+    if (report.key.unbound) return 'no-key'
     const known = new Set((before ?? []).map((file) => file.name))
     report.phase = 'waiting-game'
     let file: ScreenshotCheckFile | null = null
@@ -1023,10 +1088,6 @@ async function checkScreenshots(): Promise<ScreenshotCheck> {
     report.countdown = 0
     if (!file) {
       if (!isTarkovForeground()) return 'no-game'
-      // Let the game take the keyboard after the switch, then press only if it is still in front.
-      await pause(700)
-      if (!isTarkovForeground()) return 'no-game'
-      report.pressed = await pressScreenshotKeys(report.key)
       report.phase = 'waiting-file'
       emit()
       const until = Date.now() + CHECK_WAIT_FILE_MS

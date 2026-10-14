@@ -31,6 +31,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   // Download (pages/DownloadPage.tsx, components/Platforms.tsx).
   ['Скачать для Windows', 'Download for Windows'], ['Загрузка', 'Download'],
   ['Портативная версия для Windows — скачайте и запустите, установка не нужна.', 'Portable version for Windows: download and run it, no installation needed.'],
+  ['Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.',
+    'Use the app responsibly: we cannot give legal or anti-cheat guarantees on behalf of Battlestate Games.'],
   ['Версия {version}', 'Version {version}'], ['Бета', 'Beta'], ['Ссылка скоро появится', 'The link is coming soon'],
   ['Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.', 'The build has not been published yet. As soon as the release is out, the button will start the download.'],
   ['Платформы', 'Platforms'], ['доступно', 'available'], ['скоро', 'coming soon'],
@@ -320,4 +322,9 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Шанс пробить броню 1–6 класса', 'The chance to penetrate class 1–6 armor'],
   ['Этажи зданий и прозрачность', 'Building floors and opacity'],
   ['или', 'or'],
+  // «Поддержать проект» (components/DonateCard.tsx).
+  ['Поддержать проект', 'Support the project'],
+  ['Поддержать проект — откроется страница DonatePay', 'Support the project — opens the DonatePay page'],
+  ['Помогите развивать компаньон для Escape from Tarkov', 'Help us build the companion for Escape from Tarkov'],
+  ['Спасибо!', 'Thank you!'],
 ]

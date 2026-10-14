@@ -1,7 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { DocumentGlyph } from '../components/DocumentGlyph'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
@@ -47,7 +47,7 @@ import { useFriendQuestLayer } from '../squad/friendQuestLayer'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
-import { isDesktopShell } from '../platform'
+import { isDesktopShell, useMobileLayout } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -302,13 +302,11 @@ function LayerIcon({ style, layerId, active }: { style: MarkerStyle; layerId: Ma
   return <span className="layer-glyph" style={{ background: color }}><Symbol size={11} strokeWidth={2.6} /></span>
 }
 
-/**
- * `forcedMapId` + `liveBanner`: the phone «Мини Карта» screen (mobile/LiveMapPage.tsx) shows the map the player is
- * on, with the live-position banner above it; the map list is hidden there.
- */
-export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; liveBanner?: ReactNode } = {}) {
+/** On the phone it runs inside mobile/PhoneMapsPage.tsx, which adds the player's position from the server. */
+export function MapsPage() {
   const routeParams = useParams()
-  const mapId = forcedMapId ?? routeParams.mapId
+  const mapId = routeParams.mapId
+  const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
   const [params, setParams] = useSearchParams()
   const { data } = useTarkovData()
@@ -555,8 +553,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   // The quest constructor: the quest being edited shows its texts as fields in its window (components/QuestTextEditor.tsx).
   const editingTexts = Boolean(questEditor.active && relatedQuest && questEditor.questId === relatedQuest.id)
 
-  return <div className={`page map-page${liveBanner ? ' is-live' : ''}`}>
-    {liveBanner}
+  return <div className="page map-page">
     <div className={`map-shell${layersOpen ? ' layers-open' : ''}`}>
       <aside className="map-sidebar">
         <div>
@@ -625,6 +622,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <FocusOnMarker marker={flyTarget} />
           <MapRefCapture mapRef={mapRef} />
+          <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
@@ -706,7 +704,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
           {uiText(relatedQuest && (
-            <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}`}>
+            <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''}`}>
+              {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
               <div className="map-quest-sheet-copy">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
                 <h2 className="map-quest-sheet-title">{uiText(relatedQuest.name)}</h2>
@@ -951,6 +950,22 @@ function MapRefCapture({ mapRef }: { mapRef: { current: LeafletMap | null } }) {
     mapRef.current = map
     return () => { mapRef.current = null }
   }, [map, mapRef])
+  return null
+}
+
+/**
+ * The map's box changes without a window resize: the owner's notice above the page arrives or goes (the phone's map
+ * gives it its height), a sheet or the iPhone keyboard opens. Leaflet keeps the old size until told, and then centres
+ * on and loads the pictures for a box that is no longer there.
+ */
+function FollowContainerSize() {
+  const map = useMap()
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }))
+    observer.observe(map.getContainer())
+    return () => observer.disconnect()
+  }, [map])
   return null
 }
 

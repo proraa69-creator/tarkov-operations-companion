@@ -13,7 +13,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
-import { AccountError, periodKeySql, REFERRAL_TRIAL_MS, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
+import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { transaction } from './database.js'
 import { paidInOtherCurrency, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
 
@@ -51,7 +51,8 @@ export type AuditAction =
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
   | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'map.quest-text'
+  | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'announcement.set' | 'support.reply' | 'support.resolve'
+  | 'requests-key.create' | 'requests-key.revoke'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -89,6 +90,8 @@ export interface AdminUser {
   eftAccount?: { masked: string; boundAt: string }
   /** The country named at registration (ISO 3166-1 alpha-2); absent for accounts from before 13.10.2026 that did not set it. */
   country?: string
+  /** The Escape from Tarkov nickname the PC app found in the game logs (one for every mode); absent until it is found. */
+  nickname?: string
 }
 
 export interface AdminPayment {
@@ -372,7 +375,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -390,7 +393,13 @@ export class AdminStore {
     // Deleted accounts (anonymous stubs kept for the payment records) are not users any more.
     const where: string[] = ['a.deleted_at IS NULL']
     const args: Array<string | number> = []
-    if (q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(q.toLowerCase())) }
+    if (q) {
+      // The e-mail or the game nickname (owner, 13.10.2026: the nickname found by the PC app shows under each account).
+      // A broken nicknames value never breaks the list: CASE reads JSON only when it is valid.
+      const nick = ACCOUNT_MODES.map((mode) => `json_extract(a.nicknames, '$.${mode}') LIKE ? ESCAPE '\\'`).join(' OR ')
+      where.push(`(a.email LIKE ? ESCAPE '\\' OR CASE WHEN json_valid(a.nicknames) THEN (${nick}) ELSE 0 END)`)
+      args.push(likePattern(q.toLowerCase()), ...ACCOUNT_MODES.map(() => likePattern(q)))
+    }
     const active = "(a.kind = 'user' AND s.paid_until > ?)"
     const trial = "(a.kind = 'user' AND (s.paid_until IS NULL OR s.paid_until <= ?) AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ?)"
     if (filter === 'active') { where.push(active); args.push(now) }
@@ -436,6 +445,7 @@ export class AdminStore {
     if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
     const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')
     const email = String(row.email)
+    const nickname = storedNickname(row.nicknames)
     return {
       id: String(row.id),
       email,
@@ -452,6 +462,7 @@ export class AdminStore {
       payments: { count: Number(row.paid_count ?? 0), total: rub(row.paid_total) },
       ...(row.eft_hint == null ? {} : { eftAccount: { masked: `••••${String(row.eft_hint)}`, boundAt: iso(row.eft_bound_at)! } }),
       ...(row.country == null ? {} : { country: String(row.country) }),
+      ...(nickname ? { nickname } : {}),
     }
   }
 

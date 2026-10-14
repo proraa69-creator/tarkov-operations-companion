@@ -54,7 +54,7 @@ async function setup() {
     return { status: response.status, json: json as T, text, headers: response.headers }
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
-  const register = async (email: string, referralCode?: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, ...(referralCode ? { referralCode } : {}) })).json.token
+  const register = async (email: string, referralCode?: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country: 'RU', ...(referralCode ? { referralCode } : {}) })).json.token
   /** A succeeded ЮKassa payment of `plan` for the account behind `token`. */
   const pay = async (token: string, plan: '1m' | '3m' | '6m' | '12m') => {
     const created = await call('POST', '/payments', token, { plan, consent: { version: '2026-09-01' } })
@@ -253,10 +253,12 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
 test('users by region: «Все · СНГ · Европа · Другие · Не указана» with counts, the country in rows and the card (owner, 13.10.2026)', async () => {
   const t = await setup()
   try {
-    for (const [email, country] of [['moscow@example.com', 'RU'], ['almaty@example.com', 'KZ'], ['kyiv@example.com', 'UA'], ['berlin@example.com', 'DE'], ['tbilisi@example.com', 'GE'], ['old-app@example.com', undefined]] as const) {
-      const registered = await t.call('POST', '/accounts/register', undefined, { email, password, ...(country ? { country } : {}) })
+    for (const [email, country] of [['moscow@example.com', 'RU'], ['almaty@example.com', 'KZ'], ['kyiv@example.com', 'UA'], ['berlin@example.com', 'DE'], ['tbilisi@example.com', 'GE']] as const) {
+      const registered = await t.call('POST', '/accounts/register', undefined, { email, password, country })
       assert.equal(registered.status, 201, JSON.stringify(registered.json))
     }
+    // An account from before the country became mandatory (14.10.2026): an older app registered it without one.
+    await t.accounts.register('old-app@example.com', password)
     const owner = await t.login('owner@example.com')
     type List = { users: Array<{ id: string; email: string; country?: string }>; total: number; regions: Record<string, number> }
     const list = async (query = '') => {
@@ -292,6 +294,39 @@ test('users by region: «Все · СНГ · Европа · Другие · Н�
   } finally { await t.close() }
 })
 
+test('users show the Escape from Tarkov nickname the PC app found, and the search finds it (owner, 13.10.2026)', async () => {
+  const t = await setup()
+  try {
+    const found = await t.register('found@example.com')
+    await t.register('waiting@example.com')
+    const broken = await t.register('broken@example.com')
+    // What the PC app sends once it read the nickname in the game logs.
+    assert.equal((await t.call('PUT', '/accounts/me/nicknames', found, { nickname: 'Shaurma_1' })).status, 200)
+    assert.equal((await t.call('PUT', '/accounts/me/nicknames', broken, { nickname: 'Broken_1' })).status, 200)
+    t.db.prepare("UPDATE accounts SET nicknames = '{not json' WHERE email = 'broken@example.com'").run()
+    const owner = await t.login('owner@example.com')
+    type List = { users: Array<{ id: string; email: string; nickname?: string }>; total: number }
+    const list = async (query = '') => {
+      const response = await t.call<List>('GET', `/accounts/me/admin/users${query}`, owner)
+      assert.equal(response.status, 200, JSON.stringify(response.json))
+      return response.json
+    }
+    const all = await list()
+    const nick = (email: string) => all.users.find((user) => user.email === email)!.nickname
+    assert.equal(nick('found@example.com'), 'Shaurma_1')
+    assert.equal(nick('waiting@example.com'), undefined)
+    assert.equal(nick('broken@example.com'), undefined, 'a broken value reads as «not found», the list still loads')
+    // The search takes the e-mail or the nickname, in any letter case; the JSON keys (pvp, pve…) are not a match.
+    assert.deepEqual((await list('?q=shaurma')).users.map((user) => user.email), ['found@example.com'])
+    assert.deepEqual((await list('?q=waiting')).users.map((user) => user.email), ['waiting@example.com'])
+    assert.equal((await list('?q=pvp')).total, 0)
+    assert.equal((await list('?q=broken_1')).total, 0)
+    // The user card has it as well.
+    const id = all.users.find((user) => user.email === 'found@example.com')!.id
+    assert.equal((await t.call<{ user: { nickname?: string } }>('GET', `/accounts/me/admin/users/${id}`, owner)).json.user.nickname, 'Shaurma_1')
+  } finally { await t.close() }
+})
+
 test('«Удалить аккаунт» from the admin panel: owner only, erased like the user\'s own deletion, logged; not the owner, not with an active autopay (owner, 13.10.2026)', async () => {
   const t = await setup()
   try {
@@ -319,7 +354,7 @@ test('«Удалить аккаунт» from the admin panel: owner only, erased
     assert.equal((await t.call('GET', '/accounts/me', player)).status, 401, 'signed out everywhere')
     assert.equal((await users()).json.users.some((user) => user.email === 'player@example.com'), false)
     // The e-mail is free again, and the journal names the deleted account.
-    assert.equal((await t.call('POST', '/accounts/register', undefined, { email: 'player@example.com', password: 'correct horse battery staple' })).status, 201)
+    assert.equal((await t.call('POST', '/accounts/register', undefined, { email: 'player@example.com', password: 'correct horse battery staple', country: 'RU' })).status, 201)
     const entries = (await t.call<{ entries: Array<{ action: string; target?: string }> }>('GET', '/accounts/me/admin/audit', owner)).json.entries
     assert.deepEqual(entries.map((entry) => [entry.action, entry.target]), [['account.delete', 'player@example.com']])
   } finally { await t.close() }
@@ -441,10 +476,10 @@ test('streamer percent per streamer applies to new payments only; a disabled lin
     const off = (await t.call('PUT', '/accounts/me/admin/streamers/HUNTER/link', owner, { enabled: false })).json as unknown as { streamers: Array<{ linkEnabled: boolean }> }
     assert.equal(off.streamers[0]!.linkEnabled, false)
     assert.equal((await t.call('POST', '/accounts/referral-visits', undefined, { code: 'HUNTER' })).status, 404)
-    const third = await t.call('POST', '/accounts/register', undefined, { email: 'third@example.com', password, referralCode: 'HUNTER' })
+    const third = await t.call('POST', '/accounts/register', undefined, { email: 'third@example.com', password, country: 'RU', referralCode: 'HUNTER' })
     assert.equal((third.json as unknown as { referralApplied: boolean }).referralApplied, false)
     await t.call('PUT', '/accounts/me/admin/streamers/HUNTER/link', owner, { enabled: true })
-    const fourth = await t.call('POST', '/accounts/register', undefined, { email: 'fourth@example.com', password, referralCode: 'HUNTER' })
+    const fourth = await t.call('POST', '/accounts/register', undefined, { email: 'fourth@example.com', password, country: 'RU', referralCode: 'HUNTER' })
     assert.equal((fourth.json as unknown as { referralApplied: boolean }).referralApplied, true)
 
     const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries.map((entry) => `${entry.action}:${entry.target}`)

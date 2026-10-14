@@ -96,6 +96,18 @@ export function guideStepFor(pathname: string, phone: boolean): GuideStep | null
   return null
 }
 
+/** The one-off quest sync tip after the update (src/onboarding/QuestSyncTip.tsx): accepted on this computer. */
+export const QUEST_SYNC_TIP_KEY = 'raidos-quest-sync-tip-v1'
+
+/**
+ * The quest sync tip is due: the PC app, on its Overview, the tip not yet accepted on this computer — and the game's logs
+ * do not already hold the whole quest history of the mode shown (`logsCover`, src/import/logCoverage.ts): the tip asks to
+ * open «Задания» and scroll through it, which then adds nothing.
+ */
+export function questSyncTipDue({ desktop, phone, pathname, seen, logsCover = false }: { desktop: boolean; phone: boolean; pathname: string; seen: boolean; logsCover?: boolean }) {
+  return desktop && !phone && pathname === '/' && !seen && !logsCover
+}
+
 /** Every tip this layout has, accepted: the guide is over. */
 export function guideFinished(record: GuideRecord, phone: boolean) {
   const steps: GuideStep[] = phone ? ['maps', 'kappa'] : STEPS

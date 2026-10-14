@@ -46,7 +46,7 @@ async function setup(link?: OwnerAppLink) {
     return { status: response.status, json, headers: response.headers }
   }
   const login = async (email: string) => ((await call('POST', '/accounts/login', undefined, { email, password })).json as { token: string }).token
-  const register = async (email: string) => ((await call('POST', '/accounts/register', undefined, { email, password })).json as { token: string }).token
+  const register = async (email: string) => ((await call('POST', '/accounts/register', undefined, { email, password, country: 'RU' })).json as { token: string }).token
   const close = () => new Promise<void>((resolve) => server.close(() => resolve()))
   return { db, call, login, register, close }
 }

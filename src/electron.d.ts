@@ -5,8 +5,12 @@ import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
 import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
+import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
+import type { LogSearchReport } from './import/logSearchReport'
 
 type DesktopLogScanResult = ModeLogScanResult
+/** A scan of the game's Logs folder and that folder. */
+export type DesktopLogScan = DesktopLogScanResult & { folder: string }
 
 /** running: started by this app; external: something else already answers on the port (e.g. start-local.ps1). */
 export type LocalServiceState = 'running' | 'external' | 'stopped' | 'error'
@@ -158,7 +162,7 @@ interface TarkovDesktopApi {
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
   }
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
-  serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>
+  serviceRequest: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<unknown | null>
   /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */
   account?: {
     status: () => Promise<ServerAccountStatus>
@@ -199,7 +203,11 @@ interface TarkovDesktopApi {
   /** `current`: the folder used last; the Logs folder where the game started last is scanned (it or one found). */
   autoFindAndScanLogs: (current?: string) => Promise<(DesktopLogScanResult & { folder: string }) | null>
   scanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  /** «Где искали журналы»: every place the app looked for the game's logs (electron/logDiscovery.ts). */
+  logSearchReport?: () => Promise<LogSearchReport>
   startWatchingLogs: (folder: string) => Promise<boolean>
+  /** The catalog's trader quest ids of a mode (src/import/eftLogTimeline.ts traderQuestIdsForResets): only these reveal a reset. */
+  setLogQuestIds?: (mode: RaidMode, ids: string[]) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
   getRaidState: () => Promise<RaidState>
@@ -212,12 +220,23 @@ interface TarkovDesktopApi {
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading }>
+  /** `profiles`: the game's «Выбор профиля и режима» cards two readings agree on (src/import/modeSelectScreen.ts). */
+  /**
+   * One look at the game for the quest scanner (electron/screenOcr.ts). `raid`: a raid is likely (electron/experimental/raidSignals.ts),
+   * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
+   * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
+   */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
+  /**
+   * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window
+   * (`freshGame`) is the screen copied, and only the mode selection (`profiles`) and the traders' screen (`trader`) read.
+   * `gameSince`: when this game window was first seen — a new value is a new game start.
+   */
+  captureIdentityFrame?: () => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
   scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
-  recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
@@ -232,8 +251,6 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
-    /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
-    openKeyboardSettings: () => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
@@ -254,6 +271,8 @@ interface TarkovDesktopApi {
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
     (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
     (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
+    /** What stops the player's dot (src/overlay/positionReadiness.ts); null when nothing. Checked again on arrival. */
+    (channel: 'overlay:hint', callback: (problem: unknown) => void): () => void
   }
 }
 

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LogParseResult } from '../src/import/logParser.js'
+import type { EftLogSearchReport } from './logDiscovery.js'
 
 contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
@@ -81,7 +82,10 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   },
   autoFindAndScanLogs: (current?: string) => ipcRenderer.invoke('logs:auto-find-and-scan', current) as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
+  logSearchReport: () => ipcRenderer.invoke('logs:search-report') as Promise<EftLogSearchReport>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,
+  /** The catalog's trader quest ids of a mode: only these reveal a profile reset in the logs (electron/logWatcher.ts). */
+  setLogQuestIds: (mode: string, ids: string[]) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []) as Promise<boolean>,
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data') as Promise<boolean>,
   onLogsUpdated: (callback: (result: LogParseResult) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, result: LogParseResult) => callback(result)
@@ -94,9 +98,9 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')) as Promise<boolean>,
   resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string } }>,
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
   captureQuestScreenshot: (after: number) => ipcRenderer.invoke('quests:read-screenshot', after) as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: { title: string; status: string; body: string } } | null>,
-  recognizeQuestPng: (image: string) => ipcRenderer.invoke('quests:recognize-png', image) as Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>,
+  captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity') as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch: unknown) => ipcRenderer.invoke('experimental:update-settings', patch),
@@ -107,7 +111,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback: (payload: unknown) => void) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),
     answer: (id: number, payload: unknown) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback: (payload: unknown) => void) => subscribe('experimental:query', callback),
     onPosition: (callback: (payload: unknown) => void) => subscribe('experimental:position', callback),
@@ -118,7 +121,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   overlayHold: (held: boolean) => ipcRenderer.send('overlay:hold', Boolean(held)),
   overlayZones: (zones: unknown) => ipcRenderer.send('overlay:zones', zones),
   onOverlay: (channel: string, callback: (payload: unknown) => void) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return () => {}
+    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)
     ipcRenderer.send('overlay:subscribe', channel)
     return unsubscribe

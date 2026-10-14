@@ -135,3 +135,96 @@ export function countryGroups(locale: CountryLocale): readonly CountryGroup[] {
   groupCache.set(locale, groups)
   return groups
 }
+
+const optionCache = new Map<CountryLocale, readonly CountryOption[]>()
+
+/**
+ * Every country in one list, sorted by the name in `locale` (owner, 13.10.2026: «в регистрации не разделяй СНГ, Европу и
+ * другие страны, просто общий список»). The regions stay for the admin panel.
+ */
+export function countryOptions(locale: CountryLocale): readonly CountryOption[] {
+  const cached = optionCache.get(locale)
+  if (cached) return cached
+  const collator = new Intl.Collator(locale)
+  const options = COUNTRY_CODES.map((code) => ({ code, name: countryName(code, locale) })).sort((a, b) => collator.compare(a.name, b.name))
+  optionCache.set(locale, options)
+  return options
+}
+
+/** Other names people type for a country (both languages): abbreviations, old and everyday names. */
+export const COUNTRY_ALIASES: Partial<Record<CountryCode, readonly string[]>> = {
+  RU: ['РФ', 'Российская Федерация', 'Russian Federation'],
+  US: ['США', 'Америка', 'Соединённые Штаты Америки', 'USA', 'America', 'United States of America'],
+  GB: ['Англия', 'Британия', 'Соединённое Королевство', 'Шотландия', 'Уэльс', 'UK', 'England', 'Britain', 'Great Britain', 'Scotland', 'Wales'],
+  AE: ['Эмираты', 'Объединённые Арабские Эмираты', 'UAE', 'Emirates'],
+  BY: ['Белоруссия', 'Belorussia'],
+  KG: ['Кыргызстан', 'Kirghizia'],
+  MD: ['Молдавия', 'Moldavia'],
+  CZ: ['Чешская Республика', 'Czech Republic'],
+  TR: ['Turkey'],
+  KR: ['Южная Корея', 'Корея', 'Korea'],
+  KP: ['Северная Корея'],
+  NL: ['Голландия', 'Holland'],
+  DE: ['ФРГ', 'Deutschland'],
+  CN: ['КНР'],
+  CI: ['Берег Слоновой Кости', 'Ivory Coast'],
+  SZ: ['Свазиленд', 'Swaziland'],
+  MK: ['Македония', 'Macedonia'],
+  TL: ['East Timor'],
+  CD: ['ДР Конго', 'DR Congo', 'DRC'],
+  PS: ['Палестина', 'Palestine'],
+  VA: ['Vatican'],
+}
+
+/** Letters only, in lower case, without accents and punctuation: «Кот-д’Ивуар» → «кот дивуар», «U.S.» → «us». */
+function fold(text: string) {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[.'’ʼ`]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+}
+
+/** «Аландские о-ва» is found by «острова», «St. Kitts» by «Saint», «Bosnia & Herzegovina» by «and». */
+const spelledOut = (name: string) => name.replace(/о-ва(?![а-яё])/gi, 'острова').replace(/о-в(?![а-яё])/gi, 'остров').replace(/\bSt\.\s/g, 'Saint ').replace(/\s&\s/g, ' and ')
+
+interface SearchKey { spaced: string; compact: string }
+const keyCache = new Map<CountryCode, readonly SearchKey[]>()
+
+function searchKeys(code: CountryCode): readonly SearchKey[] {
+  const cached = keyCache.get(code)
+  if (cached) return cached
+  const names = [countryName(code, 'ru'), countryName(code, 'en'), ...(COUNTRY_ALIASES[code] ?? [])]
+  const keys: SearchKey[] = []
+  for (const name of names) {
+    for (const variant of new Set([name, spelledOut(name)])) {
+      const spaced = fold(variant)
+      if (spaced && !keys.some((key) => key.spaced === spaced)) keys.push({ spaced, compact: spaced.replace(/ /g, '') })
+    }
+  }
+  keyCache.set(code, keys)
+  return keys
+}
+
+/**
+ * The countries matching what the player typed (owner, 13.10.2026: «при нажатии выбора страны окно с ручным вводом»):
+ * by the name in Russian or English, the ISO code («kz»), or a common other name («США», «UAE»), in any letter case,
+ * with or without accents, spaces and hyphens. The best matches first: the code or a whole name, then names that start
+ * with it, then names with a word that starts with it, then names that contain it; each group sorted by name.
+ */
+export function searchCountries(query: string, locale: CountryLocale): readonly CountryOption[] {
+  const spaced = fold(query)
+  if (!spaced) return countryOptions(locale)
+  const compact = spaced.replace(/ /g, '')
+  const upper = query.trim().toUpperCase()
+  const ranked: Array<{ option: CountryOption; rank: number }> = []
+  for (const option of countryOptions(locale)) {
+    let rank = Infinity
+    if (upper === option.code) rank = 0
+    for (const key of searchKeys(option.code)) {
+      if (key.compact === compact) rank = Math.min(rank, 0)
+      else if (key.compact.startsWith(compact)) rank = Math.min(rank, 1)
+      else if (` ${key.spaced}`.includes(` ${spaced}`)) rank = Math.min(rank, 2)
+      else if (compact.length >= 2 && key.compact.includes(compact)) rank = Math.min(rank, 3)
+    }
+    if (rank < Infinity) ranked.push({ option, rank })
+  }
+  // countryOptions is already sorted by name: a stable sort by rank keeps that order inside each group.
+  return ranked.sort((a, b) => a.rank - b.rank).map((entry) => entry.option)
+}

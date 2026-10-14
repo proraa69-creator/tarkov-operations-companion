@@ -1,60 +1,148 @@
 import { desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
-import { runOcrJob } from './ocrQueue.js'
+import { backgroundScansHeld, runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
-import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
+import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './experimental/win32.js'
+import { isGameWindowTitle } from './experimental/gameWindow.js'
+import { raidLikely } from './experimental/raidSignals.js'
+import { bgraToPgm, bgraToPpm, picturePrint } from './ocrPicture.js'
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
-import { reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/import/storyScanTiming.js'
-import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
+import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
+import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
+import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
 
 let worker: OcrWorker | null = null
 let preparing: Promise<OcrWorker> | null = null
 
 /** getSources renders a thumbnail of every open window, so the probe stays tiny. */
 const PROBE_SIZE = { width: 160, height: 90 }
-/** Mean per-channel difference (0–255) below which two probes count as the same picture. */
-const SAME_FRAME_DIFF = 3
-/** The last reading of the game: a coarse print (moves a little: re-read soon), a fine one (unchanged: see reuseStableReading). */
-let lastWatch: { fingerprint: Buffer; fine: Buffer; text: string; sourceName: string; story?: StoryPaneReading; at: number; detail: boolean; reads: number } | null = null
+/**
+ * The last reading of the game and the print of its screen (electron/ocrPicture.ts): a print that moved a little means
+ * «re-read soon» (reuseQuestReading), an unchanged one «no need to read again» (reuseStableReading). `partial`: a
+ * reading of the locked app's identity reader (no story pane parts), never reused for a whole look.
+ */
+let lastWatch: { fine: Uint8Array; text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; at: number; detail: boolean; reads: number; partial?: boolean } | null = null
 let lastScreenshot: { key: string; text: string; sourceName: string; story?: StoryPaneReading; observedAt: number } | null = null
 /** Where the parts of the last story pane were: while it stays open (flipping chapters) no whole-screen pass is needed. */
 let storyLayout: { width: number; height: number; rects: StoryPaneRects } | null = null
 
+interface GameShot { width: number; height: number; data: Uint8Array }
+
 /**
  * The game's screen while it is in front: one GDI copy of its display (a few ms) instead of desktopCapturer,
- * which renders a thumbnail of every open window (browser, Discord, …) on each call. Null when unavailable.
+ * which renders a thumbnail of every open window (browser, Discord, …) on each call. The copy's BGRA bytes as they are:
+ * no image object yet (an unchanged screen never needs one). Null when unavailable or black.
  */
-function grabGameDisplay() {
-  if (process.platform !== 'win32' || !isTarkovForeground()) return null
+function grabGameDisplay(): GameShot | null {
+  if (process.platform !== 'win32') return null
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const rect = screen.dipToScreenRect(null, display.bounds)
   const shot = captureScreenRegion(rect.x, rect.y, rect.width, rect.height)
-  if (!shot) return null
-  let blank = true
-  for (let index = 0; index < shot.data.length; index += 4 * 997) if (shot.data[index]! > 8 || shot.data[index + 1]! > 8 || shot.data[index + 2]! > 8) { blank = false; break }
-  if (blank) return null
-  const image = nativeImage.createFromBitmap(Buffer.from(shot.data.buffer, shot.data.byteOffset, shot.data.byteLength), { width: shot.width, height: shot.height })
-  return shot.width > 1920 ? image.resize({ width: 1920, quality: 'good' }) : image
+  return shot && !isBlank(shot.data) ? shot : null
 }
 
-export async function captureQuestFrame(watch = false, detail = false) {
+/**
+ * A picture to read: its size, its BGRA bytes when they are at hand (a GDI copy that needed no resizing), and the image
+ * object for cutting parts out — made only when a part is cut (the story pane, the mode cards, the traders' level).
+ */
+interface GameFrame {
+  width: number
+  height: number
+  bgra: Uint8Array | null
+  image(): NativeImage
+}
+
+const bufferOf = (data: Uint8Array) => Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+
+/** A GDI copy as a frame: read as it is up to 1920 wide; a bigger screen is brought to 1920 first (OCR at Full HD). */
+function shotFrame(shot: GameShot): GameFrame {
+  if (shot.width > 1920) {
+    const image = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height }).resize({ width: 1920, quality: 'good' })
+    return imageFrame(image)
+  }
+  let image: NativeImage | null = null
+  return { width: shot.width, height: shot.height, bgra: shot.data, image: () => (image ??= nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height })) }
+}
+
+function imageFrame(image: NativeImage): GameFrame {
+  const { width, height } = image.getSize()
+  return { width, height, bgra: null, image: () => image }
+}
+
+/** The OCR input of a colour picture: a PPM, the same pixels a PNG had (electron/ocrPicture.ts), without compressing them. */
+function frameInput(frame: GameFrame) {
+  return bgraToPpm(frame.bgra ?? frame.image().toBitmap(), frame.width, frame.height)
+}
+
+const ocrInput = (image: NativeImage) => frameInput(imageFrame(image))
+
+/**
+ * After a black GDI copy (an exclusive full-screen game hides from GDI; a loading screen fades through black) the frame is
+ * taken through desktopCapturer instead, which renders a thumbnail of every open window: tried again only this long after
+ * a try that brought no picture either.
+ */
+const BLACK_FALLBACK_RETRY_MS = 30_000
+let blackFallback = { triedAt: 0, useful: false }
+
+/** An all-black picture (sampled): what GDI copies of an exclusive full-screen game. */
+function isBlank(data: Uint8Array) {
+  for (let index = 0; index < data.length; index += 4 * 997) if (data[index]! > 8 || data[index + 1]! > 8 || data[index + 2]! > 8) return false
+  return true
+}
+
+/**
+ * A new game window (audit P4d): «Выбор профиля и режима» comes within seconds and shows only briefly, so the engine is
+ * loaded now — while the game itself is loading — instead of on the first look at that screen, which used to wait a
+ * second or two for it (more after the minute unused that frees it). Kept loaded through the quick looks of a start.
+ */
+function warmQuestWorker() {
+  void getWorker().then(() => touchQuestWorker()).catch(() => {})
+}
+
+/**
+ * `context.logsWatched`: the game's Logs folder is watched, so the logs tell the raids (electron/experimental/raidSignals.ts).
+ * `context.identity`: the locked app's identity reader (captureIdentityFrame) — the mode selection and the traders'
+ * screens only, no story pane parts.
+ * A watching call answers `raid` (a raid is likely: nothing was copied), `busy` (an item lookup or a Kappa scan runs:
+ * nothing was copied), `freshGame` (the game window came moments ago, src/import/storyScanTiming.ts) and `gameSince` (when
+ * this game window was first seen: a new value is a new game start) besides what was read.
+ */
+export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean; identity?: boolean } = {}) {
+  let freshGame: boolean | undefined
+  let gameSince: number | undefined
+  const identity = context.identity === true
   if (watch && process.platform === 'win32') {
-    // Nothing to read unless the game is in front; then one cheap copy of its screen.
-    if (!isTarkovForeground()) return { text: '', sourceName: '', gameWindow: false }
-    const image = grabGameDisplay()
-    if (image) {
-      const fingerprint = frameFingerprint(image)
-      const fine = fineFingerprint(image)
+    // Nothing to read unless the game is in front (its process, not a window about it); then one cheap copy of its screen.
+    const game = foregroundGame()
+    if (!game) return { text: '', sourceName: '', gameWindow: false }
+    const now = Date.now()
+    freshGame = isFreshGame(game.since, now)
+    gameSince = game.since
+    // A raid the logs do not report (no Logs folder, an offline raid): no copy of the game's screen at all.
+    if (raidLikely(now, context)) return { text: '', sourceName: '', gameWindow: true, raid: true, freshGame, gameSince }
+    // An item lookup or a Kappa scan is running (electron/ocrQueue.ts): the player waits for those, the scanner yields.
+    if (backgroundScansHeld(now)) return { text: '', sourceName: '', gameWindow: true, busy: true, freshGame, gameSince }
+    if (freshGame) warmQuestWorker()
+    const shot = grabGameDisplay()
+    if (shot) {
+      // The print straight from the copy's bytes: an unchanged screen costs no image work at all.
+      const fine = picturePrint(shot.data, shot.width, shot.height)
       const capturedAt = Date.now()
       const unchanged = unchangedFrame(lastWatch?.fine, fine)
-      if (lastWatch && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
-        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}) }
+      if (lastWatch && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, similarFrame(lastWatch.fine, fine)))) {
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
       }
-      const result = await readQuestFrame(image, detail, 'EscapeFromTarkov')
-      lastWatch = { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 }
-      return { ...result, gameWindow: true, observedAt: lastWatch.at }
+      const result = await readQuestFrame(shotFrame(shot), detail, 'EscapeFromTarkov', true, identity)
+      lastWatch = { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1, partial: identity }
+      return { ...result, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince }
+    }
+    if (gameCaptureAvailable()) {
+      if (!blackFallback.useful && now - blackFallback.triedAt < BLACK_FALLBACK_RETRY_MS) return { text: '', sourceName: '', gameWindow: true, freshGame, gameSince }
+      blackFallback = { triedAt: now, useful: false }
     }
   }
   if (watch) {
@@ -69,21 +157,23 @@ export async function captureQuestFrame(watch = false, detail = false) {
       lastWatch = null
       return { text: '', sourceName: '', gameWindow: false }
     }
-    const fingerprint = probe.thumbnail.isEmpty() ? null : frameFingerprint(probe.thumbnail)
-    // The probe itself (160 × 90) is the fine print.
-    const fine = fingerprint ? probe.thumbnail.toBitmap() : null
+    // The probe itself (160 × 90) is the print.
+    const fine = probe.thumbnail.isEmpty() ? null : new Uint8Array(probe.thumbnail.toBitmap())
     const unchanged = Boolean(fine && unchangedFrame(lastWatch?.fine, fine))
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
-    if (fingerprint && lastWatch && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
-      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}) }
+    if (fine && lastWatch && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, similarFrame(lastWatch.fine, fine)))) {
+      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
     const game = sources.find((source) => isTarkovWindow(source.name))
-    if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game) }
+    if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game), freshGame, gameSince }
+    // Black here too: nothing to read, and no reason to come back soon.
+    if (isBlank(game.thumbnail.toBitmap())) return { text: '', sourceName: game.name, gameWindow: true, freshGame, gameSince }
+    blackFallback.useful = true
     const capturedAt = Date.now()
-    const result = await readQuestFrame(game.thumbnail, detail, game.name)
-    lastWatch = fingerprint && fine ? { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 } : null
-    return { ...result, gameWindow: true, observedAt: capturedAt }
+    const result = await readQuestFrame(game.thumbnail, detail, game.name, true, identity)
+    lastWatch = fine ? { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1, partial: identity } : null
+    return { ...result, gameWindow: true, observedAt: capturedAt, freshGame, gameSince }
   }
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
@@ -99,9 +189,32 @@ export async function captureQuestFrame(watch = false, detail = false) {
   return { ...result, gameWindow, storedFrames, observedAt: Date.now() }
 }
 
-/** Fallback for capture failures: a screenshot taken after this profile/mode watch started. */
+/**
+ * The identity reader of the locked app — the sign-in and subscription screens (audit P4a; #202 «персонаж должен
+ * находиться сразу при первом запуске»): a game started before the sign-in shows «Выбор профиля и режима» only then.
+ * The screen is copied and read only within a game start — a game window not seen before, for FRESH_GAME_MS
+ * (src/import/storyScanTiming.ts, electron/experimental/gameWindow.ts) — and then only for the mode selection and the
+ * traders' screens. At any other time nothing is copied: the answer says only whether the game is in front. No raid
+ * report from the logs here: the minimap left open counts as a likely raid too.
+ */
+export async function captureIdentityFrame() {
+  if (process.platform !== 'win32') return { text: '', sourceName: '', gameWindow: false }
+  const game = foregroundGame()
+  if (!game) return { text: '', sourceName: '', gameWindow: false }
+  if (!isFreshGame(game.since, Date.now())) return { text: '', sourceName: '', gameWindow: true, freshGame: false, gameSince: game.since }
+  return captureQuestFrame(true, true, { identity: true })
+}
+
+/**
+ * Fallback for capture failures: a screenshot taken after this profile/mode watch started. Never while a raid is likely
+ * (the minimap, a position screenshot, movement: electron/experimental/raidSignals.ts; without the logs' word, the minimap
+ * left open counts too), and only one young enough for the scanner to use (STORY_SCAN_TIMING.screenshotMaxAgeMs): an
+ * older one was read and thrown away before (audit P5d).
+ */
 export async function captureQuestScreenshot(after: number) {
-  const file = await readFreshQuestScreenshot(screenshotsFolder(), after)
+  const now = Date.now()
+  if (raidLikely(now)) return null
+  const file = await readFreshQuestScreenshot(screenshotsFolder(), Math.max(after, now - STORY_SCAN_TIMING.screenshotMaxAgeMs), now)
   if (!file) return null
   const key = `${file.file}:${file.modifiedAt}:${file.size}`
   if (lastScreenshot?.key === key) return { ...lastScreenshot, gameWindow: true }
@@ -110,19 +223,6 @@ export async function captureQuestScreenshot(after: number) {
   const result = await readQuestFrame(image, true, 'EFT screenshot', false)
   lastScreenshot = { key, ...result, observedAt: file.modifiedAt }
   return { ...lastScreenshot, gameWindow: true }
-}
-
-export async function recognizeQuestPng(png: Buffer, sourceName = 'screenshot') {
-  const image = nativeImage.createFromBuffer(png)
-  if (!image.getSize().width) {
-    const result = await recognizeQuestImage(png, sourceName)
-    const storedFrames = await persistFrame(png)
-    return { ...result, gameWindow: true, storedFrames }
-  }
-  const prepared = prepareImage(image)
-  const result = await recognizeQuestImage(prepared, sourceName)
-  const storedFrames = await persistFrame(prepared)
-  return { ...result, gameWindow: true, storedFrames }
 }
 
 /** OCR for a small screen region (item tooltip under the cursor); small UI text is upscaled first. */
@@ -144,19 +244,30 @@ function tooltipOcr() {
   return tooltipWorker
 }
 
-/** The text of the game's name tooltip, prepared as black-on-white BGRA pixels (see tooltipForOcr). */
+/**
+ * The text of the game's name tooltip, prepared as black-on-white BGRA pixels (see tooltipForOcr): a grey PGM, exactly
+ * the grey levels a PNG of it carried (electron/ocrPicture.ts).
+ */
 export async function recognizeTooltip(pixels: { width: number; height: number; data: Uint8Array }) {
-  const image = nativeImage.createFromBitmap(Buffer.from(pixels.data.buffer, pixels.data.byteOffset, pixels.data.byteLength), { width: pixels.width, height: pixels.height })
+  const picture = bgraToPgm(pixels.data, pixels.width, pixels.height)
   const ocr = await tooltipOcr()
   try {
-    const result = await runOcrJob(ocr, () => ocr.recognize(image.toPNG()))
+    // The player waits for the card: before any background reading waiting.
+    const result = await runOcrJob(() => ocr.recognize(picture), 'interactive')
     return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
   } finally {
     touchTooltip()
   }
 }
 
-const touchTooltip = idleRelease(10 * 60_000, () => {
+/**
+ * The item card's engine (~100 MB) goes after 5 minutes unused (was 10): sorting the stash keeps it, a raid without a
+ * lookup frees it. It is loaded on the first key press (warmUpOcr, while the screen is searched for the tooltip), no
+ * longer 4 seconds after every app start: that cost every player a second or two of a processor core and 100 MB, often
+ * while the game itself was loading, for a lookup they might never make. The price: the first lookup of a session (or
+ * after 5 idle minutes) waits about a second longer for its reading.
+ */
+const touchTooltip = idleRelease(5 * 60_000, () => {
   const engine = tooltipWorker
   tooltipWorker = null
   void engine?.then((next) => next.terminate()).catch(() => {})
@@ -182,8 +293,8 @@ async function persistFrame(image: Buffer | NativeImage) {
 async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: string) {
   const ocr = await getWorker()
   try {
-    const payload = Buffer.isBuffer(image) ? image : image.toPNG()
-    const result = await runOcrJob(ocr, () => ocr.recognize(payload))
+    const payload = Buffer.isBuffer(image) ? image : ocrInput(image)
+    const result = await runOcrJob(() => ocr.recognize(payload))
     return { text: result.data.text ?? '', sourceName }
   } finally {
     touchQuestWorker()
@@ -191,10 +302,11 @@ async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: stri
 }
 
 /** The whole-screen pass with word boxes: they place the story pane parts (anchors «ИСТОРИЯ», «Главные задачи»). */
-async function recognizeQuestWords(image: NativeImage) {
+async function recognizeQuestWords(frame: GameFrame) {
   const ocr = await getWorker()
   try {
-    const result = await runOcrJob(ocr, () => ocr.recognize(image.toPNG(), {}, { text: true, blocks: true }))
+    const payload = frameInput(frame)
+    const result = await runOcrJob(() => ocr.recognize(payload, {}, { text: true, blocks: true }))
     return { text: result.data.text ?? '', words: ocrWordBoxes(result.data.blocks) }
   } finally {
     touchQuestWorker()
@@ -206,27 +318,38 @@ async function recognizeQuestWords(image: NativeImage) {
  * stays open — the player flips chapters — straight from the last layout, without the whole-screen pass; otherwise
  * after a whole-screen pass has found it. Menu probes (`detail` off) are read as before.
  */
-async function readQuestFrame(image: NativeImage, detail: boolean, sourceName: string, remember = true): Promise<{ text: string; sourceName: string; story?: StoryPaneReading }> {
-  const prepared = prepareImage(image, detail ? 1920 : 1100, !detail)
+async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, sourceName: string, remember = true, identity = false): Promise<{ text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }> {
+  const frame = 'bgra' in source ? source : imageFrame(source)
   if (!detail) {
-    const { text } = await recognizeQuestImage(prepared, sourceName)
+    const { text } = await recognizeQuestImage(prepareImage(frame.image(), 1100, true), sourceName)
     return { text, sourceName }
   }
-  const size = prepared.getSize()
-  if (storyLayout && storyLayout.width === size.width && storyLayout.height === size.height) {
-    const story = await readStoryPane(prepared, storyLayout.rects)
+  // Read as it is when its size is right (no image object for the whole pass); prepareImage otherwise.
+  const prepared = frame.width >= 900 && frame.width <= 2020 ? frame : imageFrame(prepareImage(frame.image(), 1920, false))
+  const size = { width: prepared.width, height: prepared.height }
+  if (!identity && storyLayout && storyLayout.width === size.width && storyLayout.height === size.height) {
+    const story = await readStoryPane(prepared.image(), storyLayout.rects)
     if (story) return { text: storyPaneText(story), sourceName, story }
     if (remember) storyLayout = null
   }
   const full = await recognizeQuestWords(prepared)
-  if (!isStoryPaneOcr(full.text)) return { text: full.text, sourceName }
+  // «Выбор профиля и режима» at the game's start: the nickname and every mode's level (src/import/modeSelectScreen.ts).
+  if (isModeSelectText(full.text)) {
+    const profiles = await readModeSelect(prepared.image(), full.words)
+    return { text: full.text, sourceName, ...(profiles.length ? { profiles } : {}) }
+  }
+  // The traders' screen: the nickname and the level of the mode the game is in (the player is there often).
+  const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : null
+  const extra = trader ? { trader } : {}
+  // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
+  if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
   const rects = storyPaneRects(size, full.words, true)
-  const story = rects ? await readStoryPane(prepared, rects) : null
-  if (!story) return { text: full.text, sourceName }
+  const story = rects ? await readStoryPane(prepared.image(), rects) : null
+  if (!story) return { text: full.text, sourceName, ...extra }
   // The next frames start the body under the banner: another chapter's description has another length.
   const layout = storyPaneRects(size, full.words)
   if (remember) storyLayout = layout ? { width: size.width, height: size.height, rects: layout } : null
-  return { text: full.text, sourceName, story }
+  return { text: full.text, sourceName, story, ...extra }
 }
 
 /** Title column 2× (the name on the banner art), status label 2× as one line, description and objectives as they are. */
@@ -234,13 +357,13 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
   const ocr = await getWorker()
   try {
     // One queue job for the three reads, so another scan cannot run between them and the page mode is restored.
-    return await runOcrJob(ocr, async () => {
+    return await runOcrJob(async () => {
       const read = async (rect: PaneRect, scale: number, mode: '6' | '7') => {
         const part = image.crop(rect)
         const scaled = scale === 1 ? part : part.resize({ width: Math.round(rect.width * scale), quality: 'best' })
         if (mode !== '6') await ocr.setParameters({ tessedit_pageseg_mode: mode })
         try {
-          return (await ocr.recognize(scaled.toPNG())).data.text ?? ''
+          return (await ocr.recognize(ocrInput(scaled))).data.text ?? ''
         } finally {
           if (mode !== '6') await ocr.setParameters({ tessedit_pageseg_mode: '6' })
         }
@@ -257,34 +380,137 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
   }
 }
 
-const touchQuestWorker = idleRelease(2 * 60_000, () => {
+/** The grey pixels of a close-up, for reading the level's digits from their shapes (src/import/levelDigits.ts). */
+function closeUpPicture(image: NativeImage) {
+  const { width, height } = image.getSize()
+  const bitmap = image.toBitmap()
+  return bitmap.length >= width * height * 4 ? grayPicture(bitmap, width, height) : null
+}
+
+/** The nickname each card's close-up read in the last frame of the mode selection screen (confirmCards' `earlier`). */
+let lastCloseUps: { at: number; names: Partial<Record<ModeSelectCard['mode'], string>> } | null = null
+
+/**
+ * The mode selection screen: each card's «ник | уровень» line once more, close up (3×), next to what the whole pass read,
+ * and the level's digits read from their shapes in that close-up. Only the levels an OCR reading and the shapes agree on
+ * are returned, and the nicknames two readings agree on (confirmCards). A few small reads, and only while this screen is open.
+ */
+async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<ModeSelectCard[]> {
+  const headers = modeSelectHeaders(words, image.getSize())
+  if (!headers.length) return []
+  const ocr = await getWorker()
+  try {
+    const readings = await runOcrJob(async () => {
+      const result: CardReadings[] = []
+      for (const header of headers) {
+        // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
+        const rect = header.full?.box ?? header.band
+        const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
+        if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '7' })
+        let data: Awaited<ReturnType<OcrWorker['recognize']>>['data']
+        try {
+          data = (await ocr.recognize(ocrInput(scaled), {}, { text: true, blocks: true })).data
+        } finally {
+          if (header.full) await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+        }
+        const line = findNameLevel(data.text ?? '')
+        const full = header.full ? { nickname: header.full.nickname, level: header.full.level } : undefined
+        const word = cardLevelWord(ocrLines(data.blocks), Boolean(header.full))
+        const picture = word ? closeUpPicture(scaled) : null
+        const digits = word && picture ? readLevelShapes(picture, word.bbox, [line?.level, full?.level]) : undefined
+        result.push({ mode: header.mode, ...(full ? { full } : {}), ...(line ? { line } : {}), ...(digits ? { digits } : {}) })
+      }
+      return result
+    })
+    const now = Date.now()
+    const earlier = lastCloseUps && now - lastCloseUps.at < 30_000 ? lastCloseUps.names : {}
+    lastCloseUps = { at: now, names: Object.fromEntries(readings.filter((reading) => reading.line).map((reading) => [reading.mode, reading.line!.nickname])) }
+    return confirmCards(readings, earlier)
+  } finally {
+    touchQuestWorker()
+  }
+}
+
+/**
+ * The traders' screen: «LVL 12» of the current standing and the name before «(вы)», each once more close up (3×). The
+ * level counts when an OCR reading and its digits' shapes agree, the name when the whole pass and the close-up do; null
+ * when nothing does.
+ */
+async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promise<TraderScreenReading | null> {
+  const loyalty = readTraderLoyalty(image, words)
+  const parts = traderScreenParts(words, image.getSize())
+  if (!parts.level && !parts.nickname) return loyalty ? { loyalty } : null
+  const ocr = await getWorker()
+  try {
+    return await runOcrJob(async () => {
+      const read = async (rect: { x: number; y: number; width: number; height: number }) => {
+        const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
+        await ocr.setParameters({ tessedit_pageseg_mode: '7' })
+        try {
+          const { data } = await ocr.recognize(ocrInput(scaled), {}, { text: true, blocks: true })
+          return { text: data.text ?? '', lines: ocrLines(data.blocks), scaled }
+        } finally {
+          await ocr.setParameters({ tessedit_pageseg_mode: '6' })
+        }
+      }
+      const reading: TraderScreenReading = {}
+      if (parts.level) {
+        const close = await read(parts.level.box)
+        const closeLevel = parseTraderLevel(close.text)
+        const word = traderLevelWord(close.lines)
+        const picture = word ? closeUpPicture(close.scaled) : null
+        const digits = word && picture ? readLevelShapes(picture, word.bbox, [closeLevel, parts.level.value]) : undefined
+        const level = confirmTraderLevel(parts.level.value, closeLevel, digits)
+        if (level) reading.level = level
+      }
+      if (parts.nickname) {
+        const close = parseTraderNickname((await read(parts.nickname.box)).text)
+        if (close && foldNickname(close) === foldNickname(parts.nickname.value)) reading.nickname = close
+      }
+      if (loyalty) reading.loyalty = loyalty
+      return reading.level || reading.nickname || reading.loyalty ? reading : null
+    })
+  } finally {
+    touchQuestWorker()
+  }
+}
+
+/** The loyalty badges of the last frames: a level counts once the next frame shows it too (confirmLoyalty). */
+let lastLoyalty: { at: number; levels: Record<string, number> } | null = null
+
+/**
+ * The traders' loyalty levels: each badge in the top left of a portrait (I, II, III, a crown for IV), read from its
+ * shape, not by OCR (src/import/traderLoyalty.ts). A few dozen pixels a trader, no OCR at all.
+ */
+function readTraderLoyalty(image: NativeImage, words: OcrWordBox[]): Record<string, number> | undefined {
+  const levels: Record<string, number> = {}
+  for (const badge of traderBadgeRects(words, image.getSize())) {
+    const bitmap = image.crop(badge.rect).toBitmap()
+    const { width, height } = badge.rect
+    if (bitmap.length < width * height * 4) continue
+    const gray = new Uint8Array(width * height)
+    for (let index = 0; index < gray.length; index += 1) gray[index] = Math.round((bitmap[index * 4]! + bitmap[index * 4 + 1]! + bitmap[index * 4 + 2]!) / 3)
+    const level = classifyLoyaltyBadge(gray, width, height)
+    if (level) levels[badge.key] = level
+  }
+  const now = Date.now()
+  const previous = lastLoyalty && now - lastLoyalty.at < 30_000 ? lastLoyalty.levels : {}
+  lastLoyalty = { at: now, levels }
+  const confirmed = confirmLoyalty(levels, previous)
+  return Object.keys(confirmed).length ? confirmed : undefined
+}
+
+/** The quest scanner's engine goes after a minute unused (was 2): a raid frees it soon, the menus keep it busy anyway. */
+const touchQuestWorker = idleRelease(60_000, () => {
   const engine = worker
   worker = null
   preparing = null
   void engine?.terminate().catch(() => {})
 })
 
+/** desktopCapturer names a window source by its title: the game's is exactly «EscapeFromTarkov» (gameWindow.ts). */
 function isTarkovWindow(name: string) {
-  if (/companion|operations|chrome|cursor|code/i.test(name)) return false
-  return /escape\s*from\s*tarkov|escapefromtarkov|\beft\b/i.test(name)
-}
-
-function frameFingerprint(image: NativeImage) {
-  return image.resize({ width: 48, height: 27, quality: 'good' }).toBitmap()
-}
-
-/** About 16 × 16 screen pixels a sample at 1080p: a changed digit shows. */
-function fineFingerprint(image: NativeImage) {
-  return image.resize({ width: 120, height: 68, quality: 'good' }).toBitmap()
-}
-
-function sameFrame(a: Buffer, b: Buffer) {
-  if (a.length !== b.length || !a.length) return false
-  let total = 0
-  for (let index = 0; index < a.length; index += 4) {
-    total += Math.abs(a[index]! - b[index]!) + Math.abs(a[index + 1]! - b[index + 1]!) + Math.abs(a[index + 2]! - b[index + 2]!)
-  }
-  return total / ((a.length / 4) * 3) < SAME_FRAME_DIFF
+  return isGameWindowTitle(name)
 }
 
 function prepareImage(image: NativeImage, maxWidth = 1500, cropTable = true) {

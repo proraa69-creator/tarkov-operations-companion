@@ -2,8 +2,13 @@ import cors from 'cors'
 import express from 'express'
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
+import type { AppDataset, RaidMode } from '../../src/domain/types'
 import { fetchPlayerProfile } from '../../electron/playerProfileService'
-import { getCatalogSnapshot, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
+import { currentQuestBase, getCatalogAnswer, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
+import { catalogNotModified, type CatalogLocale } from './services/catalogCache.js'
+import { createCatalogAnswers } from './services/catalogAnswers.js'
+import type { QuestBaseReport } from './services/questBase.js'
+import { createQuestBaseRouter } from './routes/questBase.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
@@ -29,6 +34,7 @@ import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
+import { createAnnouncementRouter } from './routes/announcement.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
 import { createDataMirrorRouter } from './routes/dataMirror.js'
@@ -43,6 +49,8 @@ import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
+import { AnnouncementStore } from './services/announcementStore.js'
+import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
@@ -58,7 +66,11 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
+import { createSupportChatRouter, type SupportChatLimits } from './routes/supportChat.js'
+import { SupportChatStore } from './services/supportChatStore.js'
 import { BugReportMailer } from './services/bugReportMail.js'
+import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
+import { RequestsKeyStore } from './services/requestsKeyStore.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
@@ -86,6 +98,15 @@ export interface ApiOptions {
   userData?: UserDataStore
   /** Already-loaded catalog for summaries (Kappa / Collector totals). Defaults to the server catalog cache. */
   catalog?: CatalogPeek
+  /** The notice's English for foreign players (services/announcementLanguage.ts): MyMemory by default; tests pass a fake. */
+  translateAnnouncement?: AnnouncementTranslator
+  /**
+   * Tests: a catalog to serve at GET /v1/catalog/:mode instead of the server's quest base (services/catalogService.ts);
+   * its answer is prepared again for every new object it returns.
+   */
+  catalogSnapshot?: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
+  /** The quest base the owner's report reads (routes/questBase.ts); default: the server's (services/catalogService.ts). */
+  questBase?: { report: () => QuestBaseReport }
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -119,6 +140,10 @@ export interface ApiOptions {
   bugReportLimits?: Partial<BugReportLimits>
   /** Every report to the owner's mailbox as a PDF (services/bugReportMail.ts): the e-mail provider and the address. */
   bugReportMail?: { sender?: EmailSender; to?: string }
+  /** «Чат с поддержкой» (routes/supportChat.ts): per-account / per-IP limits of the players' messages for tests. */
+  supportChatLimits?: Partial<SupportChatLimits>
+  /** «Доступ Claude к заявкам» (routes/agentRequests.ts): per-key / per-address limits of the read-only key for tests. */
+  requestsKeyLimits?: Partial<AgentRequestLimits>
 }
 
 /**
@@ -178,8 +203,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).
   const bugReports = new BugReportStore(accounts.database, { now: accounts.clock })
   const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
-  // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed (routes/bugReports.ts).
-  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount() }))
+  // «Чат с поддержкой» (routes/supportChat.ts, mounted with the players' routes below): its unread conversations count on
+  // the same «Заявки» badge.
+  const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock })
+  // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
+  // the support chat (routes/bugReports.ts).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount(), unreadChats: supportChat.unreadThreads() }))
   app.use(createBugReportsRouter(accounts, bugReports, {
     limits: options.bugReportLimits,
     signals: reportSignals,
@@ -237,6 +266,20 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
+  app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))
+  // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
+  // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
+  const announcements = new AnnouncementStore(accounts.database)
+  const announcementSignals = new MapUpdates()
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement))
+  // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
+  // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
+  app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {
+    limits: options.requestsKeyLimits,
+    catalog: options.catalog ?? peekCatalogSnapshot,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
@@ -247,9 +290,18 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
+  // «Чат с поддержкой»: before /v1/me, whose router answers every other path under it. The owner's answer reaches the
+  // player's app through the social events, a player's message the owner app through the «Заявки» wait.
+  app.use(createSupportChatRouter(accounts, supportChat, {
+    limits: options.supportChatLimits,
+    social: socialSignals,
+    ownerSignals: reportSignals,
+    now: accounts.clock,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
-  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile })
+  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
@@ -290,9 +342,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     res.set('Cache-Control', 'no-store')
     res.json({ country: countryCode(proxiedCountry(req)) ?? null })
   })
+  const catalogAnswer = options.catalogSnapshot ? createCatalogAnswers({ snapshot: options.catalogSnapshot }).get : getCatalogAnswer
   app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {
     const lang = z.enum(['ru', 'en']).default('ru').parse(req.query.lang ?? undefined)
-    res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode), lang))
+    // Prepared once per quest base version, price generation and image set (services/catalogAnswers.ts): the bytes and
+    // their ETag are kept, nothing is stringified or hashed here.
+    const answer = await catalogAnswer(modeSchema.parse(req.params.mode), lang)
+    // The catalog's content version: an app that sends it back (If-None-Match) while nothing changed gets an empty «304
+    // Not Modified». The access check above runs first either way.
+    res.set('ETag', answer.etag)
+    if (catalogNotModified(req.get('if-none-match'), answer.etag)) { res.status(304).end(); return }
+    res.type('application/json').send(answer.body)
   })
   app.post('/v1/players/resolve', players, paid, async (req, res) => {
     // `accountId`: the account the desktop app read from this player's own game logs (optional).

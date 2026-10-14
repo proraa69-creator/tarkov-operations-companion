@@ -2,6 +2,8 @@ import { isDesktopShell, isNative } from '../platform'
 
 /** «Связаться»: the owner's Telegram (opens in the system browser: electron/main.ts setWindowOpenHandler → shell.openExternal). */
 export const SUPPORT_TELEGRAM_URL = 'https://t.me/raidosapp'
+/** «Поддержать проект» (owner, 13.10.2026): the donation page (components/DonateCard.tsx, the website's DonateCard). */
+export const DONATE_URL = 'https://donatepay.ru/don/1537561'
 export const SUPPORT_TELEGRAM_HANDLE = '@raidosapp'
 
 /** Same limits as the server (server/src/services/bugReportStore.ts). */

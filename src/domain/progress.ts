@@ -1,5 +1,6 @@
 import type { LocalProfile, ModeProgress, ModeRegistration, ObjectiveConflict, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from './types'
 import { MAX_LOCAL_EVENTS, normalizeObjective } from '../progression/objectiveProgress'
+import { levelReachable } from '../profile/levelExperience'
 
 /** v6 adds objective progress, progress events and objective conflicts per mode (v5 data is kept as is). */
 export const PROFILE_SCHEMA_VERSION = 6 as const
@@ -79,9 +80,22 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
   const current = profile.modes[mode].playerSnapshot
   if (current?.upstreamUpdatedAt && snapshot.upstreamUpdatedAt && snapshot.upstreamUpdatedAt < current.upstreamUpdatedAt) return profile
   if (!snapshot.upstreamUpdatedAt && current && snapshot.fetchedAt < current.fetchedAt) return profile
+  // The level: Tarkov.dev's unless the game's screen showed one later («побеждают свежие, но приоритет у тарков дев») —
+  // and one its exact experience could have reached by then: a screen level no play explains is a misreading (player's
+  // report, 14.10.2026: PvE 39 shown as 59), Tarkov.dev's replaces it. The other way round too: a Tarkov.dev level no
+  // play explains since a checked screen reading (src/import/levelDigits.ts) does not replace that reading.
+  const observedAt = snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt
+  const anchor = profile.modes[mode].levelAnchor
+  const level = Math.max(1, Math.round(snapshot.level))
+  const experience = Number.isFinite(snapshot.experience) && snapshot.experience > 0 ? snapshot.experience : undefined
+  const misread = anchor?.source === 'screen' && !levelReachable({ level, observedAt, experience }, anchor.level, anchor.observedAt)
+  const beyond = anchor?.source === 'screen' && anchor.checked === true && !levelReachable(anchor, level, observedAt)
+  const levelUpdate = (!anchor || anchor.source === 'tarkov-dev' || observedAt >= anchor.observedAt || misread) && !beyond
+    ? { playerLevel: level, levelAnchor: { level, observedAt, source: 'tarkov-dev' as const, ...(experience ? { experience } : {}) } }
+    : {}
   return updateMode(profile, mode, {
     playerSnapshot: snapshot,
-    playerLevel: Math.max(1, Math.round(snapshot.level)),
+    ...levelUpdate,
     faction: snapshot.faction,
     prestige: Math.max(0, Math.round(snapshot.prestige)),
     registration: {
@@ -91,6 +105,33 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
       nickname: snapshot.nickname,
     },
   }, snapshot.fetchedAt)
+}
+
+/**
+ * The level the game's screen showed for this mode at `observedAt` (src/import/modeSelectScreen.ts; its digits read from
+ * their shapes too, src/import/levelDigits.ts): «Выбор профиля и режима», or the traders' screen (`raiseOnly`).
+ * It replaces an older reading at once; Tarkov.dev's anchor stays when it has the same level (it knows the exact
+ * experience) or is newer. A raise no play explains since the anchor (src/profile/levelExperience.ts) is not taken: a
+ * misreading, or another mode's traders' screen.
+ */
+export function applyScreenLevel(profile: LocalProfile, mode: RaidMode, level: number, observedAt: string, raiseOnly = false): LocalProfile {
+  if (!Number.isInteger(level) || level < 1) return profile
+  const { levelAnchor: anchor, playerLevel } = profile.modes[mode]
+  // Read by OCR alone before 14.10.2026 («39» stored as «59»): any newer reading replaces it, the traders' screen too.
+  const unchecked = anchor?.source === 'screen' && !anchor.checked
+  // The traders' screen does not name its mode (the logs' current one is taken): it may raise a level, never lower one.
+  if (raiseOnly && level < playerLevel && !unchecked) return profile
+  if (anchor && anchor.observedAt >= observedAt) return profile
+  // The same level as Tarkov.dev's (and nothing added since disagrees): its anchor stays, it knows the exact experience.
+  if (anchor?.source === 'tarkov-dev' && anchor.level === level && playerLevel === level) return profile
+  if (anchor && !unchecked && level > playerLevel && !levelReachable(anchor, level, observedAt)) return profile
+  return updateMode(profile, mode, { playerLevel: level, levelAnchor: { level, observedAt, source: 'screen', checked: true } })
+}
+
+/** Quest experience since the anchor raised the level (src/profile/questExperience.ts); never lowers it. */
+export function raisePlayerLevel(profile: LocalProfile, mode: RaidMode, level: number): LocalProfile {
+  if (!Number.isInteger(level) || level <= profile.modes[mode].playerLevel) return profile
+  return updateMode(profile, mode, { playerLevel: level })
 }
 
 export function setTaskProgress(

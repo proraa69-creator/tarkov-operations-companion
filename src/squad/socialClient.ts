@@ -143,8 +143,12 @@ export const friendAction = (friendId: string, action: 'remove' | 'block' | 'unb
 export const setHideProgress = (friendId: string, hideProgress: boolean) => request('PUT', `/v1/friends/${friendId}/privacy`, { hideProgress })
 export const regenerateFriendCode = () => request<{ code: string }>('POST', '/v1/friends/code')
 
-/** A friend's game account in one mode: level and prestige (null: not known — no synced game account or profile). */
-export interface FriendModeInfo { level: number; prestige: number; updatedAt: string | null }
+/**
+ * A friend's game account in one mode (the whole mode null: not known). `prestige` null: not known either (the friend's
+ * app read the level from the game's screen, which shows no prestige). `source`: the friend's own app or the public
+ * Tarkov.dev profile (a server from before 14.10.2026 sends none); `updatedAt`: when the level was true.
+ */
+export interface FriendModeInfo { level: number; prestige: number | null; updatedAt: string | null; source?: 'app' | 'tarkov-dev' }
 export interface FriendInfo { nickname: string | null; hidden: boolean; modes: Partial<Record<RaidMode, FriendModeInfo | null>> }
 
 /** «Информация о друге»: level and prestige in every mode (GET /v1/friends/:id/info), shape-checked. */
@@ -155,11 +159,12 @@ export async function fetchFriendInfo(friendId: string): Promise<FriendInfo> {
   const modes: FriendInfo['modes'] = {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
     const value = raw[mode] as Record<string, unknown> | null | undefined
-    const level = Number(value?.level), prestige = Number(value?.prestige)
+    const level = Number(value?.level), prestige = value?.prestige
     modes[mode] = value && Number.isFinite(level) && level >= 0 && level <= 200 ? {
       level: Math.round(level),
-      prestige: Number.isFinite(prestige) && prestige >= 0 && prestige <= 99 ? Math.round(prestige) : 0,
+      prestige: typeof prestige === 'number' && Number.isFinite(prestige) && prestige >= 0 && prestige <= 99 ? Math.round(prestige) : null,
       updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : null,
+      ...(value.source === 'app' || value.source === 'tarkov-dev' ? { source: value.source } : {}),
     } : null
   }
   return { nickname: typeof answer?.nickname === 'string' ? answer.nickname : null, hidden: answer?.hidden === true, modes }

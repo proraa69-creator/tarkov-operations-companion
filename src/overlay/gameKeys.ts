@@ -67,5 +67,38 @@ export function isPrintScreen(keys: string[]) {
   return keys.length > 0 && (keys.at(-1) === 'Print' || keys.at(-1) === 'SysReq')
 }
 
-/** Screenshot keys the player can pick by hand when the game log cannot be read. */
-export const SCREENSHOT_KEY_CHOICES = ['Print', 'F12', 'F11', 'F10', 'F9', 'F8', 'F7', 'F6', 'F5', 'Insert', 'Home', 'End', 'PageUp', 'PageDown', 'Pause', 'ScrollLock'] as const
+/** Unity's extra mouse buttons as Windows virtual keys: the wheel button, X1 (back) and X2 (forward). */
+const MOUSE_VK: Record<string, number> = { Mouse2: 0x04, Mouse3: 0x05, Mouse4: 0x06 }
+
+/** Windows virtual key of a Unity KeyCode name, the extra mouse buttons included; null for anything else. */
+export function gameKeyVk(name: string): number | null {
+  return unityKey(name)?.vk ?? MOUSE_VK[name] ?? null
+}
+
+/**
+ * Whether the game's screenshot is bound to exactly this key (owner, 14.10.2026: «сделай что бы человек билдил кнопку в
+ * игре одну и туже куда он билдит миникарту в приложении»): then the press that opens the minimap also makes the game
+ * write the screenshot the position comes from — the app itself presses nothing. A combination (Alt + F12) never is.
+ */
+export function screenshotOnKey(keys: string[], vk: number | undefined) {
+  return vk !== undefined && keys.length === 1 && gameKeyVk(keys[0]!) === vk
+}
+
+const LOGGED_AT = /(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?/g
+
+/**
+ * The newest screenshot binding a log text holds and when the game logged it: the time of the nearest log line before it
+ * (local time, ms; 0 when there is none in reach). The game logs its keys when it starts, so a key changed later is only
+ * in its Control.ini — the caller compares the two times.
+ */
+export function parseScreenshotBindingAt(text: string): { keys: string[]; at: number } | null {
+  let last: RegExpMatchArray | undefined
+  for (const match of text.matchAll(BINDING)) last = match
+  if (!last) return null
+  const keys = parseScreenshotBinding(last[0]) ?? []
+  const index = last.index ?? 0
+  let stamp: RegExpMatchArray | undefined
+  for (const match of text.slice(Math.max(0, index - 65_536), index).matchAll(LOGGED_AT)) stamp = match
+  const at = stamp ? Date.parse(`${stamp[1]}T${stamp[2]}`) : 0
+  return { keys, at: Number.isFinite(at) ? at : 0 }
+}

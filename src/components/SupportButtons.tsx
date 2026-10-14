@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useOptionalAppState } from '../state/AppState'
 import { useOptionalTarkovData } from '../data/DataProvider'
@@ -8,10 +8,15 @@ import { QUEST_ISSUE_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type Rep
 import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
+import { isDesktopShell, isNative, nativePlatform } from '../platform'
+import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
+import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
 import { openAccountSignIn } from '../account/accountEvents'
+import { SupportChatDialog } from '../support/SupportChat'
+import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
 import '../styles/support.css'
 
 interface Shot { id: number; name: string; type: string; size: number; dataUrl: string }
@@ -71,6 +76,21 @@ const WORDS: Record<ReportKind, Record<'title' | 'topic' | 'description' | 'drop
   },
 }
 
+/** «Версия Таркова» in the report (owner, 13.10.2026: «какая версия таркова, стим или не стим»). */
+const TARKOV_EDITION_LABELS: Record<TarkovEdition, string> = {
+  steam: 'Steam',
+  launcher: 'не Steam (лаунчер BSG)',
+  'not-found': 'не определена — журналы игры не найдены',
+}
+const TARKOV_EDITION_SHORT: Record<TarkovEdition, string> = { steam: 'Steam', launcher: 'BSG launcher', 'not-found': 'logs not found' }
+const savedLogsFolder = () => { try { return localStorage.getItem(LOG_FOLDER_STORAGE_KEY) } catch { return null } }
+
+/** The phone app names its system, the desktop app its build («client» / «owner»). */
+function editionLabel() {
+  if (!isNative()) return appEdition()
+  return nativePlatform() === 'ios' ? 'iPhone' : nativePlatform() === 'android' ? 'Android' : 'phone'
+}
+
 const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
   quest: ScrollText, map: MapIcon, minimap: MapPinned, progress: RefreshCw, kappa: Package, 'item-info': Info, bosses: Skull,
   traders: Store, flea: ShoppingCart, hideout: House, gunsmith: Wrench, ballistics: Crosshair, squad: Users, account: User,
@@ -106,13 +126,16 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [contact, setContact] = useState(false)
-  const closeContact = useCallback(() => setContact(false), [])
+  const [chat, setChat] = useState(false)
+  const closeChat = useCallback(() => setChat(false), [])
   const fileInput = useRef<HTMLInputElement>(null)
   const shotsRef = useRef(shots)
   useEffect(() => { shotsRef.current = shots }, [shots])
-  const appVersion = `${version} · ${appEdition()}`
-  const platform = describePlatform()
+  const appVersion = `${version} · ${editionLabel()}`
+  // The game runs on the PC only: the phone has no Tarkov to tell.
+  const edition = useTarkovEdition(savedLogsFolder)
+  const gameEdition = isDesktopShell() ? edition : null
+  const platform = gameEdition ? `${describePlatform()} · EFT: ${TARKOV_EDITION_SHORT[gameEdition]}` : describePlatform()
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !sending) onClose() }
@@ -264,65 +287,57 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
         <div className="bug-report-meta">
           <strong>{uiText(words.meta)}</strong>
           <span>{uiText('Версия приложения')}: {appVersion}</span>
-          <span>{uiText('Система')}: {platform}</span>
+          <span>{uiText('Система')}: {describePlatform()}</span>
+          {gameEdition && <span>{uiText('Версия Таркова')}: {uiText(TARKOV_EDITION_LABELS[gameEdition])}</span>}
           {status?.email && <span>{uiText('Аккаунт')}: {status.email}</span>}
         </div>
         </div>
         </div>
         {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{error}</span></div>}
         <div className="bug-report-actions">
-          <button type="button" className="button ghost" onClick={() => setContact(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
+          <button type="button" className="button ghost" onClick={() => setChat(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
           <button type="submit" className="button primary" disabled={sending || !ready}>
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : words.send)}
           </button>
         </div>
       </form>}
-      {contact && <ContactDialog onClose={closeContact} />}
+      {chat && <SupportChatDialog onClose={closeChat} />}
     </section>
   </div>, document.body)
 }
 
 /**
- * «Связаться» (owner, 12.10.2026: «при нажатии всплывающее окно, и предлагает перейти в телеграм канал для связи. кнопки
- * да нет»): «Да» opens the Telegram channel (the system browser, as every outside link), «Нет» closes.
- */
-export function ContactDialog({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    // Captured on the window: over the bug report dialog, Escape closes only this one.
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.stopPropagation(); onClose() } }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
-  return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText('Связаться с нами')} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-    <section className="panel registration-dialog contact-dialog" onMouseDown={(event) => event.stopPropagation()}>
-      <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
-      <div className="registration-icon"><MessageCircle size={26} /></div>
-      <h2>{uiText('Связаться с нами')}</h2>
-      <p className="muted">{uiText('Перейти в Telegram-канал Raid OS, чтобы написать нам?')} <strong className="contact-handle">{SUPPORT_TELEGRAM_HANDLE}</strong></p>
-      <div className="contact-actions">
-        <button type="button" className="button ghost" onClick={onClose}>{uiText('Нет')}</button>
-        {/* Closed after the click: the link opens first. */}
-        <a className="button primary" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer" autoFocus onClick={() => window.setTimeout(onClose, 0)}><Send size={15} />{uiText('Да')}</a>
-      </div>
-    </section>
-  </div>, document.body)
-}
-
-/**
- * «Связаться» (asks, then Telegram), «Сообщить об ошибке» and under it «Ваши предложения» (owner, 13.10.2026): in the
- * sidebar's «Система» group (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which
- * has no sidebar).
+ * «Связаться» (the support chat, owner 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»; it asked
+ * to open Telegram before), «Сообщить об ошибке» and under it «Ваши предложения» (owner, 13.10.2026): in the sidebar's
+ * «Система» group (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which has no
+ * sidebar). «Связаться» counts the answers not read yet.
+ *
+ * The sidebar also names the chat right under «Сообщить об ошибке» (owner, 14.10.2026: «а в клиенской версии, добавь
+ * кнопку под сообщить об ошибке, чат с поддержкой»): «Чат с поддержкой», the same window and the same count. «Открыть»
+ * on the toast «Новое сообщение от поддержки» opens the window here (the phone: mobile/MobileNav.tsx).
  */
 export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
-  const [open, setOpen] = useState<'' | 'contact' | ReportKind>('')
+  const [open, setOpen] = useState<'' | 'chat' | ReportKind>('')
   const close = useCallback(() => setOpen(''), [])
+  const unread = useSupportUnread()
   const className = variant === 'nav' ? 'nav-link support-nav-link' : 'button ghost'
   const icon = variant === 'nav' ? undefined : 15
+  useEffect(() => {
+    if (variant !== 'nav') return
+    // A report being written stays: the chat opens when nothing else is open here.
+    const show = () => setOpen((current) => (current === 'bug' || current === 'idea' ? current : 'chat'))
+    window.addEventListener(SUPPORT_CHAT_OPEN_EVENT, show)
+    return () => window.removeEventListener(SUPPORT_CHAT_OPEN_EVENT, show)
+  }, [variant])
+  const badge = unread > 0 && <span className="nav-badge" aria-label={uiText(`Новых сообщений: ${unread}`)}>{unread > 99 ? '99+' : unread}</span>
   return <>
-    <button type="button" className={className} onClick={() => setOpen('contact')} title={`Telegram ${SUPPORT_TELEGRAM_HANDLE}`}><MessageCircle size={icon} /><span>{uiText('Связаться')}</span></button>
+    <button type="button" className={className} onClick={() => setOpen('chat')} title={uiText('Чат с поддержкой')}>
+      <MessageCircle size={icon} /><span>{uiText('Связаться')}</span>{badge}
+    </button>
     <button type="button" className={className} onClick={() => setOpen('bug')}><Bug size={icon} /><span>{uiText('Сообщить об ошибке')}</span></button>
+    {variant === 'nav' && <button type="button" className={className} onClick={() => setOpen('chat')}><MessagesSquare /><span>{uiText('Чат с поддержкой')}</span>{badge}</button>}
     <button type="button" className={className} onClick={() => setOpen('idea')}><Lightbulb size={icon} /><span>{uiText('Ваши предложения')}</span></button>
-    {open === 'contact' && <ContactDialog onClose={close} />}
+    {open === 'chat' && <SupportChatDialog onClose={close} />}
     {(open === 'bug' || open === 'idea') && <ReportDialog key={open} kind={open} onClose={close} />}
   </>
 }

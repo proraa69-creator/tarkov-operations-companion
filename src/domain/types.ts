@@ -126,10 +126,30 @@ export interface PlayerProfileSnapshot {
   upstreamUpdatedAt?: string
 }
 
+/**
+ * Where the mode's level last came from (owner, 13.10.2026: «побеждают свежие, но приоритет у тарков дев»): the newer
+ * reading wins; Tarkov.dev keeps the anchor when the game's screen shows the same level (it knows the exact experience).
+ */
+export interface LevelAnchor {
+  level: number
+  /** When the level was true: the game's screen at that moment, or Tarkov.dev's update time of the profile. */
+  observedAt: string
+  source: 'screen' | 'tarkov-dev'
+  /**
+   * A screen reading whose digits were also read from their shapes (src/import/levelDigits.ts). Readings stored before
+   * 14.10.2026 were OCR alone, which took the game's «3» for a «5» (PvE 39 shown as 59): any newer reading replaces those.
+   */
+  checked?: true
+  /** Total experience (Tarkov.dev only): quest experience after the anchor adds to it. */
+  experience?: number
+}
+
 export interface ModeProgress {
   registration: ModeRegistration
   playerSnapshot?: PlayerProfileSnapshot
   playerLevel: number
+  /** The level's source and time; `playerLevel` may be higher by the experience of quests completed since. */
+  levelAnchor?: LevelAnchor
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
   taskProgress: Record<string, TaskProgressRecord>
@@ -142,6 +162,13 @@ export interface ModeProgress {
   seasonId?: string
   lastLogSyncAt?: string
   logCharacterId?: string
+  /** The latest trusted profile reset of this character the records were cut at (src/import/logApply.ts logEpochChange). */
+  logResetAt?: string
+  /**
+   * When the mode's current character or the history since its last reset began (a character change or a trusted reset,
+   * src/import/logApply.ts): every quest, story and objective record older than this was dropped then. Undefined until one.
+   */
+  logEpochAt?: string
   /** Objective state keyed by objectiveId (schema v6). */
   objectiveProgress: Record<string, ObjectiveProgress>
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
@@ -405,7 +432,17 @@ export interface QuestHelpView {
 export interface Quest {
   id: string
   normalizedName?: string
+  /** The title in the app's language. */
   name: string
+  /**
+   * The title as the game shows it in Russian and in English, whatever the app's language: the screen reader matches
+   * both, so a Russian game read by the English app (or the other way round) still finds its quests (product roadmap:
+   * «Quest counts must not change when switching interface language»). Absent from catalogs that do not carry them.
+   */
+  nameRu?: string
+  nameEn?: string
+  /** Other titles the game has shown for this quest (renames, the owner's corrections), for the same matching. */
+  ocrAliases?: string[]
   trader: string
   /** The trader's game id (tarkov.dev), when known. */
   traderId?: string
@@ -575,5 +612,16 @@ export interface AppDataset {
     sourceUpdatedAt?: string
     /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
     fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
+    /**
+     * Desktop app: the server's version of this catalog's content (its ETag, electron/serviceGateway.ts). The next
+     * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).
+     */
+    contentVersion?: string
+    /**
+     * The server's quest base this catalog comes from (server/src/services/questBase.ts): a content hash of the mode's
+     * Russian and English snapshots, so the same in both languages. Quest ids and titles are the same for every
+     * reader of one version. Absent from catalogs built on this device.
+     */
+    questBaseVersion?: string
   }
 }

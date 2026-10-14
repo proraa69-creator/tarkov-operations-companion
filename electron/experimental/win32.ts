@@ -1,6 +1,6 @@
-import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { release } from 'node:os'
+
+import { bindGameWindowApi, createGameSightings, createGameWindowCheck, GAME_CLASS, GAME_TITLE, type GameWindowInfo, type KoffiLibrary } from './gameWindow.js'
 
 const require = createRequire(import.meta.url)
 
@@ -15,13 +15,22 @@ let api: {
   foreground: () => unknown
   windowText: (hwnd: unknown, buffer: Uint16Array, size: number) => number
   keyState: (key: number) => number
-  sendInput: (count: number, input: Record<string, number>, size: number) => number
-  scanCode: (code: number, mapType: number) => number
   isAdmin: (() => number) | null
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
   gdi: Gdi | null
   windows: Windows | null
+  inputChild: InputChild | null
+  /** Which window is the game's (gameWindow.ts). */
+  gameWindow: ((hwnd: unknown) => GameWindowInfo | null) | null
+  address: (pointer: unknown) => bigint
 } | null | undefined
+
+/** Window handles as numbers (intptr_t): Electron's getNativeWindowHandle() is a buffer holding the handle, and a buffer
+ * passed as a pointer would hand over the buffer's address instead. */
+interface InputChild {
+  find: (parent: number | bigint, after: number | bigint, className: string, title: string | null) => number | bigint
+  visible: (hwnd: number | bigint) => boolean
+}
 
 interface Windows {
   find: (className: string | null, title: string | null) => unknown
@@ -56,15 +65,11 @@ function win32() {
     const user32 = koffi.load('user32.dll')
     const shell32 = koffi.load('shell32.dll')
     const optional = <T>(load: () => T) => { try { return load() } catch { return null } }
-    // INPUT with the KEYBDINPUT member, laid out for x64 (40 bytes: the union is sized by MOUSEINPUT).
-    koffi.struct('KEYINPUT64', { type: 'uint32', pad0: 'uint32', wVk: 'uint16', wScan: 'uint16', dwFlags: 'uint32', time: 'uint32', pad1: 'uint32', dwExtraInfo: 'uint64', pad2: 'uint64' })
     api = {
       notificationState: shell32.func('long __stdcall SHQueryUserNotificationState(_Out_ int32_t* pquns)') as (out: Int32Array) => number,
       foreground: user32.func('void* __stdcall GetForegroundWindow()') as () => unknown,
       keyState: user32.func('short __stdcall GetAsyncKeyState(int vKey)') as (key: number) => number,
-      sendInput: user32.func('uint32 __stdcall SendInput(uint32 cInputs, KEYINPUT64 *pInputs, int cbSize)') as (count: number, input: Record<string, number>, size: number) => number,
       windowText: user32.func('int __stdcall GetWindowTextW(void* hWnd, _Out_ uint16_t* lpString, int nMaxCount)') as (hwnd: unknown, buffer: Uint16Array, size: number) => number,
-      scanCode: user32.func('uint32 __stdcall MapVirtualKeyW(uint32 uCode, uint32 uMapType)') as (code: number, mapType: number) => number,
       isAdmin: optional(() => shell32.func('int __stdcall IsUserAnAdmin()') as () => number),
       shellExecute: optional(() => shell32.func('intptr_t __stdcall ShellExecuteW(void* hwnd, const char16_t* lpOperation, const char16_t* lpFile, const char16_t* lpParameters, const char16_t* lpDirectory, int nShowCmd)') as (hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint),
       gdi: optional(() => {
@@ -101,6 +106,12 @@ function win32() {
           address: (pointer: unknown) => koffi.address(pointer),
         } as unknown as Windows
       }),
+      inputChild: optional(() => ({
+        find: user32.func('intptr_t __stdcall FindWindowExW(intptr_t hWndParent, intptr_t hWndChildAfter, const char16_t* lpszClass, const char16_t* lpszWindow)'),
+        visible: user32.func('bool __stdcall IsWindowVisible(intptr_t hWnd)'),
+      }) as unknown as InputChild),
+      gameWindow: optional(() => createGameWindowCheck(bindGameWindowApi(user32 as KoffiLibrary, optional(() => koffi.load('kernel32.dll') as KoffiLibrary), (pointer) => koffi.address(pointer)))),
+      address: (pointer: unknown) => koffi.address(pointer),
     }
   } catch (error) {
     api = null
@@ -109,26 +120,67 @@ function win32() {
   return api
 }
 
+/**
+ * Whether Chromium's input window inside an app window is shown. Chromium takes the mouse through a child window of
+ * class «Chrome_RenderWidgetHostHWND»; while it is hidden, every press on a window that cannot be activated (the
+ * overlays) is dropped by Windows. `handle` is Electron's getNativeWindowHandle(). Null when it cannot be told: not
+ * Windows, the functions are missing, or no such child.
+ */
+export function inputChildVisible(handle: Buffer): boolean | null {
+  const calls = win32()?.inputChild
+  if (!calls || handle.length < 4) return null
+  try {
+    const raw = handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0))
+    const parent = raw <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(raw) : raw
+    if (!parent) return null
+    const child = calls.find(parent, 0, 'Chrome_RenderWidgetHostHWND', null)
+    if (!child) return null
+    return Boolean(calls.visible(child))
+  } catch {
+    return null
+  }
+}
+
 /** Empty when the Windows functions (game window, key state, key presses) are available. */
 export function nativeError() {
   win32()
   return loadError
 }
 
-export function foregroundWindowTitle() {
+/** When each game window was first seen in front (a window not seen before is a game start). */
+const gameSince = createGameSightings()
+
+/**
+ * The window in front when it is the game's (gameWindow.ts: by its process EscapeFromTarkov.exe, else by its exact title
+ * and Unity window class): its identity and when this game window was first seen in front — a window not seen before is
+ * a new game start (the game was started, or started again). Null for any other window, and without the Windows functions.
+ */
+export function foregroundGame(): (GameWindowInfo & { since: number }) | null {
+  const calls = win32()
+  if (!calls?.gameWindow) return null
+  try {
+    const info = calls.gameWindow(calls.foreground())
+    return info?.game ? { ...info, since: gameSince(info.id, Date.now()) } : null
+  } catch {
+    return null
+  }
+}
+
+/** Whether the game's window is in front: hotkeys, the minimap, the quest scanner, item lookups, the Collector key. */
+export function isTarkovForeground() {
+  return foregroundGame() !== null
+}
+
+/** The window in front as a number (its handle); '' when none or unknown. Tells when the window in front changes. */
+export function foregroundWindowKey() {
   const calls = win32()
   if (!calls) return ''
-  const hwnd = calls.foreground()
-  return hwnd ? windowTitle(calls, hwnd) : ''
-}
-
-export function isTarkovTitle(name: string) {
-  if (/companion|operations|chrome|cursor|code/i.test(name)) return false
-  return /escape\s*from\s*tarkov|escapefromtarkov|\beft\b/i.test(name)
-}
-
-export function isTarkovForeground() {
-  return isTarkovTitle(foregroundWindowTitle())
+  try {
+    const hwnd = calls.foreground()
+    return hwnd ? String(calls.address(hwnd)) : ''
+  } catch {
+    return ''
+  }
 }
 
 const GA_ROOT = 2
@@ -150,11 +202,12 @@ export function visibleGameRect(): { x: number; y: number; width: number; height
   const windows = calls?.windows
   if (!calls || !windows) return null
   try {
+    const isGame = (hwnd: unknown) => Boolean(hwnd && calls.gameWindow?.(hwnd)?.game)
     const front = calls.foreground()
-    const inFront = Boolean(front) && isTarkovTitle(windowTitle(calls, front))
-    // The game's window is «EscapeFromTarkov» of the Unity window class.
-    const found = inFront ? front : windows.find(null, 'EscapeFromTarkov') || windows.find('UnityWndClass', null)
-    const hwnd = found && (inFront || isTarkovTitle(windowTitle(calls, found))) ? found : null
+    const inFront = isGame(front)
+    // The game's window is «EscapeFromTarkov» of the Unity window class; whichever is found, its process decides (not Arena).
+    const found = inFront ? front : windows.find(null, GAME_TITLE) || windows.find(GAME_CLASS, null)
+    const hwnd = found && (inFront || isGame(found)) ? found : null
     if (!hwnd || windows.minimized(hwnd) || !windows.visible(hwnd)) return null
     const rect = { left: 0, top: 0, right: 0, bottom: 0 }
     const origin = { x: 0, y: 0 }
@@ -175,12 +228,6 @@ export function visibleGameRect(): { x: number; y: number; width: number; height
   } catch {
     return null
   }
-}
-
-function windowTitle(calls: NonNullable<ReturnType<typeof win32>>, hwnd: unknown) {
-  const buffer = new Uint16Array(512)
-  const length = calls.windowText(hwnd, buffer, buffer.length)
-  return length > 0 ? String.fromCharCode(...buffer.subarray(0, length)) : ''
 }
 
 export function isVirtualKeyDown(key: number) { return Boolean((win32()?.keyState(key) ?? 0) & 0x8000) }
@@ -216,22 +263,6 @@ export function runElevated(file: string, params: string, dir: string) {
 }
 
 /**
- * Whether Windows opens the Snipping Tool on PrtSc (and so keeps the key from the game). The value is
- * missing until the player changes the setting; Windows 11 then does it by default, Windows 10 does not.
- */
-export function printScreenOpensSnipping(): Promise<'on' | 'off' | 'unknown'> {
-  if (process.platform !== 'win32') return Promise.resolve('unknown')
-  return new Promise((resolve) => {
-    execFile('reg', ['query', 'HKCU\\Control Panel\\Keyboard', '/v', 'PrintScreenKeyForSnippingEnabled'], { windowsHide: true, timeout: 4000 }, (error, stdout) => {
-      const value = /PrintScreenKeyForSnippingEnabled\s+REG_DWORD\s+0x([0-9a-f]+)/i.exec(String(stdout ?? ''))
-      if (value) { resolve(parseInt(value[1]!, 16) ? 'on' : 'off'); return }
-      const build = Number(release().split('.')[2])
-      resolve(error && Number.isFinite(build) ? (build >= 22000 ? 'on' : 'off') : 'unknown')
-    })
-  })
-}
-
-/**
  * How Windows sees the foreground full-screen app (SHQueryUserNotificationState):
  * - `exclusive`: a Direct3D exclusive full-screen game. Nothing can be drawn over it —
  *   the same limit every overlay (TarkovRaidCompass, TarkovQuestie, Discord) has.
@@ -255,60 +286,7 @@ export function foregroundDisplayMode(): DisplayMode {
   }
 }
 
-const INPUT_KEYBOARD = 1
-const KEYEVENTF_EXTENDEDKEY = 0x0001
-const KEYEVENTF_KEYUP = 0x0002
-const KEYEVENTF_SCANCODE = 0x0008
-const MAPVK_VK_TO_VSC = 0
-const VK_SNAPSHOT = 0x2c
-/** PrintScreen is the extended scan code E0 37 (MapVirtualKey answers with the Alt+SysRq code). */
-const SCAN_PRINTSCREEN = 0x37
-/** Pause and Num Lock share scan code 45 and are only told apart by their virtual key. */
-const BY_VIRTUAL_KEY = new Set([0x13, 0x90])
-
-export interface KeyStroke { vk: number; extended: boolean }
-
-type Calls = NonNullable<ReturnType<typeof win32>>
-
-function keyInput(calls: Calls, { vk, extended }: KeyStroke, up: boolean) {
-  const scan = vk === VK_SNAPSHOT ? SCAN_PRINTSCREEN : calls.scanCode(vk, MAPVK_VK_TO_VSC) & 0xff
-  let flags = scan && !BY_VIRTUAL_KEY.has(vk) ? KEYEVENTF_SCANCODE : 0
-  if (extended) flags |= KEYEVENTF_EXTENDEDKEY
-  if (up) flags |= KEYEVENTF_KEYUP
-  return { type: INPUT_KEYBOARD, pad0: 0, wVk: vk, wScan: scan, dwFlags: flags, time: 0, pad1: 0, dwExtraInfo: 0, pad2: 0 }
-}
-
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-/**
- * Presses the game's screenshot key (or combination) like a real keyboard: scan codes, the keys held
- * together for a moment so a game that samples input once per frame sees them, then released in
- * reverse order — always, so no key stays stuck. False when native input is unavailable.
- * Windows reports success even when it drops the input for an elevated game (see isElevated).
- */
-export async function pressKeys(strokes: KeyStroke[], holdMs = 60) {
-  const calls = win32()
-  if (!calls || !strokes.length) return false
-  const down: KeyStroke[] = []
-  try {
-    for (const stroke of strokes) {
-      if (down.length) await pause(15)
-      if (calls.sendInput(1, keyInput(calls, stroke, false), 40) !== 1) return false
-      down.push(stroke)
-    }
-    await pause(holdMs)
-    return true
-  } catch {
-    return false
-  } finally {
-    for (const stroke of down.reverse()) {
-      try { calls.sendInput(1, keyInput(calls, stroke, true), 40) } catch { /* nothing more to release */ }
-    }
-  }
-}
-
 const SRCCOPY = 0x00cc0020
-const CAPTUREBLT = 0x40000000
 
 /**
  * A copy of a screen area (physical pixels) as top-down BGRA — a few milliseconds, against hundreds for a
@@ -324,7 +302,9 @@ export function captureScreenRegion(x: number, y: number, width: number, height:
   const bitmap = memoryDC ? gdi.createCompatibleBitmap(screenDC, width, height) : null
   const previous = memoryDC && bitmap ? gdi.selectObject(memoryDC, bitmap) : null
   try {
-    if (!memoryDC || !bitmap || !gdi.bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY | CAPTUREBLT)) return null
+    // Plain SRCCOPY: CAPTUREBLT (layered windows too) hides and shows the cursor around every copy — the cursor flickered
+    // with each scan — and only adds our own overlays to the picture.
+    if (!memoryDC || !bitmap || !gdi.bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY)) return null
     // GetDIBits wants the bitmap unselected.
     gdi.selectObject(memoryDC, previous)
     const data = new Uint8Array(width * height * 4)

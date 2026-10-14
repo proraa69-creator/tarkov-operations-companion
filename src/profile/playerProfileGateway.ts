@@ -40,9 +40,12 @@ function serverPlayerProfileGateway(): PlayerProfileGateway {
   }
 }
 
-/** Nickname binding is available in the desktop app and, through the server, in the phone app. */
+/**
+ * Tarkov.dev player profiles are asked for by the desktop app only, from the player's own computer (owner, 13.10.2026:
+ * Cloudflare refuses our server on players.tarkov.dev, so the phone, which would ask through it, does not ask).
+ */
 export function canResolvePlayerProfiles() {
-  return Boolean(window.tarkovDesktop) || usesWebAccount()
+  return Boolean(window.tarkovDesktop)
 }
 
 export function desktopPlayerProfileGateway(): PlayerProfileGateway {

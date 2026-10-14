@@ -49,3 +49,38 @@
 @media (prefers-reduced-motion: reduce) {
   .overview-veil, .overview-block.is-lifted, .overview-block:not(.is-lifted) { transition: none; }
 }
+
+/* The phone (src/overview/phoneLayout.ts): one column of blocks, every one moves up or down; two half-wide blocks
+   share a row. While editing, a bar on top of each block names it and holds ↑ / ↓ (and «узкий» for the counters). */
+.overview-phone .overview-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-items: start; }
+.overview-phone .overview-layout-actions { justify-content: flex-start; }
+.overview-phone .overview-edit-hint { margin: -4px 0 12px; font-size: 12.5px; }
+.overview-phone-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+.overview-phone-grid > .phone-block { grid-column: 1 / -1; display: flex; flex-direction: column; }
+.overview-phone-grid > .phone-block.is-narrow { grid-column: span 1; }
+.overview-phone-grid > .phone-block > .overview-block-content > * { margin-top: 0; }
+.overview-phone-grid > .phone-block > .overview-block-content > .stat-card { flex: 1 1 auto; }
+.phone-block.is-narrow .stat-card { min-height: 92px; padding: 12px 13px; }
+/* The bar takes its own row above the block, so the block stays fully visible while it is moved. */
+.phone-block.is-editing { min-height: 46px; padding-top: 42px; }
+.phone-block.is-editing::after {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--brass) 60%, transparent); border-radius: inherit;
+}
+.phone-block-tools {
+  position: absolute; z-index: 5; top: 4px; left: 4px; right: 4px; display: flex; align-items: center; gap: 5px;
+  padding: 4px 4px 4px 10px; border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent); border-radius: 9px;
+  background: color-mix(in srgb, var(--surf-1) 94%, transparent); box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
+}
+.phone-block-name {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--brass); font-size: 10.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+}
+.phone-block.is-narrow .phone-block-name { display: none; }
+.phone-block.is-narrow .phone-block-tools { justify-content: flex-end; padding-left: 4px; }
+.phone-block-tool {
+  flex: 0 0 auto; width: 34px; height: 30px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surf-2); color: var(--text); font: inherit; cursor: pointer;
+}
+.phone-block-tool:disabled { opacity: .3; cursor: default; }
+.phone-block-tool[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); }

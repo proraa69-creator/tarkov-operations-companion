@@ -1,6 +1,7 @@
 import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
 import { Platforms } from '../components/Platforms'
+import { DonateCard } from '../components/DonateCard'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 import { tr } from '../i18n'
@@ -30,6 +31,8 @@ export function DownloadPage() {
           <div className="eyebrow">{tr('Загрузка')}</div>
           <h1 className="page-title">{tr('Скачать приложение')}</h1>
           <p className="page-subtitle">{tr('Портативная версия для Windows — скачайте и запустите, установка не нужна.')}</p>
+          {/* Owner, 14.10.2026: right under the portable line. */}
+          <p className="download-note">{tr('Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.')}</p>
           <div className="download-meta">
             <span className="tag brass">{tr('Версия {version}', { version: APP_VERSION })}</span>
             <span className="tag">Windows 10 / 11 · 64-bit</span>
@@ -41,6 +44,8 @@ export function DownloadPage() {
             <Notice tone="info" title={tr('Ссылка скоро появится')}>{tr('Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.')}</Notice>
           )}
         </div>
+        {/* «Поддержать проект» (owner, 13.10.2026). */}
+        <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>
       </div>
     </div>
   )

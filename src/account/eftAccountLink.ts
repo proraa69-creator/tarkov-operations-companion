@@ -41,9 +41,10 @@ export function rememberEftAccount(result: Pick<ModeLogScanResult, 'latestAccoun
 }
 
 /**
- * The locked app (Paywall.tsx EftLock, on opening and «Проверить снова»): the game's logs are scanned again and the
- * game account they show now is reported, so starting the game under the bound account opens the app. Resolves with
- * whether a game account was found and reported.
+ * The locked app (Paywall.tsx EftLock, on opening and «Проверить снова»): the game account the logs show now is reported,
+ * so starting the game under the bound account opens the app. The main process follows the logs from the app's start
+ * (electron/logWatcher.ts): its answer is the identity it already has — the newest launches, read within seconds — not a
+ * new read of every launch. Resolves with whether a game account was found and reported.
  */
 export async function recheckEftAccount() {
   const desktop = window.tarkovDesktop

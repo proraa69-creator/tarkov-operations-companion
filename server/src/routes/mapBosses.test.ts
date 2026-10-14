@@ -26,7 +26,7 @@ async function setup() {
     return { status: response.status, json: await response.json() as T }
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
-  await call('POST', '/accounts/register', undefined, { email: 'player@example.com', password })
+  await call('POST', '/accounts/register', undefined, { email: 'player@example.com', password, country: 'RU' })
   return { call, login, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 

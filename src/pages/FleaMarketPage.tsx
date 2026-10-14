@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Crosshair, Database, Heart, KeyRound, PackageSearch, Search, ShoppingCart, Star, X } from 'lucide-react'
-import { useTarkovData } from '../data/DataProvider'
+import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice, timeAgo } from '../shared/format'
 import { PriceHistoryChart } from '../components/PriceHistoryChart'
@@ -12,7 +12,8 @@ import type { PriceQuote } from '../domain/types'
 type FleaTab = 'all' | 'keys' | 'ammo' | 'favorites'
 
 export function FleaMarketPage() {
-  const { data, source, updatedAt } = useTarkovData()
+  const { data, source } = useTarkovData()
+  const { updatedAt } = useTarkovDataStatus()
   const state = useAppState()
   const [params, setParams] = useSearchParams()
   const initial = params.get('tab') as FleaTab | null

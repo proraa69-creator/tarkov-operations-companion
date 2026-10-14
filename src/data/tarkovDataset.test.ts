@@ -7,13 +7,19 @@ vi.mock('./tarkovApi', () => ({
   tarkovJson: vi.fn(async (path: string) => { calls.push(path); return { data: path.includes('_ru') ? { [`${path} Name`]: path } : {} } }),
 }))
 
-const { loadTarkovDataset, mirrorMode } = await import('./tarkovDataset')
+const { loadTarkovDataset, loadTarkovTradersDataset, mirrorMode } = await import('./tarkovDataset')
 
 beforeEach(() => calls.length = 0)
 
 describe('mirrored Tarkov dataset', () => {
   it('keeps all three economies separate', () => {
     expect(['pvp', 'pve', 'seasonal'].map((mode) => mirrorMode(mode as never))).toEqual(['regular', 'pve', 'pvp-season'])
+  })
+
+  it('the restock times read only the traders and their names, not the whole ~30 MB dataset', async () => {
+    const bundle = await loadTarkovTradersDataset('seasonal', 'ru')
+    expect(calls).toEqual(['pvp-season/traders', 'pvp-season/traders_ru'])
+    expect(bundle).toMatchObject({ mode: 'seasonal', names: { data: { 'pvp-season/traders_ru Name': 'pvp-season/traders_ru' } } })
   })
 
   it('loads only the selected mode and its minute prices', async () => {

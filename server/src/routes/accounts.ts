@@ -6,7 +6,7 @@
  * payouts).
  *
  * Routes:
- *   POST /register          { email, password, referralCode?, country? } -> 201 { token, referralApplied, account } (country: ISO 3166-1 alpha-2, 400 when unassigned)
+ *   POST /register          { email, password, country, referralCode? } -> 201 { token, referralApplied, account } (country: ISO 3166-1 alpha-2, 400 when missing or unassigned)
  *   POST /login             { email, password }                  -> 200 { token, account }
  *   POST /logout            Bearer                               -> 204
  *   GET  /me                Bearer                               -> 200 account view

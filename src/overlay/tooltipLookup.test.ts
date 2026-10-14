@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { Bitmap } from './tooltipDetect'
-import { createLookupMemory, LOOKUP_MEMORY, readGameTooltip, retryOcrReadings, type LookupMemoryStorage, type TooltipShot } from './tooltipLookup'
+import { TOOLTIP_SCALES, tooltipScaleSchedule, type Bitmap } from './tooltipDetect'
+import { createLookupMemory, LOOKUP_MEMORY, readGameTooltip, retryOcrReadings, TOOLTIP_TIMING, type LookupMemoryStorage, type TooltipScaleMemory, type TooltipShot } from './tooltipLookup'
 import { foldTooltipText } from './tooltipMatch'
 import { namesFromDictionaries } from './itemNames'
 
-function screen(tooltipText: number | null): TooltipShot {
+/** `boxHeight` 25 on a screen of unit 2: the game's interface at half the screen's scale (Full HD UI on a 4K monitor). */
+function screen(tooltipText: number | null, { boxHeight = 34, unit = 1 } = {}): TooltipShot {
   const width = 400, height = 160
   const data = new Uint8Array(width * height * 4)
   for (let index = 0; index < data.length; index += 4) { data[index] = 24; data[index + 1] = 24; data[index + 2] = 24; data[index + 3] = 255 }
@@ -15,12 +16,13 @@ function screen(tooltipText: number | null): TooltipShot {
     }
   }
   if (tooltipText != null) {
-    fill(111, 60, 180, 34, 138)
-    fill(112, 61, 178, 32, 10)
+    fill(111, 60, 180, boxHeight, 138)
+    fill(112, 61, 178, boxHeight - 2, 10)
     // Different "names" differ in letter width.
-    for (let letter = 123; letter + 4 + tooltipText <= 111 + 180 - 12; letter += 9 + tooltipText) fill(letter, 71, 4 + tooltipText, 12, 225)
+    const top = 60 + Math.round(boxHeight / 2) - 6
+    for (let letter = 123; letter + 4 + tooltipText <= 111 + 180 - 12; letter += 9 + tooltipText) fill(letter, top, 4 + tooltipText, 12, 225)
   }
-  return { image: { width, height, data } satisfies Bitmap, cursor: { x: 100, y: 70 }, unit: 1 }
+  return { image: { width, height, data } satisfies Bitmap, cursor: { x: 100, y: 70 }, unit }
 }
 
 /** A clock the lookup advances by sleeping, and a scripted sequence of screens. */
@@ -40,18 +42,20 @@ function run(screens: Array<TooltipShot>, read: (index: number) => string, known
 }
 
 describe('reading the game tooltip after the key press', () => {
-  it('widens capture when a large item places the tooltip outside the initial crop', async () => {
-    let time = 0, wideGrabs = 0
+  it('grabs the area around the cursor every 120 ms, never the whole display: 9 grabs at most without a tooltip', async () => {
+    let time = 0
+    const at: number[] = []
     const result = await readGameTooltip({
-      grab: async () => screen(null),
-      grabWide: async () => { wideGrabs++; return screen(0) },
-      recognize: async () => 'Большой рюкзак',
-      match: async text => text === 'Большой рюкзак' ? 'backpack' : null,
+      grab: async () => { at.push(time); return screen(null) },
+      recognize: async () => '',
+      match: async () => null,
       now: () => time,
-      sleep: async ms => { time += ms },
+      sleep: async (ms) => { time += ms },
     })
-    expect(result.answer).toBe('backpack')
-    expect(wideGrabs).toBe(1)
+    expect(TOOLTIP_TIMING.intervalMs).toBe(120)
+    expect(result.answer).toBeNull()
+    expect(at).toHaveLength(9)
+    for (let index = 1; index < at.length; index += 1) expect(at[index]! - at[index - 1]!).toBe(120)
   })
   it('waits for the tooltip the game shows a moment after pointing, reading only once it is there', async () => {
     const screens = [screen(null), screen(null), screen(null), screen(null), screen(0)]
@@ -103,7 +107,47 @@ describe('reading the game tooltip after the key press', () => {
     const result = await run([screen(null)], () => '', {})
     expect(result.first).toBeNull()
     expect(result.latest).not.toBeNull()
-    expect(result.grabs).toBeGreaterThan(10)
+    expect(result.grabs).toBe(9)
+  })
+})
+
+describe('the game interface scales a grab tries', () => {
+  it('tries two scales a grab at most, the one found last first, every scale within the first grabs', () => {
+    const seen = new Set<number>()
+    for (let grab = 0; grab < TOOLTIP_SCALES.length - 1; grab += 1) {
+      const scales = tooltipScaleSchedule(grab)
+      expect(scales).toHaveLength(2)
+      expect(scales[0]).toBe(1)
+      for (const scale of scales) seen.add(scale)
+    }
+    expect([...seen].sort()).toEqual([...TOOLTIP_SCALES].sort())
+    expect(tooltipScaleSchedule(0, 0.5)[0]).toBe(0.5)
+    expect(tooltipScaleSchedule(3, 0.5)).toHaveLength(2)
+    // An odd remembered value is not trusted.
+    expect(tooltipScaleSchedule(0, 3)[0]).toBe(1)
+  })
+
+  it('finds a Full HD interface on a 4K screen within the first grabs, then at the first grab of the next lookup', async () => {
+    const memory: TooltipScaleMemory = {}
+    const lookup = async () => {
+      let time = 0, grabs = 0, readAt = -1
+      const result = await readGameTooltip({
+        grab: async () => { grabs += 1; return screen(0, { boxHeight: 25, unit: 2 }) },
+        recognize: async () => { if (readAt < 0) readAt = grabs; return 'Бинт' },
+        match: async (text) => text === 'Бинт' ? 'bandage' : null,
+        now: () => time,
+        sleep: async (ms) => { time += ms },
+      }, TOOLTIP_TIMING, memory)
+      return { result, readAt }
+    }
+    const first = await lookup()
+    expect(first.result.answer).toBe('bandage')
+    // [1, 0.75], [1, 1.25], then [1, 0.5]: found at the third grab.
+    expect(first.readAt).toBe(3)
+    expect(memory.factor).toBe(0.5)
+    expect(first.result.unit).toBe(1)
+    const next = await lookup()
+    expect(next.readAt).toBe(1)
   })
 })
 

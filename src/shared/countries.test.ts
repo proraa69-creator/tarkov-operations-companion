@@ -44,3 +44,49 @@ describe('countries', () => {
     expect(countryGroups('en').map((group) => group.label)).toEqual(['CIS', 'Europe', 'Other countries'])
   })
 })
+
+// owner, 13.10.2026: «при нажатии выбора страны окно с ручным вводом», «не разделяй … просто общий список»
+describe('the country list with a search', () => {
+  it('is one list of all 249 countries sorted by name, in Russian and in English', async () => {
+    const { countryOptions } = await import('./countries')
+    for (const locale of ['ru', 'en'] as const) {
+      const names = countryOptions(locale).map((option) => option.name)
+      expect(names).toHaveLength(249)
+      expect(names).toEqual([...names].sort(new Intl.Collator(locale).compare))
+    }
+    expect(countryOptions('ru')[0]).toEqual({ code: 'AU', name: 'Австралия' })
+  })
+
+  it('finds a country by its name in either language, its code or a common other name, best matches first', async () => {
+    const { searchCountries } = await import('./countries')
+    const codes = (query: string, locale: 'ru' | 'en' = 'ru') => searchCountries(query, locale).map((option) => option.code)
+    expect(codes('каз')).toEqual(['KZ'])
+    expect(codes('Kaz')[0]).toBe('KZ')
+    expect(codes('kz')[0]).toBe('KZ')
+    expect(codes('германия')).toEqual(['DE'])
+    expect(codes('germ')).toEqual(['DE'])
+    expect(codes('сша')[0]).toBe('US')
+    expect(codes('USA')[0]).toBe('US')
+    expect(codes('америка')).toContain('US')
+    expect(codes('оаэ')).toEqual(['AE'])
+    expect(codes('Англия')).toEqual(['GB'])
+    expect(codes('белоруссия')).toEqual(['BY'])
+    expect(codes('Кыргызстан')).toEqual(['KG'])
+    expect(codes('рф')[0]).toBe('RU')
+    // ё and е, accents, hyphens and spaces do not matter.
+    expect(codes('соединенное королевство')).toEqual(['GB'])
+    expect(codes('кот дивуар')).toEqual(['CI'])
+    expect(codes('Cote d Ivoire', 'en')).toEqual(['CI'])
+    expect(codes('turkiye', 'en')).toEqual(['TR'])
+    expect(codes('острова')).toEqual(expect.arrayContaining(['AX', 'FO', 'VG']))
+    // Names that start with the text come before names that only contain it.
+    const ro = codes('ро')
+    expect(ro[0]).toBe('RU')
+    expect(ro).toContain('MA')
+    expect(ro.indexOf('RU')).toBeLessThan(ro.indexOf('MA'))
+    // A whole word inside a name: «Корея» finds both Koreas.
+    expect(codes('корея')).toEqual(expect.arrayContaining(['KR', 'KP']))
+    expect(codes('')).toHaveLength(249)
+    expect(codes('zzzz')).toEqual([])
+  })
+})
