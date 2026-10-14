@@ -199,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       bindNicknameFromLogs(result, () => stateRef.current)
       // The identity has no quests: the full read of every launch follows.
       if (result.identityOnly) return
-      applyScanToModes(result, registrationOf, (mode, events, characterId, resetAt, since) => stateRef.current.applyLogStateForMode(mode, events, characterId, resetAt, since))
+      applyScanToModes(result, registrationOf, (mode, events, characterId, resetAt, characterSince) => stateRef.current.applyLogScanForMode(mode, events, { characterId, resetAt, characterSince }))
       // Signed in to the server: store this scan there and apply the merged server records (all earlier scans).
       void pushLogProgress(result, registrationOf, (mode, events, characterId, resetAt) => {
         if (active) stateRef.current.applyLogStateForMode(mode, events, characterId, resetAt)

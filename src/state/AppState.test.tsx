@@ -57,15 +57,15 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
 
     // A wipe: the logs show another profile in PvP since an hour ago.
     const since = new Date(Date.now() - 3_600_000).toISOString()
-    act(() => state.applyLogStateForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: new Date().toISOString() }], NEW, undefined, since))
+    act(() => state.applyLogScanForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: new Date().toISOString() }], { characterId: NEW, characterSince: since }))
     expect(Object.keys(pvp().taskProgress)).toEqual([OTHER])
     expect(pvp()).toMatchObject({ logCharacterId: NEW, logEpochAt: since, trackedTaskIds: [OTHER], favoriteItemIds: ['ledx'] })
     await Promise.resolve()
     expect(events).toEqual([expect.objectContaining({ kind: 'character', mode: 'pvp', characterId: NEW, previousCharacterId: OLD, at: since, profileId: state.activeProfile.id })])
 
     // The same scan again: no second drop, nothing told again.
-    act(() => state.applyLogStateForMode('pvp', [{ taskId: QUEST, status: 'active', timestamp: new Date().toISOString() }], NEW, undefined, since))
-    act(() => state.applyLogStateForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: new Date(Date.now() - 1000).toISOString() }], NEW, undefined, since))
+    act(() => state.applyLogScanForMode('pvp', [{ taskId: QUEST, status: 'active', timestamp: new Date().toISOString() }], { characterId: NEW, characterSince: since }))
+    act(() => state.applyLogScanForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: new Date(Date.now() - 1000).toISOString() }], { characterId: NEW, characterSince: since }))
     expect(pvp().taskProgress[QUEST]).toMatchObject({ status: 'active' })
     await Promise.resolve()
     expect(events).toHaveLength(1)
