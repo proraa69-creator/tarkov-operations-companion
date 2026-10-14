@@ -131,8 +131,17 @@ export function maskLongerStageTitles(stages: QuestStage[], index: number, key: 
   return masked
 }
 
+/** A stage's title and aliases as keys, worked out once per stage (asked for every stage against every other one). */
+const stageKeyCache = new WeakMap<QuestStage, string[]>()
+
 function stageKeys(stage: QuestStage | undefined) {
-  return stage ? [stage.title, ...(stage.ocrAliases ?? [])].map(ocrKey).filter(Boolean) : []
+  if (!stage) return []
+  let keys = stageKeyCache.get(stage)
+  if (!keys) {
+    keys = [stage.title, ...(stage.ocrAliases ?? [])].map(ocrKey).filter(Boolean)
+    stageKeyCache.set(stage, keys)
+  }
+  return keys
 }
 
 /** The «Главные задачи» block of a story pane (without the optional objectives). */
@@ -152,11 +161,10 @@ function objectivesSection(text: string, includeOptional = false) {
 
 /** 1 when a long title / alias of the stage is in `text`; with `stages`, not counting longer titles of other stages. */
 function exactStageScore(stage: QuestStage, text: string, stages?: QuestStage[], index?: number) {
+  const long = stageKeys(stage).filter((needle) => needle.length >= 14)
+  if (!long.length) return 0
   const key = stages && index != null ? maskLongerStageTitles(stages, index, ocrKey(text)) : ocrKey(text)
-  return [stage.title, ...(stage.ocrAliases ?? [])].some((alias) => {
-    const needle = ocrKey(alias)
-    return needle.length >= 14 && key.includes(needle)
-  }) ? 1 : 0
+  return long.some((needle) => key.includes(needle)) ? 1 : 0
 }
 
 /** Completed stages only count when their own objective and matching completion evidence are visible. */
@@ -169,30 +177,40 @@ export function completedStoryStageIndexes(text: string, quest: Quest): number[]
   ))
 }
 
+interface AliasWords { key: string; words: Array<{ folded: string; key: string }> }
+
+/** Each title / alias of a stage as a key and as its counted words (folded and as keys), worked out once per stage. */
+const aliasWordCache = new WeakMap<QuestStage, AliasWords[]>()
+
+function stageAliasWords(stage: QuestStage) {
+  let cached = aliasWordCache.get(stage)
+  if (cached) return cached
+  // Talk stages need a near-full phrase — a lone trader name must not win; short map names («Лес») are the
+  // distinguishing word of a survive stage — keep them.
+  const talkOnly = !stage.mapIds.length
+  const counted = (word: string) => talkOnly ? word.length >= 5 : word.length >= 5 || (word.length >= 3 && !/^(или|раз|для|при|над|под|все|3)$/.test(word))
+  cached = [stage.title, ...(stage.ocrAliases ?? [])].map((value) => value.trim()).filter(Boolean).map((alias) => ({
+    key: ocrKey(alias),
+    words: alias.toLowerCase().split(/\s+/).filter(counted).map((word) => ({ folded: foldOcrGlyphs(word), key: ocrKey(word) })),
+  }))
+  aliasWordCache.set(stage, cached)
+  return cached
+}
+
 function stageMatchScore(stage: QuestStage, haystack: string, folded: string) {
-  const aliases = [stage.title, ...(stage.ocrAliases ?? [])]
-    .map((value) => value.trim())
-    .filter(Boolean)
   let best = 0
   const talkOnly = !stage.mapIds.length
-  for (const alias of aliases) {
-    const key = ocrKey(alias)
+  for (const { key, words } of stageAliasWords(stage)) {
     if (key.length >= 6 && haystack.includes(key)) {
       best = Math.max(best, Math.min(1, 0.72 + key.length / 80))
       continue
     }
-    // Talk stages need a near-full phrase — a lone trader name must not win.
+    if (words.length < 2) continue
+    const wordHits = words.filter((word) => folded.includes(word.folded) || haystack.includes(word.key)).length
     if (talkOnly) {
-      const words = alias.toLowerCase().split(/\s+/).filter((word) => word.length >= 5)
-      if (words.length < 2) continue
-      const wordHits = words.filter((word) => folded.includes(foldOcrGlyphs(word)) || haystack.includes(ocrKey(word))).length
       if (wordHits === words.length) best = Math.max(best, 0.68)
       continue
     }
-    // Short map names («Лес») are the distinguishing word of a survive stage — keep them.
-    const words = alias.toLowerCase().split(/\s+/).filter((word) => word.length >= 5 || (word.length >= 3 && !/^(или|раз|для|при|над|под|все|3)$/.test(word)))
-    if (words.length < 2) continue
-    const wordHits = words.filter((word) => folded.includes(foldOcrGlyphs(word)) || haystack.includes(ocrKey(word))).length
     if (wordHits === words.length) best = Math.max(best, 0.7 + words.length * 0.04)
     else if (wordHits / words.length >= 0.75 && words.length >= 3) best = Math.max(best, 0.62)
   }

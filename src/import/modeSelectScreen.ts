@@ -244,7 +244,8 @@ export function cardLevelWord(lines: OcrWordBox[][], lineOnly: boolean): OcrWord
 
 /** The traders' screen: the standing line and the player's own name marked «(вы)» / «(you)». */
 export function isTraderScreenText(text: string) {
-  return /текущее\s+отношени|current\s+standing/i.test(text) && YOU_MARK.test(text)
+  // The English game says «Current attitude:» (owner's PvE screenshot, 14.10.2026).
+  return /текущее\s+отношени|current\s+(?:standing|attitude)/i.test(text) && YOU_MARK.test(text)
 }
 
 const LEVEL_WORD = /^(lvl|lvi|lv1|lul|iv1|ivl)$/
@@ -283,6 +284,14 @@ export function traderScreenParts(words: OcrWordBox[], size: { width: number; he
         const a = row[at]!.bbox, b = row[at + 1]!.bbox
         level = { value, box: clampRect(padBox({ x0: a.x0, y0: Math.min(a.y0, b.y0), x1: b.x1, y1: Math.max(a.y1, b.y1) }, unit), size) }
         break
+      }
+      // «LVL» itself misread («[J wi 41» in the English game): the row's first one- or two-digit word, with the word before
+      // it, so the close-up still sees «LVL 41» and has to read it (confirmTraderLevel).
+      const at = level ? -1 : row.findIndex((other) => /^\d{1,2}$/.test(other.text.trim()))
+      const value = at >= 1 ? Number(row[at]!.text.trim()) : NaN
+      if (at >= 1 && value >= 1 && value <= MAX_PLAYER_LEVEL) {
+        const a = row[at - 1]!.bbox, b = row[at]!.bbox
+        level = { value, box: clampRect(padBox({ x0: a.x0, y0: Math.min(a.y0, b.y0), x1: b.x1, y1: Math.max(a.y1, b.y1) }, unit), size) }
       }
     }
   }
