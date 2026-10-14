@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useLocale } from '../i18n/LocaleProvider'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 import { QUEST_SYNC_TIP_KEY, questSyncTipDue } from './guideProgress'
@@ -9,8 +10,8 @@ import { QUEST_SYNC_TIP_KEY, questSyncTipDue } from './guideProgress'
 const TIP: GuideTipContent = {
   title: { ru: 'Полная синхронизация квестов', en: 'Full quest sync' },
   text: () => ({
-    ru: 'Чтобы Raid OS знал все ваши текущие квесты, их данные нужно один раз обновить. Не закрывая приложение, запустите игру, откройте «Персонаж» → «Задания» и не спеша пролистайте список до конца. Квесты появятся в этом блоке, а дальше будут обновляться сами.',
-    en: 'For Raid OS to know all your current quests, their data needs one update. Keep the app open, start the game, open Character → Tasks and slowly scroll the list to the end. The quests appear in this block and update by themselves after that.',
+    ru: 'Чтобы Raid OS знал все ваши текущие квесты, их данные нужно один раз обновить. Не закрывая приложение, запустите игру, откройте «Персонаж» → «Задания» и не спеша пролистайте список до конца. Квесты появятся в этом блоке, а дальше будут обновляться сами. Играете в нескольких режимах (PvP, PvE) — сделайте это в каждом.',
+    en: 'For Raid OS to know all your current quests, their data needs one update. Keep the app open, start the game, open Character → Tasks and slowly scroll the list to the end. The quests appear in this block and update by themselves after that. Playing several modes (PvP, PvE)? Do it in each one.',
   }),
   target: '[data-block="tasks"]',
 }
@@ -21,12 +22,15 @@ const readSeen = () => { try { return localStorage.getItem(QUEST_SYNC_TIP_KEY) !
 /**
  * After the update, once per computer: on the Overview of the PC app, a tip pointing at «Список текущих заданий» — how to
  * bring in all the current quests. Mounted once, next to the first-run guide; it waits for the startup notices too.
+ * Russian interface only for now: the app tells the game's «Задания» screen by its Russian words (isTasksMenuText), so a
+ * player of the English game would scroll the list for nothing.
  */
 export function QuestSyncTip() {
   const { pathname } = useLocation()
   const phone = useMobileLayout()
+  const { locale } = useLocale()
   const [seen, setSeen] = useState(readSeen)
-  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen })
+  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, locale })
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname)
   if (!due || !ready) return null
   return <GuideTip id="quest-sync" tip={TIP} phone={false} onAccept={() => {

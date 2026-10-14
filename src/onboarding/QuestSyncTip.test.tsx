@@ -18,9 +18,10 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); Reflect.deleteProperty(window, 'tarkovDesktop') })
 
 describe('quest sync tip', () => {
-  it('is for the Overview of the PC app, until accepted on this computer', () => {
-    const due = { desktop: true, phone: false, pathname: '/', seen: false }
+  it('is for the Overview of the PC app in Russian, until accepted on this computer', () => {
+    const due = { desktop: true, phone: false, pathname: '/', seen: false, locale: 'ru' }
     expect(questSyncTipDue(due)).toBe(true)
+    expect(questSyncTipDue({ ...due, locale: 'en' })).toBe(false)
     expect(questSyncTipDue({ ...due, desktop: false })).toBe(false)
     expect(questSyncTipDue({ ...due, phone: true })).toBe(false)
     expect(questSyncTipDue({ ...due, pathname: '/quests' })).toBe(false)
