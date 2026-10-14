@@ -50,6 +50,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
+  // The owner's minimap switch for every app (the same route file): read with the notice above, set by the owner.
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
