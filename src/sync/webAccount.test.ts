@@ -35,3 +35,26 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
+
+describe('phone transport: the owner\'s notice (server/src/routes/announcement.ts)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('goes with the session, so the server answers in the language of the account\'s country; signed out it still comes', async () => {
+    const answer = { version: 3, announcement: { text: 'Maintenance is under way.', lang: 'en', updatedAt: '2026-10-14T10:00:00.000Z' } }
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(answer), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const authorization = (call: number) => ((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[call]![1].headers as Record<string, string>).authorization
+
+    expect(await webServiceRequest('GET', '/v1/announcement')).toEqual(answer)
+    expect(authorization(0)).toBeUndefined()
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    expect(await webServiceRequest('GET', '/v1/announcement')).toEqual(answer)
+    expect(await webServiceRequest('GET', '/v1/announcement?since=17')).toEqual(answer)
+    expect([authorization(1), authorization(2)]).toEqual([`Bearer ${token}`, `Bearer ${token}`])
+    // Other public routes still go without it.
+    await webServiceRequest('GET', '/v1/map-updates?since=17')
+    expect(authorization(3)).toBeUndefined()
+  })
+})
