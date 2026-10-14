@@ -54,7 +54,7 @@ export interface HandFrame {
   indexFlex: number
   /** thumb tip ↔ index tip distance in palm lengths (pinched < 0.3, spread > 0.75) */
   pinch: number
-  /** 21 landmarks mapped into window-normalized space for the ghost hand (z kept relative) */
+  /** 21 landmarks mapped into window-normalized space for the drawn hand (z relative, in x units) */
   skeleton: Point3[] | null
   events: HandEvent[]
 }
@@ -63,7 +63,8 @@ export interface CalibrationBox { x0: number; y0: number; x1: number; y1: number
 
 export interface HandControlSettings {
   mirror: boolean
-  cursor: 'ghost' | 'finger'
+  /** drawn hand: 3D model, flat outline or just a cursor */
+  cursor: 'hand3d' | 'ghost' | 'finger'
   calibration: CalibrationBox
   /** how a press is made: folding the index finger (tap), pushing the hand forward (poke), or either */
   clickMode: 'tap' | 'poke' | 'both'
@@ -94,7 +95,7 @@ export interface HandControlSettings {
 
 export const DEFAULT_SETTINGS: HandControlSettings = {
   mirror: true,
-  cursor: 'ghost',
+  cursor: 'hand3d',
   calibration: { x0: 0.2, y0: 0.15, x1: 0.8, y1: 0.75 },
   clickMode: 'tap',
   tapAngle: 45,

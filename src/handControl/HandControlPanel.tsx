@@ -72,10 +72,11 @@ export function HandControlPanel() {
                 {cameras.map((camera, index) => <option key={camera.deviceId || index} value={camera.deviceId}>{camera.label || `${uiText('Камера')} ${index + 1}`}</option>)}
               </select>
             </Setting>
-            <Setting icon={<Hand size={16} />} title="Вид руки" hint="Призрачная рука повторяет все пальцы; курсор — только точка для точных нажатий.">
+            <Setting icon={<Hand size={16} />} title="Вид руки" hint="3D-кисть и контур повторяют все пальцы; курсор — только точка.">
               <div className="hand-segmented">
-                <button className={settings.cursor === 'ghost' ? 'is-active' : ''} onClick={() => update({ cursor: 'ghost' })}>{uiText('Рука')}</button>
-                <button className={settings.cursor === 'finger' ? 'is-active' : ''} onClick={() => update({ cursor: 'finger' })}>{uiText('Курсор')}</button>
+                {(['hand3d', 'ghost', 'finger'] as const).map((cursor) => (
+                  <button key={cursor} className={settings.cursor === cursor ? 'is-active' : ''} onClick={() => update({ cursor })}>{uiText({ hand3d: '3D-кисть', ghost: 'Контур', finger: 'Курсор' }[cursor])}</button>
+                ))}
               </div>
             </Setting>
             <Setting title="Вычисления" hint="Видеокарта быстрее; процессор оставляет видеокарту игре.">

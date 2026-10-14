@@ -555,7 +555,9 @@ export class HandGestureEngine {
     return observation.image.map((point, index) => {
       const mapped = toWindowSpace(point, this.settings.calibration, this.settings.mirror)
       const filter = this.skeletonFilters[index]
-      return { x: filter.x.filter(mapped.x, seconds), y: filter.y.filter(mapped.y, seconds), z: filter.z.filter(point.z, seconds) }
+      // z comes in image-width units: scale it like x so the 3D hand keeps its proportions.
+      const zScale = 1 / Math.max(0.05, this.settings.calibration.x1 - this.settings.calibration.x0)
+      return { x: filter.x.filter(mapped.x, seconds), y: filter.y.filter(mapped.y, seconds), z: filter.z.filter(point.z * zScale, seconds) }
     })
   }
 }

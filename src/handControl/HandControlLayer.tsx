@@ -3,12 +3,11 @@ import { Hand, Square } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { handControl } from './handControlStore'
 import { useHandControl } from './edition'
-import { palmCenter } from './handGeometry'
-import { HAND_BONES, LM, type HandFrame } from './types'
+import { GHOST_PALM_PX, ghostPose, handSpan } from './ghostPose'
+import { HAND_BONES, type HandFrame } from './types'
 import './handControl.css'
 
 const FADE_MS = 320
-const GHOST_PALM_PX = 64
 const SPAN_SMOOTH_MS = 1500
 const BRASS = [223, 189, 112] as const
 const TRACKING_LABEL = { none: 'руки нет', weak: 'слабый трекинг', good: 'трекинг хороший' } as const
@@ -27,6 +26,7 @@ const CALIBRATION_HINTS = {
 export function HandControlLayer() {
   const snapshot = useHandControl()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvas3dRef = useRef<HTMLCanvasElement>(null)
   const cursorStyle = snapshot.settings.cursor
   const active = snapshot.status !== 'off'
 
@@ -39,6 +39,16 @@ export function HandControlLayer() {
     let raf = 0
     let span0 = 0
     let spanAt = 0
+    // The 3D hand loads on demand; until then (or if WebGL is unavailable) the outline is drawn.
+    let hand3d: import('./hand3d').Hand3D | null = null
+    let disposed = false
+    if (cursorStyle === 'hand3d' && canvas3dRef.current) {
+      const target = canvas3dRef.current
+      void import('./hand3d').then(({ Hand3D }) => {
+        if (disposed) return
+        try { hand3d = new Hand3D(target) } catch (error) { console.warn('Hand Control: 3D hand unavailable', error) }
+      })
+    }
 
     const draw = () => {
       raf = 0
@@ -57,15 +67,16 @@ export function HandControlLayer() {
       else if (shown && !lostAt) lostAt = performance.now()
       if (!shown?.pointer) return
       const fade = lostAt ? 1 - (performance.now() - lostAt) / FADE_MS : 1
-      if (fade <= 0) { shown = null; span0 = 0; return }
+      if (fade <= 0) { shown = null; span0 = 0; hand3d?.render(null, 0, 0, width, height); return }
       const alpha = fade * (shown.tracking === 'good' || lostAt ? 1 : 0.55)
-      if (cursorStyle === 'ghost' && shown.skeleton && shown.hand) {
+      if (cursorStyle !== 'finger' && shown.skeleton && shown.hand) {
         // Size follows the hand slowly (~1.5 s), so a turn of the wrist cannot stretch or pump it.
         const now = performance.now()
         const span = handSpan(shown, width, height)
         span0 = span0 ? span0 + (span - span0) * (1 - Math.exp(-(now - spanAt) / SPAN_SMOOTH_MS)) : span
         spanAt = now
-        drawGhost(context, shown, width, height, alpha, span0)
+        if (hand3d) hand3d.render(ghostPose(shown, width, height, span0).points, GHOST_PALM_PX, alpha, width, height)
+        else drawGhost(context, shown, width, height, alpha, span0)
       }
       drawCursor(context, shown, width, height, alpha, Boolean(lostAt))
       if (lostAt) raf = requestAnimationFrame(draw)
@@ -77,7 +88,13 @@ export function HandControlLayer() {
     })
     const onResize = () => { if (!raf) raf = requestAnimationFrame(draw) }
     window.addEventListener('resize', onResize)
-    return () => { off(); window.removeEventListener('resize', onResize); if (raf) cancelAnimationFrame(raf) }
+    return () => {
+      disposed = true
+      off()
+      window.removeEventListener('resize', onResize)
+      if (raf) cancelAnimationFrame(raf)
+      hand3d?.dispose()
+    }
   }, [cursorStyle, active])
 
   useEffect(() => {
@@ -93,6 +110,7 @@ export function HandControlLayer() {
 
   return (
     <>
+      {cursorStyle === 'hand3d' ? <canvas key="hand3d" ref={canvas3dRef} className="hand-layer hand-layer--3d" aria-hidden="true" /> : null}
       <canvas ref={canvasRef} className="hand-layer" aria-hidden="true" />
       {step ? (
         <div className={`hand-calibration hand-calibration--${step}`} role="status">
@@ -118,33 +136,10 @@ export function HandControlLayer() {
   )
 }
 
-/**
- * Rotation-robust hand size in pixels: the longest palm span. Turning the hand edge-on or
- * showing its back shortens some spans but rarely all of them.
- */
-function handSpan(frame: HandFrame, width: number, height: number) {
-  const points = frame.skeleton!
-  const d = (a: number, b: number) => Math.hypot((points[a].x - points[b].x) * width, (points[a].y - points[b].y) * height)
-  return Math.max(d(LM.WRIST, LM.MIDDLE_MCP), d(LM.WRIST, LM.INDEX_MCP), d(LM.WRIST, LM.PINKY_MCP), d(LM.INDEX_MCP, LM.PINKY_MCP) * 1.3)
-}
-
 function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: number, height: number, alpha: number, span: number) {
-  const points = frame.skeleton!
-  // The hand keeps its real shape (fingers move, foreshortening shows) at a steady comfortable
-  // size, anchored by the palm centre on the live hand position: folding fingers never moves it.
-  const px = (index: number) => [points[index].x * width, points[index].y * height] as const
-  const center = palmCenter(points)
-  const centerX = center.x * width
-  const centerY = center.y * height
-  const scale = Math.min(3, Math.max(0.15, GHOST_PALM_PX / Math.max(1, span)))
-  const anchorX = frame.hand!.x * width
-  const anchorY = frame.hand!.y * height
-  const at = (index: number) => {
-    const [x, y] = px(index)
-    return [anchorX + (x - centerX) * scale, anchorY + (y - centerY) * scale] as const
-  }
-  const wristZ = points[LM.WRIST].z
-  const size = (index: number) => Math.max(2, Math.min(8, 5.5 - (points[index].z - wristZ) * 40))
+  const pose = ghostPose(frame, width, height, span)
+  const at = (index: number) => [pose.points[index].x, pose.points[index].y] as const
+  const size = (index: number) => Math.max(2, Math.min(8, 5.5 + pose.points[index].z * 0.08))
 
   context.save()
   context.lineCap = 'round'
@@ -169,8 +164,7 @@ function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: n
     context.stroke()
   }
   context.fillStyle = `rgba(237, 242, 237, ${0.7 * alpha})`
-  for (let index = 0; index < points.length; index++) {
-    if (index === LM.INDEX_TIP) continue
+  for (let index = 0; index < pose.points.length; index++) {
     context.beginPath()
     context.arc(...at(index), size(index) / 2, 0, Math.PI * 2)
     context.fill()

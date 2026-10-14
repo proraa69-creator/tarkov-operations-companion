@@ -9,6 +9,8 @@
   pointer-events: none;
 }
 
+.hand-layer--3d { z-index: 3999; transition: opacity .12s linear; }
+
 /* Synthetic events cannot trigger :hover, so the hovered/pressed element is marked explicitly. */
 [data-hand-hover] {
   outline: 2px solid color-mix(in srgb, var(--brass-strong) 80%, transparent) !important;
