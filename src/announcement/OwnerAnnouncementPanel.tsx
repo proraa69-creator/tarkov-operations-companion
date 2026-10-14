@@ -41,7 +41,7 @@ export function OwnerAnnouncementPanel() {
   }, [request])
   if (!request) return null
 
-  /** `textEn`: the owner's own English, instead of the automatic one. */
+  /** `textEn`: the owner's own English, instead of the automatic one. The notice as saved, or undefined. */
   const send = async (body: { text: string; active: boolean; textEn?: string }) => {
     setBusy(true)
     setError('')
@@ -51,13 +51,20 @@ export function OwnerAnnouncementPanel() {
       setSaved(answer.announcement)
       // This app shows it at once too (the others get it from the server the same moment).
       setAnnouncement(answer.announcement.active ? { text: answer.announcement.text, updatedAt: answer.announcement.updatedAt } : null)
+      return answer.announcement
     } catch (reason) {
       setError(reason instanceof Error ? reason.message.replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, '') : String(reason))
+      return undefined
     } finally {
       setBusy(false)
     }
   }
-  const save = (active: boolean) => send({ text: text.trim(), active })
+  const save = async (active: boolean) => {
+    const sent = text.trim()
+    const stored = await send({ text: sent, active })
+    // The Russian as kept (a notice in both languages loses its English paragraphs to the English), unless typed on meanwhile.
+    if (stored) setText((current) => (current.trim() === sent ? stored.text : current))
+  }
   const shown = Boolean(saved?.active)
   return (
     <section className="panel owner-announcement">
@@ -87,7 +94,7 @@ export function OwnerAnnouncementPanel() {
 }
 
 /** The English foreign players get: «Автоперевод» or «Ваш перевод», «Изменить» to correct it; a warning when there is none. */
-function EnglishVersion({ saved, busy, onSave }: { saved: Saved; busy: boolean; onSave: (textEn: string) => Promise<void> }) {
+function EnglishVersion({ saved, busy, onSave }: { saved: Saved; busy: boolean; onSave: (textEn: string) => Promise<unknown> }) {
   /** The English being corrected; null while it is only shown. */
   const [draft, setDraft] = useState<string | null>(null)
   const english = saved.textEn ?? ''

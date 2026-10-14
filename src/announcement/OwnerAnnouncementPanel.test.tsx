@@ -20,8 +20,9 @@ interface Stored { text: string; textEn: string | null; textEnSource: 'auto' | '
 interface Body { text: string; active: boolean; textEn?: string }
 
 /**
- * The owner app's gateway with a server as server/src/routes/announcement.ts: the owner's English wins, an unchanged
- * Russian keeps its English, `translations` are what the translator manages (anything else fails).
+ * The owner app's gateway with a server as server/src/routes/announcement.ts: a notice in both languages is split, the
+ * owner's English wins, an unchanged Russian keeps its English, `translations` are what the translator manages
+ * (anything else fails).
  */
 function mockServer(initial: Stored | null, translations: Record<string, string> = { [WORKS]: AUTO }) {
   let current = initial
@@ -31,11 +32,13 @@ function mockServer(initial: Stored | null, translations: Record<string, string>
     if (path !== PATH) throw new Error('Неизвестный запрос сервиса')
     if (method === 'GET') return { announcement: current }
     puts.push(body!)
-    const { text, active, textEn } = body!
+    const { active } = body!
+    const [text, both] = body!.text.split('\n\n')
+    const textEn = body!.textEn || both
     const kept = current?.text === text && current.textEn ? current : undefined
     const english = textEn ? { textEn, textEnSource: 'manual' as const } : kept ? { textEn: kept.textEn, textEnSource: kept.textEnSource }
-      : translations[text] ? { textEn: translations[text]!, textEnSource: 'auto' as const } : { textEn: null, textEnSource: null }
-    current = { text, active, ...english, updatedBy: 'owner@example.com', updatedAt: `2026-10-14T10:00:${String(saves++).padStart(2, '0')}.000Z` }
+      : translations[text!] ? { textEn: translations[text!]!, textEnSource: 'auto' as const } : { textEn: null, textEnSource: null }
+    current = { text: text!, active, ...english, updatedBy: 'owner@example.com', updatedAt: `2026-10-14T10:00:${String(saves++).padStart(2, '0')}.000Z` }
     return { announcement: current, translation: textEn ? 'manual' : kept ? 'kept' : english.textEn ? 'auto' : 'failed' }
   })
   Object.assign(window, { tarkovDesktop: { edition: 'owner', isDesktop: true, serviceRequest } })
@@ -115,6 +118,19 @@ describe('«Уведомление сверху»: the English for foreign playe
     await user.click(screen.getByRole('button', { name: 'Обновить у всех' }))
     expect(await screen.findByText(NO_ENGLISH)).toBeInTheDocument()
     expect(server.puts.at(-1)).toEqual({ text: 'Карты временно недоступны.', active: true })
+  })
+
+  it('a notice typed in both languages: the field shows the Russian kept, the English part below as the owner\'s own', async () => {
+    const server = mockServer(null)
+    const user = userEvent.setup()
+    render(<OwnerAnnouncementPanel />)
+    const russian = screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.')
+    await user.type(russian, 'Карты недоступны.{Enter}{Enter}Maps are unavailable.')
+    await user.click(screen.getByRole('button', { name: 'Показать всем' }))
+    expect(await screen.findByText('Maps are unavailable.')).toBeInTheDocument()
+    expect(screen.getByText('Ваш перевод')).toBeInTheDocument()
+    expect(russian).toHaveValue('Карты недоступны.')
+    expect(server.puts).toEqual([{ text: 'Карты недоступны.\n\nMaps are unavailable.', active: true }])
   })
 
   it('shows no English part for a server from before the English', async () => {
