@@ -141,7 +141,7 @@
 .priority-bar span { display: block; height: 100%; background: linear-gradient(90deg, #7c6a3f, var(--brass)); }
 
 .map-page { max-width: none; }
-.map-shell { height: calc(100vh - var(--topbar) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
+.map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
 .map-sidebar { overflow: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--surf-1); }
 .map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 9px; letter-spacing: .15em; font-weight: 800; }
 .map-layer-hint { margin: -4px 7px 10px; color: var(--text-dim); font-size: 11px; line-height: 1.35; }
@@ -481,7 +481,7 @@
 .catalog-card h3 { margin: 0 0 5px; font-size: 14px; }
 .catalog-card p { margin: 0; color: var(--text-dim); font-size: 11px; }
 .catalog-card .item-thumb { width: 46px; height: 46px; }
-.detail-panel { position: sticky; top: calc(var(--topbar) + 28px); max-height: calc(100vh - var(--topbar) - 58px); overflow: auto; }
+.detail-panel { position: sticky; top: calc(var(--topbar) + var(--notice-room, 0px) + 28px); max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px); overflow: auto; }
 .quest-objective { padding: 11px 0; border-bottom: 1px solid var(--line); display: flex; gap: 9px; color: #b6c1b8; line-height: 1.45; }
 .quest-objective:last-child { border: 0; }
 .quest-stage { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: color-mix(in srgb, var(--text) 36%, var(--text-muted)); line-height: 1.4; text-decoration: none; }
@@ -832,7 +832,7 @@ a.quest-stage:hover { color: var(--text); }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }
 
 /* Map window: no dead space around the map and side panels */
-.map-shell { height: calc(100vh - var(--topbar) - 48px); min-height: 560px; }
+.map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 48px); min-height: 560px; }
 .map-detail { display: flex; flex-direction: column; min-height: 0; }
 .map-detail-empty { flex: 1; align-content: center; padding: 16px; }
 .map-detail-empty h3 { margin: 8px 0 4px; font-size: 14px; }

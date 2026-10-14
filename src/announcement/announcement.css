@@ -9,6 +9,11 @@
 /* Under the fixed top bar, over the pages; the pages move down by its height (--announcement-height, set by the banner). */
 .announcement-banner.is-shell { position: fixed; top: var(--topbar); left: var(--sidebar); right: 0; z-index: 34; }
 .content { margin-top: var(--announcement-height, 0px); }
+/* The room the notice takes under the PC top bar: pages that fill the window or stick under the top bar (the map, the
+   detail panels) give it up, and a short page does not scroll by it (owner, 14.10.2026: the map's bottom and the quest
+   sheet went off the screen). None on the phone, where the notice scrolls away with the page. */
+:root { --notice-room: var(--announcement-height, 0px); }
+:root[data-layout="mobile"] { --notice-room: 0px; }
 @media (max-width: 760px) { .announcement-banner.is-shell { left: 0; } }
 /* The phone: the notice is the top of every page and scrolls away with it. Fixed, it covered a third of the screen and
    the map's buttons under it (owner's iPhone, 14.10.2026). */

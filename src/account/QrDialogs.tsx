@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Globe, LoaderCircle, QrCode as QrIcon, RefreshCw, ShieldCheck, Smartphone, X } from 'lucide-react'
 import type { MobileLoginLink } from '../electron'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -9,19 +10,21 @@ import { cleanIpcError } from '../sync/serverSync'
 import { serviceClient } from './nicknameBinding'
 import './account.css'
 
+/** Over the whole window, outside the page: the page is a layer under the menu and the top bar (styles/global.css). */
 function Overlay({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
   useEffect(() => {
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
     window.addEventListener('keydown', escape)
     return () => window.removeEventListener('keydown', escape)
   }, [onClose])
-  return (
+  return createPortal(
     <div className="registration-overlay" role="dialog" aria-modal="true" aria-label={label} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="panel registration-dialog account-qr-dialog" onMouseDown={(event) => event.stopPropagation()}>
         <button className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
         {children}
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
