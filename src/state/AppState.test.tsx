@@ -100,4 +100,21 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
     expect(pvp().taskProgress[QUEST]).toMatchObject({ status: 'completed' })
     expect(state.activeProfile.modes.pve.taskProgress[OTHER]).toBeUndefined()
   })
+
+  it('takes a story chapter another PC read when it is newer; a chapter done stays done; another character\'s are not taken', () => {
+    act(() => state.applyRemoteStoryForMode('pvp', [
+      { taskId: 'story-tour', status: 'active', updatedAt: '2026-10-05T10:00:00.000Z', currentStageIndex: 3 },
+      { taskId: 'story-batya', status: 'completed', updatedAt: '2026-10-05T10:00:00.000Z' },
+    ], OLD))
+    expect(pvp().taskProgress['story-tour']).toMatchObject({ status: 'active', currentStageIndex: 3, source: 'screen-scan' })
+    expect(pvp().taskProgress['story-batya']).toMatchObject({ status: 'completed' })
+    act(() => state.applyRemoteStoryForMode('pvp', [
+      { taskId: 'story-tour', status: 'active', updatedAt: '2026-10-04T10:00:00.000Z', currentStageIndex: 1 },
+      { taskId: 'story-batya', status: 'active', updatedAt: '2026-10-06T10:00:00.000Z', currentStageIndex: 0 },
+    ], OLD))
+    expect(pvp().taskProgress['story-tour']).toMatchObject({ currentStageIndex: 3 })
+    expect(pvp().taskProgress['story-batya']).toMatchObject({ status: 'completed' })
+    act(() => state.applyRemoteStoryForMode('pvp', [{ taskId: 'story-other', status: 'active', updatedAt: '2026-10-06T10:00:00.000Z', currentStageIndex: 0 }], NEW))
+    expect(pvp().taskProgress['story-other']).toBeUndefined()
+  })
 })

@@ -17,6 +17,7 @@ import {
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { applyLogQuestState, dropRecordsBefore, logEpochChange, logStateFingerprint } from '../import/logApply'
 import { announceLogEpochChange } from './logEpoch'
+import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
@@ -58,6 +59,8 @@ interface AppStateValue extends UiState {
    * a newer trusted reset, first drops the mode's records older than the change (src/import/logApply.ts logEpochChange).
    */
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string, characterSince?: string) => void
+  /** Story chapters another PC read, from the server (src/sync/storyRecords.ts): a newer reading of a chapter wins. */
+  applyRemoteStoryForMode: (mode: RaidMode, records: StoryProgressRecord[], characterId: string) => void
   /** Manual objective value from the quest view (checkbox / counter) for the current mode. */
   setObjectiveValue: (def: Pick<ObjectiveDef, 'id' | 'taskId' | 'type' | 'target'>, current: number) => void
   /** «Отменить» in «История изменений» (current mode). */
@@ -215,6 +218,30 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           },
         },
       }
+    }),
+    applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      // Another character's chapters (this mode's character is another one now): not these.
+      if (current.logCharacterId && current.logCharacterId !== characterId) return profile
+      let taskProgress = current.taskProgress
+      for (const record of records) {
+        // Readings from before a new character or a reset never come back.
+        if (current.logEpochAt && record.updatedAt < current.logEpochAt) continue
+        const local = taskProgress[record.taskId]
+        if (local && (local.updatedAt >= record.updatedAt || (local.status === 'completed' && record.status !== 'completed'))) continue
+        const stage = record.currentStageIndex ?? local?.currentStageIndex
+        taskProgress = {
+          ...taskProgress,
+          [record.taskId]: {
+            taskId: record.taskId, status: record.status, source: 'screen-scan', updatedAt: record.updatedAt,
+            ...(stage != null ? { currentStageIndex: stage } : {}),
+            // The objectives this PC read belong to the stage it read: kept only while the stage is the same.
+            ...(local?.storyObjectives && local.currentStageIndex === stage ? { storyObjectives: local.storyObjectives } : {}),
+          },
+        }
+      }
+      if (taskProgress === current.taskProgress) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, { ...current, taskProgress }, selectedMode) } }
     }),
     setObjectiveValue: (def, current) => updateActive((profile) => {
       const selectedMode = profile.selectedMode

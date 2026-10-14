@@ -8,10 +8,11 @@ vi.mock('../app/archivedFeatures', async (importOriginal) => {
 })
 import type { ModeRegistration } from '../domain/types'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
+import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindObjectiveSync, createPositionThrottle, forgetProgressSync, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -237,5 +238,29 @@ describe('server sync with the desktop gateway', () => {
     expect(parseServerScope({ scope: { characterId: '' } })).toBeNull()
     expect(parseServerScope({ scope: null })).toBeNull()
     expect(parseServerScope(null)).toBeNull()
+  })
+
+  it('sends the chapters read here once, and applies every chapter the server keeps for the character (P9)', async () => {
+    const tour = { chapterId: 'story-tour', status: 'active' as const, stageId: 'story-tour-1', updatedAt: '2026-10-01T10:00:00.000Z' }
+    const batya = { chapterId: 'story-batya', status: 'completed' as const, updatedAt: '2026-10-01T11:00:00.000Z' }
+    serviceRequest.mockResolvedValue({ characterId: CHARACTER, records: [tour, batya] })
+    const apply = vi.fn()
+    let local: { characterId?: string; records: StoryRecord[] } = { characterId: CHARACTER, records: [tour] }
+    bindStorySync({ read: (mode) => mode === 'pvp' ? local : null, apply })
+    try {
+      await syncStory('pvp')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { characterId: CHARACTER, records: [tour] })
+      expect(apply).toHaveBeenCalledWith('pvp', [tour, batya], CHARACTER)
+      // Nothing new since: nothing sent again (not even what came from the server), the answer still applied.
+      local = { characterId: CHARACTER, records: [tour, batya] }
+      await syncStory('pvp')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { characterId: CHARACTER, records: [] })
+      // No catalog of the mode: nothing at all. No character known: only the server's chapters are asked for.
+      await syncStory('pve')
+      expect(serviceRequest).toHaveBeenCalledTimes(2)
+      local = { characterId: undefined, records: [{ ...tour, updatedAt: '2026-10-03T10:00:00.000Z' }] }
+      await syncStory('pvp')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [] })
+    } finally { bindStorySync(null) }
   })
 })

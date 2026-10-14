@@ -20,6 +20,7 @@ import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
 import { featureEnabled } from '../app/archivedFeatures'
+import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
@@ -335,6 +336,7 @@ export function forgetProgressSync() {
   lastLogPush = null
   serverScopes = {}
   confirmed = {}
+  storySent = {}
   desktopLogs = 'unknown'
   pushAgain.clear()
 }
@@ -462,6 +464,54 @@ export async function syncObjectives(mode: RaidMode) {
     if (snapshot) binding.apply(mode, snapshot)
   } finally {
     objectiveBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Story chapters (the screen reads them; the game does not log them)
+// ------------------------------------------------------------------------------------------------------------
+
+export interface StorySyncBinding {
+  /**
+   * This app's chapter readings of a mode and the mode's character (undefined while not known); null while the catalog
+   * of that mode is not loaded (its chapters and stages are needed to read and apply them).
+   */
+  read: (mode: RaidMode) => { characterId?: string; records: StoryRecord[] } | null
+  /** The server's chapters of that character: other PCs' readings among them. */
+  apply: (mode: RaidMode, records: StoryRecord[], characterId: string) => void
+}
+
+let storyBinding: StorySyncBinding | null = null
+const storyBusy = new Set<RaidMode>()
+/** Per mode, the readings the server has (account and character → chapter → time): only newer ones are sent. */
+let storySent: Partial<Record<RaidMode, { key: string; chapters: Map<string, string> }>> = {}
+
+/** Mounted once (AppShell): how the story sync reads and updates the active profile. */
+export function bindStorySync(binding: StorySyncBinding | null) {
+  storyBinding = binding
+}
+
+/**
+ * P9: sends this mode's new chapter readings (only with a character this app knows: its logs, or the server's scope it
+ * pulled) and applies every chapter the server keeps for that character — a second PC and the phone show them too.
+ */
+export async function syncStory(mode: RaidMode) {
+  const binding = storyBinding
+  if (!binding || !connected() || storyBusy.has(mode)) return
+  const local = binding.read(mode)
+  if (!local) return
+  storyBusy.add(mode)
+  try {
+    const key = `${accountKey()}|${local.characterId ?? ''}`
+    if (storySent[mode]?.key !== key) storySent[mode] = { key, chapters: new Map() }
+    const sent = storySent[mode]!.chapters
+    const records = local.characterId ? local.records.filter((record) => sent.get(record.chapterId) !== record.updatedAt) : []
+    const answer = parseStoryAnswer(await meRequest('POST', `/v1/me/story/${mode}`, { ...(local.characterId ? { characterId: local.characterId } : {}), records }))
+    if (!answer) return
+    for (const record of [...records, ...answer.records]) sent.set(record.chapterId, record.updatedAt)
+    binding.apply(mode, answer.records, answer.characterId)
+  } finally {
+    storyBusy.delete(mode)
   }
 }
 
@@ -664,6 +714,7 @@ export async function runFullSync() {
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
+    for (const mode of RAID_MODES) await syncStory(mode)
   } finally {
     fullSyncRunning = false
   }
@@ -691,7 +742,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings() }
+      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -736,6 +787,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
   useEffect(() => {
     if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
     lastModeSync = { mode: raidMode, at: Date.now() }
-    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode)
+    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {})
   }, [raidMode, pullProgress])
 }

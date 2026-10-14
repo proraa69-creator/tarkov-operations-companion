@@ -23,7 +23,8 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindObjectiveSync, noteDesktopLogsMissing, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, pushLogProgress, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -126,6 +127,31 @@ export function AppShell({ children }: { children: ReactNode }) {
     const ids = traderQuestIdsForResets(data.quests)
     if (ids.length) void window.tarkovDesktop?.setLogQuestIds?.(catalogMode, ids).catch(() => false)
   }, [catalogMode, data.quests])
+  // Story chapters through the server (P9): read and applied with the catalog of their mode (chapters and stage ids).
+  const storyCatalog = useRef<{ mode?: RaidMode; quests: typeof data.quests }>({ quests: [] })
+  useEffect(() => { storyCatalog.current = { mode: catalogMode, quests: data.quests } }, [catalogMode, data.quests])
+  useEffect(() => {
+    bindStorySync({
+      read: (mode) => {
+        const catalog = storyCatalog.current
+        if (catalog.mode !== mode) return null
+        const progress = stateRef.current.activeProfile.modes[mode]
+        return { characterId: progress.logCharacterId, records: storyRecordsOf(progress, catalog.quests) }
+      },
+      apply: (mode, records, characterId) => {
+        const catalog = storyCatalog.current
+        if (catalog.mode === mode) stateRef.current.applyRemoteStoryForMode(mode, storyProgressRecords(records, catalog.quests), characterId)
+      },
+    })
+    return () => bindStorySync(null)
+  }, [])
+  // A chapter read on this PC reaches the server a few seconds later (not on the next 30 s poll).
+  const storyKey = useMemo(() => catalogMode === raidMode ? JSON.stringify(storyRecordsOf(activeProfile.modes[raidMode], data.quests)) : '', [catalogMode, raidMode, activeProfile.modes, data.quests])
+  useEffect(() => {
+    if (!storyKey) return
+    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 3000)
+    return () => window.clearTimeout(timer)
+  }, [raidMode, storyKey])
   // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
   useEffect(() => {
     if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)

@@ -16,6 +16,13 @@ export interface UserSyncRequest {
  * without logs drop their older records of that mode the same way the desktop does (src/import/logApply.ts).
  */
 export interface ProgressScope { accountId: number; characterId: string; syncedAt: string; resetAt?: string }
+
+/**
+ * A story chapter as the screen read it (the game does not log chapters): its status, its stage (the catalog's stage id)
+ * and when it was read. Kept per character, newest reading first, so a second PC and the phone show it too.
+ */
+export interface StoryRecord { chapterId: string; status: 'active' | 'completed'; stageId?: string; updatedAt: string }
+export interface StoryAnswer { characterId: string | null; records: StoryRecord[] }
 export interface UserProgressResponse extends SyncResponse { scope: ProgressScope | null }
 
 type Row = Record<string, unknown>
@@ -43,6 +50,10 @@ export class ProgressStore {
     // The latest trusted reset of the scope's character (added after the first release: older databases get the column).
     const columns = this.db.prepare('PRAGMA table_info(progress_scopes)').all() as Row[]
     if (!columns.some((column) => column.name === 'reset_at')) this.db.exec('ALTER TABLE progress_scopes ADD COLUMN reset_at TEXT')
+    this.db.exec(`CREATE TABLE IF NOT EXISTS story_records (
+        owner TEXT NOT NULL, mode TEXT NOT NULL, character_id TEXT NOT NULL, chapter_id TEXT NOT NULL,
+        status TEXT NOT NULL, stage_id TEXT, updated_at TEXT NOT NULL,
+        PRIMARY KEY(owner, mode, character_id, chapter_id));`)
   }
 
   /** Development single-owner endpoint (/v1/sync/events). */
@@ -71,6 +82,8 @@ export class ProgressStore {
       if (reported) {
         this.db.prepare('DELETE FROM quest_events WHERE owner=? AND mode=? AND account_id=? AND character_id=? AND occurred_at < ?')
           .run(owner, mode, accountId, characterId, reported)
+        // A prestige restarts the story too: chapters read before it belong to the profile before.
+        this.db.prepare('DELETE FROM story_records WHERE owner=? AND mode=? AND character_id=? AND updated_at < ?').run(owner, mode, characterId, reported)
       }
       this.insertRows(owner, mode, accountId, characterId, input.events, resetAt)
       this.db.prepare(`INSERT INTO progress_scopes (owner, mode, account_id, character_id, synced_at, reset_at) VALUES (?,?,?,?,?,?)
@@ -85,6 +98,43 @@ export class ProgressStore {
     const scope = this.scope(owner, mode)
     if (!scope) return { revision: createHash('sha256').update('[]').digest('hex'), records: [], coverage: 'partial', scope: null }
     return { ...this.project(owner, mode, scope.accountId, scope.characterId), scope }
+  }
+
+  /**
+   * Story chapters of a character (`characterId`, else the one synced last in this mode): the readings sent are kept
+   * when newer than the kept ones, readings from before the character's last reset are refused, and every kept one comes
+   * back. Without a character nothing is kept.
+   */
+  syncStory(owner: string, mode: RaidMode, input: { characterId?: string; records: StoryRecord[] }, now = Date.now()): StoryAnswer {
+    const scope = this.scope(owner, mode)
+    const characterId = input.characterId ?? scope?.characterId
+    if (!characterId) return { characterId: null, records: [] }
+    const resetAt = scope?.characterId === characterId ? scope.resetAt : undefined
+    const latest = new Date(now + 60_000).toISOString()
+    transaction(this.db, () => {
+      const upsert = this.db.prepare(`INSERT INTO story_records (owner, mode, character_id, chapter_id, status, stage_id, updated_at) VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(owner, mode, character_id, chapter_id) DO UPDATE SET status=excluded.status, stage_id=excluded.stage_id, updated_at=excluded.updated_at
+        WHERE excluded.updated_at > story_records.updated_at`)
+      for (const record of input.records) {
+        // A client clock far ahead must not make its reading «newer» than every other for good.
+        const updatedAt = record.updatedAt > latest ? latest : record.updatedAt
+        if (resetAt && updatedAt < resetAt) continue
+        upsert.run(owner, mode, characterId, record.chapterId, record.status, record.stageId ?? null, updatedAt)
+      }
+    })
+    return this.storyRecords(owner, mode, characterId)
+  }
+
+  storyRecords(owner: string, mode: RaidMode, characterId = this.scope(owner, mode)?.characterId): StoryAnswer {
+    if (!characterId) return { characterId: null, records: [] }
+    const rows = this.db.prepare('SELECT chapter_id, status, stage_id, updated_at FROM story_records WHERE owner=? AND mode=? AND character_id=? ORDER BY chapter_id').all(owner, mode, characterId) as Row[]
+    return {
+      characterId,
+      records: rows.map((row) => ({
+        chapterId: String(row.chapter_id), status: row.status === 'completed' ? 'completed' : 'active',
+        ...(typeof row.stage_id === 'string' && row.stage_id ? { stageId: row.stage_id } : {}), updatedAt: String(row.updated_at),
+      })),
+    }
   }
 
   scope(owner: string, mode: RaidMode): ProgressScope | undefined {
