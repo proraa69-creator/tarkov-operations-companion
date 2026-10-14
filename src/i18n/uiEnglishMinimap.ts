@@ -31,8 +31,6 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   
   ['Игра запущена от имени администратора', 'The game runs as administrator'],
   ['нет позиции: перезапустите Raid OS от имени администратора', 'no position: restart Raid OS as administrator'],
-  ['Точка на мини-карте работает', 'The dot on the mini map works'],
-  ['Точка на мини-карте готова', 'The dot on the mini map is ready'],
   
   
   
@@ -61,8 +59,6 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   ['точка не обновится: в игре «Скриншот» не на клавише мини-карты', 'the dot will not move: the game’s “Screenshot” is not on the mini map key'],
   ['Пока Raid OS работает без этих прав, Windows скрывает от него клавиши, нажатые в игре, — мини-карта не откроется по клавише. Перезапустите приложение от имени администратора.', 'While Raid OS runs without these rights, Windows hides the keys pressed in the game from it — the mini map will not open by its key. Restart the app as administrator.'],
   ['мини-карта не видит клавиши: перезапустите Raid OS от имени администратора', 'the mini map does not see the keys: restart Raid OS as administrator'],
-  ['Одна клавиша открывает мини-карту, и игра в тот же момент делает скриншот — точка обновляется сама.', 'One key opens the mini map, and the game takes a screenshot at the same moment — the dot moves by itself.'],
-  ['Откройте мини-карту в рейде — игра сделает скриншот той же клавишей, и точка появится через секунду.', 'Open the mini map in a raid — the game takes a screenshot with the same key, and the dot appears a second later.'],
   ['не назначен', 'not bound'],
   ['Сейчас «Скриншот» в игре:', 'Now the game’s “Screenshot”:'],
   ['мини-карта:', 'mini map:'],
@@ -73,10 +69,28 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   // The owner's minimap switch for every app and the one-time notice while it is off (14.10.2026).
   ['Функция мини-карты временно выключена — для спокойствия пользователей. Ожидаем официального ответа от BSG! Спасибо за понимание. Если возникли вопросы, задайте их в нашем Telegram.', 'The minimap feature is temporarily turned off, for our users\' peace of mind. We are waiting for an official answer from BSG. Thank you for understanding! If you have questions, ask us on Telegram.'],
   ['Функции мини-карты (окно поверх игры и отслеживание)', 'Mini map features (the window over the game and tracking)'],
+  ['Функции мини-карты', 'Mini map features'],
+  ['Мини-карта и отслеживание:', 'Mini map and tracking:'],
+  ['включены у всех', 'on for everyone'],
+  ['выключены у всех', 'off for everyone'],
+  ['Окно мини-карты поверх игры:', 'Mini map window over the game:'],
+  ['включено у всех', 'on for everyone'],
+  ['выключено у всех', 'off for everyone'],
+  ['Выключить окно для всех', 'Turn the window off for everyone'],
+  ['Включить окно для всех', 'Turn the window on for everyone'],
+  ['Окно мини-карты поверх игры временно выключено — позиция показывается на карте в приложении.', 'The minimap window over the game is temporarily turned off; your position is shown on the map in the app.'],
+  ['Позицию даёт скриншот, который делает сама игра по клавише «Скриншот», — она видна на карте в приложении и в телефоне.', 'The position comes from the screenshot the game itself takes with its “Screenshot” key — you see it on the map in the app and on your phone.'],
+  ['Raid OS сам ничего не нажимает в игре: позицию даёт скриншот, который игра делает по этой клавише. Сделайте скриншот в рейде — точка на карте в приложении обновится.', 'Raid OS never presses anything in the game: the position comes from the screenshot the game takes with this key. Take a screenshot in a raid and the dot on the map in the app moves.'],
+  ['В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот»).', 'The screenshot key is not bound in the game. Bind it in the game (Settings → Controls → “Screenshot”).'],
+  ['Позиция берётся из скриншота, который делает игра, — Raid OS сам ничего не нажимает. Назначьте в игре «Скриншот» (Настройки → Управление) на удобную клавишу: после каждого скриншота в рейде точка на карте в приложении обновится.', 'The position comes from the screenshot the game takes — Raid OS presses nothing itself. Bind “Screenshot” in the game (Settings → Controls) to any key you like: after each screenshot in a raid the dot on the map in the app moves.'],
   ['Сейчас включены у всех игроков', 'Now on for all players'],
   ['Сейчас выключены у всех игроков', 'Now off for all players'],
   ['Эту карточку видит только владелец.', 'Only the owner sees this card.'],
   ['Выключить для всех', 'Turn off for everyone'],
   ['Включить для всех', 'Turn on for everyone'],
   ['Не удалось переключить. Проверьте вход в аккаунт владельца и попробуйте ещё раз.', 'Could not switch. Check the owner account sign-in and try again.'],
+  ['Точка на мини-карте работает', 'The dot on the mini map works'],
+  ['Точка на мини-карте готова', 'The dot on the mini map is ready'],
+  ['Одна клавиша открывает мини-карту, и игра в тот же момент делает скриншот — точка обновляется сама.', 'One key opens the mini map, and the game takes a screenshot at the same moment — the dot moves by itself.'],
+  ['Откройте мини-карту в рейде — игра сделает скриншот той же клавишей, и точка появится через секунду.', 'Open the mini map in a raid — the game takes a screenshot with the same key, and the dot appears a second later.'],
 ]

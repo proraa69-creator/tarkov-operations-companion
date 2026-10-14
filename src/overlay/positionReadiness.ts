@@ -22,9 +22,16 @@ export interface PositionReadinessInput {
   elevated: boolean | null
   /** Whether keys pressed in the game reach this app (hidden: the game runs elevated, this app does not). */
   gameKeys: 'visible' | 'hidden' | 'unknown'
+  /**
+   * The minimap window over the game is allowed (the owner's second switch, src/announcement/features.ts). Off: the
+   * position comes from any screenshot the game takes and shows only in the app, so no key of this app matters, only
+   * that the game has a «Скриншот» key at all. Left out: on.
+   */
+  overlay?: boolean
 }
 
 export function positionProblem(input: PositionReadinessInput): PositionProblem | null {
+  if (input.overlay === false) return input.key.unbound ? 'no-key' : null
   if (!input.native) return 'no-native'
   if (input.key.unbound) return 'no-key'
   if (!screenshotOnKey(input.key.keys, HOTKEYS[input.minimapKey]?.vk)) return 'other-key'
@@ -43,6 +50,9 @@ export function positionFix(problem: PositionProblem | null, gameKeys: string[] 
   const code = hotkeyForGameKeys(gameKeys)
   return code && !taken.includes(code) ? 'use-game-key' : null
 }
+
+/** The words for a missing «Скриншот» key while the window over the game is off: no minimap key to put it on. */
+export const TRACKING_NO_KEY_TEXT = 'Позиция берётся из скриншота, который делает игра, — Raid OS сам ничего не нажимает. Назначьте в игре «Скриншот» (Настройки → Управление) на удобную клавишу: после каждого скриншота в рейде точка на карте в приложении обновится.'
 
 /** The page's words for each problem: a short title and what happens / what to do; `short` goes into the minimap. */
 export const POSITION_PROBLEM_TEXT: Record<PositionProblem, { title: string; text: string; short: string }> = {

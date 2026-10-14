@@ -6,7 +6,7 @@ import { startActivePolling } from '../app/activePolling'
 import { isOwnerApp } from '../app/buildEdition'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { checkAnnouncementNow } from '../announcement/announcement'
-import { markMinimapNoticeSeen, minimapNoticeDue, parseFeatures, setRemoteFeatures, useRemoteFeatures } from '../announcement/features'
+import { markMinimapNoticeSeen, minimapNoticeDue, minimapOverlayAllowed, parseFeatures, setRemoteFeatures, useRemoteFeatures } from '../announcement/features'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
@@ -23,8 +23,19 @@ const ADMIN_NOTE = 'Лаунчер BSG запускает игру от имен
  */
 const SCREENSHOT_KEY_USE = 'Raid OS сам ничего не нажимает в игре: позицию даёт скриншот, который игра делает по этой клавише. Поставьте её в игре (Настройки → Управление → «Скриншот») на клавишу мини-карты — одно нажатие откроет мини-карту и обновит точку, а в папке останется только последний такой скриншот.'
 
+/** The same while the owner keeps the window over the game off: any screenshot of the game moves the dot in the app. */
+const SCREENSHOT_KEY_USE_TRACKING = 'Raid OS сам ничего не нажимает в игре: позицию даёт скриншот, который игра делает по этой клавише. Сделайте скриншот в рейде — точка на карте в приложении обновится.'
+
+/**
+ * The owner keeps the window over the game off, the tracking on (owner, 14.10.2026: «отключить именно мини карту по
+ * кнопке. то есть ее выключаешь и местоположение появляется только в приложении»): one quiet line, no dialog.
+ */
+export const OVERLAY_OFF_LINE = 'Окно мини-карты поверх игры временно выключено — позиция показывается на карте в приложении.'
+
 /** «Отключить мини-карту» (owner, 14.10.2026: «отключить карту полностью и эта функция не будет работать»). */
 const MINIMAP_ON_NOTE = 'Клавиша карты открывает мини-карту поверх игры. Позицию даёт скриншот, который делает сама игра по той же клавише, — она видна здесь и в телефоне.'
+/** The player's own switch while the window over the game is off: it turns the tracking on or off. */
+const TRACKING_ON_NOTE = 'Позицию даёт скриншот, который делает сама игра по клавише «Скриншот», — она видна на карте в приложении и в телефоне.'
 const MINIMAP_OFF_NOTE = 'Клавиша карты ничего не делает: приложение не открывает мини-карту и не следит за папкой скриншотов, поэтому вашей позиции нет ни на картах, ни в телефоне. Информация о предмете работает как раньше.'
 
 /**
@@ -40,9 +51,9 @@ const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: s
 ]
 
 /** The game's screenshot key and where it was read, in one short line. */
-function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined) {
+function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined, overlay: boolean) {
   if (!key) return uiText('Определяю клавишу скриншота…')
-  if (key.unbound) return uiText('В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот») на клавишу мини-карты.')
+  if (key.unbound) return uiText(overlay ? 'В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот») на клавишу мини-карты.' : 'В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот»).')
   const source: Record<ScreenshotKeyInfo['source'], string> = {
     'game-settings': 'По настройкам игры:',
     'game-log': 'По журналу игры:',
@@ -55,11 +66,14 @@ function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined)
  * «Мини Карта». While the owner keeps the minimap off for everybody (src/announcement/features.ts; owner, 14.10.2026:
  * «по кнопке выключить в реальном времени должны исчезать зачеркнутые блоки»), everything about the minimap over the game
  * and the position tracking is not drawn at all; the item card, the Collector scan and the administrator rights stay.
+ * With the tracking on and the window over the game off (the owner's second switch), only what belongs to the window
+ * goes: the borderless note, its opacity, key and size, «Показать / скрыть»; the position's own blocks stay.
  */
 export function ExperimentalPage() {
   const api = window.tarkovDesktop?.experimental
   const features = useRemoteFeatures()
   const minimap = features.minimap
+  const overlay = minimapOverlayAllowed(features)
   // Seen (stored in this installation): drawn again without the notice.
   const [, setNoticeSeen] = useState(0)
   const notice = Boolean(api) && minimapNoticeDue(features)
@@ -119,10 +133,11 @@ export function ExperimentalPage() {
         <>
           {actionError && <p className="notice error" role="alert">{actionError}</p>}
           {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
-          {isOwnerApp() && <OwnerMinimapSwitch on={minimap} />}
-          {minimap && settings && <MinimapPower off={settings.minimapOff} onChange={(minimapOff) => update({ minimapOff })} />}
-          {minimap && status && settings && !settings.minimapOff && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
-          {minimap && (
+          {isOwnerApp() && <OwnerMinimapSwitch on={minimap} overlay={features.minimapOverlay} />}
+          {minimap && !overlay && <p className="exp-overlay-off muted" role="note">{uiText(OVERLAY_OFF_LINE)}</p>}
+          {minimap && settings && <MinimapPower off={settings.minimapOff} overlay={overlay} onChange={(minimapOff) => update({ minimapOff })} />}
+          {minimap && status && settings && !settings.minimapOff && <PositionSetupCard status={status} overlay={overlay} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
+          {overlay && (
             <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
               <div className="panel-body">
                 <AlertTriangle size={18} />
@@ -159,15 +174,17 @@ export function ExperimentalPage() {
                   taken={[settings?.minimapKey, settings?.collectorKey]}
                   onChange={(itemKey) => update({ itemKey })}
                 />
-                {minimap && <>
-                <div className="setting-row">
-                  <span>
-                    <strong>{uiText('Прозрачность мини-карты')}</strong>
-                    <small>{`${Math.round((settings?.minimapOpacity ?? 0.9) * 100)}%`}</small>
-                  </span>
-                  <input type="range" min={30} max={100} step={5} value={Math.round((settings?.minimapOpacity ?? 0.9) * 100)} onChange={(event) => update({ minimapOpacity: Number(event.target.value) / 100 })} />
-                </div>
-                <div className="setting-row">
+                {overlay && (
+                  <div className="setting-row">
+                    <span>
+                      <strong>{uiText('Прозрачность мини-карты')}</strong>
+                      <small>{`${Math.round((settings?.minimapOpacity ?? 0.9) * 100)}%`}</small>
+                    </span>
+                    <input type="range" min={30} max={100} step={5} value={Math.round((settings?.minimapOpacity ?? 0.9) * 100)} onChange={(event) => update({ minimapOpacity: Number(event.target.value) / 100 })} />
+                  </div>
+                )}
+                {/* The marker is drawn on the app's maps too: it stays while the window over the game is off. */}
+                {minimap && <div className="setting-row">
                   <span>
                     <strong>{uiText('Обозначение игрока')}</strong>
                     <small>{uiText('Как показывать вашу позицию на картах')}</small>
@@ -180,7 +197,8 @@ export function ExperimentalPage() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>}
+                {overlay && <>
                 <HotkeyRow
                   label="Клавиша мини-карты"
                   hint="Показывает и скрывает мини-карту в рейде."
@@ -204,8 +222,8 @@ export function ExperimentalPage() {
                   <div className="setting-row exp-screenshot-key">
                     <span>
                       <strong>{uiText('Клавиша скриншота в игре')}</strong>
-                      <small className="exp-key-found">{screenshotKeyText(status?.screenshotKey)}</small>
-                      <small>{uiText(SCREENSHOT_KEY_USE)}</small>
+                      <small className="exp-key-found">{screenshotKeyText(status?.screenshotKey, overlay)}</small>
+                      <small>{uiText(overlay ? SCREENSHOT_KEY_USE : SCREENSHOT_KEY_USE_TRACKING)}</small>
                     </span>
                   </div>
                 )}
@@ -229,9 +247,11 @@ export function ExperimentalPage() {
                     <button className="button ghost small" onClick={() => update({ screenshotsDir: '' })}>{uiText('Определить автоматически')}</button>
                   </span>
                 </div>
-                <div className="exp-actions exp-minimap-action">
-                  <button className="button ghost" disabled={Boolean(settings?.minimapOff)} onClick={() => void perform(() => api.toggleMinimap())}>{uiText('Показать / скрыть мини-карту')}</button>
-                </div>
+                {overlay && (
+                  <div className="exp-actions exp-minimap-action">
+                    <button className="button ghost" disabled={Boolean(settings?.minimapOff)} onClick={() => void perform(() => api.toggleMinimap())}>{uiText('Показать / скрыть мини-карту')}</button>
+                  </div>
+                )}
               </div>
             </section>}
           </div>
@@ -268,20 +288,21 @@ function MinimapOffNotice({ onClose }: { onClose: () => void }) {
 const FEATURES_PATH = '/v1/accounts/me/admin/features'
 
 /**
- * The owner app only (owner, 14.10.2026: «у меня кнопка которая моментально убирает эти меню функций из приложения»):
- * the minimap over the game and the tracking, on or off for every app (server/src/routes/announcement.ts). This page
- * follows at once; the players' apps at their next check.
+ * The owner app only (owner, 14.10.2026: «у меня кнопка которая моментально убирает эти меню функций из приложения»; «сделай
+ * две кнопки: выключить полностью как я сказал, а при включении функции добавь отдельную кнопку, отключить именно мини
+ * карту по кнопке»): the minimap and the tracking on or off for every app, and while they are on, the window over the
+ * game alone (server/src/routes/announcement.ts). This page follows at once; the players' apps at their next check.
  */
-function OwnerMinimapSwitch({ on }: { on: boolean }) {
+function OwnerMinimapSwitch({ on, overlay }: { on: boolean; overlay: boolean }) {
   const request = window.tarkovDesktop?.serviceRequest
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const flip = async () => {
+  const send = async (body: { minimap?: boolean; minimapOverlay?: boolean }) => {
     if (!request || busy) return
     setBusy(true)
     setError('')
     try {
-      const saved = parseFeatures(await request('PUT', FEATURES_PATH, { minimap: !on }))
+      const saved = parseFeatures(await request('PUT', FEATURES_PATH, body))
       if (!saved) throw new Error('no answer')
       setRemoteFeatures(saved)
     } catch {
@@ -291,34 +312,41 @@ function OwnerMinimapSwitch({ on }: { on: boolean }) {
     }
   }
   return (
-    <section className={`panel exp-power exp-owner-switch${on ? '' : ' is-off'}`} aria-label={uiText('Функции мини-карты (окно поверх игры и отслеживание)')}>
+    <section className={`panel exp-power exp-owner-switch${on ? '' : ' is-off'}`} aria-label={uiText('Функции мини-карты')}>
       <div className="panel-body">
         <Power size={18} aria-hidden="true" />
         <div className="exp-power-body">
-          <strong>{uiText('Функции мини-карты (окно поверх игры и отслеживание)')}</strong>
-          <p>
-            <span className={`exp-owner-state${on ? ' is-on' : ''}`}>{uiText(on ? 'Сейчас включены у всех игроков' : 'Сейчас выключены у всех игроков')}</span>
-            {' · '}{uiText('Эту карточку видит только владелец.')}
-          </p>
+          <strong>{uiText('Функции мини-карты')} <small className="exp-owner-hint">· {uiText('Эту карточку видит только владелец.')}</small></strong>
+          <div className="exp-owner-row">
+            <span>{uiText('Мини-карта и отслеживание:')} <b className={`exp-owner-state${on ? ' is-on' : ''}`}>{uiText(on ? 'включены у всех' : 'выключены у всех')}</b></span>
+            <button type="button" className={`button small ${on ? 'ghost' : 'primary'}`} disabled={busy || !request} onClick={() => void send({ minimap: !on })}>
+              {uiText(on ? 'Выключить для всех' : 'Включить для всех')}
+            </button>
+          </div>
+          {on && (
+            <div className="exp-owner-row">
+              <span>{uiText('Окно мини-карты поверх игры:')} <b className={`exp-owner-state${overlay ? ' is-on' : ''}`}>{uiText(overlay ? 'включено у всех' : 'выключено у всех')}</b></span>
+              <button type="button" className={`button small ${overlay ? 'ghost' : 'primary'}`} disabled={busy || !request} onClick={() => void send({ minimapOverlay: !overlay })}>
+                {uiText(overlay ? 'Выключить окно для всех' : 'Включить окно для всех')}
+              </button>
+            </div>
+          )}
           {error && <small className="is-error" role="alert">{error}</small>}
         </div>
-        <button type="button" className={`button ${on ? 'ghost' : 'primary'}`} disabled={busy || !request} onClick={() => void flip()}>
-          {uiText(on ? 'Выключить для всех' : 'Включить для всех')}
-        </button>
       </div>
     </section>
   )
 }
 
 /** The minimap on or off as a whole, at the top of the page: one button, and what it means in words. */
-function MinimapPower({ off, onChange }: { off: boolean; onChange: (off: boolean) => void }) {
+function MinimapPower({ off, overlay, onChange }: { off: boolean; overlay: boolean; onChange: (off: boolean) => void }) {
   return (
     <section className={`panel exp-power${off ? ' is-off' : ''}`} aria-label={uiText('Мини-карта')}>
       <div className="panel-body">
         <Power size={18} aria-hidden="true" />
         <div className="exp-power-body">
           <strong>{uiText(off ? 'Мини-карта отключена' : 'Мини-карта включена')}</strong>
-          <p>{uiText(off ? MINIMAP_OFF_NOTE : MINIMAP_ON_NOTE)}</p>
+          <p>{uiText(off ? MINIMAP_OFF_NOTE : overlay ? MINIMAP_ON_NOTE : TRACKING_ON_NOTE)}</p>
         </div>
         <button type="button" className={`button ${off ? 'primary' : 'ghost'}`} aria-pressed={off} onClick={() => onChange(!off)}>
           {uiText(off ? 'Включить мини-карту' : 'Отключить мини-карту')}

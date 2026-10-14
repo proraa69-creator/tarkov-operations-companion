@@ -27,3 +27,11 @@
 .minimap-off-dialog .minimap-off-text { margin: 0 0 18px; font-size: 15.5px; line-height: 1.55; color: var(--text); }
 .minimap-off-dialog .minimap-off-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .minimap-off-dialog .minimap-off-actions .button { display: inline-flex; align-items: center; gap: 6px; }
+/* The owner's two switches (the minimap and tracking; the window over the game alone) and the players' line while the
+   window is off (14.10.2026). */
+.experimental-page .exp-owner-hint { font-weight: 400; color: var(--text-dim); font-size: 12px; }
+.experimental-page .exp-owner-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text-muted); }
+.experimental-page .exp-owner-row + .exp-owner-row { padding-top: 8px; border-top: 1px solid var(--line, var(--border)); }
+.experimental-page .exp-owner-row .button { flex: none; }
+.experimental-page .exp-overlay-off { margin: 0 0 12px; font-size: 13px; color: var(--text-dim); }
+@media (max-width: 760px) { .experimental-page .exp-owner-row { flex-wrap: wrap; } }

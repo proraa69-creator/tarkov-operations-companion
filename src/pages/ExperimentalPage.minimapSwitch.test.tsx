@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ExperimentalPage, MINIMAP_OFF_NOTICE } from './ExperimentalPage'
+import { ExperimentalPage, MINIMAP_OFF_NOTICE, OVERLAY_OFF_LINE } from './ExperimentalPage'
 import { PositionSetupNotice } from '../overlay/PositionSetupCard'
 import { reloadRemoteFeaturesForTests, setRemoteFeatures } from '../announcement/features'
 import { checkAnnouncementNow } from '../announcement/announcement'
@@ -21,12 +21,15 @@ const unbound = { ...status, screenshotKey: { keys: [], source: 'game-settings',
 const api = { getSettings: vi.fn(), getStatus: vi.fn(), updateSettings: vi.fn(), toggleMinimap: vi.fn(), pickScreenshotsFolder: vi.fn(), relaunchAsAdmin: vi.fn() }
 const serviceRequest = vi.fn()
 
-/** The crossed-out blocks of the owner's screenshot (and the player's own «Отключить мини-карту»). */
-const MINIMAP_BLOCKS = [
-  'Точка на мини-карте', 'Безрамочный', 'Прозрачность мини-карты', 'Обозначение игрока', 'Клавиша мини-карты', 'Размер мини-карты',
-  'Папка со скриншотами', 'Выбрать папку со скриншотами', 'Определить автоматически', 'Показать / скрыть мини-карту', 'Клавиша скриншота в игре',
-  'Отключить мини-карту',
+/** What belongs to the window over the game: gone with either of the owner's switches off. */
+const OVERLAY_BLOCKS = ['Безрамочный', 'Прозрачность мини-карты', 'Клавиша мини-карты', 'Размер мини-карты', 'Показать / скрыть мини-карту']
+/** The position's own blocks (the position card here: «Скриншот» not bound): gone only with the first switch off. */
+const TRACKING_BLOCKS = [
+  'В игре не назначена клавиша скриншота', 'Обозначение игрока', 'Папка со скриншотами', 'Выбрать папку со скриншотами', 'Определить автоматически',
+  'Клавиша скриншота в игре', 'Отключить мини-карту',
 ]
+/** The crossed-out blocks of the owner's screenshot (and the player's own «Отключить мини-карту»). */
+const MINIMAP_BLOCKS = [...OVERLAY_BLOCKS, ...TRACKING_BLOCKS]
 const KEPT = ['Клавиша информации о предмете', 'Клавиша сканирования предметов для коллекционера', 'Запускать от имени администратора']
 const shown = (text: string) => document.body.textContent?.includes(text) ?? false
 
@@ -38,7 +41,7 @@ beforeEach(() => {
   setRenderLanguage('ru')
   desktop()
   api.getSettings.mockResolvedValue(settings)
-  api.getStatus.mockResolvedValue(status)
+  api.getStatus.mockResolvedValue(unbound)
   api.updateSettings.mockImplementation(async (patch) => ({ ...settings, ...patch }))
 })
 afterEach(() => {
@@ -55,7 +58,7 @@ const page = async () => {
   await screen.findByText('Клавиша информации о предмете')
   await waitFor(() => expect(api.getStatus).toHaveBeenCalled())
 }
-const switchTo = (minimap: boolean, minimapChangedAt = '') => act(() => { setRemoteFeatures({ minimap, minimapChangedAt }) })
+const switchTo = (minimap: boolean, minimapChangedAt = '', minimapOverlay = true) => act(() => { setRemoteFeatures({ minimap, minimapChangedAt, minimapOverlay }) })
 const dismissNotice = () => fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
 
 describe('the Mini Map page follows the owner\'s switch', () => {
@@ -75,13 +78,45 @@ describe('the Mini Map page follows the owner\'s switch', () => {
     for (const text of KEPT) expect(shown(text), text).toBe(true)
 
     switchTo(true)
-    await screen.findByText('Точка на мини-карте готова')
+    await screen.findByText('В игре не назначена клавиша скриншота')
     for (const text of MINIMAP_BLOCKS) expect(shown(text), text).toBe(true)
+    expect(shown(OVERLAY_OFF_LINE)).toBe(false)
     expect(screen.getByRole('slider', { name: 'Размер мини-карты' })).toBeEnabled()
 
     switchTo(false, '2026-10-15T10:00:00.000Z')
     for (const text of MINIMAP_BLOCKS) expect(shown(text), text).toBe(false)
     for (const text of KEPT) expect(shown(text), text).toBe(true)
+  })
+
+  it('tracking on, the window over the game off: only the window\'s blocks go, one quiet line, no dialog; live both ways', async () => {
+    switchTo(true, '', false)
+    await page()
+    await screen.findByText('В игре не назначена клавиша скриншота')
+    for (const text of TRACKING_BLOCKS) expect(shown(text), text).toBe(true)
+    for (const text of OVERLAY_BLOCKS) expect(shown(text), text).toBe(false)
+    for (const text of KEPT) expect(shown(text), text).toBe(true)
+    expect(screen.getByRole('note')).toHaveTextContent(OVERLAY_OFF_LINE)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('slider')).toBeNull()
+    // The position card asks only for a «Скриншот» key, on no minimap key, and offers no minimap fix.
+    expect(screen.getByRole('region', { name: 'Точка на мини-карте' })).toHaveTextContent('точка на карте в приложении обновится')
+    expect(screen.queryByRole('button', { name: /Открывать мини-карту клавишей/ })).toBeNull()
+
+    switchTo(true, '', true)
+    for (const text of MINIMAP_BLOCKS) expect(shown(text), text).toBe(true)
+    expect(shown(OVERLAY_OFF_LINE)).toBe(false)
+    switchTo(true, '', false)
+    for (const text of OVERLAY_BLOCKS) expect(shown(text), text).toBe(false)
+  })
+
+  it('the window off, in English', async () => {
+    setRenderLanguage('en')
+    switchTo(true, '', false)
+    render(<ExperimentalPage />)
+    expect(await screen.findByRole('note')).toHaveTextContent('The minimap window over the game is temporarily turned off; your position is shown on the map in the app.')
+    expect(await screen.findByText('Screenshots folder')).toBeInTheDocument()
+    expect(shown('Mini map key')).toBe(false)
+    expect(shown('Mini map size')).toBe(false)
   })
 
   it('asks the server again as the page opens', async () => {
@@ -134,32 +169,49 @@ describe('the owner\'s button', () => {
   it('players never see it', async () => {
     switchTo(true)
     await page()
-    expect(shown('Функции мини-карты (окно поверх игры и отслеживание)')).toBe(false)
+    expect(screen.queryByRole('region', { name: 'Функции мини-карты' })).toBeNull()
+    expect(shown('Мини-карта и отслеживание')).toBe(false)
     expect(screen.queryByRole('button', { name: /для всех/ })).toBeNull()
   })
 
-  it('the owner edition: the state and one button; the page follows at once', async () => {
+  it('the owner edition: two rows, the window\'s only while the first is on; the page follows at once', async () => {
     desktop('owner')
     switchTo(false)
-    serviceRequest.mockImplementation(async (_method: string, _path: string, body: { minimap: boolean }) => ({
-      features: { minimap: body.minimap, minimapChangedAt: body.minimap ? null : '2026-10-15T12:00:00.000Z', updatedBy: 'owner@example.com', updatedAt: '2026-10-15T12:00:00.000Z' },
-    }))
+    let state = { minimap: false, minimapOverlay: true }
+    serviceRequest.mockImplementation(async (_method: string, _path: string, body: { minimap?: boolean; minimapOverlay?: boolean }) => {
+      state = { ...state, ...body }
+      return { features: { ...state, minimapChangedAt: '2026-10-15T12:00:00.000Z', updatedBy: 'owner@example.com', updatedAt: '2026-10-15T12:00:00.000Z' } }
+    })
     await page()
     dismissNotice()
-    const card = screen.getByRole('region', { name: 'Функции мини-карты (окно поверх игры и отслеживание)' })
-    expect(card).toHaveTextContent('Сейчас выключены у всех игроков')
+    const card = screen.getByRole('region', { name: 'Функции мини-карты' })
+    expect(card).toHaveTextContent('Мини-карта и отслеживание: выключены у всех')
+    expect(card).not.toHaveTextContent('Окно мини-карты поверх игры')
     expect(shown('Размер мини-карты')).toBe(false)
 
+    // State 3: everything on.
     fireEvent.click(screen.getByRole('button', { name: 'Включить для всех' }))
     await screen.findByRole('button', { name: 'Выключить для всех' })
     expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/accounts/me/admin/features', { minimap: true })
-    expect(card).toHaveTextContent('Сейчас включены у всех игроков')
+    expect(card).toHaveTextContent('Мини-карта и отслеживание: включены у всех')
+    expect(card).toHaveTextContent('Окно мини-карты поверх игры: включено у всех')
     expect(screen.getByRole('slider', { name: 'Размер мини-карты' })).toBeInTheDocument()
 
+    // State 2: the window off, the tracking on.
+    fireEvent.click(screen.getByRole('button', { name: 'Выключить окно для всех' }))
+    await screen.findByRole('button', { name: 'Включить окно для всех' })
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/accounts/me/admin/features', { minimapOverlay: false })
+    expect(card).toHaveTextContent('Окно мини-карты поверх игры: выключено у всех')
+    expect(shown('Размер мини-карты')).toBe(false)
+    expect(shown('Папка со скриншотами')).toBe(true)
+    expect(screen.getByRole('note')).toHaveTextContent(OVERLAY_OFF_LINE)
+
+    // State 1: everything off; the window's row goes with it.
     fireEvent.click(screen.getByRole('button', { name: 'Выключить для всех' }))
     await screen.findByRole('button', { name: 'Включить для всех' })
     expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/accounts/me/admin/features', { minimap: false })
-    expect(shown('Размер мини-карты')).toBe(false)
+    expect(card).not.toHaveTextContent('Окно мини-карты поверх игры')
+    expect(shown('Папка со скриншотами')).toBe(false)
   })
 
   it('a refused switch says so and changes nothing', async () => {
@@ -176,11 +228,13 @@ describe('the owner\'s button', () => {
   it('in English', async () => {
     setRenderLanguage('en')
     desktop('owner')
-    switchTo(true)
+    switchTo(true, '', false)
     render(<ExperimentalPage />)
-    expect(await screen.findByText('Mini map features (the window over the game and tracking)')).toBeInTheDocument()
-    expect(screen.getByText('Now on for all players')).toBeInTheDocument()
+    const card = await screen.findByRole('region', { name: 'Mini map features' })
+    expect(card).toHaveTextContent('Mini map and tracking: on for everyone')
+    expect(card).toHaveTextContent('Mini map window over the game: off for everyone')
     expect(screen.getByRole('button', { name: 'Turn off for everyone' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Turn the window on for everyone' })).toBeInTheDocument()
   })
 })
 
