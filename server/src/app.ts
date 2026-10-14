@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { fetchPlayerProfile } from '../../electron/playerProfileService'
 import { getCatalogSnapshot, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
+import { catalogEtag, catalogNotModified } from './services/catalogCache.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
@@ -95,6 +96,8 @@ export interface ApiOptions {
   catalog?: CatalogPeek
   /** The notice's English for foreign players (services/announcementLanguage.ts): MyMemory by default; tests pass a fake. */
   translateAnnouncement?: AnnouncementTranslator
+  /** The catalog GET /v1/catalog/:mode serves (services/catalogService.ts); tests pass their own. */
+  catalogSnapshot?: typeof getCatalogSnapshot
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -328,9 +331,16 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     res.set('Cache-Control', 'no-store')
     res.json({ country: countryCode(proxiedCountry(req)) ?? null })
   })
+  const catalogSnapshot = options.catalogSnapshot ?? getCatalogSnapshot
   app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {
     const lang = z.enum(['ru', 'en']).default('ru').parse(req.query.lang ?? undefined)
-    res.json(await getCatalogSnapshot(modeSchema.parse(req.params.mode), lang))
+    const body = JSON.stringify(await catalogSnapshot(modeSchema.parse(req.params.mode), lang))
+    // The catalog's content version: an app that sends it back (If-None-Match) while nothing changed gets an empty «304
+    // Not Modified». The access check above runs first either way.
+    const etag = catalogEtag(body)
+    res.set('ETag', etag)
+    if (catalogNotModified(req.get('if-none-match'), etag)) { res.status(304).end(); return }
+    res.type('application/json').send(body)
   })
   app.post('/v1/players/resolve', players, paid, async (req, res) => {
     // `accountId`: the account the desktop app read from this player's own game logs (optional).

@@ -1,7 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
-import { createApi } from '../app.js'
+import { createApi, type ApiOptions } from '../app.js'
+import type { AppDataset, RaidMode } from '../../../src/domain/types'
 import { AccountStore, newPasswordHash, WELCOME_TRIAL_MS, type SubscriptionSource } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { EntitlementService } from '../services/entitlement.js'
@@ -229,7 +230,7 @@ test('gateway cache: flea prices of PvP, PvE and Season never share an entry (ga
   assert.deepEqual(upstream.calls.slice(2).map((call) => call.url.replace(/^https:\/\/json\.tarkov\.dev\//, '')), ['regular/items', 'pve/items', 'pvp-season/items'])
 })
 
-async function withApi(run: (ctx: { call: (method: string, path: string, options?: { token?: string; device?: string; body?: unknown; ip?: string }) => Promise<Response>; accounts: AccountStore; paid: Map<string, number>; upstream: ReturnType<typeof fakeUpstream>; entitlements: EntitlementService; advance: (ms: number) => void }) => Promise<void>, limits?: { perIp?: number; perAccount?: number }) {
+async function withApi(run: (ctx: { call: (method: string, path: string, options?: { token?: string; device?: string; body?: unknown; ip?: string; headers?: Record<string, string> }) => Promise<Response>; accounts: AccountStore; paid: Map<string, number>; upstream: ReturnType<typeof fakeUpstream>; entitlements: EntitlementService; advance: (ms: number) => void }) => Promise<void>, limits?: { perIp?: number; perAccount?: number }, extra: Partial<ApiOptions> = {}) {
   const paid = new Map<string, number>()
   let clock = Date.now()
   const accounts = new AccountStore({ ownerEmails: ['owner@example.com'], now: () => clock })
@@ -238,7 +239,7 @@ async function withApi(run: (ctx: { call: (method: string, path: string, options
   const entitlements = new EntitlementService(accounts)
   const upstream = fakeUpstream()
   const store = new ProgressStore(':memory:')
-  const server = createApi(store, undefined, accounts, { entitlements, data: new DataGateway({ fetch: upstream.fetcher }), dataRateLimits: limits }).listen(0, '127.0.0.1')
+  const server = createApi(store, undefined, accounts, { entitlements, data: new DataGateway({ fetch: upstream.fetcher }), dataRateLimits: limits, ...extra }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   try {
@@ -247,7 +248,7 @@ async function withApi(run: (ctx: { call: (method: string, path: string, options
       advance: (ms) => { clock += ms },
       call: (method, path, options = {}) => fetch(`${base}${path}`, {
         method,
-        headers: { 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...(options.ip ? { 'x-forwarded-for': options.ip } : {}) },
+        headers: { 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...(options.ip ? { 'x-forwarded-for': options.ip } : {}), ...options.headers },
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
       }),
     })
@@ -256,6 +257,49 @@ async function withApi(run: (ctx: { call: (method: string, path: string, options
     store.close()
   }
 }
+
+test('catalog: ETag of the content; If-None-Match answers an empty 304 while it is the same, the access check first', async () => {
+  const served: Record<string, { quests: string[]; loadedAt: string }> = { pvp: { quests: ['q1'], loadedAt: '2026-10-14T09:00:00.000Z' }, pve: { quests: ['q1'], loadedAt: '2026-10-14T09:00:00.000Z' } }
+  const catalogSnapshot = async (mode: RaidMode) => ({
+    maps: [], markers: [], items: [], hideout: [], traders: [],
+    quests: served[mode]!.quests.map((id) => ({ id, name: id })),
+    metadata: { source: 'json.tarkov.dev', mode, loadedAt: served[mode]!.loadedAt, counts: {} },
+  }) as unknown as AppDataset
+  await withApi(async ({ call, accounts, paid, entitlements }) => {
+    const token = (await accounts.register('catalog@example.com', 'correct horse battery')).token
+    paid.set(accounts.authenticate(token)!, Date.now() + 30 * DAY)
+    assert.equal((await call('POST', '/v1/entitlement', { token, body: { deviceId: DEVICE } })).status, 200)
+    const first = await call('GET', '/v1/catalog/pvp', { token, device: DEVICE })
+    assert.equal(first.status, 200)
+    const etag = first.headers.get('etag') ?? ''
+    assert.match(etag, /^W\/"[a-f0-9]{40}"$/)
+    assert.equal(first.headers.get('cache-control'), 'no-store')
+    assert.deepEqual(((await first.json()) as AppDataset).quests.map((quest) => quest.id), ['q1'])
+
+    // Refreshed on the server a minute later with nothing new: 304, no body.
+    served.pvp!.loadedAt = '2026-10-14T09:01:00.000Z'
+    const same = await call('GET', '/v1/catalog/pvp', { token, device: DEVICE, headers: { 'if-none-match': etag } })
+    assert.equal(same.status, 304)
+    assert.equal(await same.text(), '')
+    assert.equal(same.headers.get('etag'), etag)
+    // PvE is another catalog: its own version, never answered from PvP's.
+    const pve = await call('GET', '/v1/catalog/pve', { token, device: DEVICE, headers: { 'if-none-match': etag } })
+    assert.equal(pve.status, 200)
+    assert.notEqual(pve.headers.get('etag'), etag)
+    // A new quest: the whole catalog again, with the new version.
+    served.pvp!.quests.push('q2')
+    const changed = await call('GET', '/v1/catalog/pvp', { token, device: DEVICE, headers: { 'if-none-match': etag } })
+    assert.equal(changed.status, 200)
+    assert.notEqual(changed.headers.get('etag'), etag)
+    assert.deepEqual(((await changed.json()) as AppDataset).quests.map((quest) => quest.id), ['q1', 'q2'])
+
+    // No subscription, or another device: refused as before, whatever version the request names.
+    entitlements.revoke(accounts.authenticate(token)!, DEVICE, 'owner')
+    const login = (await accounts.login('catalog@example.com', 'correct horse battery')).token
+    assert.equal((await call('GET', '/v1/catalog/pvp', { token: login, device: DEVICE, headers: { 'if-none-match': changed.headers.get('etag')! } })).status, 403)
+    assert.equal((await call('GET', '/v1/catalog/pvp', { headers: { 'if-none-match': changed.headers.get('etag')! } })).status, 401)
+  }, undefined, { catalogSnapshot })
+})
 
 test('HTTP gateway: 401 signed out, 402 without subscription, 403 without an active device, data with all three', async () => {
   await withApi(async ({ call, accounts, paid, upstream, entitlements, advance }) => {

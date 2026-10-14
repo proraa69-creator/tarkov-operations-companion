@@ -1,6 +1,38 @@
+import { createHash } from 'node:crypto'
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
 
 export type CatalogLocale = 'ru' | 'en'
+
+/** `"loadedAt":"…"` as JSON.stringify writes it (a quote inside a string value is always escaped, so never a match there). */
+const LOADED_AT = /"loadedAt":"[^"\\]*"/g
+
+/**
+ * Weak ETag of a catalog answer (GET /v1/catalog/:mode): the SHA-1 of its JSON without `metadata.loadedAt`, which moves
+ * on every refresh from tarkov.dev even when nothing else did. The players' app sends it back in If-None-Match
+ * (electron/serviceGateway.ts) and gets «304 Not Modified» while the catalog stays the same: no download, no parse, no
+ * rewrite of its encrypted cache. Apps that send nothing get the catalog as before.
+ */
+export function catalogEtag(body: string) {
+  const hash = createHash('sha1')
+  let from = 0
+  for (const match of body.matchAll(LOADED_AT)) {
+    hash.update(body.slice(from, match.index))
+    from = match.index + match[0].length
+  }
+  hash.update(body.slice(from))
+  return `W/"${hash.digest('hex')}"`
+}
+
+/**
+ * If-None-Match names this ETag (weak comparison, a list or `*`). Checked by the route itself: Express's own check
+ * (req.fresh) never answers 304 to a request with `Cache-Control: no-cache`, and fetch() adds exactly that to every
+ * request carrying If-None-Match — the desktop app's main process included.
+ */
+export function catalogNotModified(ifNoneMatch: string | undefined, etag: string) {
+  if (!ifNoneMatch) return false
+  const opaque = (tag: string) => tag.trim().replace(/^W\//, '')
+  return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag))
+}
 
 /** A served snapshot older than this is refreshed in the background (the players' apps poll every minute). */
 export const CATALOG_FRESH_MS = 60_000

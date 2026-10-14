@@ -49,11 +49,29 @@ function update() {
  * keep running so nothing is left half faded in while the window is watched on a second monitor.
  */
 function pauseEndlessAnimations() {
+  forgetGoneAnimations()
   for (const animation of document.getAnimations?.() ?? []) {
     if (animation.playState !== 'running' || animation.effect?.getTiming().iterations !== Infinity) continue
     animation.pause()
     paused.add(animation)
   }
+}
+
+/**
+ * A paused animation that was cancelled meanwhile (its element left the page, or lost the class — a spinner that
+ * stopped) has nothing to resume: it is let go at once instead of being kept, with its element, until the window is
+ * used again. Without this, every spinner that started while the player was in the game stayed in the set.
+ */
+function forgetGoneAnimations() {
+  for (const animation of paused) {
+    const target = (animation.effect as KeyframeEffect | null)?.target
+    if (animation.playState !== 'paused' || (target && !target.isConnected)) paused.delete(animation)
+  }
+}
+
+/** Tests: how many paused animations wait to be resumed. */
+export function pausedAnimationCount() {
+  return paused.size
 }
 
 function resumeAnimations() {
