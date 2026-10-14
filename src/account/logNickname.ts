@@ -14,7 +14,7 @@ import type { ModeSelectCard, TraderScreenReading } from '../import/modeSelectSc
 import { foldNickname, screenNickname } from '../import/modeSelectScreen'
 import type { LocalProfile, PlayerProfileSnapshot, RaidMode } from '../domain/types'
 import { canResolvePlayerProfiles, desktopPlayerProfileGateway } from '../profile/playerProfileGateway'
-import { readManualTraderLevels, setManualTraderLevel } from '../gunsmith/traderLevels'
+import { saveScreenTraderLevels } from '../gunsmith/traderLevels'
 import { currentServerStatus } from '../sync/serverSync'
 import { accountNickname, cleanNickname, NICKNAME_PATTERN, profileNickname, RAID_MODE_ORDER, renameBoundModes, saveNicknameOnServer } from './nicknameBinding'
 
@@ -267,11 +267,11 @@ let lastTrader: { at: number; key: string } | null = null
  * allows (src/domain/progress.ts) — the player's nickname marked «(вы)» and the traders' loyalty levels.
  */
 export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode | undefined, observedAt: number, state: () => LogNicknameTarget) {
-  // The traders' loyalty levels of the mode the game is in (the badges on the portraits): the game's own, so they win
-  // over the app's estimate (src/gunsmith/traderLevels.ts) — written only when they differ.
+  // The traders' loyalty levels of the mode the game is in (the badges on the portraits): the game's own, kept for this
+  // mode's character (the logs' profile id) with their time (audit P18) — proof of at least those levels, not a permanent
+  // override, and never handed to another character after a wipe (src/gunsmith/traderLevels.ts).
   if (mode && reading.loyalty) {
-    const stored = readManualTraderLevels(mode)
-    for (const [trader, level] of Object.entries(reading.loyalty)) if (stored[trader] !== level) setManualTraderLevel(mode, trader, level)
+    saveScreenTraderLevels(mode, state().activeProfile.modes[mode]?.logCharacterId, reading.loyalty, new Date(observedAt).toISOString())
   }
   const key = `${mode ?? ''}:${reading.level ?? ''}:${reading.nickname ?? ''}`
   if (lastTrader && lastTrader.key === key && observedAt - lastTrader.at < 10 * 60_000) return

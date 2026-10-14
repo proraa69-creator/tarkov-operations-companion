@@ -177,17 +177,21 @@ describe('the game\'s screens', () => {
     expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
   })
 
-  it('the traders\' loyalty badges set that mode\'s trader levels, other modes untouched', async () => {
+  it('the traders\' loyalty badges are kept for that mode\'s character with their time, other modes untouched (audit P18)', async () => {
     vi.resetModules()
     localStorage.clear()
     const { applyTraderScreen } = await import('./logNickname')
-    const { readManualTraderLevels } = await import('../gunsmith/traderLevels')
+    const { readManualTraderLevels, readScreenTraderLevels } = await import('../gunsmith/traderLevels')
     const state = target()
+    state.activeProfile = { ...state.activeProfile, modes: { ...state.activeProfile.modes, pve: { ...state.activeProfile.modes.pve, logCharacterId: 'a'.repeat(24) } } }
     applyTraderScreen({ loyalty: { prapor: 4, fence: 1, ragman: 3 } }, 'pve', Date.parse('2026-10-13T18:30:00Z'), () => state)
-    expect(readManualTraderLevels('pve')).toEqual({ prapor: 4, fence: 1, ragman: 3 })
-    expect(readManualTraderLevels('pvp')).toEqual({})
+    expect(readScreenTraderLevels('pve', 'a'.repeat(24))).toEqual({ at: '2026-10-13T18:30:00.000Z', levels: { prapor: 4, fence: 1, ragman: 3 } })
+    // Not a manual override, and no other character's.
+    expect(readManualTraderLevels('pve')).toEqual({})
+    expect(readScreenTraderLevels('pve', 'b'.repeat(24))).toBeUndefined()
+    expect(readScreenTraderLevels('pvp', undefined)).toBeUndefined()
     applyTraderScreen({ loyalty: { prapor: 4 } }, undefined, Date.parse('2026-10-13T18:31:00Z'), () => state)
-    expect(readManualTraderLevels('pvp')).toEqual({})
+    expect(readScreenTraderLevels('pvp', undefined)).toBeUndefined()
   })
 })
 
