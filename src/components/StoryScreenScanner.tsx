@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation } from '../import/storyScan'
+import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation, type StoryScanMatch } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import { tableMatches } from '../import/screenScanSync'
 import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
@@ -119,7 +119,8 @@ export function StoryScreenScanner() {
         }
         // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».
         if (frame?.gameWindow && frame.trader) applyTraderScreen(frame.trader, logsGameMode(logStatusRef.current), frame.observedAt ?? Date.now(), () => stateRef.current)
-        let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current, frame.story) : []
+        /** Story chapters on the frame: worked out for a story frame only (a Tasks frame shows the tab word too). */
+        let matches: StoryScanMatch[] | null = null
         // The screenshot fallback is for a capture that failed — a black copy of an exclusive full-screen game, no copy at
         // all — never for a screen that was read (audit P5d): it read the player's newest screenshot after every look at
         // the stash, the hideout or the Tasks table. The main process never reads a minimap position shot, nor during a
@@ -164,6 +165,7 @@ export function StoryScreenScanner() {
         } else quiet = 0
         // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
         if (frame?.gameWindow && !inRaid && storyScreen) {
+          matches ??= matchStoryChapters(frame.text, questsRef.current, frame.story)
           if (!held) delay = STORY_PANE_MS
           const screenshot = frame.sourceName === 'EFT screenshot'
           const checked = confirmStoryFrame(screenshot ? null : confirmation, lastContext, frame.observedAt ?? 0, matches)
