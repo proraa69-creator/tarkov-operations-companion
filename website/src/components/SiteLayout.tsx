@@ -92,6 +92,7 @@ export function SiteLayout() {
         <div className="container">
           <div>
             <div>© {new Date().getFullYear()} {PRODUCT_NAME} · {tr('версия {version}', { version: APP_VERSION })}</div>
+            <div>{tr('Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.')}</div>
             <div>{tr('Игровой контент и материалы являются товарными знаками и объектами авторского права компании Battlestate Games и её лицензиаров. Все права защищены.')}</div>
           </div>
           <nav aria-label={tr('Ссылки в подвале')}>

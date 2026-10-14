@@ -4,6 +4,8 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Основная навигация', 'Main navigation'], ['Подписка', 'Subscription'], ['Скачать приложение', 'Download the app'], ['Скачать', 'Download'],
   ['Личный кабинет', 'My account'], ['Кабинет', 'Account'], ['Закрыть меню', 'Close menu'], ['Открыть меню', 'Open menu'],
   ['Мобильная навигация', 'Mobile navigation'], ['версия {version}', 'version {version}'],
+  ['Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.',
+    'Unofficial fan project. Escape from Tarkov is a trademark of Battlestate Games; this project is not affiliated with it.'],
   ['Игровой контент и материалы являются товарными знаками и объектами авторского права компании Battlestate Games и её лицензиаров. Все права защищены.',
     'Game content and materials are trademarks and copyrighted works of Battlestate Games and its licensors. All rights reserved.'],
   ['Ссылки в подвале', 'Footer links'], ['Документы', 'Documents'], ['Публичная оферта', 'Public offer'],
