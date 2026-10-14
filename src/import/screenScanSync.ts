@@ -39,8 +39,17 @@ function isEnglishTasksMenu(text: string) {
   return strong + WEAK_EN.filter((pattern) => pattern.test(lower)).length >= 2
 }
 
+/**
+ * The Russian counterpart of TRADER_SCREEN_EN (audit P13): a trader's own «Задания» tab and the trading screen — the
+ * standing «Текущее отношение», the player's name marked «(вы)» («ву»: the Russian model's other reading), the loyalty
+ * groups «Уровень лояльности N», «Показать выполненные / заблокированные». They list quests not taken yet beside the
+ * taken ones, without a status on their rows: never the table of current quests.
+ */
+const TRADER_SCREEN_RU = /текущее\s+отношени|уровень\s+лояльност|показ[а-яё]*\s+(?:выполненн|заблокированн|завершенн|завершённ)|\(\s*(?:вы|ву)\s*\)|следующ[а-яё]*\s+ул\b/
+
 function isRussianTasksMenu(text: string) {
   const lower = text.toLowerCase()
+  if (TRADER_SCREEN_RU.test(lower)) return false
   const folded = `${lower}\n${ocrKey(text)}`
   // A Tasks screen always shows the quest table or the story detail pane.
   const strong = [
@@ -64,7 +73,7 @@ function isRussianTasksMenu(text: string) {
     /наград/,
     /принят/,
     /завершить/,
-    /лояльност/,
+    // Not «лояльност»: loyalty is the traders' screen's word (TRADER_SCREEN_RU), the Tasks table never shows it.
     /история/,
     /связанные\s*предмет/,
   ].filter((pattern) => pattern.test(folded)).length
@@ -74,6 +83,15 @@ function isRussianTasksMenu(text: string) {
 export function shouldApplyQuestScan(text: string, matchCount: number) {
   if (matchCount <= 0) return false
   return isTasksMenuText(text)
+}
+
+/**
+ * The rows of a table frame that may count as current. A row whose status cell was not read counts only on a frame with
+ * two or more status cells read — the Tasks table itself. A trader's own Tasks tab shows the status of the open quest
+ * only and lists quests not taken yet beside it (audit P13): there only the rows with a status read count.
+ */
+export function tableMatches<T extends { status?: QuestRowStatus }>(text: string, matches: T[]): T[] {
+  return tableRowCount(text) >= 2 ? matches : matches.filter((match) => match.status !== undefined)
 }
 
 /** The table's status cell, Russian and English (questOcr.ts rowStatus); not the trader tab's «ЗАВЕРШИТЬ» / «COMPLETE» button. */

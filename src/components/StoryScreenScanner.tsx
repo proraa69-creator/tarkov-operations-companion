@@ -3,6 +3,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
+import { tableMatches } from '../import/screenScanSync'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
@@ -134,7 +135,8 @@ export function StoryScreenScanner() {
         } else if (frame?.gameWindow && !inRaid && tasksTable && !tasksFromLogs) {
           confirmation = null
           delay = STORY_PANE_MS
-          const matches = matchQuestsFromOcr(frame.text, questsRef.current).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
+          // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
+          const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
           if (matches.length) applyQuestsRef.current(mode, matches, questsRef.current, [...previous])
           previous = new Set(currentIds)
