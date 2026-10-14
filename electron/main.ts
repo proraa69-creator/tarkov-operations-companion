@@ -15,6 +15,7 @@ import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQu
 import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
+import { clearRaidSignals } from './experimental/raidSignals.js'
 import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
@@ -569,7 +570,8 @@ function registerIpc() {
     const names = Array.isArray(raw.names) ? raw.names.filter((name): name is string => typeof name === 'string' && name.length <= 40).slice(0, 120) : undefined
     return scanCollectorScreen({ restart: raw.restart === true, names })
   })
-  ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail)))
+  // A watched Logs folder tells the raids; otherwise the minimap and the other signs do (electron/experimental/raidSignals.ts).
+  ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(watchedFolder) }))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   ipcMain.handle('quests:recognize-png', async (_event, raw: unknown) => {
     if (typeof raw !== 'string' || raw.length > 18_000_000) throw new Error('Скриншот слишком большой')
@@ -603,6 +605,8 @@ async function pollLogs(force = false) {
     const next = await readRaidState(watchedFolder).catch((): RaidState => ({ inRaid: false }))
     const changed = next.inRaid !== raidState.inRaid
     raidState = next
+    // The raid is over: the minimap and the other raid signs from it no longer hold the quest scanner back.
+    if (changed && !next.inRaid) clearRaidSignals()
     if (changed || force) mainWindow?.webContents.send('game:raid-state', next)
     if (!next.inRaid) await publishLogs(force)
   } finally {

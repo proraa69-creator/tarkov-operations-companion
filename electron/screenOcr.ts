@@ -2,12 +2,13 @@ import { desktopCapturer, nativeImage, screen, type NativeImage } from 'electron
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
 import { runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
-import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
+import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
+import { raidLikely } from './experimental/raidSignals.js'
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
-import { reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/import/storyScanTiming.js'
+import { isFreshGame, reuseQuestReading, reuseStableReading, unchangedFrame } from '../src/import/storyScanTiming.js'
 import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
@@ -31,22 +32,44 @@ let storyLayout: { width: number; height: number; rects: StoryPaneRects } | null
  * which renders a thumbnail of every open window (browser, Discord, …) on each call. Null when unavailable.
  */
 function grabGameDisplay() {
-  if (process.platform !== 'win32' || !isTarkovForeground()) return null
+  if (process.platform !== 'win32') return null
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const rect = screen.dipToScreenRect(null, display.bounds)
   const shot = captureScreenRegion(rect.x, rect.y, rect.width, rect.height)
-  if (!shot) return null
-  let blank = true
-  for (let index = 0; index < shot.data.length; index += 4 * 997) if (shot.data[index]! > 8 || shot.data[index + 1]! > 8 || shot.data[index + 2]! > 8) { blank = false; break }
-  if (blank) return null
+  if (!shot || isBlank(shot.data)) return null
   const image = nativeImage.createFromBitmap(Buffer.from(shot.data.buffer, shot.data.byteOffset, shot.data.byteLength), { width: shot.width, height: shot.height })
   return shot.width > 1920 ? image.resize({ width: 1920, quality: 'good' }) : image
 }
 
-export async function captureQuestFrame(watch = false, detail = false) {
+/**
+ * After a black GDI copy (an exclusive full-screen game hides from GDI; a loading screen fades through black) the frame is
+ * taken through desktopCapturer instead, which renders a thumbnail of every open window: tried again only this long after
+ * a try that brought no picture either.
+ */
+const BLACK_FALLBACK_RETRY_MS = 30_000
+let blackFallback = { triedAt: 0, useful: false }
+
+/** An all-black picture (sampled): what GDI copies of an exclusive full-screen game. */
+function isBlank(data: Uint8Array) {
+  for (let index = 0; index < data.length; index += 4 * 997) if (data[index]! > 8 || data[index + 1]! > 8 || data[index + 2]! > 8) return false
+  return true
+}
+
+/**
+ * `context.logsWatched`: the game's Logs folder is watched, so the logs tell the raids (electron/experimental/raidSignals.ts).
+ * A watching call answers `raid` (a raid is likely: nothing was copied) and `freshGame` (the game window came moments ago,
+ * src/import/storyScanTiming.ts) besides what was read.
+ */
+export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean } = {}) {
+  let freshGame: boolean | undefined
   if (watch && process.platform === 'win32') {
-    // Nothing to read unless the game is in front; then one cheap copy of its screen.
-    if (!isTarkovForeground()) return { text: '', sourceName: '', gameWindow: false }
+    // Nothing to read unless the game is in front (its process, not a window about it); then one cheap copy of its screen.
+    const game = foregroundGame()
+    if (!game) return { text: '', sourceName: '', gameWindow: false }
+    const now = Date.now()
+    freshGame = isFreshGame(game.since, now)
+    // A raid the logs do not report (no Logs folder, an offline raid): no copy of the game's screen at all.
+    if (raidLikely(now, context)) return { text: '', sourceName: '', gameWindow: true, raid: true, freshGame }
     const image = grabGameDisplay()
     if (image) {
       const fingerprint = frameFingerprint(image)
@@ -54,11 +77,15 @@ export async function captureQuestFrame(watch = false, detail = false) {
       const capturedAt = Date.now()
       const unchanged = unchangedFrame(lastWatch?.fine, fine)
       if (lastWatch && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
-        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
       }
       const result = await readQuestFrame(image, detail, 'EscapeFromTarkov')
       lastWatch = { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 }
-      return { ...result, gameWindow: true, observedAt: lastWatch.at }
+      return { ...result, gameWindow: true, observedAt: lastWatch.at, freshGame }
+    }
+    if (gameCaptureAvailable()) {
+      if (!blackFallback.useful && now - blackFallback.triedAt < BLACK_FALLBACK_RETRY_MS) return { text: '', sourceName: '', gameWindow: true, freshGame }
+      blackFallback = { triedAt: now, useful: false }
     }
   }
   if (watch) {
@@ -79,15 +106,18 @@ export async function captureQuestFrame(watch = false, detail = false) {
     const unchanged = Boolean(fine && unchangedFrame(lastWatch?.fine, fine))
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
     if (fingerprint && lastWatch && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, sameFrame(fingerprint, lastWatch.fingerprint)))) {
-      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
+      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
     const game = sources.find((source) => isTarkovWindow(source.name))
-    if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game) }
+    if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game), freshGame }
+    // Black here too: nothing to read, and no reason to come back soon.
+    if (isBlank(game.thumbnail.toBitmap())) return { text: '', sourceName: game.name, gameWindow: true, freshGame }
+    blackFallback.useful = true
     const capturedAt = Date.now()
     const result = await readQuestFrame(game.thumbnail, detail, game.name)
     lastWatch = fingerprint && fine ? { fingerprint, fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 } : null
-    return { ...result, gameWindow: true, observedAt: capturedAt }
+    return { ...result, gameWindow: true, observedAt: capturedAt, freshGame }
   }
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],

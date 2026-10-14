@@ -219,7 +219,11 @@ interface TarkovDesktopApi {
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
   /** `profiles`: the game's «Выбор профиля и режима» cards two readings agree on (src/import/modeSelectScreen.ts). */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }>
+  /**
+   * One look at the game for the quest scanner (electron/screenOcr.ts). `raid`: a raid is likely (electron/experimental/raidSignals.ts),
+   * nothing was copied. `freshGame`: the game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
+   */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; freshGame?: boolean }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */

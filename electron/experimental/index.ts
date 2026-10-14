@@ -21,6 +21,7 @@ import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
   captureScreenRegion, disablePrintScreenSnipping, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping, wasVirtualKeyPressed,
@@ -154,6 +155,8 @@ function sendOverlay(window: BrowserWindow | null, channel: string, payload: unk
 }
 const tracker = new PositionTracker((position) => {
   lastPosition = position
+  // The game writes coordinates only in a raid: the quest scanner holds its screen copies back for a while (raidSignals.ts).
+  noteRaidSignal('screenshot', position.at)
   options.mainWindow()?.webContents.send('experimental:position', position)
   // Raid detection from the logs can lag or miss offline/training raids, so the position is not
   // gated on it: a fresh screenshot from the game is proof enough of where the player stands.
@@ -179,6 +182,9 @@ export function startExperimental(next: Options) {
 }
 
 let gameWasForeground = false
+/** W A S D: the player walks — a raid or the hideout, no screen the quest scanner reads. */
+const MOVE_KEYS = [0x57, 0x41, 0x53, 0x44]
+let movingBefore = false
 /**
  * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
  * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, clicks and
@@ -191,11 +197,15 @@ function watchGame() {
     gameWasForeground = front
     resyncMinimapClicks()
   }
-  if (!front) return
+  if (!front) { movingBefore = false; return }
   lastGameSeenAt = Date.now()
   gameFrontMs += WATCH_MS
   // Held movement keys or mouse buttons prove that Windows lets this app see the game's keys.
   if (!gameKeysSeenAt && PROBE_KEYS.some(isVirtualKeyDown)) gameKeysSeenAt = Date.now()
+  // A movement key held at two looks in a row (typing does not hold a key that long): a raid sign (raidSignals.ts).
+  const moving = MOVE_KEYS.some(isVirtualKeyDown)
+  if (moving && movingBefore) noteRaidSignal('movement')
+  movingBefore = moving
   displayMode = foregroundDisplayMode()
   for (const window of [itemWindow, minimapWindow]) {
     if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
@@ -666,6 +676,7 @@ function ensureMinimapWindow() {
     const shown = () => {
       resyncMinimapClicks()
       inputWatch.reset()
+      setMinimapShown(true)
       setTimeout(() => reattachInput(window), 0)
     }
     window.on('show', shown)
@@ -674,8 +685,10 @@ function ensureMinimapWindow() {
       if (dragTimer) clearInterval(dragTimer)
       dragTimer = null
       noteHold(minimapClicks, false, Date.now())
+      setMinimapShown(false)
       sendOverlay(window, 'overlay:visibility', false)
     })
+    window.on('closed', () => setMinimapShown(false))
     minimapWindow = window
   }
   return minimapWindow
@@ -1001,6 +1014,8 @@ async function peekMinimap() {
 }
 
 async function openMinimap(window: BrowserWindow, fromApp: boolean) {
+  // Opened over the game (its key, or a screenshot the player took): a raid sign for the quest scanner (raidSignals.ts).
+  if (!fromApp) noteRaidSignal('minimap')
   await whenLoaded(window)
   reassertOverlay(window)
   const raid = options.raidState()
