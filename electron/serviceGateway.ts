@@ -27,7 +27,8 @@ const MODE = '(?:pvp|pve|seasonal)'
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/health$/ },
-  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?lang=(?:ru|en))?$`) },
+  // `v`: the version of the catalog the page already shows (its contentVersion): sent as If-None-Match, see below.
+  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?(?:lang=(?:ru|en)(?:&v=[a-f0-9]{40})?|v=[a-f0-9]{40}))?$`) },
   // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
@@ -303,24 +304,53 @@ async function clearSession() {
 // HTTP
 // --------------------------------------------------------------------------------------------------------------
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string> } = {}) {
   await loadServerUrl()
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl()}${path}`, {
       method,
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}) },
+      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
   } catch {
     throw new ServiceUnavailableError()
   }
-  if (response.status !== 204 && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+  // 204 No Content and 304 Not Modified carry no body (and no content type).
+  const empty = response.status === 204 || response.status === 304
+  if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     throw new ServiceUnavailableError()
   }
-  const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
+  const result = empty ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
+}
+
+/**
+ * The catalog (GET /v1/catalog/:mode) is asked again only for what changed. The server's ETag (server/src/app.ts: a
+ * hash of the content) goes to the page as the catalog's `metadata.contentVersion`; the page sends it back as `v=`
+ * and the request carries it as If-None-Match. While the catalog is the same the server answers an empty 304 and the
+ * page gets `{ notModified: true }`: no download, no parse here, no copy of the whole catalog to the page, no rewrite
+ * of its encrypted cache (src/data/tarkovJsonClient.ts). A server that sends no such ETag gets plain requests.
+ */
+const CATALOG_PATH = /^\/v1\/catalog\//
+const CATALOG_VERSION = /^W\/"([a-f0-9]{40})"$/
+
+export function catalogRequest(path: string): { path: string; headers?: Record<string, string> } {
+  if (!CATALOG_PATH.test(path)) return { path }
+  const [route, query = ''] = path.split('?')
+  const params = new URLSearchParams(query)
+  const version = params.get('v')
+  params.delete('v')
+  const rest = params.toString()
+  return { path: rest ? `${route}?${rest}` : route!, ...(version ? { headers: { 'if-none-match': `W/"${version}"` } } : {}) }
+}
+
+function withCatalogVersion(result: unknown, etag: string | null) {
+  const version = etag ? CATALOG_VERSION.exec(etag)?.[1] : undefined
+  const metadata = result && typeof result === 'object' ? (result as { metadata?: unknown }).metadata : undefined
+  if (version && metadata && typeof metadata === 'object') (metadata as { contentVersion?: string }).contentVersion = version
+  return result
 }
 
 /** Whitelisted request from the renderer. `/v1/me/*` returns null when no account is signed in. */
@@ -333,7 +363,8 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
-  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  const catalog = catalogRequest(path)
+  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
@@ -342,8 +373,9 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The game account of this PC was reported (src/account/EftAccountBinding.tsx): the server may now refuse or allow this
   // device (one game account — one Raid OS account), so the next status asks for the entitlement at once.
   if (path === EFT_ACCOUNT_PATH && method === 'POST') entitlementDue = true
+  if (response.status === 304 && catalog.headers) return { notModified: true }
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
-  return result
+  return CATALOG_PATH.test(path) ? withCatalogVersion(result, response.headers.get('etag')) : result
 }
 
 const EFT_ACCOUNT_PATH = '/v1/accounts/me/eft-account'
