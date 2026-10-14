@@ -11,6 +11,10 @@
  *
  * At most SUPPORT_CHAT_LIMITS.keep messages per account: the oldest ones go when a new one is written. Deleting an
  * account (AccountStore.deleteAccount) deletes its messages.
+ *
+ * The owner may also write first (owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно будет писать», from
+ * a report in «Заявки»), and «Проблема решена» deletes the whole conversation for both sides («добавь кнопку у админ
+ * версии, проблема решена. и данный чат удаляется»): `deleteThread`.
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
@@ -118,9 +122,18 @@ export class SupportChatStore {
     return rows.map(view)
   }
 
-  /** Whether the account has a conversation at all (the owner answers only a player who wrote). */
-  hasThread(accountId: string) {
-    return this.db.prepare('SELECT 1 FROM support_messages WHERE account_id = ? LIMIT 1').get(accountId) !== undefined
+  /**
+   * The id of the conversation's oldest message kept here; null when there is none (never written, or deleted with
+   * «Проблема решена»). An app that only reads what is new drops what it still shows from before it.
+   */
+  oldestId(accountId: string): number | null {
+    const row = this.db.prepare('SELECT MIN(id) AS n FROM support_messages WHERE account_id = ?').get(accountId) as { n?: unknown } | undefined
+    return row?.n == null ? null : Number(row.n)
+  }
+
+  /** «Проблема решена»: the whole conversation goes, for both sides; returns how many messages it deleted. */
+  deleteThread(accountId: string) {
+    return Number(this.db.prepare('DELETE FROM support_messages WHERE account_id = ?').run(accountId).changes)
   }
 
   /** The owner's answers the player has not seen (the badge on «Связаться»). */

@@ -863,6 +863,11 @@ export class AccountStore {
     return this.findByEmail(email) !== undefined
   }
 
+  /** Whether this id is a live account: a deleted one stays only as an anonymous stub (deleteAccount). */
+  exists(accountId: string) {
+    return this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND deleted_at IS NULL').get(accountId) !== undefined
+  }
+
   /** Remembers that the account accepted the documents of `version` (registration or a payment). */
   recordConsent(accountId: string, kind: ConsentKind, version: string) {
     if (!CONSENT_VERSION.test(version)) throw new AccountError(400, 'Некорректная версия документов')
