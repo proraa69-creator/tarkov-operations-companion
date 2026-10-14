@@ -20,6 +20,20 @@ export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string
   refunded: { label: 'Возвращён', tone: 'danger' },
 }
 
+/**
+ * «Пригласи друга» (owner, 14.10.2026: «нужно что бы было видно от кого пришел человек по скидке»): the inviter's e-mail,
+ * or «друг (аккаунт удалён)» when that account was deleted since.
+ */
+export function inviterText(inviter: { email?: string; deleted?: true }) {
+  return inviter.email && !inviter.deleted ? inviter.email : 'друг (аккаунт удалён)'
+}
+/** The friend's first-month discount of a friend-invited account (services/invites.ts on the server). */
+export const FRIEND_DISCOUNT: Record<'used' | 'unused' | 'lost', { label: string; tone: string; hint: string }> = {
+  used: { label: 'скидка использована', tone: 'green', hint: 'Первая оплата прошла со скидкой друга' },
+  unused: { label: 'скидка ещё не использована', tone: '', hint: 'Оплат ещё не было: скидка на первый месяц доступна' },
+  lost: { label: 'оплатил без скидки', tone: '', hint: 'Первая оплата прошла без скидки (например, тариф дольше месяца): скидка больше не предлагается' },
+}
+
 export type Failure = { message: string; offline: boolean }
 export const failure = (reason: unknown): Failure => ({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
 
