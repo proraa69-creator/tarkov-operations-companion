@@ -17,6 +17,7 @@ import { serviceClient } from '../account/nicknameBinding'
 import { openAccountSignIn } from '../account/accountEvents'
 import { SupportChatDialog } from '../support/SupportChat'
 import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
+import { OwnerOnlineLine } from './OwnerOnlineLine'
 import '../styles/support.css'
 
 interface Shot { id: number; name: string; type: string; size: number; dataUrl: string }
@@ -337,6 +338,8 @@ export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
     <button type="button" className={className} onClick={() => setOpen('bug')}><Bug size={icon} /><span>{uiText('Сообщить об ошибке')}</span></button>
     {variant === 'nav' && <button type="button" className={className} onClick={() => setOpen('chat')}><MessagesSquare /><span>{uiText('Чат с поддержкой')}</span>{badge}</button>}
     <button type="button" className={className} onClick={() => setOpen('idea')}><Lightbulb size={icon} /><span>{uiText('Ваши предложения')}</span></button>
+    {/* «Онлайн сейчас: N» under «Ваши предложения», in the owner app only (owner, 14.10.2026). */}
+    {variant === 'nav' && <OwnerOnlineLine />}
     {open === 'chat' && <SupportChatDialog onClose={close} />}
     {(open === 'bug' || open === 'idea') && <ReportDialog key={open} kind={open} onClose={close} />}
   </>
