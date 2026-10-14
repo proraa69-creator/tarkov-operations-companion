@@ -24,3 +24,9 @@
 .owner-announcement-actions small { margin-left: auto; }
 .owner-announcement-state { color: var(--text-dim); }
 .owner-announcement-state.is-on { color: var(--green); }
+/* The English version under the owner's Russian (OwnerAnnouncementPanel.tsx; owner, 14.10.2026). */
+.owner-announcement-hint { color: var(--text-dim); line-height: 1.4; }
+.owner-announcement-english { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.owner-announcement-english-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; }
+.owner-announcement-english-head .button { margin-left: auto; }
+.owner-announcement-english-text { margin: 0; color: var(--text); font-size: 13px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }
