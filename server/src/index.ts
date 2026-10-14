@@ -17,7 +17,7 @@ import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
 import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import { PriceHistoryMirror } from './services/priceHistoryMirror.js'
-import { TarkovDataMirror } from './services/tarkovDataMirror.js'
+import { TarkovDataMirror, type MirrorMode } from './services/tarkovDataMirror.js'
 import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
@@ -25,6 +25,7 @@ import { installProcessGuards } from './services/serverHealth.js'
 import { configureCatalogMirror, configureGuideImages, configureQuestBase } from './services/catalogService.js'
 import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
+import type { RaidMode } from '../../src/domain/types'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -83,15 +84,20 @@ const guideImages = mirrorEnabled ? new GuideImageMirror({
 }) : undefined
 configureGuideImages(guideImages)
 // «Одна общая база квестов» (owner, 14.10.2026): every mode's catalog in Russian and English, built every
-// RAIDOS_QUEST_BASE_MINUTES (30), kept next to the database and read back at once after a restart
-// (services/questBase.ts). The players' apps get it from there; nothing is built per request.
+// RAIDOS_QUEST_BASE_MINUTES (30) and after each new tarkov.dev download, kept next to the database and read back at once
+// after a restart (services/questBase.ts). The players' apps get it from there; nothing is built per request.
 const questBase = configureQuestBase({
   dir: dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-base'),
   periodMs: questBasePeriodMs(process.env.RAIDOS_QUEST_BASE_MINUTES),
   app: { version: process.env.TARKOV_APP_VERSION, build: Number(process.env.TARKOV_APP_BUILD) || undefined, commit: process.env.TARKOV_APP_COMMIT },
   log: (message) => console.log(message),
 })
-const dataMirror = mirrorStorage ? new TarkovDataMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+const QUEST_BASE_MODE: Record<MirrorMode, RaidMode> = { regular: 'pvp', pve: 'pve', 'pvp-season': 'seasonal' }
+const dataMirror = mirrorStorage ? new TarkovDataMirror({
+  storage: mirrorStorage,
+  log: (message) => console.log(message),
+  onPublished: (modes) => questBase.mirrorUpdated(modes.map((mode) => QUEST_BASE_MODE[mode])),
+}) : undefined
 const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
   // Keep the existing layout: maps.json at the mirror root, tiles below root/maps/*.
