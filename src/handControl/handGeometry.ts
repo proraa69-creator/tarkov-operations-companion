@@ -45,6 +45,33 @@ export function fingerFlex(world: Point3[], finger: FingerName) {
   return angleBetween(sub(mcp, world[LM.WRIST]), sub(tip, mcp))
 }
 
+const dist = (a: Point3, b: Point3) => len(sub(a, b))
+
+/** Centre of the palm (wrist + four knuckles): stays put while the fingers tap, flick or pinch. */
+export const PALM_POINTS = [LM.WRIST, LM.INDEX_MCP, LM.MIDDLE_MCP, LM.RING_MCP, LM.PINKY_MCP] as const
+
+export function palmCenter(points: Array<{ x: number; y: number }>) {
+  let x = 0
+  let y = 0
+  for (const index of PALM_POINTS) { x += points[index].x; y += points[index].y }
+  return { x: x / PALM_POINTS.length, y: y / PALM_POINTS.length }
+}
+
+/** Palm length (wrist → middle knuckle) in metres; the unit for hand-relative distances. */
+export function palmLength(world: Point3[]) {
+  return dist(world[LM.WRIST], world[LM.MIDDLE_MCP]) || 0.09
+}
+
+/** Thumb tip ↔ index tip distance in palm lengths: < 0.3 pinched, > 0.75 spread. */
+export function pinchDistance(world: Point3[]) {
+  return dist(world[LM.THUMB_TIP], world[LM.INDEX_TIP]) / palmLength(world)
+}
+
+/** Thumb tip ↔ index knuckle in palm lengths: ~0.4 tucked against the hand, > 0.65 sticking out. */
+export function thumbOut(world: Point3[]) {
+  return dist(world[LM.THUMB_TIP], world[LM.INDEX_MCP]) / palmLength(world)
+}
+
 const PALM_SEGMENTS: Array<[number, number]> = [
   [LM.WRIST, LM.INDEX_MCP], [LM.WRIST, LM.PINKY_MCP], [LM.WRIST, LM.MIDDLE_MCP],
   [LM.INDEX_MCP, LM.MIDDLE_MCP], [LM.MIDDLE_MCP, LM.RING_MCP], [LM.RING_MCP, LM.PINKY_MCP], [LM.INDEX_MCP, LM.PINKY_MCP],

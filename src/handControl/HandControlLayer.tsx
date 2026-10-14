@@ -3,13 +3,22 @@ import { Hand, Square } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { handControl } from './handControlStore'
 import { useHandControl } from './edition'
+import { palmCenter } from './handGeometry'
 import { HAND_BONES, LM, type HandFrame } from './types'
 import './handControl.css'
 
 const FADE_MS = 320
-const GHOST_PALM_PX = 58
+const GHOST_PALM_PX = 64
+const SPAN_SMOOTH_MS = 1500
 const BRASS = [223, 189, 112] as const
 const TRACKING_LABEL = { none: 'руки нет', weak: 'слабый трекинг', good: 'трекинг хороший' } as const
+const CALIBRATION_HINTS = {
+  hold: (step: string) => step === 'top-left'
+    ? 'Поставьте руку туда — где вам удобно держать её для левого верхнего угла экрана — и задержите ладонь.'
+    : 'Поставьте руку в удобную точку для правого нижнего угла и задержите ладонь.',
+  move: () => 'Отлично. Теперь переведите руку вниз и вправо — в удобную точку для правого нижнего угла.',
+  lost: () => 'Камера не видит руку. Поднесите ладонь в кадр.',
+} as const
 
 /**
  * Ghost hand / finger cursor drawn over Raid OS. The canvas never takes pointer events;
@@ -28,6 +37,8 @@ export function HandControlLayer() {
     let shown: HandFrame | null = null
     let lostAt = 0
     let raf = 0
+    let span0 = 0
+    let spanAt = 0
 
     const draw = () => {
       raf = 0
@@ -46,9 +57,16 @@ export function HandControlLayer() {
       else if (shown && !lostAt) lostAt = performance.now()
       if (!shown?.pointer) return
       const fade = lostAt ? 1 - (performance.now() - lostAt) / FADE_MS : 1
-      if (fade <= 0) { shown = null; return }
+      if (fade <= 0) { shown = null; span0 = 0; return }
       const alpha = fade * (shown.tracking === 'good' || lostAt ? 1 : 0.55)
-      if (cursorStyle === 'ghost' && shown.skeleton) drawGhost(context, shown, width, height, alpha)
+      if (cursorStyle === 'ghost' && shown.skeleton && shown.hand) {
+        // Size follows the hand slowly (~1.5 s), so a turn of the wrist cannot stretch or pump it.
+        const now = performance.now()
+        const span = handSpan(shown, width, height)
+        span0 = span0 ? span0 + (span - span0) * (1 - Math.exp(-(now - spanAt) / SPAN_SMOOTH_MS)) : span
+        spanAt = now
+        drawGhost(context, shown, width, height, alpha, span0)
+      }
       drawCursor(context, shown, width, height, alpha, Boolean(lostAt))
       if (lostAt) raf = requestAnimationFrame(draw)
     }
@@ -81,7 +99,7 @@ export function HandControlLayer() {
           <div className="hand-calibration-target" />
           <div className="hand-calibration-card">
             <strong>{uiText(step === 'top-left' ? 'Калибровка 1/2: левый верхний угол' : 'Калибровка 2/2: правый нижний угол')}</strong>
-            <span>{uiText('Наведите указательный палец в удобную точку для этого угла и держите руку неподвижно.')}</span>
+            <span>{uiText(CALIBRATION_HINTS[snapshot.calibration.hint](step))}</span>
             <div className="hand-calibration-bar"><i style={{ width: `${Math.round(snapshot.calibration.progress * 100)}%` }} /></div>
             <button className="button ghost" onClick={() => handControl.cancelCalibration()}>{uiText('Отмена')}</button>
           </div>
@@ -100,24 +118,33 @@ export function HandControlLayer() {
   )
 }
 
-function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: number, height: number, alpha: number) {
+/**
+ * Rotation-robust hand size in pixels: the longest palm span. Turning the hand edge-on or
+ * showing its back shortens some spans but rarely all of them.
+ */
+function handSpan(frame: HandFrame, width: number, height: number) {
   const points = frame.skeleton!
-  // The hand keeps its real shape but is drawn at a comfortable size anchored on the cursor,
-  // growing slightly as it comes closer to the screen (depth), like a VR hand.
+  const d = (a: number, b: number) => Math.hypot((points[a].x - points[b].x) * width, (points[a].y - points[b].y) * height)
+  return Math.max(d(LM.WRIST, LM.MIDDLE_MCP), d(LM.WRIST, LM.INDEX_MCP), d(LM.WRIST, LM.PINKY_MCP), d(LM.INDEX_MCP, LM.PINKY_MCP) * 1.3)
+}
+
+function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: number, height: number, alpha: number, span: number) {
+  const points = frame.skeleton!
+  // The hand keeps its real shape (fingers move, foreshortening shows) at a steady comfortable
+  // size, anchored by the palm centre on the live hand position: folding fingers never moves it.
   const px = (index: number) => [points[index].x * width, points[index].y * height] as const
-  const [tipX, tipY] = px(LM.INDEX_TIP)
-  const [wristX, wristY] = px(LM.WRIST)
-  const [palmX, palmY] = px(LM.MIDDLE_MCP)
-  const palm = Math.hypot(palmX - wristX, palmY - wristY) || 1
-  const scale = Math.min(3, Math.max(0.15, (GHOST_PALM_PX * Math.exp(frame.depth * 3)) / palm))
-  const cursorX = frame.pointer!.x * width
-  const cursorY = frame.pointer!.y * height
+  const center = palmCenter(points)
+  const centerX = center.x * width
+  const centerY = center.y * height
+  const scale = Math.min(3, Math.max(0.15, GHOST_PALM_PX / Math.max(1, span)))
+  const anchorX = frame.hand!.x * width
+  const anchorY = frame.hand!.y * height
   const at = (index: number) => {
     const [x, y] = px(index)
-    return [cursorX + (x - tipX) * scale, cursorY + (y - tipY) * scale] as const
+    return [anchorX + (x - centerX) * scale, anchorY + (y - centerY) * scale] as const
   }
   const wristZ = points[LM.WRIST].z
-  const size = (index: number) => Math.max(2, (5.5 - (points[index].z - wristZ) * 40) * Math.min(1.4, Math.max(0.7, Math.exp(frame.depth * 3))))
+  const size = (index: number) => Math.max(2, Math.min(8, 5.5 - (points[index].z - wristZ) * 40))
 
   context.save()
   context.lineCap = 'round'

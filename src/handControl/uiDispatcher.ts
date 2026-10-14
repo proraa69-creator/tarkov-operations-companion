@@ -12,13 +12,15 @@ export const HAND_INTERACTIVE = [
   'input[type="checkbox"]',
   'input[type="radio"]',
   '.toggle',
+  '.leaflet-interactive',
+  '.leaflet-marker-icon',
   '[data-hand-target]',
 ].join(',')
 
 /**
  * Elements a hand must never activate: text entry (keyboard belongs to the game), native
- * pickers, links that open a browser, the embedded web view, the Leaflet map (MVP) and
- * anything explicitly opted out. All of these would either steal focus or need a keyboard.
+ * pickers, links that open a browser, the embedded web view and anything explicitly opted out.
+ * All of these would either steal focus or need a keyboard. Map markers stay clickable.
  */
 export const HAND_BLOCKED = [
   'input:not([type="checkbox"]):not([type="radio"])',
@@ -31,11 +33,12 @@ export const HAND_BLOCKED = [
   'a[href^="https:"]',
   'a[download]',
   'webview',
-  '.leaflet-container',
   '[data-hand-control="off"]',
 ].join(',')
 
 const SNAP_RADIUS = 22
+/** Wheel distance Leaflet turns into ~1 zoom level (it divides by 2×DPR on Windows Chromium). */
+const WHEEL_PER_STEP = 92
 const STICKY_MARGIN = 10
 const POINTER_ID = 41
 
@@ -72,7 +75,14 @@ function fire(target: Element, type: string, x: number, y: number, pressed: bool
   target.dispatchEvent(event)
 }
 
+function mapAt(x: number, y: number) {
+  const element = document.elementFromPoint(x, y)
+  const map = element?.closest('.leaflet-container')
+  return map && !element?.closest('[data-hand-control="off"]') ? { element: element!, map } : null
+}
+
 export class HandUiDispatcher {
+  private grabbing: Element | null = null
   private hovered: Element | null = null
   private pressed: Element | null = null
   private scrollTarget: Element | null = null
@@ -183,8 +193,41 @@ export class HandUiDispatcher {
     this.scrollTarget = null
   }
 
+  /** Pinch zoom over a map: one wheel notch per step at the aim point (Leaflet zooms around it). */
+  zoom(x: number, y: number, steps: number) {
+    const hit = mapAt(x, y)
+    if (!hit) return null
+    const factor = /Win/i.test(navigator.platform) ? 2 * (window.devicePixelRatio || 1) : 1
+    hit.element.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, clientX: x, clientY: y, deltaY: -steps * WHEEL_PER_STEP * factor, deltaMode: 0 }))
+    return hit.map
+  }
+
+  /** Palm grab: press the "mouse button" on a map so moving the hand pans it. */
+  grabStart(x: number, y: number) {
+    this.grabEnd(x, y)
+    const hit = mapAt(x, y)
+    if (!hit) return null
+    this.grabbing = hit.element
+    hit.map.setAttribute('data-hand-grabbing', '')
+    fire(hit.element, 'mousedown', x, y, true)
+    return hit.map
+  }
+
+  grabMove(x: number, y: number) {
+    if (!this.grabbing) return
+    document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, buttons: 1 }))
+  }
+
+  grabEnd(x?: number, y?: number) {
+    if (!this.grabbing) return
+    this.grabbing.closest('.leaflet-container')?.removeAttribute('data-hand-grabbing')
+    this.grabbing = null
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x ?? 0, clientY: y ?? 0, button: 0, buttons: 0 }))
+  }
+
   /** Stop: drop every highlight and pending action. */
   release() {
+    this.grabEnd()
     this.clearPressed()
     this.scrollEnd()
     this.hovered?.removeAttribute('data-hand-hover')

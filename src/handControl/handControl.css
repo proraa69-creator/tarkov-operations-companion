@@ -23,6 +23,11 @@
   transform: scale(.975);
 }
 
+[data-hand-grabbing] {
+  cursor: grabbing;
+  box-shadow: inset 0 0 0 2px rgb(223 189 112 / 45%);
+}
+
 [data-hand-scrolling] {
   box-shadow: inset 0 0 0 2px rgb(196 166 101 / 28%);
 }

@@ -14,6 +14,8 @@ export interface SyntheticHand {
    * `false`/missing = curled into the palm.
    */
   fingers?: Partial<Record<Finger, boolean | number>>
+  /** thumb tip in metres relative to the wrist; default tucked against the hand */
+  thumbTip?: Point3
   score?: number
   t: number
 }
@@ -23,13 +25,13 @@ const FRAME_H = 480
 const MCP_X: Record<Finger, number> = { index: -0.03, middle: -0.01, ring: 0.01, pinky: 0.03 }
 
 /** Builds a plausible MediaPipe-shaped observation for tests: palm facing the camera, fingers up. */
-export function syntheticHand({ x, y, k, fingers = {}, score = 0.95, t }: SyntheticHand): HandObservation {
+export function syntheticHand({ x, y, k, fingers = {}, thumbTip, score = 0.95, t }: SyntheticHand): HandObservation {
   const world: Point3[] = new Array(21)
   world[0] = { x: 0, y: 0, z: 0 }
   world[1] = { x: -0.03, y: -0.02, z: 0 }
   world[2] = { x: -0.05, y: -0.04, z: 0 }
   world[3] = { x: -0.06, y: -0.06, z: 0 }
-  world[4] = { x: -0.07, y: -0.075, z: 0 }
+  world[4] = thumbTip ?? { x: -0.07, y: -0.075, z: 0 }
   const order: Finger[] = ['index', 'middle', 'ring', 'pinky']
   order.forEach((finger, i) => {
     const base = 5 + i * 4
@@ -56,3 +58,12 @@ export function syntheticHand({ x, y, k, fingers = {}, score = 0.95, t }: Synthe
   const image = world.map((point) => ({ x: x + (point.x * k) / FRAME_W, y: y + (point.y * k) / FRAME_H, z: point.z }))
   return { t, image, world, score, handedness: 'Right', frameWidth: FRAME_W, frameHeight: FRAME_H }
 }
+
+/** Index fingertip of a synthetic hand with the index raised `angle` degrees (for pinch tests). */
+export function indexTipAt(angle: number): Point3 {
+  const a = (angle * Math.PI) / 180
+  return { x: -0.03, y: -0.09 - Math.cos(a) * 0.085, z: -Math.sin(a) * 0.085 }
+}
+
+/** Thumb sticking out sideways (open hand / spread pinch). */
+export const THUMB_OUT: Point3 = { x: -0.11, y: -0.05, z: 0 }

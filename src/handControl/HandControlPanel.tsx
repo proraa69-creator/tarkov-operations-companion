@@ -14,7 +14,7 @@ const ERRORS: Record<TrackerErrorCode, string> = {
   model: 'Не удалось загрузить модель распознавания руки.',
 }
 
-const PHASE: Record<string, string> = { idle: 'нет руки', point: 'наведение', press: 'нажатие', scroll: 'прокрутка' }
+const PHASE: Record<string, string> = { idle: 'нет руки', point: 'наведение', press: 'нажатие', scroll: 'прокрутка', grab: 'захват' }
 
 export function HandControlPanel() {
   const snapshot = useHandControl()
@@ -54,7 +54,7 @@ export function HandControlPanel() {
         <div className="panel-title">{uiText('Hand Control — управление рукой через веб-камеру (тест)')}</div>
       </div>
       <div className="panel-body">
-        <p className="hand-note">{uiText('Наведение — вытянутым указательным пальцем. Нажатие — быстро согнуть указательный палец вперёд и разогнуть (тап). Прокрутка — поднять указательный и средний пальцы: взмах обоими пальцами листает на шаг; движение руки вверх-вниз листает плавно. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
+        <p className="hand-note">{uiText('Курсор ведёт кисть — пальцы его не двигают. Нажатие — быстро согнуть указательный палец и разогнуть (тап). Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг; движение руки вверх-вниз листает плавно. Карта: щипок большим и указательным — зум; раскрытая ладонь с толчком к камере — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
         <div className="hand-actions">
           {running || status === 'starting'
             ? <button className="button" onClick={() => handControl.stop()}><Square size={15} />{uiText('Остановить')}</button>
@@ -104,6 +104,9 @@ export function HandControlPanel() {
               </div>
             </Setting>
             <Slider title="Шаг взмаха" hint="Сколько экрана пролистывает один взмах." min={0.15} max={0.9} step={0.05} value={settings.flickStep} onChange={(flickStep) => update({ flickStep })} />
+            <ToggleRow title="Зум карты щипком" hint="Быстро отвести большой палец от указательного — приблизить; быстро свести — отдалить. Медленное движение не считается." on={settings.pinchZoom} onChange={(pinchZoom) => update({ pinchZoom })} />
+            <ToggleRow title="Перетаскивание карты ладонью" hint="Раскрытая ладонь и быстрый толчок к камере — карта «зажата»; ведите рукой. Отвести руку назад или сжать кулак — отпустить." on={settings.palmGrab} onChange={(palmGrab) => update({ palmGrab })} />
+            {settings.palmGrab ? <Slider title="Чувствительность толчка ладонью" hint="Насколько резко нужно толкнуть ладонь к камере." min={0.03} max={0.14} step={0.005} value={0.17 - settings.grabThreshold} onChange={(value) => update({ grabThreshold: Number((0.17 - value).toFixed(3)) })} /> : null}
             <Slider title="Плавность курсора" hint="Меньше дрожания или меньше задержки." min={0.3} max={3} step={0.1} value={3.3 - settings.smoothing} onChange={(value) => update({ smoothing: Number((3.3 - value).toFixed(2)) })} />
             <Slider title="Скорость прокрутки" min={0.8} max={5} step={0.1} value={settings.scrollSpeed} onChange={(scrollSpeed) => update({ scrollSpeed })} />
             <ToggleRow title="Показывать камеру здесь" hint="Превью видно только на этой странице." on={settings.showPreview} onChange={(showPreview) => update({ showPreview })} />
@@ -113,7 +116,8 @@ export function HandControlPanel() {
             {settings.showPreview ? <Preview mirrored={settings.mirror} running={running} /> : null}
             <Row label="Трекинг" value={running ? `${frame?.tracking === 'good' ? 'хороший' : frame?.tracking === 'weak' ? 'слабый' : 'руки нет'} · ${Math.round((frame?.confidence ?? 0) * 100)}%` : 'выключен'} ok={frame?.tracking === 'good'} />
             <Row label="Действие" value={running ? PHASE[frame?.phase ?? 'idle'] : '—'} ok={running && frame?.phase !== 'idle'} />
-            <Row label="Камера / модель" value={stats ? `${stats.width}×${stats.height} · ${stats.fps} fps · ${stats.inferenceMs.toFixed(1)} мс · ${stats.delegate}` : '—'} ok={Boolean(stats && stats.fps >= 20)} />
+            <Row label="Камера / модель" value={stats ? `${stats.width}×${stats.height} · ${stats.fps} fps · ${stats.inferenceMs.toFixed(1)} мс · ${stats.delegate} · ${stats.thread === 'worker' ? 'отдельный поток' : 'основной поток'}` : '—'} ok={Boolean(stats && stats.fps >= 20)} />
+            <Row label="Щипок (большой ↔ указательный)" value={running ? (frame?.pinch ?? 0).toFixed(2) : '—'} />
             {usesTap ? (
               <>
                 <div className="exp-row"><span>{uiText('Сгиб указательного')}</span><strong className="mono">{Math.round(frame?.indexFlex ?? 0)}°</strong></div>
@@ -135,6 +139,7 @@ export function HandControlPanel() {
               ))}
             </div>
             <Row label="Нажатия / отмены / прокрутки" value={`${snapshot.counters.clicks} / ${snapshot.counters.cancels} / ${snapshot.counters.scrolls}`} />
+            <Row label="Зум / захваты карты" value={`${snapshot.counters.zooms} / ${snapshot.counters.grabs}`} />
             <Row label="Последнее нажатие" value={snapshot.lastTarget || '—'} />
             {desktop ? <Row label="Активное окно Windows" value={foreground || '—'} ok={running && Boolean(foreground) && !/tarkov operations|raid os/i.test(foreground)} /> : null}
             {desktop ? <p className="hand-note">{uiText('Во время теста здесь должно быть окно игры — не Raid OS.')}</p> : null}

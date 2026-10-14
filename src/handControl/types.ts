@@ -17,7 +17,7 @@ export interface HandObservation {
   frameHeight: number
 }
 
-export type HandPhase = 'idle' | 'point' | 'press' | 'scroll'
+export type HandPhase = 'idle' | 'point' | 'press' | 'scroll' | 'grab'
 export type TrackingQuality = 'none' | 'weak' | 'good'
 
 export type HandEvent =
@@ -28,6 +28,12 @@ export type HandEvent =
   /** dy in window heights; `step` marks a discrete two-finger flick (animated by the UI) */
   | { type: 'scroll'; id: number; dy: number; step?: boolean }
   | { type: 'scroll-end'; id: number }
+  /** pinch zoom step at the aim point: +1 = thumb moved away from the index (zoom in), -1 = pinched (zoom out) */
+  | { type: 'zoom'; id: number; x: number; y: number; steps: number }
+  /** open palm pushed towards the camera = mouse held down; moving drags (e.g. pans the map) */
+  | { type: 'grab-start'; id: number; x: number; y: number }
+  | { type: 'grab-move'; id: number; x: number; y: number }
+  | { type: 'grab-end'; id: number }
 
 /** Processed state for one frame — the only thing the UI layer consumes. */
 export interface HandFrame {
@@ -36,14 +42,18 @@ export interface HandFrame {
   tracking: TrackingQuality
   confidence: number
   phase: HandPhase
-  /** pointer in window-normalized coordinates (0..1), null when the hand is not usable */
+  /** aim point in window-normalized coordinates (0..1) — frozen during a press, scroll or grab; null when the hand is not usable */
   pointer: { x: number; y: number } | null
+  /** live (never frozen) fingertip position, used to draw the hand */
+  hand: { x: number; y: number } | null
   /** 0..1 how far the current poke is towards a press */
   pressProgress: number
   /** relative distance to camera: >0 closer than the resting baseline, <0 further (log scale) */
   depth: number
   /** index finger fold relative to the palm, degrees (pointing ≈ 10–40, tap ≈ 100+) */
   indexFlex: number
+  /** thumb tip ↔ index tip distance in palm lengths (pinched < 0.3, spread > 0.75) */
+  pinch: number
   /** 21 landmarks mapped into window-normalized space for the ghost hand (z kept relative) */
   skeleton: Point3[] | null
   events: HandEvent[]
@@ -74,6 +84,12 @@ export interface HandControlSettings {
   showPreview: boolean
   /** where MediaPipe runs: GPU is faster, CPU leaves the graphics card to the game */
   compute: 'auto' | 'GPU' | 'CPU'
+  /** quick thumb-from-index spread / pinch zooms the map */
+  pinchZoom: boolean
+  /** open palm pushed towards the camera drags like a held mouse button */
+  palmGrab: boolean
+  /** push depth (log ratio) for the palm grab */
+  grabThreshold: number
 }
 
 export const DEFAULT_SETTINGS: HandControlSettings = {
@@ -91,6 +107,9 @@ export const DEFAULT_SETTINGS: HandControlSettings = {
   cameraId: '',
   showPreview: true,
   compute: 'auto',
+  pinchZoom: true,
+  palmGrab: true,
+  grabThreshold: 0.08,
 }
 
 /** MediaPipe hand landmark indices. */

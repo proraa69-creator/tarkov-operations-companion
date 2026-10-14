@@ -1,16 +1,13 @@
+import { CalibrationSession, type CalibrationState } from './calibration'
 import { HandGestureEngine } from './gestureEngine'
-import { calibrationFromCorners } from './handGeometry'
 import { HandUiDispatcher } from './uiDispatcher'
-import { DEFAULT_SETTINGS, LM, type HandControlSettings, type HandFrame, type HandObservation } from './types'
+import { DEFAULT_SETTINGS, type HandControlSettings, type HandFrame, type HandObservation } from './types'
 import type { TrackerErrorCode, TrackerStats, WebcamHandTracker } from './webcamTracker'
 
 const SETTINGS_KEY = 'raidos-hand-control-v1'
-const CALIBRATION_SAMPLE_MS = 1500
-const CALIBRATION_SETTLE_MS = 1000
 const SNAPSHOT_INTERVAL_MS = 200
 
 export type HandControlStatus = 'off' | 'starting' | 'on' | 'error'
-export type CalibrationStep = 'top-left' | 'bottom-right' | null
 
 export interface HandControlSnapshot {
   status: HandControlStatus
@@ -20,9 +17,9 @@ export interface HandControlSnapshot {
   frame: HandFrame | null
   stats: TrackerStats | null
   pose: { index: boolean; middle: boolean; ring: boolean; pinky: boolean }
-  counters: { clicks: number; cancels: number; scrolls: number }
+  counters: { clicks: number; cancels: number; scrolls: number; zooms: number; grabs: number }
   lastTarget: string
-  calibration: { step: CalibrationStep; progress: number }
+  calibration: CalibrationState
   /** last raw landmarks in camera space, for the preview */
   raw: HandObservation | null
 }
@@ -56,9 +53,9 @@ class HandControlRuntime {
     frame: null,
     stats: null,
     pose: { index: false, middle: false, ring: false, pinky: false },
-    counters: { clicks: 0, cancels: 0, scrolls: 0 },
+    counters: { clicks: 0, cancels: 0, scrolls: 0, zooms: 0, grabs: 0 },
     lastTarget: '',
-    calibration: { step: null, progress: 0 },
+    calibration: { step: null, progress: 0, hint: 'hold' },
     raw: null,
   }
   private listeners = new Set<() => void>()
@@ -67,8 +64,7 @@ class HandControlRuntime {
   private dispatcher = new HandUiDispatcher(armFocusGuard)
   private tracker: WebcamHandTracker | null = null
   private publishTimer = 0
-  private calibrationSamples: { 'top-left': Array<{ x: number; y: number }>; 'bottom-right': Array<{ x: number; y: number }> } = { 'top-left': [], 'bottom-right': [] }
-  private calibrationStartedAt = 0
+  private calibration: CalibrationSession | null = null
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener)
@@ -110,9 +106,10 @@ class HandControlRuntime {
     this.tracker?.stop()
     this.dispatcher.release()
     this.engine.reset()
-    const empty: HandFrame = { seq: 0, t: performance.now(), tracking: 'none', confidence: 0, phase: 'idle', pointer: null, pressProgress: 0, depth: 0, indexFlex: 0, skeleton: null, events: [] }
+    const empty: HandFrame = { seq: 0, t: performance.now(), tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, events: [] }
     this.frameListeners.forEach((listener) => listener(empty))
-    this.set({ status: 'off', frame: null, raw: null, calibration: { step: null, progress: 0 } })
+    this.calibration = null
+    this.set({ status: 'off', frame: null, raw: null, calibration: { step: null, progress: 0, hint: 'hold' } })
   }
 
   updateSettings(patch: Partial<HandControlSettings>) {
@@ -131,24 +128,29 @@ class HandControlRuntime {
 
   startCalibration() {
     this.dispatcher.release()
-    this.calibrationSamples = { 'top-left': [], 'bottom-right': [] }
-    this.calibrationStartedAt = 0
-    this.set({ calibration: { step: 'top-left', progress: 0 } })
+    this.calibration = new CalibrationSession(this.snapshot.settings.mirror)
+    this.set({ calibration: { step: 'top-left', progress: 0, hint: 'hold' } })
   }
 
   cancelCalibration() {
-    this.set({ calibration: { step: null, progress: 0 } })
+    this.calibration = null
+    this.set({ calibration: { step: null, progress: 0, hint: 'hold' } })
   }
 
   private onSample(observation: HandObservation | null, stats: TrackerStats) {
-    if (this.snapshot.calibration.step) {
-      this.calibrate(observation)
-      this.snapshot = { ...this.snapshot, stats, raw: observation }
-      this.schedulePublish()
-      return
-    }
     const frame = this.engine.process(observation)
-    this.apply(frame)
+    if (this.calibration) {
+      // The hand keeps moving on screen during calibration; its gestures do nothing meanwhile.
+      frame.events = []
+      this.dispatcher.release()
+      const { state, box } = this.calibration.feed(observation, observation?.t ?? performance.now())
+      this.snapshot = { ...this.snapshot, calibration: state }
+      if (box) {
+        this.calibration = null
+        this.updateSettings({ calibration: box })
+        this.engine.reset()
+      }
+    } else this.apply(frame)
     this.frameListeners.forEach((listener) => listener(frame))
     this.snapshot = { ...this.snapshot, frame, stats, raw: observation, pose: { ...this.engine.currentPose } }
     this.schedulePublish()
@@ -167,40 +169,14 @@ class HandControlRuntime {
       else if (event.type === 'scroll-start') { this.dispatcher.scrollStart(...toClient(event.x, event.y)); counters.scrolls++ }
       else if (event.type === 'scroll') this.dispatcher.scroll(event.dy, event.step)
       else if (event.type === 'scroll-end') this.dispatcher.scrollEnd()
+      else if (event.type === 'zoom') { if (this.dispatcher.zoom(...toClient(event.x, event.y), event.steps)) counters.zooms++ }
+      else if (event.type === 'grab-start') { if (this.dispatcher.grabStart(...toClient(event.x, event.y))) counters.grabs++ }
+      else if (event.type === 'grab-move') this.dispatcher.grabMove(...toClient(event.x, event.y))
+      else if (event.type === 'grab-end') this.dispatcher.grabEnd()
     }
     if (frame.tracking === 'none' || !frame.pointer) this.dispatcher.release()
     else if (frame.phase === 'point' || frame.phase === 'press') this.dispatcher.hover(...toClient(frame.pointer.x, frame.pointer.y))
     this.snapshot = { ...this.snapshot, counters, lastTarget }
-  }
-
-  private calibrate(observation: HandObservation | null) {
-    const step = this.snapshot.calibration.step!
-    if (!observation || observation.score < 0.7) {
-      this.calibrationStartedAt = 0
-      this.calibrationSamples[step] = []
-      this.snapshot = { ...this.snapshot, calibration: { step, progress: 0 } }
-      return
-    }
-    const tip = observation.image[LM.INDEX_TIP]
-    const point = { x: this.snapshot.settings.mirror ? 1 - tip.x : tip.x, y: tip.y }
-    // Give the user a moment to move the hand into the corner before sampling.
-    if (!this.calibrationStartedAt) this.calibrationStartedAt = observation.t + CALIBRATION_SETTLE_MS
-    if (observation.t < this.calibrationStartedAt) return
-    this.calibrationSamples[step].push(point)
-    const progress = Math.min(1, (observation.t - this.calibrationStartedAt) / CALIBRATION_SAMPLE_MS)
-    if (progress < 1) {
-      this.snapshot = { ...this.snapshot, calibration: { step, progress } }
-      return
-    }
-    if (step === 'top-left') {
-      this.calibrationStartedAt = 0
-      this.snapshot = { ...this.snapshot, calibration: { step: 'bottom-right', progress: 0 } }
-      return
-    }
-    const box = calibrationFromCorners(this.calibrationSamples['top-left'], this.calibrationSamples['bottom-right'])
-    this.snapshot = { ...this.snapshot, calibration: { step: null, progress: 0 } }
-    if (box) this.updateSettings({ calibration: box })
-    else this.startCalibration()
   }
 
   private set(patch: Partial<HandControlSnapshot>) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ENGINE, HandGestureEngine } from './gestureEngine'
-import { syntheticHand, type SyntheticHand } from './testHand'
-import { DEFAULT_SETTINGS, type HandEvent, type HandFrame } from './types'
+import { indexTipAt, syntheticHand, THUMB_OUT, type SyntheticHand } from './testHand'
+import { DEFAULT_SETTINGS, type HandEvent, type HandFrame, type Point3 } from './types'
 
 const FPS = 30
 const STEP = 1000 / FPS
@@ -31,17 +31,29 @@ function tap(engine: HandGestureEngine, from: number, { to = 110, foldMs = 120, 
 }
 
 describe('HandGestureEngine — pointing', () => {
-  it('maps the index fingertip into calibrated, mirrored window space', () => {
+  it('maps the palm centre into calibrated, mirrored window space', () => {
     const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, calibration: { x0: 0, y0: 0, x1: 1, y1: 1 } })
     const { frames } = run(engine, 0, 500, () => ({ x: 0.3, y: 0.6, k: 1000, fingers: { index: 0 } }))
     const last = frames.at(-1)!
     expect(last.tracking).toBe('good')
     expect(last.phase).toBe('point')
-    // tip is 0.03 m left and 0.175 m above the wrist → mirrored x ≈ 1 - (0.3 - 0.047)
-    expect(last.pointer!.x).toBeCloseTo(0.747, 2)
-    expect(last.pointer!.y).toBeCloseTo(0.6 - (0.175 * 1000) / 480, 2)
+    // Palm centre = mean of wrist and the four knuckles: 0.072 m above the wrist, centred in x.
+    expect(last.pointer!.x).toBeCloseTo(0.7, 2)
+    expect(last.pointer!.y).toBeCloseTo(0.6 - (0.072 * 1000) / 480, 2)
+    expect(last.hand).toEqual(last.pointer)
     expect(last.skeleton).toHaveLength(21)
     expect(last.events).toEqual([])
+  })
+
+  it('folding, flicking or pinching fingers does not move the cursor — only the hand does', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    const before = rest.frames.at(-1)!.hand!
+    const fingers = run(engine, rest.end, 1500, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(0, 120, Math.abs(Math.sin(p * 9))), middle: lerp(0, 120, Math.abs(Math.cos(p * 7))) }, thumbTip: p > 0.5 ? THUMB_OUT : undefined }))
+    for (const frame of fingers.frames) {
+      expect(Math.abs(frame.hand!.x - before.x)).toBeLessThan(0.005)
+      expect(Math.abs(frame.hand!.y - before.y)).toBeLessThan(0.005)
+    }
   })
 
   it('holds the pointer through a short dropout without emitting events', () => {
@@ -209,5 +221,147 @@ describe('HandGestureEngine — two-finger scrolling', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
     const open = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: 10, middle: 10, ring: 10, pinky: 10 } }))
     expect(open.events).toEqual([])
+  })
+})
+
+describe('HandGestureEngine — no fixation while the hand moves', () => {
+  it('a hand sweeping across the screen with depth wobble never freezes and never presses or grabs', () => {
+    const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, clickMode: 'both' })
+    run(engine, 0, 500, () => ({ x: 0.3, y: 0.6, k: 1000, fingers: pointing }))
+    // Sideways sweep while drifting 10% closer and back (people do not move in a perfect plane).
+    const sweep = run(engine, 500, 1200, (_t, p) => ({ x: 0.3 + 0.4 * p, y: 0.6, k: 1000 * (1 + 0.1 * Math.sin(p * Math.PI)), fingers: pointing }))
+    expect(sweep.events).toEqual([])
+    const xs = sweep.frames.map((frame) => frame.pointer!.x)
+    for (let i = 3; i < xs.length; i++) expect(xs[i]).not.toBe(xs[i - 1])
+    const palm = { x: 0.3, y: 0.6, k: 1000, fingers: { index: 10, middle: 10, ring: 10, pinky: 10 }, thumbTip: THUMB_OUT }
+    const palmSweep = run(engine, sweep.end, 1200, (_t, p) => ({ ...palm, x: 0.7 - 0.4 * p, k: 1000 * (1 + 0.12 * Math.sin(p * Math.PI)) }))
+    expect(palmSweep.events).toEqual([])
+  })
+
+  it('a fold made while the hand is moving is not a tap', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 500, () => ({ x: 0.3, y: 0.6, k: 1000, fingers: pointing }))
+    const moving = run(engine, 500, 600, (_t, p) => ({ x: 0.3 + 0.4 * p, y: 0.6, k: 1000, fingers: { index: p < 0.3 ? 30 : p < 0.5 ? lerp(30, 110, (p - 0.3) / 0.2) : lerp(110, 30, Math.min(1, (p - 0.5) / 0.2)) } }))
+    expect(moving.events).toEqual([])
+  })
+
+  it('releases a held aim as soon as the hand moves on', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    // Half a fold (not a tap) freezes the aim, then the hand moves away.
+    const half = run(engine, 800, 60, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(30, 55, p) } }))
+    const frozen = half.frames.at(-1)!.pointer!
+    const move = run(engine, half.end, 200, (_t, p) => ({ x: 0.5 + 0.2 * p, y: 0.6, k: 1000, fingers: { index: 55 } }))
+    expect(move.frames.at(-1)!.pointer!.x).not.toBeCloseTo(frozen.x, 2)
+    expect(move.events).toEqual([])
+  })
+
+})
+
+describe('HandGestureEngine — pinch zoom', () => {
+  const thumbPath = (from: Point3, to: Point3, p: number): Point3 => ({ x: lerp(from.x, to.x, p), y: lerp(from.y, to.y, p), z: lerp(from.z, to.z, p) })
+  const pinched = indexTipAt(30)
+
+  it('quickly moving the thumb away from the index zooms in, quickly pinching zooms out', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: pinched }))
+    const open = run(engine, 600, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(pinched, THUMB_OUT, p) }))
+    const hold = run(engine, open.end, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: THUMB_OUT }))
+    const close = run(engine, hold.end, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(THUMB_OUT, pinched, p) }))
+    const zooms = [...open.events, ...hold.events, ...close.events].filter((event) => event.type === 'zoom') as Array<Extract<HandEvent, { type: 'zoom' }>>
+    expect(zooms.map((event) => event.steps)).toEqual([1, -1])
+    expect([...open.events, ...close.events].some((event) => event.type === 'press')).toBe(false)
+  })
+
+  it('a slow thumb movement does not zoom (so the thumb can be repositioned)', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: THUMB_OUT }))
+    const slow = run(engine, 600, 1500, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(THUMB_OUT, pinched, p) }))
+    expect(slow.events).toEqual([])
+  })
+
+  it('can be switched off', () => {
+    const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, pinchZoom: false })
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: pinched }))
+    const open = run(engine, 600, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(pinched, THUMB_OUT, p) }))
+    expect(open.events).toEqual([])
+  })
+})
+
+describe('HandGestureEngine — open palm grab', () => {
+  const palm = { y: 0.6, fingers: { index: 10, middle: 10, ring: 10, pinky: 10 }, thumbTip: THUMB_OUT }
+
+  it('a quick push of the open palm holds, moving drags, pulling back releases', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const rest = run(engine, 0, 800, () => ({ ...palm, x: 0.5, k: 1000 }))
+    const push = run(engine, rest.end, 150, (_t, p) => ({ ...palm, x: 0.5, k: 1000 * (1 + 0.14 * p) }))
+    const drag = run(engine, push.end, 500, (_t, p) => ({ ...palm, x: 0.5 - 0.2 * p, k: 1140 }))
+    const back = run(engine, drag.end, 200, (_t, p) => ({ ...palm, x: 0.3, k: 1140 - 140 * p }))
+    const events = [...push.events, ...drag.events, ...back.events]
+    expect(events[0].type).toBe('grab-start')
+    const moves = events.filter((event) => event.type === 'grab-move') as Array<Extract<HandEvent, { type: 'grab-move' }>>
+    expect(moves.length).toBeGreaterThan(5)
+    // Mirrored camera: the hand moving left in the image moves right on screen.
+    expect(moves.at(-1)!.x - (events[0] as Extract<HandEvent, { type: 'grab-start' }>).x).toBeGreaterThan(0.15)
+    expect(events.at(-1)!.type).toBe('grab-end')
+    expect(types(events).filter((type) => type === 'click' || type === 'press')).toEqual([])
+  })
+
+  it('closing the hand also releases the grab', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const rest = run(engine, 0, 800, () => ({ ...palm, x: 0.5, k: 1000 }))
+    const push = run(engine, rest.end, 150, (_t, p) => ({ ...palm, x: 0.5, k: 1000 * (1 + 0.14 * p) }))
+    const fist = run(engine, push.end, 400, () => ({ x: 0.5, y: 0.6, k: 1140 }))
+    expect(types([...push.events, ...fist.events])).toEqual(['grab-start', 'grab-end'])
+  })
+
+  it('a slow approach of the open palm does not grab', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 800, () => ({ ...palm, x: 0.5, k: 1000 }))
+    const lean = run(engine, 800, 3000, (_t, p) => ({ ...palm, x: 0.5, k: 1000 * (1 + 0.2 * p) }))
+    expect(lean.events).toEqual([])
+  })
+})
+
+describe('HandGestureEngine — leaving scroll mode', () => {
+  it('ends scrolling when the two-finger pose is gone for a while (no stuck mode)', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    const pose = run(engine, 600, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+    expect(types(pose.events)).toEqual(['scroll-start'])
+    const fist = run(engine, pose.end, 1000, () => ({ x: 0.5, y: 0.6, k: 1000 }))
+    expect(types(fist.events)).toEqual(['scroll-end'])
+    expect(fist.frames.at(-1)!.phase).toBe('point')
+  })
+})
+
+describe('HandGestureEngine — fist resets', () => {
+  const open = { index: 10, middle: 10, ring: 10, pinky: 10 }
+
+  it('closing an open hand into a fist (and opening it again) is not a click', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: open }))
+    const close = run(engine, 800, 120, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(10, 120, p), middle: lerp(10, 120, p), ring: lerp(10, 120, p), pinky: lerp(10, 120, p) } }))
+    const fist = run(engine, close.end, 400, () => ({ x: 0.5, y: 0.6, k: 1000 }))
+    const reopen = run(engine, fist.end, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: open }))
+    expect([...close.events, ...fist.events, ...reopen.events]).toEqual([])
+  })
+
+  it('a fist releases a map grab and nothing starts again while the hand stays closed', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const palm = { fingers: open, thumbTip: THUMB_OUT, y: 0.6 }
+    run(engine, 0, 800, () => ({ ...palm, x: 0.5, k: 1000 }))
+    const push = run(engine, 800, 150, (_t, p) => ({ ...palm, x: 0.5, k: 1000 * (1 + 0.14 * p) }))
+    expect(types(push.events)).toContain('grab-start')
+    const fist = run(engine, push.end, 1500, () => ({ x: 0.5, y: 0.6, k: 1140 }))
+    expect(types(fist.events)).toEqual(['grab-end'])
+  })
+
+  it('a held fist ends scrolling', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    run(engine, 600, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+    const fist = run(engine, 900, 1000, () => ({ x: 0.5, y: 0.6, k: 1000 }))
+    expect(types(fist.events)).toEqual(['scroll-end'])
   })
 })

@@ -16,7 +16,8 @@ const modelPath = join(out, 'hand_landmarker.task')
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex')
 
 await mkdir(join(out, 'wasm'), { recursive: true })
-for (const file of ['vision_wasm_internal.js', 'vision_wasm_internal.wasm']) {
+// Classic build for the UI-thread fallback, ES-module build for the worker.
+for (const file of ['vision_wasm_internal.js', 'vision_wasm_internal.wasm', 'vision_wasm_module_internal.js', 'vision_wasm_module_internal.wasm']) {
   await copyFile(join(wasmSource, file), join(out, 'wasm', file))
 }
 

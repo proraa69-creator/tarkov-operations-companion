@@ -24,10 +24,11 @@ afterEach(() => vi.restoreAllMocks())
 const $ = (id: string) => document.getElementById(id)!
 
 describe('handTarget', () => {
-  it('accepts plain buttons and internal links only', () => {
+  it('accepts plain buttons, internal links and map markers only', () => {
     expect(handTarget($('ok'))).toBe($('ok'))
     expect(handTarget($('internal'))).toBe($('internal'))
-    for (const id of ['off', 'external', 'text', 'marker', 'danger']) expect(handTarget($(id))).toBeNull()
+    expect(handTarget($('marker'))).toBe($('marker'))
+    for (const id of ['off', 'external', 'text', 'danger']) expect(handTarget($(id))).toBeNull()
   })
 })
 
@@ -66,7 +67,7 @@ describe('HandUiDispatcher', () => {
 
   it('never activates blocked targets', () => {
     const dispatcher = new HandUiDispatcher()
-    for (const id of ['external', 'text', 'marker', 'danger', 'off']) {
+    for (const id of ['external', 'text', 'danger', 'off']) {
       const onClick = vi.fn()
       $(id).addEventListener('click', onClick)
       hit = () => $(id)
@@ -124,5 +125,44 @@ describe('HandUiDispatcher', () => {
     dispatcher.scrollEnd()
     dispatcher.scroll(1)
     expect(scrollBy).toHaveBeenCalledTimes(1)
+  })
+
+  it('pinch zoom sends one wheel notch to the map under the aim point, and ignores everything else', () => {
+    const wheel = vi.fn()
+    $('marker').addEventListener('wheel', wheel)
+    const dispatcher = new HandUiDispatcher()
+    hit = () => $('marker')
+    expect(dispatcher.zoom(10, 20, 1)).toBe(document.querySelector('.leaflet-container'))
+    hit = () => $('ok')
+    expect(dispatcher.zoom(10, 20, -1)).toBeNull()
+    expect(wheel).toHaveBeenCalledTimes(1)
+    const event = wheel.mock.calls[0][0] as WheelEvent
+    expect(event.deltaY).toBeLessThan(0)
+    expect(event.clientX).toBe(10)
+  })
+
+  it('palm grab presses on the map, moves on the document and releases', () => {
+    const order: string[] = []
+    $('marker').addEventListener('mousedown', (event) => order.push(`down:${(event as MouseEvent).clientX}`))
+    document.addEventListener('mousemove', (event) => order.push(`move:${event.clientX}`))
+    document.addEventListener('mouseup', () => order.push('up'))
+    const dispatcher = new HandUiDispatcher()
+    hit = () => $('marker')
+    expect(dispatcher.grabStart(100, 100)).toBeTruthy()
+    expect(document.querySelector('.leaflet-container')!.hasAttribute('data-hand-grabbing')).toBe(true)
+    dispatcher.grabMove(140, 100)
+    dispatcher.grabEnd()
+    dispatcher.grabMove(200, 100)
+    expect(order).toEqual(['down:100', 'move:140', 'up'])
+    expect(document.querySelector('.leaflet-container')!.hasAttribute('data-hand-grabbing')).toBe(false)
+  })
+
+  it('palm grab does nothing outside a map', () => {
+    const down = vi.fn()
+    $('ok').addEventListener('mousedown', down)
+    const dispatcher = new HandUiDispatcher()
+    hit = () => $('ok')
+    expect(dispatcher.grabStart(5, 5)).toBeNull()
+    expect(down).not.toHaveBeenCalled()
   })
 })
