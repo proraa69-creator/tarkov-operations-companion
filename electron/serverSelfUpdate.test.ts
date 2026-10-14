@@ -203,6 +203,29 @@ describe('ServerSelfUpdater (download, verify, install)', () => {
     expect(installed).toHaveLength(1)
   })
 
+  it('reuses verified parts from the cache when a new staging directory is created', async () => {
+    const { files } = release(2000)
+    const first = updater(files)
+    expect(await first.instance.check()).toBe('installing')
+    rmSync(join(first.root, '2000'), { recursive: true, force: true })
+
+    // Recreate the updater against the same root to simulate a fresh process.
+    const { source, downloads } = fakeSource(files)
+    const installed: StagedRelease[] = []
+    const again = new ServerSelfUpdater({
+      root: first.root,
+      current: () => ({ version: '0.5.4', build: 1000, commit: 'old' }),
+      source: () => source,
+      settings: () => ({ enabled: true, window: 'any' }),
+      skipped: () => [],
+      install: async (staged) => { installed.push(staged) },
+      publicKey,
+    })
+    expect(await again.check()).toBe('installing')
+    expect(downloads).toHaveLength(0)
+    expect(installed).toHaveLength(1)
+  })
+
   it('re-verifies right before installing: an exe changed after the download is refused', async () => {
     const { files } = release(2000)
     const root = tempDir()

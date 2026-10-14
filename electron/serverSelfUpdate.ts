@@ -1,6 +1,6 @@
 import { createHash, type KeyObject } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
@@ -394,10 +394,12 @@ export class ServerSelfUpdater {
   private async fetchRelease(source: ReleaseSource, pointer: LatestPointer, current: BuildRef): Promise<StagedRelease> {
     const publicKey = this.opts.publicKey ?? UPDATE_SIGNING_PUBLIC_KEY
     const dir = join(this.opts.root, String(pointer.build))
+    const cache = join(this.opts.root, '.cache')
     await mkdir(dir, { recursive: true })
     for (const name of await readdir(this.opts.root).catch(() => [] as string[])) {
-      if (name !== String(pointer.build)) await rm(join(this.opts.root, name), { recursive: true, force: true }).catch(() => {})
+      if (name !== String(pointer.build) && name !== '.cache') await rm(join(this.opts.root, name), { recursive: true, force: true }).catch(() => {})
     }
+    await mkdir(cache, { recursive: true })
     const text = await source.text(`${pointer.path}/${SERVER_UPDATE_FILE}`, MANIFEST_MAX_BYTES)
     let data: unknown
     try { data = JSON.parse(text) } catch { throw new Error(`${SERVER_UPDATE_FILE} — не JSON`) }
@@ -421,6 +423,14 @@ export class ServerSelfUpdater {
         this.set({ files })
         continue
       }
+      const cached = join(cache, part.sha256)
+      const cachedDigest = await fileDigest(cached).catch(() => null)
+      if (cachedDigest && cachedDigest.size === part.size && cachedDigest.sha256 === part.sha256) {
+        await copyFile(cached, file)
+        files[index] = { ...files[index]!, done: part.size, state: 'ok' }
+        this.set({ files })
+        continue
+      }
       await rm(file, { force: true }).catch(() => {})
       files[index] = { ...files[index]!, state: 'downloading' }
       this.set({ files })
@@ -437,6 +447,7 @@ export class ServerSelfUpdater {
         this.set({ files })
         throw new Error(`${part.name}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
       }
+      await copyFile(file, cached)
       files[index] = { ...files[index]!, done: part.size, state: 'ok' }
       this.set({ files })
     }
