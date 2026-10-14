@@ -35,6 +35,11 @@ interface TarkovDesktopApi {
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
   }
+  handControl?: {
+    /** Arms the main-process focus guard right before a hand click is dispatched. */
+    markAction: () => void
+    foregroundWindow: () => Promise<string>
+  }
   onOverlay?: {
     (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void

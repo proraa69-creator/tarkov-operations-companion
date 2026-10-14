@@ -23,6 +23,7 @@ This repository contains the current Tarkov APP / Tarkov Operations Companion de
 - Lint: `npm run lint`
 - Server dev mode: `npm run server:dev`
 - Server tests: `npm run server:test`
+- Hand Control test edition (separate app, webcam gestures): `npm run dev:hand`, `npm run dist:win:hand` — see `docs/hand-control.md`
 
 ## Safety rules for this computer
 

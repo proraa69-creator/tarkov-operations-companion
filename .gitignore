@@ -14,3 +14,5 @@ playwright-report/
 work/
 server/data/
 scratch-out.txt
+public-hand/
+release-hand/

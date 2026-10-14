@@ -9,6 +9,8 @@ import { fetchPlayerProfile, resolveAccountIdsByNickname, clearPlayerSnapshotCac
 import { captureQuestFrame, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { serviceRequest } from './serviceGateway.js'
+import { handActionRecent, markHandAction } from './handControlGuard.js'
+import { foregroundWindowTitle } from './experimental/win32.js'
 import { wikiMapUrl, isWikiMapHost } from '../src/data/wikiMaps.js'
 
 const appDir = dirname(fileURLToPath(import.meta.url))
@@ -19,6 +21,11 @@ let scanInterval: NodeJS.Timeout | null = null
 let scanning = false
 let lastPublished = ''
 let raidState: RaidState = { inRaid: false }
+
+/** External links open the browser — never right after a Hand Control click (it would take focus from the game). */
+function openExternal(url: string) {
+  if (url.startsWith('https://') && !handActionRecent()) void shell.openExternal(url)
+}
 
 // UI hover ticks must play before the first click in the window.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -43,7 +50,7 @@ function createWindow() {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    openExternal(url)
     return { action: 'deny' }
   })
   mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -55,6 +62,14 @@ function createWindow() {
     mainWindow = null
     stopExperimental()
     app.quit()
+  })
+
+  // Camera only for Hand Control in the main window, video only; other permissions keep Electron's default.
+  const windowContents = mainWindow.webContents
+  windowContents.session.setPermissionRequestHandler((contents, permission, callback, details) => {
+    if (permission !== 'media') return callback(true)
+    const mediaTypes = 'mediaTypes' in details ? details.mediaTypes ?? [] : []
+    callback(contents === windowContents && mediaTypes.length > 0 && mediaTypes.every((type) => type === 'video'))
   })
 
   loadRenderer(mainWindow, '')
@@ -81,13 +96,13 @@ app.whenReady().then(() => {
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
   contents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    openExternal(url)
     return { action: 'deny' }
   })
   contents.on('will-navigate', (event, url) => {
     if (url.startsWith('https://tarkov.dev/') || isWikiMapHost(url)) return
     event.preventDefault()
-    if (url.startsWith('https://')) void shell.openExternal(url)
+    openExternal(url)
   })
 })
 
@@ -97,7 +112,10 @@ app.on('window-all-closed', () => {
 })
 
 function registerIpc() {
+  ipcMain.on('hand:action', (event) => { if (event.sender === mainWindow?.webContents) markHandAction() })
+  ipcMain.handle('hand:foreground', () => foregroundWindowTitle())
   ipcMain.handle('app:clear-data', async () => {
+    if (handActionRecent()) return false
     stopWatchingLogs()
     if (!mainWindow) return false
     await clearScanFrames().catch(() => 0)
@@ -106,18 +124,18 @@ function registerIpc() {
   })
   ipcMain.handle('maps:open-wiki', async (_event, id: string) => {
     const url = wikiMapUrl(id)
-    if (!url) return false
+    if (!url || handActionRecent()) return false
     const wikiWindow = new BrowserWindow({ width: 1450, height: 950, title: 'Оригинальная карта Wiki', autoHideMenuBar: true,
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, partition: 'wiki-maps' } })
     wikiWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     wikiWindow.webContents.setWindowOpenHandler(({ url: target }) => {
-      if (target.startsWith('https://')) void shell.openExternal(target)
+      openExternal(target)
       return { action: 'deny' }
     })
     wikiWindow.webContents.on('will-navigate', (event, target) => {
       if (new URL(target).origin !== 'https://escapefromtarkov.fandom.com') {
         event.preventDefault()
-        if (target.startsWith('https://')) void shell.openExternal(target)
+        openExternal(target)
       }
     })
     await wikiWindow.loadURL(url)
@@ -132,6 +150,7 @@ function registerIpc() {
   })
 
   ipcMain.handle('logs:select-and-scan', async () => {
+    if (handActionRecent()) return null
     const discovered = await discoverEftLogs(app.getPath('appData'))
     const result = await dialog.showOpenDialog(mainWindow!, {
       title: 'Выберите папку Logs',
@@ -155,6 +174,7 @@ function registerIpc() {
 
   ipcMain.handle('profile:save-backup', async (_event, json: unknown) => {
     if (typeof json !== 'string' || json.length > 5_000_000) throw new Error('Некорректная резервная копия')
+    if (handActionRecent()) return false
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: 'Сохранить резервную копию профиля',
       defaultPath: 'tarkov-operations-profile.json',
@@ -166,6 +186,7 @@ function registerIpc() {
   })
 
   ipcMain.handle('profile:open-backup', async () => {
+    if (handActionRecent()) return null
     const result = await dialog.showOpenDialog(mainWindow!, {
       title: 'Открыть резервную копию профиля',
       properties: ['openFile'],

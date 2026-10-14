@@ -1,0 +1,33 @@
+# Builds the separate "Raid OS Hand Control Test" portable exe for manual testing.
+# It never publishes a release and does not touch the main build or the update channel.
+name: Hand Control test build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/hand-control-test]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run src/handControl electron/handControlGuard.test.ts
+      - run: npm run dist:win:hand
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raid-os-hand-control-test
+          path: release-hand/*.exe
+          retention-days: 14

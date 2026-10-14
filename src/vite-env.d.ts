@@ -13,3 +13,6 @@ declare namespace React {
   }
 }
 
+
+/** Set by vite.config.ts: true only for the Hand Control test edition. */
+declare const __RAIDOS_HAND_CONTROL__: boolean

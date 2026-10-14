@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     onQuery: (callback) => subscribe('experimental:query', callback),
     onPosition: (callback) => subscribe('experimental:position', callback),
   },
+  handControl: {
+    markAction: () => ipcRenderer.send('hand:action'),
+    foregroundWindow: () => ipcRenderer.invoke('hand:foreground'),
+  },
   onOverlay: (channel, callback) => {
     if (!['overlay:item', 'overlay:minimap', 'overlay:position'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)

@@ -1,8 +1,11 @@
 import { uiText } from '../i18n/renderText'
-import { useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, Crosshair, Keyboard, Map as MapIcon, MousePointer2 } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
+
+// Test edition only (see App.tsx).
+const HandControlPanel = __RAIDOS_HAND_CONTROL__ ? lazy(() => import('../handControl/HandControlPanel').then((module) => ({ default: module.HandControlPanel }))) : null
 
 export function ExperimentalPage() {
   const api = window.tarkovDesktop?.experimental
@@ -125,6 +128,7 @@ export function ExperimentalPage() {
           </div>
         </>
       ))}
+      {HandControlPanel ? <Suspense fallback={null}><HandControlPanel /></Suspense> : null}
     </div>
   )
 }
