@@ -261,7 +261,13 @@ export interface AdminOverview {
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
-export interface AdminDayRegistration { id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true }
+/**
+ * «Пригласи друга»: who invited a friend-invited account (servers before 14.10.2026 omit it). `deleted`: that account was
+ * deleted since (no e-mail). `discount` (users list only): the friend's first-month discount — used, not used yet, or
+ * lost (the first payment was made without it).
+ */
+export interface AdminInviter { id: string; email?: string; nickname?: string; deleted?: true; discount?: 'used' | 'unused' | 'lost' }
+export interface AdminDayRegistration { id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true; invitedBy?: AdminInviter }
 export interface AdminDayGrant { email: string; days: number; reason: string; actor: string; at: string }
 export interface AdminDayInvite { inviter: string; kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string }
 export interface AdminDay {
@@ -275,6 +281,8 @@ export interface AdminDay {
 export interface AdminPayment {
   id: string; email: string; plan: PlanId; provider: PaymentProvider; status: PaymentStatus; amount: number
   original?: { amount: number; currency: string }; createdAt: string; paidAt?: string; renewal?: true; referralCode?: string; streamerEarning?: number
+  /** Paid with the friend's discount: its percent and the inviter's e-mail (`inviterDeleted`: that account was deleted). */
+  friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
@@ -293,7 +301,11 @@ export interface AdminUser {
   country?: string
   /** The Escape from Tarkov nickname the PC app found in the game logs; absent until it is found. */
   nickname?: string
+  /** «Пригласи друга»: the player whose code this account used (a streamer's code stays in `referredBy`). */
+  invitedBy?: AdminInviter
 }
+/** «Онлайн сейчас»: accounts in the PC or phone app within the last `windowMinutes` (server/src/services/presence.ts). */
+export interface AdminOnline { online: number; pc: number; phone: number; windowMinutes: number; at: string }
 /** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
 export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
@@ -429,6 +441,7 @@ export const api = {
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
+  adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),

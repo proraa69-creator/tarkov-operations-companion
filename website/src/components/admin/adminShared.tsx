@@ -1,6 +1,14 @@
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatPeriodKey } from '../ReferralStatsTable'
+import type { AdminPayment } from '../../api'
+import { inviterText } from './adminData'
+
+/** A payment made with the friend's discount: the percent and who invited the payer («Платежи», the calendar day). */
+export function FriendDiscountTag({ discount }: { discount: NonNullable<AdminPayment['friendDiscount']> }) {
+  const from = discount.inviter || discount.inviterDeleted ? inviterText({ email: discount.inviter, ...(discount.inviterDeleted ? { deleted: true as const } : {}) }) : 'по коду друга'
+  return <span className="tag green admin-mini admin-friend-discount" title={`Оплачено со скидкой друга −${discount.percent} %`}>скидка друга −{discount.percent} % · {discount.inviter ? `от ${from}` : from}</span>
+}
 
 export function Loading({ text = 'Загружаем…' }: { text?: string }) {
   return <div className="muted admin-loading"><LoaderCircle className="spinner" size={14} aria-hidden="true" />{text}</div>
