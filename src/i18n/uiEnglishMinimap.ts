@@ -4,6 +4,7 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   ['Мини-карта и карточка предмета показываются поверх игры. Для этого в настройках графики поставьте режим экрана «Безрамочный».', 'The mini map and the item card are shown over the game. For this, set the screen mode to “Borderless” in the graphics settings.'],
   ['Сейчас игра в эксклюзивном полноэкранном режиме — окна поверх неё не видны.', 'The game is in exclusive full screen now — windows over it are not visible.'],
   ['Функции', 'Features'],
+  ['Размер мини-карты', 'Mini map size'],
   ['Показывает цену на барахолке и у выгодного торговца, а также нужен ли предмет для Каппы.', 'Shows the flea market price, the best trader price, and whether the item is needed for Kappa.'],
   ['Показывает и скрывает мини-карту в рейде.', 'Shows and hides the mini map in a raid.'],
   ['Клавиша сканирования предметов для коллекционера', 'Collector item scan key'],

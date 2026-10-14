@@ -126,6 +126,7 @@ describe('the Mini Map page follows the owner\'s switch', () => {
     expect(await screen.findByText('Item info key')).toBeInTheDocument()
     expect(screen.queryByRole('slider')).toBeNull()
     expect(shown('Mini map key')).toBe(false)
+    expect(shown('Mini map size')).toBe(false)
   })
 })
 
