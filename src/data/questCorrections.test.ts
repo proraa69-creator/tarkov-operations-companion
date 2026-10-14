@@ -20,9 +20,11 @@ describe('applyQuestCorrections', () => {
     expect(applyQuestCorrections([patriot()], 'en')[0]!.objectives[0]).toContain('Streets of Tarkov, Shoreline or Ground Zero')
   })
 
-  it('steps aside once tarkov.dev has the new values, and leaves other quests alone', () => {
-    const fixed = patriot({ experience: 10000, mapIds: ['streets-of-tarkov'] })
-    expect(applyQuestCorrections([fixed], 'ru')[0]).toBe(fixed)
+  it('is pinned: a later upstream change does not replace it, and the quest is marked; other quests are left alone', () => {
+    const changed = patriot({ experience: 12345, level: 30, mapIds: ['woods'], rewards: ['Рубли × 1'] })
+    const [quest] = applyQuestCorrections([changed], 'ru')
+    expect(quest).toMatchObject({ level: 15, experience: 10000, mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'], manualCorrection: { source: 'tarkov.help', checkedAt: '2026-10-14' } })
+    expect(quest!.rewards).toContain('Рубли × 200000')
     const other = patriot({ id: 'other' })
     expect(applyQuestCorrections([other], 'ru')[0]).toBe(other)
   })

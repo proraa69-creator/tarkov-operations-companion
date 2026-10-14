@@ -2,12 +2,14 @@ import type { Quest } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 
 /**
- * Quests whose tarkov.dev data lags behind the game, corrected from the owner's checked source. Each correction applies
- * only while tarkov.dev still has the old values it was written against, so a later tarkov.dev fix wins on its own.
+ * Quests whose tarkov.dev data is wrong, corrected from the owner's checked source. A correction is pinned: it applies on
+ * every catalog build (the server's quest base and the app's own fetch both go through src/data/catalogSource.ts), so a
+ * later server or tarkov.dev update never overwrites it. The result carries `manualCorrection` as the mark.
  */
 interface QuestCorrection {
-  /** The old upstream state this correction replaces. */
-  stale: (quest: Quest) => boolean
+  /** Where the corrected values come from and when the owner checked them. */
+  source: string
+  checkedAt: string
   apply: (quest: Quest, locale: AppLocale) => Quest
 }
 
@@ -20,8 +22,10 @@ const PATRIOT_MAPS = ['streets-of-tarkov', 'shoreline', 'ground-zero']
 const CORRECTIONS: Record<string, QuestCorrection> = {
   // «Работа для патриота» (owner, 14.10.2026: «у нас не правильная информация», tarkov.help): Streets, Shoreline or Ground
   // Zero instead of Lighthouse, Customs or Reserve; Prapor loyalty 2; 10 000 experience, +0.25 Prapor, 200 000 ₽.
+  // Pinned (owner: «при обновлении данных с серверов, не обновляй этот квест, пометь»).
   '64f5deac39e45b527a7c4232': {
-    stale: (quest) => quest.experience === 18000 || Boolean(quest.mapIds?.includes('lighthouse')),
+    source: 'tarkov.help',
+    checkedAt: '2026-10-14',
     apply: (quest, locale) => {
       const objective = locale === 'en'
         ? 'Eliminate PMC operatives with an AK-12 with the original suppressor and the Valday PS-320 1x/6x scope on Streets of Tarkov, Shoreline or Ground Zero'
@@ -50,10 +54,11 @@ const CORRECTIONS: Record<string, QuestCorrection> = {
   },
 }
 
-/** The catalog's quests with the known corrections applied (both languages). */
+/** The catalog's quests with the pinned corrections applied (both languages), each marked with `manualCorrection`. */
 export function applyQuestCorrections(quests: Quest[], locale: AppLocale): Quest[] {
   return quests.map((quest) => {
     const correction = CORRECTIONS[quest.id]
-    return correction && correction.stale(quest) ? correction.apply(quest, locale) : quest
+    if (!correction) return quest
+    return { ...correction.apply(quest, locale), manualCorrection: { source: correction.source, checkedAt: correction.checkedAt } }
   })
 }

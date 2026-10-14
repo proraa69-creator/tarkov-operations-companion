@@ -433,6 +433,11 @@ export interface Quest {
    * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»).
    */
   gameConditions?: Array<'dialogue' | 'progress'>
+  /**
+   * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts) and is pinned: catalog
+   * and server updates do not overwrite it.
+   */
+  manualCorrection?: { source: string; checkedAt: string }
   mapId?: string
   level: number
   kappa: boolean
