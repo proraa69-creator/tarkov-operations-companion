@@ -701,6 +701,9 @@ function whenLoaded(window: BrowserWindow) {
 async function lookupItem(test: boolean) {
   const settings = readSettings()
   if (!settings.itemLookup || lookupBusy) return null
+  // An exclusive full-screen game hides from screen copies (they come out black, and the fallback copied the whole display
+  // again and again), and no card can be drawn over it: no copies at all.
+  if (!test && foregroundDisplayMode() === 'exclusive') return null
   lookupBusy = true
   try {
     const point = screen.getCursorScreenPoint()
@@ -722,9 +725,10 @@ async function lookupItem(test: boolean) {
     // Only the game's own name tooltip is read: it holds the name of exactly the hovered item. It appears a moment
     // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
     const started = Date.now()
+    // The area around the cursor only, never the whole display; the slow whole-screen fallback once a lookup at most.
+    const fallback = { left: 1 }
     const reading = await readGameTooltip({
-      grab: () => grabAroundCursor(point, display),
-      grabWide: () => grabAroundCursor(point, display, true),
+      grab: () => grabAroundCursor(point, display, fallback),
       recognize: (bitmap) => recognizeTooltip(bitmap),
       match: async (text) => {
         const reply = await askRenderer('item', { text, tooltip: true })
@@ -930,17 +934,17 @@ function placeItemCard(window: BrowserWindow, point: Point, display: Display, si
 
 /**
  * The screen around the cursor in physical pixels (BGRA) with the cursor position in it: a GDI copy of just
- * that area when possible (milliseconds), otherwise a crop of a full desktopCapturer grab.
+ * that area when possible (milliseconds), otherwise — `fallback.left` times a lookup — a crop of a full desktopCapturer grab.
  */
-async function grabAroundCursor(point: Point, display: Display, wide = false) {
+async function grabAroundCursor(point: Point, display: Display, fallback: { left: number }) {
   const physicalDisplay = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
   const unit = physicalDisplay.height / 1080
   const cursor = process.platform === 'win32' ? screen.dipToScreenPoint(point) : point
   // Generous around the cursor: over a big item the tooltip may sit at the item's corner (TOOLTIP_CAPTURE).
-  const left = wide ? physicalDisplay.x : Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
-  const top = wide ? physicalDisplay.y : Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
-  const right = wide ? physicalDisplay.x + physicalDisplay.width : Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
-  const bottom = wide ? physicalDisplay.y + physicalDisplay.height : Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
+  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
+  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
+  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
+  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
   if (right - left < 40 || bottom - top < 20) return null
   const toScreen = (rect: Rectangle) => {
     const physical = { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height }
@@ -948,7 +952,9 @@ async function grabAroundCursor(point: Point, display: Display, wide = false) {
   }
   const fast = captureScreenRegion(left, top, right - left, bottom - top)
   if (fast && !isBlank(fast.data)) return { image: fast, cursor: { x: cursor.x - left, y: cursor.y - top }, unit, toScreen }
-  // Fallback: one full-screen grab (slower), cropped to the same area.
+  // Fallback: one full-screen grab (slower), cropped to the same area — not again and again within one lookup.
+  if (fallback.left <= 0) return null
+  fallback.left -= 1
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: physicalDisplay.width, height: physicalDisplay.height } })
   const source = sources.find((entry) => entry.display_id === String(display.id)) ?? sources[0]
   if (!source || source.thumbnail.isEmpty()) return null
