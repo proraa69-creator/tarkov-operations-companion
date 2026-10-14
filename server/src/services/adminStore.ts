@@ -92,6 +92,24 @@ export interface AdminUser {
   country?: string
   /** The Escape from Tarkov nickname the PC app found in the game logs (one for every mode); absent until it is found. */
   nickname?: string
+  /**
+   * «Пригласи друга» (owner, 14.10.2026: «нужно что бы было видно от кого пришел человек по скидке»): the player whose code
+   * this account used (accounts.invited_by), with the inviter's e-mail and game nickname — or `deleted` when that account
+   * was deleted since (its e-mail is gone). `discount`: the friend's discount on the first month (services/invites.ts) —
+   * 'used' (a payment with it went through, refunded or not), 'unused' (nothing paid yet: still available), 'lost' (the
+   * first payment was made without it, e.g. a longer plan, so it is no longer offered). A streamer's code stays in
+   * `referredBy`.
+   */
+  invitedBy?: InviterView
+}
+
+/** The inviter of a friend-invited account (owner only). */
+export interface InviterView {
+  id: string
+  email?: string
+  nickname?: string
+  deleted?: true
+  discount?: 'used' | 'unused' | 'lost'
 }
 
 export interface AdminPayment {
@@ -109,6 +127,8 @@ export interface AdminPayment {
   renewal?: true
   referralCode?: string
   streamerEarning?: number
+  /** Paid with the friend's discount (services/invites.ts): its percent and who invited the payer (a deleted inviter: no e-mail). */
+  friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
 }
 
 const rub = (kopecks: unknown) => Math.round(Number(kopecks ?? 0)) / 100
@@ -126,6 +146,23 @@ const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\$
 /** «Способ» in the CSV: ЮKassa, or «Архив» for a payment service that is no longer connected. */
 const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', archive: 'Архив' }
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
+/** FROM of «Пользователи»: see AdminStore.userSelect. */
+const USER_FROM = 'FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id LEFT JOIN accounts i ON i.id = a.invited_by'
+/**
+ * The inviter in a row joined as `i` (inviter_email, inviter_nicknames, inviter_deleted_at): a deleted account keeps only
+ * an anonymous stub (AccountStore.deleteAccount), so it shows as deleted, without the stub's e-mail.
+ */
+function inviterOf(row: Row): InviterView {
+  const id = String(row.invited_by)
+  if (row.inviter_email == null || row.inviter_deleted_at != null) return { id, deleted: true }
+  const nickname = row.inviter_nicknames === undefined ? undefined : storedNickname(row.inviter_nicknames)
+  return { id, email: String(row.inviter_email), ...(nickname ? { nickname } : {}) }
+}
+/**
+ * Payments with the payer's e-mail and, for a payment with the friend's discount, the inviter (one LEFT JOIN on
+ * accounts.invited_by, see toPayment). Followed by WHERE / ORDER BY.
+ */
+const PAYMENT_SELECT = 'SELECT p.*, a.email AS email, i.email AS inviter_email, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by'
 
 /**
  * The condition of a region tab of «Пользователи» (owner, 13.10.2026: «в разделе пользователи, разделение снг и Европа»).
@@ -294,13 +331,16 @@ export class AdminStore {
     const { start, end } = mskDayRange(date)
     const summary = this.calendar(date.slice(0, 7)).days.find((day) => day.date === date)!
     const hasInvites = this.tableExists('invite_rewards')
-    const registrations = (this.db.prepare(`SELECT id, email, kind, created_at, referred_by, ${hasInvites || this.hasColumn('accounts', 'invited_by') ? 'invited_by' : 'NULL AS invited_by'} FROM accounts WHERE created_at >= ? AND created_at < ? AND deleted_at IS NULL ORDER BY created_at, rowid LIMIT 200`).all(start, end) as Row[])
+    // The inviter of a friend-invited registration by one LEFT JOIN (owner, 14.10.2026: the e-mail instead of a bare flag).
+    const invitedBy = hasInvites || this.hasColumn('accounts', 'invited_by')
+    const registrations = (this.db.prepare(`SELECT a.id, a.email, a.kind, a.created_at, a.referred_by, ${invitedBy ? 'a.invited_by, i.email AS inviter_email, i.deleted_at AS inviter_deleted_at' : 'NULL AS invited_by'}
+      FROM accounts a ${invitedBy ? 'LEFT JOIN accounts i ON i.id = a.invited_by' : ''} WHERE a.created_at >= ? AND a.created_at < ? AND a.deleted_at IS NULL ORDER BY a.created_at, a.rowid LIMIT 200`).all(start, end) as Row[])
       .map((row) => ({
         id: String(row.id), email: String(row.email), kind: row.kind === 'streamer' ? 'streamer' as const : 'user' as const, createdAt: iso(row.created_at)!,
         ...(row.referred_by == null ? {} : { referredBy: String(row.referred_by) }),
-        ...(row.invited_by == null ? {} : { invitedByFriend: true as const }),
+        ...(row.invited_by == null ? {} : { invitedByFriend: true as const, invitedBy: inviterOf(row) }),
       }))
-    const payments = (this.db.prepare('SELECT p.*, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id WHERE (p.created_at >= ? AND p.created_at < ?) OR (p.paid_at >= ? AND p.paid_at < ?) ORDER BY p.created_at, p.rowid LIMIT 500').all(start, end, start, end) as Row[]).map(toPayment)
+    const payments = (this.db.prepare(`${PAYMENT_SELECT} WHERE (p.created_at >= ? AND p.created_at < ?) OR (p.paid_at >= ? AND p.paid_at < ?) ORDER BY p.created_at, p.rowid LIMIT 500`).all(start, end, start, end) as Row[]).map(toPayment)
     const earned = Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE status = 'succeeded' AND paid_at >= ? AND paid_at < ?").get(start, end) as Row).n)
     const grants = (this.db.prepare('SELECT g.*, a.email AS email FROM owner_subscription_grants g JOIN accounts a ON a.id = g.account_id WHERE g.at >= ? AND g.at < ? ORDER BY g.at, g.id').all(start, end) as Row[])
       .map((row) => ({ email: String(row.email), days: Number(row.days), reason: String(row.reason), actor: String(row.actor), at: iso(row.at)! }))
@@ -337,7 +377,7 @@ export class AdminStore {
   paymentList(filter: PaymentFilter, limit: number, offset: number) {
     const { sql, args } = this.paymentWhere(filter)
     const totals = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN 1 ELSE 0 END), 0) AS ok, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN p.amount ELSE 0 END), 0) AS revenue, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN COALESCE(p.streamer_earning, 0) ELSE 0 END), 0) AS earned FROM payments p JOIN accounts a ON a.id = p.account_id ${sql}`).get(...args) as Row
-    const rows = this.db.prepare(`SELECT p.*, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id ${sql} ORDER BY p.created_at DESC, p.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
+    const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ORDER BY p.created_at DESC, p.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
     return {
       payments: rows.map(toPayment),
       total: Number(totals.n),
@@ -370,6 +410,8 @@ export class AdminStore {
    * «Android · Raid OS», «iOS · Raid OS», «Браузер · Raid OS» (src/sync/webEntitlement.ts) and do not count.
    */
   private userSelect() {
+    // USER_FROM: accounts with the subscription, the bound game account and the inviter of a friend-invited account
+    // (accounts.invited_by → accounts, one LEFT JOIN: the e-mail and nickname in the same row, no query per user).
     const devices = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'account_devices'").get() !== undefined
     const pcSeen = devices
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
@@ -380,8 +422,10 @@ export class AdminStore {
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
       (SELECT r.provider || '|' || r.status || '|' || r.plan FROM recurring_subscriptions r WHERE r.account_id = a.id ORDER BY r.created_at DESC, r.rowid DESC LIMIT 1) AS autopay,
-      e.eft_hint, e.bound_at AS eft_bound_at
-    FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id`
+      e.eft_hint, e.bound_at AS eft_bound_at,
+      a.invited_by, i.email AS inviter_email, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at,
+      CASE WHEN a.invited_by IS NULL THEN NULL ELSE EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.discount_percent IS NOT NULL AND p.status IN ('succeeded', 'refunded')) END AS friend_discount_paid
+    ${USER_FROM}`
   }
 
   /**
@@ -395,10 +439,11 @@ export class AdminStore {
     const args: Array<string | number> = []
     if (q) {
       // The e-mail or the game nickname (owner, 13.10.2026: the nickname found by the PC app shows under each account).
-      // A broken nicknames value never breaks the list: CASE reads JSON only when it is valid.
+      // A broken nicknames value never breaks the list: CASE reads JSON only when it is valid. The inviter's e-mail too
+      // (owner, 14.10.2026): searching a player's e-mail also lists the friends who came with that player's code.
       const nick = ACCOUNT_MODES.map((mode) => `json_extract(a.nicknames, '$.${mode}') LIKE ? ESCAPE '\\'`).join(' OR ')
-      where.push(`(a.email LIKE ? ESCAPE '\\' OR CASE WHEN json_valid(a.nicknames) THEN (${nick}) ELSE 0 END)`)
-      args.push(likePattern(q.toLowerCase()), ...ACCOUNT_MODES.map(() => likePattern(q)))
+      where.push(`(a.email LIKE ? ESCAPE '\\' OR CASE WHEN json_valid(a.nicknames) THEN (${nick}) ELSE 0 END OR (i.email LIKE ? ESCAPE '\\' AND i.deleted_at IS NULL))`)
+      args.push(likePattern(q.toLowerCase()), ...ACCOUNT_MODES.map(() => likePattern(q)), likePattern(q.toLowerCase()))
     }
     const active = "(a.kind = 'user' AND s.paid_until > ?)"
     const trial = "(a.kind = 'user' AND (s.paid_until IS NULL OR s.paid_until <= ?) AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ?)"
@@ -408,7 +453,7 @@ export class AdminStore {
     if (filter === 'streamers') where.push("a.kind = 'streamer'")
     if (filter === 'blocked') where.push('a.blocked_at IS NOT NULL')
     const regions: RegionCounts = { all: 0, cis: 0, europe: 0, other: 0, none: 0 }
-    for (const row of this.db.prepare(`SELECT a.country AS country, COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE ${where.join(' AND ')} GROUP BY a.country`).all(...args) as Row[]) {
+    for (const row of this.db.prepare(`SELECT a.country AS country, COUNT(*) AS n ${USER_FROM} WHERE ${where.join(' AND ')} GROUP BY a.country`).all(...args) as Row[]) {
       regions.all += Number(row.n)
       regions[row.country == null ? 'none' : regionOf(String(row.country))] += Number(row.n)
     }
@@ -418,7 +463,7 @@ export class AdminStore {
       args.push(...condition.args)
     }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : ''
-    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id ${clause}`).get(...args) as Row).n)
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n ${USER_FROM} ${clause}`).get(...args) as Row).n)
     const rows = this.db.prepare(`${this.userSelect()} ${clause} ORDER BY a.created_at DESC, a.rowid DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
     return { users: rows.map((row) => this.toUser(row)), total, regions }
   }
@@ -427,7 +472,7 @@ export class AdminStore {
   user(id: string) {
     const row = this.db.prepare(`${this.userSelect()} WHERE a.id = ?`).get(id) as Row | undefined
     if (!row) throw new AccountError(404, 'Пользователь не найден')
-    const payments = (this.db.prepare('SELECT p.*, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id WHERE p.account_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT 20').all(id) as Row[]).map(toPayment)
+    const payments = (this.db.prepare(`${PAYMENT_SELECT} WHERE p.account_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT 20`).all(id) as Row[]).map(toPayment)
     const grants = (this.db.prepare('SELECT * FROM owner_subscription_grants WHERE account_id = ? ORDER BY at DESC, id DESC LIMIT 20').all(id) as Row[])
       .map((grant) => ({ days: Number(grant.days), reason: String(grant.reason), actor: String(grant.actor), at: iso(grant.at)!, paidUntil: iso(grant.paid_until_after)! }))
     return { user: this.toUser(row), payments, grants }
@@ -463,6 +508,7 @@ export class AdminStore {
       ...(row.eft_hint == null ? {} : { eftAccount: { masked: `••••${String(row.eft_hint)}`, boundAt: iso(row.eft_bound_at)! } }),
       ...(row.country == null ? {} : { country: String(row.country) }),
       ...(nickname ? { nickname } : {}),
+      ...(row.invited_by == null ? {} : { invitedBy: { ...inviterOf(row), discount: row.friend_discount_paid ? 'used' as const : Number(row.paid_count ?? 0) > 0 ? 'lost' as const : 'unused' as const } }),
     }
   }
 
@@ -668,6 +714,12 @@ function toPayment(row: Row): AdminPayment {
     ...(row.recurring_id == null ? {} : { renewal: true as const }),
     ...(row.referral_code == null ? {} : { referralCode: String(row.referral_code) }),
     ...(row.streamer_earning == null ? {} : { streamerEarning: rub(row.streamer_earning) }),
+    ...(row.discount_percent == null ? {} : {
+      friendDiscount: {
+        percent: Number(row.discount_percent),
+        ...(row.inviter_email == null ? {} : row.inviter_deleted_at != null ? { inviterDeleted: true as const } : { inviter: String(row.inviter_email) }),
+      },
+    }),
   }
 }
 
