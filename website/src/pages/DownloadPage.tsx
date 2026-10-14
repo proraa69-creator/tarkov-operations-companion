@@ -31,6 +31,8 @@ export function DownloadPage() {
           <div className="eyebrow">{tr('Загрузка')}</div>
           <h1 className="page-title">{tr('Скачать приложение')}</h1>
           <p className="page-subtitle">{tr('Портативная версия для Windows — скачайте и запустите, установка не нужна.')}</p>
+          {/* Owner, 14.10.2026: right under the portable line. */}
+          <p className="download-note">{tr('Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.')}</p>
           <div className="download-meta">
             <span className="tag brass">{tr('Версия {version}', { version: APP_VERSION })}</span>
             <span className="tag">Windows 10 / 11 · 64-bit</span>
