@@ -92,9 +92,13 @@
 .owner-chat-preview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); font-size: 12.5px; }
 .owner-chat-item .requests-tab-count { justify-self: end; }
 .owner-chat-thread { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; height: min(680px, calc(100dvh - 230px)); min-height: 360px; }
-.owner-chat-thread-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.owner-chat-thread-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.owner-chat-who { flex: 1 1 160px; min-width: 0; }
 .owner-chat-thread-head h2 { margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .owner-chat-thread-head small { color: var(--text-dim); overflow-wrap: anywhere; }
+/* «Проблема решена» at the right of the head; «Удалить переписку?» with «Да» / «Нет» in its place. */
+.owner-chat-resolve { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.owner-chat-resolve > span { color: var(--text-muted); font-size: 12.5px; font-weight: 700; }
 .owner-chat-thread-head .owner-chat-back { display: none; }
 .owner-chat-pick { display: grid; place-items: center; min-height: 240px; color: var(--text-dim); }
 @media (max-width: 900px) {

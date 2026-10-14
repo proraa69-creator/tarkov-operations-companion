@@ -3,7 +3,8 @@
 .sidebar .requests-nav + .sidebar-operator { margin-top: 0; }
 
 .requests-page { display: grid; gap: 14px; align-content: start; }
-.requests-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Открыть чат» scrolls them into view under the fixed top bar. */
+.requests-tabs { display: flex; flex-wrap: wrap; gap: 6px; scroll-margin-top: calc(var(--topbar) + var(--announcement-height, 0px) + 12px); }
 .requests-tab {
   display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: 99px;
   background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer;
@@ -27,4 +28,5 @@
 .requests-detail p { margin: 0; white-space: pre-wrap; }
 .requests-images { display: flex; flex-wrap: wrap; gap: 8px; }
 .requests-images img { max-width: min(420px, 100%); max-height: 260px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
+.requests-notes li .requests-note-chat { justify-self: start; min-height: 26px; margin-top: 2px; }
 .requests-report .is-flipped { rotate: 180deg; }

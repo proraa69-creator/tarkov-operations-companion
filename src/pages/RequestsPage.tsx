@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { Bug, CheckCircle2, ChevronDown, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, RotateCcw, Users } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -61,6 +61,16 @@ const avg = (values: number[]) => Math.round(values.reduce((sum, value) => sum +
 const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const when = (iso: string) => { try { return dateTime.format(new Date(iso)) } catch { return iso } }
 
+const ACCOUNT_ID = /^[a-f0-9]{24}$/
+/**
+ * The report's author for «Открыть чат»: the server's report carries the account id until the account is deleted
+ * (server/src/routes/bugReports.ts); a report without one has no chat button.
+ */
+export function reportAuthor(report: OwnerReport): string | undefined {
+  const id = (report as OwnerReport & { accountId?: unknown }).accountId
+  return typeof id === 'string' && ACCOUNT_ID.test(id) ? id : undefined
+}
+
 type Tab = 'quests' | 'bugs' | 'ideas' | 'chats' | 'closed'
 
 /**
@@ -68,6 +78,9 @@ type Tab = 'quests' | 'bugs' | 'ideas' | 'chats' | 'closed'
  * сходится 2-3-4 раза значит буду в ручную менять»), bug reports and ideas. From here the owner opens the quest in the
  * constructor, applies the agreed place to the quest for every player, closes and grants subscription days. Nothing is
  * changed until the owner does it. «Чаты»: the players' support chats, answered here (support/OwnerChats.tsx).
+ *
+ * «Открыть чат» on a report (owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно будет писать»): «Чаты»
+ * with the author's conversation open, where the owner can write first.
  */
 export function RequestsPage() {
   if (!isOwnerApp()) return <Navigate to="/" replace />
@@ -76,6 +89,14 @@ export function RequestsPage() {
 
 function Requests() {
   const [tab, setTab] = useState<Tab>('quests')
+  const [chatWith, setChatWith] = useState<string | null>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const openChat = useCallback((accountId: string) => {
+    setChatWith(accountId)
+    setTab('chats')
+    // From a card far down the list: the tabs come back into view under the top bar, the conversation under them.
+    tabsRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [])
   const open = useOwnerReports('open')
   const closed = useOwnerReports('closed')
   const chats = useOwnerChats()
@@ -101,7 +122,7 @@ function Requests() {
           <p className="page-subtitle">{uiText('Ошибки, предложения и исправления квестов от игроков. Совпадающие исправления собраны вместе — ничего не меняется, пока вы не примените.')}</p>
         </div>
       </header>
-      <div className="requests-tabs" role="tablist" aria-label={uiText('Заявки')}>
+      <div ref={tabsRef} className="requests-tabs" role="tablist" aria-label={uiText('Заявки')}>
         {tabs.map(({ id, label, count, icon: Icon }) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={`requests-tab${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>
             <Icon size={14} />{uiText(label)}{count ? <span className="requests-tab-count">{count}</span> : null}
@@ -111,12 +132,12 @@ function Requests() {
       {error && <p className="account-error" role="alert">{uiText(/Не найдено|Неизвестный запрос/.test(error) ? 'Заявки видит только аккаунт владельца. Войдите в него в профиле.' : error)}</p>}
       {open.isLoading && <p className="dim"><LoaderCircle size={14} className="spin" /> {uiText('Загружаем заявки…')}</p>}
       {tab === 'quests' && (groups.length
-        ? groups.map((group) => <QuestGroupCard key={group.key} group={group} quests={data?.quests ?? []} maps={data?.maps ?? []} />)
+        ? groups.map((group) => <QuestGroupCard key={group.key} group={group} quests={data?.quests ?? []} maps={data?.maps ?? []} onOpenChat={openChat} />)
         : !open.isLoading && <EmptyRequests text="Исправлений квестов пока нет." />)}
-      {tab === 'bugs' && (bugs.length ? bugs.map((report) => <ReportCard key={report.id} report={report} />) : !open.isLoading && <EmptyRequests text="Открытых отчётов об ошибках нет." />)}
-      {tab === 'ideas' && (ideas.length ? ideas.map((report) => <ReportCard key={report.id} report={report} />) : !open.isLoading && <EmptyRequests text="Новых предложений нет." />)}
-      {tab === 'chats' && <OwnerChats />}
-      {tab === 'closed' && ((closed.data ?? []).length ? (closed.data ?? []).map((report) => <ReportCard key={report.id} report={report} />) : !closed.isLoading && <EmptyRequests text="Закрытых заявок нет." />)}
+      {tab === 'bugs' && (bugs.length ? bugs.map((report) => <ReportCard key={report.id} report={report} onOpenChat={openChat} />) : !open.isLoading && <EmptyRequests text="Открытых отчётов об ошибках нет." />)}
+      {tab === 'ideas' && (ideas.length ? ideas.map((report) => <ReportCard key={report.id} report={report} onOpenChat={openChat} />) : !open.isLoading && <EmptyRequests text="Новых предложений нет." />)}
+      {tab === 'chats' && <OwnerChats selected={chatWith} onSelect={setChatWith} />}
+      {tab === 'closed' && ((closed.data ?? []).length ? (closed.data ?? []).map((report) => <ReportCard key={report.id} report={report} onOpenChat={openChat} />) : !closed.isLoading && <EmptyRequests text="Закрытых заявок нет." />)}
     </div>
   )
 }
@@ -125,8 +146,11 @@ function EmptyRequests({ text }: { text: string }) {
   return <section className="panel requests-empty"><Inbox size={22} /><span>{uiText(text)}</span></section>
 }
 
-/** A quest correction several players may agree on: where, how many, their notes, and the owner's actions. */
-function QuestGroupCard({ group, quests, maps }: { group: RequestGroup; quests: Quest[]; maps: GameMap[] }) {
+/**
+ * A quest correction several players may agree on: where, how many, their notes, and the owner's actions. «Открыть чат»
+ * after «Закрыть» when one player sent them all; with several players, on each player's line.
+ */
+function QuestGroupCard({ group, quests, maps, onOpenChat }: { group: RequestGroup; quests: Quest[]; maps: GameMap[]; onOpenChat: (accountId: string) => void }) {
   const navigate = useNavigate()
   const actions = useOwnerReportActions()
   const writer = useQuestPointWriter()
@@ -137,6 +161,7 @@ function QuestGroupCard({ group, quests, maps }: { group: RequestGroup; quests: 
   const quest = quests.find((entry) => entry.id === group.questId)
   const map = maps.find((entry) => entry.id === group.mapId)
   const ids = group.reports.map((report) => report.id)
+  const authors = [...new Set(group.reports.flatMap((report) => reportAuthor(report) ?? []))]
   const confirmed = group.matches >= MATCHES_CONFIRMED
   const run = async (label: string, action: () => Promise<void>) => {
     setBusy(true); setError(''); setDone('')
@@ -183,14 +208,18 @@ function QuestGroupCard({ group, quests, maps }: { group: RequestGroup; quests: 
         </span>
       </header>
       <ul className="requests-notes">
-        {group.reports.map((report) => (
-          <li key={report.id}>
-            <span className="dim">№{report.id} · {when(report.createdAt)} · {report.email ?? uiText('аккаунт удалён')}{report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}</span>
-            {report.quest?.pointNote && <span>{uiText('К точке')}: {report.quest.pointNote}</span>}
-            {report.quest?.questNote && <span>{uiText('К квесту')}: {report.quest.questNote}</span>}
-            {!report.quest?.pointNote && !report.quest?.questNote && <span className="dim">{report.topic}</span>}
-          </li>
-        ))}
+        {group.reports.map((report) => {
+          const author = authors.length > 1 ? reportAuthor(report) : undefined
+          return (
+            <li key={report.id}>
+              <span className="dim">№{report.id} · {when(report.createdAt)} · {report.email ?? uiText('аккаунт удалён')}{report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}</span>
+              {report.quest?.pointNote && <span>{uiText('К точке')}: {report.quest.pointNote}</span>}
+              {report.quest?.questNote && <span>{uiText('К квесту')}: {report.quest.questNote}</span>}
+              {!report.quest?.pointNote && !report.quest?.questNote && <span className="dim">{report.topic}</span>}
+              {author && <button type="button" className="button small ghost requests-note-chat" onClick={() => onOpenChat(author)}><MessagesSquare size={12} />{uiText('Открыть чат')}</button>}
+            </li>
+          )
+        })}
       </ul>
       <div className="requests-actions">
         <button type="button" className="button small" disabled={busy} onClick={openInConstructor}><PencilRuler size={13} />{uiText('Открыть в конструкторе')}</button>
@@ -200,6 +229,7 @@ function QuestGroupCard({ group, quests, maps }: { group: RequestGroup; quests: 
           <button type="button" className="button small" disabled={busy} onClick={reward}><Gift size={13} />{uiText('Начислить дни')}</button>
         </span>
         <button type="button" className="button small ghost" disabled={busy} onClick={() => void run('Заявки закрыты', () => actions.setStatus(ids, 'closed'))}><CheckCircle2 size={13} />{uiText('Закрыть')}</button>
+        {authors.length === 1 && <button type="button" className="button small ghost" onClick={() => onOpenChat(authors[0]!)}><MessagesSquare size={13} />{uiText('Открыть чат')}</button>}
         {busy && <LoaderCircle size={14} className="spin" />}
         {done && <small className="quest-text-saved">{uiText(done)}</small>}
         {error && <small className="account-error">{uiText(error)}</small>}
@@ -208,8 +238,8 @@ function QuestGroupCard({ group, quests, maps }: { group: RequestGroup; quests: 
   )
 }
 
-/** A bug report or an idea: what it is about, the details and screenshots on demand, close / reopen and days. */
-function ReportCard({ report }: { report: OwnerReport }) {
+/** A bug report or an idea: what it is about, the details and screenshots on demand, close / reopen, days and «Открыть чат». */
+function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (accountId: string) => void }) {
   const actions = useOwnerReportActions()
   const [detail, setDetail] = useState<OwnerReportDetail | null>(null)
   const [images, setImages] = useState<string[]>([])
@@ -217,6 +247,7 @@ function ReportCard({ report }: { report: OwnerReport }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [days, setDays] = useState(1)
+  const author = reportAuthor(report)
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError('')
     try { await action() } catch (reason) { setError(cleanIpcError(reason) || 'Сервер недоступен') } finally { setBusy(false) }
@@ -256,9 +287,11 @@ function ReportCard({ report }: { report: OwnerReport }) {
         {closedReport
           ? <button type="button" className="button small ghost" disabled={busy} onClick={() => void run(() => actions.setStatus([report.id], 'open'))}><RotateCcw size={13} />{uiText('Открыть снова')}</button>
           : <button type="button" className="button small ghost" disabled={busy} onClick={() => void run(() => actions.setStatus([report.id], 'closed'))}><CheckCircle2 size={13} />{uiText('Закрыть')}</button>}
+        {author && <button type="button" className="button small ghost" onClick={() => onOpenChat(author)}><MessagesSquare size={13} />{uiText('Открыть чат')}</button>}
         {busy && <LoaderCircle size={14} className="spin" />}
         {error && <small className="account-error">{uiText(error)}</small>}
       </div>
     </section>
   )
 }
+
