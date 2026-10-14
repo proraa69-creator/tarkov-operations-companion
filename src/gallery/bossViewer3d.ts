@@ -3,7 +3,9 @@
  * never reaches the main bundle. Rendering is on demand: frames are drawn only while the model is dragged,
  * easing to a stop, turning to a key press or a reset, its loose parts are still moving, it is loading, or (opt-in)
  * slowly spinning; then the loop stops, so an idle viewer costs nothing. Nothing is drawn while the canvas is off
- * screen or the window is hidden.
+ * screen, the window is hidden or — in the desktop app — the window is not in use (src/app/appActivity.ts): the main
+ * window keeps drawing behind the game (backgroundThrottling: false), where «Автоповорот» used to spin the WebGL model
+ * and its physics at 30 fps for as long as the card stayed open. The spin resumes when the window is used again.
  * Secondary physics (physics/): capes, cloaks and coat hems, straps and slings, hair and dreads, antennas, pouches
  * and gear follow the model's real motion — its world matrix goes into the simulation every frame — so a turn makes
  * them lag, flare and swing, and they settle once it stops. The body, the weapons and rigid armour never move.
@@ -14,6 +16,7 @@ import {
   type BufferAttribute, type Material, type Mesh, type Object3D, type Texture,
 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { isAppActive, onAppActivityChange, startAppActivity } from '../app/appActivity'
 import type { BossModelFix } from '../data/bossModels'
 import { FOV, LOOK_AT_Y, START_DISTANCE, START_PITCH, START_YAW_DEG, headTop } from './bossFraming'
 import { applyBossLighting, gradeBossMaterial } from './bossLook'
@@ -43,6 +46,8 @@ const TARGET = new Vector3(0, LOOK_AT_Y, 0)
 const FIT_HEIGHT = 1.08, FIT_WIDTH = 1.0
 const SPIN_SPEED = 0.35 // rad/s
 const SPIN_FRAME_MS = 1000 / 30
+/** A spin frame may come this much early: the display's frames (16.7 ms at 60 Hz, 6.9 ms at 144 Hz) seldom fit 33.3 ms. */
+const SPIN_SLACK_MS = 4
 /** An arrow key turns by KEY_TURN in KEY_TURN_MS and a reset eases back in RESET_MS: real turns the cloth follows. */
 const KEY_TURN = 15 * DEG, KEY_TURN_MS = 280, RESET_MS = 650
 
@@ -55,7 +60,7 @@ const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 
 /** The same angle within (−π, π]. */
 const wrap = (angle: number) => angle - Math.ceil((angle - Math.PI) / (2 * Math.PI)) * 2 * Math.PI
 
-export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: boolean; onLoading?: (loading: boolean) => void; onError?: () => void }): BossViewerHandle {
+export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: boolean; onLoading?: (loading: boolean) => void; onError?: () => void; followActivity?: boolean }): BossViewerHandle {
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'low-power' })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
   renderer.setClearColor(0x000000, 0)
@@ -74,6 +79,8 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   let dragging = false
   let visible = true
   let raf = 0
+  /** The slow spin waits for its next frame on a timer, not on every display frame. */
+  let wake = 0
   let lastFrame = 0
   let loadToken = 0
   let disposed = false
@@ -103,9 +110,11 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   function frame(now: number) {
     raf = 0
     const busy = dragging || yawVelocity !== 0 || turn !== null || moving
-    // the slow spin alone runs at a reduced frame rate
+    // the slow spin alone runs at a reduced frame rate: it sleeps until its next frame instead of waking up on every
+    // display frame (60–144 a second) only to skip it
     const minGap = busy ? 0 : spinning() ? SPIN_FRAME_MS : 0
-    if (lastFrame && now - lastFrame < minGap - 1) { raf = requestAnimationFrame(frame); return }
+    const early = lastFrame && minGap ? minGap - SPIN_SLACK_MS - (now - lastFrame) : 0
+    if (early > 0) { wake = window.setTimeout(() => { wake = 0; invalidate() }, early); return }
     const dt = lastFrame ? Math.min(0.1, (now - lastFrame) / 1000) : 0
     lastFrame = now
     if (turn) {
@@ -131,7 +140,8 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
       if (awake || wasAwake) part.mesh.invalidate()
     }
     draw()
-    if (visible && (spinning() || yawVelocity !== 0 || turn || moving || dragging)) raf = requestAnimationFrame(frame)
+    if (visible && (yawVelocity !== 0 || turn || moving || dragging)) raf = requestAnimationFrame(frame)
+    else if (spinning()) wake = window.setTimeout(() => { wake = 0; invalidate() }, SPIN_FRAME_MS - SPIN_SLACK_MS)
     else lastFrame = 0
   }
 
@@ -150,7 +160,10 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     yawVelocity = 0
     invalidate()
   }
-  function invalidate() { if (!raf && !disposed && visible) raf = requestAnimationFrame(frame) }
+  function invalidate() {
+    if (wake) { window.clearTimeout(wake); wake = 0 }
+    if (!raf && !disposed && visible) raf = requestAnimationFrame(frame)
+  }
 
   // Pointer: drag = turn (and a little tilt), wheel or two-finger pinch = zoom within limits,
   // double-click / double-tap = reset. Touch works through the same pointer events (the canvas has touch-action: none).
@@ -244,16 +257,23 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
   canvas.addEventListener('keydown', onKey)
   canvas.addEventListener('dblclick', resetView)
 
-  // Pause when the viewer is off screen or the window is hidden; redraw once when it comes back.
+  // Pause when the viewer is off screen, the window is hidden or (desktop app) not in use; go on when it comes back.
+  // The phone and the browser stop drawing hidden pages themselves, so there only visibility counts.
+  const followActivity = options.followActivity ?? Boolean(window.tarkovDesktop)
+  const stopActivity = followActivity ? startAppActivity() : () => {}
   const updateVisible = (onScreen: boolean) => {
-    visible = onScreen && document.visibilityState === 'visible'
-    if (!visible) { cancelAnimationFrame(raf); raf = 0; lastFrame = 0 } else invalidate()
+    visible = onScreen && document.visibilityState === 'visible' && (!followActivity || isAppActive())
+    if (!visible) {
+      cancelAnimationFrame(raf); raf = 0; lastFrame = 0
+      if (wake) { window.clearTimeout(wake); wake = 0 }
+    } else invalidate()
   }
   let onScreen = true
   const io = new IntersectionObserver(([entry]) => { onScreen = !!entry?.isIntersecting; updateVisible(onScreen) })
   io.observe(canvas)
   const onVisibility = () => updateVisible(onScreen)
   document.addEventListener('visibilitychange', onVisibility)
+  const stopFollowing = followActivity ? onAppActivityChange(() => updateVisible(onScreen)) : () => {}
   const ro = new ResizeObserver(() => { resize(); invalidate() })
   ro.observe(canvas)
   resize()
@@ -349,8 +369,11 @@ export function mountBossViewer(canvas: HTMLCanvasElement, options: { reduced: b
     dispose() {
       disposed = true
       cancelAnimationFrame(raf)
+      if (wake) window.clearTimeout(wake)
       io.disconnect(); ro.disconnect()
       document.removeEventListener('visibilitychange', onVisibility)
+      stopFollowing()
+      stopActivity()
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
