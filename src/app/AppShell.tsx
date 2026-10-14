@@ -35,6 +35,7 @@ import { MobileTabBar } from '../mobile/MobileNav'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
+import { useShareLevels } from '../squad/useShareLevels'
 import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 import { SupportNotice } from '../support/SupportChat'
@@ -90,6 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
+  useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
