@@ -59,8 +59,21 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   minimapOff: false,
 }
 
-/** The minimap and what it needs (its key, the screenshots folder) are on. */
-export const minimapOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>) => settings.minimap && !settings.minimapOff
+/**
+ * The owner's switch for every app (owner, 14.10.2026: «включить или выключить функции миникарты… после обновления
+ * приложения у всех по стандарту функция миникарты выключена»; server/src/routes/announcement.ts `features.minimap`).
+ * The renderer learns it from the server and passes it here (`experimental:set-remote-minimap`), the last known value
+ * first. Off until then: not known yet counts as off.
+ */
+let remoteMinimap = false
+export const setRemoteMinimap = (enabled: boolean) => { remoteMinimap = enabled }
+export const remoteMinimapOn = () => remoteMinimap
+
+/**
+ * The minimap and what it needs (its key, the screenshots folder, the position) are on: the owner allows it for
+ * everybody, and the player did not turn it off («Отключить мини-карту»).
+ */
+export const minimapOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>, remote = remoteMinimap) => remote && settings.minimap && !settings.minimapOff
 
 let current: ExperimentalSettings | null = null
 

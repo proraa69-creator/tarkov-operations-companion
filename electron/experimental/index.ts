@@ -20,7 +20,7 @@ import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScre
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
-import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { minimapOn, readSettings, remoteMinimapOn, setRemoteMinimap, updateSettings, type ExperimentalSettings } from './settings.js'
 import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
 import { foregroundWindowKey } from './win32.js'
@@ -167,7 +167,8 @@ const tracker = new PositionTracker((position) => {
 
 /** A position older than this probably belongs to a previous raid. */
 const POSITION_MAX_AGE_MS = 20 * 60 * 1000
-const freshPosition = () => lastPosition && Date.now() - lastPosition.at < POSITION_MAX_AGE_MS ? lastPosition : null
+// None while the minimap is off (the owner's switch or the player's): no dot on the maps from before it went off.
+const freshPosition = () => lastPosition && minimapOn(readSettings()) && Date.now() - lastPosition.at < POSITION_MAX_AGE_MS ? lastPosition : null
 
 export function startExperimental(next: Options) {
   options = next
@@ -379,6 +380,19 @@ function registerIpc() {
     return (await shell.openPath(lookupLogDir())) === ''
   })
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
+  // The owner's switch for every app, as the renderer learnt it from the server: off takes the minimap window, its key,
+  // the screenshots folder's watch and the position away at once, like «Отключить мини-карту».
+  ipcMain.handle('experimental:set-remote-minimap', (_event, enabled: unknown) => applyRemoteMinimap(enabled === true))
+}
+
+/** Exported for the tests. Returns whether the minimap is on now (both switches). */
+export function applyRemoteMinimap(enabled: boolean) {
+  if (remoteMinimapOn() !== enabled) {
+    setRemoteMinimap(enabled)
+    if (!enabled) lastPosition = null
+    applySettings(readSettings())
+  }
+  return minimapOn(readSettings())
 }
 
 let appliedScreenshotsDir: string | null = null

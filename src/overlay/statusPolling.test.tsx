@@ -2,6 +2,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PositionSetupNotice } from './PositionSetupCard'
 import { ExperimentalPage } from '../pages/ExperimentalPage'
+import { reloadRemoteFeaturesForTests, setRemoteFeatures } from '../announcement/features'
 
 vi.mock('../i18n/renderText', () => ({ uiText: (text: unknown) => text }))
 
@@ -15,6 +16,8 @@ describe('minimap status polling', () => {
   let focus: ReturnType<typeof vi.spyOn>
   beforeEach(() => {
     vi.useFakeTimers()
+    // The owner's switch for every app on (src/announcement/features.ts).
+    setRemoteFeatures({ minimap: true, minimapChangedAt: '' })
     focus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     vi.stubGlobal('tarkovDesktop', { experimental: api })
     api.getSettings.mockResolvedValue(settings)
@@ -26,6 +29,8 @@ describe('minimap status polling', () => {
     vi.restoreAllMocks()
     vi.clearAllMocks()
     vi.unstubAllGlobals()
+    localStorage.clear()
+    reloadRemoteFeaturesForTests()
   })
 
   const pass = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms) }) }

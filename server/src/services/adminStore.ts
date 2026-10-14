@@ -51,7 +51,7 @@ export type AuditAction =
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
   | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'announcement.set' | 'support.reply' | 'support.resolve'
+  | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'announcement.set' | 'features.minimap' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }

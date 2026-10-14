@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ExperimentalPage } from './ExperimentalPage'
+import { reloadRemoteFeaturesForTests, setRemoteFeatures } from '../announcement/features'
 
 vi.mock('../i18n/renderText', () => ({ uiText: (text: unknown) => text }))
 const settings = { minimapOpacity: 0.9, minimapWidth: 420, playerMarker: 'arrow', itemKey: 'Semicolon', minimapKey: 'KeyM', collectorKey: '', screenshotsDir: '' }
@@ -8,13 +9,15 @@ const api = {
   getSettings: vi.fn(), getStatus: vi.fn(), updateSettings: vi.fn(), toggleMinimap: vi.fn(), pickScreenshotsFolder: vi.fn(),
 }
 beforeEach(() => {
+  // The owner's switch for every app on (src/announcement/features.ts): the minimap's own controls are drawn.
+  setRemoteFeatures({ minimap: true, minimapChangedAt: '' })
   vi.stubGlobal('tarkovDesktop', { experimental: api })
   api.getSettings.mockResolvedValue(settings)
   api.getStatus.mockResolvedValue({ screenshotKey: { keys: ['M'], source: 'game-settings', unbound: false, label: 'M' }, minimapKey: 'KeyM', otherKeys: ['Semicolon'], elevated: true, screenshotsFolder: 'screenshots', nativeError: '', gameKeys: 'visible', lastPosition: null })
   api.updateSettings.mockImplementation(async (patch) => ({ ...settings, ...patch }))
   api.toggleMinimap.mockResolvedValue(true)
 })
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); reloadRemoteFeaturesForTests() })
 it('persists the map size and sends the manual toggle command', async () => {
   render(<ExperimentalPage />)
   await waitFor(() => expect(api.getSettings).toHaveBeenCalled())

@@ -251,6 +251,8 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
+    /** The owner's minimap switch for every app as the server answered (src/announcement/features.ts); resolves to whether the minimap is on now. Absent in apps before 14.10.2026. */
+    setRemoteMinimap?: (enabled: boolean) => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
