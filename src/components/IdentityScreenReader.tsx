@@ -3,6 +3,7 @@ import { keepModeSelectScreen, keepTraderScreen } from '../account/logNickname'
 import { useLogStatus } from '../import/logStatus'
 import { logsGameMode } from '../import/screenReadingMode'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
 
 /**
  * The locked app's reader of the player's identity — on the sign-in and subscription screens (audit P4a; #202
@@ -35,8 +36,12 @@ export function IdentityScreenReader() {
       if (cancelled || !frame?.gameWindow) return STORY_SCAN_TIMING.idleMs
       if (frame.raid) return STORY_SCAN_TIMING.raidMs
       if (frame.busy) return STORY_SCAN_TIMING.busyMs
+      noteGameSighting(frame)
       const at = frame.observedAt ?? Date.now()
-      if (frame.profiles?.length) keepModeSelectScreen(frame.profiles, at)
+      if (frame.profiles?.length) {
+        noteModeSelectRead()
+        keepModeSelectScreen(frame.profiles, at)
+      }
       if (frame.trader) keepTraderScreen(frame.trader, logsGameMode(logStatusRef.current), at)
       return frame.freshGame ? STORY_SCAN_TIMING.menuMs : STORY_SCAN_TIMING.idleMs
     }

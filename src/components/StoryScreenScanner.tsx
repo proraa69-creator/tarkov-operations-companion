@@ -11,6 +11,7 @@ import { applyKeptIdentity, applyModeSelectScreen, applyTraderScreen } from '../
 import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
+import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -109,8 +110,13 @@ export function StoryScreenScanner() {
         if (frame?.raid) { forget(); return STORY_SCAN_TIMING.raidMs }
         // An item lookup or a Kappa scan runs: the player waits for those, so the scanner yields (electron/ocrQueue.ts).
         if (frame?.busy) return STORY_SCAN_TIMING.busyMs
+        // A new game window is a game start; the first-launch notice counts them (src/onboarding/gameStarts.ts).
+        noteGameSighting(frame)
         // Shown on every game start, for all modes at once: applied right away, whatever mode the app shows.
-        if (frame?.gameWindow && frame.profiles?.length) applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current)
+        if (frame?.gameWindow && frame.profiles?.length) {
+          noteModeSelectRead()
+          applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current)
+        }
         // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».
         if (frame?.gameWindow && frame.trader) applyTraderScreen(frame.trader, logsGameMode(logStatusRef.current), frame.observedAt ?? Date.now(), () => stateRef.current)
         let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current, frame.story) : []
