@@ -20,6 +20,8 @@ import { clearGameCache, type CacheAccess } from './gameDataCache.js'
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players)\//
+/** «Онлайн сейчас»: the heartbeat goes with this device's id too, which tells the PC from the phone (server/src/routes/presence.ts). */
+const PRESENCE_PATH = '/v1/me/presence'
 
 export const DEFAULT_API_URL = 'http://127.0.0.1:8787'
 const MODE = '(?:pvp|pve|seasonal)'
@@ -54,6 +56,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
+  // предложения» (src/data/ownerOnline.ts). The server answers 404 to everybody but the owner.
+  { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-points\/[a-f0-9]{24}\/remove$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-texts$/ },
@@ -369,7 +375,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
-  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
