@@ -243,3 +243,24 @@ describe('story chapters on the pane (audit P9)', () => {
     expect(done?.[1]).toEqual([{ questId: 'story-falling-skies', completed: true, completionConfirmed: true, stageConfirmed: false }])
   })
 })
+
+describe('the screenshot fallback (audit P5d)', () => {
+  it('is never asked for a screen that was read, only when the capture brought nothing', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    desktop(tasksTable)
+    const screenshot = vi.fn(async () => null)
+    window.tarkovDesktop!.captureQuestScreenshot = screenshot
+    const view = render(<StoryScreenScanner />)
+    await run(0)
+    await run(STORY_SCAN_TIMING.storyMs)
+    expect(looks.length).toBeGreaterThanOrEqual(2)
+    expect(screenshot).not.toHaveBeenCalled()
+    view.unmount()
+    // A black copy of an exclusive full-screen game: nothing read, the player's own screenshot may tell.
+    desktop({ text: '', sourceName: '', gameWindow: true })
+    window.tarkovDesktop!.captureQuestScreenshot = screenshot
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(screenshot).toHaveBeenCalledTimes(1)
+  })
+})

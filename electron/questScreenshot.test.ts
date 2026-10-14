@@ -35,13 +35,21 @@ describe('automatic EFT screenshot fallback', () => {
     await writeFile(join(folder, 'empty.png'), '')
     expect(await readFreshQuestScreenshot(folder, now - 7 * 60_000, now)).toBeNull()
   })
+  const minute = (time: number) => { const d = new Date(time); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}[${p(d.getHours())}-${p(d.getMinutes())}]` }
+
   it('skips EFT screenshots whose name says they were taken before the watch began', async () => {
-    const minute = (time: number) => { const d = new Date(time); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}[${p(d.getHours())}-${p(d.getMinutes())}]` }
     // An old shot touched again (copied back, say) is not read; a fresh one is.
-    await image(`${minute(now - 3 * 60 * 60_000)}_1.0, 2.0, 3.0_0.0, 0.0, 0.0, 1.0_10.00 (0).png`, now - 1000)
+    await image(`${minute(now - 3 * 60 * 60_000)} (0).png`, now - 1000)
     expect(await readFreshQuestScreenshot(folder, now - 5000, now)).toBeNull()
+    await image(`${minute(now)} (1).png`, now - 500)
+    expect((await readFreshQuestScreenshot(folder, now - 5000, now))?.file).toContain(`${minute(now)} (1).png`)
+  })
+
+  it('never reads a position screenshot: coordinates in the name are a raid, the minimap\'s shot (audit P5d)', async () => {
     await image(`${minute(now)}_4.0, 5.0, 6.0_0.0, 0.0, 0.0, 1.0_10.00 (0).png`, now - 500)
-    expect((await readFreshQuestScreenshot(folder, now - 5000, now))?.file).toContain('_4.0, 5.0, 6.0_')
+    expect(await readFreshQuestScreenshot(folder, now - 5000, now)).toBeNull()
+    await image(`${minute(now)} (2).png`, now - 1500)
+    expect((await readFreshQuestScreenshot(folder, now - 5000, now))?.file).toContain(`${minute(now)} (2).png`)
   })
   it('reads the minute from an EFT screenshot name', () => {
     expect(screenshotNameTime('2024-06-13[11-05]_1.0, 2.0, 3.0_0.0, 0.0, 0.0, 1.0_10.00 (0).png')).toBe(new Date(2024, 5, 13, 11, 5).getTime())

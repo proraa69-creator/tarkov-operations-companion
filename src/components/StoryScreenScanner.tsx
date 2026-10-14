@@ -99,7 +99,6 @@ export function StoryScreenScanner() {
           }
           lastContext = context
         }
-        // Capture failure must not skip the independent screenshot fallback.
         // The first observation must retain small objective text too: a menu-quality probe
         // would require a third OCR pass before an exact stage can be confirmed.
         let frame = await desktop.captureQuestFrame(true, true).catch(() => null)
@@ -113,7 +112,12 @@ export function StoryScreenScanner() {
         // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».
         if (frame?.gameWindow && frame.trader) applyTraderScreen(frame.trader, logsGameMode(logStatusRef.current), frame.observedAt ?? Date.now(), () => stateRef.current)
         let matches = frame?.gameWindow ? matchStoryChapters(frame.text, questsRef.current, frame.story) : []
-        if (!matches.some((match) => match.stageIndex != null) && desktop.captureQuestScreenshot) {
+        // The screenshot fallback is for a capture that failed — a black copy of an exclusive full-screen game, no copy at
+        // all — never for a screen that was read (audit P5d): it read the player's newest screenshot after every look at
+        // the stash, the hideout or the Tasks table. The main process never reads a minimap position shot, nor during a
+        // likely raid.
+        const captured = Boolean(frame?.gameWindow && frame.text.trim())
+        if (!captured && desktop.captureQuestScreenshot) {
           const screenshot = await desktop.captureQuestScreenshot(contextStartedAt)
           const fresh = screenshot && Date.now() - screenshot.observedAt <= STORY_SCAN_TIMING.screenshotMaxAgeMs
           const snapshotMatches = fresh ? matchStoryChapters(screenshot.text, questsRef.current, screenshot.story) : []

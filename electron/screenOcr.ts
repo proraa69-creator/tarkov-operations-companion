@@ -9,7 +9,7 @@ import { bgraToPgm, bgraToPpm, picturePrint } from './ocrPicture.js'
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
-import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, unchangedFrame } from '../src/import/storyScanTiming.js'
+import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
 import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
@@ -172,9 +172,16 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
   return { ...result, gameWindow, storedFrames, observedAt: Date.now() }
 }
 
-/** Fallback for capture failures: a screenshot taken after this profile/mode watch started. */
+/**
+ * Fallback for capture failures: a screenshot taken after this profile/mode watch started. Never while a raid is likely
+ * (the minimap, a position screenshot, movement: electron/experimental/raidSignals.ts; without the logs' word, the minimap
+ * left open counts too), and only one young enough for the scanner to use (STORY_SCAN_TIMING.screenshotMaxAgeMs): an
+ * older one was read and thrown away before (audit P5d).
+ */
 export async function captureQuestScreenshot(after: number) {
-  const file = await readFreshQuestScreenshot(screenshotsFolder(), after)
+  const now = Date.now()
+  if (raidLikely(now)) return null
+  const file = await readFreshQuestScreenshot(screenshotsFolder(), Math.max(after, now - STORY_SCAN_TIMING.screenshotMaxAgeMs), now)
   if (!file) return null
   const key = `${file.file}:${file.modifiedAt}:${file.size}`
   if (lastScreenshot?.key === key) return { ...lastScreenshot, gameWindow: true }
