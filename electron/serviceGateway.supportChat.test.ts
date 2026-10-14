@@ -75,14 +75,27 @@ describe('support chat through the desktop gateway', () => {
     expect([answers.messages.map((message) => message.text), answers.unread]).toEqual([['Уже чиним'], 1])
     expect(await serviceRequest('POST', '/v1/me/support/read')).toBeNull()
     expect(await serviceRequest('GET', '/v1/me/support/messages')).toMatchObject({ unread: 0 })
+    // «Проблема решена» is the owner's: the player's DELETE reaches the server, which says it does not exist.
+    await expect(serviceRequest('DELETE', `/v1/accounts/me/admin/support/threads/${thread.accountId}`)).rejects.toThrow('Не найдено')
 
     for (const [method, path] of [
       ['GET', '/v1/me/support/messages?after=x'], ['PUT', '/v1/me/support/messages'], ['GET', '/v1/me/support/read'],
       ['GET', '/v1/accounts/me/admin/support/threads?limit=100&x=1'], ['GET', '/v1/accounts/me/admin/support/threads/NOT-AN-ID'],
       ['POST', `/v1/accounts/me/admin/support/threads/${thread.accountId}/delete`],
+      ['DELETE', '/v1/me/support/messages'], ['DELETE', '/v1/accounts/me/admin/support/threads'],
+      ['DELETE', `/v1/accounts/me/admin/support/threads/${thread.accountId}/messages`], ['DELETE', '/v1/accounts/me/admin/support/threads/NOT-AN-ID'],
     ] as const) {
       await expect(serviceRequest(method, path)).rejects.toThrow('Неизвестный запрос сервиса')
     }
+    await accountLogout()
+
+    // The owner: «Проблема решена» deletes the whole conversation (204, null here); the player's chat is empty.
+    await accountLogin('owner@example.com', password)
+    expect(await serviceRequest('DELETE', `/v1/accounts/me/admin/support/threads/${thread.accountId}`)).toBeNull()
+    expect(await serviceRequest('GET', '/v1/accounts/me/admin/support/threads?limit=100')).toMatchObject({ threads: [], total: 0, unread: 0 })
+    await accountLogout()
+    await accountLogin('player@example.com', password)
+    expect(await serviceRequest('GET', '/v1/me/support/messages')).toEqual({ messages: [], unread: 0, oldestId: null })
     await accountLogout()
   })
 })
