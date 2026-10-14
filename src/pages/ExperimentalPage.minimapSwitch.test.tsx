@@ -119,6 +119,17 @@ describe('the Mini Map page follows the owner\'s switch', () => {
     expect(shown('Mini map size')).toBe(false)
   })
 
+  it('the «готова» card is gone for good: nothing to fix, no position card', async () => {
+    api.getStatus.mockResolvedValue(status)
+    switchTo(true)
+    await page()
+    await screen.findByText('Папка со скриншотами')
+    expect(screen.queryByRole('region', { name: 'Точка на мини-карте' })).toBeNull()
+    expect(shown('готова')).toBe(false)
+    switchTo(true, '', false)
+    expect(screen.queryByRole('region', { name: 'Точка на мини-карте' })).toBeNull()
+  })
+
   it('asks the server again as the page opens', async () => {
     await page()
     expect(checkAnnouncementNow).toHaveBeenCalled()

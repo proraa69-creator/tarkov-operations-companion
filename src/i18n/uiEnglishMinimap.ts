@@ -89,8 +89,4 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   ['Выключить для всех', 'Turn off for everyone'],
   ['Включить для всех', 'Turn on for everyone'],
   ['Не удалось переключить. Проверьте вход в аккаунт владельца и попробуйте ещё раз.', 'Could not switch. Check the owner account sign-in and try again.'],
-  ['Точка на мини-карте работает', 'The dot on the mini map works'],
-  ['Точка на мини-карте готова', 'The dot on the mini map is ready'],
-  ['Одна клавиша открывает мини-карту, и игра в тот же момент делает скриншот — точка обновляется сама.', 'One key opens the mini map, and the game takes a screenshot at the same moment — the dot moves by itself.'],
-  ['Откройте мини-карту в рейде — игра сделает скриншот той же клавишей, и точка появится через секунду.', 'Open the mini map in a raid — the game takes a screenshot with the same key, and the dot appears a second later.'],
 ]

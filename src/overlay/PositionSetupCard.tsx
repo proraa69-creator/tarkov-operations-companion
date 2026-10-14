@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, LocateFixed } from 'lucide-react'
+import { LocateFixed } from 'lucide-react'
 import { startActivePolling } from '../app/activePolling'
 import { uiText } from '../i18n/renderText'
 import { minimapOverlayAllowed, useRemoteFeatures } from '../announcement/features'
@@ -12,8 +12,9 @@ import './positionSetup.css'
  * «Точка на мини-карте» in one card (owner, 13.10.2026: «сделай включение точки на миникарте проще… что бы люди не
  * настраивали 100 лет ее»): what stops the dot, in plain words, and one button for what the app can fix itself. The app
  * presses no keys (owner, 14.10.2026): the game's «Скриншот» belongs on the minimap's key, and the card says which keys
- * they are now. When nothing stops it: how to see it. `overlay`: the owner allows the window over the game; off, only a
- * missing «Скриншот» key stops the position on the app's maps.
+ * they are now. Only while something stops it: the «Точка на мини-карте готова» card went for good (owner, 14.10.2026:
+ * «замазаное удали навсегда»). `overlay`: the owner allows the window over the game; off, only a missing «Скриншот» key
+ * stops the position on the app's maps.
  */
 export function PositionSetupCard({ status, onFixed, compact = false, overlay = true }: { status: ExperimentalStatus; onFixed?: () => void; compact?: boolean; overlay?: boolean }) {
   const api = window.tarkovDesktop?.experimental
@@ -21,8 +22,7 @@ export function PositionSetupCard({ status, onFixed, compact = false, overlay = 
   const [note, setNote] = useState('')
   const problem = positionProblem({ native: !status.nativeError, key: status.screenshotKey, minimapKey: status.minimapKey, elevated: status.elevated, gameKeys: status.gameKeys, overlay })
   const fix = positionFix(problem, status.screenshotKey.keys, status.otherKeys)
-  const working = !problem && Boolean(status.lastPosition)
-  if (compact && !problem) return null
+  if (!problem) return null
   const gameKey = status.screenshotKey.unbound ? uiText('не назначен') : status.screenshotKey.label
 
   const run = async () => {
@@ -49,16 +49,12 @@ export function PositionSetupCard({ status, onFixed, compact = false, overlay = 
   }
 
   return (
-    <section className={`panel position-setup${problem ? ' is-alert' : working ? ' is-ok' : ''}${compact ? ' is-compact' : ''}`} aria-label={uiText('Точка на мини-карте')}>
+    <section className={`panel position-setup is-alert${compact ? ' is-compact' : ''}`} aria-label={uiText('Точка на мини-карте')}>
       <div className="panel-body">
-        {problem ? <LocateFixed size={18} /> : <CheckCircle2 size={18} />}
+        <LocateFixed size={18} />
         <div className="position-setup-body">
-          <strong>{uiText(problem ? POSITION_PROBLEM_TEXT[problem].title : working ? 'Точка на мини-карте работает' : 'Точка на мини-карте готова')}</strong>
-          <p>{uiText(problem
-            ? !overlay && problem === 'no-key' ? TRACKING_NO_KEY_TEXT : POSITION_PROBLEM_TEXT[problem].text
-            : working
-              ? 'Одна клавиша открывает мини-карту, и игра в тот же момент делает скриншот — точка обновляется сама.'
-              : 'Откройте мини-карту в рейде — игра сделает скриншот той же клавишей, и точка появится через секунду.')}</p>
+          <strong>{uiText(POSITION_PROBLEM_TEXT[problem].title)}</strong>
+          <p>{uiText(!overlay && problem === 'no-key' ? TRACKING_NO_KEY_TEXT : POSITION_PROBLEM_TEXT[problem].text)}</p>
           {overlay && (problem === 'no-key' || problem === 'other-key') && (
             <small className="position-setup-keys">{uiText('Сейчас «Скриншот» в игре:')} <kbd>{gameKey}</kbd> · {uiText('мини-карта:')} <kbd>{hotkeyLabel(status.minimapKey)}</kbd></small>
           )}
