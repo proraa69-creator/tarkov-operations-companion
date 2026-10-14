@@ -21,6 +21,9 @@
  * Deleting an account (AccountStore.deleteAccount) clears `account_id` and `email` of its reports: the report itself
  * stays for the owner to handle, without the personal link.
  *
+ * The owner's read-only key («Доступ Claude к заявкам», routes/agentRequests.ts) reads `redactedPage`: the report
+ * without the e-mail, the account, the granted days and the mail state.
+ *
  * Storage: screenshots of all reports together are kept under BUG_REPORT_STORAGE.maxStoredBytes (a new report with
  * screenshots past it is refused with 507; text-only reports are still accepted). Retention: screenshots of a closed
  * report are deleted 30 days after it was closed, of any report 90 days after it was sent (the text stays). It runs when
@@ -174,6 +177,27 @@ export interface BugReportSummary {
 }
 export interface BugReportView extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFileView[] }
 
+/** A report for the read-only key (routes/agentRequests.ts): no e-mail, account id, granted days or mail state. */
+export interface RedactedReport {
+  id: number
+  kind: ReportKind
+  category?: ReportCategory
+  quest?: QuestReport
+  /** As in BugReportSummary: open quest reports that agree with this one, and what they agree on. */
+  matches?: number
+  group?: string
+  topic: string
+  description: string
+  appVersion: string
+  platform: string
+  status: BugReportStatus
+  createdAt: string
+  closedAt?: string
+  files: number
+  /** The caller's pseudonym of the sender's account; absent when the account was deleted. */
+  reporter?: string
+}
+
 const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toISOString())
 
 /** Checks the screenshots: count, size, total and the real image type. Returns their types in order. */
@@ -281,6 +305,41 @@ export class BugReportStore {
       FROM bug_reports r ${where} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as Row[]
     const groups = rows.some((row) => row.quest_id != null) ? this.questGroups() : new Map<number, { group: string; matches: number }>()
     return { reports: rows.map((row) => ({ ...this.base(row), ...groups.get(Number(row.id)), files: Number(row.file_count) })), total: status ? counts[status] : counts.open + counts.closed, counts, kinds }
+  }
+
+  /**
+   * A page of reports of every kind for the read-only key (routes/agentRequests.ts), newest first, of one status or
+   * all. The columns are named one by one, so the e-mail, the granted days and the mail state are never read; the
+   * account id only goes through `pseudonym`. `total`: reports of that status; `counts`: open / closed.
+   */
+  redactedPage(status: BugReportStatus | undefined, limit: number, offset: number, pseudonym: (accountId: string) => string): { reports: RedactedReport[]; total: number; counts: Record<BugReportStatus, number> } {
+    const counts = { open: 0, closed: 0 }
+    for (const row of this.db.prepare('SELECT status, COUNT(*) AS n FROM bug_reports GROUP BY status').all() as Row[]) {
+      if (row.status === 'open' || row.status === 'closed') counts[row.status] += Number(row.n)
+    }
+    const rows = this.db.prepare(`SELECT r.id, r.kind, r.category, r.account_id, r.topic, r.description, r.app_version, r.platform, r.status, r.created_at, r.closed_at,
+        r.quest_id, r.quest_issue, r.game_mode, r.map_id, r.marker_id, r.objective_id, r.stage_index, r.point_x, r.point_z, r.point_floor, r.point_note, r.quest_note,
+        (SELECT COUNT(*) FROM bug_report_files f WHERE f.report_id = r.id) AS file_count
+      FROM bug_reports r ${status ? 'WHERE r.status = ?' : ''} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`)
+      .all(...(status ? [status] : []), limit, offset) as Row[]
+    const groups = rows.some((row) => row.quest_id != null && row.status === 'open') ? this.questGroups() : new Map<number, { group: string; matches: number }>()
+    const reports = rows.map((row): RedactedReport => ({
+      id: Number(row.id),
+      kind: row.kind === 'idea' ? 'idea' : 'bug',
+      ...(row.category == null ? {} : { category: String(row.category) as ReportCategory }),
+      ...(row.quest_id == null ? {} : { quest: questOf(row) }),
+      ...groups.get(Number(row.id)),
+      topic: String(row.topic),
+      description: String(row.description),
+      appVersion: String(row.app_version ?? ''),
+      platform: String(row.platform ?? ''),
+      status: row.status === 'closed' ? 'closed' : 'open',
+      createdAt: iso(row.created_at)!,
+      ...(row.closed_at == null ? {} : { closedAt: iso(row.closed_at)! }),
+      files: Number(row.file_count),
+      ...(row.account_id == null ? {} : { reporter: pseudonym(String(row.account_id)) }),
+    }))
+    return { reports, total: status ? counts[status] : counts.open + counts.closed, counts }
   }
 
   /** Open reports of every kind (the owner app's «Заявки» badge). */
