@@ -1049,6 +1049,12 @@ export class AccountStore {
     return row ? String(row.email) : undefined
   }
 
+  /** The country named at registration or in «Страна» (two letters); undefined when none was given (routes/announcement.ts). */
+  countryOf(accountId: string) {
+    const row = this.db.prepare('SELECT country FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.country == null ? undefined : String(row.country)
+  }
+
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
   streamerSeries(rawCode: string, period: StatsPeriod) {
     const code = normalizeReferralCode(rawCode)
