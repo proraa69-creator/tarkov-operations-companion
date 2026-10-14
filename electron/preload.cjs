@@ -116,7 +116,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    setRemoteMinimap: (enabled) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true),
+    setRemoteMinimap: (enabled, overlay) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true, overlay !== false),
     answer: (id, payload) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback) => subscribe('experimental:query', callback),
     onPosition: (callback) => subscribe('experimental:position', callback),
