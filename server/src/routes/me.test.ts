@@ -4,6 +4,8 @@ import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
+import { openDatabase } from '../services/database.js'
+import { UserDataStore } from '../services/userDataStore.js'
 import type { AppDataset } from '../models/api.js'
 
 const password = 'correct horse battery'
@@ -218,4 +220,85 @@ test('/v1/me/objectives undo restores the old value and answers 404 for another 
     const untouched = await (await call('GET', '/v1/me/objectives/pvp', undefined, other)).json() as Snapshot
     assert.equal(untouched.events.length, 0)
   })
+})
+
+const level = (value: number, prestige: number | null, observedAt: string) => ({ level: value, prestige, observedAt })
+type LevelsAnswer = { modes: Record<string, { level: number; prestige: number | null; observedAt: string; receivedAt: string }> }
+
+test('PUT /v1/me/levels needs a session and refuses what no game shows', async () => {
+  await withServer(async (call) => {
+    const ok = { modes: { pvp: level(42, 2, '2026-10-13T18:00:00.000Z') } }
+    assert.equal((await call('PUT', '/v1/me/levels', ok)).status, 401)
+    assert.equal((await call('PUT', '/v1/me/levels', ok, 'x'.repeat(43))).status, 401)
+    const token = await register(call, 'a@example.com')
+    const refused: unknown[] = [
+      { modes: { pvp: level(0, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(80, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12.5, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, 11, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, -1, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, 1.5, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: { level: 12, observedAt: '2026-10-13T18:00:00.000Z' } } },
+      { modes: { pvp: level(12, 0, 'yesterday') } },
+      { modes: { pvp: { ...level(12, 0, '2026-10-13T18:00:00.000Z'), accountId: 7690289 } } },
+      { modes: { arena: level(12, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, 0, '2026-10-13T18:00:00.000Z') }, email: 'a@example.com' },
+      { pvp: level(12, 0, '2026-10-13T18:00:00.000Z') },
+      [ok],
+    ]
+    for (const body of refused) assert.equal((await call('PUT', '/v1/me/levels', body, token)).status, 400, JSON.stringify(body))
+    assert.deepEqual((await (await call('PUT', '/v1/me/levels', { modes: {} }, token)).json()), { modes: {} }, 'nothing refused was stored')
+    // The game's bounds themselves: level 1 and 79, prestige 0 and 10, an unknown prestige.
+    const edges = await (await call('PUT', '/v1/me/levels', { modes: { pvp: level(1, 0, '2026-10-13T18:00:00.000Z'), pve: level(79, 10, '2026-10-13T18:00:00.000Z'), seasonal: level(5, null, '2026-10-13T18:00:00.000Z') } }, token)).json() as LevelsAnswer
+    assert.deepEqual(Object.fromEntries(Object.entries(edges.modes).map(([mode, entry]) => [mode, [entry.level, entry.prestige]])), { pvp: [1, 0], pve: [79, 10], seasonal: [5, null] })
+  })
+})
+
+test('PUT /v1/me/levels keeps each mode per account: a mode sent replaces it, the others stay', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'a@example.com')
+    const other = await register(call, 'b@example.com')
+    const put = async (modes: unknown, who = token) => {
+      const response = await call('PUT', '/v1/me/levels', { modes }, who)
+      assert.equal(response.status, 200)
+      return (await response.json()) as LevelsAnswer
+    }
+    const first = await put({ pvp: level(59, null, '2026-10-13T18:00:00.000Z'), pve: level(17, 1, '2026-10-12T09:00:00Z') })
+    assert.deepEqual([first.modes.pvp?.level, first.modes.pvp?.prestige, first.modes.pvp?.observedAt], [59, null, '2026-10-13T18:00:00.000Z'])
+    assert.equal(first.modes.pve?.observedAt, '2026-10-12T09:00:00.000Z')
+    assert.ok(Date.parse(first.modes.pve!.receivedAt) > 0)
+    assert.equal(first.modes.seasonal, undefined)
+    // A misread «59» corrected by Tarkov.dev's older but right 39: the app's word replaces the mode, older or not.
+    const second = await put({ pvp: level(39, 2, '2026-10-11T10:00:00.000Z') })
+    assert.deepEqual([second.modes.pvp?.level, second.modes.pvp?.prestige, second.modes.pvp?.observedAt], [39, 2, '2026-10-11T10:00:00.000Z'])
+    assert.equal(second.modes.pve?.level, 17, 'a mode not sent stays')
+    // A PC clock running ahead: never «updated» in the future.
+    const before = Date.now()
+    const future = await put({ seasonal: level(8, null, '2099-01-01T00:00:00.000Z') })
+    const seasonal = Date.parse(future.modes.seasonal!.observedAt)
+    assert.ok(seasonal >= before - 1000 && seasonal <= Date.now(), future.modes.seasonal!.observedAt)
+    // Another account has its own.
+    assert.deepEqual(await put({}, other), { modes: {} })
+  })
+})
+
+test('shared levels live in the per-user documents and go with «Удалить аккаунт»', async () => {
+  const db = openDatabase(':memory:')
+  const accounts = new AccountStore({ db })
+  const userData = new UserDataStore(db)
+  try {
+    const gone = accounts.authenticate((await accounts.register('gone@example.com', password)).token)!
+    const stays = accounts.authenticate((await accounts.register('stays@example.com', password)).token)!
+    userData.setLevels(gone, { pvp: { level: 30, prestige: null, observedAt: '2026-10-13T18:00:00.000Z' } })
+    userData.setLevels(stays, { pve: { level: 12, prestige: 0, observedAt: '2026-10-13T18:00:00.000Z' } })
+    assert.deepEqual(Object.keys(userData.getLevels(gone)), ['pvp'])
+    assert.equal(userData.getLevels(gone).pvp?.prestige, null)
+    // The same database opened again (a restart) still has them.
+    assert.equal(new UserDataStore(db).getLevels(stays).pve?.level, 12)
+    accounts.deleteAccount(gone)
+    assert.deepEqual(userData.getLevels(gone), {})
+    assert.equal(userData.getLevels(stays).pve?.level, 12)
+  } finally {
+    accounts.close()
+  }
 })

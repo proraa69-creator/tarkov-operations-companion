@@ -287,7 +287,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   }))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
-  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile })
+  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
