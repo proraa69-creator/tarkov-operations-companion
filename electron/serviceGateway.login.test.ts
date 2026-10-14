@@ -31,7 +31,7 @@ beforeAll(async () => {
   server = createApi(new ProgressStore(':memory:'), undefined, new AccountStore({ ownerEmails: [] })).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   state.remote = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-  const registered = await fetch(`${state.remote}/v1/accounts/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password }) })
+  const registered = await fetch(`${state.remote}/v1/accounts/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password, country: 'RU' }) })
   expect(registered.status).toBe(201)
 })
 

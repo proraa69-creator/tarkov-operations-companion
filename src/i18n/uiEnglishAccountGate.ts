@@ -25,5 +25,6 @@ export const ACCOUNT_GATE_PHRASES: Array<[string, string]> = [
   ['Не удалось зарегистрировать этот e-mail. Если это ваш адрес — войдите или восстановите пароль.', 'This e-mail could not be registered. If it is yours, sign in or recover your password.'],
   ['Этот e-mail уже зарегистрирован', 'This e-mail is already registered'],
   ['Неизвестная страна. Выберите страну из списка.', 'Unknown country. Choose one from the list.'],
+  ['Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.', 'Choose your country. If the sign-up form has no «Country» field, update the app or sign up at raidos.app.'],
   ['Укажите корректный e-mail и пароль от 8 до 128 символов', 'Enter a valid e-mail and a password of 8 to 128 characters'],
 ]

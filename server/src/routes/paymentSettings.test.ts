@@ -44,7 +44,7 @@ async function setup(failSave = false, available = true) {
     return { status: response.status, json: await response.json(), headers: response.headers }
   }
   const owner = (await call('POST', '/v1/accounts/login', undefined, { email: 'owner@example.com', password })).json.token as string
-  const stranger = (await call('POST', '/v1/accounts/register', undefined, { email: 'player@example.com', password })).json.token as string
+  const stranger = (await call('POST', '/v1/accounts/register', undefined, { email: 'player@example.com', password, country: 'RU' })).json.token as string
   const close = async () => { await new Promise<void>(resolve => server.close(() => resolve())); db.close() }
   return { owner, stranger, payments, requests, call, close }
 }

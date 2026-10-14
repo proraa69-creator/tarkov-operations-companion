@@ -47,7 +47,7 @@ describe('site proxy → API: QR sign-in through the website address', () => {
     // Through the site (and so the public link) the API's version, build and flags stay hidden.
     expect(Object.keys(health).sort()).toEqual(['database', 'ok', 'service'])
 
-    const registered = await post('/v1/accounts/register', { email: 'owner@example.com', password: 'correct horse battery' })
+    const registered = await post('/v1/accounts/register', { email: 'owner@example.com', password: 'correct horse battery', country: 'RU' })
     expect(registered.status).toBe(201)
     const phone = (await registered.json() as { token: string }).token
 

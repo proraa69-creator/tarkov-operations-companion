@@ -42,7 +42,7 @@ async function withServer(run: (call: (method: string, path: string, body?: unkn
 }
 
 async function register(call: Parameters<Parameters<typeof withServer>[0]>[0], email: string) {
-  const response = await call('POST', '/v1/accounts/register', { email, password })
+  const response = await call('POST', '/v1/accounts/register', { email, password, country: 'RU' })
   assert.equal(response.status, 201)
   return ((await response.json()) as { token: string }).token
 }

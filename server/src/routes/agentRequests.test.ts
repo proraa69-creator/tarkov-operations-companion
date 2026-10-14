@@ -42,7 +42,7 @@ async function setup(limits?: Partial<AgentRequestLimits>) {
     return { status: response.status, json: json as T, bytes, headers: response.headers }
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
-  const register = async (email: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password })).json.token
+  const register = async (email: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country: 'RU' })).json.token
   const newKey = async (owner: string) => (await call<{ key: string }>('POST', KEY_PATH, owner)).json.key
   const send = async (token: string, body: unknown) => {
     const created = await call<{ id: number }>('POST', '/bug-reports', token, body)

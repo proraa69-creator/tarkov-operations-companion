@@ -238,7 +238,7 @@ test('API: a normal visitor session through the site proxy never scores', async 
   const { server, call, events } = await startApi()
   try {
     const ip = '198.51.100.23'
-    const registered = await call('POST', '/v1/accounts/register', { ip, body: { email: 'gamer@example.com', password } })
+    const registered = await call('POST', '/v1/accounts/register', { ip, body: { email: 'gamer@example.com', password, country: 'RU' } })
     assert.equal(registered.status, 201)
     const token = registered.json.token as string
     for (let round = 0; round < 5; round += 1) {
@@ -286,7 +286,7 @@ test('API: a scanner is banned with a cheap 403; this PC is never banned; the ow
 
     // Admin tab: owner only.
     assert.equal((await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.2' })).status, 401)
-    const user = (await call('POST', '/v1/accounts/register', { ip: '198.51.100.2', body: { email: 'user@example.com', password } })).json.token as string
+    const user = (await call('POST', '/v1/accounts/register', { ip: '198.51.100.2', body: { email: 'user@example.com', password, country: 'RU' } })).json.token as string
     assert.equal((await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.2', token: user })).status, 404)
     const owner = await login('owner@example.com', '198.51.100.3')
     const view = await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.3', token: owner })
