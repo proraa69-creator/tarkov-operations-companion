@@ -3,7 +3,7 @@ import { Download, LoaderCircle, RotateCcw, Settings, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useAppVersion } from '../app/appVersion'
 import { uiText } from '../i18n/renderText'
-import { androidUpdateErrorText, androidUpdater, useAndroidUpdate, type AndroidUpdateState } from './androidUpdate'
+import { androidUpdateErrorText, androidUpdater, useAndroidUpdate, type AndroidUpdateState } from './androidUpdater'
 import '../styles/androidUpdate.css'
 
 const megabytes = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} ${uiText('МБ')}`
