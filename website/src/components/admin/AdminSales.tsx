@@ -31,6 +31,7 @@ const ACTION_LABEL: Record<string, string> = {
   'support.reply': 'Ответ в чате поддержки',
   'support.resolve': 'Переписка удалена («Проблема решена»)',
   'announcement.set': 'Изменено уведомление для игроков',
+  'features.minimap': 'Функции мини-карты для всех игроков',
   'requests-key.create': 'Создан ключ Claude для чтения заявок',
   'requests-key.revoke': 'Отозван ключ Claude для чтения заявок',
   'payments.export': 'Выгрузка платежей CSV',

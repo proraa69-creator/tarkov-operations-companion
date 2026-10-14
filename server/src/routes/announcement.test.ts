@@ -412,3 +412,58 @@ test('MyMemory: an HTTP error, the quota warning, another status, an empty answe
   await assert.rejects(myMemoryTranslator({ fetch: fakeMyMemory((query) => (count++ === 1 ? reply({}, 500) : translated(wordForWord(query)))).fetcher })(long))
   assert.ok(count > 1)
 })
+
+interface Features { minimap: boolean; minimapChangedAt: string | null; updatedBy?: string | null }
+const FEATURES = '/accounts/me/admin/features'
+
+test('the minimap switch: off by default, only the owner turns it, every app reads it without an account, logged', async () => {
+  let db!: DatabaseSync
+  const { call, login, close } = await setup({ database: (opened) => { db = opened } })
+  try {
+    const owner = await login('owner@example.com')
+    const player = await login('player@example.com')
+    const read = async (token?: string) => {
+      const answer = await call<Answer & { features: Features }>('GET', '/announcement', token)
+      assert.equal(answer.status, 200)
+      assert.equal(answer.headers.get('cache-control'), 'no-store')
+      return answer.json.features
+    }
+    // After the update: off for everybody, never switched off yet.
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null })
+    assert.deepEqual(await read(player), { minimap: false, minimapChangedAt: null })
+
+    assert.equal((await call('PUT', FEATURES, undefined, { minimap: true })).status, 401)
+    assert.equal((await call('PUT', FEATURES, player, { minimap: true })).status, 404)
+    assert.equal((await call('GET', FEATURES, player)).status, 404)
+    assert.equal((await call('PUT', FEATURES, owner, { minimap: 'yes' })).status, 400)
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null }, 'refused writes change nothing')
+
+    // On: an app waiting with `since` gets it at once.
+    const first = await call<Answer>('GET', '/announcement')
+    const waiting = call<Answer & { features: Features }>('GET', `/announcement?since=${first.json.version}`)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const on = await call<{ features: Features }>('PUT', FEATURES, owner, { minimap: true })
+    assert.equal(on.status, 200)
+    assert.deepEqual([on.json.features.minimap, on.json.features.minimapChangedAt, on.json.features.updatedBy], [true, null, 'owner@example.com'])
+    assert.equal((await waiting).json.features.minimap, true)
+    assert.deepEqual(await read(player), { minimap: true, minimapChangedAt: null })
+
+    // Off again: the time of the switch-off is new (the apps show their notice once more); off twice keeps it.
+    const off = await call<{ features: Features }>('PUT', FEATURES, owner, { minimap: false })
+    const offAt = off.json.features.minimapChangedAt
+    assert.equal(off.json.features.minimap, false)
+    assert.ok(offAt && !Number.isNaN(Date.parse(offAt)))
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: offAt })
+    await call('PUT', FEATURES, owner, { minimap: false })
+    assert.equal((await read()).minimapChangedAt, offAt)
+    // The public answer carries no author.
+    assert.equal('updatedBy' in (await read()), false)
+    assert.equal((await call<{ features: Features }>('GET', FEATURES, owner)).json.features.updatedBy, 'owner@example.com')
+
+    const logged = (db.prepare("SELECT actor, target, details FROM owner_audit_log WHERE action = 'features.minimap' ORDER BY id").all() as Array<{ actor: string; target: string; details: string }>)
+      .map((row) => [row.actor, row.target, JSON.parse(row.details) as Record<string, unknown>])
+    assert.deepEqual(logged, [['owner@example.com', 'minimap', { enabled: true }], ['owner@example.com', 'minimap', { enabled: false }], ['owner@example.com', 'minimap', { enabled: false }]])
+  } finally {
+    await close()
+  }
+})
