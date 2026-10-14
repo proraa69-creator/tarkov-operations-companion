@@ -97,6 +97,23 @@ function stubModeFeeds(requested: string[]) {
   }))
 }
 
+describe('catalog adapter: the wiki comes from the given loader', () => {
+  it('the Russian catalog takes the wiki from the loader (the server\'s cache) and never asks the wiki itself; English never asks', async () => {
+    stubModeFeeds([])
+    const wiki = vi.fn(async () => ({
+      titles: ['Новое задание'],
+      pages: [{ title: 'Новое задание', description: 'Прапор просит найти папку в кабинете.', trader: '', locationMaps: [], objectives: [], rewards: [], previousTitles: [], nextTitles: [], stages: [] }],
+      storyQuests: [],
+    }))
+    const ru = await fetchLiveCatalog('pvp', 'ru', undefined, { wiki })
+    expect(wiki).toHaveBeenCalledTimes(1)
+    expect(ru.quests.find((quest) => quest.id === 'fresh')?.description).toBe('Прапор просит найти папку в кабинете.')
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('fandom.com'))).toBe(false)
+    await fetchLiveCatalog('pvp', 'en', undefined, { wiki })
+    expect(wiki).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('catalog adapter: new quests and markers straight from the live feed', () => {
   it('brings a new quest with its map (from the quest-item spot), level, objective keys and map points', async () => {
     stubModeFeeds([])

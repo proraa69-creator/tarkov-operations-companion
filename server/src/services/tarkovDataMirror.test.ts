@@ -68,3 +68,23 @@ test('data mirror: 304 reuses the previous verified body', async (t) => {
   assert.equal(mirror.status().state, 'done')
   assert.match((await storage.read('dataset-pvp-season', 'items.json'))!.toString(), /pvp-season-0/)
 })
+
+test('data mirror: after a pass it names the modes whose data changed (the quest base builds them again)', async (t) => {
+  const storage = await setup(t)
+  let pveRows = 2
+  const fetcher: typeof fetch = async (input) => {
+    const [, mode, name] = /json\.tarkov\.dev\/([^/]+)\/([^/?]+)/.exec(String(input))!
+    return new Response(payload(name!, mode!, mode === 'pve' ? pveRows : 2), { status: 200 })
+  }
+  const published: string[][] = []
+  const mirror = new TarkovDataMirror({ storage, fetch: fetcher, minimums: { items: 1, tasks: 1, maps: 1 }, onPublished: (modes) => published.push([...modes]) })
+  await mirror.run()
+  assert.deepEqual(published, [['regular', 'pve', 'pvp-season']])
+  // Only PvE changed upstream.
+  pveRows = 3
+  await mirror.run()
+  assert.deepEqual(published[1], ['pve'])
+  // Nothing new: no call.
+  await mirror.run()
+  assert.equal(published.length, 2)
+})

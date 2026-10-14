@@ -5,7 +5,7 @@ import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
-import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails } from './wikiQuestCatalog'
+import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
@@ -41,7 +41,15 @@ interface Envelope {
   version?: string
 }
 
-export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch): Promise<AppDataset> {
+export interface LiveCatalogOptions {
+  /**
+   * The Russian wiki's quest titles, pages and story chapters for the Russian catalog. Default: fetched live. The server
+   * passes its disk cache (server/src/services/wikiCache.ts), so only its scheduled quest base builds reach the wiki.
+   */
+  wiki?: () => Promise<WikiQuestSync>
+}
+
+export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch, options: LiveCatalogOptions = {}): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const taskVersion: { version?: string } = {}
   // The items as upstream stores them (names are translation keys) and their dictionary: the wiki's Gunsmith tables name
@@ -55,7 +63,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     fetchTranslated(upstreamMode, 'hideout', locale, undefined, fetcher),
     fetchMapRenderingConfigs(fetcher).catch(() => new Map<string, Partial<GameMap>>()),
     // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
-    (locale === 'ru' ? fetchWikiQuestSync() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
+    (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
   ])
 
   const traderRows = adaptTraders(traders)
