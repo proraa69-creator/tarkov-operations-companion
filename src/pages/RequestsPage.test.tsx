@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -283,8 +283,92 @@ describe('«Проблема решена»', () => {
   })
 })
 
+/** Owner, 14.10.2026: «еще добавь возможность открывать скриншоты которые люди присылают». */
+describe('a report\'s images full size', () => {
+  const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  const withImages = (method: string, path: string) => {
+    if (method !== 'GET') return undefined
+    if (path === '/v1/accounts/me/admin/bug-reports/7') return { report: { ...bug, files: [{ idx: 0, mime: 'image/png', size: 70 }, { idx: 1, mime: 'image/jpeg', size: 70 }], description: 'Чёрный экран' } }
+    const file = /\/files\/(\d)\/data$/.exec(path)
+    return file ? { mime: file[1] === '0' ? 'image/png' : 'image/jpeg', data: `${PIXEL}${file[1]}` } : undefined
+  }
+
+  it('«изображений: N» or a thumbnail opens them over the app; ←/→ and the buttons go through them; Esc, «×» or a click outside close', async () => {
+    const { calls } = ownerApp([{ ...bug, files: 2 }], 'owner', [], withImages)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
+    const count = screen.getByRole('button', { name: 'изображений: 2' })
+    await user.click(count)
+    const viewer = await screen.findByRole('dialog', { name: 'Изображение 1 из 2' })
+    // Over the app (in <body>), the image from the owner-only route as a data URL.
+    expect(viewer.parentElement).toBe(document.body)
+    expect(viewer).toHaveAttribute('aria-modal', 'true')
+    expect(within(viewer).getByRole('img')).toHaveAttribute('src', `data:image/png;base64,${PIXEL}0`)
+    expect(calls.filter(([, path]) => path.includes('/files/')).map(([, path]) => path)).toEqual([
+      '/v1/accounts/me/admin/bug-reports/7/files/0/data', '/v1/accounts/me/admin/bug-reports/7/files/1/data',
+    ])
+    expect(within(viewer).getByRole('button', { name: 'Закрыть' })).toHaveFocus()
+    expect(viewer).toHaveTextContent('1 / 2')
+
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('dialog', { name: 'Изображение 2 из 2' })).toBeInTheDocument()
+    expect(within(viewer).getByRole('img')).toHaveAttribute('src', `data:image/jpeg;base64,${PIXEL}1`)
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('dialog', { name: 'Изображение 1 из 2' })).toBeInTheDocument()
+    await user.keyboard('{ArrowLeft}')
+    expect(screen.getByRole('dialog', { name: 'Изображение 2 из 2' })).toBeInTheDocument()
+    await user.click(within(viewer).getByRole('button', { name: 'Предыдущее изображение' }))
+    expect(screen.getByRole('dialog', { name: 'Изображение 1 из 2' })).toBeInTheDocument()
+    await user.click(within(viewer).getByRole('button', { name: 'Следующее изображение' }))
+    expect(screen.getByRole('dialog', { name: 'Изображение 2 из 2' })).toBeInTheDocument()
+    // The focus stays in the viewer: Tab goes round its three buttons.
+    within(viewer).getByRole('button', { name: 'Закрыть' }).focus()
+    await user.tab()
+    expect(within(viewer).getByRole('button', { name: 'Предыдущее изображение' })).toHaveFocus()
+    await user.tab()
+    await user.tab()
+    expect(within(viewer).getByRole('button', { name: 'Закрыть' })).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(within(viewer).getByRole('button', { name: 'Следующее изображение' })).toHaveFocus()
+    // Esc closes it and gives the focus back.
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(count).toHaveFocus()
+
+    // The thumbnails are there now: the second one opens on itself; a click on the image keeps it, outside closes.
+    const thumbnails = screen.getAllByRole('button', { name: /Открыть изображение/ })
+    expect(thumbnails).toHaveLength(2)
+    await user.click(thumbnails[1]!)
+    const second = await screen.findByRole('dialog', { name: 'Изображение 2 из 2' })
+    fireEvent.mouseDown(within(second).getByRole('img'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.mouseDown(second)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(thumbnails[1]).toHaveFocus()
+    await user.click(thumbnails[0]!)
+    await user.click(within(await screen.findByRole('dialog', { name: 'Изображение 1 из 2' })).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // Read once.
+    expect(calls.filter(([, path]) => path.includes('/files/'))).toHaveLength(2)
+  })
+
+  it('one image: no steps, the arrows do nothing', async () => {
+    ownerApp([{ ...bug, files: 1 }], 'owner', [], (method, path) => {
+      if (path === '/v1/accounts/me/admin/bug-reports/7') return { report: { ...bug, files: [{ idx: 0, mime: 'image/png', size: 70 }], description: '' } }
+      return withImages(method, path)
+    })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
+    await user.click(screen.getByRole('button', { name: 'изображений: 1' }))
+    const viewer = await screen.findByRole('dialog', { name: 'Изображение 1 из 1' })
+    expect(within(viewer).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Закрыть'])
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('dialog', { name: 'Изображение 1 из 1' })).toBeInTheDocument()
+  })
+})
+
 describe('English', () => {
-  it('has English for «Открыть чат» and «Проблема решена»', async () => {
+  it('has English for «Открыть чат», «Проблема решена» and the image viewer', async () => {
     const { setRenderLanguage, uiText } = await import('../i18n/renderText')
     setRenderLanguage('en')
     try {
@@ -292,6 +376,12 @@ describe('English', () => {
       expect(uiText('Проблема решена')).toBe('Problem solved')
       expect(uiText('Удалить переписку?')).toBe('Delete the conversation?')
       expect([uiText('Да'), uiText('Нет')]).toEqual(['Yes', 'No'])
+      expect(uiText('Открыть изображение')).toBe('Open image')
+      expect(uiText('Открыть во весь размер')).toBe('Open full size')
+      expect(uiText('Предыдущее изображение')).toBe('Previous image')
+      expect(uiText('Следующее изображение')).toBe('Next image')
+      expect(`${uiText('Изображение')} 2 ${uiText('из')} 3`).toBe('Image 2 of 3')
+      expect(uiText('изображений')).toBe('images')
       ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport], 'owner', [chat(0)])
       const user = userEvent.setup()
       await user.click(await screen.findByRole('tab', { name: /Bugs/ }))

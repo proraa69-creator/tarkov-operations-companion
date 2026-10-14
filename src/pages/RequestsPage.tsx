@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { Bug, CheckCircle2, ChevronDown, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, RotateCcw, Users } from 'lucide-react'
+import { Bug, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, RotateCcw, Users, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isOwnerApp } from '../app/buildEdition'
 import { useOptionalTarkovData } from '../data/DataProvider'
@@ -80,7 +81,8 @@ type Tab = 'quests' | 'bugs' | 'ideas' | 'chats' | 'closed'
  * changed until the owner does it. «Чаты»: the players' support chats, answered here (support/OwnerChats.tsx).
  *
  * «Открыть чат» on a report (owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно будет писать»): «Чаты»
- * with the author's conversation open, where the owner can write first.
+ * with the author's conversation open, where the owner can write first. A report's images open full size
+ * («еще добавь возможность открывать скриншоты которые люди присылают»): ImageViewer.
  */
 export function RequestsPage() {
   if (!isOwnerApp()) return <Navigate to="/" replace />
@@ -238,12 +240,16 @@ function QuestGroupCard({ group, quests, maps, onOpenChat }: { group: RequestGro
   )
 }
 
-/** A bug report or an idea: what it is about, the details and screenshots on demand, close / reopen, days and «Открыть чат». */
+/**
+ * A bug report or an idea: what it is about, the details and images on demand, close / reopen, days and «Открыть чат».
+ * A thumbnail, or «изображений: N», opens the images full size (ImageViewer).
+ */
 function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (accountId: string) => void }) {
   const actions = useOwnerReportActions()
   const [detail, setDetail] = useState<OwnerReportDetail | null>(null)
   const [images, setImages] = useState<string[]>([])
   const [expanded, setExpanded] = useState(false)
+  const [viewing, setViewing] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [days, setDays] = useState(1)
@@ -252,15 +258,26 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
     setBusy(true); setError('')
     try { await action() } catch (reason) { setError(cleanIpcError(reason) || 'Сервер недоступен') } finally { setBusy(false) }
   }
+  /** The description, then the images: data URLs from the owner-only route (the gateway forwards JSON only). */
+  const load = async () => {
+    let loaded: string[] = []
+    await run(async () => {
+      const found = await actions.detail(report.id)
+      setDetail(found)
+      loaded = await Promise.all(found.files.map((file) => actions.image(report.id, file.idx)))
+      setImages(loaded)
+    })
+    return loaded
+  }
   const toggle = () => {
     const next = !expanded
     setExpanded(next)
-    if (!next || detail) return
-    void run(async () => {
-      const loaded = await actions.detail(report.id)
-      setDetail(loaded)
-      setImages(await Promise.all(loaded.files.map((file) => actions.image(report.id, file.idx))))
-    })
+    if (next && !detail) void load()
+  }
+  const showImages = async () => {
+    if (busy) return
+    setExpanded(true)
+    if ((images.length ? images : await load()).length) setViewing(0)
   }
   const closedReport = report.status === 'closed'
   return (
@@ -269,16 +286,25 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
         <div>
           <div className="eyebrow">{uiText(report.kind === 'idea' ? 'Предложение' : report.category ? REPORT_CATEGORY_LABELS[report.category] : 'Ошибка')} · №{report.id} · {when(report.createdAt)}</div>
           <h2>{report.topic}</h2>
-          <small className="dim">{report.email ?? uiText('аккаунт удалён')} · {report.appVersion}{report.files ? ` · ${uiText('изображений')}: ${report.files}` : ''}{report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}</small>
+          <small className="dim">
+            {report.email ?? uiText('аккаунт удалён')} · {report.appVersion}
+            {report.files ? <> · <button type="button" className="requests-files-link" aria-busy={busy} onClick={() => void showImages()} title={uiText('Открыть во весь размер')}>{uiText('изображений')}: {report.files}</button></> : null}
+            {report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}
+          </small>
         </div>
         <button type="button" className="icon-button" aria-expanded={expanded} onClick={toggle} aria-label={uiText('Подробнее')} title={uiText('Подробнее')}><ChevronDown size={16} className={expanded ? 'is-flipped' : ''} /></button>
       </header>
       {expanded && detail && (
         <div className="requests-detail">
           {detail.description && <p>{detail.description}</p>}
-          {images.length > 0 && <div className="requests-images">{images.map((src, index) => <img key={index} src={src} alt={`${uiText('Изображение')} ${index + 1}`} />)}</div>}
+          {images.length > 0 && <div className="requests-images">{images.map((src, index) => (
+            <button key={index} type="button" className="requests-image" onClick={() => setViewing(index)} aria-label={`${uiText('Открыть изображение')} ${index + 1}`} title={uiText('Открыть во весь размер')}>
+              <img src={src} alt={`${uiText('Изображение')} ${index + 1}`} />
+            </button>
+          ))}</div>}
         </div>
       )}
+      {viewing !== null && viewing < images.length && <ImageViewer images={images} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />}
       <div className="requests-actions">
         <span className="requests-reward">
           <input className="input" type="number" min={1} max={365} value={days} disabled={busy} onChange={(event) => setDays(Math.max(1, Math.min(365, Math.round(Number(event.target.value) || 1))))} aria-label={uiText('Дней подписки')} />
@@ -295,3 +321,57 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
   )
 }
 
+/**
+ * A report's images full size (owner, 14.10.2026: «еще добавь возможность открывать скриншоты которые люди присылают»):
+ * over the whole app, each fitted to the window. ←/→ and the side buttons go through several; Esc, «×» or a click
+ * outside the image closes it. Like the other dialogs, the focus moves in (to «×»), stays there (Tab goes round the
+ * viewer's buttons) and goes back to the thumbnail afterwards. The images are the data URLs the owner-only route answered
+ * (GET …/bug-reports/:id/files/:idx/data): nothing is put at an address anybody else could open.
+ */
+function ImageViewer({ images, index, onIndex, onClose }: { images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void }) {
+  const count = images.length
+  const viewer = useRef<HTMLDivElement>(null)
+  const closeButton = useRef<HTMLButtonElement>(null)
+  const latest = useRef({ index, count, onIndex, onClose })
+  useLayoutEffect(() => { latest.current = { index, count, onIndex, onClose } })
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeButton.current?.focus()
+    // Captured on the window: Escape and the arrows belong to the viewer while it is open.
+    const onKey = (event: KeyboardEvent) => {
+      const { index, count, onIndex, onClose } = latest.current
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); return }
+      if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && count > 1) {
+        event.preventDefault()
+        onIndex((index + (event.key === 'ArrowRight' ? 1 : count - 1)) % count)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const buttons = Array.from(viewer.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      if (!buttons.length) return
+      event.preventDefault()
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const next = at < 0 ? (event.shiftKey ? buttons.length - 1 : 0) : (at + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length
+      buttons[next]?.focus()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      if (opener?.isConnected) opener.focus()
+    }
+  }, [])
+  const label = `${uiText('Изображение')} ${index + 1} ${uiText('из')} ${count}`
+  const step = (delta: number) => onIndex((index + delta + count) % count)
+  return createPortal(
+    <div ref={viewer} className="requests-viewer" role="dialog" aria-modal="true" aria-label={label} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <img src={images[index]} alt={label} />
+      <button ref={closeButton} type="button" className="requests-viewer-close" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={18} /></button>
+      {count > 1 && <>
+        <button type="button" className="requests-viewer-step is-prev" onClick={() => step(-1)} aria-label={uiText('Предыдущее изображение')} title={uiText('Предыдущее изображение')}><ChevronLeft size={24} /></button>
+        <button type="button" className="requests-viewer-step is-next" onClick={() => step(1)} aria-label={uiText('Следующее изображение')} title={uiText('Следующее изображение')}><ChevronRight size={24} /></button>
+        <span className="requests-viewer-count" aria-hidden="true">{index + 1} / {count}</span>
+      </>}
+    </div>,
+    document.body,
+  )
+}
