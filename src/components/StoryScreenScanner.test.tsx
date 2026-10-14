@@ -90,6 +90,16 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     }
   })
 
+  it('yields to an item lookup or a Kappa scan and asks again shortly, keeping its place', async () => {
+    desktop({ text: '', sourceName: '', gameWindow: true, busy: true })
+    render(<StoryScreenScanner />)
+    await run(0)
+    await run(STORY_SCAN_TIMING.busyMs - 1)
+    expect(looks).toHaveLength(1)
+    await run(1)
+    expect(looks).toHaveLength(2)
+  })
+
   it('copies nothing and asks again in a few seconds while a raid is likely', async () => {
     desktop({ text: '', sourceName: '', gameWindow: true, raid: true })
     render(<StoryScreenScanner />)

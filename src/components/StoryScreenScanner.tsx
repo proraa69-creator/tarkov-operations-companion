@@ -82,6 +82,8 @@ export function StoryScreenScanner() {
         // A raid the logs do not report (the minimap, its key, a screenshot with coordinates, movement): the main process
         // copied nothing (electron/experimental/raidSignals.ts). Asked again in a few seconds, for the price of a message.
         if (frame?.raid) { forget(); return STORY_SCAN_TIMING.raidMs }
+        // An item lookup or a Kappa scan runs: the player waits for those, so the scanner yields (electron/ocrQueue.ts).
+        if (frame?.busy) return STORY_SCAN_TIMING.busyMs
         // Shown on every game start, for all modes at once: applied right away, whatever mode the app shows.
         if (frame?.gameWindow && frame.profiles?.length) applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current)
         // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».

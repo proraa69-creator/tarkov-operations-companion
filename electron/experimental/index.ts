@@ -22,6 +22,7 @@ import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
+import { holdBackgroundScans } from '../ocrQueue.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
   captureScreenRegion, disablePrintScreenSnipping, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping, wasVirtualKeyPressed,
@@ -177,8 +178,7 @@ export function startExperimental(next: Options) {
   screen.on('display-metrics-changed', resyncMinimapClicks)
   screen.on('display-added', resyncMinimapClicks)
   screen.on('display-removed', resyncMinimapClicks)
-  // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
-  if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
+  // The item card's OCR engine is no longer loaded at every start: it loads at the first key press (lookupItem).
 }
 
 let gameWasForeground = false
@@ -705,6 +705,10 @@ async function lookupItem(test: boolean) {
   // again and again), and no card can be drawn over it: no copies at all.
   if (!test && foregroundDisplayMode() === 'exclusive') return null
   lookupBusy = true
+  // The quest scanner yields while the player waits for the card (electron/ocrQueue.ts).
+  const release = holdBackgroundScans()
+  // The engine loads (the first time, or after 5 idle minutes) while the screen is searched for the tooltip.
+  if (!test) void warmUpOcr().catch(() => {})
   try {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
@@ -750,6 +754,7 @@ async function lookupItem(test: boolean) {
     return answer
   } finally {
     lookupBusy = false
+    release()
   }
 }
 

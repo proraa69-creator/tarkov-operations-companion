@@ -1,6 +1,6 @@
 import { desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
-import { runOcrJob } from './ocrQueue.js'
+import { backgroundScansHeld, runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
@@ -95,8 +95,8 @@ function isBlank(data: Uint8Array) {
 
 /**
  * `context.logsWatched`: the game's Logs folder is watched, so the logs tell the raids (electron/experimental/raidSignals.ts).
- * A watching call answers `raid` (a raid is likely: nothing was copied) and `freshGame` (the game window came moments ago,
- * src/import/storyScanTiming.ts) besides what was read.
+ * A watching call answers `raid` (a raid is likely: nothing was copied), `busy` (an item lookup or a Kappa scan runs:
+ * nothing was copied) and `freshGame` (the game window came moments ago, src/import/storyScanTiming.ts) besides what was read.
  */
 export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean } = {}) {
   let freshGame: boolean | undefined
@@ -108,6 +108,8 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
     freshGame = isFreshGame(game.since, now)
     // A raid the logs do not report (no Logs folder, an offline raid): no copy of the game's screen at all.
     if (raidLikely(now, context)) return { text: '', sourceName: '', gameWindow: true, raid: true, freshGame }
+    // An item lookup or a Kappa scan is running (electron/ocrQueue.ts): the player waits for those, the scanner yields.
+    if (backgroundScansHeld(now)) return { text: '', sourceName: '', gameWindow: true, busy: true, freshGame }
     const shot = grabGameDisplay()
     if (shot) {
       // The print straight from the copy's bytes: an unchanged screen costs no image work at all.
@@ -223,14 +225,22 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
   const picture = bgraToPgm(pixels.data, pixels.width, pixels.height)
   const ocr = await tooltipOcr()
   try {
-    const result = await runOcrJob(ocr, () => ocr.recognize(picture))
+    // The player waits for the card: before any background reading waiting.
+    const result = await runOcrJob(() => ocr.recognize(picture), 'interactive')
     return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
   } finally {
     touchTooltip()
   }
 }
 
-const touchTooltip = idleRelease(10 * 60_000, () => {
+/**
+ * The item card's engine (~100 MB) goes after 5 minutes unused (was 10): sorting the stash keeps it, a raid without a
+ * lookup frees it. It is loaded on the first key press (warmUpOcr, while the screen is searched for the tooltip), no
+ * longer 4 seconds after every app start: that cost every player a second or two of a processor core and 100 MB, often
+ * while the game itself was loading, for a lookup they might never make. The price: the first lookup of a session (or
+ * after 5 idle minutes) waits about a second longer for its reading.
+ */
+const touchTooltip = idleRelease(5 * 60_000, () => {
   const engine = tooltipWorker
   tooltipWorker = null
   void engine?.then((next) => next.terminate()).catch(() => {})
@@ -257,7 +267,7 @@ async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: stri
   const ocr = await getWorker()
   try {
     const payload = Buffer.isBuffer(image) ? image : ocrInput(image)
-    const result = await runOcrJob(ocr, () => ocr.recognize(payload))
+    const result = await runOcrJob(() => ocr.recognize(payload))
     return { text: result.data.text ?? '', sourceName }
   } finally {
     touchQuestWorker()
@@ -269,7 +279,7 @@ async function recognizeQuestWords(frame: GameFrame) {
   const ocr = await getWorker()
   try {
     const payload = frameInput(frame)
-    const result = await runOcrJob(ocr, () => ocr.recognize(payload, {}, { text: true, blocks: true }))
+    const result = await runOcrJob(() => ocr.recognize(payload, {}, { text: true, blocks: true }))
     return { text: result.data.text ?? '', words: ocrWordBoxes(result.data.blocks) }
   } finally {
     touchQuestWorker()
@@ -319,7 +329,7 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
   const ocr = await getWorker()
   try {
     // One queue job for the three reads, so another scan cannot run between them and the page mode is restored.
-    return await runOcrJob(ocr, async () => {
+    return await runOcrJob(async () => {
       const read = async (rect: PaneRect, scale: number, mode: '6' | '7') => {
         const part = image.crop(rect)
         const scaled = scale === 1 ? part : part.resize({ width: Math.round(rect.width * scale), quality: 'best' })
@@ -359,7 +369,7 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<
   if (!headers.length) return []
   const ocr = await getWorker()
   try {
-    const readings = await runOcrJob(ocr, async () => {
+    const readings = await runOcrJob(async () => {
       const result: CardReadings[] = []
       for (const header of headers) {
         // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
@@ -398,7 +408,7 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
   if (!parts.level && !parts.nickname) return loyalty ? { loyalty } : null
   const ocr = await getWorker()
   try {
-    return await runOcrJob(ocr, async () => {
+    return await runOcrJob(async () => {
       const read = async (rect: { x: number; y: number; width: number; height: number }) => {
         const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
         await ocr.setParameters({ tessedit_pageseg_mode: '7' })
@@ -456,7 +466,8 @@ function readTraderLoyalty(image: NativeImage, words: OcrWordBox[]): Record<stri
   return Object.keys(confirmed).length ? confirmed : undefined
 }
 
-const touchQuestWorker = idleRelease(2 * 60_000, () => {
+/** The quest scanner's engine goes after a minute unused (was 2): a raid frees it soon, the menus keep it busy anyway. */
+const touchQuestWorker = idleRelease(60_000, () => {
   const engine = worker
   worker = null
   preparing = null

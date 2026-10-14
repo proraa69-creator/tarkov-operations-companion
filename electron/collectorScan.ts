@@ -1,5 +1,5 @@
 import { desktopCapturer, screen } from 'electron'
-import { runOcrJob } from './ocrQueue.js'
+import { holdBackgroundScansFor, runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, gameCaptureAvailable, visibleGameRect } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
@@ -22,7 +22,8 @@ export interface CollectorScan extends FrameReading {
 }
 
 let engine: Promise<OcrWorker> | null = null
-const release = idleRelease(60_000, () => {
+/** The engine goes half a minute after the scan's last pass (a scan reads a frame every second or so while it runs). */
+const release = idleRelease(30_000, () => {
   const current = engine
   engine = null
   void current?.then((worker) => worker.terminate()).catch(() => {})
@@ -44,7 +45,7 @@ const reader = createLabelReader(async (picture) => {
   const worker = await ocr()
   try {
     const image = toPgm(picture)
-    const result = await runOcrJob(worker, () => worker.recognize(Buffer.from(image.buffer, image.byteOffset, image.byteLength), {}, { blocks: true }))
+    const result = await runOcrJob(() => worker.recognize(Buffer.from(image.buffer, image.byteOffset, image.byteLength), {}, { blocks: true }), 'interactive')
     return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
       .map((line) => ({ text: line.text, top: line.bbox.y0, bottom: line.bbox.y1 }))
   } finally {
@@ -56,7 +57,11 @@ const reader = createLabelReader(async (picture) => {
  * `restart` starts a new scan (everything on screen is read again); `names`: the wanted items' labels, a misread one
  * near them is read a second time.
  */
+/** A Kappa scan's passes come every second or so: the quest scanner yields until this long after the last (ocrQueue.ts). */
+const SCAN_HOLD_MS = 3000
+
 export async function scanCollectorScreen(options: { restart?: boolean; names?: string[] } = {}): Promise<CollectorScan> {
+  holdBackgroundScansFor(SCAN_HOLD_MS)
   if (options.restart) reader.reset(options.names)
   const frame = await captureGame()
   if (!frame) return { text: '', gameWindow: false, waiting: true, labels: 0, read: 0, pending: 0 }
