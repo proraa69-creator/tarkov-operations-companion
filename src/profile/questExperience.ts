@@ -11,11 +11,9 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { PLAYER_LEVELS } from './playerLevels'
 import { levelFromExperience, type PlayerLevelRow } from './playerProfileNormalizer'
+import { experienceAtLevel } from './levelExperience'
 
-/** Total experience at the start of `level` (the table is incremental). */
-export function experienceAtLevel(level: number, levels: PlayerLevelRow[] = PLAYER_LEVELS) {
-  return levels.filter((row) => row.level <= level).reduce((total, row) => total + Math.max(0, row.exp), 0)
-}
+export { experienceAtLevel }
 
 /**
  * The level with the experience of quests completed after the anchor. Only completions the logs dated (source 'eft-log')

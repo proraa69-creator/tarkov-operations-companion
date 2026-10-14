@@ -112,6 +112,21 @@ describe('the game\'s screens', () => {
     expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
   })
 
+  it('the player\'s stored PvE 59 (report of 14.10.2026) is 39 again at the next mode selection screen, PvP keeps its 59', async () => {
+    vi.resetModules()
+    const { applyModeSelectScreen, logNickname, setTypedNickname } = await import('./logNickname')
+    server.status = { signedIn: false, nicknames: {} }
+    const state = target()
+    await setTypedNickname('Raid_OS', () => state)
+    // What the old reader stored from the PvE card: «39» read as «59».
+    const pve = state.activeProfile.modes.pve
+    state.activeProfile = { ...state.activeProfile, modes: { ...state.activeProfile.modes, pve: { ...pve, playerLevel: 59, levelAnchor: { level: 59, observedAt: '2026-10-13T20:00:00.000Z', source: 'screen' } } } }
+    // Cards whose name the readings did not agree on still give their level, and change no nickname.
+    applyModeSelectScreen([{ mode: 'pve', level: 39 }, { mode: 'pvp', level: 59 }], Date.parse('2026-10-14T18:00:00Z'), () => state)
+    expect([state.activeProfile.modes.pvp.playerLevel, state.activeProfile.modes.pve.playerLevel, state.activeProfile.modes.seasonal.playerLevel]).toEqual([59, 39, 1])
+    expect(logNickname()).toBe('Raid_OS')
+  })
+
   it('the traders\' screen raises the level of the mode the game is in, never lowers it', async () => {
     vi.resetModules()
     const { applyTraderScreen } = await import('./logNickname')
