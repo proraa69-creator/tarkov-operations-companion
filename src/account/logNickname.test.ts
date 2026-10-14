@@ -143,6 +143,26 @@ describe('the game\'s screens', () => {
     expect(state.applyScreenLevel).not.toHaveBeenCalled()
   })
 
+  it('what the locked app read is kept, not applied, until the app unlocks (audit P4a)', async () => {
+    vi.resetModules()
+    const { applyKeptIdentity, keepModeSelectScreen, keepTraderScreen, logNickname } = await import('./logNickname')
+    server.status = { signedIn: false, nicknames: {} }
+    const state = target()
+    keepModeSelectScreen([{ mode: 'pve', nickname: 'Raid_OS', level: 41 }], Date.parse('2026-10-14T18:00:00Z'))
+    keepTraderScreen({ nickname: 'Raid_OS', level: 42, loyalty: { prapor: 4 } }, undefined, Date.parse('2026-10-14T18:01:00Z'))
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+    expect(logNickname()).toBeUndefined()
+    applyKeptIdentity(() => state)
+    expect(state.activeProfile.modes.pve.playerLevel).toBe(41)
+    expect(logNickname()).toBe('Raid_OS')
+    // The traders' reading had no mode then: its nickname only, no level of a mode it does not name.
+    expect(state.applyScreenLevel.mock.calls.map((call) => [call[0], call[1]])).toEqual([['pve', 41]])
+    // Applied once.
+    state.applyScreenLevel.mockClear()
+    applyKeptIdentity(() => state)
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+  })
+
   it('the traders\' screen raises the level of the mode the game is in, never lowers it', async () => {
     vi.resetModules()
     const { applyTraderScreen } = await import('./logNickname')

@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
 }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => state }))
+const kept = vi.hoisted(() => ({ applied: 0 }))
+vi.mock('../account/logNickname', async (original) => ({ ...(await original<typeof import('../account/logNickname')>()), applyKeptIdentity: () => { kept.applied += 1 } }))
 const { StoryScreenScanner } = await import('./StoryScreenScanner')
 
 type Frame = Awaited<ReturnType<NonNullable<Window['tarkovDesktop']>['captureQuestFrame']>>
@@ -262,5 +264,15 @@ describe('the screenshot fallback (audit P5d)', () => {
     render(<StoryScreenScanner />)
     await run(0)
     expect(screenshot).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('unlocked (audit P4a)', () => {
+  it('applies what the locked app\'s identity reader kept, once, when it starts', async () => {
+    kept.applied = 0
+    desktop({ text: '', sourceName: '', gameWindow: false })
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(kept.applied).toBe(1)
   })
 })

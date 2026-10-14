@@ -11,7 +11,7 @@ import { discoverAllEftLogs, discoverEftLogs, eftLogSearchReport, freshestLogsFo
 import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
 import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
 import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
-import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
+import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
@@ -578,6 +578,8 @@ function registerIpc() {
     const payload = raw.replace(/^data:image\/\w+;base64,/, '')
     return recognizeQuestPng(Buffer.from(payload, 'base64'))
   })
+  // The locked app (sign-in, subscription): the game-start screens only, only right after a new game window (screenOcr.ts).
+  ipcMain.handle('quests:capture-identity', () => captureIdentityFrame())
 }
 
 function stopWatchingLogs() {

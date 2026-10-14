@@ -11,6 +11,7 @@ import { CraftsPage } from '../pages/CraftsPage'
 import { FleaMarketPage } from '../pages/FleaMarketPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { StoryScreenScanner } from '../components/StoryScreenScanner'
+import { IdentityScreenReader } from '../components/IdentityScreenReader'
 import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
@@ -49,7 +50,9 @@ export function App() {
   // Decorative motion sleeps while the window is not in use (the player is in the game), see appActivity.ts.
   useEffect(() => startAppActivity(), [])
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
-  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
+  // The game started before the sign-in still gives the nickname and levels: its start screens are read and kept until
+  // the app unlocks (audit P4a, #202), nothing else.
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
   return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><QuestSyncTip /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/maps" replace /> : <ExperimentalPage />} />

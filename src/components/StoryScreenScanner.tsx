@@ -7,7 +7,7 @@ import { tableMatches } from '../import/screenScanSync'
 import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
-import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
+import { applyKeptIdentity, applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
 import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
@@ -61,6 +61,8 @@ export function StoryScreenScanner() {
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!desktop) return
+    // Unlocked now: what the locked app's identity reader kept (src/components/IdentityScreenReader.tsx) is applied.
+    applyKeptIdentity(() => stateRef.current)
     let cancelled = false
     let inRaid = false
     // Back from a raid: look at once. While the window sits minimized behind the game its timers are throttled,

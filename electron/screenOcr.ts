@@ -22,9 +22,10 @@ let preparing: Promise<OcrWorker> | null = null
 const PROBE_SIZE = { width: 160, height: 90 }
 /**
  * The last reading of the game and the print of its screen (electron/ocrPicture.ts): a print that moved a little means
- * «re-read soon» (reuseQuestReading), an unchanged one «no need to read again» (reuseStableReading).
+ * «re-read soon» (reuseQuestReading), an unchanged one «no need to read again» (reuseStableReading). `partial`: a
+ * reading of the locked app's identity reader (no story pane parts), never reused for a whole look.
  */
-let lastWatch: { fine: Uint8Array; text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; at: number; detail: boolean; reads: number } | null = null
+let lastWatch: { fine: Uint8Array; text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; at: number; detail: boolean; reads: number; partial?: boolean } | null = null
 let lastScreenshot: { key: string; text: string; sourceName: string; story?: StoryPaneReading; observedAt: number } | null = null
 /** Where the parts of the last story pane were: while it stays open (flipping chapters) no whole-screen pass is needed. */
 let storyLayout: { width: number; height: number; rects: StoryPaneRects } | null = null
@@ -94,37 +95,53 @@ function isBlank(data: Uint8Array) {
 }
 
 /**
- * `context.logsWatched`: the game's Logs folder is watched, so the logs tell the raids (electron/experimental/raidSignals.ts).
- * A watching call answers `raid` (a raid is likely: nothing was copied), `busy` (an item lookup or a Kappa scan runs:
- * nothing was copied) and `freshGame` (the game window came moments ago, src/import/storyScanTiming.ts) besides what was read.
+ * A new game window (audit P4d): «Выбор профиля и режима» comes within seconds and shows only briefly, so the engine is
+ * loaded now — while the game itself is loading — instead of on the first look at that screen, which used to wait a
+ * second or two for it (more after the minute unused that frees it). Kept loaded through the quick looks of a start.
  */
-export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean } = {}) {
+function warmQuestWorker() {
+  void getWorker().then(() => touchQuestWorker()).catch(() => {})
+}
+
+/**
+ * `context.logsWatched`: the game's Logs folder is watched, so the logs tell the raids (electron/experimental/raidSignals.ts).
+ * `context.identity`: the locked app's identity reader (captureIdentityFrame) — the mode selection and the traders'
+ * screens only, no story pane parts.
+ * A watching call answers `raid` (a raid is likely: nothing was copied), `busy` (an item lookup or a Kappa scan runs:
+ * nothing was copied), `freshGame` (the game window came moments ago, src/import/storyScanTiming.ts) and `gameSince` (when
+ * this game window was first seen: a new value is a new game start) besides what was read.
+ */
+export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean; identity?: boolean } = {}) {
   let freshGame: boolean | undefined
+  let gameSince: number | undefined
+  const identity = context.identity === true
   if (watch && process.platform === 'win32') {
     // Nothing to read unless the game is in front (its process, not a window about it); then one cheap copy of its screen.
     const game = foregroundGame()
     if (!game) return { text: '', sourceName: '', gameWindow: false }
     const now = Date.now()
     freshGame = isFreshGame(game.since, now)
+    gameSince = game.since
     // A raid the logs do not report (no Logs folder, an offline raid): no copy of the game's screen at all.
-    if (raidLikely(now, context)) return { text: '', sourceName: '', gameWindow: true, raid: true, freshGame }
+    if (raidLikely(now, context)) return { text: '', sourceName: '', gameWindow: true, raid: true, freshGame, gameSince }
     // An item lookup or a Kappa scan is running (electron/ocrQueue.ts): the player waits for those, the scanner yields.
-    if (backgroundScansHeld(now)) return { text: '', sourceName: '', gameWindow: true, busy: true, freshGame }
+    if (backgroundScansHeld(now)) return { text: '', sourceName: '', gameWindow: true, busy: true, freshGame, gameSince }
+    if (freshGame) warmQuestWorker()
     const shot = grabGameDisplay()
     if (shot) {
       // The print straight from the copy's bytes: an unchanged screen costs no image work at all.
       const fine = picturePrint(shot.data, shot.width, shot.height)
       const capturedAt = Date.now()
       const unchanged = unchangedFrame(lastWatch?.fine, fine)
-      if (lastWatch && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, similarFrame(lastWatch.fine, fine)))) {
-        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
+      if (lastWatch && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, similarFrame(lastWatch.fine, fine)))) {
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
       }
-      const result = await readQuestFrame(shotFrame(shot), detail, 'EscapeFromTarkov')
-      lastWatch = { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 }
-      return { ...result, gameWindow: true, observedAt: lastWatch.at, freshGame }
+      const result = await readQuestFrame(shotFrame(shot), detail, 'EscapeFromTarkov', true, identity)
+      lastWatch = { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1, partial: identity }
+      return { ...result, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince }
     }
     if (gameCaptureAvailable()) {
-      if (!blackFallback.useful && now - blackFallback.triedAt < BLACK_FALLBACK_RETRY_MS) return { text: '', sourceName: '', gameWindow: true, freshGame }
+      if (!blackFallback.useful && now - blackFallback.triedAt < BLACK_FALLBACK_RETRY_MS) return { text: '', sourceName: '', gameWindow: true, freshGame, gameSince }
       blackFallback = { triedAt: now, useful: false }
     }
   }
@@ -144,19 +161,19 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
     const fine = probe.thumbnail.isEmpty() ? null : new Uint8Array(probe.thumbnail.toBitmap())
     const unchanged = Boolean(fine && unchangedFrame(lastWatch?.fine, fine))
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
-    if (fine && lastWatch && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, similarFrame(lastWatch.fine, fine)))) {
-      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
+    if (fine && lastWatch && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, similarFrame(lastWatch.fine, fine)))) {
+      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
     const game = sources.find((source) => isTarkovWindow(source.name))
-    if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game), freshGame }
+    if (!game || game.thumbnail.isEmpty()) return { text: '', sourceName: game?.name ?? '', gameWindow: Boolean(game), freshGame, gameSince }
     // Black here too: nothing to read, and no reason to come back soon.
-    if (isBlank(game.thumbnail.toBitmap())) return { text: '', sourceName: game.name, gameWindow: true, freshGame }
+    if (isBlank(game.thumbnail.toBitmap())) return { text: '', sourceName: game.name, gameWindow: true, freshGame, gameSince }
     blackFallback.useful = true
     const capturedAt = Date.now()
-    const result = await readQuestFrame(game.thumbnail, detail, game.name)
-    lastWatch = fine ? { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1 } : null
-    return { ...result, gameWindow: true, observedAt: capturedAt, freshGame }
+    const result = await readQuestFrame(game.thumbnail, detail, game.name, true, identity)
+    lastWatch = fine ? { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1, partial: identity } : null
+    return { ...result, gameWindow: true, observedAt: capturedAt, freshGame, gameSince }
   }
   const sources = await desktopCapturer.getSources({
     types: ['window', 'screen'],
@@ -170,6 +187,22 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
   const result = await recognizeQuestImage(prepared, preferred.name)
   const storedFrames = await persistFrame(prepared)
   return { ...result, gameWindow, storedFrames, observedAt: Date.now() }
+}
+
+/**
+ * The identity reader of the locked app — the sign-in and subscription screens (audit P4a; #202 «персонаж должен
+ * находиться сразу при первом запуске»): a game started before the sign-in shows «Выбор профиля и режима» only then.
+ * The screen is copied and read only within a game start — a game window not seen before, for FRESH_GAME_MS
+ * (src/import/storyScanTiming.ts, electron/experimental/gameWindow.ts) — and then only for the mode selection and the
+ * traders' screens. At any other time nothing is copied: the answer says only whether the game is in front. No raid
+ * report from the logs here: the minimap left open counts as a likely raid too.
+ */
+export async function captureIdentityFrame() {
+  if (process.platform !== 'win32') return { text: '', sourceName: '', gameWindow: false }
+  const game = foregroundGame()
+  if (!game) return { text: '', sourceName: '', gameWindow: false }
+  if (!isFreshGame(game.since, Date.now())) return { text: '', sourceName: '', gameWindow: true, freshGame: false, gameSince: game.since }
+  return captureQuestFrame(true, true, { identity: true })
 }
 
 /**
@@ -298,7 +331,7 @@ async function recognizeQuestWords(frame: GameFrame) {
  * stays open — the player flips chapters — straight from the last layout, without the whole-screen pass; otherwise
  * after a whole-screen pass has found it. Menu probes (`detail` off) are read as before.
  */
-async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, sourceName: string, remember = true): Promise<{ text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }> {
+async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, sourceName: string, remember = true, identity = false): Promise<{ text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }> {
   const frame = 'bgra' in source ? source : imageFrame(source)
   if (!detail) {
     const { text } = await recognizeQuestImage(prepareImage(frame.image(), 1100, true), sourceName)
@@ -307,7 +340,7 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
   // Read as it is when its size is right (no image object for the whole pass); prepareImage otherwise.
   const prepared = frame.width >= 900 && frame.width <= 2020 ? frame : imageFrame(prepareImage(frame.image(), 1920, false))
   const size = { width: prepared.width, height: prepared.height }
-  if (storyLayout && storyLayout.width === size.width && storyLayout.height === size.height) {
+  if (!identity && storyLayout && storyLayout.width === size.width && storyLayout.height === size.height) {
     const story = await readStoryPane(prepared.image(), storyLayout.rects)
     if (story) return { text: storyPaneText(story), sourceName, story }
     if (remember) storyLayout = null
@@ -321,7 +354,8 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
   // The traders' screen: the nickname and the level of the mode the game is in (the player is there often).
   const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : null
   const extra = trader ? { trader } : {}
-  if (!isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
+  // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
+  if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
   const rects = storyPaneRects(size, full.words, true)
   const story = rects ? await readStoryPane(prepared.image(), rects) : null
   if (!story) return { text: full.text, sourceName, ...extra }

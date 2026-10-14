@@ -230,6 +230,34 @@ export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: numbe
   startLookups(state, true)
 }
 
+/**
+ * Readings of the game's screens taken while the app was locked — the sign-in and subscription screens (audit P4a; #202
+ * «персонаж должен находиться сразу при первом запуске»): a game started before the sign-in shows «Выбор профиля и
+ * режима» only then. Kept here, the newest of each screen, and applied when the app unlocks (applyKeptIdentity).
+ */
+let kept: { modeSelect?: { cards: ModeSelectCard[]; observedAt: number }; trader?: { reading: TraderScreenReading; mode?: RaidMode; observedAt: number } } = {}
+
+/** The mode selection screen read while the app is locked: kept until it unlocks. */
+export function keepModeSelectScreen(cards: ModeSelectCard[], observedAt: number) {
+  if (cards.length && (!kept.modeSelect || observedAt >= kept.modeSelect.observedAt)) kept = { ...kept, modeSelect: { cards, observedAt } }
+}
+
+/** The traders' screen read while the app is locked, with the game's mode the logs named then (if any): kept until it unlocks. */
+export function keepTraderScreen(reading: TraderScreenReading, mode: RaidMode | undefined, observedAt: number) {
+  if (!kept.trader || observedAt >= kept.trader.observedAt) kept = { ...kept, trader: { reading, mode, observedAt } }
+}
+
+/**
+ * The app is unlocked: what was read before is applied now, as if just read — at its own time, so newer data still wins
+ * (src/domain/progress.ts). A traders' reading whose mode was not known then gives its nickname only.
+ */
+export function applyKeptIdentity(state: () => LogNicknameTarget) {
+  const { modeSelect, trader } = kept
+  kept = {}
+  if (modeSelect) applyModeSelectScreen(modeSelect.cards, modeSelect.observedAt, state)
+  if (trader) applyTraderScreen(trader.reading, trader.mode, trader.observedAt, state)
+}
+
 /** The last traders' screen applied: the same reading a second later is nothing new. */
 let lastTrader: { at: number; key: string } | null = null
 
