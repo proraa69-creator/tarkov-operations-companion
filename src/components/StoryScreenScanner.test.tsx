@@ -7,6 +7,8 @@ import { updateLogStatus } from '../import/logStatus'
 import { logsCoverModes } from '../import/logCoverage'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { RU_TABLE_QUESTS, RU_TASKS_TABLE } from '../import/__fixtures__/russianTasksTable'
+import { PVP_FALLING_SKIES } from '../import/__fixtures__/storyPanesPvp'
+import { addMissingStoryChapters } from '../data/storyChapters'
 
 // The Russian rows first: «Первый в очереди» is in both lists, and the first title of a kind is the one matched.
 const quests = [
@@ -14,6 +16,7 @@ const quests = [
   ...ENGLISH_TABLE_QUESTS.map(([id, name, normalizedName]) => ({
     id, name, normalizedName, trader: 'Prapor', level: 1, kappa: false, description: '', objectives: [], rewards: [],
   } as Quest)),
+  ...addMissingStoryChapters([], 'ru').filter((quest) => quest.kind === 'story'),
 ]
 const state = vi.hoisted(() => ({
   raidMode: 'pve' as 'pvp' | 'pve' | 'seasonal',
@@ -221,5 +224,22 @@ describe('the Tasks-table watch (audit P8)', () => {
     await run(STORY_SCAN_TIMING.storyMs)
     await run(STORY_SCAN_TIMING.storyMs)
     for (const call of state.applyQuestScanForMode.mock.calls) expect((call[4] as { wholeList?: unknown }).wholeList).toBeUndefined()
+  })
+})
+
+describe('story chapters on the pane (audit P9)', () => {
+  it('a chapter whose pane reads «ВЫПОЛНЕНО» in two fresh readings is handed over as done, to the game\'s mode', async () => {
+    updateLogStatus({ scan: gameIn('seasonal') })
+    let observedAt = 0
+    const text = PVP_FALLING_SKIES.replace('АКТИВНО', 'ВЫПОЛНЕНО')
+    desktop({ text, sourceName: 'EscapeFromTarkov', gameWindow: true })
+    window.tarkovDesktop!.captureQuestFrame = vi.fn(async () => { observedAt += 1000; return { text, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt } })
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyStoryScanForMode.mock.calls.flatMap((call) => call[1] as Array<{ completionConfirmed?: boolean }>).some((match) => match.completionConfirmed)).toBe(false)
+    await run(STORY_SCAN_TIMING.storyMs)
+    const done = state.applyStoryScanForMode.mock.calls.find((call) => (call[1] as Array<{ completionConfirmed?: boolean }>).some((match) => match.completionConfirmed))
+    expect(done?.[0]).toBe('seasonal')
+    expect(done?.[1]).toEqual([{ questId: 'story-falling-skies', completed: true, completionConfirmed: true, stageConfirmed: false }])
   })
 })

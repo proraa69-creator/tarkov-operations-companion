@@ -22,13 +22,31 @@ export interface StoryScanMatch {
    * even when the catalog does not know the wording of its current objective yet.
    */
   active?: boolean
+  /** The pane of this chapter says «ВЫПОЛНЕНО» / «COMPLETED»: the chapter is done (audit P9). */
+  completed?: boolean
+  /** Two fresh readings in a row showed it done (confirmStoryFrame): only then is the chapter written completed. */
+  completionConfirmed?: boolean
 }
 
 /**
- * The chapter whose pane is open and whether the header says «АКТИВНО». The header is the line «ИСТОРИЯ» (OCR may clip
- * it to «ТОРИЯ») with the chapter name on it or right under it. Only an exact name counts: never a word of the story.
+ * The pane's status label alone on its line says the chapter is done: «ВЫПОЛНЕНО» (or «ЗАВЕРШЕНО»), the English game's
+ * «COMPLETED». Never an objective's «… Выполнено» (a step done inside a chapter being played).
  */
-export function storyPaneChapter(text: string, story: Quest[]): { quest: Quest; active: boolean } | undefined {
+function isDoneLabel(line: string) {
+  const word = line.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, '')
+  return /^(?:выполнено|завершено)$/i.test(foldOcrGlyphs(word).toLowerCase()) || /^completed?$/i.test(latinize(word))
+}
+
+const OBJECTIVE_BLOCK = /главн(?:ые|ая)\s*задач|иональн[а-яё]*\s*задач|(?:main|optional)\s+objectives/i
+
+/**
+ * The chapter whose pane is open and whether the header says «АКТИВНО» or «ВЫПОЛНЕНО» (the English game: «ACTIVE»,
+ * «COMPLETED»). The header is the line «ИСТОРИЯ» (OCR may clip it to «ТОРИЯ») with the chapter name on it or right under
+ * it. Only an exact name counts: never a word of the story. `status`: the status label read on its own (the pane's
+ * parts), which alone says whether the chapter is done; without it, a label line above the objective blocks. A header
+ * read as both active and done is neither.
+ */
+export function storyPaneChapter(text: string, story: Quest[], status?: string): { quest: Quest; active: boolean; completed: boolean } | undefined {
   // The header sits on banner art: OCR puts junk before «ИСТОРИЯ» («> ИСТОРИЯ >. a.») and after the name («Typ > tgs»).
   const lines = text.slice(0, 20000).split(/\r?\n/).map((line) => line.trim().replace(/^[^\p{L}]+/u, '')).filter(Boolean)
   // Every name of the chapter, in either language (audit P11): the game's language need not be the app's.
@@ -44,7 +62,14 @@ export function storyPaneChapter(text: string, story: Quest[]): { quest: Quest; 
     for (const candidate of window) {
       const found = titleKeys(candidate.replace(STATUS, ' ')).map((key) => names.find((entry) => entry.keys.some((name) => sameTitle(name, key))))
         .find(Boolean)
-      if (found) return { quest: found.quest, active: [lines[index]!, ...lines.slice(index + 1, index + 4)].some(isActive) }
+      if (found) {
+        const header = [lines[index]!, ...lines.slice(index + 1, index + 4)]
+        const active = header.some(isActive)
+        const block = header.findIndex((line) => OBJECTIVE_BLOCK.test(line))
+        const above = block < 0 ? header : header.slice(0, Math.max(1, block))
+        const done = status !== undefined ? status.split(/\r?\n/).some(isDoneLabel) : above.some(isDoneLabel)
+        return { quest: found.quest, active, completed: !active && done }
+      }
     }
   }
   return undefined
@@ -132,7 +157,11 @@ export function matchStoryChapters(screen: string, quests: Quest[], parts?: Stor
         ...(Object.keys(stageCopies).length ? { stageCopies } : {}),
       }
     })
-  const pane = storyPaneChapter(text, story)
+  const pane = storyPaneChapter(text, story, parts?.status)
+  if (pane?.completed) {
+    // The pane of a finished chapter (the player can open any): done, and nothing on it is the stage being played.
+    return [{ questId: pane.quest.id, completed: true }, ...matches.filter((match) => match.questId !== pane.quest.id).map(({ questId }) => ({ questId }))]
+  }
   if (pane) {
     // The header names the open chapter: only it can carry a stage or objectives on this frame.
     const own: StoryScanMatch = matches.find((match) => match.questId === pane.quest.id) ?? { questId: pane.quest.id }
@@ -186,6 +215,13 @@ export function applyStoryScan(progress: ModeProgress, matches: StoryScanMatch[]
   for (const match of matches) {
     const current = taskProgress[match.questId]
     if (current?.status === 'completed') continue
+    if (match.completed) {
+      // «ВЫПОЛНЕНО» on the chapter's pane (audit P9): done once two fresh readings agree; one reading changes nothing.
+      if (!match.completionConfirmed || (current && current.updatedAt > now)) continue
+      taskProgress = { ...taskProgress, [match.questId]: { taskId: match.questId, status: 'completed', source: 'screen-scan', updatedAt: now,
+        ...(current?.currentStageIndex != null ? { currentStageIndex: current.currentStageIndex } : {}) } }
+      continue
+    }
     if (match.stageIndex != null && (!Number.isInteger(match.stageIndex) || match.stageIndex < 0)) continue
     const savedStage = current?.currentStageIndex
     // A repeated title is the copy at or after the saved stage, not the first one in the chapter.
@@ -236,9 +272,10 @@ export function confirmStoryFrame(previous: StoryConfirmation | null, context: s
   const fresh = Number.isFinite(observedAt) && (!previous || observedAt > previous.observedAt)
   const confirmed = fresh && previous?.context === context ? matches.filter((match) => previous.matches.some((entry) => (
     entry.questId === match.questId && entry.stageIndex === match.stageIndex
+    && Boolean(entry.completed) === Boolean(match.completed)
     && JSON.stringify(entry.completedStageIndexes ?? []) === JSON.stringify(match.completedStageIndexes ?? [])
     && objectiveShape(entry.objectives) === objectiveShape(match.objectives)
-  ))).map((match) => ({ ...match, stageConfirmed: match.stageIndex != null })) : []
+  ))).map((match) => ({ ...match, stageConfirmed: match.stageIndex != null, ...(match.completed ? { completionConfirmed: true } : {}) })) : []
   return { confirmed, state: fresh ? { context, observedAt, matches } : previous }
 }
 
