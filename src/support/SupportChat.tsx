@@ -52,8 +52,9 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
  * «Новое сообщение от поддержки» (owner, 14.10.2026: «так же должно появляться уведомление о том что у человека новое
  * сообщение»): a small note over the app when an answer arrives and no chat window is open — top right under the top bar
  * on the PC, across the top on the phone. It stays until «Открыть» opens the chat (support/supportChatClient.ts
- * openSupportChat) or «×» closes it; either way it comes back only for a newer answer. One note at a time, inside the app
- * only: no system notification, no sound. Under the dialogs, so it never covers one.
+ * openSupportChat) or «×» closes it; either way it comes back only for a newer answer. An answer read on another device,
+ * or a conversation the owner deleted, takes it away too. One note at a time, inside the app only: no system
+ * notification, no sound. Under the dialogs, so it never covers one.
  */
 export function SupportNotice() {
   const { message, dismiss } = useSupportNotice()
