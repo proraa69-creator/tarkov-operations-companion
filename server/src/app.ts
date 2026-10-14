@@ -45,6 +45,7 @@ import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
+import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
@@ -92,6 +93,8 @@ export interface ApiOptions {
   userData?: UserDataStore
   /** Already-loaded catalog for summaries (Kappa / Collector totals). Defaults to the server catalog cache. */
   catalog?: CatalogPeek
+  /** The notice's English for foreign players (services/announcementLanguage.ts): MyMemory by default; tests pass a fake. */
+  translateAnnouncement?: AnnouncementTranslator
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -251,10 +254,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
-  // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once.
+  // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
+  // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
   const announcements = new AnnouncementStore(accounts.database)
-  const announcementSignals = new MapUpdates(Date.now(), undefined, () => ({ announcement: announcements.publicView() }))
-  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
+  const announcementSignals = new MapUpdates()
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
   app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {
