@@ -109,7 +109,11 @@ export function tableRowCount(text: string) {
 
 export interface ScreenScanOptions {
   previousSeenIds?: string[]
-  /** Live watch: a quest not tracked yet must be seen in two consecutive frames before it is added. */
+  /**
+   * Live watch: a quest not tracked yet must be seen in two consecutive frames before it is added — unless its own row
+   * reads «активно!» / «active!» (audit step 16): the status cell beside the title is the game saying so, and a
+   * scrolled position no longer costs two readings (about 7 s) before its rows count.
+   */
   requireConfirmation?: boolean
   /** Live watch session: a whole current list read twice ends the OCR quests it no longer shows (questSession.ts). */
   session?: QuestScanSession
@@ -168,7 +172,7 @@ export function applyScreenScanProgress(
       if (record.source === 'screen-scan' && stageIndex !== record.currentStageIndex) write(taskId, { ...record, currentStageIndex: stageIndex, updatedAt: now })
       continue
     }
-    if (options?.requireConfirmation && !previous.has(taskId)) continue
+    if (options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active') continue
     const stageIndex = typeof match.stageIndex === 'number' ? match.stageIndex : record?.currentStageIndex
     write(taskId, { taskId, status: 'active', source: 'screen-scan', updatedAt: now, currentStageIndex: stageIndex })
   }

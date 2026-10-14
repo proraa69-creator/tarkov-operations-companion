@@ -108,6 +108,13 @@ describe('screen scan sync after turn-in', () => {
     expect(second.taskProgress.debut?.status).toBe('active')
   })
 
+  it('adds a row that reads «активно!» from one frame; other rows still need two (audit step 16)', () => {
+    const once = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut', status: 'active' }, { questId: 'checking', status: 'ready' }, { questId: 'side' }], [debut, checking, parallel], { previousSeenIds: [], requireConfirmation: true })
+    expect(once.taskProgress.debut?.status).toBe('active')
+    expect(once.taskProgress.checking).toBeUndefined()
+    expect(once.taskProgress.side).toBeUndefined()
+  })
+
   it('keeps active PvE quests found in logs when OCR only sees one page', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'eft-log', updatedAt: '2026-09-26T00:00:00.000Z' }

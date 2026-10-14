@@ -38,9 +38,10 @@ describe('screen readings applied to the app state', () => {
 
   it('a new row read twice is written, to the mode it was read for only', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
-    act(() => seen.app.applyQuestScanForMode('seasonal', [{ questId: 'cans', status: 'active' }], QUESTS, []))
+    // A row whose status cell was not read: two frames.
+    act(() => seen.app.applyQuestScanForMode('seasonal', [{ questId: 'cans' }], QUESTS, []))
     expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans).toBeUndefined()
-    act(() => seen.app.applyQuestScanForMode('seasonal', [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
+    act(() => seen.app.applyQuestScanForMode('seasonal', [{ questId: 'cans' }], QUESTS, ['cans']))
     expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans?.status).toBe('active')
     expect(seen.app.activeProfile.modes.pvp.taskProgress.cans).toBeUndefined()
     expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
