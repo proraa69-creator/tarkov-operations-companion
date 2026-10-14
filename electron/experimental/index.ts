@@ -190,11 +190,19 @@ let movingBefore = false
 let lastForeground = ''
 let raiseAgain = false
 /**
+ * Even when no other window came to the front, visible overlays are raised again this often: a borderless game also
+ * re-raises itself after loading screens (the start of a raid) and some clicks, and a minimap left under it would look
+ * gone. Once every few seconds costs next to nothing; every 800 ms was the old pace.
+ */
+const OVERLAY_SAFETY_RAISE_MS = 4000
+let raisedAt = 0
+/**
  * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
- * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, which would
- * otherwise push a topmost overlay under it. Done when the window in front changes (and once more at the
- * next look, after the game's own raise), no longer every 800 ms: each raise is two window-position
- * calls and a style write per overlay, and asking Windows how the game is displayed is not free either.
+ * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, loading screens
+ * and clicks, which would otherwise push a topmost overlay under it. Done when the window in front changes
+ * (and once more at the next look, after the game's own raise), and otherwise every OVERLAY_SAFETY_RAISE_MS,
+ * no longer every 800 ms: each raise is two window-position calls and a style write per overlay. How the game
+ * is displayed is asked only when the window in front changes.
  */
 function watchGame() {
   const foreground = foregroundWindowKey()
@@ -215,11 +223,14 @@ function watchGame() {
   const moving = MOVE_KEYS.some(isVirtualKeyDown)
   if (moving && movingBefore) noteRaidSignal('movement')
   movingBefore = moving
-  if (!changed && !raiseAgain) return
+  const now = Date.now()
+  const switched = changed || raiseAgain
+  if (!switched && now - raisedAt < OVERLAY_SAFETY_RAISE_MS) return
   raiseAgain = changed
+  raisedAt = now
   // How the game is displayed (the Mini Map page's note on exclusive full screen), asked as it comes to the front and
   // once more a look later, when a switch of the display mode is through; an item lookup asks for itself.
-  displayMode = foregroundDisplayMode()
+  if (switched) displayMode = foregroundDisplayMode()
   for (const window of [itemWindow, minimapWindow]) {
     if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
   }
