@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useLocale } from '../i18n/LocaleProvider'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 import { QUEST_SYNC_TIP_KEY, questSyncTipDue } from './guideProgress'
@@ -22,15 +21,13 @@ const readSeen = () => { try { return localStorage.getItem(QUEST_SYNC_TIP_KEY) !
 /**
  * After the update, once per computer: on the Overview of the PC app, a tip pointing at «Список текущих заданий» — how to
  * bring in all the current quests. Mounted once, next to the first-run guide; it waits for the startup notices too.
- * Russian interface only for now: the app tells the game's «Задания» screen by its Russian words (isTasksMenuText), so a
- * player of the English game would scroll the list for nothing.
+ * The Russian and the English game are both read (src/import/screenScanSync.ts), so the tip is in both languages.
  */
 export function QuestSyncTip() {
   const { pathname } = useLocation()
   const phone = useMobileLayout()
-  const { locale } = useLocale()
   const [seen, setSeen] = useState(readSeen)
-  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, locale })
+  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen })
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname)
   if (!due || !ready) return null
   return <GuideTip id="quest-sync" tip={TIP} phone={false} onAccept={() => {
