@@ -1,0 +1,29 @@
+import { describe, expect, it } from 'vitest'
+import type { Quest } from '../domain/types'
+import { applyQuestCorrections } from './questCorrections'
+
+const patriot = (patch: Partial<Quest> = {}): Quest => ({
+  id: '64f5deac39e45b527a7c4232', name: 'Работа для патриота', trader: 'Прапор', level: 25, kappa: false, description: '', experience: 18000,
+  objectives: ['Убить бойцов ЧВК … на локациях Маяк, Таможня или Резерв'], rewards: ['18 000 опыта', 'Рубли × 165000'], mapId: 'lighthouse', mapIds: ['lighthouse', 'customs', 'reserve'],
+  objectiveDetails: [{ id: 'o', type: 'shoot', description: 'old', count: 10, mapIds: ['lighthouse', 'customs', 'reserve'] }],
+  ...patch,
+})
+
+describe('applyQuestCorrections', () => {
+  it('«Работа для патриота»: Streets, Shoreline or Ground Zero, Prapor loyalty 2, 10 000 experience and 200 000 roubles', () => {
+    const [quest] = applyQuestCorrections([patriot()], 'ru')
+    expect(quest).toMatchObject({ level: 15, experience: 10000, mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'], traderLoyalty: { needed: [{ level: 2 }] } })
+    expect(quest!.objectives[0]).toContain('Улицы Таркова, Берег или Эпицентр')
+    expect(quest!.objectiveDetails![0]).toMatchObject({ count: 10, mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'] })
+    expect(quest!.rewards).toContain('Рубли × 200000')
+    expect(quest!.raidRequirements?.map((entry) => entry.itemId)).toHaveLength(3)
+    expect(applyQuestCorrections([patriot()], 'en')[0]!.objectives[0]).toContain('Streets of Tarkov, Shoreline or Ground Zero')
+  })
+
+  it('steps aside once tarkov.dev has the new values, and leaves other quests alone', () => {
+    const fixed = patriot({ experience: 10000, mapIds: ['streets-of-tarkov'] })
+    expect(applyQuestCorrections([fixed], 'ru')[0]).toBe(fixed)
+    const other = patriot({ id: 'other' })
+    expect(applyQuestCorrections([other], 'ru')[0]).toBe(other)
+  })
+})
