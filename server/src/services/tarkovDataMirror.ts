@@ -34,6 +34,8 @@ export interface TarkovDataMirrorOptions {
   initialDelayMs?: number
   minimums?: Record<string, number>
   log?: (message: string) => void
+  /** After a pass that published new data: the modes whose files changed (the quest base builds them again, index.ts). */
+  onPublished?: (modes: MirrorMode[]) => void
 }
 
 function collectionCount(payload: unknown, endpoint: string) {
@@ -92,11 +94,13 @@ export class TarkovDataMirror {
   private async pass() {
     this.current = { state: 'running', startedAt: this.now().toISOString(), finishedAt: null, modes: {}, bytes: 0 }
     let failed = 0
+    const published: MirrorMode[] = []
     for (const mode of MIRROR_MODES) {
       try {
-        const bytes = await this.syncMode(mode)
-        this.current.modes[mode] = { updatedAt: this.now().toISOString(), bytes }
-        this.current.bytes += bytes
+        const result = await this.syncMode(mode)
+        this.current.modes[mode] = { updatedAt: this.now().toISOString(), bytes: result.bytes }
+        this.current.bytes += result.bytes
+        if (result.published) published.push(mode)
       } catch (error) {
         failed += 1
         const message = safeError(error)
@@ -108,6 +112,9 @@ export class TarkovDataMirror {
     }
     if (!['mount-missing', 'disk-full'].includes(this.current.state)) this.current.state = failed === 0 ? 'done' : failed < MIRROR_MODES.length ? 'degraded' : 'error'
     this.current.finishedAt = this.now().toISOString()
+    if (published.length) {
+      try { this.options.onPublished?.(published) } catch (error) { this.options.log?.(`data mirror: ${safeError(error)}`) }
+    }
   }
 
   private async syncMode(mode: MirrorMode) {
@@ -152,13 +159,14 @@ export class TarkovDataMirror {
         validators[name] = { ...(response.headers.get('etag') ? { etag: response.headers.get('etag')! } : prior?.etag ? { etag: prior.etag } : {}), ...(response.headers.get('last-modified') ? { modified: response.headers.get('last-modified')! } : prior?.modified ? { modified: prior.modified } : {}) }
         await transaction.write(`${name}.json`, body)
       }
-      await transaction.publish({ mode, validators, counts, downloadedBytes }, async () => {
+      const result = await transaction.publish({ mode, validators, counts, downloadedBytes }, async () => {
         for (const endpoint of ['items', 'tasks', 'maps']) {
           const active = await this.options.storage.read(slot, `${endpoint}.json`)
           if (!active || collectionCount(JSON.parse(active.toString('utf8')), endpoint) < (this.minimums[endpoint] ?? 0)) throw new Error(`published ${endpoint} failed smoke check`)
         }
       })
-      return downloadedBytes
+      // `published` is false when every file was the same as the current generation's (nothing new to build from).
+      return { bytes: downloadedBytes, published: result.published }
     } catch (error) {
       await transaction.abort()
       throw error

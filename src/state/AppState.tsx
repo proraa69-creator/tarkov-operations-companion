@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, applyScreenLevel, clearModeRegistration, createLocalProfile, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, createLocalProfile, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -15,7 +15,9 @@ import {
   type ObjectiveDef,
 } from '../progression/objectiveProgress'
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
-import { applyLogQuestState, logStateFingerprint } from '../import/logApply'
+import { applyLogQuestState, dropRecordsBefore, logEpochChange, logStateFingerprint, type LogIdentityInput } from '../import/logApply'
+import { announceLogEpochChange } from './logEpoch'
+import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
@@ -41,7 +43,6 @@ interface AppStateValue extends UiState {
   profiles: LocalProfile[]
   setRaidMode: (mode: RaidMode) => void
   registerModeProfile: (mode: RaidMode, registration: { accountId: number; enteredNickname: string; nickname: string; verifiedAt: string }) => void
-  clearModeProfile: (mode: RaidMode) => void
   updatePlayerSnapshot: (mode: RaidMode, snapshot: PlayerProfileSnapshot) => void
   /** The level the game's mode selection screen showed (src/import/modeSelectScreen.ts). */
   applyScreenLevel: (mode: RaidMode, level: number, observedAt: string, raiseOnly?: boolean) => void
@@ -49,17 +50,20 @@ interface AppStateValue extends UiState {
   raisePlayerLevel: (mode: RaidMode, level: number) => void
   setSelectedMapId: (id: string) => void
   toggleTrackedQuest: (id: string) => void
-  toggleCompletedQuest: (id: string) => void
-  /** Story chapters are not in the logs: stage index = current, 'completed' = done, null = not playing. */
-  setStoryProgress: (id: string, value: number | 'completed' | null) => void
-  setTaskRecord: (record: TaskProgressRecord) => void
-  applyTaskRecords: (records: TaskProgressRecord[]) => void
   applyTaskRecordsForMode: (mode: RaidMode, records: TaskProgressRecord[], characterId?: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
-  /** Current trader quests read from the in-game Tasks table. */
-  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
+  /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
+  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
+  /**
+   * A mode's quests from its logs (applyLogStateForMode: the server's records of its character, from another PC or for the
+   * phone). Another character, or a newer trusted reset, first drops the mode's records older than the change, once
+   * (src/import/logApply.ts logEpochChange); `characterSince`: since when the logs show the character.
+   */
+  applyLogScanForMode: (mode: RaidMode, events: ParsedTaskEvent[], identity: LogIdentityInput) => void
+  /** Story chapters another PC read, from the server (src/sync/storyRecords.ts): a newer reading of a chapter wins. */
+  applyRemoteStoryForMode: (mode: RaidMode, records: StoryProgressRecord[], characterId: string) => void
   /** Manual objective value from the quest view (checkbox / counter) for the current mode. */
   setObjectiveValue: (def: Pick<ObjectiveDef, 'id' | 'taskId' | 'type' | 'target'>, current: number) => void
   /** «Отменить» in «История изменений» (current mode). */
@@ -81,7 +85,6 @@ interface AppStateValue extends UiState {
   selectProfile: (id: string) => void
   renameProfile: (name: string) => void
   deleteProfile: (id: string) => void
-  replaceActiveProfile: (profile: LocalProfile) => void
   reset: () => void
   wipeAllData: () => Promise<void>
 }
@@ -172,28 +175,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     profiles: profileState.profiles,
     setRaidMode: (selectedMode) => updateActive((profile) => ({ ...profile, selectedMode, updatedAt: new Date().toISOString() })),
     registerModeProfile: (selectedMode, registration) => updateActive((profile) => registerModeProfile(profile, selectedMode, registration)),
-    clearModeProfile: (selectedMode) => updateActive((profile) => clearModeRegistration(profile, selectedMode)),
     updatePlayerSnapshot: (selectedMode, snapshot) => updateActive((profile) => applyPlayerSnapshot(profile, selectedMode, snapshot)),
     applyScreenLevel: (selectedMode, level, observedAt, raiseOnly) => updateActive((profile) => applyScreenLevel(profile, selectedMode, level, observedAt, raiseOnly)),
     raisePlayerLevel: (selectedMode, level) => updateActive((profile) => raisePlayerLevel(profile, selectedMode, level)),
     setSelectedMapId: (selectedMapId) => setUi((current) => ({ ...current, selectedMapId })),
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
-    toggleCompletedQuest: (id) => updateMode((progress) => {
-      const next = { ...progress.taskProgress }
-      if (next[id]?.status === 'completed') delete next[id]
-      else next[id] = { taskId: id, status: 'completed', source: 'manual', updatedAt: new Date().toISOString() }
-      return { ...progress, taskProgress: next }
-    }),
-    setStoryProgress: (id, value) => updateMode((progress) => {
-      const next = { ...progress.taskProgress }
-      if (value === null) delete next[id]
-      else next[id] = value === 'completed'
-        ? { taskId: id, status: 'completed', source: 'manual', updatedAt: new Date().toISOString() }
-        : { taskId: id, status: 'active', source: 'manual', updatedAt: new Date().toISOString(), currentStageIndex: value }
-      return { ...progress, taskProgress: next }
-    }),
-    setTaskRecord: (record) => updateMode((progress) => mergeTaskRecords(progress, [record])),
-    applyTaskRecords: (records) => updateMode((progress) => mergeTaskRecords(progress, records)),
     applyTaskRecordsForMode: (selectedMode, records, characterId) => updateActive((profile) => ({
       ...profile,
       updatedAt: new Date().toISOString(),
@@ -206,29 +192,51 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         },
       },
     })),
-    applyStoryScanForMode: (selectedMode, matches) => updateActive((profile) => {
+    // Screen readings that change nothing leave the state as it is (audit P5f): no new state, so no profile write to
+    // localStorage and no re-render of the app, although the scanner reads the Tasks table every few seconds.
+    applyStoryScanForMode: (selectedMode, matches) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      if (!profile) return state
       const current = profile.modes[selectedMode]
       const next = applyStoryScan(current, matches)
-      if (next === current) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      if (next === current) return state
+      const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => updateActive((profile) => {
+    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      if (!profile) return state
       const current = profile.modes[selectedMode]
-      const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true })
-      if (next === current || logStateFingerprint(next) === logStateFingerprint(current)) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true, session })
+      if (next === current) return state
+      const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => {
+    applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt })),
+    applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity)),
+    applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
-      const sameCharacter = Boolean(characterId) && current.logCharacterId === characterId
-      const next = applyLogQuestState(current, events, { keepPreviousLogRecords: sameCharacter && !resetAt })
-      if (logStateFingerprint(next) === logStateFingerprint(current) && (!characterId || current.logCharacterId === characterId)) return profile
-      const now = new Date().toISOString()
-      return {
-        ...profile,
-        updatedAt: now,
-        modes: { ...profile.modes, [selectedMode]: { ...withTaskEvents(current, next, selectedMode), logCharacterId: characterId ?? current.logCharacterId, lastLogSyncAt: now } },
+      // Another character's chapters (this mode's character is another one now): not these.
+      if (current.logCharacterId && current.logCharacterId !== characterId) return profile
+      let taskProgress = current.taskProgress
+      for (const record of records) {
+        // Readings from before a new character or a reset never come back.
+        if (current.logEpochAt && record.updatedAt < current.logEpochAt) continue
+        const local = taskProgress[record.taskId]
+        if (local && (local.updatedAt >= record.updatedAt || (local.status === 'completed' && record.status !== 'completed'))) continue
+        const stage = record.currentStageIndex ?? local?.currentStageIndex
+        taskProgress = {
+          ...taskProgress,
+          [record.taskId]: {
+            taskId: record.taskId, status: record.status, source: 'screen-scan', updatedAt: record.updatedAt,
+            ...(stage != null ? { currentStageIndex: stage } : {}),
+            // The objectives this PC read belong to the stage it read: kept only while the stage is the same.
+            ...(local?.storyObjectives && local.currentStageIndex === stage ? { storyObjectives: local.storyObjectives } : {}),
+          },
+        }
       }
+      if (taskProgress === current.taskProgress) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, { ...current, taskProgress }, selectedMode) } }
     }),
     setObjectiveValue: (def, current) => updateActive((profile) => {
       const selectedMode = profile.selectedMode
@@ -304,7 +312,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const activeProfileId = current.activeProfileId === id ? profiles[0].id : current.activeProfileId
       return { activeProfileId, profiles }
     }),
-    replaceActiveProfile: (replacement) => setProfileState((current) => ({ ...current, profiles: current.profiles.map((profile) => profile.id === current.activeProfileId ? replacement : profile) })),
     reset: () => {
       const profile = createLocalProfile('Оператор', activeProfile.id)
       setProfileState((current) => ({ ...current, profiles: current.profiles.map((entry) => entry.id === activeProfile.id ? profile : entry) }))
@@ -335,6 +342,41 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
 function toggle(values: string[], value: string) {
   return values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value]
+}
+
+/**
+ * A mode's quest events from its logs or the server. R4 / step 25: another character or a newer trusted reset — once, at
+ * the change — drops the older records of every source first (log, Tasks table, story chapters, objectives); preferences
+ * stay. No profile line is no change.
+ */
+function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: ParsedTaskEvent[], identity: LogIdentityInput): LocalProfile {
+  const { characterId, resetAt } = identity
+  const current = profile.modes[selectedMode]
+  const now = new Date().toISOString()
+  const change = logEpochChange(current, identity, now)
+  const base = change ? dropRecordsBefore(current, change.at) : current
+  // The first character a mode learns: what an older version kept from the logs is read again from them.
+  const firstCharacter = Boolean(characterId) && !current.logCharacterId
+  // Events from before the character's last reset never come back (a PC whose own logs never showed the reset).
+  const logResetAt = change ? resetAt : current.logResetAt
+  const fresh = logResetAt ? events.filter((event) => event.timestamp >= logResetAt) : events
+  const next = applyLogQuestState(base, fresh, { keepPreviousLogRecords: !firstCharacter })
+  if (!change && logStateFingerprint(next) === logStateFingerprint(current) && (!characterId || current.logCharacterId === characterId)) return profile
+  if (change) announceLogEpochChange({ ...change, profileId: profile.id, mode: selectedMode })
+  return {
+    ...profile,
+    updatedAt: now,
+    modes: {
+      ...profile.modes,
+      [selectedMode]: {
+        ...withTaskEvents(current, next, selectedMode),
+        logCharacterId: characterId ?? current.logCharacterId,
+        logResetAt,
+        logEpochAt: change ? change.at : current.logEpochAt,
+        lastLogSyncAt: now,
+      },
+    },
+  }
 }
 
 /**

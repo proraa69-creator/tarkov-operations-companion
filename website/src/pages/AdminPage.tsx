@@ -10,6 +10,7 @@ import { AdminSecurity } from '../components/admin/AdminSecurity'
 import { ServerExeSection } from '../components/admin/ServerExeSection'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
+import { AdminQuestBase } from '../components/admin/AdminQuestBase'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -86,7 +87,7 @@ export function AdminPage() {
               <div className="panel-body owner-body"><OwnerPayoutsList /></div>
             </section>
           </>}
-          {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /></>}
+          {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /><AdminQuestBase /></>}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
         </div>

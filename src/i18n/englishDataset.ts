@@ -49,9 +49,11 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
         ...quest,
         trader,
         name,
-        // The game's titles in both languages stay known to the screen reader whatever the app's language.
+        // The game's titles in both languages stay known to the screen reader whatever the app's language: the server's
+        // quest base sets both on every quest (a story chapter keeps its Russian name in the English catalog, so its
+        // English title comes from there); a catalog without them takes the English catalog's name.
         nameRu: quest.nameRu || quest.name,
-        nameEn: english?.name || quest.nameEn,
+        nameEn: quest.nameEn || english?.nameEn || english?.name,
         description: englishOr(english?.description || quest.description, summary || 'See the objectives below.'),
         objectives,
         // Objectives are matched by id: the display lines may be deduplicated and shift.

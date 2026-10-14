@@ -82,6 +82,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan'),
   logSearchReport: () => ipcRenderer.invoke('logs:search-report'),
   startWatchingLogs: (folder) => ipcRenderer.invoke('logs:start-watching', folder),
+  setLogQuestIds: (mode, ids) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []),
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data'),
   onLogsUpdated: (callback) => {
     const listener = (_event, result) => callback(result)
@@ -102,7 +103,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),
   captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
-  recognizeQuestPng: (image) => ipcRenderer.invoke('quests:recognize-png', image),
+  captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity'),
   scanScreenText: (options) => ipcRenderer.invoke('collector:scan-screen', options === undefined ? undefined : { restart: Boolean(options && options.restart), names: Array.isArray(options && options.names) ? options.names.map(String) : undefined }),
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),

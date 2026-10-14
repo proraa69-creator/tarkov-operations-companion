@@ -306,10 +306,10 @@ async function lookUp(appDataDirectory: string): Promise<Lookup> {
   return { gamesRoot, registered, steamFolders, libraries, candidates }
 }
 
-/** Looked up once a minute at most (reg.exe and the .vdf files). */
+/** Looked up once a minute at most (reg.exe and the .vdf files); `maxAgeMs`: a longer wait (the minute-by-minute retries). */
 let lookupCache: { at: number; appData: string; lookup: Promise<Lookup> } | undefined
-function cachedLookUp(appDataDirectory: string, fresh = false) {
-  if (fresh || !lookupCache || lookupCache.appData !== appDataDirectory || Date.now() - lookupCache.at > 60_000) {
+function cachedLookUp(appDataDirectory: string, fresh = false, maxAgeMs = 60_000) {
+  if (fresh || !lookupCache || lookupCache.appData !== appDataDirectory || Date.now() - lookupCache.at > maxAgeMs) {
     lookupCache = { at: Date.now(), appData: appDataDirectory, lookup: lookUp(appDataDirectory).catch(() => ({ registered: [], steamFolders: [], libraries: [], candidates: [] })) }
   }
   return lookupCache.lookup
@@ -332,13 +332,20 @@ function cachedDriveSearch() {
 /** No game launch in any folder found for this long: a newer install may be elsewhere — the drives are looked through. */
 const STALE_MS = 3 * 24 * 60 * 60_000
 
-async function searchLogs(appDataDirectory: string, fresh = false) {
-  const lookup = await cachedLookUp(appDataDirectory, fresh)
+/**
+ * How hard to look. `fresh`: the registry and Steam's lists again now. `drives`: false never looks through the drives (the
+ * main process retries every minute while no Logs folder exists: those retries only check the places known already).
+ * `lookupMaxAgeMs`: how old the registry and Steam lookup may be.
+ */
+export interface LogSearchOptions { fresh?: boolean; drives?: boolean; lookupMaxAgeMs?: number }
+
+async function searchLogs(appDataDirectory: string, fresh = false, options: LogSearchOptions = {}) {
+  const lookup = await cachedLookUp(appDataDirectory, fresh || options.fresh, options.lookupMaxAgeMs)
   const found: string[] = []
   for (const candidate of lookup.candidates) if (await isDirectory(candidate)) addUnique(found, candidate)
   let newest = 0
   for (const folder of found) newest = Math.max(newest, await lastLaunch(folder))
-  const drivesSearched = process.platform === 'win32' && newest < Date.now() - STALE_MS
+  const drivesSearched = process.platform === 'win32' && options.drives !== false && newest < Date.now() - STALE_MS
   if (drivesSearched) for (const folder of await cachedDriveSearch()) addUnique(found, folder)
   return { ...lookup, found, drivesSearched }
 }
@@ -356,8 +363,8 @@ export async function discoverEftLogs(appDataDirectory: string): Promise<EftLogD
 }
 
 /** Every Logs folder that exists among the candidates (the launcher's games folder first), the drives' if needed. */
-export async function discoverAllEftLogs(appDataDirectory: string): Promise<string[]> {
-  return (await searchLogs(appDataDirectory)).found
+export async function discoverAllEftLogs(appDataDirectory: string, options: LogSearchOptions = {}): Promise<string[]> {
+  return (await searchLogs(appDataDirectory, false, options)).found
 }
 
 /** «Где искали журналы» in the app (src/pages/ImportProgressPage.tsx): every place looked at, every Logs folder found. */

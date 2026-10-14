@@ -2,9 +2,13 @@ import cors from 'cors'
 import express from 'express'
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
+import type { AppDataset, RaidMode } from '../../src/domain/types'
 import { fetchPlayerProfile } from '../../electron/playerProfileService'
-import { getCatalogSnapshot, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
-import { catalogEtag, catalogNotModified } from './services/catalogCache.js'
+import { currentQuestBase, getCatalogAnswer, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
+import { catalogNotModified, type CatalogLocale } from './services/catalogCache.js'
+import { createCatalogAnswers } from './services/catalogAnswers.js'
+import type { QuestBaseReport } from './services/questBase.js'
+import { createQuestBaseRouter } from './routes/questBase.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
@@ -96,8 +100,13 @@ export interface ApiOptions {
   catalog?: CatalogPeek
   /** The notice's English for foreign players (services/announcementLanguage.ts): MyMemory by default; tests pass a fake. */
   translateAnnouncement?: AnnouncementTranslator
-  /** The catalog GET /v1/catalog/:mode serves (services/catalogService.ts); tests pass their own. */
-  catalogSnapshot?: typeof getCatalogSnapshot
+  /**
+   * Tests: a catalog to serve at GET /v1/catalog/:mode instead of the server's quest base (services/catalogService.ts);
+   * its answer is prepared again for every new object it returns.
+   */
+  catalogSnapshot?: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
+  /** The quest base the owner's report reads (routes/questBase.ts); default: the server's (services/catalogService.ts). */
+  questBase?: { report: () => QuestBaseReport }
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -257,6 +266,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
+  app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))
   // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
   // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
   const announcements = new AnnouncementStore(accounts.database)
@@ -290,7 +301,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   }))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
-  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile })
+  circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
   // Build, version and flags only for this PC's own direct checks (electron/localServer.ts apiHealth); through the site
@@ -331,16 +342,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     res.set('Cache-Control', 'no-store')
     res.json({ country: countryCode(proxiedCountry(req)) ?? null })
   })
-  const catalogSnapshot = options.catalogSnapshot ?? getCatalogSnapshot
+  const catalogAnswer = options.catalogSnapshot ? createCatalogAnswers({ snapshot: options.catalogSnapshot }).get : getCatalogAnswer
   app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {
     const lang = z.enum(['ru', 'en']).default('ru').parse(req.query.lang ?? undefined)
-    const body = JSON.stringify(await catalogSnapshot(modeSchema.parse(req.params.mode), lang))
+    // Prepared once per quest base version, price generation and image set (services/catalogAnswers.ts): the bytes and
+    // their ETag are kept, nothing is stringified or hashed here.
+    const answer = await catalogAnswer(modeSchema.parse(req.params.mode), lang)
     // The catalog's content version: an app that sends it back (If-None-Match) while nothing changed gets an empty «304
     // Not Modified». The access check above runs first either way.
-    const etag = catalogEtag(body)
-    res.set('ETag', etag)
-    if (catalogNotModified(req.get('if-none-match'), etag)) { res.status(304).end(); return }
-    res.type('application/json').send(body)
+    res.set('ETag', answer.etag)
+    if (catalogNotModified(req.get('if-none-match'), answer.etag)) { res.status(304).end(); return }
+    res.type('application/json').send(answer.body)
   })
   app.post('/v1/players/resolve', players, paid, async (req, res) => {
     // `accountId`: the account the desktop app read from this player's own game logs (optional).

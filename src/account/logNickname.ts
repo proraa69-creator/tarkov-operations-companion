@@ -14,7 +14,7 @@ import type { ModeSelectCard, TraderScreenReading } from '../import/modeSelectSc
 import { foldNickname, screenNickname } from '../import/modeSelectScreen'
 import type { LocalProfile, PlayerProfileSnapshot, RaidMode } from '../domain/types'
 import { canResolvePlayerProfiles, desktopPlayerProfileGateway } from '../profile/playerProfileGateway'
-import { readManualTraderLevels, setManualTraderLevel } from '../gunsmith/traderLevels'
+import { saveScreenTraderLevels } from '../gunsmith/traderLevels'
 import { currentServerStatus } from '../sync/serverSync'
 import { accountNickname, cleanNickname, NICKNAME_PATTERN, profileNickname, RAID_MODE_ORDER, renameBoundModes, saveNicknameOnServer } from './nicknameBinding'
 
@@ -218,7 +218,8 @@ export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: numbe
     && screen.cards.length === cards.length && cards.every((card) => screen!.cards.some((seen) => seen.mode === card.mode && seen.level === card.level))
   // The same screen read again a second later: nothing new.
   if (same) return
-  for (const card of cards) state().applyScreenLevel(card.mode, card.level, at)
+  // A card may give its nickname without a confirmed level (src/import/modeSelectScreen.ts confirmCards).
+  for (const card of cards) if (card.level !== undefined) state().applyScreenLevel(card.mode, card.level, at)
   if (nickname) {
     if (!best || at > best.updatedAt) best = { nickname, updatedAt: at }
     spreadNickname(state, best.nickname)
@@ -227,6 +228,34 @@ export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: numbe
   notify()
   // A name Tarkov.dev did not know a moment ago may be there now: ask again (the main process keeps found ones).
   startLookups(state, true)
+}
+
+/**
+ * Readings of the game's screens taken while the app was locked — the sign-in and subscription screens (audit P4a; #202
+ * «персонаж должен находиться сразу при первом запуске»): a game started before the sign-in shows «Выбор профиля и
+ * режима» only then. Kept here, the newest of each screen, and applied when the app unlocks (applyKeptIdentity).
+ */
+let kept: { modeSelect?: { cards: ModeSelectCard[]; observedAt: number }; trader?: { reading: TraderScreenReading; mode?: RaidMode; observedAt: number } } = {}
+
+/** The mode selection screen read while the app is locked: kept until it unlocks. */
+export function keepModeSelectScreen(cards: ModeSelectCard[], observedAt: number) {
+  if (cards.length && (!kept.modeSelect || observedAt >= kept.modeSelect.observedAt)) kept = { ...kept, modeSelect: { cards, observedAt } }
+}
+
+/** The traders' screen read while the app is locked, with the game's mode the logs named then (if any): kept until it unlocks. */
+export function keepTraderScreen(reading: TraderScreenReading, mode: RaidMode | undefined, observedAt: number) {
+  if (!kept.trader || observedAt >= kept.trader.observedAt) kept = { ...kept, trader: { reading, mode, observedAt } }
+}
+
+/**
+ * The app is unlocked: what was read before is applied now, as if just read — at its own time, so newer data still wins
+ * (src/domain/progress.ts). A traders' reading whose mode was not known then gives its nickname only.
+ */
+export function applyKeptIdentity(state: () => LogNicknameTarget) {
+  const { modeSelect, trader } = kept
+  kept = {}
+  if (modeSelect) applyModeSelectScreen(modeSelect.cards, modeSelect.observedAt, state)
+  if (trader) applyTraderScreen(trader.reading, trader.mode, trader.observedAt, state)
 }
 
 /** The last traders' screen applied: the same reading a second later is nothing new. */
@@ -238,11 +267,11 @@ let lastTrader: { at: number; key: string } | null = null
  * allows (src/domain/progress.ts) — the player's nickname marked «(вы)» and the traders' loyalty levels.
  */
 export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode | undefined, observedAt: number, state: () => LogNicknameTarget) {
-  // The traders' loyalty levels of the mode the game is in (the badges on the portraits): the game's own, so they win
-  // over the app's estimate (src/gunsmith/traderLevels.ts) — written only when they differ.
+  // The traders' loyalty levels of the mode the game is in (the badges on the portraits): the game's own, kept for this
+  // mode's character (the logs' profile id) with their time (audit P18) — proof of at least those levels, not a permanent
+  // override, and never handed to another character after a wipe (src/gunsmith/traderLevels.ts).
   if (mode && reading.loyalty) {
-    const stored = readManualTraderLevels(mode)
-    for (const [trader, level] of Object.entries(reading.loyalty)) if (stored[trader] !== level) setManualTraderLevel(mode, trader, level)
+    saveScreenTraderLevels(mode, state().activeProfile.modes[mode]?.logCharacterId, reading.loyalty, new Date(observedAt).toISOString())
   }
   const key = `${mode ?? ''}:${reading.level ?? ''}:${reading.nickname ?? ''}`
   if (lastTrader && lastTrader.key === key && observedAt - lastTrader.at < 10 * 60_000) return

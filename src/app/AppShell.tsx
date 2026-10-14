@@ -21,9 +21,12 @@ import { useAccountNickname } from '../account/useAccountNickname'
 import { useQuestExperienceLevel } from '../profile/questExperience'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
-import { updateLogStatus } from '../import/logStatus'
-import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
-import type { ModeLogScanResult } from '../import/eftLogTimeline'
+import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
+import { firstApplication } from '../import/logResults'
+import { bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, pushLogProgress, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
+import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
+import type { RaidMode } from '../domain/types'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
@@ -36,6 +39,7 @@ import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
+import { useShareLevels } from '../squad/useShareLevels'
 import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 import { SupportNotice } from '../support/SupportChat'
@@ -58,6 +62,10 @@ const raidNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeo
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
 ]
 const raidNavigation = raidNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
+/** Ticking and counting objectives by hand (archived): only then is objective progress synced with the server. */
+const manualObjectives = featureEnabled('manualObjectives')
+/** The game's mode the app switched to last in this session (the logs' own mode is logStatus.ts DETECTED_MODE_KEY). */
+const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
@@ -91,6 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
+  useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -98,8 +107,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
 
-  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts).
+  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts) — only while manual objectives
+  // are in the app (archived: nothing reads them, P21).
   useEffect(() => {
+    if (!manualObjectives) return
     bindObjectiveSync({
       read: (mode) => stateRef.current.activeProfile.modes[mode],
       apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
@@ -107,12 +118,45 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => bindObjectiveSync(null)
   }, [])
   // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
-  const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced).length
+  const unsyncedEvents = manualObjectives ? activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced).length : 0
   useEffect(() => {
     if (!unsyncedEvents) return
     const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 3000)
     return () => window.clearTimeout(timer)
   }, [raidMode, unsyncedEvents])
+  // Profile resets in the logs count only for the catalog's trader quests (P3): the main process gets this mode's ids
+  // whenever its catalog loads (electron/logWatcher.ts keeps them for the next start).
+  const catalogMode = dataSource === 'demo' ? undefined : data.metadata?.mode
+  useEffect(() => {
+    if (!catalogMode || !data.quests.length) return
+    const ids = traderQuestIdsForResets(data.quests)
+    if (ids.length) void window.tarkovDesktop?.setLogQuestIds?.(catalogMode, ids).catch(() => false)
+  }, [catalogMode, data.quests])
+  // Story chapters through the server (P9): read and applied with the catalog of their mode (chapters and stage ids).
+  const storyCatalog = useRef<{ mode?: RaidMode; quests: typeof data.quests }>({ quests: [] })
+  useEffect(() => { storyCatalog.current = { mode: catalogMode, quests: data.quests } }, [catalogMode, data.quests])
+  useEffect(() => {
+    bindStorySync({
+      read: (mode) => {
+        const catalog = storyCatalog.current
+        if (catalog.mode !== mode) return null
+        const progress = stateRef.current.activeProfile.modes[mode]
+        return { characterId: progress.logCharacterId, records: storyRecordsOf(progress, catalog.quests) }
+      },
+      apply: (mode, records, characterId) => {
+        const catalog = storyCatalog.current
+        if (catalog.mode === mode) stateRef.current.applyRemoteStoryForMode(mode, storyProgressRecords(records, catalog.quests), characterId)
+      },
+    })
+    return () => bindStorySync(null)
+  }, [])
+  // A chapter read on this PC reaches the server a few seconds later (not on the next 30 s poll).
+  const storyKey = useMemo(() => catalogMode === raidMode ? JSON.stringify(storyRecordsOf(activeProfile.modes[raidMode], data.quests)) : '', [catalogMode, raidMode, activeProfile.modes, data.quests])
+  useEffect(() => {
+    if (!storyKey) return
+    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 3000)
+    return () => window.clearTimeout(timer)
+  }, [raidMode, storyKey])
   // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
   useEffect(() => {
     if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)
@@ -132,52 +176,53 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 
   useEffect(() => {
-    if (!window.tarkovDesktop) return
+    const desktop = window.tarkovDesktop
+    if (!desktop) return
     let active = true
-    // Each mode gets only its own log events (split by session mode, gateway and profile id).
-    let detectedMode = sessionStorage.getItem('eft-last-detected-mode')
-    const applyLogResult = (result: ModeLogScanResult) => {
+    // The status line and the game's mode follow the main process from the first reader on (the locked app included).
+    followDesktopLogStatus()
+    // The app's mode follows the game's when the game's changes — not at every scan: the player may look at another mode.
+    let followedMode = sessionStorage.getItem(FOLLOWED_MODE_KEY)
+    const registrationOf = (mode: RaidMode) => stateRef.current.activeProfile.modes[mode].registration
+    // The main process found and reads the logs itself, from the app's start (electron/logWatcher.ts): first the identity
+    // of the newest launches (mode, game accounts, profiles), then every launch. Each scan is applied once (P20).
+    const applyLogResult = (result: ModeLogScanResult & { folder?: string }) => {
       if (!active) return
-      updateLogStatus({ scan: result, notFound: false })
+      noteLogScan(result)
+      if (!firstApplication(result, stateRef.current.activeProfile.id)) return
+      // Each mode gets only its own log events (split by session mode, gateway and profile id).
       if (result.latestMode) {
-        if (detectedMode !== result.latestMode) stateRef.current.setRaidMode(result.latestMode)
-        detectedMode = result.latestMode
-        sessionStorage.setItem('eft-last-detected-mode', result.latestMode)
+        if (followedMode !== result.latestMode) stateRef.current.setRaidMode(result.latestMode)
+        followedMode = result.latestMode
+        try { sessionStorage.setItem(FOLLOWED_MODE_KEY, result.latestMode) } catch { /* storage unavailable */ }
       }
       // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
       // Each mode's game account from the logs, bound under the nickname the player typed (account/logNickname.ts).
       bindNicknameFromLogs(result, () => stateRef.current)
-      applyScanToModes(
-        result,
-        (mode) => stateRef.current.activeProfile.modes[mode].registration,
-        (mode, events, characterId, resetAt) => stateRef.current.applyLogStateForMode(mode, events, characterId, resetAt),
-      )
+      // The identity has no quests: the full read of every launch follows.
+      if (result.identityOnly) return
+      applyScanToModes(result, registrationOf, (mode, events, characterId, resetAt, characterSince) => stateRef.current.applyLogScanForMode(mode, events, { characterId, resetAt, characterSince }))
       // Signed in to the server: store this scan there and apply the merged server records (all earlier scans).
-      void pushLogProgress(
-        result,
-        (mode) => stateRef.current.activeProfile.modes[mode].registration,
-        (mode, events, characterId) => { if (active) stateRef.current.applyLogStateForMode(mode, events, characterId) },
-      ).catch(() => {})
+      void pushLogProgress(result, registrationOf, (mode, events, characterId, resetAt) => {
+        if (active) stateRef.current.applyLogStateForMode(mode, events, characterId, resetAt)
+      }).catch(() => {})
     }
-    const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)
-    // The Logs folder the game writes to now, not just the one saved earlier (owner, 12.10.2026: «разберись, чтобы
-    // брались актуальные логи»): the saved folder and every one found compete, the newest game launch wins.
+    const unsubscribe = desktop.onLogsUpdated(applyLogResult)
+    // Only for the status this app shows: the main process answers with what it found, and sends its latest scan again
+    // through `logs:updated` (applied above, once). Nothing is searched or read again for a page that opens.
     const savedFolder = localStorage.getItem(LOG_FOLDER_STORAGE_KEY)
-    const watchSaved = () => {
-      if (!savedFolder) return
-      void window.tarkovDesktop?.startWatchingLogs(savedFolder).then((started) => {
-        if (!started) localStorage.removeItem(LOG_FOLDER_STORAGE_KEY)
-      }).catch(() => localStorage.removeItem(LOG_FOLDER_STORAGE_KEY))
-    }
-    void window.tarkovDesktop.autoFindAndScanLogs(savedFolder ?? undefined).then((result) => {
+    void desktop.autoFindAndScanLogs(savedFolder ?? undefined).then((result) => {
       if (!active) return
-      if (!result) { updateLogStatus({ notFound: true }); watchSaved(); return }
-      updateLogStatus({ folder: result.folder })
-      applyLogResult(result)
+      if (!result) {
+        updateLogStatus({ notFound: true })
+        // No Logs folder on this PC: its quest progress comes from the server (another PC's logs, P10).
+        noteDesktopLogsMissing()
+        return
+      }
+      updateLogStatus({ folder: result.folder, notFound: false })
       localStorage.setItem(LOG_FOLDER_STORAGE_KEY, result.folder)
-      void window.tarkovDesktop?.startWatchingLogs(result.folder)
-    }).catch(watchSaved)
+    }).catch(() => {})
     return () => {
       active = false
       unsubscribe()

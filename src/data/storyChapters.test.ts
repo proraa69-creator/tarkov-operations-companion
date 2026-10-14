@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
-import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
+import { addMissingStoryChapters, applyCuratedStoryStages, storyChapterTitles } from './storyChapters'
 import { STORY_CHAPTER_SEEDS } from './storyChapterSeeds'
 import { STORY_QUEST_INDEX } from './storyQuestIndex'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
@@ -89,5 +89,28 @@ describe('curated story chapters', () => {
     }
     const quests = applyCuratedStoryStages(addMissingStoryChapters([]))
     for (const quest of quests) for (const stage of quest.stages ?? []) for (const point of stage.points ?? []) expect(stage.mapIds).toContain(point.mapId)
+  })
+})
+
+describe('story chapter titles (the server quest base: nameRu, nameEn, ocrAliases)', () => {
+  it('gives every curated chapter its Russian and English names, whatever the catalog language', () => {
+    for (const locale of ['ru', 'en'] as const) {
+      const quests = applyCuratedStoryStages(addMissingStoryChapters([], locale))
+      expect(quests).toHaveLength(10)
+      for (const quest of quests) {
+        const titles = storyChapterTitles(quest)
+        expect(titles?.id, quest.id).toBe(quest.id)
+        expect(CYRILLIC.test(titles!.ru)).toBe(true)
+        expect(CYRILLIC.test(titles!.en)).toBe(false)
+      }
+    }
+    expect(storyChapterTitles({ id: 'story-tour', name: 'Тур', normalizedName: 'tour' })).toEqual({ id: 'story-tour', ru: 'Тур', en: 'Tour', aliases: ['Tour'] })
+  })
+
+  it('finds a chapter the wiki named its own way by its other names, and nothing for a trader quest', () => {
+    expect(storyChapterTitles({ id: 'story-небеса в огне', name: 'Падающие небеса' })).toEqual({
+      id: 'story-falling-skies', ru: 'Небеса в огне', en: 'Falling Skies', aliases: ['Небеса в огне', 'Падающие небеса', 'Falling Skies'],
+    })
+    expect(storyChapterTitles({ id: '5936d90786f7742b1420ba5b', name: 'Дефицит' })).toBeUndefined()
   })
 })

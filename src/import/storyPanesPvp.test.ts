@@ -156,3 +156,47 @@ describe('every objective of the story catalog', () => {
     expect(misses).toEqual([])
   })
 })
+
+describe('a finished chapter (audit P9)', () => {
+  const done = PVP_FALLING_SKIES.replace('АКТИВНО', 'ВЫПОЛНЕНО')
+
+  it('is read from the pane\'s status: done, and nothing on it is a stage being played', () => {
+    expect(storyPaneChapter(done, STORY)).toMatchObject({ quest: { id: 'story-falling-skies' }, active: false, completed: true })
+    expect(matchStoryChapters(done, QUESTS)).toEqual([{ questId: 'story-falling-skies', completed: true }])
+  })
+
+  it('becomes completed once two fresh readings show it done, never from one', () => {
+    const progress = saved('story-falling-skies', 4)
+    const matches = matchStoryChapters(done, QUESTS)
+    const first = confirmStoryFrame(null, 'p:pvp', 1000, matches)
+    expect(applyStoryScan(progress, matches)).toBe(progress)
+    expect(first.confirmed).toEqual([])
+    const second = confirmStoryFrame(first.state, 'p:pvp', 2000, matches)
+    expect(second.confirmed).toEqual([{ questId: 'story-falling-skies', completed: true, completionConfirmed: true, stageConfirmed: false }])
+    const next = applyStoryScan(progress, second.confirmed, '2026-10-14T10:00:00.000Z')
+    expect(next.taskProgress['story-falling-skies']).toEqual({ taskId: 'story-falling-skies', status: 'completed', source: 'screen-scan', updatedAt: '2026-10-14T10:00:00.000Z', currentStageIndex: 4 })
+    // Done stays done: the active pane of it read later changes nothing.
+    expect(scanTwice(next, PVP_FALLING_SKIES)).toBe(next)
+  })
+
+  it('the same reading copied (the same capture time) is no second reading', () => {
+    const matches = matchStoryChapters(done, QUESTS)
+    const first = confirmStoryFrame(null, 'p:pvp', 1000, matches)
+    expect(confirmStoryFrame(first.state, 'p:pvp', 1000, matches).confirmed).toEqual([])
+  })
+
+  it('the English game\'s «COMPLETED», read in the status part', () => {
+    const parts = { title: 'CHAPTER\nFalling Skies >', status: 'COMPLETED\n', body: 'Main objectives\n[] Hand over the cash to Therapist\n' }
+    expect(matchStoryChapters('', QUESTS, parts)).toEqual([{ questId: 'story-falling-skies', completed: true }])
+  })
+
+  it('an objective done inside a chapter being played is not the chapter done', () => {
+    const step = 'ЗАДАНИЯ\nСЮЖЕТНЫЕ\nИСТОРИЯ\nНебеса в огне\nГлавные задачи\nРазузнать у торговцев про упавший самолет Выполнено\nВыполнено'
+    expect(storyPaneChapter(step, STORY)?.completed).toBe(false)
+    const parts = { title: 'ИСТОРИЯ\nНебеса в огне', status: '', body: 'Главные задачи\nВыполнено\n' }
+    expect(storyPaneChapter(`${parts.title}\n${parts.body}`, STORY, parts.status)).toMatchObject({ quest: { id: 'story-falling-skies' }, completed: false })
+    expect(matchStoryChapters('', QUESTS, parts).some((match) => match.completed)).toBe(false)
+    // Both words read: neither.
+    expect(storyPaneChapter(done.replace('ВЫПОЛНЕНО', 'ВЫПОЛНЕНО\nАКТИВНО'), STORY)).toMatchObject({ active: true, completed: false })
+  })
+})

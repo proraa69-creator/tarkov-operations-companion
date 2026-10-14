@@ -206,6 +206,8 @@ interface TarkovDesktopApi {
   /** «Где искали журналы»: every place the app looked for the game's logs (electron/logDiscovery.ts). */
   logSearchReport?: () => Promise<LogSearchReport>
   startWatchingLogs: (folder: string) => Promise<boolean>
+  /** The catalog's trader quest ids of a mode (src/import/eftLogTimeline.ts traderQuestIdsForResets): only these reveal a reset. */
+  setLogQuestIds?: (mode: RaidMode, ids: string[]) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
   getRaidState: () => Promise<RaidState>
@@ -224,12 +226,17 @@ interface TarkovDesktopApi {
    * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
    * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
    */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean }>
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
+  /**
+   * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window
+   * (`freshGame`) is the screen copied, and only the mode selection (`profiles`) and the traders' screen (`trader`) read.
+   * `gameSince`: when this game window was first seen — a new value is a new game start.
+   */
+  captureIdentityFrame?: () => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
   scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
-  recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>

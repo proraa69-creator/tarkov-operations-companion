@@ -102,17 +102,33 @@ describe('confirmCards', () => {
     expect(confirmCards([{ mode: 'pve', full, line, digits }])).toEqual([{ mode: 'pve', level: 39, nickname: 'Raid_OS' }])
   })
 
-  it('OCR readings alone are never enough: not two of them, not the same close-up twice', () => {
+  it('OCR readings alone never confirm a level: not two of them, not the same close-up twice', () => {
     // «Raid_OS | 50» at 16 px: Tesseract read «58» in the whole pass and in the close-up; the shapes say 50.
-    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 58), line: card('Raid_OS', 58), digits: { 2: 50 } }])).toEqual([])
-    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Raid_OS', 41) }])).toEqual([])
-    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Raid_OS', 41), digits: { 2: null } }])).toEqual([])
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 58), line: card('Raid_OS', 58), digits: { 2: 50 } }])).toEqual([{ mode: 'pvp', nickname: 'Raid_OS' }])
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Raid_OS', 41) }])).toEqual([{ mode: 'pvp', nickname: 'Raid_OS' }])
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Raid_OS', 41), digits: { 2: null } }])).toEqual([{ mode: 'pvp', nickname: 'Raid_OS' }])
+    expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 41), line: card('Other', 41), digits: { 2: null } }])).toEqual([])
   })
 
-  it('an OCR reading the shapes confirm is the level; the nickname needs the whole pass and the close-up alike', () => {
+  it('the nickname counts without the level (audit P4e): a clear «Raid_OS» next to a «39» the shapes did not confirm', () => {
+    expect(confirmCards([{ mode: 'pve', full: card('Raid_OS', 39), line: card('Raid_OS', 59), digits: { 2: null } }])).toEqual([{ mode: 'pve', nickname: 'Raid_OS' }])
+  })
+
+  it('the whole pass missed the line: the close-up\'s name counts once the previous frame\'s close-up read it too', () => {
+    const missed = [{ mode: 'pvp' as const, line: card('Raid_OS', 12) }]
+    expect(confirmCards(missed)).toEqual([])
+    expect(confirmCards(missed, { pvp: 'Raid_0S' })).toEqual([{ mode: 'pvp', nickname: 'Raid_OS' }])
+    expect(confirmCards(missed, { pve: 'Raid_OS', pvp: 'Other' })).toEqual([])
+    // A whole pass that read another name is a disagreement, whatever the earlier close-up said.
+    expect(confirmCards([{ mode: 'pvp', full: card('Other', 12), line: card('Raid_OS', 12) }], { pvp: 'Raid_OS' })).toEqual([])
+  })
+
+  it('an OCR reading the shapes confirm is the level; the nickname needs two readings alike', () => {
     expect(confirmCards([{ mode: 'pve', full: card('Raid_OS', 41), line: card('Raid_0S', 41), digits: { 2: 41 } }])).toEqual([{ mode: 'pve', level: 41, nickname: 'Raid_0S' }])
-    // The whole pass missed the line: the close-up of the band and the shapes still give the level, not the name.
+    // The whole pass missed the line: the close-up of the band and the shapes still give the level; the name needs the
+    // previous frame's close-up.
     expect(confirmCards([{ mode: 'seasonal', line: card('Raid_OS', 14), digits: { 2: 14 } }])).toEqual([{ mode: 'seasonal', level: 14 }])
+    expect(confirmCards([{ mode: 'seasonal', line: card('Raid_OS', 14), digits: { 2: 14 } }], { seasonal: 'Raid_OS' })).toEqual([{ mode: 'seasonal', level: 14, nickname: 'Raid_OS' }])
     // Readings of different lengths («3» and «35») each meet the shapes of their own count.
     expect(confirmCards([{ mode: 'pvp', full: card('Raid_OS', 3), line: card('Raid_OS', 35), digits: { 1: null, 2: 35 } }])).toEqual([{ mode: 'pvp', level: 35, nickname: 'Raid_OS' }])
   })

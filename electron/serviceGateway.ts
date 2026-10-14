@@ -83,6 +83,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/settings$/ },
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
+  // «Информация о друге»: this app's own level in each mode, for the player's friends (src/squad/useShareLevels.ts).
+  { methods: ['PUT'], path: /^\/v1\/me\/levels$/ },
   // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },

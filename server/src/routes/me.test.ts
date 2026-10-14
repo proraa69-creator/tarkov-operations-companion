@@ -1,9 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
+import { DatabaseSync } from 'node:sqlite'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
+import { openDatabase } from '../services/database.js'
+import { UserDataStore } from '../services/userDataStore.js'
 import type { AppDataset } from '../models/api.js'
 
 const password = 'correct horse battery'
@@ -131,6 +134,82 @@ const objective = (objectiveId: string, current: number, source: string, observe
 const event = (id: string, objectiveId: string, oldValue: number | null, newValue: number, source: string, observedAt: string) =>
   ({ id, taskId: TASK_A, objectiveId, eventType: 'objective', oldValue, newValue, source, confidence: 0.7, observedAt, reversible: source !== 'manual' })
 
+test('/v1/me/progress keeps the latest trusted reset with the character scope', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'reset@example.com')
+    type Answer = { records: Array<{ taskId: string }>; scope: { characterId: string; resetAt?: string } | null }
+    const post = async (body: unknown) => await (await call('POST', '/v1/me/progress/pvp/events', body, token)).json() as Answer
+    const old = [
+      { taskId: TASK_A, status: 'active', timestamp: '2026-09-25T10:00:00.000Z' },
+      { taskId: TASK_A, status: 'completed', timestamp: '2026-09-25T11:00:00.000Z' },
+    ]
+    assert.equal((await post({ accountId: 100, characterId: CHARACTER, events: old })).scope?.resetAt, undefined)
+    // A prestige seen by one PC: older events go, and the scope keeps the reset for the phone and the other PCs.
+    const reset = await post({ characterId: CHARACTER, resetAt: '2026-09-25T11:30:00.000Z', events: [{ taskId: TASK_B, status: 'active', timestamp: '2026-09-25T11:40:00.000Z' }] })
+    assert.deepEqual(reset.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(reset.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // Another PC whose logs never showed the reset sends the old events again: they are not stored again.
+    const stale = await post({ characterId: CHARACTER, events: old })
+    assert.deepEqual(stale.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(stale.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // An older reset never moves it back; the phone reads it with the records.
+    assert.equal((await post({ characterId: CHARACTER, resetAt: '2026-09-25T09:00:00.000Z', events: [] })).scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    const get = await (await call('GET', '/v1/me/progress/pvp', undefined, token)).json() as Answer
+    assert.equal(get.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // A clock far ahead is held to the server's time.
+    const future = await post({ characterId: CHARACTER, resetAt: '2099-01-01T00:00:00.000Z', events: [] })
+    assert.ok(future.scope?.resetAt && Date.parse(future.scope.resetAt) <= Date.now() + 61_000)
+    // A new character (after a wipe) starts without a reset.
+    const wiped = await post({ characterId: 'fedcba9876543210fedcba98', events: [] })
+    assert.equal(wiped.scope?.characterId, 'fedcba9876543210fedcba98')
+    assert.equal(wiped.scope?.resetAt, undefined)
+  })
+})
+
+test('a progress database from before the reset column gets it', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`CREATE TABLE progress_scopes (owner TEXT NOT NULL, mode TEXT NOT NULL, account_id INTEGER NOT NULL, character_id TEXT NOT NULL,
+    synced_at TEXT NOT NULL, PRIMARY KEY(owner, mode));
+    INSERT INTO progress_scopes VALUES ('user:1', 'pvp', 5, '${CHARACTER}', '2026-09-25T12:00:00.000Z');`)
+  const store = new ProgressStore(db)
+  assert.deepEqual(store.scope('user:1', 'pvp'), { accountId: 5, characterId: CHARACTER, syncedAt: '2026-09-25T12:00:00.000Z' })
+  store.syncUser('user:1', 'pvp', { resetAt: '2026-09-25T11:00:00.000Z', events: [] })
+  assert.equal(store.scope('user:1', 'pvp')?.resetAt, '2026-09-25T11:00:00.000Z')
+  db.close()
+})
+
+test('/v1/me/story keeps each character\'s chapters, the newest reading of each, and starts over at a reset', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'story@example.com')
+    const other = await register(call, 'story-other@example.com')
+    type Answer = { characterId: string | null; records: Array<{ chapterId: string; status: string; stageId?: string; updatedAt: string }> }
+    const post = async (body: unknown, as = token) => await (await call('POST', '/v1/me/story/pvp', body, as)).json() as Answer
+    // No character known yet (nothing synced for the mode): nothing is kept.
+    assert.deepEqual(await post({ records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] }), { characterId: null, records: [] })
+    assert.equal((await call('POST', '/v1/me/story/pvp', { records: [{ chapterId: '<b>', status: 'active', updatedAt: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/story/pvp', { records: [{ chapterId: 'story-tour', status: 'failed', updatedAt: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+
+    await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, events: [] }, token)
+    const first = await post({ records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] })
+    assert.deepEqual(first, { characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] })
+    // An older reading from another PC does not win; a newer one does.
+    await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-1', updatedAt: '2026-10-01T09:00:00.000Z' }] })
+    const newer = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'completed', updatedAt: '2026-10-02T10:00:00.000Z' }, { chapterId: 'story-batya', status: 'active', stageId: 'story-batya-0', updatedAt: '2026-10-02T10:00:00.000Z' }] })
+    assert.deepEqual(newer.records.map((record) => [record.chapterId, record.status, record.stageId ?? null]), [['story-batya', 'active', 'story-batya-0'], ['story-tour', 'completed', null]])
+    // The phone reads them for the character synced last; another account sees none; another character has none.
+    const read = await (await call('GET', '/v1/me/story/pvp', undefined, token)).json() as Answer
+    assert.equal(read.records.length, 2)
+    assert.equal(((await (await call('GET', '/v1/me/story/pvp', undefined, other)).json()) as Answer).records.length, 0)
+    assert.equal(((await (await call('GET', '/v1/me/story/pve', undefined, token)).json()) as Answer).records.length, 0)
+    assert.equal(((await (await call('GET', '/v1/me/story/pvp?characterId=fedcba9876543210fedcba98', undefined, token)).json()) as Answer).records.length, 0)
+    assert.equal((await call('GET', '/v1/me/story/pvp?characterId=nope', undefined, token)).status, 400)
+    // A trusted reset (a prestige): the chapters read before it go, readings from before it are refused.
+    await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, resetAt: '2026-10-02T12:00:00.000Z', events: [] }, token)
+    const reset = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-5', updatedAt: '2026-10-02T11:00:00.000Z' }] })
+    assert.deepEqual(reset.records, [])
+  })
+})
+
 test('/v1/me/objectives validates input and limits sizes', async () => {
   await withServer(async (call) => {
     assert.equal((await call('GET', '/v1/me/objectives/pvp')).status, 401)
@@ -218,4 +297,85 @@ test('/v1/me/objectives undo restores the old value and answers 404 for another 
     const untouched = await (await call('GET', '/v1/me/objectives/pvp', undefined, other)).json() as Snapshot
     assert.equal(untouched.events.length, 0)
   })
+})
+
+const level = (value: number, prestige: number | null, observedAt: string) => ({ level: value, prestige, observedAt })
+type LevelsAnswer = { modes: Record<string, { level: number; prestige: number | null; observedAt: string; receivedAt: string }> }
+
+test('PUT /v1/me/levels needs a session and refuses what no game shows', async () => {
+  await withServer(async (call) => {
+    const ok = { modes: { pvp: level(42, 2, '2026-10-13T18:00:00.000Z') } }
+    assert.equal((await call('PUT', '/v1/me/levels', ok)).status, 401)
+    assert.equal((await call('PUT', '/v1/me/levels', ok, 'x'.repeat(43))).status, 401)
+    const token = await register(call, 'a@example.com')
+    const refused: unknown[] = [
+      { modes: { pvp: level(0, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(80, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12.5, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, 11, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, -1, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, 1.5, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: { level: 12, observedAt: '2026-10-13T18:00:00.000Z' } } },
+      { modes: { pvp: level(12, 0, 'yesterday') } },
+      { modes: { pvp: { ...level(12, 0, '2026-10-13T18:00:00.000Z'), accountId: 7690289 } } },
+      { modes: { arena: level(12, 0, '2026-10-13T18:00:00.000Z') } },
+      { modes: { pvp: level(12, 0, '2026-10-13T18:00:00.000Z') }, email: 'a@example.com' },
+      { pvp: level(12, 0, '2026-10-13T18:00:00.000Z') },
+      [ok],
+    ]
+    for (const body of refused) assert.equal((await call('PUT', '/v1/me/levels', body, token)).status, 400, JSON.stringify(body))
+    assert.deepEqual((await (await call('PUT', '/v1/me/levels', { modes: {} }, token)).json()), { modes: {} }, 'nothing refused was stored')
+    // The game's bounds themselves: level 1 and 79, prestige 0 and 10, an unknown prestige.
+    const edges = await (await call('PUT', '/v1/me/levels', { modes: { pvp: level(1, 0, '2026-10-13T18:00:00.000Z'), pve: level(79, 10, '2026-10-13T18:00:00.000Z'), seasonal: level(5, null, '2026-10-13T18:00:00.000Z') } }, token)).json() as LevelsAnswer
+    assert.deepEqual(Object.fromEntries(Object.entries(edges.modes).map(([mode, entry]) => [mode, [entry.level, entry.prestige]])), { pvp: [1, 0], pve: [79, 10], seasonal: [5, null] })
+  })
+})
+
+test('PUT /v1/me/levels keeps each mode per account: a mode sent replaces it, the others stay', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'a@example.com')
+    const other = await register(call, 'b@example.com')
+    const put = async (modes: unknown, who = token) => {
+      const response = await call('PUT', '/v1/me/levels', { modes }, who)
+      assert.equal(response.status, 200)
+      return (await response.json()) as LevelsAnswer
+    }
+    const first = await put({ pvp: level(59, null, '2026-10-13T18:00:00.000Z'), pve: level(17, 1, '2026-10-12T09:00:00Z') })
+    assert.deepEqual([first.modes.pvp?.level, first.modes.pvp?.prestige, first.modes.pvp?.observedAt], [59, null, '2026-10-13T18:00:00.000Z'])
+    assert.equal(first.modes.pve?.observedAt, '2026-10-12T09:00:00.000Z')
+    assert.ok(Date.parse(first.modes.pve!.receivedAt) > 0)
+    assert.equal(first.modes.seasonal, undefined)
+    // A misread «59» corrected by Tarkov.dev's older but right 39: the app's word replaces the mode, older or not.
+    const second = await put({ pvp: level(39, 2, '2026-10-11T10:00:00.000Z') })
+    assert.deepEqual([second.modes.pvp?.level, second.modes.pvp?.prestige, second.modes.pvp?.observedAt], [39, 2, '2026-10-11T10:00:00.000Z'])
+    assert.equal(second.modes.pve?.level, 17, 'a mode not sent stays')
+    // A PC clock running ahead: never «updated» in the future.
+    const before = Date.now()
+    const future = await put({ seasonal: level(8, null, '2099-01-01T00:00:00.000Z') })
+    const seasonal = Date.parse(future.modes.seasonal!.observedAt)
+    assert.ok(seasonal >= before - 1000 && seasonal <= Date.now(), future.modes.seasonal!.observedAt)
+    // Another account has its own.
+    assert.deepEqual(await put({}, other), { modes: {} })
+  })
+})
+
+test('shared levels live in the per-user documents and go with «Удалить аккаунт»', async () => {
+  const db = openDatabase(':memory:')
+  const accounts = new AccountStore({ db })
+  const userData = new UserDataStore(db)
+  try {
+    const gone = accounts.authenticate((await accounts.register('gone@example.com', password)).token)!
+    const stays = accounts.authenticate((await accounts.register('stays@example.com', password)).token)!
+    userData.setLevels(gone, { pvp: { level: 30, prestige: null, observedAt: '2026-10-13T18:00:00.000Z' } })
+    userData.setLevels(stays, { pve: { level: 12, prestige: 0, observedAt: '2026-10-13T18:00:00.000Z' } })
+    assert.deepEqual(Object.keys(userData.getLevels(gone)), ['pvp'])
+    assert.equal(userData.getLevels(gone).pvp?.prestige, null)
+    // The same database opened again (a restart) still has them.
+    assert.equal(new UserDataStore(db).getLevels(stays).pve?.level, 12)
+    accounts.deleteAccount(gone)
+    assert.deepEqual(userData.getLevels(gone), {})
+    assert.equal(userData.getLevels(stays).pve?.level, 12)
+  } finally {
+    accounts.close()
+  }
 })

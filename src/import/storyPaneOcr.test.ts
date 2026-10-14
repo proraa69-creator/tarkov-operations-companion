@@ -6,6 +6,9 @@ import { TOUR_BODY, TOUR_FULL_SCREEN, TOUR_OBJECTIVES, TOUR_OBJECTIVES_VARIANTS,
 import { applyStoryScan, confirmStoryFrame, matchStoryChapters, storyPaneChapter } from './storyScan'
 import { readStoryObjectives } from './storyObjectives'
 import { isStoryPaneOcr, storyPaneRects, storyPaneText, type OcrWordBox } from './storyPaneLayout'
+import { ENGLISH_STORY_BATYA, ENGLISH_STORY_BOREAS, ENGLISH_STORY_TOUR, ENGLISH_TASKS_SIDE, ENGLISH_TASKS_SIDE_SCROLLED } from './__fixtures__/englishGameOcr'
+import { PVP_TOUR } from './__fixtures__/storyPanesPvp'
+import { RU_TASKS_TABLE } from './__fixtures__/russianTasksTable'
 
 const QUESTS = addMissingStoryChapters([], 'ru')
 const STORY = QUESTS.filter((quest) => quest.kind === 'story')
@@ -95,7 +98,21 @@ describe('where the story pane parts are cut', () => {
 
   it('tells the story pane from other screens', () => {
     expect(isStoryPaneOcr(TOUR_FULL_SCREEN)).toBe(true)
+    expect(isStoryPaneOcr(PVP_TOUR)).toBe(true)
+    for (const pane of [ENGLISH_STORY_TOUR, ENGLISH_STORY_BATYA, ENGLISH_STORY_BOREAS]) expect(isStoryPaneOcr(pane.screen)).toBe(true)
     expect(isStoryPaneOcr('ЗАДАНИЯ\nПОБОЧНЫЕ\nПрапор Посылка из прошлого АКТИВНО')).toBe(false)
+    expect(isStoryPaneOcr(RU_TASKS_TABLE)).toBe(false)
+  })
+
+  it('needs the pane\'s own marks: the «STORY» tab over the side table is not the pane (audit P5c)', () => {
+    // The side table with its tab bar read as on the story frames («STORY © SIDE @ OPERATIONAL»): every look at it cost
+    // two or three part reads of a pane that was not there.
+    const tabs = 'Д STORY © SIDE @ OPERATIONAL Task items on character a'
+    for (const table of [ENGLISH_TASKS_SIDE, ENGLISH_TASKS_SIDE_SCROLLED]) {
+      const read = table.replace(/^.*\n.*\n/, (head) => `${head.split('\n')[0]}\n${tabs}\n`)
+      expect(read).toContain('STORY © SIDE')
+      expect(isStoryPaneOcr(read)).toBe(false)
+    }
   })
 })
 

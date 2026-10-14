@@ -1,4 +1,5 @@
 import { normalizeQuestKey } from '../data/wikiQuestCatalog'
+import { STORY_CHAPTER_SEEDS } from '../data/storyChapterSeeds'
 import type { Quest } from '../domain/types'
 import { inferStoryStageIndex, storyStageEvidence, storyStageHits } from './storyStageOcr'
 
@@ -22,11 +23,54 @@ const EN_TABLE_SPLIT = /[ \t]+any\s+location\b|[ \t]+(?:factory|customs|woods|sh
 
 const PVP_ZONE_TAG = /\[?\s*pvp\s*zone\s*\]?/gi
 
-function titleKeys(quest: Quest) {
-  return [...new Set([quest.name, quest.normalizedName ?? '', quest.name.replace(PVP_ZONE_TAG, '')].map(ocrKey).filter(Boolean))]
+/**
+ * The story chapters' names in both languages and the other wordings the game has used («Небеса в огне», «Falling
+ * Skies», «Падающие небеса»), by chapter id: a catalog that does not carry `nameRu` / `nameEn` / `ocrAliases` yet still
+ * finds a chapter whatever the game's language.
+ */
+const CHAPTER_NAMES = new Map<string, string[]>([
+  ['tour', ['Тур', 'Tour']],
+  ...STORY_CHAPTER_SEEDS.map((chapter): [string, string[]] => [chapter.id, [chapter.ru, chapter.en, ...chapter.aliases]]),
+])
+
+/** Per quest object: a catalog is loaded once and read every frame, so its titles and keys are worked out once. */
+const titleCache = new WeakMap<Quest, string[]>()
+const titleKeyCache = new WeakMap<Quest, string[]>()
+
+/**
+ * Every title the game may show for a quest, in Russian and in English, whatever the app's language (audit P11; product
+ * roadmap: «Quest counts must not change when switching interface language»): `name` (the app's language), the game's
+ * `nameRu` and `nameEn`, every `ocrAliases` entry; a story chapter also by the names its seed knows.
+ */
+export function questTitles(quest: Quest): string[] {
+  const known = titleCache.get(quest)
+  if (known) return known
+  const chapter = quest.kind === 'story'
+    ? CHAPTER_NAMES.get(quest.normalizedName ?? '') ?? CHAPTER_NAMES.get(quest.id.replace(/^story-/, ''))
+    : undefined
+  const titles = [...new Set([quest.name, quest.nameRu, quest.nameEn, ...(quest.ocrAliases ?? []), ...(chapter ?? [])]
+    .map((title) => title?.trim() ?? '').filter(Boolean))]
+  titleCache.set(quest, titles)
+  return titles
+}
+
+/** The OCR keys of every title of a quest (questTitles), each also without its «[PVP ZONE]» tag, and of its English slug. */
+export function titleKeys(quest: Quest): string[] {
+  const known = titleKeyCache.get(quest)
+  if (known) return known
+  const keys = [...new Set([...questTitles(quest).flatMap((title) => [title, title.replace(PVP_ZONE_TAG, '')]), quest.normalizedName ?? '']
+    .map(ocrKey).filter(Boolean))]
+  titleKeyCache.set(quest, keys)
+  return keys
 }
 
 const GENERIC_KEY = /^(часть\d+|любаялокация|активно|pvzone|pvpzone|локация|статус|прогресс)$/i
+
+/**
+ * Similarity below 0.74 needs no edit distance: two keys whose lengths differ by more than this share of the longer one
+ * cannot reach it (the distance is at least the difference). Exactly the matches as before, without most of the work.
+ */
+const FUZZY_LENGTH_SLACK = 0.26
 
 /** Map names that collide with story chapter titles — never treat a map column as a chapter. */
 const STORY_MAP_COLLISION = new Set(['лабиринт', 'завод', 'берег', 'таможня', 'развязка', 'резерв', 'маяк', 'лаборатория', 'эпицентр', 'терминал', 'лес'])
@@ -90,18 +134,48 @@ export function ocrKey(value: string) {
   return key
 }
 
-export function matchQuestsFromOcr(text: string, quests: Quest[]) {
-  const catalog = quests.filter((quest) => quest.id && !quest.id.startsWith('wiki:')).map((quest) => ({
+/** A quest as the matcher reads it: its title keys (exact matches) and every key the looser matches may use. */
+interface CatalogEntry { quest: Quest; titles: string[]; keys: string[] }
+const entryCache = new WeakMap<Quest, CatalogEntry>()
+
+function catalogEntry(quest: Quest): CatalogEntry {
+  const known = entryCache.get(quest)
+  if (known) return known
+  const titles = titleKeys(quest)
+  const entry = {
     quest,
+    titles,
     keys: [
-      ...titleKeys(quest).filter((key) => key.length >= (quest.kind === 'story' ? 3 : 4)),
+      ...titles.filter((key) => key.length >= (quest.kind === 'story' ? 3 : 4)),
       // Stage titles only for trader quests — story stages must not invent chapters without a title hit.
       ...(quest.kind === 'story' ? [] : (quest.stages ?? []).flatMap((stage) => [
         ocrKey(stage.title),
         ...(stage.ocrAliases ?? []).map(ocrKey),
       ]).filter((key) => key.length >= 6)),
     ],
-  })).filter((entry) => entry.keys.length)
+  }
+  entryCache.set(quest, entry)
+  return entry
+}
+
+/** The catalog of one quest list and its trader quests by exact title key (the first of a key wins, as in list order). */
+interface Catalog { all: CatalogEntry[]; trader: CatalogEntry[]; exact: Map<string, CatalogEntry> }
+const catalogCache = new WeakMap<readonly Quest[], Catalog>()
+
+function questCatalog(quests: Quest[]): Catalog {
+  const known = catalogCache.get(quests)
+  if (known) return known
+  const all = quests.filter((quest) => quest.id && !quest.id.startsWith('wiki:')).map(catalogEntry).filter((entry) => entry.keys.length)
+  const trader = all.filter((entry) => entry.quest.kind !== 'story')
+  const exact = new Map<string, CatalogEntry>()
+  for (const entry of trader) for (const key of entry.titles) if (!exact.has(key)) exact.set(key, entry)
+  const catalog = { all, trader, exact }
+  catalogCache.set(quests, catalog)
+  return catalog
+}
+
+export function matchQuestsFromOcr(text: string, quests: Quest[]) {
+  const { all: catalog, trader: traderCatalog, exact: exactTitles } = questCatalog(quests)
   const found = new Map<string, OcrQuestMatch>()
 
   const remember = (match: OcrQuestMatch) => {
@@ -122,7 +196,8 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
   // Story chapters: title must appear as its own OCR line (not a map column like «Лабиринт»).
   for (const entry of catalog) {
     if (entry.quest.kind !== 'story') continue
-    if (!storyTitleVisible(entry.quest.name, storyTitleLines, text)) continue
+    // Its name in either language (audit P11): a Russian game read by the English app shows «Небеса в огне».
+    if (!questTitles(entry.quest).some((title) => storyTitleVisible(title, storyTitleLines, text))) continue
     const stageIndex = inferStoryStageIndex(text, entry.quest)
     remember({
       questId: entry.quest.id,
@@ -150,7 +225,6 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
 
   // Trader quests: a title must be a whole OCR row (a table cell), never a word inside a sentence
   // («Открыть дверь…» is not the quest «Дверь», «…Резерве» is not «Резерв»).
-  const traderCatalog = catalog.filter((entry) => entry.quest.kind !== 'story')
   const rawLines = text.split(/\r?\n/)
   for (const rawLine of rawLines) {
     const status = rowStatus(rawLine)
@@ -159,7 +233,7 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
       const key = ocrKey(line)
       if (key.length < 3 || GENERIC_KEY.test(key)) continue
 
-      const exact = traderCatalog.find((entry) => titleKeys(entry.quest).includes(key))
+      const exact = exactTitles.get(key)
       if (exact) {
         remember({ questId: exact.quest.id, name: exact.quest.name, score: 1, line, status, stageIndex: resolveStageIndex(exact.quest, text, key) })
         continue
@@ -182,7 +256,9 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
       if (key.length < 6) continue
       let best: OcrQuestMatch | undefined
       for (const entry of traderCatalog) {
-        const candidates = entry.keys.filter((candidate) => candidate.length >= 6 && (candidate.length >= 8 || Math.abs(candidate.length - key.length) <= 1))
+        // Lengths further apart than a quarter cannot reach the threshold (0.74 and up): no edit distance for those.
+        const candidates = entry.keys.filter((candidate) => candidate.length >= 6 && (candidate.length >= 8 || Math.abs(candidate.length - key.length) <= 1)
+          && Math.abs(candidate.length - key.length) <= Math.max(candidate.length, key.length) * FUZZY_LENGTH_SLACK)
         if (!candidates.length) continue
         const score = Math.max(...candidates.map((candidate) => similarity(key, candidate)))
         if (score < thresholdFor(key, entry.keys[0], false)) continue

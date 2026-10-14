@@ -20,6 +20,11 @@ import type { ParsedTaskEvent } from './logParser'
  * does not log them), the «Оружейник» chain (its catalog order is not the game's: src/progression/requirementEngine.ts),
  * quests the catalog does not know. Alternatives count as one: a requirement allowing several statuses (done or failed),
  * requirements of one `group`, and the USEC and BEAR versions of a quest. An empty history holds nothing: false.
+ *
+ * The content alone can pass for a profile older than the logs whose old, still active quests left no trace in the logs
+ * that remain. So a mode counts only when its history also starts inside the logs (`historyStartsInLogs` of the scan's
+ * summary, src/import/eftLogTimeline.ts): its profile first appears after the oldest launch on disk, or a trusted reset
+ * happened inside them. A scan without that flag (an older app) never counts.
  */
 
 /** A quest event of the logs: its quest and what happened (accepted «active», «failed», «completed»). */
@@ -74,19 +79,23 @@ export function loggedQuestHistory(scan: Pick<ModeLogScanResult, 'eventsByMode' 
   return [...accepted.map((taskId) => ({ taskId, status: 'active' as const })), ...(scan.eventsByMode[mode] ?? [])]
 }
 
-/** The logs of this mode hold its whole quest history (see logsCoverQuestHistory). */
-export function logsCoverMode(scan: Pick<ModeLogScanResult, 'eventsByMode' | 'acceptedByMode'> | undefined, mode: RaidMode, quests: readonly CoverageQuest[]) {
+/** What the coverage check reads from a log scan: the quests, the acceptances and whether the history starts in the logs. */
+export type CoverageScan = Pick<ModeLogScanResult, 'eventsByMode' | 'acceptedByMode'> & { summaryByMode?: Partial<Record<RaidMode, { historyStartsInLogs?: boolean }>> }
+
+/** The logs of this mode hold its whole quest history: it starts inside them, and nothing in it is missing (logsCoverQuestHistory). */
+export function logsCoverMode(scan: CoverageScan | undefined, mode: RaidMode, quests: readonly CoverageQuest[]) {
+  if (!scan?.summaryByMode?.[mode]?.historyStartsInLogs) return false
   return logsCoverQuestHistory(loggedQuestHistory(scan, mode), quests)
 }
 
 const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 /** Each mode on its own: PvP, PvE and the season never share a quest history. */
-export function logsCoverModes(scan: Pick<ModeLogScanResult, 'eventsByMode' | 'acceptedByMode'> | undefined, quests: readonly CoverageQuest[]): Record<RaidMode, boolean> {
+export function logsCoverModes(scan: CoverageScan | undefined, quests: readonly CoverageQuest[]): Record<RaidMode, boolean> {
   return Object.fromEntries(MODES.map((mode) => [mode, logsCoverMode(scan, mode, quests)])) as Record<RaidMode, boolean>
 }
 
 /** logsCoverModes, worked out again only when the log scan or the catalog changes. */
-export function useLogsCoverModes(scan: Pick<ModeLogScanResult, 'eventsByMode' | 'acceptedByMode'> | undefined, quests: readonly CoverageQuest[] | undefined) {
+export function useLogsCoverModes(scan: CoverageScan | undefined, quests: readonly CoverageQuest[] | undefined) {
   return useMemo(() => logsCoverModes(scan, quests ?? []), [scan, quests])
 }

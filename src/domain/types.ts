@@ -162,6 +162,13 @@ export interface ModeProgress {
   seasonId?: string
   lastLogSyncAt?: string
   logCharacterId?: string
+  /** The latest trusted profile reset of this character the records were cut at (src/import/logApply.ts logEpochChange). */
+  logResetAt?: string
+  /**
+   * When the mode's current character or the history since its last reset began (a character change or a trusted reset,
+   * src/import/logApply.ts): every quest, story and objective record older than this was dropped then. Undefined until one.
+   */
+  logEpochAt?: string
   /** Objective state keyed by objectiveId (schema v6). */
   objectiveProgress: Record<string, ObjectiveProgress>
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
@@ -610,5 +617,11 @@ export interface AppDataset {
      * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).
      */
     contentVersion?: string
+    /**
+     * The server's quest base this catalog comes from (server/src/services/questBase.ts): a content hash of the mode's
+     * Russian and English snapshots, so the same in both languages. Quest ids and titles are the same for every
+     * reader of one version. Absent from catalogs built on this device.
+     */
+    questBaseVersion?: string
   }
 }
