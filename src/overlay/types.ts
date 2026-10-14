@@ -97,6 +97,8 @@ export interface ExperimentalSettings {
   showOnScreenshot: boolean
   /** Unity key name the app presses for a screenshot; empty = the key set in the game. */
   screenshotKey: string
+  /** «Отключить мини-карту»: no minimap, no screenshot presses, no position (electron/experimental/settings.ts). */
+  minimapOff: boolean
 }
 
 export interface ExperimentalStatus {

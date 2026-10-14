@@ -36,6 +36,13 @@ export interface ExperimentalSettings {
    * default (owner, 10.10.2026); empty = taken from the game's settings («По настройкам игры»).
    */
   screenshotKey: string
+  /**
+   * «Отключить мини-карту» (owner, 14.10.2026: «отключить карту полностью и эта функция не будет работать»): the map key
+   * does nothing, there is no minimap window, the app presses no screenshot key and does not watch the screenshots folder
+   * (so no player's dot anywhere, the phone included). The item card keeps working. A key of its own: the removed
+   * `minimap` switch may still be false in settings files saved before it went.
+   */
+  minimapOff: boolean
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
@@ -56,7 +63,11 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   runAsAdmin: false,
   showOnScreenshot: false,
   screenshotKey: 'Print',
+  minimapOff: false,
 }
+
+/** The minimap and what it needs (its key, the screenshot presses, the screenshots folder) are on. */
+export const minimapOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>) => settings.minimap && !settings.minimapOff
 
 let current: ExperimentalSettings | null = null
 
@@ -109,6 +120,7 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     // The owner removed «Показывать мини-карту при скриншоте»: the minimap opens only by its key.
     showOnScreenshot: false,
     screenshotKey: screenshotKey(value),
+    minimapOff: flag('minimapOff'),
   }
 }
 

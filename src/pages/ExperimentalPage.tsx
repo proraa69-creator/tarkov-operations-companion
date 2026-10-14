@@ -1,6 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, Power, ShieldAlert } from 'lucide-react'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
@@ -15,6 +15,10 @@ const ADMIN_NOTE = 'Лаунчер BSG запускает игру от имен
 const SNIPPING_NOTE = 'Windows открывает «Ножницы» по клавише PrtSc, и игра эту клавишу не получает: скриншот не делается и позиция не обновляется. Отключите в Windows «Использовать клавишу Print Screen для открытия функции создания фрагмента экрана» (кнопка ниже) — или назначьте в игре другую клавишу скриншота (Настройки → Управление → «Скриншот»), приложение прочитает её само.'
 
 const SCREENSHOT_KEY_USE = 'Приложение нажимает её один раз, когда вы открываете мини-карту, — так на карте появляется ваша позиция.'
+
+/** «Отключить мини-карту» (owner, 14.10.2026: «отключить карту полностью и эта функция не будет работать»). */
+const MINIMAP_ON_NOTE = 'Клавиша карты открывает мини-карту поверх игры, и приложение делает скриншот, чтобы показать вашу позицию — здесь и в телефоне.'
+const MINIMAP_OFF_NOTE = 'Клавиша карты ничего не делает: приложение не открывает мини-карту, не нажимает клавишу скриншота и не следит за папкой скриншотов, поэтому вашей позиции нет ни на картах, ни в телефоне. Информация о предмете работает как раньше.'
 
 const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: string }> = [
   { id: 'arrow', label: 'Стрелка' },
@@ -89,7 +93,8 @@ export function ExperimentalPage() {
         <>
           {actionError && <p className="notice error" role="alert">{actionError}</p>}
           {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
-          {status && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
+          {settings && <MinimapPower off={settings.minimapOff} onChange={(minimapOff) => update({ minimapOff })} />}
+          {status && settings && !settings.minimapOff && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
           <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
             <div className="panel-body">
               <AlertTriangle size={18} />
@@ -202,7 +207,7 @@ export function ExperimentalPage() {
                   </span>
                 </div>
                 <div className="exp-actions exp-minimap-action">
-                  <button className="button ghost" onClick={() => void perform(() => api.toggleMinimap())}>{uiText('Показать / скрыть мини-карту')}</button>
+                  <button className="button ghost" disabled={Boolean(settings?.minimapOff)} onClick={() => void perform(() => api.toggleMinimap())}>{uiText('Показать / скрыть мини-карту')}</button>
                 </div>
               </div>
             </section>
@@ -210,6 +215,24 @@ export function ExperimentalPage() {
         </>
       )}
     </div>
+  )
+}
+
+/** The minimap on or off as a whole, at the top of the page: one button, and what it means in words. */
+function MinimapPower({ off, onChange }: { off: boolean; onChange: (off: boolean) => void }) {
+  return (
+    <section className={`panel exp-power${off ? ' is-off' : ''}`} aria-label={uiText('Мини-карта')}>
+      <div className="panel-body">
+        <Power size={18} aria-hidden="true" />
+        <div className="exp-power-body">
+          <strong>{uiText(off ? 'Мини-карта отключена' : 'Мини-карта включена')}</strong>
+          <p>{uiText(off ? MINIMAP_OFF_NOTE : MINIMAP_ON_NOTE)}</p>
+        </div>
+        <button type="button" className={`button ${off ? 'primary' : 'ghost'}`} aria-pressed={off} onClick={() => onChange(!off)}>
+          {uiText(off ? 'Включить мини-карту' : 'Отключить мини-карту')}
+        </button>
+      </div>
+    </section>
   )
 }
 

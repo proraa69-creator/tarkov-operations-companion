@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({ app: { getPath: () => '/tmp/raidos-settings-test' } }))
-const { DEFAULT_SETTINGS, sanitize } = await import('./settings')
+const { DEFAULT_SETTINGS, minimapOn, sanitize } = await import('./settings')
 
 describe('overlay settings: the key the app presses for a screenshot', () => {
   it('is PrtSc, the game’s standard key, by default and for settings saved before (owner, 10.10.2026)', () => {
@@ -22,5 +22,21 @@ describe('overlay settings: the key the app presses for a screenshot', () => {
   it('the minimap still opens only by its key (M)', () => {
     const settings = sanitize({ version: 3, minimapKey: 'KeyM', showOnScreenshot: true })
     expect([settings.minimapKey, settings.showOnScreenshot]).toEqual(['KeyM', false])
+  })
+})
+
+describe('«Отключить мини-карту» (owner, 14.10.2026)', () => {
+  it('is on by default, and an old `minimap: false` from before the switch was removed does not turn it off', () => {
+    expect(DEFAULT_SETTINGS.minimapOff).toBe(false)
+    expect(minimapOn(sanitize({}))).toBe(true)
+    expect(minimapOn(sanitize({ version: 3, minimap: false }))).toBe(true)
+  })
+
+  it('stays off once the player turned it off, until turned on again', () => {
+    const off = sanitize({ ...sanitize({}), minimapOff: true })
+    expect(minimapOn(off)).toBe(false)
+    expect(minimapOn(sanitize({ ...off }))).toBe(false)
+    expect(minimapOn(sanitize({ ...off, minimapOff: false }))).toBe(true)
+    expect(sanitize({ minimapOff: 'yes' }).minimapOff).toBe(false)
   })
 })

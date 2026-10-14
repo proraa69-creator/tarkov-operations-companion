@@ -79,7 +79,8 @@ export function PositionSetupNotice() {
     if (!api) return
     let alive = true
     const refresh = () => void api.getStatus().then((next) => { if (alive) setStatus(next) }).catch(() => {})
-    void api.getSettings().then((settings) => { if (alive) setMinimap(Boolean(settings.minimap)) }).catch(() => {})
+    // Nothing to set up while the player turned the minimap off («Отключить мини-карту»).
+    void api.getSettings().then((settings) => { if (alive) setMinimap(Boolean(settings.minimap && !settings.minimapOff)) }).catch(() => {})
     refresh()
     const timer = window.setInterval(refresh, 30_000)
     return () => { alive = false; window.clearInterval(timer) }

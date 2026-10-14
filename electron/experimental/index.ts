@@ -20,7 +20,7 @@ import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScre
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
-import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
   captureScreenRegion, disablePrintScreenSnipping, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping, wasVirtualKeyPressed,
@@ -382,7 +382,9 @@ function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: {
     if (echoMinimap) sendOverlay(minimapWindow, 'overlay:minimap', next)
     else overlayPayloads.get(minimapWindow!)?.set('overlay:minimap', next)
   }
-  if (settings.tracking) void tracker.start()
+  // «Отключить мини-карту»: the window goes at once, and nothing watches the screenshots folder for a position.
+  if (!minimapOn(settings)) releaseMinimap()
+  if (settings.tracking && minimapOn(settings)) void tracker.start()
   else tracker.stop()
   // No automatic screenshots any more (the game's «screenshot taken» notice distracted the player): the app
   // presses the screenshot key once when the minimap opens, and the player's own screenshots move the marker.
@@ -398,7 +400,8 @@ function startHook() {
   let previousCollector = false
   keyTimer = setInterval(() => {
     const settings = readSettings()
-    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d)
+    // Read even while the minimap is off, so a press from back then does not open it the moment it is turned on.
+    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d) && minimapOn(settings)
     const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
     const collectorVk = HOTKEYS[settings.collectorKey]?.vk
     const collector = collectorVk ? keyDown(collectorVk) : false
@@ -431,7 +434,7 @@ function startHook() {
       if (event.ctrlKey || event.altKey || event.metaKey) return
       const settings = readSettings()
       const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
-      const isMapKey = event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
+      const isMapKey = minimapOn(settings) && event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
       const collectorHook = HOTKEYS[settings.collectorKey]?.hook
       if (collectorHook && event.keycode === UiohookKey[collectorHook]) {
         if (!isTarkovForeground()) return
@@ -523,7 +526,7 @@ function noteScreenshotFile(file: { folder: string; name: string; withCoordinate
     return
   }
   const settings = readSettings()
-  if (!file.withCoordinates || !settings.minimap || !settings.showOnScreenshot || Date.now() - file.at > 10_000 || autoScreenshotsWork()) return
+  if (!file.withCoordinates || !minimapOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000 || autoScreenshotsWork()) return
   // Taken with the game in front: the player pressed the screenshot key in a raid.
   if (isTarkovForeground()) void peekMinimap()
 }
@@ -646,6 +649,14 @@ function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void
 }
 
 const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed() && minimapWindow.isVisible())
+
+/** «Отключить мини-карту»: the window (and its renderer process) goes now, not ten minutes after it was hidden. */
+function releaseMinimap() {
+  stopPeek()
+  const window = minimapWindow
+  minimapWindow = null
+  if (window && !window.isDestroyed()) window.destroy()
+}
 
 function ensureMinimapWindow() {
   if (!minimapWindow || minimapWindow.isDestroyed()) {
@@ -940,7 +951,7 @@ function isBlank(data: Uint8Array) {
 }
 
 async function toggleMinimap(fromApp: boolean) {
-  if (!readSettings().minimap) return false
+  if (!minimapOn(readSettings())) return false
   stopPeek()
   const window = ensureMinimapWindow()
   if (window.isVisible()) {

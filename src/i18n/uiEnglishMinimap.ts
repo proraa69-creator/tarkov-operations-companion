@@ -53,4 +53,10 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   ['Готово: PrtSc больше не открывает «Ножницы». Откройте мини-карту в рейде — точка появится через секунду.', 'Done: PrtSc no longer opens the Snipping Tool. Open the mini map in a raid — the dot appears a second later.'],
   ['Windows не дал изменить настройку. Откройте настройки клавиатуры Windows и выключите «Использовать клавишу Print Screen для открытия функции создания фрагмента экрана».', 'Windows did not let the app change the setting. Open the Windows keyboard settings and turn off “Use the Print screen key to open screen capture”.'],
   ['Не получилось. Попробуйте ещё раз или откройте настройки Windows.', 'That did not work. Try again or open the Windows settings.'],
+  ['Мини-карта включена', 'The mini map is on'],
+  ['Мини-карта отключена', 'The mini map is off'],
+  ['Включить мини-карту', 'Turn the mini map on'],
+  ['Отключить мини-карту', 'Turn the mini map off'],
+  ['Клавиша карты открывает мини-карту поверх игры, и приложение делает скриншот, чтобы показать вашу позицию — здесь и в телефоне.', 'The map key opens the mini map over the game, and the app takes a screenshot to show your position — here and on your phone.'],
+  ['Клавиша карты ничего не делает: приложение не открывает мини-карту, не нажимает клавишу скриншота и не следит за папкой скриншотов, поэтому вашей позиции нет ни на картах, ни в телефоне. Информация о предмете работает как раньше.', 'The map key does nothing: the app does not open the mini map, press the screenshot key or watch the screenshots folder, so your position is shown neither on the maps nor on your phone. Item info works as before.'],
 ]
