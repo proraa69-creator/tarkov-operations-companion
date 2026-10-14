@@ -235,7 +235,6 @@ interface TarkovDesktopApi {
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
   scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
-  recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>

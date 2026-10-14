@@ -225,19 +225,6 @@ export async function captureQuestScreenshot(after: number) {
   return { ...lastScreenshot, gameWindow: true }
 }
 
-export async function recognizeQuestPng(png: Buffer, sourceName = 'screenshot') {
-  const image = nativeImage.createFromBuffer(png)
-  if (!image.getSize().width) {
-    const result = await recognizeQuestImage(png, sourceName)
-    const storedFrames = await persistFrame(png)
-    return { ...result, gameWindow: true, storedFrames }
-  }
-  const prepared = prepareImage(image)
-  const result = await recognizeQuestImage(prepared, sourceName)
-  const storedFrames = await persistFrame(prepared)
-  return { ...result, gameWindow: true, storedFrames }
-}
-
 /** OCR for a small screen region (item tooltip under the cursor); small UI text is upscaled first. */
 export async function recognizeRegion(image: NativeImage) {
   const { width } = image.getSize()
