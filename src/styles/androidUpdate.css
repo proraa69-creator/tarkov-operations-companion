@@ -1,4 +1,4 @@
-/* Android app: the update card above the tab bar (src/mobile/AndroidUpdate.tsx). Themed through .panel. */
+/* Android app: the update card above the tab bar (src/mobile/AndroidUpdatePanel.tsx). Themed through .panel. */
 .android-update {
   position: fixed; z-index: 46;
   left: calc(10px + var(--safe-left, 0px)); right: calc(10px + var(--safe-right, 0px)); bottom: calc(var(--tabbar, 70px) + 10px);

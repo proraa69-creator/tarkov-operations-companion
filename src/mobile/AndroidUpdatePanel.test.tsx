@@ -18,7 +18,7 @@ vi.mock('@capacitor/core', async (importOriginal) => ({ ...(await importOriginal
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove: async () => {} }) } }))
 vi.mock('../platform', async (importOriginal) => ({ ...(await importOriginal<typeof import('../platform')>()), isAndroidApp: () => true }))
 
-const { AndroidUpdateBanner, AndroidUpdateSettings } = await import('./AndroidUpdate')
+const { AndroidUpdateBanner, AndroidUpdateSettings } = await import('./AndroidUpdatePanel')
 const { setRenderLanguage } = await import('../i18n/renderText')
 
 afterEach(() => { cleanup(); setRenderLanguage('ru') })

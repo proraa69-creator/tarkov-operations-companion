@@ -605,7 +605,7 @@ export function TradersPage() {
 
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
-import { AndroidUpdateSettings } from "../mobile/AndroidUpdate";
+import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
 import { isAndroidApp } from "../platform";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
