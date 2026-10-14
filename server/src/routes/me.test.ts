@@ -132,6 +132,82 @@ const objective = (objectiveId: string, current: number, source: string, observe
 const event = (id: string, objectiveId: string, oldValue: number | null, newValue: number, source: string, observedAt: string) =>
   ({ id, taskId: TASK_A, objectiveId, eventType: 'objective', oldValue, newValue, source, confidence: 0.7, observedAt, reversible: source !== 'manual' })
 
+test('/v1/me/progress keeps the latest trusted reset with the character scope', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'reset@example.com')
+    type Answer = { records: Array<{ taskId: string }>; scope: { characterId: string; resetAt?: string } | null }
+    const post = async (body: unknown) => await (await call('POST', '/v1/me/progress/pvp/events', body, token)).json() as Answer
+    const old = [
+      { taskId: TASK_A, status: 'active', timestamp: '2026-09-25T10:00:00.000Z' },
+      { taskId: TASK_A, status: 'completed', timestamp: '2026-09-25T11:00:00.000Z' },
+    ]
+    assert.equal((await post({ accountId: 100, characterId: CHARACTER, events: old })).scope?.resetAt, undefined)
+    // A prestige seen by one PC: older events go, and the scope keeps the reset for the phone and the other PCs.
+    const reset = await post({ characterId: CHARACTER, resetAt: '2026-09-25T11:30:00.000Z', events: [{ taskId: TASK_B, status: 'active', timestamp: '2026-09-25T11:40:00.000Z' }] })
+    assert.deepEqual(reset.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(reset.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // Another PC whose logs never showed the reset sends the old events again: they are not stored again.
+    const stale = await post({ characterId: CHARACTER, events: old })
+    assert.deepEqual(stale.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(stale.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // An older reset never moves it back; the phone reads it with the records.
+    assert.equal((await post({ characterId: CHARACTER, resetAt: '2026-09-25T09:00:00.000Z', events: [] })).scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    const get = await (await call('GET', '/v1/me/progress/pvp', undefined, token)).json() as Answer
+    assert.equal(get.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // A clock far ahead is held to the server's time.
+    const future = await post({ characterId: CHARACTER, resetAt: '2099-01-01T00:00:00.000Z', events: [] })
+    assert.ok(future.scope?.resetAt && Date.parse(future.scope.resetAt) <= Date.now() + 61_000)
+    // A new character (after a wipe) starts without a reset.
+    const wiped = await post({ characterId: 'fedcba9876543210fedcba98', events: [] })
+    assert.equal(wiped.scope?.characterId, 'fedcba9876543210fedcba98')
+    assert.equal(wiped.scope?.resetAt, undefined)
+  })
+})
+
+test('a progress database from before the reset column gets it', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`CREATE TABLE progress_scopes (owner TEXT NOT NULL, mode TEXT NOT NULL, account_id INTEGER NOT NULL, character_id TEXT NOT NULL,
+    synced_at TEXT NOT NULL, PRIMARY KEY(owner, mode));
+    INSERT INTO progress_scopes VALUES ('user:1', 'pvp', 5, '${CHARACTER}', '2026-09-25T12:00:00.000Z');`)
+  const store = new ProgressStore(db)
+  assert.deepEqual(store.scope('user:1', 'pvp'), { accountId: 5, characterId: CHARACTER, syncedAt: '2026-09-25T12:00:00.000Z' })
+  store.syncUser('user:1', 'pvp', { resetAt: '2026-09-25T11:00:00.000Z', events: [] })
+  assert.equal(store.scope('user:1', 'pvp')?.resetAt, '2026-09-25T11:00:00.000Z')
+  db.close()
+})
+
+test('/v1/me/story keeps each character\'s chapters, the newest reading of each, and starts over at a reset', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'story@example.com')
+    const other = await register(call, 'story-other@example.com')
+    type Answer = { characterId: string | null; records: Array<{ chapterId: string; status: string; stageId?: string; updatedAt: string }> }
+    const post = async (body: unknown, as = token) => await (await call('POST', '/v1/me/story/pvp', body, as)).json() as Answer
+    // No character known yet (nothing synced for the mode): nothing is kept.
+    assert.deepEqual(await post({ records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] }), { characterId: null, records: [] })
+    assert.equal((await call('POST', '/v1/me/story/pvp', { records: [{ chapterId: '<b>', status: 'active', updatedAt: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/story/pvp', { records: [{ chapterId: 'story-tour', status: 'failed', updatedAt: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+
+    await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, events: [] }, token)
+    const first = await post({ records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] })
+    assert.deepEqual(first, { characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] })
+    // An older reading from another PC does not win; a newer one does.
+    await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-1', updatedAt: '2026-10-01T09:00:00.000Z' }] })
+    const newer = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'completed', updatedAt: '2026-10-02T10:00:00.000Z' }, { chapterId: 'story-batya', status: 'active', stageId: 'story-batya-0', updatedAt: '2026-10-02T10:00:00.000Z' }] })
+    assert.deepEqual(newer.records.map((record) => [record.chapterId, record.status, record.stageId ?? null]), [['story-batya', 'active', 'story-batya-0'], ['story-tour', 'completed', null]])
+    // The phone reads them for the character synced last; another account sees none; another character has none.
+    const read = await (await call('GET', '/v1/me/story/pvp', undefined, token)).json() as Answer
+    assert.equal(read.records.length, 2)
+    assert.equal(((await (await call('GET', '/v1/me/story/pvp', undefined, other)).json()) as Answer).records.length, 0)
+    assert.equal(((await (await call('GET', '/v1/me/story/pve', undefined, token)).json()) as Answer).records.length, 0)
+    assert.equal(((await (await call('GET', '/v1/me/story/pvp?characterId=fedcba9876543210fedcba98', undefined, token)).json()) as Answer).records.length, 0)
+    assert.equal((await call('GET', '/v1/me/story/pvp?characterId=nope', undefined, token)).status, 400)
+    // A trusted reset (a prestige): the chapters read before it go, readings from before it are refused.
+    await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, resetAt: '2026-10-02T12:00:00.000Z', events: [] }, token)
+    const reset = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-5', updatedAt: '2026-10-02T11:00:00.000Z' }] })
+    assert.deepEqual(reset.records, [])
+  })
+})
+
 test('/v1/me/objectives validates input and limits sizes', async () => {
   await withServer(async (call) => {
     assert.equal((await call('GET', '/v1/me/objectives/pvp')).status, 401)
@@ -218,81 +294,5 @@ test('/v1/me/objectives undo restores the old value and answers 404 for another 
     assert.equal((await call('POST', '/v1/me/objectives/pvp/events/ev-ocr-0002/undo', undefined, token)).status, 409, 'undone once')
     const untouched = await (await call('GET', '/v1/me/objectives/pvp', undefined, other)).json() as Snapshot
     assert.equal(untouched.events.length, 0)
-  })
-})
-
-test('/v1/me/progress keeps the latest trusted reset with the character scope', async () => {
-  await withServer(async (call) => {
-    const token = await register(call, 'reset@example.com')
-    type Answer = { records: Array<{ taskId: string }>; scope: { characterId: string; resetAt?: string } | null }
-    const post = async (body: unknown) => await (await call('POST', '/v1/me/progress/pvp/events', body, token)).json() as Answer
-    const old = [
-      { taskId: TASK_A, status: 'active', timestamp: '2026-09-25T10:00:00.000Z' },
-      { taskId: TASK_A, status: 'completed', timestamp: '2026-09-25T11:00:00.000Z' },
-    ]
-    assert.equal((await post({ accountId: 100, characterId: CHARACTER, events: old })).scope?.resetAt, undefined)
-    // A prestige seen by one PC: older events go, and the scope keeps the reset for the phone and the other PCs.
-    const reset = await post({ characterId: CHARACTER, resetAt: '2026-09-25T11:30:00.000Z', events: [{ taskId: TASK_B, status: 'active', timestamp: '2026-09-25T11:40:00.000Z' }] })
-    assert.deepEqual(reset.records.map((record) => record.taskId), [TASK_B])
-    assert.equal(reset.scope?.resetAt, '2026-09-25T11:30:00.000Z')
-    // Another PC whose logs never showed the reset sends the old events again: they are not stored again.
-    const stale = await post({ characterId: CHARACTER, events: old })
-    assert.deepEqual(stale.records.map((record) => record.taskId), [TASK_B])
-    assert.equal(stale.scope?.resetAt, '2026-09-25T11:30:00.000Z')
-    // An older reset never moves it back; the phone reads it with the records.
-    assert.equal((await post({ characterId: CHARACTER, resetAt: '2026-09-25T09:00:00.000Z', events: [] })).scope?.resetAt, '2026-09-25T11:30:00.000Z')
-    const get = await (await call('GET', '/v1/me/progress/pvp', undefined, token)).json() as Answer
-    assert.equal(get.scope?.resetAt, '2026-09-25T11:30:00.000Z')
-    // A clock far ahead is held to the server's time.
-    const future = await post({ characterId: CHARACTER, resetAt: '2099-01-01T00:00:00.000Z', events: [] })
-    assert.ok(future.scope?.resetAt && Date.parse(future.scope.resetAt) <= Date.now() + 61_000)
-    // A new character (after a wipe) starts without a reset.
-    const wiped = await post({ characterId: 'fedcba9876543210fedcba98', events: [] })
-    assert.equal(wiped.scope?.characterId, 'fedcba9876543210fedcba98')
-    assert.equal(wiped.scope?.resetAt, undefined)
-  })
-})
-
-test('a progress database from before the reset column gets it', () => {
-  const db = new DatabaseSync(':memory:')
-  db.exec(`CREATE TABLE progress_scopes (owner TEXT NOT NULL, mode TEXT NOT NULL, account_id INTEGER NOT NULL, character_id TEXT NOT NULL,
-    synced_at TEXT NOT NULL, PRIMARY KEY(owner, mode));
-    INSERT INTO progress_scopes VALUES ('user:1', 'pvp', 5, '${CHARACTER}', '2026-09-25T12:00:00.000Z');`)
-  const store = new ProgressStore(db)
-  assert.deepEqual(store.scope('user:1', 'pvp'), { accountId: 5, characterId: CHARACTER, syncedAt: '2026-09-25T12:00:00.000Z' })
-  store.syncUser('user:1', 'pvp', { resetAt: '2026-09-25T11:00:00.000Z', events: [] })
-  assert.equal(store.scope('user:1', 'pvp')?.resetAt, '2026-09-25T11:00:00.000Z')
-  db.close()
-})
-
-test('/v1/me/story keeps each character\'s chapters, the newest reading of each, and starts over at a reset', async () => {
-  await withServer(async (call) => {
-    const token = await register(call, 'story@example.com')
-    const other = await register(call, 'story-other@example.com')
-    type Answer = { characterId: string | null; records: Array<{ chapterId: string; status: string; stageId?: string; updatedAt: string }> }
-    const post = async (body: unknown, as = token) => await (await call('POST', '/v1/me/story/pvp', body, as)).json() as Answer
-    // No character known yet (nothing synced for the mode): nothing is kept.
-    assert.deepEqual(await post({ records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] }), { characterId: null, records: [] })
-    assert.equal((await call('POST', '/v1/me/story/pvp', { records: [{ chapterId: '<b>', status: 'active', updatedAt: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
-    assert.equal((await call('POST', '/v1/me/story/pvp', { records: [{ chapterId: 'story-tour', status: 'failed', updatedAt: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
-
-    await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, events: [] }, token)
-    const first = await post({ records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] })
-    assert.deepEqual(first, { characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-2', updatedAt: '2026-10-01T10:00:00.000Z' }] })
-    // An older reading from another PC does not win; a newer one does.
-    await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-1', updatedAt: '2026-10-01T09:00:00.000Z' }] })
-    const newer = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'completed', updatedAt: '2026-10-02T10:00:00.000Z' }, { chapterId: 'story-batya', status: 'active', stageId: 'story-batya-0', updatedAt: '2026-10-02T10:00:00.000Z' }] })
-    assert.deepEqual(newer.records.map((record) => [record.chapterId, record.status, record.stageId ?? null]), [['story-batya', 'active', 'story-batya-0'], ['story-tour', 'completed', null]])
-    // The phone reads them for the character synced last; another account sees none; another character has none.
-    const read = await (await call('GET', '/v1/me/story/pvp', undefined, token)).json() as Answer
-    assert.equal(read.records.length, 2)
-    assert.equal(((await (await call('GET', '/v1/me/story/pvp', undefined, other)).json()) as Answer).records.length, 0)
-    assert.equal(((await (await call('GET', '/v1/me/story/pve', undefined, token)).json()) as Answer).records.length, 0)
-    assert.equal(((await (await call('GET', '/v1/me/story/pvp?characterId=fedcba9876543210fedcba98', undefined, token)).json()) as Answer).records.length, 0)
-    assert.equal((await call('GET', '/v1/me/story/pvp?characterId=nope', undefined, token)).status, 400)
-    // A trusted reset (a prestige): the chapters read before it go, readings from before it are refused.
-    await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, resetAt: '2026-10-02T12:00:00.000Z', events: [] }, token)
-    const reset = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-5', updatedAt: '2026-10-02T11:00:00.000Z' }] })
-    assert.deepEqual(reset.records, [])
   })
 })
