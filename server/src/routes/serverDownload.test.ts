@@ -27,7 +27,7 @@ test('server exe: only the owner gets a one-time link; it serves the file a few 
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   const post = async (path: string, token?: string, body?: unknown) => fetch(`${origin}/v1${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body ?? {}) })
   try {
-    await post('/accounts/register', undefined, { email: 'player@example.com', password })
+    await post('/accounts/register', undefined, { email: 'player@example.com', password, country: 'RU' })
     const login = async (email: string) => ((await (await post('/accounts/login', undefined, { email, password })).json()) as { token: string }).token
     const owner = await login('owner@example.com')
     const player = await login('player@example.com')

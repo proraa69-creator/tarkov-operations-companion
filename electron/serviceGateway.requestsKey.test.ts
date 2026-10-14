@@ -53,7 +53,7 @@ describe('the read-only key for the reports through the desktop gateway', () => 
     // Signed out: null at once, never a request without a session.
     expect(await serviceRequest('GET', KEY_PATH)).toBeNull()
 
-    await accountRegister('player@example.com', password)
+    await accountRegister('player@example.com', password, undefined, 'RU')
     await expect(serviceRequest('GET', KEY_PATH)).rejects.toThrow('Не найдено')
     await expect(serviceRequest('POST', KEY_PATH)).rejects.toThrow('Не найдено')
     await expect(serviceRequest('DELETE', KEY_PATH)).rejects.toThrow('Не найдено')

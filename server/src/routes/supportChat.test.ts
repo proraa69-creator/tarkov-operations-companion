@@ -35,7 +35,7 @@ async function setup(limits?: { perAccount?: number; perIp?: number }) {
     return { status: response.status, json: json as T, headers: response.headers }
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
-  const register = async (email: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password })).json.token
+  const register = async (email: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country: 'RU' })).json.token
   const idOf = (email: string) => accounts.accountByEmail(email)!.id
   return { db, accounts, call, login, register, idOf, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }

@@ -57,7 +57,9 @@ describe('registration from the app', () => {
   it('without e-mail codes: signs in right away and records the consent', async () => {
     state.remote = plainUrl
     await setServerUrl('')
-    const result = await accountRegister('New@Example.com', password)
+    // owner, 14.10.2026: «на сайте сделай указывать страну обязательно при регистрации» — the server refuses none.
+    await expect(accountRegister('nocountry@example.com', password)).rejects.toThrow('Укажите страну')
+    const result = await accountRegister('New@Example.com', password, undefined, 'RU')
     expect(result.pending).toBeUndefined()
     if (!('status' in result)) throw new Error('expected a session')
     expect(result.status).toMatchObject({ signedIn: true, email: 'new@example.com', online: true })

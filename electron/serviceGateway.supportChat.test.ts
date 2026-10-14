@@ -53,7 +53,7 @@ describe('support chat through the desktop gateway', () => {
     // Signed out: null at once, never a request without a session.
     expect(await serviceRequest('GET', '/v1/me/support/messages')).toBeNull()
 
-    await accountRegister('player@example.com', password)
+    await accountRegister('player@example.com', password, undefined, 'RU')
     const sent = await serviceRequest('POST', '/v1/me/support/messages', { text: 'Не открывается карта' }) as { message: Message }
     expect(sent.message).toMatchObject({ author: 'user', text: 'Не открывается карта' })
     // A player on the owner's routes: the server says they do not exist.

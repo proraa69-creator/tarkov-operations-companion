@@ -20,7 +20,7 @@ function setup(options: { sms?: boolean; dailyLimit?: number; phoneDailyLimit?: 
   const phones = new PhoneAuthService(accounts, { sender: options.sms === false ? undefined : sender, now, limits: { dailyLimit: options.dailyLimit ?? 100, phoneDailyLimit: options.phoneDailyLimit ?? 5 }, log: (line) => logs.push(line) })
   const api = createAccountsHandlers(accounts, { now })
   const phone = createPhoneHandlers(accounts, phones, { now, ...options.limits })
-  const register = async (email: string) => (await api.register({ ip: 'reg', body: { email, password } })).body as { token: string; account: AccountView }
+  const register = async (email: string) => (await api.register({ ip: 'reg', body: { email, password, country: 'RU' } })).body as { token: string; account: AccountView }
   /** Registers and binds a verified number. */
   const withPhone = async (email: string, number = PHONE) => {
     const { token } = await register(email)
@@ -147,7 +147,7 @@ test('unknown numbers get the same answer and no SMS (anti-enumeration)', async 
 test('owner accounts are excluded from SMS sign-in and reset (no SMS, same answer)', async () => {
   const { phone, sender, accounts, api, advance } = setup({ owners: [] })
   // Register first, then list as owner (the server refuses registering a listed e-mail).
-  const { token } = (await api.register({ ip: '0', body: { email: 'boss@example.com', password } })).body as { token: string }
+  const { token } = (await api.register({ ip: '0', body: { email: 'boss@example.com', password, country: 'RU' } })).body as { token: string }
   const started = await phone.bindStart({ ip: '0', authorization: auth(token), body: { phone: PHONE, password } })
   await phone.bindConfirm({ ip: '0', authorization: auth(token), body: { challengeId: challenge(started.body), code: sender.lastCode() } })
   const ownerAccounts = new AccountStore({ db: accounts.database, ownerEmails: ['boss@example.com'] })

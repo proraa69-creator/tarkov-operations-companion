@@ -260,7 +260,7 @@ test('routes: the cabinet program, the friend discount in /v1/payments and the o
     const visit = await call('POST', '/accounts/referral-visits', undefined, { code: 'raid-artem' })
     assert.deepEqual([visit.status, visit.json.kind], [200, 'friend'])
 
-    const friend = await call('POST', '/accounts/register', undefined, { email: 'friend@example.com', password, referralCode: 'RAID-ARTEM' })
+    const friend = await call('POST', '/accounts/register', undefined, { email: 'friend@example.com', password, country: 'RU', referralCode: 'RAID-ARTEM' })
     assert.equal(friend.json.referralApplied, true)
     const own = await call('GET', '/payments', String(friend.json.token))
     assert.deepEqual(own.json.friendDiscount, { percent: 20, plan: '1m' })

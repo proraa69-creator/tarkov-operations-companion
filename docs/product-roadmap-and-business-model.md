@@ -338,7 +338,7 @@ Possible architecture:
 - one global backend;
 - region-aware payment providers;
 - UI language and payment method chosen by locale, referral campaign, or user choice.
-- Registration country (owner, 13.10.2026: «при регистрации нужно указать страну»): every registration form (site, PC app, phone) asks it as an ISO 3166-1 alpha-2 code (`src/shared/countries.ts`, optional on the server for older apps; older accounts set it in the cabinet); the admin panel's «Пользователи» splits accounts into СНГ (RU, BY, KZ, KG, TJ, UZ, TM, AM, AZ, MD) / Европа (UN-geoscheme Europe plus CY, minus the CIS list: UA is Europe, GE and TR are «Другие») / Другие / Не указана — a country moves by moving its code between `CIS_COUNTRIES` and `EUROPE_COUNTRIES` in that file.
+- Registration country (owner, 13.10.2026: «при регистрации нужно указать страну»): every registration form (site, PC app, phone) asks it as an ISO 3166-1 alpha-2 code (`src/shared/countries.ts`, mandatory on the server too since 14.10.2026 (owner: «на сайте сделай указывать страну обязательно при регистрации»): an app from before the question, whose form has no such field, is told to update the app or register on raidos.app; older accounts set it in the cabinet); the admin panel's «Пользователи» splits accounts into СНГ (RU, BY, KZ, KG, TJ, UZ, TM, AM, AZ, MD) / Европа (UN-geoscheme Europe plus CY, minus the CIS list: UA is Europe, GE and TR are «Другие») / Другие / Не указана — a country moves by moving its code between `CIS_COUNTRIES` and `EUROPE_COUNTRIES` in that file.
 
 Payment options:
 

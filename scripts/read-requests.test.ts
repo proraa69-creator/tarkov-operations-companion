@@ -61,7 +61,7 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => server.on('listening', resolve))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   owner = (await call<{ token: string }>('POST', '/v1/accounts/login', undefined, { email: 'owner@example.com', password })).json.token
-  const player = (await call<{ token: string }>('POST', '/v1/accounts/register', undefined, { email: 'player@example.com', password })).json.token
+  const player = (await call<{ token: string }>('POST', '/v1/accounts/register', undefined, { email: 'player@example.com', password, country: 'RU' })).json.token
   const send = async (body: unknown) => (await call<{ id: number }>('POST', '/v1/bug-reports', player, body)).json.id
   ids.bug = await send({ topic: 'Карта не открывается', description: 'Таможня: чёрный экран.\nПишите на player@example.com\u001b[31m', category: 'map', appVersion: '0.6.0.35 · client', platform: 'Windows 10/11 x64 · desktop app · EFT: Steam', screenshots: [{ data: PNG.toString('base64') }, { data: JPEG.toString('base64') }] })
   ids.quest = await send({ topic: 'Квест: точка не там', description: '', category: 'quest', appVersion: '0.6.0.35 · client', platform: 'Windows 10/11 x64 · desktop app · EFT: BSG launcher', quest: { questId: 'q1', issue: 'wrong-point', mode: 'pve', mapId: 'customs', point: { x: 100, z: -40 }, pointNote: 'за гаражами' } })
