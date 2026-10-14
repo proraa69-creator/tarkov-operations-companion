@@ -63,6 +63,8 @@ import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
 import { BugReportMailer } from './services/bugReportMail.js'
+import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
+import { RequestsKeyStore } from './services/requestsKeyStore.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
 
@@ -125,6 +127,8 @@ export interface ApiOptions {
   bugReportMail?: { sender?: EmailSender; to?: string }
   /** «Чат с поддержкой» (routes/supportChat.ts): per-account / per-IP limits of the players' messages for tests. */
   supportChatLimits?: Partial<SupportChatLimits>
+  /** «Доступ Claude к заявкам» (routes/agentRequests.ts): per-key / per-address limits of the read-only key for tests. */
+  requestsKeyLimits?: Partial<AgentRequestLimits>
 }
 
 /**
@@ -251,6 +255,13 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates(Date.now(), undefined, () => ({ announcement: announcements.publicView() }))
   app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
+  // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
+  // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
+  app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {
+    limits: options.requestsKeyLimits,
+    catalog: options.catalog ?? peekCatalogSnapshot,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))

@@ -52,6 +52,7 @@ export type AuditAction =
   | 'payments.yookassa-settings'
   | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'announcement.set' | 'support.reply'
+  | 'requests-key.create' | 'requests-key.revoke'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
