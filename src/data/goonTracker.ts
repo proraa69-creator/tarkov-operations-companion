@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { startActivePolling } from '../app/activePolling'
 import { tarkovJson } from './tarkovApi'
 import { serviceClient } from '../account/nicknameBinding'
 import { LIVE_UPDATE_EVENT } from './mapUpdates'
@@ -235,12 +236,14 @@ export function useGoonTracker(mode: RaidMode) {
       void refreshServer(mode)
       if (Date.now() - lastCommunity >= COMMUNITY_REFRESH_MS) void updateCommunity()
     }
-    tick()
-    const timer = window.setInterval(tick, GOON_REFRESH_MS)
+    // Desktop app: every 30 s while the window is in use, at once when the player comes back to it, and never while the
+    // app sits behind the game — the community feed alone is tarkov.dev's maps file (~9 MB) a minute, downloaded and
+    // parsed by the main process (src/app/activePolling.ts). The phone and the browser keep the plain interval.
+    const stopPolling = startActivePolling(tick, { activeEveryMs: GOON_REFRESH_MS, followFocus: Boolean(window.tarkovDesktop) })
     // Somebody reported them (the server told every app, data/mapUpdates.ts): refresh now, not in up to 30 s.
     const onLive = () => { if (alive) { setNow(Date.now()); void refreshServer(mode) } }
     window.addEventListener(LIVE_UPDATE_EVENT, onLive)
-    return () => { alive = false; window.clearInterval(timer); window.removeEventListener(LIVE_UPDATE_EVENT, onLive) }
+    return () => { alive = false; stopPolling(); window.removeEventListener(LIVE_UPDATE_EVENT, onLive) }
   }, [mode, refreshServer])
 
   const reportSighting = useCallback(async (mapId: string): Promise<GoonReportResult> => {

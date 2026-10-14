@@ -10,8 +10,16 @@ import { isAppActive, onAppActivityChange, startAppActivity } from './appActivit
  * false` the page's timers are not slowed there, so a plain setInterval kept asking the main process — for
  * `experimental:status` each answer may read the registry and search the game's folders — the whole time the player
  * was in the game. Returns the function that stops it.
+ *
+ * `followFocus: false` (the phone and the browser, where the system already freezes or slows hidden pages): a plain
+ * interval, as before.
  */
-export function startActivePolling(load: () => void, options: { activeEveryMs?: number } = {}): () => void {
+export function startActivePolling(load: () => void, options: { activeEveryMs?: number; followFocus?: boolean } = {}): () => void {
+  if (options.followFocus === false) {
+    load()
+    const plain = options.activeEveryMs ? window.setInterval(load, options.activeEveryMs) : undefined
+    return () => window.clearInterval(plain)
+  }
   const stopActivity = startAppActivity()
   let timer: number | undefined
   const follow = () => {

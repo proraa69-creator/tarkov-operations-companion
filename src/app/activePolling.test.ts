@@ -61,6 +61,17 @@ describe('polling only while the window is in use', () => {
     stop()
   })
 
+  it('followFocus: false (phone, browser): a plain interval whatever the focus', () => {
+    const load = vi.fn()
+    const stop = startActivePolling(load, { activeEveryMs: 30_000, followFocus: false })
+    toGame()
+    vi.advanceTimersByTime(60_000)
+    expect(load).toHaveBeenCalledTimes(3)
+    stop()
+    vi.advanceTimersByTime(60_000)
+    expect(load).toHaveBeenCalledTimes(3)
+  })
+
   it('started while the game is in front: one answer, then nothing until the window is used', () => {
     focus.mockReturnValue(false)
     const load = vi.fn()
