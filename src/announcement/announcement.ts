@@ -4,10 +4,15 @@
  * нагрузки»). The app asks GET /v1/announcement (server/src/routes/announcement.ts) once at start and then once every
  * 3–6 minutes, the moment drawn at random for each check, so the apps never ask all at once and no connection is held
  * open. Offline: the last notice stays on screen until the next answer.
+ *
+ * The same answer carries the owner's switches for every app (src/announcement/features.ts: the minimap, 14.10.2026).
+ * So that a switch shows soon, the app also asks when its window gets the focus back and when the Mini Map page opens
+ * (`checkAnnouncementNow`), never more often than FOCUS_GAP_MS for the focus.
  */
 import { useEffect, useSyncExternalStore } from 'react'
 import { usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
+import { parseFeatures, sendRemoteFeaturesToMain, setRemoteFeatures } from './features'
 
 export interface AnnouncementView { text: string; updatedAt: string }
 
@@ -64,15 +69,43 @@ export const CHECK_SPREAD_MS = 3 * 60_000
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+type Ask = (path: string) => Promise<unknown>
+
+let lastCheckAt = 0
+let inFlight: Promise<void> | null = null
+
+/** One request: the notice and the owner's switches. Offline or an older server: what is shown stays. */
+async function checkOnce(ask: Ask) {
+  lastCheckAt = Date.now()
+  try {
+    const raw = await ask('/v1/announcement')
+    const answer = parseAnnouncement(raw)
+    if (answer) setAnnouncement(answer.announcement)
+    const features = parseFeatures(raw)
+    if (features) setRemoteFeatures(features)
+  } catch { /* offline or an older server: the last notice stays until the next check */ }
+}
+
 /** One loop per app: a single request now and then, as long as the app runs. `ask`, `sleep`, `random` for the tests. */
-export async function followAnnouncement(ask: (path: string) => Promise<unknown> = request, sleep: (ms: number) => Promise<unknown> = wait, rounds = Infinity, random: () => number = Math.random) {
+export async function followAnnouncement(ask: Ask = request, sleep: (ms: number) => Promise<unknown> = wait, rounds = Infinity, random: () => number = Math.random) {
   for (let round = 0; round < rounds; round += 1) {
-    try {
-      const answer = parseAnnouncement(await ask('/v1/announcement'))
-      if (answer) setAnnouncement(answer.announcement)
-    } catch { /* offline or an older server: the last notice stays until the next check */ }
+    await checkOnce(ask)
     await sleep(CHECK_MIN_MS + Math.floor(random() * CHECK_SPREAD_MS))
   }
+}
+
+/** The window got the focus back: ask again, at most once in this long. */
+export const FOCUS_GAP_MS = 30_000
+
+/**
+ * Asks now, between the loop's checks (the Mini Map page opens, the window gets the focus), unless a check ran less than
+ * `minGapMs` ago or one is on the way. `ask` for the tests.
+ */
+export function checkAnnouncementNow(minGapMs = 2000, ask: Ask = request) {
+  if (inFlight || Date.now() - lastCheckAt < minGapMs) return inFlight ?? Promise.resolve()
+  if (ask === request && (typeof window === 'undefined' || (!window.tarkovDesktop?.serviceRequest && !usesWebAccount()))) return Promise.resolve()
+  inFlight = checkOnce(ask).finally(() => { inFlight = null })
+  return inFlight
 }
 
 /** The notice to show now (null: none). Starts waiting for it on first use. */
@@ -80,6 +113,9 @@ export function useAnnouncement() {
   useEffect(() => {
     if (running || typeof window === 'undefined' || (!window.tarkovDesktop?.serviceRequest && !usesWebAccount())) return
     running = true
+    // The main process starts with the minimap off: the last known switch until the server answers.
+    sendRemoteFeaturesToMain()
+    window.addEventListener('focus', () => { void checkAnnouncementNow(FOCUS_GAP_MS) })
     void followAnnouncement()
   }, [])
   return useSyncExternalStore(subscribe, () => current, () => current)

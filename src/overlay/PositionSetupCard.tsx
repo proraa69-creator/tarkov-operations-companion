@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, LocateFixed } from 'lucide-react'
 import { startActivePolling } from '../app/activePolling'
 import { uiText } from '../i18n/renderText'
+import { useMinimapAllowed } from '../announcement/features'
 import { hotkeyForGameKeys, hotkeyLabel } from './hotkeys'
 import { POSITION_PROBLEM_TEXT, positionFix, positionProblem } from './positionReadiness'
 import type { ExperimentalStatus } from './types'
@@ -78,10 +79,12 @@ export function PositionSetupCard({ status, onFixed, compact = false }: { status
 
 /**
  * The same card on «Обзор» of the desktop app, only while something stops the dot: most players never open the Mini Map
- * page, and learnt it only in a raid with no dot.
+ * page, and learnt it only in a raid with no dot. Never while the owner keeps the minimap off for everybody
+ * (src/announcement/features.ts).
  */
 export function PositionSetupNotice() {
-  const api = window.tarkovDesktop?.experimental
+  const allowed = useMinimapAllowed()
+  const api = allowed ? window.tarkovDesktop?.experimental : undefined
   const [status, setStatus] = useState<ExperimentalStatus | null>(null)
   const [minimap, setMinimap] = useState(false)
   useEffect(() => {

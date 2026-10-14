@@ -10,6 +10,7 @@ import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTi
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
+import { applyQuestCorrections } from './questCorrections'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
@@ -83,10 +84,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  const questRows = applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale))
+  ), locale)), locale)
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
