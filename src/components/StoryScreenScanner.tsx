@@ -7,6 +7,8 @@ import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
+import { useLogStatus } from '../import/logStatus'
+import { useLogsCoverModes } from '../import/logCoverage'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -21,6 +23,9 @@ const IDLE_MS = STORY_SCAN_TIMING.idleMs
 export function StoryScreenScanner() {
   const { data } = useTarkovData()
   const state = useAppState()
+  // Per mode: the game's logs hold its whole quest history (src/import/logCoverage.ts).
+  const logsCover = useLogsCoverModes(useLogStatus().scan, data.quests)
+  const logsCoverRef = useRef(logsCover)
   const questsRef = useRef(data.quests)
   const modeRef = useRef<RaidMode>(state.raidMode)
   const profileRef = useRef(state.activeProfile.id)
@@ -31,6 +36,7 @@ export function StoryScreenScanner() {
 
   useEffect(() => {
     questsRef.current = data.quests
+    logsCoverRef.current = logsCover
     modeRef.current = state.raidMode
     profileRef.current = state.activeProfile.id
     applyRef.current = state.applyStoryScanForMode
@@ -92,15 +98,23 @@ export function StoryScreenScanner() {
           forget()
           return IDLE_MS
         }
+        // Owner, 14.10.2026: «если логи всех квестов обнаружены, что бы приложение перестало сканировать квесты через экран».
+        // This mode's logs hold its whole quest history (src/import/logCoverage.ts): they are the truth about its trader
+        // quests, so the Tasks table is passed over — not read, not applied — and looked at only at the slow pace. Story
+        // chapters (the game never logs them), «Выбор профиля и режима» and the traders' screen are read as before; once
+        // the logs show a gap (a quest handed in without its acceptance), the table is read again.
+        const storyScreen = Boolean(frame?.gameWindow && (frame.story || isStoryMenuText(frame.text)))
+        const tasksTable = Boolean(frame?.gameWindow && !storyScreen && isTasksMenuText(frame.text))
+        const tasksFromLogs = tasksTable && logsCoverRef.current[mode]
         let delay: number = IDLE_MS
         if (frame?.gameWindow) {
-          const known = Boolean(frame.story || frame.profiles?.length || frame.trader || isStoryMenuText(frame.text) || isTasksMenuText(frame.text))
+          const known = Boolean(frame.story || frame.profiles?.length || frame.trader || storyScreen || (tasksTable && !tasksFromLogs))
           quiet = known ? 0 : quiet + 1
           // The quick pace only right after a new game window (the mode selection), never after a raid or an Alt+Tab.
-          delay = gameScanDelay(known ? 'known' : 'unknown', quiet, frame.freshGame === true)
+          delay = gameScanDelay(known ? 'known' : tasksFromLogs ? 'ignored' : 'unknown', quiet, frame.freshGame === true)
         } else quiet = 0
         // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
-        if (frame?.gameWindow && !inRaid && (frame.story || isStoryMenuText(frame.text))) {
+        if (frame?.gameWindow && !inRaid && storyScreen) {
           delay = STORY_PANE_MS
           const screenshot = frame.sourceName === 'EFT screenshot'
           const checked = confirmStoryFrame(screenshot ? null : confirmation, context, frame.observedAt ?? 0, matches)
@@ -114,7 +128,7 @@ export function StoryScreenScanner() {
             applyRef.current(mode, matches.filter(match => match.objectives?.length))
             if (checked.confirmed.length) applyRef.current(mode, checked.confirmed)
           }
-        } else if (frame?.gameWindow && !inRaid && isTasksMenuText(frame.text)) {
+        } else if (frame?.gameWindow && !inRaid && tasksTable && !tasksFromLogs) {
           confirmation = null
           delay = STORY_PANE_MS
           const matches = matchQuestsFromOcr(frame.text, questsRef.current).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')

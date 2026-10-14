@@ -3,6 +3,10 @@ import { useLocation } from 'react-router-dom'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 import { QUEST_SYNC_TIP_KEY, questSyncTipDue } from './guideProgress'
+import { useOptionalAppState } from '../state/AppState'
+import { useOptionalTarkovData } from '../data/DataProvider'
+import { useLogStatus } from '../import/logStatus'
+import { useLogsCoverModes } from '../import/logCoverage'
 
 // owner, 14.10.2026: «при первом запуске следующего обновления на главном экране покажи всплывающее окно с указателем на
 // блок справа квесты, и объясни, что для полной синхронизации нужно, чтобы данные квестов обновились… без лишних надписей»
@@ -27,7 +31,10 @@ export function QuestSyncTip() {
   const { pathname } = useLocation()
   const phone = useMobileLayout()
   const [seen, setSeen] = useState(readSeen)
-  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen })
+  // The logs of the mode shown hold every quest (src/import/logCoverage.ts): no need to open «Задания» and scroll.
+  const mode = useOptionalAppState()?.raidMode
+  const logsCover = useLogsCoverModes(useLogStatus().scan, useOptionalTarkovData()?.data.quests)
+  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, logsCover: mode ? logsCover[mode] : false })
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname)
   if (!due || !ready) return null
   return <GuideTip id="quest-sync" tip={TIP} phone={false} onAccept={() => {
