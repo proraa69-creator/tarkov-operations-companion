@@ -2,8 +2,8 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SupportChatDialog } from './SupportChat'
-import { resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
+import { SupportChatDialog, SupportNotice } from './SupportChat'
+import { pendingSupportNotice, resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
 import { SupportButtons } from '../components/SupportButtons'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { OPEN_ACCOUNT_SIGN_IN_EVENT } from '../account/accountEvents'
@@ -18,13 +18,19 @@ const at = '2026-10-13T10:05:00.000Z'
 const answer = (id: number, text: string, read = false): SupportMessage => ({ id, author: 'owner', text, createdAt: at, read })
 const mine = (id: number, text: string, read = false): SupportMessage => ({ id, author: 'user', text, createdAt: at, read })
 
-/** The desktop gateway with a server conversation: GET answers `thread`, POST appends the player's message. */
+/**
+ * The desktop gateway with a server conversation: GET answers `thread` (only what came after `after` when asked, with
+ * the oldest message's id), POST appends the player's message.
+ */
 function mockServer(status: unknown, thread: { messages: SupportMessage[]; unread: number }) {
   const calls: Array<[string, string, unknown]> = []
   let nextId = 100
-  const serviceRequest = vi.fn(async (method: string, path: string, body?: unknown) => {
+  const serviceRequest = vi.fn(async (method: string, path: string, body?: unknown): Promise<unknown> => {
     calls.push([method, path, body])
-    if (method === 'GET' && path.startsWith('/v1/me/support/messages')) return { messages: thread.messages, unread: thread.unread }
+    if (method === 'GET' && path.startsWith('/v1/me/support/messages')) {
+      const after = Number(new URL(path, 'https://raidos.app').searchParams.get('after') ?? 0)
+      return { messages: thread.messages.filter((message) => message.id > after), unread: thread.unread, oldestId: thread.messages[0]?.id ?? null }
+    }
     if (method === 'POST' && path === '/v1/me/support/messages') {
       const message = mine(nextId++, (body as { text: string }).text)
       thread.messages = [...thread.messages, message]
@@ -44,6 +50,7 @@ afterEach(async () => {
   await refreshServerStatus()
   Reflect.deleteProperty(window, 'tarkovDesktop')
   resetSupportChat()
+  localStorage.clear()
 })
 
 describe('support chat window', () => {
@@ -176,6 +183,158 @@ describe('unread answers on «Связаться» and «Ещё»', () => {
     expect(screen.queryByLabelText(/Новых сообщений/)).toBeNull()
     expect(server.calls).toEqual([])
   })
+
+  it('the PC sidebar: «Чат с поддержкой» right under «Сообщить об ошибке», with the count; it opens the chat (owner, 14.10.2026)', async () => {
+    mockServer(signedIn, { messages: [mine(1, 'Вопрос', true), answer(2, 'Ответ')], unread: 1 })
+    const user = userEvent.setup()
+    render(<SupportButtons variant="nav" />)
+    const names = screen.getAllByRole('button').map((button) => button.querySelector('span')?.textContent)
+    expect(names).toEqual(['Связаться', 'Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
+    const entry = screen.getByRole('button', { name: /Чат с поддержкой/ })
+    expect(await within(entry).findByLabelText('Новых сообщений: 1')).toHaveTextContent('1')
+    await user.click(entry)
+    expect(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).toHaveTextContent('Ответ')
+    await waitFor(() => expect(within(entry).queryByLabelText(/Новых сообщений/)).toBeNull())
+    cleanup()
+    // Settings → «Поддержка» keeps its three buttons.
+    render(<SupportButtons variant="panel" />)
+    expect(screen.getAllByRole('button').map((button) => button.querySelector('span')?.textContent)).toEqual(['Связаться', 'Сообщить об ошибке', 'Ваши предложения'])
+  })
+
+  it('a conversation the owner deleted («Проблема решена») leaves the app at once: no count, an empty chat', async () => {
+    const server = mockServer(signedIn, { messages: [mine(1, 'Карта не грузится', true), answer(2, 'Обновите приложение')], unread: 1 })
+    const user = userEvent.setup()
+    render(<SupportButtons variant="nav" />)
+    const contact = screen.getByRole('button', { name: /Связаться/ })
+    expect(await within(contact).findByLabelText('Новых сообщений: 1')).toBeInTheDocument()
+    server.thread.messages = []
+    server.thread.unread = 0
+    act(() => { window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT)) })
+    await waitFor(() => expect(within(contact).queryByLabelText(/Новых сообщений/)).toBeNull())
+    // Only what came after the last message was asked; the server's empty conversation dropped what the app had.
+    expect(server.calls.filter(([method]) => method === 'GET').map(([, path]) => path)).toEqual(['/v1/me/support/messages', '/v1/me/support/messages?after=2'])
+    await user.click(contact)
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    expect(await within(dialog).findByText('Напишите нам — ответим здесь же')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Обновите приложение')).toBeNull()
+  })
+})
+
+describe('«Новое сообщение от поддержки» (owner, 14.10.2026: «так же должно появляться уведомление о том что у человека новое сообщение»)', () => {
+  const toast = () => screen.queryByText('Новое сообщение от поддержки')?.closest('.support-notice') as HTMLElement | null | undefined
+  const answered = (server: ReturnType<typeof mockServer>, message: SupportMessage) => {
+    server.thread.messages = [...server.thread.messages, message]
+    server.thread.unread += 1
+    act(() => { window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT)) })
+  }
+
+  it('an answer while the chat is closed: the toast until «Открыть» or «×», again only for a newer answer', async () => {
+    const server = mockServer(signedIn, { messages: [mine(1, 'Вопрос', true)], unread: 0 })
+    const user = userEvent.setup()
+    render(<><SupportButtons variant="nav" /><SupportNotice /></>)
+    await waitFor(() => expect(server.calls).toHaveLength(1))
+    expect(toast()).toBeFalsy()
+
+    answered(server, answer(2, 'Ответ 1'))
+    await waitFor(() => expect(toast()).toBeTruthy())
+    expect(toast()).toHaveAttribute('role', 'status')
+    // The note names no text of the message; «Открыть» opens the chat where the sidebar keeps it.
+    expect(toast()).not.toHaveTextContent('Ответ 1')
+    await user.click(within(toast()!).getByRole('button', { name: 'Открыть' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    expect(await within(dialog).findByText('Ответ 1')).toBeInTheDocument()
+    expect(toast()).toBeFalsy()
+    await waitFor(() => expect(server.calls.filter(([method, path]) => method === 'POST' && path === '/v1/me/support/read')).toHaveLength(1))
+    await user.click(within(dialog).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(toast()).toBeFalsy()
+
+    // A newer answer: the toast again; «×» closes it, and the same answer never brings it back.
+    answered(server, answer(3, 'Ответ 2'))
+    await waitFor(() => expect(toast()).toBeTruthy())
+    await user.click(within(toast()!).getByRole('button', { name: 'Закрыть' }))
+    expect(toast()).toBeFalsy()
+    act(() => { window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT)) })
+    await waitFor(() => expect(server.calls.filter(([method]) => method === 'GET')).toHaveLength(5))
+    expect(toast()).toBeFalsy()
+    expect(within(screen.getByRole('button', { name: /Связаться/ })).getByLabelText('Новых сообщений: 1')).toBeInTheDocument()
+    // Nor after a restart of the app: the closed one is remembered for this account on this device.
+    cleanup()
+    resetSupportChat()
+    render(<SupportNotice />)
+    await waitFor(() => expect(server.calls.filter(([method]) => method === 'GET')).toHaveLength(6))
+    expect(toast()).toBeFalsy()
+    answered(server, answer(4, 'Ответ 3'))
+    await waitFor(() => expect(toast()).toBeTruthy())
+    // One toast, whatever the number of answers.
+    answered(server, answer(5, 'Ответ 4'))
+    await waitFor(() => expect(server.calls.filter(([method]) => method === 'GET')).toHaveLength(8))
+    expect(screen.getAllByText('Новое сообщение от поддержки')).toHaveLength(1)
+    // Social events and the five-minute fallback only: no poll of its own.
+    expect(server.calls.filter(([method]) => method === 'GET').map(([, path]) => path).slice(-3)).toEqual(['/v1/me/support/messages', '/v1/me/support/messages?after=3', '/v1/me/support/messages?after=4'])
+  })
+
+  it('no toast while a chat window is open, nor afterwards for what it showed; an answer read elsewhere brings none', async () => {
+    const server = mockServer(signedIn, { messages: [mine(1, 'Вопрос', true)], unread: 0 })
+    // The app is in the background: the open window does not mark the answer read, it is still unread on the server.
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    try {
+      const view = render(<><SupportChatDialog onClose={() => {}} /><SupportNotice /></>)
+      expect(await screen.findByText('Вопрос')).toBeInTheDocument()
+      answered(server, answer(2, 'Ответ в окне'))
+      expect(await screen.findByText('Ответ в окне')).toBeInTheDocument()
+      expect(toast()).toBeFalsy()
+      view.rerender(<SupportNotice />)
+      act(() => { window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT)) })
+      await waitFor(() => expect(server.calls.at(-1)?.[1]).toBe('/v1/me/support/messages?after=2'))
+      expect(toast()).toBeFalsy()
+      expect(server.calls.some(([method]) => method === 'POST')).toBe(false)
+      // Read on another device: the server counts nothing unread, no toast.
+      server.thread.messages = [...server.thread.messages, answer(3, 'Прочитан на телефоне', true)]
+      server.thread.unread = 0
+      act(() => { window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT)) })
+      await waitFor(() => expect(server.calls.at(-1)?.[1]).toBe('/v1/me/support/messages?after=2'))
+      await waitFor(() => expect(server.calls.filter(([method]) => method === 'GET')).toHaveLength(4))
+      expect(toast()).toBeFalsy()
+    } finally {
+      Reflect.deleteProperty(document, 'visibilityState')
+    }
+  })
+
+  it('the phone: «Открыть» opens the chat sheet of the tab bar', async () => {
+    mockServer(signedIn, { messages: [answer(1, 'Ответ от поддержки')], unread: 1 })
+    const user = userEvent.setup()
+    render(<MemoryRouter><MobileTabBar onSearch={() => {}} onRefresh={() => {}} refreshing={false} /><SupportNotice /></MemoryRouter>)
+    await waitFor(() => expect(toast()).toBeTruthy())
+    await user.click(within(toast()!).getByRole('button', { name: 'Открыть' }))
+    expect(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).toHaveTextContent('Ответ от поддержки')
+    expect(screen.getByRole('button', { name: /Ещё/ })).toHaveClass('active')
+    // Any tab closes it, as when it is opened from «Ещё».
+    await user.click(screen.getByRole('link', { name: 'Карты' }))
+    expect(screen.queryByRole('dialog', { name: 'Чат с поддержкой' })).toBeNull()
+  })
+
+  it('signed out or nothing unread: no toast', () => {
+    const at2 = answer(2, 'Ответ')
+    expect(pendingSupportNotice({ messages: [mine(1, 'Вопрос'), at2], unread: 1, noticed: 0 })).toBe(at2)
+    expect(pendingSupportNotice({ messages: [mine(1, 'Вопрос'), at2], unread: 0, noticed: 0 })).toBeNull()
+    expect(pendingSupportNotice({ messages: [mine(1, 'Вопрос'), at2], unread: 1, noticed: 2 })).toBeNull()
+    expect(pendingSupportNotice({ messages: [answer(2, 'Ответ', true)], unread: 1, noticed: 0 })).toBeNull()
+  })
+
+  it('English', async () => {
+    const { setRenderLanguage } = await import('../i18n/renderText')
+    mockServer(signedIn, { messages: [answer(1, 'Ответ')], unread: 1 })
+    setRenderLanguage('en')
+    try {
+      render(<SupportNotice />)
+      const note = await screen.findByText('New message from support')
+      expect(within(note.closest('.support-notice') as HTMLElement).getByRole('button', { name: 'Open' })).toBeInTheDocument()
+      expect(within(note.closest('.support-notice') as HTMLElement).getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    } finally {
+      setRenderLanguage('ru')
+    }
+  })
 })
 
 describe('English', () => {
@@ -196,6 +355,12 @@ describe('English', () => {
       expect(uiText('Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.')).toBe('Message us in the support chat, send a bug report with screenshots or share an idea for the app.')
       expect(uiText('Чаты')).toBe('Chats')
       expect(uiText('Ответ игроку…')).toBe('Reply to the player…')
+      expect(uiText('Новое сообщение от поддержки')).toBe('New message from support')
+      expect(uiText('Открыть')).toBe('Open')
+      expect(uiText('Открыть чат')).toBe('Open chat')
+      expect(uiText('Проблема решена')).toBe('Problem solved')
+      expect(uiText('Удалить переписку?')).toBe('Delete the conversation?')
+      expect([uiText('Да'), uiText('Нет')]).toEqual(['Yes', 'No'])
     } finally {
       setRenderLanguage('ru')
     }

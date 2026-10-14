@@ -29,13 +29,14 @@ const ACTION_LABEL: Record<string, string> = {
   'invite.decide': 'Решение по награде за друга',
   'bug.status': 'Статус баг-репорта',
   'support.reply': 'Ответ в чате поддержки',
+  'support.resolve': 'Переписка удалена («Проблема решена»)',
   'payments.export': 'Выгрузка платежей CSV',
   'device.revoke': 'Отключено устройство',
   'server.update-check': 'Проверка обновления сервера',
   'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
-const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
+const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
 
 const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён' }
 

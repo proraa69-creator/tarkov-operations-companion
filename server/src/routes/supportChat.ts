@@ -3,8 +3,10 @@
  * the owner app's «Заявки» → «Чаты». Plain text, up to 2000 characters after cleaning (src/shared/supportChat.ts).
  *
  * The player (Bearer session; 401 without one):
- *   GET  /v1/me/support/messages?after=<id> -> { messages, unread }: the newest 200 (only the ones after message <id>
- *        when given), oldest first; `unread`: the owner's answers the player has not seen
+ *   GET  /v1/me/support/messages?after=<id> -> { messages, unread, oldestId }: the newest 200 (only the ones after
+ *        message <id> when given), oldest first; `unread`: the owner's answers the player has not seen; `oldestId`: the
+ *        conversation's oldest message kept here, null when there is none (an app reading only what is new drops what
+ *        it still shows from before it: the owner deleted the conversation)
  *   POST /v1/me/support/messages { text }   -> 201 { message }; 20 per 10 minutes per account and per IP (an IPv6 /64
  *        counts as one address), 429 + Retry-After past that
  *   POST /v1/me/support/read                -> 204: the owner's answers are seen
@@ -17,12 +19,17 @@
  *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text } -> 201 { message } (audit: support.reply);
  *        an answer also marks the player's messages seen
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
- *   404 for an account that never wrote: the owner answers and does not start conversations.
+ *   DELETE /v1/accounts/me/admin/support/threads/:accountId                -> 204 «Проблема решена»: the whole
+ *        conversation is deleted for both sides (audit: support.resolve); the report it came from stays as it is
+ *   Any existing account, even one that never wrote (owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно
+ *   будет писать» — the owner opens the chat from a report in «Заявки» and writes first); 404 for an id that is not a
+ *   live account's.
  *
- * At once on the other side, through what the apps already wait on: an answer (or the owner's read mark) moves the
- * player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's own read mark for their other
- * devices; a player's message (or the owner's read mark) moves the owner app's GET /v1/accounts/me/admin/requests/events
- * (routes/bugReports.ts), whose answers carry `unreadChats` next to `open`.
+ * At once on the other side, through what the apps already wait on: an answer, the owner's read mark or a deleted
+ * conversation moves the player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's own
+ * read mark for their other devices; a player's message, the owner's read mark or a deleted conversation moves the owner
+ * app's GET /v1/accounts/me/admin/requests/events (routes/bugReports.ts), whose answers carry `unreadChats` next to
+ * `open`.
  */
 import express from 'express'
 import type { Request, Response } from 'express'
@@ -43,7 +50,7 @@ const pageSchema = z.object({
 })
 const accountIdSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
-export type SupportChatAudit = (actor: string, action: 'support.reply', target: string, details: Record<string, unknown>) => void
+export type SupportChatAudit = (actor: string, action: 'support.reply' | 'support.resolve', target: string, details: Record<string, unknown>) => void
 export interface SupportChatLimits { perAccount: number; perIp: number; windowMs: number }
 export const SUPPORT_CHAT_RATE_LIMITS: SupportChatLimits = { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000 }
 export const SUPPORT_RATE_MESSAGE = 'Слишком много сообщений. Подождите несколько минут.'
@@ -100,10 +107,10 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     }
   }
 
-  /** The owner's conversation with this account, or 404. */
+  /** The account of the owner's conversation (any live one: the owner may write first), or 404. */
   const thread = (req: Request, res: Response) => {
     const id = accountIdSchema.safeParse(req.params.accountId)
-    if (id.success && store.hasThread(id.data)) return id.data
+    if (id.success && accounts.exists(id.data)) return id.data
     res.status(404).json({ error: 'Переписка не найдена' })
     return undefined
   }
@@ -127,7 +134,7 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     if (!accountId) return
     const query = afterSchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректные данные запроса' }); return }
-    res.json({ messages: store.messages(accountId, query.data.after), unread: store.unreadForUser(accountId) })
+    res.json({ messages: store.messages(accountId, query.data.after), unread: store.unreadForUser(accountId), oldestId: store.oldestId(accountId) })
   })
 
   router.post('/v1/me/support/messages', (req, res) => {
@@ -196,6 +203,22 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     // The owner's other devices drop the count; the player's open chat shows their messages as read.
     signal(() => options.ownerSignals?.changed())
     signal(() => options.social?.changed([accountId]))
+  })
+
+  // «Проблема решена» (owner, 14.10.2026: «добавь кнопку у админ версии, проблема решена. и данный чат удаляется»).
+  router.delete('/v1/accounts/me/admin/support/threads/:accountId', (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    const deleted = store.deleteThread(accountId)
+    res.status(204).end()
+    if (deleted) {
+      // The player's chat empties and the badge goes; the owner's «Чаты» and the «Заявки» count follow on every device.
+      signal(() => options.social?.changed([accountId]))
+      signal(() => options.ownerSignals?.changed())
+    }
+    signal(() => options.audit?.(actor, 'support.resolve', who(accountId).email || accountId, { messages: deleted }))
   })
 
   return router

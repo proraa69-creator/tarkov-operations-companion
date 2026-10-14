@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useOptionalAppState } from '../state/AppState'
 import { useOptionalTarkovData } from '../data/DataProvider'
@@ -16,7 +16,7 @@ import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
 import { openAccountSignIn } from '../account/accountEvents'
 import { SupportChatDialog } from '../support/SupportChat'
-import { useSupportUnread } from '../support/supportChatClient'
+import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
 import '../styles/support.css'
 
 interface Shot { id: number; name: string; type: string; size: number; dataUrl: string }
@@ -311,6 +311,10 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
  * to open Telegram before), «Сообщить об ошибке» and under it «Ваши предложения» (owner, 13.10.2026): in the sidebar's
  * «Система» group (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which has no
  * sidebar). «Связаться» counts the answers not read yet.
+ *
+ * The sidebar also names the chat right under «Сообщить об ошибке» (owner, 14.10.2026: «а в клиенской версии, добавь
+ * кнопку под сообщить об ошибке, чат с поддержкой»): «Чат с поддержкой», the same window and the same count. «Открыть»
+ * on the toast «Новое сообщение от поддержки» opens the window here (the phone: mobile/MobileNav.tsx).
  */
 export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
   const [open, setOpen] = useState<'' | 'chat' | ReportKind>('')
@@ -318,12 +322,20 @@ export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
   const unread = useSupportUnread()
   const className = variant === 'nav' ? 'nav-link support-nav-link' : 'button ghost'
   const icon = variant === 'nav' ? undefined : 15
+  useEffect(() => {
+    if (variant !== 'nav') return
+    // A report being written stays: the chat opens when nothing else is open here.
+    const show = () => setOpen((current) => (current === 'bug' || current === 'idea' ? current : 'chat'))
+    window.addEventListener(SUPPORT_CHAT_OPEN_EVENT, show)
+    return () => window.removeEventListener(SUPPORT_CHAT_OPEN_EVENT, show)
+  }, [variant])
+  const badge = unread > 0 && <span className="nav-badge" aria-label={uiText(`Новых сообщений: ${unread}`)}>{unread > 99 ? '99+' : unread}</span>
   return <>
     <button type="button" className={className} onClick={() => setOpen('chat')} title={uiText('Чат с поддержкой')}>
-      <MessageCircle size={icon} /><span>{uiText('Связаться')}</span>
-      {unread > 0 && <span className="nav-badge" aria-label={uiText(`Новых сообщений: ${unread}`)}>{unread > 99 ? '99+' : unread}</span>}
+      <MessageCircle size={icon} /><span>{uiText('Связаться')}</span>{badge}
     </button>
     <button type="button" className={className} onClick={() => setOpen('bug')}><Bug size={icon} /><span>{uiText('Сообщить об ошибке')}</span></button>
+    {variant === 'nav' && <button type="button" className={className} onClick={() => setOpen('chat')}><MessagesSquare /><span>{uiText('Чат с поддержкой')}</span>{badge}</button>}
     <button type="button" className={className} onClick={() => setOpen('idea')}><Lightbulb size={icon} /><span>{uiText('Ваши предложения')}</span></button>
     {open === 'chat' && <SupportChatDialog onClose={close} />}
     {(open === 'bug' || open === 'idea') && <ReportDialog key={open} kind={open} onClose={close} />}

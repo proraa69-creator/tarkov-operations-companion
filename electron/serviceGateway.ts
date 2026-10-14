@@ -64,11 +64,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.
   { methods: ['GET', 'POST', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/requests-key$/ },
   // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner, and the owner's
-  // «Заявки» → «Чаты» (the server answers 404 to everybody but the owner).
+  // «Заявки» → «Чаты» (the server answers 404 to everybody but the owner). DELETE: «Проблема решена» deletes the
+  // conversation (owner, 14.10.2026).
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?limit=\d{1,3}(?:&offset=\d{1,7})?)?$/ },
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
+  { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-texts\/[a-f0-9]{24}\/remove$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },

@@ -8,6 +8,15 @@
  * SOCIAL_UPDATE_EVENT and the conversation is read again (only the new messages while the window is closed, all of it
  * while it is open, so the «прочитано» marks follow too). As a fallback it is read every minute while the window is open
  * and every five minutes otherwise.
+ *
+ * «Проблема решена» in the owner app (owner, 14.10.2026) deletes the whole conversation: the server moves the social
+ * events too, and a read of only the new messages drops what the app still shows from before the server's oldest one
+ * (`oldestId`, null when nothing is left).
+ *
+ * «Новое сообщение от поддержки» (owner, 14.10.2026: «так же должно появляться уведомление о том что у человека новое
+ * сообщение»): the same reads tell the toast (support/SupportChat.tsx SupportNotice) about an answer the player has not
+ * read, while no chat window is open. Opened or closed, it comes again only for a newer answer: the newest answer the
+ * player was told about is kept per account on this device (`noticed`). No faster poll for it.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
@@ -34,9 +43,57 @@ export interface SupportChatState {
   loaded: boolean
   loading: boolean
   error: string
+  /** The newest answer the player was told about: the toast was opened or closed, or a chat window showed it. */
+  noticed: number
 }
 
-const EMPTY: SupportChatState = { account: '', messages: [], unread: 0, loaded: false, loading: false, error: '' }
+const EMPTY: SupportChatState = { account: '', messages: [], unread: 0, loaded: false, loading: false, error: '', noticed: 0 }
+
+/** «Открыть» on the toast: the chat window opens where the app keeps it (the sidebar on the PC, «Ещё» on the phone). */
+export const SUPPORT_CHAT_OPEN_EVENT = 'raidos-support-chat-open'
+
+export function openSupportChat() {
+  window.dispatchEvent(new Event(SUPPORT_CHAT_OPEN_EVENT))
+}
+
+const NOTICE_PREFIX = 'raidos-support-notice-v1:'
+
+/** The newest answer this account was told about on this device (0: none). */
+function storedNotice(account: string) {
+  try {
+    const id = Number(localStorage.getItem(`${NOTICE_PREFIX}${account}`))
+    return Number.isSafeInteger(id) && id > 0 ? id : 0
+  } catch {
+    return 0
+  }
+}
+
+function storeNotice(account: string, id: number) {
+  try { localStorage.setItem(`${NOTICE_PREFIX}${account}`, String(id)) } catch { /* storage unavailable: the toast may come back after a restart */ }
+}
+
+/**
+ * The answer the toast is about: the newest one the player has not read and was not told about yet; null when there is
+ * none. `unread` is the server's count, so an answer read on another device brings no toast.
+ */
+export function pendingSupportNotice(current: Pick<SupportChatState, 'messages' | 'unread' | 'noticed'>): SupportMessage | null {
+  if (current.unread <= 0) return null
+  const answer = current.messages.filter((message) => message.author === 'owner' && !message.read).at(-1)
+  return answer && answer.id > current.noticed ? answer : null
+}
+
+/** The newest answer of the conversation (0: none yet). */
+const newestAnswer = (messages: SupportMessage[]) => messages.filter((message) => message.author === 'owner').at(-1)?.id ?? 0
+
+/**
+ * What a read of only the new messages keeps of what the app shows: the messages from the server's oldest one on (the
+ * owner may have deleted the conversation with «Проблема решена»); everything from a server that does not say.
+ */
+function keptSince(messages: SupportMessage[], oldestId: unknown) {
+  if (oldestId === null) return []
+  if (typeof oldestId !== 'number' || !Number.isSafeInteger(oldestId)) return messages
+  return messages.filter((message) => message.id >= oldestId)
+}
 
 /** A message of the server's answer, shape-checked; null for anything else. */
 export function cleanSupportMessage(raw: unknown): SupportMessage | null {
@@ -90,7 +147,7 @@ function switchAccount(account: string) {
   if (state.account === account) return
   generation += 1
   inflight = null
-  set({ ...EMPTY, account })
+  set({ ...EMPTY, account, noticed: account ? storedNotice(account) : 0 })
 }
 
 async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
@@ -120,14 +177,14 @@ export function loadSupportChat(full = true): Promise<void> {
   set({ loading: true })
   const promise = (async () => {
     try {
-      const answer = await call('GET', after ? `${SUPPORT_MESSAGES_PATH}?after=${after}` : SUPPORT_MESSAGES_PATH) as { messages?: unknown; unread?: unknown } | null
+      const answer = await call('GET', after ? `${SUPPORT_MESSAGES_PATH}?after=${after}` : SUPPORT_MESSAGES_PATH) as { messages?: unknown; unread?: unknown; oldestId?: unknown } | null
       if (mine !== generation) return
       // null: the gateway has no session (signed out meanwhile); the account status follows on its own.
       if (!answer) { set({ loading: false }); return }
       const incoming = cleanSupportMessages(answer.messages)
       // Marked read meanwhile: the server marked everything this answer counted.
       const unread = reads !== readsBefore || typeof answer.unread !== 'number' || !Number.isFinite(answer.unread) ? 0 : Math.max(0, Math.round(answer.unread))
-      set({ messages: after === undefined ? incoming : merge(state.messages, incoming), unread, loaded: true, loading: false, error: '' })
+      set({ messages: after === undefined ? incoming : merge(keptSince(state.messages, answer.oldestId), incoming), unread, loaded: true, loading: false, error: '' })
     } catch (error) {
       if (mine === generation) set({ loading: false, error: error instanceof Error ? error.message : String(error) })
     } finally {
@@ -150,6 +207,13 @@ export async function sendSupportMessage(raw: string): Promise<SupportMessage> {
   if (!message) throw new Error('Сервер вернул неожиданный ответ')
   if (mine === generation) set({ messages: merge(state.messages, [message]), loaded: true })
   return message
+}
+
+/** The toast was opened or closed, or a chat window showed the answer: a toast comes again only for a newer one. */
+export function dismissSupportNotice(id: number) {
+  if (!state.account || id <= state.noticed) return
+  storeNotice(state.account, id)
+  set({ noticed: id })
 }
 
 /** The player has seen the answers: the badge goes at once, the server tells their other devices. */
@@ -180,11 +244,14 @@ function watch(open: boolean) {
   if (open) openWindows += 1
   if (watchers === 1) window.addEventListener(SOCIAL_UPDATE_EVENT, refresh)
   schedule()
+  // The toast hides while a window is open.
+  if (open) for (const listener of listeners) listener()
   return () => {
     watchers -= 1
     if (open) openWindows -= 1
     if (watchers === 0) window.removeEventListener(SOCIAL_UPDATE_EVENT, refresh)
     schedule()
+    if (open) for (const listener of listeners) listener()
   }
 }
 
@@ -204,10 +271,20 @@ function useSupportChatState(open: boolean) {
   return { current: current.account === account ? current : { ...EMPTY, account }, account, server }
 }
 
-/** The owner's answers the player has not seen: the badge on «Связаться» and «Ещё» (0 while signed out). */
+/** The owner's answers the player has not seen: the badge on «Связаться», «Чат с поддержкой» and «Ещё» (0 while signed out). */
 export function useSupportUnread() {
   const { current, account } = useSupportChatState(false)
   return account ? current.unread : 0
+}
+
+/**
+ * The toast «Новое сообщение от поддержки» (support/SupportChat.tsx): the answer it is about, null while signed out, with
+ * nothing new, or while a chat window is open; `dismiss` when the toast is opened or closed.
+ */
+export function useSupportNotice() {
+  const { current, account } = useSupportChatState(false)
+  const windowOpen = useSyncExternalStore(subscribe, () => openWindows > 0, () => false)
+  return { message: account && !windowOpen ? pendingSupportNotice(current) : null, dismiss: dismissSupportNotice }
 }
 
 /** The chat window: the conversation, sending, and the answers marked seen while the window is open and visible. */
@@ -222,6 +299,9 @@ export function useSupportChat(open: boolean) {
     document.addEventListener('visibilitychange', seen)
     return () => document.removeEventListener('visibilitychange', seen)
   }, [open, unread])
+  // An answer the open window showed brings no toast afterwards.
+  const newest = newestAnswer(current.messages)
+  useEffect(() => { if (open && newest) dismissSupportNotice(newest) }, [open, newest])
   const reload = useCallback(() => loadSupportChat(true), [])
   return {
     ...current,
