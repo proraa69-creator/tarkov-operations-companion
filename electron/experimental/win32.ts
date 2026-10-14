@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module'
 
+import { bindGameWindowApi, createGameSightings, createGameWindowCheck, GAME_CLASS, GAME_TITLE, type GameWindowInfo, type KoffiLibrary } from './gameWindow.js'
+
 const require = createRequire(import.meta.url)
 
 type Koffi = {
@@ -18,6 +20,9 @@ let api: {
   gdi: Gdi | null
   windows: Windows | null
   inputChild: InputChild | null
+  /** Which window is the game's (gameWindow.ts). */
+  gameWindow: ((hwnd: unknown) => GameWindowInfo | null) | null
+  address: (pointer: unknown) => bigint
 } | null | undefined
 
 /** Window handles as numbers (intptr_t): Electron's getNativeWindowHandle() is a buffer holding the handle, and a buffer
@@ -105,6 +110,8 @@ function win32() {
         find: user32.func('intptr_t __stdcall FindWindowExW(intptr_t hWndParent, intptr_t hWndChildAfter, const char16_t* lpszClass, const char16_t* lpszWindow)'),
         visible: user32.func('bool __stdcall IsWindowVisible(intptr_t hWnd)'),
       }) as unknown as InputChild),
+      gameWindow: optional(() => createGameWindowCheck(bindGameWindowApi(user32 as KoffiLibrary, optional(() => koffi.load('kernel32.dll') as KoffiLibrary), (pointer) => koffi.address(pointer)))),
+      address: (pointer: unknown) => koffi.address(pointer),
     }
   } catch (error) {
     api = null
@@ -140,20 +147,40 @@ export function nativeError() {
   return loadError
 }
 
-export function foregroundWindowTitle() {
+/** When each game window was first seen in front (a window not seen before is a game start). */
+const gameSince = createGameSightings()
+
+/**
+ * The window in front when it is the game's (gameWindow.ts: by its process EscapeFromTarkov.exe, else by its exact title
+ * and Unity window class): its identity and when this game window was first seen in front — a window not seen before is
+ * a new game start (the game was started, or started again). Null for any other window, and without the Windows functions.
+ */
+export function foregroundGame(): (GameWindowInfo & { since: number }) | null {
+  const calls = win32()
+  if (!calls?.gameWindow) return null
+  try {
+    const info = calls.gameWindow(calls.foreground())
+    return info?.game ? { ...info, since: gameSince(info.id, Date.now()) } : null
+  } catch {
+    return null
+  }
+}
+
+/** Whether the game's window is in front: hotkeys, the minimap, the quest scanner, item lookups, the Collector key. */
+export function isTarkovForeground() {
+  return foregroundGame() !== null
+}
+
+/** The window in front as a number (its handle); '' when none or unknown. Tells when the window in front changes. */
+export function foregroundWindowKey() {
   const calls = win32()
   if (!calls) return ''
-  const hwnd = calls.foreground()
-  return hwnd ? windowTitle(calls, hwnd) : ''
-}
-
-export function isTarkovTitle(name: string) {
-  if (/companion|operations|chrome|cursor|code/i.test(name)) return false
-  return /escape\s*from\s*tarkov|escapefromtarkov|\beft\b/i.test(name)
-}
-
-export function isTarkovForeground() {
-  return isTarkovTitle(foregroundWindowTitle())
+  try {
+    const hwnd = calls.foreground()
+    return hwnd ? String(calls.address(hwnd)) : ''
+  } catch {
+    return ''
+  }
 }
 
 const GA_ROOT = 2
@@ -175,11 +202,12 @@ export function visibleGameRect(): { x: number; y: number; width: number; height
   const windows = calls?.windows
   if (!calls || !windows) return null
   try {
+    const isGame = (hwnd: unknown) => Boolean(hwnd && calls.gameWindow?.(hwnd)?.game)
     const front = calls.foreground()
-    const inFront = Boolean(front) && isTarkovTitle(windowTitle(calls, front))
-    // The game's window is «EscapeFromTarkov» of the Unity window class.
-    const found = inFront ? front : windows.find(null, 'EscapeFromTarkov') || windows.find('UnityWndClass', null)
-    const hwnd = found && (inFront || isTarkovTitle(windowTitle(calls, found))) ? found : null
+    const inFront = isGame(front)
+    // The game's window is «EscapeFromTarkov» of the Unity window class; whichever is found, its process decides (not Arena).
+    const found = inFront ? front : windows.find(null, GAME_TITLE) || windows.find(GAME_CLASS, null)
+    const hwnd = found && (inFront || isGame(found)) ? found : null
     if (!hwnd || windows.minimized(hwnd) || !windows.visible(hwnd)) return null
     const rect = { left: 0, top: 0, right: 0, bottom: 0 }
     const origin = { x: 0, y: 0 }
@@ -200,12 +228,6 @@ export function visibleGameRect(): { x: number; y: number; width: number; height
   } catch {
     return null
   }
-}
-
-function windowTitle(calls: NonNullable<ReturnType<typeof win32>>, hwnd: unknown) {
-  const buffer = new Uint16Array(512)
-  const length = calls.windowText(hwnd, buffer, buffer.length)
-  return length > 0 ? String.fromCharCode(...buffer.subarray(0, length)) : ''
 }
 
 export function isVirtualKeyDown(key: number) { return Boolean((win32()?.keyState(key) ?? 0) & 0x8000) }

@@ -27,6 +27,12 @@ describe('quest sync tip', () => {
     expect(questSyncTipDue({ ...due, seen: true })).toBe(false)
   })
 
+  it('is not due when the logs of the mode shown hold every quest (owner, 14.10.2026)', () => {
+    const due = { desktop: true, phone: false, pathname: '/', seen: false }
+    expect(questSyncTipDue({ ...due, logsCover: true })).toBe(false)
+    expect(questSyncTipDue({ ...due, logsCover: false })).toBe(true)
+  })
+
   it('shows once on the Overview, in plain words, and stays away after «Принял»', async () => {
     const view = open('/')
     await settle()

@@ -44,6 +44,12 @@ export interface ModeLogScanResult {
   latestMode?: RaidMode
   latestAccountIdByMode: Partial<Record<RaidMode, number>>
   latestCharacterIdByMode: Partial<Record<RaidMode, string>>
+  /**
+   * Per mode, every quest whose acceptance (notification type 10) the logs hold since the last reset. With
+   * `eventsByMode` (each quest's latest status) it tells whether the logs reach back to the profile's start
+   * (src/import/logCoverage.ts). Missing from an older app: then they never do.
+   */
+  acceptedByMode?: Record<RaidMode, string[]>
 }
 
 export function buildScanResult(signals: LogSignal[], sessionCount: number, ignoredRecords = 0): ModeLogScanResult {
@@ -53,7 +59,9 @@ export function buildScanResult(signals: LogSignal[], sessionCount: number, igno
   const latestAccountIdByMode: Partial<Record<RaidMode, number>> = {}
   const latestCharacterIdByMode: Partial<Record<RaidMode, string>> = {}
   const summaryByMode = {} as ModeLogScanResult['summaryByMode']
+  const acceptedByMode = {} as Record<RaidMode, string[]>
   for (const mode of modesList) {
+    acceptedByMode[mode] = [...new Set(summary.modes[mode].history.filter((event) => event.status === 'active').map((event) => event.taskId))]
     const { profileId, accountId, resetAt, lastActivityAt, quests } = summary.modes[mode]
     summaryByMode[mode] = { profileId, accountId, resetAt, lastActivityAt, questCount: quests.length }
     if (accountId) latestAccountIdByMode[mode] = accountId
@@ -72,6 +80,7 @@ export function buildScanResult(signals: LogSignal[], sessionCount: number, igno
     latestMode: summary.latestMode,
     latestAccountIdByMode,
     latestCharacterIdByMode,
+    acceptedByMode,
   }
 }
 

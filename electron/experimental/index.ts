@@ -21,6 +21,9 @@ import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
+import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
+import { holdBackgroundScans } from '../ocrQueue.js'
+import { foregroundWindowKey } from './win32.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
   captureScreenRegion, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
@@ -154,6 +157,8 @@ function sendOverlay(window: BrowserWindow | null, channel: string, payload: unk
 }
 const tracker = new PositionTracker((position) => {
   lastPosition = position
+  // The game writes coordinates only in a raid: the quest scanner holds its screen copies back for a while (raidSignals.ts).
+  noteRaidSignal('screenshot', position.at)
   options.mainWindow()?.webContents.send('experimental:position', position)
   // Raid detection from the logs can lag or miss offline/training raids, so the position is not
   // gated on it: a fresh screenshot from the game is proof enough of where the player stands.
@@ -174,28 +179,46 @@ export function startExperimental(next: Options) {
   screen.on('display-metrics-changed', resyncMinimapClicks)
   screen.on('display-added', resyncMinimapClicks)
   screen.on('display-removed', resyncMinimapClicks)
-  // Loading the OCR model takes a few seconds; do it up front so the first key press is instant.
-  if (readSettings().itemLookup) setTimeout(() => void warmUpOcr().catch(() => {}), 4000)
+  // The item card's OCR engine is no longer loaded at every start: it loads at the first key press (lookupItem).
 }
 
 let gameWasForeground = false
+/** W A S D: the player walks — a raid or the hideout, no screen the quest scanner reads. */
+const MOVE_KEYS = [0x57, 0x41, 0x53, 0x44]
+let movingBefore = false
+/** The window in front at the last look (its handle), and whether the overlays are raised once more at the next look. */
+let lastForeground = ''
+let raiseAgain = false
 /**
  * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
- * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, clicks and
- * loading screens, which would otherwise push a topmost overlay under it.
+ * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, which would
+ * otherwise push a topmost overlay under it. Done when the window in front changes (and once more at the
+ * next look, after the game's own raise), no longer every 800 ms: each raise is two window-position
+ * calls and a style write per overlay, and asking Windows how the game is displayed is not free either.
  */
 function watchGame() {
+  const foreground = foregroundWindowKey()
+  const changed = foreground !== lastForeground
+  lastForeground = foreground
   const front = isTarkovForeground()
   // Alt+Tab back into the game (or out of it): the game may have re-raised itself over the overlay.
   if (front !== gameWasForeground) {
     gameWasForeground = front
     resyncMinimapClicks()
   }
-  if (!front) return
+  if (!front) { movingBefore = false; return }
   lastGameSeenAt = Date.now()
   gameFrontMs += WATCH_MS
   // Held movement keys or mouse buttons prove that Windows lets this app see the game's keys.
   if (!gameKeysSeenAt && PROBE_KEYS.some(isVirtualKeyDown)) gameKeysSeenAt = Date.now()
+  // A movement key held at two looks in a row (typing does not hold a key that long): a raid sign (raidSignals.ts).
+  const moving = MOVE_KEYS.some(isVirtualKeyDown)
+  if (moving && movingBefore) noteRaidSignal('movement')
+  movingBefore = moving
+  if (!changed && !raiseAgain) return
+  raiseAgain = changed
+  // How the game is displayed (the Mini Map page's note on exclusive full screen), asked as it comes to the front and
+  // once more a look later, when a switch of the display mode is through; an item lookup asks for itself.
   displayMode = foregroundDisplayMode()
   for (const window of [itemWindow, minimapWindow]) {
     if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
@@ -576,9 +599,24 @@ function showOverlay(window: BrowserWindow) {
 }
 
 function ensureItemWindow() {
-  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), 5 * 60_000, () => { itemWindow = null; itemCardAnchor = null })
+  if (!itemWindow || itemWindow.isDestroyed()) {
+    const window = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), OVERLAY_RELEASE_MS, () => { itemWindow = null; itemCardAnchor = null })
+    // Hidden while it was still «reading…»: the overlays keep drawing while hidden, and the spinner would turn on for minutes.
+    window.on('hide', () => {
+      const shown = overlayPayloads.get(window)?.get('overlay:item') as { state?: string } | undefined
+      if (shown?.state === 'loading') sendOverlay(window, 'overlay:item', { state: 'idle' })
+    })
+    itemWindow = window
+  }
   return itemWindow
 }
+
+/**
+ * A hidden overlay window still holds a whole page (~60–100 MB) and Chromium keeps drawing it (backgroundThrottling is
+ * off for the instant show): closed after 2 minutes hidden (was 5 for the card, 10 for the minimap), reopened on demand —
+ * the next opening then loads the page again, about a second.
+ */
+const OVERLAY_RELEASE_MS = 2 * 60_000
 
 /** A hidden overlay window still holds a whole page (~60–100 MB): close it after a while hidden, reopen on demand. */
 function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void) {
@@ -602,12 +640,13 @@ function releaseMinimap() {
 
 function ensureMinimapWindow() {
   if (!minimapWindow || minimapWindow.isDestroyed()) {
-    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
+    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), OVERLAY_RELEASE_MS, () => { minimapWindow = null })
     // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again, and
     // show Chromium's input window again once the show is through (inputReattach.ts).
     const shown = () => {
       resyncMinimapClicks()
       inputWatch.reset()
+      setMinimapShown(true)
       setTimeout(() => reattachInput(window), 0)
     }
     window.on('show', shown)
@@ -616,8 +655,10 @@ function ensureMinimapWindow() {
       if (dragTimer) clearInterval(dragTimer)
       dragTimer = null
       noteHold(minimapClicks, false, Date.now())
+      setMinimapShown(false)
       sendOverlay(window, 'overlay:visibility', false)
     })
+    window.on('closed', () => setMinimapShown(false))
     minimapWindow = window
   }
   return minimapWindow
@@ -630,7 +671,14 @@ function whenLoaded(window: BrowserWindow) {
 async function lookupItem(test: boolean) {
   const settings = readSettings()
   if (!settings.itemLookup || lookupBusy) return null
+  // An exclusive full-screen game hides from screen copies (they come out black, and the fallback copied the whole display
+  // again and again), and no card can be drawn over it: no copies at all.
+  if (!test && foregroundDisplayMode() === 'exclusive') return null
   lookupBusy = true
+  // The quest scanner yields while the player waits for the card (electron/ocrQueue.ts).
+  const release = holdBackgroundScans()
+  // The engine loads (the first time, or after 5 idle minutes) while the screen is searched for the tooltip.
+  if (!test) void warmUpOcr().catch(() => {})
   try {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
@@ -651,9 +699,10 @@ async function lookupItem(test: boolean) {
     // Only the game's own name tooltip is read: it holds the name of exactly the hovered item. It appears a moment
     // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
     const started = Date.now()
+    // The area around the cursor only, never the whole display; the slow whole-screen fallback once a lookup at most.
+    const fallback = { left: 1 }
     const reading = await readGameTooltip({
-      grab: () => grabAroundCursor(point, display),
-      grabWide: () => grabAroundCursor(point, display, true),
+      grab: () => grabAroundCursor(point, display, fallback),
       recognize: (bitmap) => recognizeTooltip(bitmap),
       match: async (text) => {
         const reply = await askRenderer('item', { text, tooltip: true })
@@ -675,6 +724,7 @@ async function lookupItem(test: boolean) {
     return answer
   } finally {
     lookupBusy = false
+    release()
   }
 }
 
@@ -859,17 +909,17 @@ function placeItemCard(window: BrowserWindow, point: Point, display: Display, si
 
 /**
  * The screen around the cursor in physical pixels (BGRA) with the cursor position in it: a GDI copy of just
- * that area when possible (milliseconds), otherwise a crop of a full desktopCapturer grab.
+ * that area when possible (milliseconds), otherwise — `fallback.left` times a lookup — a crop of a full desktopCapturer grab.
  */
-async function grabAroundCursor(point: Point, display: Display, wide = false) {
+async function grabAroundCursor(point: Point, display: Display, fallback: { left: number }) {
   const physicalDisplay = process.platform === 'win32' ? screen.dipToScreenRect(null, display.bounds) : display.bounds
   const unit = physicalDisplay.height / 1080
   const cursor = process.platform === 'win32' ? screen.dipToScreenPoint(point) : point
   // Generous around the cursor: over a big item the tooltip may sit at the item's corner (TOOLTIP_CAPTURE).
-  const left = wide ? physicalDisplay.x : Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
-  const top = wide ? physicalDisplay.y : Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
-  const right = wide ? physicalDisplay.x + physicalDisplay.width : Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
-  const bottom = wide ? physicalDisplay.y + physicalDisplay.height : Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
+  const left = Math.max(physicalDisplay.x, Math.round(cursor.x - TOOLTIP_CAPTURE.left * unit))
+  const top = Math.max(physicalDisplay.y, Math.round(cursor.y - TOOLTIP_CAPTURE.up * unit))
+  const right = Math.min(physicalDisplay.x + physicalDisplay.width, Math.round(cursor.x + TOOLTIP_CAPTURE.right * unit))
+  const bottom = Math.min(physicalDisplay.y + physicalDisplay.height, Math.round(cursor.y + TOOLTIP_CAPTURE.down * unit))
   if (right - left < 40 || bottom - top < 20) return null
   const toScreen = (rect: Rectangle) => {
     const physical = { x: rect.x + left, y: rect.y + top, width: rect.width, height: rect.height }
@@ -877,7 +927,9 @@ async function grabAroundCursor(point: Point, display: Display, wide = false) {
   }
   const fast = captureScreenRegion(left, top, right - left, bottom - top)
   if (fast && !isBlank(fast.data)) return { image: fast, cursor: { x: cursor.x - left, y: cursor.y - top }, unit, toScreen }
-  // Fallback: one full-screen grab (slower), cropped to the same area.
+  // Fallback: one full-screen grab (slower), cropped to the same area — not again and again within one lookup.
+  if (fallback.left <= 0) return null
+  fallback.left -= 1
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: physicalDisplay.width, height: physicalDisplay.height } })
   const source = sources.find((entry) => entry.display_id === String(display.id)) ?? sources[0]
   if (!source || source.thumbnail.isEmpty()) return null
@@ -943,6 +995,8 @@ async function peekMinimap() {
 }
 
 async function openMinimap(window: BrowserWindow, fromApp: boolean) {
+  // Opened over the game (its key, or a screenshot the player took): a raid sign for the quest scanner (raidSignals.ts).
+  if (!fromApp) noteRaidSignal('minimap')
   await whenLoaded(window)
   reassertOverlay(window)
   const raid = options.raidState()

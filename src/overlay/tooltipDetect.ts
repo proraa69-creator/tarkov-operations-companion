@@ -148,14 +148,28 @@ function findTooltipPrepared(image: Bitmap, cursor: { x: number; y: number }, un
   return best && best.score <= MAX_DISTANCE * distanceUnit ? best.rect : null
 }
 
-/** Game UI scaling is independent of the monitor's pixel density. */
-export function findTooltipAtScales(image: Bitmap, cursor: { x: number; y: number }, unit = 1) {
+/** The game's interface scales tried around the screen's own: the game's UI scale is set apart from the monitor's. */
+export const TOOLTIP_SCALES = [1, 0.75, 1.25, 0.5, 1.5, 2] as const
+
+/**
+ * The scales one grab tries: at most two (each is a pass over the whole grab on the main process; six made a grab cost up
+ * to 200 ms). The scale the last tooltip was found at goes first (1 until one was found), then one other in turn, so the
+ * first grabs of a lookup still try every scale.
+ */
+export function tooltipScaleSchedule(grab: number, known?: number): number[] {
+  const first = known !== undefined && (TOOLTIP_SCALES as readonly number[]).includes(known) ? known : 1
+  const others = TOOLTIP_SCALES.filter((factor) => factor !== first)
+  return [first, others[Math.max(0, Math.floor(grab)) % others.length]!]
+}
+
+/** Game UI scaling is independent of the monitor's pixel density. `factors`: the UI scales to try, in order. */
+export function findTooltipAtScales(image: Bitmap, cursor: { x: number; y: number }, unit = 1, factors: readonly number[] = TOOLTIP_SCALES) {
   if (!Number.isFinite(unit) || unit <= 0) return null
   const maps = luminanceMap(image)
-  for (const factor of [1, 0.75, 1.25, 0.5, 1.5, 2]) {
+  for (const factor of factors) {
     const scale = unit * factor
     const rect = findTooltipPrepared(image, cursor, scale, unit, maps)
-    if (rect) return { rect, unit: scale }
+    if (rect) return { rect, unit: scale, factor }
   }
   return null
 }
