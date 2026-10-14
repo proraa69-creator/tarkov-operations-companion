@@ -1,6 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, Power, ShieldAlert } from 'lucide-react'
+import { startActivePolling } from '../app/activePolling'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
@@ -57,9 +58,10 @@ export function ExperimentalPage() {
     if (!api) return
     void api.getSettings().then(setSettings).catch((error: unknown) => setActionError(error instanceof Error ? error.message : 'Не удалось загрузить настройки.'))
     const refresh = () => void api.getStatus().then(setStatus).catch((error: unknown) => setActionError(error instanceof Error ? error.message : 'Не удалось проверить функции мини-карты.'))
-    refresh()
-    const timer = window.setInterval(refresh, 2000)
-    return () => window.clearInterval(timer)
+    // Every 2 s while the window is in use (a changed setting shows at once), at once when the player comes back to it,
+    // and never while the app sits behind the game: each answer may cost the main process a registry read and a search
+    // of the game's folders (src/app/activePolling.ts).
+    return startActivePolling(refresh, { activeEveryMs: 2000 })
   }, [api])
 
   const update = (patch: Partial<ExperimentalSettings>) => {
