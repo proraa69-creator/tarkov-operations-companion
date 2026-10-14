@@ -1,7 +1,7 @@
 import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types'
 import { latinize } from './modeSelectScreen'
 import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey } from './questOcr'
-import { isTasksMenuText } from './screenScanSync'
+import { isTasksMenuText, tableRowCount } from './screenScanSync'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
 import { storyPaneText, type StoryPaneReading } from './storyPaneLayout'
@@ -85,6 +85,19 @@ export function isStoryMenuText(text: string) {
   if (!isTasksMenuText(text)) return false
   return /сюжетн|истори|тори[яи]|главн(?:ые|ая)\s*задач|(?<![а-яё])[а-яё]{0,4}ные\s*задачи|иональн[а-яё]*\s*задачи/i.test(text)
     || /main\s+objectives|optional\s+objectives|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i.test(text)
+}
+
+/**
+ * Which Tasks screen a frame shows, told by its structure (audit P1). Rows with a status cell make the table: two or
+ * more of them win over the «СЮЖЕТНЫЕ» / «STORY» tab, which is on every Tasks screen and which OCR reads when the tab is
+ * dimmed too — the rows were thrown away as a story frame before. The story pane is told by its own marks: the parts the
+ * main process read (`story`), the chapter header, the objective blocks; it shows one status at most («АКТИВНО»).
+ */
+export function tasksScreenKind(text: string, story?: StoryPaneReading | null): 'story' | 'table' | null {
+  if (story) return 'story'
+  if (!isTasksMenuText(text)) return null
+  if (tableRowCount(text) >= 2) return 'table'
+  return isStoryMenuText(text) ? 'story' : 'table'
 }
 
 /** Story chapters named on a story-menu frame; trader quests are left to the game logs. */

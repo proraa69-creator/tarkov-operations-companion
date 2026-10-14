@@ -76,6 +76,24 @@ export function shouldApplyQuestScan(text: string, matchCount: number) {
   return isTasksMenuText(text)
 }
 
+/** The table's status cell, Russian and English (questOcr.ts rowStatus); not the trader tab's «ЗАВЕРШИТЬ» / «COMPLETE» button. */
+const STATUS_CELL = /активно|выполнено|доступно|провалено|заблокировано|\bactive[!l1|]?(?![a-z])|\bcompleted?!|\bavailable\b|\bfailed\b|\blocked\b/i
+const STATUS_CELLS = new RegExp(STATUS_CELL.source, 'gi')
+
+/**
+ * Rows of the Tasks table on a frame: lines with a status cell beside a title. A lone status word is no row — the story
+ * chapter's «АКТИВНО» / «ACTIVE» label, a button. The story pane shows one status at most, the table one per row.
+ */
+export function tableRowCount(text: string) {
+  let rows = 0
+  for (const line of text.split(/\r?\n/)) {
+    const lower = line.toLowerCase()
+    if (!STATUS_CELL.test(lower)) continue
+    if (lower.replace(STATUS_CELLS, ' ').replace(/[^a-zа-яё]+/g, '').length >= 3) rows += 1
+  }
+  return rows
+}
+
 export interface ScreenScanOptions {
   previousSeenIds?: string[]
   /** Live watch: a quest not tracked yet must be seen in two consecutive frames before it is added. */

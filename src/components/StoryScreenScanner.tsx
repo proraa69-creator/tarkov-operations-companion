@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { confirmStoryFrame, isStoryMenuText, matchStoryChapters, type StoryConfirmation } from '../import/storyScan'
-import { isTasksMenuText } from '../import/screenScanSync'
+import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
@@ -105,8 +104,10 @@ export function StoryScreenScanner() {
         // quests, so the Tasks table is passed over — not read, not applied — and looked at only at the slow pace. Story
         // chapters (the game never logs them), «Выбор профиля и режима» and the traders' screen are read as before; once
         // the logs show a gap (a quest handed in without its acceptance), the table is read again.
-        const storyScreen = Boolean(frame?.gameWindow && (frame.story || isStoryMenuText(frame.text)))
-        const tasksTable = Boolean(frame?.gameWindow && !storyScreen && isTasksMenuText(frame.text))
+        // Told by structure (audit P1): rows with status cells are the table even when the dimmed «СЮЖЕТНЫЕ» tab is read.
+        const screenKind = frame?.gameWindow ? tasksScreenKind(frame.text, frame.story) : null
+        const storyScreen = screenKind === 'story'
+        const tasksTable = screenKind === 'table'
         const tasksFromLogs = tasksTable && logsCoverRef.current[mode]
         let delay: number = IDLE_MS
         if (frame?.gameWindow) {

@@ -5,10 +5,15 @@ import { ENGLISH_TABLE_QUESTS, ENGLISH_TASKS_SIDE } from '../import/__fixtures__
 import { buildScanResult } from '../import/eftLogTimeline'
 import { updateLogStatus } from '../import/logStatus'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { RU_TABLE_QUESTS, RU_TASKS_TABLE } from '../import/__fixtures__/russianTasksTable'
 
-const quests = ENGLISH_TABLE_QUESTS.map(([id, name, normalizedName]) => ({
-  id, name, normalizedName, trader: 'Prapor', level: 1, kappa: false, description: '', objectives: [], rewards: [],
-} as Quest))
+// The Russian rows first: «Первый в очереди» is in both lists, and the first title of a kind is the one matched.
+const quests = [
+  ...RU_TABLE_QUESTS.map(([id, name]) => ({ id, name, trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [] } as Quest)),
+  ...ENGLISH_TABLE_QUESTS.map(([id, name, normalizedName]) => ({
+    id, name, normalizedName, trader: 'Prapor', level: 1, kappa: false, description: '', objectives: [], rewards: [],
+  } as Quest)),
+]
 const state = vi.hoisted(() => ({
   raidMode: 'pve' as const,
   activeProfile: { id: 'profile-1' },
@@ -88,6 +93,16 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     } finally {
       state.raidMode = 'pve'
     }
+  })
+
+  it('reads the Russian table even when the dimmed «СЮЖЕТНЫЕ» tab is read (audit P1)', async () => {
+    desktop({ text: RU_TASKS_TABLE, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1 })
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+    const matches = state.applyQuestScanForMode.mock.calls[0]![1] as Array<{ questId: string }>
+    expect(matches.map((match) => match.questId).sort()).toEqual(RU_TABLE_QUESTS.map(([id]) => id).sort())
+    expect(state.applyStoryScanForMode).not.toHaveBeenCalled()
   })
 
   it('yields to an item lookup or a Kappa scan and asks again shortly, keeping its place', async () => {
