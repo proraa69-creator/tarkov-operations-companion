@@ -581,5 +581,11 @@ export interface AppDataset {
      * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).
      */
     contentVersion?: string
+    /**
+     * The server's quest base this catalog comes from (server/src/services/questBase.ts): a content hash of the mode's
+     * Russian and English snapshots, so the same in both languages. Quest ids and titles are the same for every
+     * reader of one version. Absent from catalogs built on this device.
+     */
+    questBaseVersion?: string
   }
 }

@@ -19,6 +19,12 @@ describe('overlayEnglish', () => {
     expect(result).toMatchObject({ name: 'Gratitude', nameRu: 'Благодарность', nameEn: 'Gratitude' })
   })
 
+  it('takes the quest base\'s titles first: a story chapter keeps its Russian name in the English catalog', () => {
+    const chapter = { id: 'story-falling-skies', name: 'Небеса в огне', kind: 'story' as const, nameRu: 'Небеса в огне', nameEn: 'Falling Skies', ocrAliases: ['Падающие небеса'] }
+    const [result] = overlayEnglish(dataset([quest(chapter)]), dataset([quest(chapter)])).quests
+    expect(result).toMatchObject({ nameRu: 'Небеса в огне', nameEn: 'Falling Skies', ocrAliases: ['Падающие небеса'] })
+  })
+
   it('keeps counts and ids from the Russian catalog', () => {
     const ru = dataset([quest({ id: 'a' }), quest({ id: 'b' })])
     expect(overlayEnglish(ru, dataset([quest({ id: 'a', name: 'A' })])).quests.map((entry) => entry.id)).toEqual(['a', 'b'])

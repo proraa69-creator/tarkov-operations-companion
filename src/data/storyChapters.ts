@@ -244,6 +244,22 @@ export function addMissingStoryChapters(quests: Quest[], locale: 'ru' | 'en' = '
   })]
 }
 
+/** A story chapter's titles: the game's Russian and English names and the other names it is known by. */
+export interface StoryChapterTitles { id: string; ru: string; en: string; aliases: string[] }
+
+const TOUR_TITLES = { id: 'tour', ru: 'Тур', en: 'Tour', aliases: ['Tour'] }
+
+/**
+ * The titles of the curated chapter a story quest is (matched as applyCuratedStoryStages does: by id, slug, name or
+ * alias), in both languages whatever the catalog's language — the server's quest base sets `nameRu` / `nameEn` /
+ * `ocrAliases` from them (server/src/services/questBase.ts). Undefined for a chapter the curated data does not have.
+ */
+export function storyChapterTitles(quest: Pick<Quest, 'id' | 'name' | 'normalizedName'>): StoryChapterTitles | undefined {
+  const curated = curatedFor(quest)
+  const chapter = curated && [TOUR_TITLES, ...STORY_CHAPTER_SEEDS].find((row) => CURATED[`story-${row.id}`] === curated)
+  return chapter ? { id: `story-${chapter.id}`, ru: chapter.ru, en: chapter.en, aliases: [...chapter.aliases] } : undefined
+}
+
 /** RU → EN pairs of every curated story text (chapter names, stage titles, sub-steps, branches, needs). */
 export function storyPhrases(): Array<[string, string]> {
   const pairs: Array<[string, string]> = Object.values(STORY_TEXT).map((text): [string, string] => [text.ru, text.en])
