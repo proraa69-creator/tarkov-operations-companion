@@ -27,6 +27,8 @@ export type HandEvent =
   | { type: 'scroll-start'; id: number; x: number; y: number }
   /** dy in window heights; `step` marks a discrete two-finger flick (animated by the UI) */
   | { type: 'scroll'; id: number; dy: number; step?: boolean }
+  /** momentum after a fast swipe, window heights per second (positive = further down); 0 stops it */
+  | { type: 'fling'; id: number; v: number }
   | { type: 'scroll-end'; id: number }
   /** pinch zoom step at the aim point: +1 = thumb moved away from the index (zoom in), -1 = pinched (zoom out) */
   | { type: 'zoom'; id: number; x: number; y: number; steps: number }
@@ -68,6 +70,11 @@ export interface HandControlSettings {
   /** drawn hand: 3D model, flat outline or just a cursor */
   cursor: 'hand3d' | 'ghost' | 'finger'
   calibration: CalibrationBox
+  /**
+   * 5-point calibration: projective map (row-major 3×3) from the mirrored camera image to window
+   * space. Corrects the camera's angle (webcam above the monitor); null = plain box mapping.
+   */
+  homography: number[] | null
   /** how a press is made: folding the index finger (tap), pushing the hand forward (poke), or either */
   clickMode: 'tap' | 'poke' | 'both'
   /** degrees the index finger must fold for a tap; smaller = more sensitive */
@@ -99,6 +106,7 @@ export const DEFAULT_SETTINGS: HandControlSettings = {
   mirror: true,
   cursor: 'hand3d',
   calibration: { x0: 0.2, y0: 0.15, x1: 0.8, y1: 0.75 },
+  homography: null,
   clickMode: 'tap',
   tapAngle: 35,
   pressThreshold: 0.07,

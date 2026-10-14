@@ -152,9 +152,9 @@ describe('HandGestureEngine — tap (index fold)', () => {
 })
 
 describe('HandGestureEngine — two-finger scrolling', () => {
-  function enterScroll(engine: HandGestureEngine) {
-    const rest = run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
-    const pose = run(engine, rest.end, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+  function enterScroll(engine: HandGestureEngine, y = 0.6) {
+    const rest = run(engine, 0, 600, () => ({ x: 0.5, y, k: 1000, fingers: pointing }))
+    const pose = run(engine, rest.end, 300, () => ({ x: 0.5, y, k: 1000, fingers: raisedTwo }))
     return { rest, pose }
   }
 
@@ -210,6 +210,64 @@ describe('HandGestureEngine — two-finger scrolling', () => {
     const back = run(engine, pose.end, 400, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
     expect(types(back.events)).toEqual(['scroll-end'])
     expect(back.frames.at(-1)!.phase).toBe('point')
+  })
+
+  it('quick flicks in a row scroll further and further (up to 3× a step)', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const { pose } = enterScroll(engine)
+    let t = pose.end
+    const events: HandEvent[] = []
+    for (let i = 0; i < 5; i++) {
+      const fold = run(engine, t, 120, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(15, 105, p), middle: lerp(15, 105, p) } }))
+      const back = run(engine, fold.end, 120, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(105, 15, p), middle: lerp(105, 15, p) } }))
+      const up = run(engine, back.end, 200, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+      events.push(...fold.events, ...back.events, ...up.events)
+      t = up.end
+    }
+    const steps = (events.filter((event) => event.type === 'scroll') as Array<Extract<HandEvent, { type: 'scroll' }>>).map((event) => event.dy)
+    expect(steps.map((dy) => Number(dy.toFixed(3)))).toEqual([0.35, 0.525, 0.787, 1.05, 1.05])
+    // A pause resets the chain.
+    run(engine, t, 900, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+    const again = run(engine, t + 900, 120, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(15, 105, p), middle: lerp(15, 105, p) } }))
+    expect(again.events.filter((event) => event.type === 'scroll').map((event) => (event as { dy: number }).dy)).toEqual([0.35])
+  })
+
+  it('a fast swipe of the raised hand flings the content; the stroke back does not undo it', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const { pose } = enterScroll(engine)
+    const swipe = run(engine, pose.end, 150, (_t, p) => ({ x: 0.5, y: lerp(0.6, 0.35, p), k: 1000, fingers: raisedTwo }))
+    const hold = run(engine, swipe.end, 100, () => ({ x: 0.5, y: 0.35, k: 1000, fingers: raisedTwo }))
+    const flings = [...swipe.events, ...hold.events].filter((event) => event.type === 'fling') as Array<Extract<HandEvent, { type: 'fling' }>>
+    expect(flings).toHaveLength(1)
+    // Hand up with natural scrolling → content further down, like the drag; several screens/s.
+    expect(flings[0].v).toBeGreaterThan(3)
+    const back = run(engine, hold.end, 250, (_t, p) => ({ x: 0.5, y: lerp(0.35, 0.6, p), k: 1000, fingers: raisedTwo }))
+    const rest = run(engine, back.end, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+    const after = [...back.events, ...rest.events]
+    expect(types(after)).not.toContain('fling')
+    const dragBack = (after.filter((event) => event.type === 'scroll') as Array<Extract<HandEvent, { type: 'scroll' }>>).reduce((sum, event) => sum + event.dy, 0)
+    expect(Math.abs(dragBack)).toBeLessThan(0.15)
+  })
+
+  it('swiping down flings the other way; a slow move only drags', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const { pose } = enterScroll(engine, 0.35)
+    const swipe = run(engine, pose.end, 150, (_t, p) => ({ x: 0.5, y: lerp(0.35, 0.6, p), k: 1000, fingers: raisedTwo }))
+    const fling = swipe.events.find((event) => event.type === 'fling') as Extract<HandEvent, { type: 'fling' }>
+    expect(fling.v).toBeLessThan(-3)
+    const slow = new HandGestureEngine(DEFAULT_SETTINGS)
+    const entered = enterScroll(slow)
+    const move = run(slow, entered.pose.end, 900, (_t, p) => ({ x: 0.5, y: lerp(0.6, 0.35, p), k: 1000, fingers: raisedTwo }))
+    expect(types(move.events)).not.toContain('fling')
+  })
+
+  it('a fist stops content still coasting after a swipe', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const { pose } = enterScroll(engine)
+    const swipe = run(engine, pose.end, 150, (_t, p) => ({ x: 0.5, y: lerp(0.6, 0.35, p), k: 1000, fingers: raisedTwo }))
+    expect(types(swipe.events)).toContain('fling')
+    const fist = run(engine, swipe.end, 1000, () => ({ x: 0.5, y: 0.35, k: 1000 }))
+    expect(fist.events.filter((event) => event.type === 'fling')).toEqual([expect.objectContaining({ v: 0 })])
   })
 
   it('does not treat an open palm as the scroll pose', () => {

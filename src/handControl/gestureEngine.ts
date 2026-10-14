@@ -30,6 +30,27 @@ export const ENGINE = {
   /** hand travel (calibrated units) before a two-finger drag engages, and quiet time after a flick */
   dragEngage: 0.05,
   dragSettleMs: 300,
+  /**
+   * Fast scrolling. Flicks made in quick succession grow: each one within `flickChainMs` of the
+   * previous scrolls `flickChainGrowth`× more, up to `flickChainMax`× the normal step.
+   */
+  flickChainMs: 650,
+  flickChainGrowth: 1.5,
+  flickChainMax: 3,
+  /**
+   * Swipe: the raised two-finger hand moved at least `flingMinTravel` (window heights) within
+   * `flingWindowMs` with the fingers kept still → the content keeps scrolling with momentum
+   * (hand speed × scroll speed × `flingGain`, window heights/s). The stroke back the other way
+   * right after a swipe (`flingReturnMs`) is ignored, and the slow drag pauses for `flingSettleMs`.
+   */
+  flingWindowMs: 150,
+  flingMinTravel: 0.18,
+  flingFoldSteady: 20,
+  flingGain: 1.5,
+  flingSettleMs: 350,
+  flingReturnMs: 600,
+  /** how long a fling can still be running after its swipe (a fist stops it) */
+  flingLifeMs: 3000,
   /** the aim freezes once a press gesture is this far along, and unfreezes if no press follows */
   freezeAt: 0.35,
   rearmBelow: 0.2,
@@ -166,7 +187,11 @@ export class HandGestureEngine {
   private zoomCooldownUntil = 0
   private scrollPoseSince = Number.NaN
   private exitPoseSince = Number.NaN
-  private scroll: { id: number; x: number; y: number; lastHandY: number; flicking: boolean; anchorY: number; dragging: boolean; quietUntil: number; activeAt: number } | null = null
+  private scroll: {
+    id: number; x: number; y: number; lastHandY: number; flicking: boolean; anchorY: number; dragging: boolean; quietUntil: number; activeAt: number
+    lastFlickAt: number; chain: number; lastFlingAt: number; lastFlingSign: number
+  } | null = null
+  private flungAt = Number.NEGATIVE_INFINITY
   private grab: { id: number; at: number; x0: number; y0: number; palmX0: number; palmY0: number; x: number; y: number; openLostSince: number; engaged: boolean } | null = null
   private last: HandFrame = emptyFrame(0, 0)
 
@@ -212,12 +237,12 @@ export class HandGestureEngine {
     // Live pointer: the calibrated palm centre. Fingers folding, flicking or pinching barely move
     // it (measured: ~3× less than the fingertip during a tap). `palm` is the same point unclamped,
     // used for drags, grabs and the "is the hand still" checks.
-    const center = toWindowSpace(palmCenter(observation.image), settings.calibration, settings.mirror)
+    const center = toWindowSpace(palmCenter(observation.image), settings.calibration, settings.mirror, settings.homography)
     const palm = { x: this.palmFilter.x.filter(center.x, seconds), y: this.palmFilter.y.filter(center.y, seconds) }
     const flexIndex = fingerFlex(world, 'index')
     // The aim point is the index fingertip, rigidly attached to the palm: the offset is learned
     // while the finger is extended and held while it folds (taps, fists) — so it never jumps.
-    const tip = toWindowSpace(observation.image[LM.INDEX_TIP], settings.calibration, settings.mirror)
+    const tip = toWindowSpace(observation.image[LM.INDEX_TIP], settings.calibration, settings.mirror, settings.homography)
     const rawOffset = { x: tip.x - center.x, y: tip.y - center.y }
     if (!this.tipOffset) this.tipOffset = rawOffset
     else if (this.pose.index && flexIndex < ENGINE.tipOffsetMaxFlex && !this.press && Number.isNaN(this.frozenAt)) {
@@ -284,7 +309,10 @@ export class HandGestureEngine {
         events.push({ type: 'grab-start', id, x: start.x, y: start.y })
       } else if (!this.fistLock && scrollPose && t - this.scrollPoseSince >= ENGINE.scrollPoseMs) {
         const id = this.nextId++
-        this.scroll = { id, x: at.x, y: at.y, lastHandY: palm.y, flicking: false, anchorY: palm.y, dragging: false, quietUntil: 0, activeAt: t }
+        this.scroll = {
+          id, x: at.x, y: at.y, lastHandY: palm.y, flicking: false, anchorY: palm.y, dragging: false, quietUntil: 0, activeAt: t,
+          lastFlickAt: Number.NEGATIVE_INFINITY, chain: 0, lastFlingAt: Number.NEGATIVE_INFINITY, lastFlingSign: 0,
+        }
         this.exitPoseSince = Number.NaN
         this.phase = 'scroll'
         events.push({ type: 'scroll-start', id, x: at.x, y: at.y })
@@ -443,7 +471,10 @@ export class HandGestureEngine {
     if (!scroll.flicking && flickByFingers && fold >= Math.max(ENGINE.flickMinFold, settings.tapAngle * 0.9) && flexTwo >= ENGINE.flickMinFlex) {
       scroll.flicking = true
       scroll.activeAt = t
-      const dy = settings.flickStep * (settings.flickDirection === 'down' ? 1 : -1)
+      scroll.chain = t - scroll.lastFlickAt <= ENGINE.flickChainMs ? scroll.chain + 1 : 0
+      scroll.lastFlickAt = t
+      const boost = Math.min(ENGINE.flickChainMax, ENGINE.flickChainGrowth ** scroll.chain)
+      const dy = settings.flickStep * boost * (settings.flickDirection === 'down' ? 1 : -1)
       events.push({ type: 'scroll', id: scroll.id, dy, step: true })
     } else if (scroll.flicking && fold <= ENGINE.flickResetFold) {
       scroll.flicking = false
@@ -464,6 +495,7 @@ export class HandGestureEngine {
       const dy = (settings.naturalScroll ? -delta : delta) * settings.scrollSpeed
       if (Math.abs(dy) > 0.0015) events.push({ type: 'scroll', id: scroll.id, dy })
     }
+    if (scrollPose && !scroll.flicking && t >= scroll.quietUntil) this.detectFling(events, t, scroll, handY)
 
     // Leave scrolling on another clear pose (pointing, open palm) or when the two-finger pose
     // has been gone for a while. Folded fingers mid-flick keep the mode.
@@ -475,6 +507,31 @@ export class HandGestureEngine {
     if (idle || (!Number.isNaN(this.exitPoseSince) && t - this.exitPoseSince >= ENGINE.scrollExitMs)) this.endScroll(events, t)
   }
 
+  /** A fast swipe of the raised two-finger hand: momentum scrolling in the swipe's direction. */
+  private detectFling(events: HandEvent[], t: number, scroll: NonNullable<HandGestureEngine['scroll']>, handY: number) {
+    const recent = this.history.filter((sample) => sample.t >= t - ENGINE.flingWindowMs)
+    if (recent.length < 3) return
+    const travel = handY - recent[0].palmY
+    const elapsed = t - recent[0].t
+    const folds = recent.map((sample) => sample.flexTwo)
+    if (!elapsed || Math.abs(travel) < ENGINE.flingMinTravel || Math.max(...folds) - Math.min(...folds) > ENGINE.flingFoldSteady) return
+    const sign = Math.sign(travel)
+    const returnStroke = t - scroll.lastFlingAt <= ENGINE.flingReturnMs && sign !== scroll.lastFlingSign
+    if (!returnStroke) {
+      const handSpeed = travel / (elapsed / 1000)
+      const v = (this.settings.naturalScroll ? -handSpeed : handSpeed) * this.settings.scrollSpeed * ENGINE.flingGain
+      events.push({ type: 'fling', id: scroll.id, v })
+      scroll.lastFlingSign = sign
+      this.flungAt = t
+    }
+    // Either way the slow drag waits: it must neither double the swipe nor pull it back.
+    scroll.lastFlingAt = t
+    scroll.activeAt = t
+    scroll.quietUntil = t + ENGINE.flingSettleMs
+    scroll.dragging = false
+    scroll.anchorY = handY
+  }
+
   /** The fist was made by closing an open hand (other fingers were extended just before). */
   private fistFormedFromOpenHand() {
     return this.middleExtendedAt >= this.fistSince - ENGINE.fistFormedMs
@@ -483,6 +540,11 @@ export class HandGestureEngine {
   /** Fist: drop whatever is in progress and block new actions until the hand opens. */
   private resetByFist(events: HandEvent[], t: number) {
     if (this.press) events.push({ type: 'cancel', id: this.press.id })
+    // A fist also stops content still coasting after a swipe.
+    if (t - this.flungAt <= ENGINE.flingLifeMs) {
+      events.push({ type: 'fling', id: this.scroll?.id ?? 0, v: 0 })
+      this.flungAt = Number.NEGATIVE_INFINITY
+    }
     if (this.scroll) events.push({ type: 'scroll-end', id: this.scroll.id })
     if (this.grab) events.push({ type: 'grab-end', id: this.grab.id })
     this.press = null
@@ -621,7 +683,7 @@ export class HandGestureEngine {
   private skeleton(observation: HandObservation, seconds: number): Point3[] {
     if (this.skeletonFilters.length !== 21) this.skeletonFilters = Array.from({ length: 21 }, () => vectorFilter(this.settings.smoothing * 1.5, ENGINE.pointerBeta))
     return observation.image.map((point, index) => {
-      const mapped = toWindowSpace(point, this.settings.calibration, this.settings.mirror)
+      const mapped = toWindowSpace(point, this.settings.calibration, this.settings.mirror, this.settings.homography)
       const filter = this.skeletonFilters[index]
       // z comes in image-width units: scale it like x so the 3D hand keeps its proportions.
       const zScale = 1 / Math.max(0.05, this.settings.calibration.x1 - this.settings.calibration.x0)

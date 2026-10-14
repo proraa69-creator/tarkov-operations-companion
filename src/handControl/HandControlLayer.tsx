@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Hand, Square } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { CALIBRATION_TARGETS } from './calibration'
 import { handControl } from './handControlStore'
 import { useHandControl } from './edition'
 import { GHOST_PALM_PX, ghostPose, handSpan } from './ghostPose'
@@ -12,12 +13,19 @@ const SPAN_SMOOTH_MS = 1500
 const BRASS = [223, 189, 112] as const
 const TRACKING_LABEL = { none: 'руки нет', weak: 'слабый трекинг', good: 'трекинг хороший' } as const
 const CALIBRATION_HINTS = {
-  hold: (step: string) => step === 'top-left'
-    ? 'Поставьте руку туда — где вам удобно держать её для левого верхнего угла экрана — и задержите ладонь.'
-    : 'Поставьте руку в удобную точку для правого нижнего угла и задержите ладонь.',
-  move: () => 'Отлично. Теперь переведите руку вниз и вправо — в удобную точку для правого нижнего угла.',
-  lost: () => 'Камера не видит руку. Поднесите ладонь в кадр.',
+  hold: 'Направьте указательный палец на светящуюся точку — туда где она на самом деле на экране — и задержите руку. На нарисованную руку не смотрите.',
+  move: 'Отлично. Теперь направьте палец на следующую точку.',
+  lost: 'Камера не видит руку. Поднесите ладонь в кадр.',
+  point: 'Вытяните указательный палец — он и есть указатель.',
+  retry: 'Точки не сошлись — пройдём ещё раз. Целитесь пальцем точно в каждую точку.',
 } as const
+const CALIBRATION_TITLES = [
+  'Калибровка 1/5: левый верхний угол',
+  'Калибровка 2/5: правый верхний угол',
+  'Калибровка 3/5: правый нижний угол',
+  'Калибровка 4/5: левый нижний угол',
+  'Калибровка 5/5: центр экрана',
+] as const
 
 /**
  * Ghost hand / finger cursor drawn over Raid OS. The canvas never takes pointer events;
@@ -78,7 +86,8 @@ export function HandControlLayer() {
         if (hand3d) hand3d.render(ghostPose(shown, width, height, span0).points, GHOST_PALM_PX, alpha, width, height)
         else drawGhost(context, shown, width, height, alpha, span0)
       }
-      drawCursor(context, shown, width, height, alpha, Boolean(lostAt))
+      // With a drawn hand the fingertip is the pointer; the ring is only for the "cursor" view.
+      if (cursorStyle === 'finger' || !shown.skeleton) drawCursor(context, shown, width, height, alpha, Boolean(lostAt))
       if (lostAt) raf = requestAnimationFrame(draw)
     }
 
@@ -110,14 +119,17 @@ export function HandControlLayer() {
 
   return (
     <>
-      {cursorStyle === 'hand3d' ? <canvas key="hand3d" ref={canvas3dRef} className="hand-layer hand-layer--3d" aria-hidden="true" /> : null}
-      <canvas ref={canvasRef} className="hand-layer" aria-hidden="true" />
-      {step ? (
-        <div className={`hand-calibration hand-calibration--${step}`} role="status">
-          <div className="hand-calibration-target" />
-          <div className="hand-calibration-card">
-            <strong>{uiText(step === 'top-left' ? 'Калибровка 1/2: левый верхний угол' : 'Калибровка 2/2: правый нижний угол')}</strong>
-            <span>{uiText(CALIBRATION_HINTS[snapshot.calibration.hint](step))}</span>
+      {/* While calibrating the drawn hand is hidden: it still uses the old map, and chasing it
+          instead of pointing at the real target would just reproduce the old calibration. */}
+      {cursorStyle === 'hand3d' ? <canvas key="hand3d" ref={canvas3dRef} className={`hand-layer hand-layer--3d${step !== null ? ' hand-layer--hidden' : ''}`} aria-hidden="true" /> : null}
+      <canvas ref={canvasRef} className={`hand-layer${step !== null ? ' hand-layer--hidden' : ''}`} aria-hidden="true" />
+      {step !== null ? (
+        <div className="hand-calibration" role="status">
+          <div className="hand-calibration-target" style={{ left: `${CALIBRATION_TARGETS[step].x * 100}vw`, top: `${CALIBRATION_TARGETS[step].y * 100}vh` }} />
+          {/* The card sits in the middle, or near the top while the centre dot is the target. */}
+          <div className={`hand-calibration-card${CALIBRATION_TARGETS[step].x === 0.5 ? ' hand-calibration-card--top' : ''}`}>
+            <strong>{uiText(CALIBRATION_TITLES[step])}</strong>
+            <span>{uiText(CALIBRATION_HINTS[snapshot.calibration.hint])}</span>
             <div className="hand-calibration-bar"><i style={{ width: `${Math.round(snapshot.calibration.progress * 100)}%` }} /></div>
             <button className="button ghost" onClick={() => handControl.cancelCalibration()}>{uiText('Отмена')}</button>
           </div>

@@ -67,6 +67,17 @@ function scrollableAncestor(element: Element | null): Element | null {
   return document.scrollingElement
 }
 
+/** Flick steps glide over ~this time constant; several quick flicks add up instead of cutting each other short. */
+const STEP_EASE_MS = 110
+/** Momentum after a swipe decays with this time constant (≈ distance = speed × τ). */
+const FLING_TAU_MS = 450
+const FLING_MAX = 20
+const FLING_STOP_PX_S = 30
+
+const nextFrame = (callback: (now: number) => void) => typeof requestAnimationFrame === 'function'
+  ? requestAnimationFrame(callback)
+  : setTimeout(() => callback(performance.now()), 16) as unknown as number
+
 function fire(target: Element, type: string, x: number, y: number, pressed: boolean) {
   const init = { bubbles: true, cancelable: true, composed: true, clientX: x, clientY: y, button: 0, buttons: pressed ? 1 : 0, detail: 1 }
   const event = type.startsWith('pointer') && typeof PointerEvent === 'function'
@@ -87,6 +98,8 @@ export class HandUiDispatcher {
   private pressed: Element | null = null
   private scrollTarget: Element | null = null
   private scrollRemainder = 0
+  /** Own scroll animation: pending flick distance (px) and swipe momentum (px/s). */
+  private kinetic = { target: null as Element | null, pending: 0, velocity: 0, remainder: 0, last: Number.NaN, scheduled: false }
 
   constructor(private readonly beforeActivate: () => void = () => {}) {}
 
@@ -132,6 +145,7 @@ export class HandUiDispatcher {
 
   /** Visual press only: nothing is dispatched until the press is confirmed, so a cancel has no side effects. */
   press(x: number, y: number) {
+    this.stopKinetic()
     this.clearPressed()
     const target = this.resolve(x, y)
     if (!target) return null
@@ -179,13 +193,75 @@ export class HandUiDispatcher {
     const target = this.scrollTarget
     if (!target) return
     if (step) {
-      target.scrollBy({ top: Math.round(dy * Math.min(window.innerHeight, target.clientHeight || window.innerHeight)), behavior: 'smooth' })
+      this.startKinetic(target)
+      this.kinetic.pending += dy * Math.min(window.innerHeight, target.clientHeight || window.innerHeight)
       return
     }
+    // Dragging against the coasting content catches it, like a finger on a touch screen.
+    if (this.kinetic.velocity && Math.sign(this.kinetic.velocity) !== Math.sign(dy)) this.kinetic.velocity = 0
     const pixels = dy * window.innerHeight + this.scrollRemainder
     const whole = Math.trunc(pixels)
     this.scrollRemainder = pixels - whole
     if (whole) target.scrollBy({ top: whole, behavior: 'instant' })
+  }
+
+  /** Momentum after a fast swipe, window heights per second; 0 stops whatever is still coasting. */
+  fling(v: number) {
+    if (!v) { this.stopKinetic(); return }
+    const target = this.scrollTarget ?? this.kinetic.target
+    if (!target) return
+    this.startKinetic(target)
+    // Swipes in a row add up (to a cap); one against the motion brakes it.
+    const max = FLING_MAX * window.innerHeight
+    this.kinetic.velocity = Math.max(-max, Math.min(max, this.kinetic.velocity + v * window.innerHeight))
+  }
+
+  /** One animation step; driven by animation frames (public for tests). */
+  tick(now: number) {
+    const k = this.kinetic
+    k.scheduled = false
+    const target = k.target
+    if (!target?.isConnected) { this.stopKinetic(); return }
+    const dt = Number.isNaN(k.last) ? 16 : Math.min(50, Math.max(0, now - k.last))
+    k.last = now
+    let move = k.pending * (1 - Math.exp(-dt / STEP_EASE_MS))
+    k.pending -= move
+    if (Math.abs(k.pending) < 0.5) { move += k.pending; k.pending = 0 }
+    move += (k.velocity * dt) / 1000
+    k.velocity *= Math.exp(-dt / FLING_TAU_MS)
+    if (Math.abs(k.velocity) < FLING_STOP_PX_S) k.velocity = 0
+    const pixels = move + k.remainder
+    const whole = Math.trunc(pixels)
+    k.remainder = pixels - whole
+    if (whole) {
+      const before = target.scrollTop
+      target.scrollBy({ top: whole, behavior: 'instant' })
+      // Hit the top or the bottom: nothing left to scroll.
+      if (target.scrollTop === before) { this.stopKinetic(); return }
+    }
+    if (k.pending || k.velocity) this.schedule()
+    else this.stopKinetic()
+  }
+
+  get coasting() {
+    return Boolean(this.kinetic.pending || this.kinetic.velocity)
+  }
+
+  private startKinetic(target: Element) {
+    if (this.kinetic.target !== target) this.stopKinetic()
+    this.kinetic.target = target
+    this.schedule()
+  }
+
+  private schedule() {
+    if (this.kinetic.scheduled) return
+    this.kinetic.scheduled = true
+    nextFrame((now) => this.tick(now))
+  }
+
+  private stopKinetic() {
+    // A frame may still be scheduled: tick() then finds no target and stops.
+    this.kinetic = { ...this.kinetic, target: null, pending: 0, velocity: 0, remainder: 0, last: Number.NaN }
   }
 
   scrollEnd() {
@@ -204,6 +280,7 @@ export class HandUiDispatcher {
 
   /** Palm grab: press the "mouse button" on a map so moving the hand pans it. */
   grabStart(x: number, y: number) {
+    this.stopKinetic()
     this.grabEnd(x, y)
     const hit = mapAt(x, y)
     if (!hit) return null
@@ -227,6 +304,7 @@ export class HandUiDispatcher {
 
   /** Stop: drop every highlight and pending action. */
   release() {
+    this.stopKinetic()
     this.grabEnd()
     this.clearPressed()
     this.scrollEnd()

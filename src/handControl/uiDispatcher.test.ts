@@ -127,6 +127,73 @@ describe('HandUiDispatcher', () => {
     expect(scrollBy).toHaveBeenCalledTimes(1)
   })
 
+  describe('fast scrolling', () => {
+    /** A list of 2000 px of content in a 100 px box, scrolled by the dispatcher's own animation. */
+    function scrollingList() {
+      const list = $('list')
+      let top = 0
+      Object.defineProperty(list, 'scrollHeight', { value: 2100 })
+      Object.defineProperty(list, 'clientHeight', { value: 100 })
+      Object.defineProperty(list, 'scrollTop', { get: () => top, configurable: true })
+      list.scrollBy = ((options: ScrollToOptions) => { top = Math.max(0, Math.min(2000, top + (options.top ?? 0))) }) as typeof list.scrollBy
+      hit = () => $('row')
+      vi.stubGlobal('requestAnimationFrame', () => 0)
+      const dispatcher = new HandUiDispatcher()
+      dispatcher.scrollStart(5, 5)
+      const frames = (from: number, count: number) => { for (let i = 1; i <= count; i++) dispatcher.tick(from + i * 16) }
+      return { dispatcher, frames, top: () => top }
+    }
+
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('quick flick steps add up instead of cutting each other short', () => {
+      const { dispatcher, frames, top } = scrollingList()
+      dispatcher.scroll(1, true)
+      frames(0, 3)
+      dispatcher.scroll(1, true)
+      frames(48, 60)
+      expect(top()).toBe(200)
+      expect(dispatcher.coasting).toBe(false)
+    })
+
+    it('a fling keeps scrolling and slows down by itself', () => {
+      const { dispatcher, frames, top } = scrollingList()
+      dispatcher.fling(5 / window.innerHeight * 100)
+      frames(0, 10)
+      const early = top()
+      expect(early).toBeGreaterThan(50)
+      frames(160, 200)
+      // ≈ speed × 450 ms, and it has stopped.
+      expect(top()).toBeGreaterThan(early)
+      expect(top()).toBeLessThan(400)
+      expect(dispatcher.coasting).toBe(false)
+    })
+
+    it('a drag against the motion, a fling of 0 (fist) or a press stops it', () => {
+      const { dispatcher, frames, top } = scrollingList()
+      dispatcher.fling(0.5)
+      frames(0, 5)
+      dispatcher.scroll(-1 / window.innerHeight)
+      expect(dispatcher.coasting).toBe(false)
+      dispatcher.fling(0.5)
+      dispatcher.fling(0)
+      const stopped = top()
+      frames(100, 20)
+      expect(top()).toBe(stopped)
+      dispatcher.fling(0.5)
+      dispatcher.press(5, 5)
+      expect(dispatcher.coasting).toBe(false)
+    })
+
+    it('stops at the end of the list', () => {
+      const { dispatcher, frames, top } = scrollingList()
+      dispatcher.fling(-3)
+      frames(0, 5)
+      expect(top()).toBe(0)
+      expect(dispatcher.coasting).toBe(false)
+    })
+  })
+
   it('pinch zoom sends one wheel notch to the map under the aim point, and ignores everything else', () => {
     const wheel = vi.fn()
     $('marker').addEventListener('wheel', wheel)

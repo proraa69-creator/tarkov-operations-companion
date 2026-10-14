@@ -95,28 +95,77 @@ export function inverseDepth(observation: HandObservation) {
   return pixels / metres
 }
 
-/** Image point → user space (mirrored like a mirror when the camera faces the user) → calibrated window space. */
-export function toWindowSpace(point: { x: number; y: number }, box: CalibrationBox, mirror: boolean) {
+/** 3×3 projective map (row-major, h33 = 1) from user-space image points to window space. */
+export type Homography = number[]
+
+/**
+ * Least-squares homography (DLT with h33 = 1) mapping `src` onto `dst`; ≥ 4 point pairs.
+ * Returns null for a degenerate set (points on a line, duplicates).
+ */
+export function solveHomography(src: Array<{ x: number; y: number }>, dst: Array<{ x: number; y: number }>): Homography | null {
+  if (src.length < 4 || src.length !== dst.length) return null
+  // Normal equations AᵀA·h = Aᵀb for the 2n×8 system.
+  const ata = Array.from({ length: 8 }, () => new Array<number>(8).fill(0))
+  const atb = new Array<number>(8).fill(0)
+  const addRow = (row: number[], value: number) => {
+    for (let i = 0; i < 8; i++) {
+      atb[i] += row[i] * value
+      for (let j = 0; j < 8; j++) ata[i][j] += row[i] * row[j]
+    }
+  }
+  src.forEach(({ x, y }, index) => {
+    const { x: u, y: v } = dst[index]
+    addRow([x, y, 1, 0, 0, 0, -u * x, -u * y], u)
+    addRow([0, 0, 0, x, y, 1, -v * x, -v * y], v)
+  })
+  // Gaussian elimination with partial pivoting.
+  for (let col = 0; col < 8; col++) {
+    let pivot = col
+    for (let row = col + 1; row < 8; row++) if (Math.abs(ata[row][col]) > Math.abs(ata[pivot][col])) pivot = row
+    if (Math.abs(ata[pivot][col]) < 1e-10) return null
+    ;[ata[col], ata[pivot]] = [ata[pivot], ata[col]]
+    ;[atb[col], atb[pivot]] = [atb[pivot], atb[col]]
+    for (let row = col + 1; row < 8; row++) {
+      const factor = ata[row][col] / ata[col][col]
+      for (let j = col; j < 8; j++) ata[row][j] -= factor * ata[col][j]
+      atb[row] -= factor * atb[col]
+    }
+  }
+  const h = new Array<number>(8).fill(0)
+  for (let row = 7; row >= 0; row--) {
+    let sum = atb[row]
+    for (let j = row + 1; j < 8; j++) sum -= ata[row][j] * h[j]
+    h[row] = sum / ata[row][row]
+  }
+  return h.every(Number.isFinite) ? [...h, 1] : null
+}
+
+/** Projective denominator of `h` at a point: must stay positive where the hand can be. */
+export const homographyScale = (h: Homography, point: { x: number; y: number }) => h[6] * point.x + h[7] * point.y + h[8]
+
+export function applyHomography(h: Homography, point: { x: number; y: number }) {
+  // The calibration guarantees a positive scale over the whole camera frame; the floor and the
+  // clamp only keep a stray landmark from throwing the pointer to infinity.
+  const w = Math.max(0.05, homographyScale(h, point))
+  const clampWide = (value: number) => Math.min(2, Math.max(-1, value))
+  return {
+    x: clampWide((h[0] * point.x + h[1] * point.y + h[2]) / w),
+    y: clampWide((h[3] * point.x + h[4] * point.y + h[5]) / w),
+  }
+}
+
+/**
+ * Image point → user space (mirrored like a mirror when the camera faces the user) → calibrated
+ * window space. With a homography (5-point calibration) the camera's viewing angle — e.g. a
+ * webcam above the monitor looking down at the hand — is corrected; otherwise the box is used.
+ */
+export function toWindowSpace(point: { x: number; y: number }, box: CalibrationBox, mirror: boolean, homography?: Homography | null) {
   const ux = mirror ? 1 - point.x : point.x
+  if (homography) return applyHomography(homography, { x: ux, y: point.y })
   return {
     x: (ux - box.x0) / Math.max(0.05, box.x1 - box.x0),
     y: (point.y - box.y0) / Math.max(0.05, box.y1 - box.y0),
   }
-}
-
-/** Calibration box from fingertip samples taken at the comfortable top-left and bottom-right corners (user space). */
-export function calibrationFromCorners(topLeft: Array<{ x: number; y: number }>, bottomRight: Array<{ x: number; y: number }>): CalibrationBox | null {
-  const median = (values: number[]) => {
-    const sorted = [...values].sort((a, b) => a - b)
-    return sorted[Math.floor(sorted.length / 2)]
-  }
-  if (topLeft.length < 5 || bottomRight.length < 5) return null
-  const x0 = median(topLeft.map((point) => point.x))
-  const y0 = median(topLeft.map((point) => point.y))
-  const x1 = median(bottomRight.map((point) => point.x))
-  const y1 = median(bottomRight.map((point) => point.y))
-  if (x1 - x0 < 0.08 || y1 - y0 < 0.08) return null
-  return { x0, y0, x1, y1 }
 }
 
 export const clamp01 = (value: number) => Math.min(1, Math.max(0, value))

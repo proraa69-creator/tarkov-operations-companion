@@ -120,6 +120,8 @@ class HandControlRuntime {
 
   updateSettings(patch: Partial<HandControlSettings>) {
     const settings = { ...this.snapshot.settings, ...patch }
+    // The 5-point map was measured in the old mirroring: it no longer fits.
+    if (patch.mirror !== undefined && patch.mirror !== this.snapshot.settings.mirror && patch.homography === undefined) settings.homography = null
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, version: SETTINGS_VERSION })) } catch { /* storage unavailable */ }
     this.engine.configure(settings)
     const restart = (patch.cameraId !== undefined && patch.cameraId !== this.snapshot.settings.cameraId)
@@ -135,7 +137,7 @@ class HandControlRuntime {
   startCalibration() {
     this.dispatcher.release()
     this.calibration = new CalibrationSession(this.snapshot.settings.mirror)
-    this.set({ calibration: { step: 'top-left', progress: 0, hint: 'hold' } })
+    this.set({ calibration: { step: 0, progress: 0, hint: 'hold' } })
   }
 
   cancelCalibration() {
@@ -149,11 +151,11 @@ class HandControlRuntime {
       // The hand keeps moving on screen during calibration; its gestures do nothing meanwhile.
       frame.events = []
       this.dispatcher.release()
-      const { state, box } = this.calibration.feed(observation, observation?.t ?? performance.now())
+      const { state, result } = this.calibration.feed(observation, observation?.t ?? performance.now())
       this.snapshot = { ...this.snapshot, calibration: state }
-      if (box) {
+      if (result) {
         this.calibration = null
-        this.updateSettings({ calibration: box })
+        this.updateSettings({ calibration: result.box, homography: result.homography })
         this.engine.reset()
       }
     } else this.apply(frame)
@@ -174,6 +176,7 @@ class HandControlRuntime {
       } else if (event.type === 'cancel') { this.dispatcher.cancel(); counters.cancels++ }
       else if (event.type === 'scroll-start') { this.dispatcher.scrollStart(...toClient(event.x, event.y)); counters.scrolls++ }
       else if (event.type === 'scroll') this.dispatcher.scroll(event.dy, event.step)
+      else if (event.type === 'fling') this.dispatcher.fling(event.v)
       else if (event.type === 'scroll-end') this.dispatcher.scrollEnd()
       else if (event.type === 'zoom') { if (this.dispatcher.zoom(...toClient(event.x, event.y), event.steps)) counters.zooms++ }
       else if (event.type === 'grab-start') { if (this.dispatcher.grabStart(...toClient(event.x, event.y))) counters.grabs++ }

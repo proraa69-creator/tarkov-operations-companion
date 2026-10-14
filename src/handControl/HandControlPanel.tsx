@@ -3,7 +3,7 @@ import { Camera, Crosshair, Hand, MoveVertical, Play, Square } from 'lucide-reac
 import { uiText } from '../i18n/renderText'
 import { handControl } from './handControlStore'
 import { useHandControl } from './edition'
-import { HAND_BONES, type HandControlSettings } from './types'
+import { DEFAULT_SETTINGS, HAND_BONES, type HandControlSettings } from './types'
 import type { TrackerErrorCode } from './webcamTracker'
 
 const ERRORS: Record<TrackerErrorCode, string> = {
@@ -54,13 +54,13 @@ export function HandControlPanel() {
         <div className="panel-title">{uiText('Hand Control — управление рукой через веб-камеру (тест)')}</div>
       </div>
       <div className="panel-body">
-        <p className="hand-note">{uiText('Точка нажатия — на кончике указательного пальца: её ведёт кисть; при сгибе пальца она не сдвигается. Нажатие — быстро согнуть указательный палец и разогнуть (тап). Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг; движение руки вверх-вниз листает плавно. Карта: щипок большим и указательным — зум; раскрытая ладонь с толчком к камере — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
+        <p className="hand-note">{uiText('Точка нажатия — на кончике указательного пальца: её ведёт кисть; при сгибе пальца она не сдвигается. Нажатие — быстро согнуть указательный палец и разогнуть (тап). Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг (частые взмахи подряд — всё дальше); движение руки вверх-вниз листает плавно; быстрый взмах всей рукой вверх или вниз — листает с разгоном (кулак — стоп). Карта: щипок большим и указательным — зум; раскрытая ладонь с толчком к камере — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
         <div className="hand-actions">
           {running || status === 'starting'
             ? <button className="button" onClick={() => handControl.stop()}><Square size={15} />{uiText('Остановить')}</button>
             : <button className="button primary" onClick={() => void handControl.start()}><Play size={15} />{uiText('Включить камеру')}</button>}
           <button className="button ghost" disabled={!running} onClick={() => handControl.startCalibration()}><Crosshair size={15} />{uiText('Калибровка')}</button>
-          <button className="button ghost" onClick={() => update({ calibration: { x0: 0.2, y0: 0.15, x1: 0.8, y1: 0.75 } })}>{uiText('Сбросить калибровку')}</button>
+          <button className="button ghost" onClick={() => update({ calibration: { ...DEFAULT_SETTINGS.calibration }, homography: null })}>{uiText('Сбросить калибровку')}</button>
         </div>
         {status === 'error' && snapshot.error ? <p className="hand-error">{uiText(ERRORS[snapshot.error])}{snapshot.errorDetail ? <small className="hand-note mono"> {snapshot.errorDetail}</small> : null}</p> : null}
 
@@ -72,7 +72,7 @@ export function HandControlPanel() {
                 {cameras.map((camera, index) => <option key={camera.deviceId || index} value={camera.deviceId}>{camera.label || `${uiText('Камера')} ${index + 1}`}</option>)}
               </select>
             </Setting>
-            <Setting icon={<Hand size={16} />} title="Вид руки" hint="3D-кисть и контур повторяют все пальцы; курсор — только точка.">
+            <Setting icon={<Hand size={16} />} title="Вид руки" hint="3D-кисть и контур повторяют все пальцы — указатель это кончик пальца; «Курсор» — только точка.">
               <div className="hand-segmented">
                 {(['hand3d', 'ghost', 'finger'] as const).map((cursor) => (
                   <button key={cursor} className={settings.cursor === cursor ? 'is-active' : ''} onClick={() => update({ cursor })}>{uiText({ hand3d: '3D-кисть', ghost: 'Контур', finger: 'Курсор' }[cursor])}</button>
