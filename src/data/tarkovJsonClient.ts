@@ -20,7 +20,8 @@ const written = new Map<string, number>()
  * goes along (`v=`, electron/serviceGateway.ts) and while the server's catalog is the same nothing comes back. Then, or
  * when a full answer carries the same version, `previous` itself is returned: nothing is copied, parsed, rewritten to
  * the encrypted cache or re-rendered (the main process used to stringify and encrypt the whole catalog synchronously on
- * every refresh). A failed refresh keeps showing `previous`, marked as from the cache, without reading the cache back.
+ * every refresh). A failed refresh with `previous` on screen fails (the app keeps showing it) instead of reading the
+ * cached copy of the same catalog back; only a first load falls back to the cache.
  */
 export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru', previous?: AppDataset): Promise<AppDataset> {
   const cacheKey = `${CACHE_PREFIX}-${mode}-${locale}`
@@ -52,8 +53,9 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
   } catch (error) {
     // No subscription / device switched off: no cached copy either (the paywall takes over).
     if (error instanceof DataAccessError) throw error
-    // The catalog on screen is the newest copy there is (the cache holds the same one): it stays, marked as not fresh.
-    if (shown?.metadata) return shown.metadata.source === 'cache' ? shown : { ...shown, metadata: { ...shown.metadata, source: 'cache' } }
+    // A catalog is on screen: it stays as it is (react-query keeps it; the next try backs off, src/data/catalogRefresh.ts)
+    // instead of the same catalog being decrypted from the cache, parsed and handed to every page again.
+    if (shown) throw error
     const cached = await readGameCache<AppDataset>(cacheKey, route)
     if (cached) return { ...cached, metadata: { ...cached.metadata!, source: 'cache' } }
     throw error

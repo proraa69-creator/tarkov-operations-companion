@@ -79,15 +79,10 @@ describe('catalog refresh through the desktop gateway (players\' app)', () => {
     expect(serviceRequest).toHaveBeenLastCalledWith('GET', `/v1/catalog/pve?lang=en&v=${V1}`, undefined)
   })
 
-  it('a failed refresh keeps the catalog on screen, marked as not fresh, without reading the cache back', async () => {
-    const shown = catalog('pvp', V1)
+  it('a failed refresh fails (the catalog on screen stays) without reading the same catalog back from the cache', async () => {
     serviceRequest.mockRejectedValue(new Error('Сервер недоступен'))
-    const kept = await fetchTarkovCatalog('pvp', 'ru', shown)
-    expect(kept.quests).toBe(shown.quests)
-    expect(kept.metadata?.source).toBe('cache')
+    await expect(fetchTarkovCatalog('pvp', 'ru', catalog('pvp', V1))).rejects.toThrow('Сервер недоступен')
     expect(cacheGet).not.toHaveBeenCalled()
-    // Failing again: the same object, nothing re-renders.
-    expect(await fetchTarkovCatalog('pvp', 'ru', kept)).toBe(kept)
     // The first load has nothing on screen: the cache is read as before.
     cacheGet.mockResolvedValueOnce(JSON.stringify(catalog('pvp', V1)))
     expect((await fetchTarkovCatalog('pvp')).metadata?.source).toBe('cache')
