@@ -16,11 +16,23 @@ export interface StoredPosition {
 export interface CollectorState { itemIds: string[]; updatedAt: string | null }
 export interface SettingsState { settings: Record<string, unknown>; updatedAt: string | null }
 
+/** A mode's level as the account's own desktop app knows it (PUT /v1/me/levels); friends see it in «Информация о друге». */
+export interface SharedLevel {
+  level: number
+  /** null: the app does not know it (no Tarkov.dev profile of this mode); friends then see no prestige badge. */
+  prestige: number | null
+  /** When the level was true: the game's screen or the Tarkov.dev profile behind it (ISO 8601). */
+  observedAt: string
+  /** Server receive time, ISO 8601. */
+  receivedAt: string
+}
+export type SharedLevels = Partial<Record<RaidMode, SharedLevel>>
+
 type Row = Record<string, unknown>
 
 /**
- * Small per-user documents: the Collector checklist and the latest position (per mode) and the app settings blob.
- * Only the latest position per user and mode is kept; nothing else about the raid is stored.
+ * Small per-user documents: the Collector checklist, the latest position and the level the desktop app shared (per mode)
+ * and the app settings blob. Only the latest position per user and mode is kept; nothing else about the raid is stored.
  */
 export class UserDataStore {
   constructor(private readonly db: DatabaseSync) {
@@ -32,7 +44,11 @@ export class UserDataStore {
         x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, yaw REAL NOT NULL, at INTEGER NOT NULL,
         map TEXT, received_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
       CREATE TABLE IF NOT EXISTS user_settings (
-        account_id TEXT PRIMARY KEY, settings TEXT NOT NULL, updated_at TEXT NOT NULL);`)
+        account_id TEXT PRIMARY KEY, settings TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS user_levels (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
+        level INTEGER NOT NULL, prestige INTEGER, observed_at TEXT NOT NULL, received_at TEXT NOT NULL,
+        PRIMARY KEY(account_id, mode));`)
   }
 
   /** The database these documents live in (objective progress is stored next to them). */
@@ -85,6 +101,33 @@ export class UserDataStore {
     this.db.prepare(`INSERT INTO user_settings (account_id, settings, updated_at) VALUES (?,?,?)
       ON CONFLICT(account_id) DO UPDATE SET settings=excluded.settings, updated_at=excluded.updated_at`).run(accountId, JSON.stringify(settings), updatedAt)
     return { settings, updatedAt }
+  }
+
+  /** The levels the account's desktop app shared, per mode; a mode it never shared is absent. */
+  getLevels(accountId: string): SharedLevels {
+    const rows = this.db.prepare('SELECT mode, level, prestige, observed_at, received_at FROM user_levels WHERE account_id=?').all(accountId) as Row[]
+    const levels: SharedLevels = {}
+    for (const row of rows) {
+      levels[String(row.mode) as RaidMode] = {
+        level: Number(row.level), prestige: row.prestige == null ? null : Number(row.prestige),
+        observedAt: String(row.observed_at), receivedAt: String(row.received_at),
+      }
+    }
+    return levels
+  }
+
+  /**
+   * Each mode sent replaces that mode's level as it is: the app has already weighed the game's screen against Tarkov.dev
+   * (a misread level is corrected by an older but right one). Modes not sent keep theirs. Returns every mode stored.
+   */
+  setLevels(accountId: string, levels: Partial<Record<RaidMode, Omit<SharedLevel, 'receivedAt'>>>): SharedLevels {
+    const receivedAt = new Date().toISOString()
+    const upsert = this.db.prepare(`INSERT INTO user_levels (account_id, mode, level, prestige, observed_at, received_at) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(account_id, mode) DO UPDATE SET level=excluded.level, prestige=excluded.prestige, observed_at=excluded.observed_at, received_at=excluded.received_at`)
+    for (const [mode, entry] of Object.entries(levels)) {
+      if (entry) upsert.run(accountId, mode, entry.level, entry.prestige, entry.observedAt, receivedAt)
+    }
+    return this.getLevels(accountId)
   }
 }
 

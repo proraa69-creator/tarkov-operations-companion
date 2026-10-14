@@ -329,7 +329,7 @@ test('a friend\'s info: level and prestige in every mode from the public profile
     const body = await response.text()
     assert.deepEqual(JSON.parse(body), {
       nickname: 'Bravo_2', hidden: false,
-      modes: { pvp: { level: 42, prestige: 2, updatedAt: '2026-10-12T09:00:00.000Z' }, pve: { level: 17, prestige: 0, updatedAt: '2026-10-12T09:00:00.000Z' }, seasonal: null },
+      modes: { pvp: { level: 42, prestige: 2, updatedAt: '2026-10-12T09:00:00.000Z', source: 'tarkov-dev' }, pve: { level: 17, prestige: 0, updatedAt: '2026-10-12T09:00:00.000Z', source: 'tarkov-dev' }, seasonal: null },
     })
     assert.deepEqual(asked.sort(), ['pve:7690289', 'pvp:7690289', 'seasonal:7690289'])
     assert.ok(!body.includes('7690289'), 'the game account id never leaves the server')
@@ -351,6 +351,56 @@ test('a friend\'s info without any synced game account: every mode unknown, no l
     const { bAsSeenByA } = await befriend(call, a, b)
     assert.deepEqual((await json<{ modes: unknown }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))).modes, { pvp: null, pve: null, seasonal: null })
     assert.equal(lookups, 0)
+    // The friend's app shared PvE: that mode is known, the others stay unknown.
+    assert.equal((await call('PUT', '/v1/me/levels', { modes: { pve: { level: 23, prestige: null, observedAt: '2026-10-13T18:00:00.000Z' } } }, b)).status, 200)
+    assert.deepEqual((await json<{ modes: unknown }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))).modes, {
+      pvp: null, pve: { level: 23, prestige: null, updatedAt: '2026-10-13T18:00:00.000Z', source: 'app' }, seasonal: null,
+    })
+    assert.equal(lookups, 0)
   }, undefined, async () => { lookups += 1; return { level: 1, prestige: 0 } })
+})
+
+test('a friend\'s info prefers the levels the friend\'s own app shared; the public profile only for a mode without one', async () => {
+  const asked: string[] = []
+  const playerProfile: FriendsRouterOptions['playerProfile'] = async (mode, gameId) => {
+    asked.push(`${mode}:${gameId}`)
+    // A stale public profile (owner, 13.10.2026: «PVP 9 · Без престижа»).
+    return { level: 9, prestige: 0, fetchedAt: '2026-10-12T10:00:00.000Z', upstreamUpdatedAt: '2026-08-01T09:00:00.000Z' }
+  }
+  await withServer(async ({ call, trial, accounts, progress }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_2' })
+    const { bAsSeenByA } = await befriend(call, a, b)
+    progress.syncUser(`user:${accounts.authenticate(b)!}`, 'pvp', { accountId: 7690289, characterId: CHARACTER, events: [] })
+    // b's desktop app read PvP from the game's screen (prestige unknown) and knows the season from its own Tarkov.dev lookup.
+    const shared = { pvp: { level: 52, prestige: null, observedAt: '2026-10-13T18:00:00.000Z' }, seasonal: { level: 14, prestige: 1, observedAt: '2026-10-13T17:00:00.000Z' } }
+    assert.equal((await call('PUT', '/v1/me/levels', { modes: shared }, b)).status, 200)
+    const response = await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.deepEqual(JSON.parse(body), {
+      nickname: 'Bravo_2', hidden: false,
+      modes: {
+        pvp: { level: 52, prestige: null, updatedAt: '2026-10-13T18:00:00.000Z', source: 'app' },
+        pve: { level: 9, prestige: 0, updatedAt: '2026-08-01T09:00:00.000Z', source: 'tarkov-dev' },
+        seasonal: { level: 14, prestige: 1, updatedAt: '2026-10-13T17:00:00.000Z', source: 'app' },
+      },
+    })
+    assert.deepEqual(asked, ['pve:7690289'], 'the public profile only for the mode the app has not shared')
+    for (const secret of ['7690289', 'bravo@example.com', 'receivedAt']) assert.ok(!body.includes(secret), secret)
+
+    // Every mode shared: no lookups at all (the server often cannot reach players.tarkov.dev).
+    assert.equal((await call('PUT', '/v1/me/levels', { modes: { pve: { level: 31, prestige: 0, observedAt: '2026-10-13T16:00:00.000Z' } } }, b)).status, 200)
+    asked.length = 0
+    const all = await json<{ modes: Record<string, { level: number; source: string }> }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))
+    assert.deepEqual(Object.entries(all.modes).map(([mode, entry]) => [mode, entry.level, entry.source]), [['pvp', 52, 'app'], ['pve', 31, 'app'], ['seasonal', 14, 'app']])
+    assert.deepEqual(asked, [])
+
+    // Hiding progress hides the shared levels too, as before.
+    assert.equal((await call('PUT', `/v1/friends/${(await overview(call, b)).friends[0].friendId}/privacy`, { hideProgress: true }, b)).status, 204)
+    assert.deepEqual(await json(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)), { nickname: 'Bravo_2', hidden: true, modes: {} })
+    assert.deepEqual(asked, [])
+  }, undefined, playerProfile)
 })
 

@@ -2,8 +2,9 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { EyeOff, LoaderCircle, UserRound, X } from 'lucide-react'
 import type { RaidMode } from '../domain/types'
+import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
-import { fetchFriendInfo, type FriendInfo } from './socialClient'
+import { fetchFriendInfo, type FriendInfo, type FriendModeInfo } from './socialClient'
 import { ErrorLine } from './squadUi'
 import { modeLabel } from './squadLabels'
 
@@ -11,10 +12,13 @@ const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 /**
  * «Информация о друге» (owner, 12.10.2026: «уровни во всех режимах, значок пристижа, пристижи должны отличаться 1 2 3 4»):
- * level and prestige in every mode, from the public game profile of the game account the friend's app synced (the
- * server looks it up; the account id never reaches this app). Opened by the square button on the friend's row.
+ * level and prestige in every mode, as the friend's own desktop app read them from the game (squad/useShareLevels.ts),
+ * else from the public game profile the server looks up (the game account id never reaches this app). A prestige the
+ * friend's app does not know shows no badge; under each level, a dim date of when it was true. No note under the modes
+ * (owner, 12.10.2026: «убери нижнюю надпись»). Opened by the square button on the friend's row.
  */
 export function FriendInfoDialog({ friendId, name, color, onClose }: { friendId: string; name: string; color?: string; onClose: () => void }) {
+  const { locale } = useLocale()
   const [info, setInfo] = useState<FriendInfo | null>(null)
   const [error, setError] = useState('')
 
@@ -31,7 +35,6 @@ export function FriendInfoDialog({ friendId, name, color, onClose }: { friendId:
   }, [onClose])
 
   const shown = info && !info.hidden
-  const known = shown ? MODES.filter((mode) => info.modes[mode]) : []
   const style = (color ? { '--friend': color } : {}) as CSSProperties
   return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={`${uiText('Информация о друге')} ${name}`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="panel registration-dialog friend-info-dialog" style={style} onMouseDown={(event) => event.stopPropagation()}>
@@ -49,15 +52,31 @@ export function FriendInfoDialog({ friendId, name, color, onClose }: { friendId:
           return <div key={mode} className={`friend-info-mode${entry ? '' : ' is-unknown'}`}>
             <span className="friend-info-mode-name">{modeLabel(mode)}</span>
             {entry ? <>
-              <span className="friend-info-level"><small>{uiText('Уровень')}</small><strong>{entry.level}</strong></span>
-              <PrestigeBadge level={entry.prestige} />
+              <span className="friend-info-level">
+                <small>{uiText('Уровень')}</small><strong>{entry.level}</strong>
+                <UpdatedOn entry={entry} locale={locale} />
+              </span>
+              {entry.prestige !== null && <PrestigeBadge level={entry.prestige} />}
             </> : <span className="friend-info-none">{uiText('нет данных')}</span>}
           </div>
         })}
       </div>}
-      {shown && !known.length && <p className="muted friend-info-hint">{uiText('Друг ещё не синхронизировал игровой аккаунт в Raid OS, или профиль игры не опубликован.')}</p>}
     </section>
   </div>, document.body)
+}
+
+/** «обновлено 13.10.2026» (13/10/2026 in English): the day the level was true, in the reader's time zone. */
+function updatedDate(iso: string, locale: AppLocale) {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+/** The dim date under a level; its tooltip says where the level came from. */
+function UpdatedOn({ entry, locale }: { entry: FriendModeInfo; locale: AppLocale }) {
+  const day = entry.updatedAt ? updatedDate(entry.updatedAt, locale) : ''
+  if (!day) return null
+  const source = entry.source === 'app' ? uiText('Из приложения друга') : entry.source === 'tarkov-dev' ? uiText('Из публичного профиля Tarkov.dev') : undefined
+  return <small className="friend-info-updated" title={source}>{uiText('обновлено')} {day}</small>
 }
 
 /** Each prestige its own badge: the number on a shield, 1 bronze, 2 silver, 3 gold, 4 ice, 5 and up red. */

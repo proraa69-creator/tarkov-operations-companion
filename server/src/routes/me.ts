@@ -10,6 +10,8 @@
  *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept)
  *   GET  /settings                       -> { settings, updatedAt }
  *   PUT  /settings                       { settings } -> { settings, updatedAt } (max 16 KB)
+ *   PUT  /levels                         { modes: { pvp?|pve?|seasonal?: { level, prestige | null, observedAt } } }
+ *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
  *   GET  /summary                        -> per-mode counts for the website cabinet
  *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
  *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
@@ -50,6 +52,17 @@ const positionSchema = z.object({
   map: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional(),
 }).strict()
 const settingsSchema = z.object({ settings: z.record(z.string().max(64), z.unknown()) }).strict()
+/** The game's level cap and a sane prestige range. A null prestige: the app does not know it. */
+const MAX_SHARED_LEVEL = 79
+const MAX_SHARED_PRESTIGE = 10
+const sharedLevelSchema = z.object({
+  level: z.number().int().min(1).max(MAX_SHARED_LEVEL),
+  prestige: z.number().int().min(0).max(MAX_SHARED_PRESTIGE).nullable(),
+  observedAt: isoTime,
+}).strict()
+const levelsSchema = z.object({
+  modes: z.object({ pvp: sharedLevelSchema.optional(), pve: sharedLevelSchema.optional(), seasonal: sharedLevelSchema.optional() }).strict(),
+}).strict()
 
 /** Task / objective ids: tarkov.dev hex ids, story and wiki ids (letters of any script, digits, a few separators). */
 const entityId = z.string().regex(ENTITY_ID_PATTERN)
@@ -182,6 +195,22 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     if (!body.success) { bad(res); return }
     if (Buffer.byteLength(JSON.stringify(body.data.settings)) > SETTINGS_MAX_BYTES) { res.status(413).json({ error: 'Настройки слишком большие' }); return }
     res.json(userData.setSettings(account(res), body.data.settings))
+  })
+
+  // «Информация о друге» (owner, 12.10.2026: «уровни во всех режимах, значок престижа»): each mode's level as this
+  // account's desktop app knows it — from the game's screens or its own Tarkov.dev lookup, plus the quest experience
+  // since. Friends see it before the public profile (routes/friends.ts). A mode sent replaces that mode; the rest stay.
+  router.put('/levels', (req, res) => {
+    const body = levelsSchema.safeParse(req.body)
+    if (!body.success) { bad(res); return }
+    // A PC clock running ahead must not show friends a level «updated» in the future.
+    const now = new Date((options.now ?? Date.now)()).toISOString()
+    const modes: Parameters<UserDataStore['setLevels']>[1] = {}
+    for (const raidMode of RAID_MODES) {
+      const entry = body.data.modes[raidMode]
+      if (entry) modes[raidMode] = { level: entry.level, prestige: entry.prestige, observedAt: entry.observedAt > now ? now : entry.observedAt }
+    }
+    res.json({ modes: userData.setLevels(account(res), modes) })
   })
 
   router.get('/objectives/:mode', (req, res) => {
