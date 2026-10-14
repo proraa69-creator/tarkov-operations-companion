@@ -96,21 +96,22 @@ const STATUS_CELLS = new RegExp(STATUS_CELL.source, 'gi')
  * Rows of the Tasks table on a frame: lines with a status cell beside a title. A lone status word is no row — the story
  * chapter's «АКТИВНО» / «ACTIVE» label, a button. The story pane shows one status at most, the table one per row.
  */
-export function tableRowCount(text: string) {
-  let rows = 0
-  for (const line of text.split(/\r?\n/)) {
+export function tableRowLines(text: string) {
+  return text.split(/\r?\n/).filter((line) => {
     const lower = line.toLowerCase()
-    if (!STATUS_CELL.test(lower)) continue
-    if (lower.replace(STATUS_CELLS, ' ').replace(/[^a-zа-яё]+/g, '').length >= 3) rows += 1
-  }
-  return rows
+    return STATUS_CELL.test(lower) && lower.replace(STATUS_CELLS, ' ').replace(/[^a-zа-яё]+/g, '').length >= 3
+  })
+}
+
+export function tableRowCount(text: string) {
+  return tableRowLines(text).length
 }
 
 export interface ScreenScanOptions {
   previousSeenIds?: string[]
   /** Live watch: a quest not tracked yet must be seen in two consecutive frames before it is added. */
   requireConfirmation?: boolean
-  /** Live watch session: drops stored quests the table no longer shows, detects hand-ins. */
+  /** Live watch session: a whole current list read twice ends the OCR quests it no longer shows (questSession.ts). */
   session?: QuestScanSession
   now?: number
 }
@@ -193,7 +194,7 @@ export function applyScreenScanProgress(
   // table, so deleting log rows here truncated long PvE task lists after the very first frame.
 
   const next = taskProgress === progress.taskProgress ? progress : { ...progress, taskProgress }
-  return options?.session ? reconcileWithSession(next, options.session, quests, nowMs) : next
+  return options?.session ? reconcileWithSession(next, options.session, quests) : next
 }
 
 /** Rows marked «доступно» / «заблокировано» / «провалено» are listed but not being done. */

@@ -57,8 +57,8 @@ interface AppStateValue extends UiState {
   applyTaskRecordsForMode: (mode: RaidMode, records: TaskProgressRecord[], characterId?: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
-  /** Current trader quests read from the in-game Tasks table. */
-  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
+  /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
+  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   /** Manual objective value from the quest view (checkbox / counter) for the current mode. */
   setObjectiveValue: (def: Pick<ObjectiveDef, 'id' | 'taskId' | 'type' | 'target'>, current: number) => void
@@ -217,11 +217,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => setProfileState((state) => {
+    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
-      const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true })
+      const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true, session })
       if (next === current) return state
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }

@@ -46,6 +46,18 @@ describe('screen readings applied to the app state', () => {
     expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
   })
 
+  it('a whole list read twice ends the OCR quest it no longer shows, in its mode only (audit P8)', () => {
+    render(<AppStateProvider><Probe /></AppStateProvider>)
+    for (const mode of ['pvp', 'pve'] as const) {
+      act(() => seen.app.applyQuestScanForMode(mode, [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
+    }
+    const session = { wholeList: { ids: ['debut'], at: 2 } }
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'debut', status: 'active' }], QUESTS, ['debut'], session))
+    expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+    expect(seen.app.activeProfile.modes.pve.taskProgress.debut?.status).toBe('active')
+    expect(seen.app.activeProfile.modes.pvp.taskProgress.cans?.status).toBe('active')
+  })
+
   it('a story reading that changes nothing gives no new state either', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
     const before = seen.renders

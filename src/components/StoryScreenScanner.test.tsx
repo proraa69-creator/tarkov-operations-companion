@@ -193,3 +193,33 @@ describe('readings go to the mode the game is in (audit P12, P5e)', () => {
     expect((state.applyQuestScanForMode.mock.calls[1]![3] as string[]).sort()).toEqual(tableIds())
   })
 })
+
+describe('the Tasks-table watch (audit P8)', () => {
+  // The first five rows of the real Russian table: the whole list, with room to spare on the page.
+  const lines = RU_TASKS_TABLE.split('\n')
+  const SHORT = lines.slice(0, lines.findIndex((line) => line.startsWith('Следопыт')) + 1).join('\n')
+
+  it('hands the app the whole current list once two fresh readings agree on it', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    let observedAt = 0
+    desktop({ text: SHORT, sourceName: 'EscapeFromTarkov', gameWindow: true })
+    window.tarkovDesktop!.captureQuestFrame = vi.fn(async () => { looks.push(Date.now()); observedAt += 1000; return { text: SHORT, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt } })
+    render(<StoryScreenScanner />)
+    await run(0)
+    const first = state.applyQuestScanForMode.mock.calls[0]![4] as { wholeList?: { ids: string[] } }
+    expect(first.wholeList).toBeUndefined()
+    await run(STORY_SCAN_TIMING.storyMs)
+    const second = state.applyQuestScanForMode.mock.calls[1]![4] as { wholeList?: { ids: string[] } }
+    expect(second.wholeList?.ids.sort()).toEqual(['q-fashion', 'q-horses', 'q-loss', 'q-supplier', 'q-tracker'])
+  })
+
+  it('a copy of the same reading (the same capture time) is no second reading', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    desktop({ text: SHORT, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1000 })
+    render(<StoryScreenScanner />)
+    await run(0)
+    await run(STORY_SCAN_TIMING.storyMs)
+    await run(STORY_SCAN_TIMING.storyMs)
+    for (const call of state.applyQuestScanForMode.mock.calls) expect((call[4] as { wholeList?: unknown }).wholeList).toBeUndefined()
+  })
+})

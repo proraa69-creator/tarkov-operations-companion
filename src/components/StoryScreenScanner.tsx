@@ -4,6 +4,7 @@ import { useAppState } from '../state/AppState'
 import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import { tableMatches } from '../import/screenScanSync'
+import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
@@ -74,12 +75,14 @@ export function StoryScreenScanner() {
 
     const loop = async () => {
       let previous = new Set<string>()
+      /** The Tasks-table watch: a whole current list read twice ends the OCR quests it no longer shows (audit P8). */
+      let session: QuestScanSession = createScanSession()
       let confirmation: StoryConfirmation | null = null
       let lastContext = ''
       let contextStartedAt = Date.now()
       /** Looks in a row at the game showing no screen read here (quietScanDelay). */
       let quiet = 0
-      const forget = () => { previous = new Set(); confirmation = null; heldRef.current = false }
+      const forget = () => { previous = new Set(); session = createScanSession(); confirmation = null; heldRef.current = false }
       /** One look at the game (outside a raid the logs report); returns the pause before the next one. */
       const look = async (): Promise<number> => {
         const profileId = profileRef.current
@@ -169,7 +172,8 @@ export function StoryScreenScanner() {
           // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
           const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
-          if (mode && matches.length) applyQuestsRef.current(mode, matches, questsRef.current, [...previous])
+          session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
+          if (mode && (matches.length || session.wholeList)) applyQuestsRef.current(mode, matches, questsRef.current, [...previous], session)
           previous = new Set(currentIds)
         } else forget()
         return delay
