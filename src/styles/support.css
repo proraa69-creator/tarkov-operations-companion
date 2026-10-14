@@ -4,10 +4,10 @@
 .support-nav-link { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 /* «Онлайн сейчас: N» under «Ваши предложения» (owner app, src/components/OwnerOnlineLine.tsx): a muted line with a green
    dot; on the collapsed sidebar only the dot and the number. */
-.nav-online { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 2px 11px 4px 15px; color: var(--text-dim, #8c978e); font-size: 12px; line-height: 1.25; cursor: default; }
+.nav-online { display: flex; align-items: center; gap: 16px; min-height: 30px; padding: 2px 11px 4px 16px; color: var(--text-dim, #8c978e); font-size: 12px; line-height: 1.25; cursor: default; }
 .nav-online-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--green, #7fa183); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green, #7fa183) 16%, transparent); }
 .nav-online-text { display: grid; min-width: 0; }
-.nav-online-count { color: var(--text, #dfe7e0); font-weight: 620; font-variant-numeric: tabular-nums; }
+.nav-online-count { color: #b7c2b8; font-weight: 650; font-variant-numeric: tabular-nums; }
 .nav-online-split { font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-online-short { display: none; }
 @media (max-width: 1180px) {
