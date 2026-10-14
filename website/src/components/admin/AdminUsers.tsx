@@ -6,7 +6,7 @@ import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
 import { Loading } from './adminShared'
-import { dateOnly, dateTime, failure, formatRub, numberFormat, PAYMENT_STATUS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
+import { dateOnly, dateTime, failure, formatRub, FRIEND_DISCOUNT, inviterText, numberFormat, PAYMENT_STATUS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 50
 const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
@@ -61,7 +61,7 @@ export function AdminUsers() {
     <div className="admin-stack">
       <div className="admin-filters">
         <form className="inline-form admin-search" onSubmit={submit} role="search">
-          <input className="input" type="search" aria-label="Поиск по e-mail или нику" placeholder="Поиск по e-mail или нику в игре" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input" type="search" aria-label="Поиск по e-mail или нику" placeholder="Поиск по e-mail, нику в игре или e-mail пригласившего" title="E-mail пригласившего друга находит и всех, кто пришёл по его коду" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
           <button type="submit" className="button ghost"><Search aria-hidden="true" />Найти</button>
         </form>
         <div role="group" aria-label="Регион" className="admin-regions">
@@ -119,7 +119,7 @@ export function AdminUsers() {
                             </span>
                           </td>
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
-                          <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
+                          <td data-label="Пришёл от"><CameFrom user={user} /></td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
                           <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
@@ -137,6 +137,28 @@ export function AdminUsers() {
       )}
     </div>
   )
+}
+
+/**
+ * «Пришёл от»: a streamer's code (tag «стример»), or the friend whose code gave the first-month discount (owner,
+ * 14.10.2026: «нужно что бы было видно от кого пришел человек по скидке») — the inviter's e-mail and game nickname, tag
+ * «друг · скидка» and whether the discount was used.
+ */
+function CameFrom({ user }: { user: AdminUser }) {
+  const inviter = user.invitedBy
+  if (inviter) {
+    const discount = inviter.discount ? FRIEND_DISCOUNT[inviter.discount] : undefined
+    return (
+      <span className="admin-came-from">
+        <span className={`admin-inviter${inviter.deleted ? ' dim' : ''}`} title={inviter.deleted ? 'Аккаунт пригласившего удалён' : 'Пригласил по своему коду'}>{inviterText(inviter)}</span>
+        {inviter.nickname && <span className="admin-nick" title="Ник пригласившего в Escape from Tarkov"><Gamepad2 aria-hidden="true" />{inviter.nickname}</span>}
+        <span className="admin-badges"><span className="tag green admin-mini">друг · скидка</span></span>
+        {discount && <span className={`admin-discount ${discount.tone}`} title={discount.hint}>{discount.label}</span>}
+      </span>
+    )
+  }
+  if (user.referredBy) return <span className="admin-came-from"><span className="mono">{user.referredBy}</span><span className="admin-badges"><span className="tag brass admin-mini">стример</span></span></span>
+  return <span className="mono">—</span>
 }
 
 function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user: AdminUser) => void; onDeleted: () => void }) {

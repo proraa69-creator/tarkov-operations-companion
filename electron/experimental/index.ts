@@ -20,7 +20,7 @@ import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScre
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
 import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
-import { minimapOn, readSettings, remoteMinimapOn, setRemoteMinimap, updateSettings, type ExperimentalSettings } from './settings.js'
+import { minimapOn, minimapOverlayOn, readSettings, remoteMinimapOn, remoteOverlayOn, setRemoteMinimap, updateSettings, type ExperimentalSettings } from './settings.js'
 import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
 import { foregroundWindowKey } from './win32.js'
@@ -380,15 +380,16 @@ function registerIpc() {
     return (await shell.openPath(lookupLogDir())) === ''
   })
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
-  // The owner's switch for every app, as the renderer learnt it from the server: off takes the minimap window, its key,
-  // the screenshots folder's watch and the position away at once, like «Отключить мини-карту».
-  ipcMain.handle('experimental:set-remote-minimap', (_event, enabled: unknown) => applyRemoteMinimap(enabled === true))
+  // The owner's switches for every app, as the renderer learnt them from the server: the first off takes the minimap
+  // window, its key, the screenshots folder's watch and the position away at once, like «Отключить мини-карту»; the
+  // second (`overlay`, left out by a caller from before it: on) only the window, its key and «Показать / скрыть».
+  ipcMain.handle('experimental:set-remote-minimap', (_event, enabled: unknown, overlay?: unknown) => applyRemoteMinimap(enabled === true, overlay !== false))
 }
 
-/** Exported for the tests. Returns whether the minimap is on now (both switches). */
-export function applyRemoteMinimap(enabled: boolean) {
-  if (remoteMinimapOn() !== enabled) {
-    setRemoteMinimap(enabled)
+/** Returns whether the minimap's tracking is on now (the owner's switch and the player's). */
+function applyRemoteMinimap(enabled: boolean, overlay: boolean) {
+  if (remoteMinimapOn() !== enabled || remoteOverlayOn() !== overlay) {
+    setRemoteMinimap(enabled, overlay)
     if (!enabled) lastPosition = null
     applySettings(readSettings())
   }
@@ -418,8 +419,9 @@ function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: {
     if (echoMinimap) sendOverlay(minimapWindow, 'overlay:minimap', next)
     else overlayPayloads.get(minimapWindow!)?.set('overlay:minimap', next)
   }
-  // «Отключить мини-карту»: the window goes at once, and nothing watches the screenshots folder for a position.
-  if (!minimapOn(settings)) releaseMinimap()
+  // «Отключить мини-карту»: the window goes at once, and nothing watches the screenshots folder for a position. The
+  // owner's window switch alone: the window goes, the position keeps coming for the app's maps and the phone.
+  if (!minimapOverlayOn(settings)) releaseMinimap()
   if (settings.tracking && minimapOn(settings)) void tracker.start()
   else tracker.stop()
   // The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу. не программа»): the screenshots the
@@ -437,7 +439,7 @@ function startHook() {
   keyTimer = setInterval(() => {
     const settings = readSettings()
     // Read even while the minimap is off, so a press from back then does not open it the moment it is turned on.
-    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d) && minimapOn(settings)
+    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d) && minimapOverlayOn(settings)
     const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
     const collectorVk = HOTKEYS[settings.collectorKey]?.vk
     const collector = collectorVk ? keyDown(collectorVk) : false
@@ -469,7 +471,7 @@ function startHook() {
       if (event.ctrlKey || event.altKey || event.metaKey) return
       const settings = readSettings()
       const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
-      const isMapKey = minimapOn(settings) && event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
+      const isMapKey = minimapOverlayOn(settings) && event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
       const collectorHook = HOTKEYS[settings.collectorKey]?.hook
       if (collectorHook && event.keycode === UiohookKey[collectorHook]) {
         if (!isTarkovForeground()) return
@@ -516,7 +518,7 @@ async function noteMinimapKey(settings: ExperimentalSettings, at: number) {
 function noteScreenshotFile(file: { folder: string; name: string; withCoordinates: boolean; at: number }) {
   void mapScreenshotRetention.observe(file)
   const settings = readSettings()
-  if (!file.withCoordinates || !minimapOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000) return
+  if (!file.withCoordinates || !minimapOverlayOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000) return
   // Taken with the game in front: the player pressed the screenshot key in a raid.
   if (isTarkovForeground()) void peekMinimap()
 }
@@ -970,7 +972,7 @@ function isBlank(data: Uint8Array) {
 }
 
 async function toggleMinimap(fromApp: boolean) {
-  if (!minimapOn(readSettings())) return false
+  if (!minimapOverlayOn(readSettings())) return false
   stopPeek()
   const window = ensureMinimapWindow()
   if (window.isVisible()) {

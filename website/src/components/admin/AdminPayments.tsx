@@ -3,7 +3,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { api, downloadAdminPaymentsCsv, type AdminPaymentFilter, type PaymentStatus, type PlanId } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
-import { Loading } from './adminShared'
+import { FriendDiscountTag, Loading } from './adminShared'
 import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 100
@@ -112,7 +112,7 @@ export function AdminPayments() {
                   {data.payments.map((item) => (
                     <tr key={item.id}>
                       <td className="mono">{dateTime.format(new Date(item.createdAt))}</td>
-                      <td className="admin-email" title={item.id}>{item.email}</td>
+                      <td className="admin-email" title={item.id}>{item.email}{item.friendDiscount && <FriendDiscountTag discount={item.friendDiscount} />}</td>
                       <td>{PLAN_LABEL[item.plan] ?? item.plan}{item.renewal ? <span className="tag admin-mini">автопродление</span> : null}</td>
                       <td>{PROVIDER_LABEL[item.provider]}</td>
                       <td><span className={`tag ${PAYMENT_STATUS[item.status]?.tone ?? ''}`}>{PAYMENT_STATUS[item.status]?.label ?? item.status}</span></td>

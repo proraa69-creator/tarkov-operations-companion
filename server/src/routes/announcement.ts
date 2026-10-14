@@ -3,14 +3,15 @@
  * кто с снг уведомление будет на русском и не известные страны тоже на русском, а все иностранные у них этот текст
  * будет автоматически переводится на английский»; services/announcementLanguage.ts):
  *
- *   GET /v1/announcement                  -> { version, announcement: { text, lang, updatedAt } | null, features: { minimap, minimapChangedAt } }
+ *   GET /v1/announcement                  -> { version, announcement: { text, lang, updatedAt } | null, features: { minimap, minimapChangedAt, minimapOverlay } }
  *                                            at once (public: the locked app shows it too)
  *   GET /v1/announcement?since=<version>  -> the same as soon as the notice changes, or after ~25 s (the app asks again)
  *   GET /v1/accounts/me/admin/announcement -> { announcement: { text, textEn, textEnSource, active, updatedBy, updatedAt } | null }
  *                                            (owner: with the hidden text, to edit it)
  *   PUT /v1/accounts/me/admin/announcement { text, active, textEn? } -> { announcement, translation }
- *   GET /v1/accounts/me/admin/features     -> { features: { minimap, minimapChangedAt, updatedBy, updatedAt } }
- *   PUT /v1/accounts/me/admin/features { minimap } -> the same (owner: the minimap over the game and the tracking, for all)
+ *   GET /v1/accounts/me/admin/features     -> { features: { minimap, minimapChangedAt, minimapOverlay, updatedBy, updatedAt } }
+ *   PUT /v1/accounts/me/admin/features { minimap?, minimapOverlay? } -> the same (owner, for all: the minimap over the
+ *                                            game and the tracking; the window over the game alone)
  *
  * `features` (services/featureSwitchStore.ts, owner, 14.10.2026): the minimap over the game and the position tracking,
  * off until the owner turns them on («после обновления приложения у всех по стандарту функция миникарты выключена»).
@@ -55,12 +56,13 @@ const bodySchema = z.object({
   active: z.boolean(),
 }).refine((value) => !value.active || value.text.length > 0)
 const querySchema = z.object({ since: z.string().regex(/^\d{1,16}$/).optional() })
-const featuresSchema = z.object({ minimap: z.boolean() })
+const featuresSchema = z.object({ minimap: z.boolean().optional(), minimapOverlay: z.boolean().optional() })
+  .refine((value) => value.minimap !== undefined || value.minimapOverlay !== undefined)
 
 /** What a save did to the English (see above). */
 export type AnnouncementTranslation = 'auto' | 'manual' | 'kept' | 'failed' | 'none'
 
-export type AnnouncementAudit = (actor: string, action: 'announcement.set' | 'features.minimap', target: string, details: Record<string, unknown>) => void
+export type AnnouncementAudit = (actor: string, action: 'announcement.set' | 'features.minimap' | 'features.minimapOverlay', target: string, details: Record<string, unknown>) => void
 
 /** The Russian to store and the English to keep with it. Never throws: a failed translation is 'failed', no English. */
 async function withEnglish(input: { text: string; textEn?: string | null }, previous: Announcement | null, translate: AnnouncementTranslator) {
@@ -155,10 +157,17 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
     if (!actor) return
     const body = featuresSchema.safeParse(req.body)
     if (!body.success) { res.status(400).json({ error: 'Некорректный запрос' }); return }
-    const saved = features.setMinimap(body.data.minimap, actor)
+    let saved = features.current()
+    if (body.data.minimap !== undefined) {
+      saved = features.set('minimap', body.data.minimap, actor)
+      try { audit?.(actor, 'features.minimap', 'minimap', { enabled: saved.minimap }) } catch { /* saved anyway */ }
+    }
+    if (body.data.minimapOverlay !== undefined) {
+      saved = features.set('minimapOverlay', body.data.minimapOverlay, actor)
+      try { audit?.(actor, 'features.minimapOverlay', 'minimapOverlay', { enabled: saved.minimapOverlay }) } catch { /* saved anyway */ }
+    }
     // The apps waiting with `since` get it at once; the others at their next check.
     signals.changed()
-    try { audit?.(actor, 'features.minimap', 'minimap', { enabled: saved.minimap }) } catch { /* saved anyway */ }
     res.json({ features: saved })
   })
 

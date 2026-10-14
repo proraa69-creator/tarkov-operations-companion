@@ -5,7 +5,7 @@ import { ArrowUp, Check, Lightbulb, MapPin, MousePointer2 } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
-import { useMinimapAllowed } from '../announcement/features'
+import { minimapOverlayAllowed, useRemoteFeatures } from '../announcement/features'
 import kappaContainer from '../assets/guide/kappa-container.webp'
 import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type GuideStep } from './guideProgress'
 import './firstRunGuide.css'
@@ -96,7 +96,8 @@ export function FirstRunGuide() {
     window.addEventListener(GUIDE_CHANGED_EVENT, read)
     return () => window.removeEventListener(GUIDE_CHANGED_EVENT, read)
   }, [status])
-  const minimapAllowed = useMinimapAllowed()
+  // The tip is about the window over the game (borderless mode): it waits while the owner keeps that window off.
+  const minimapAllowed = minimapOverlayAllowed(useRemoteFeatures())
   const step = guide ? guideStepFor(pathname, phone) : null
   // The minimap's tip waits while the owner keeps the minimap off for everybody: the page shows its own notice then.
   const pending = step && guide && !guide.record.accepted.includes(step) && (step !== 'minimap' || minimapAllowed) ? step : null

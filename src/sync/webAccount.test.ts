@@ -58,3 +58,27 @@ describe('phone transport: the owner\'s notice (server/src/routes/announcement.t
     expect(authorization(3)).toBeUndefined()
   })
 })
+
+describe('phone transport: «Онлайн сейчас» (server/src/routes/presence.ts)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('the heartbeat goes with the session and this device\'s id; nothing signed out; the owner\'s count is not on the phone\'s list', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await webServiceRequest('POST', '/v1/me/presence')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    expect(await webServiceRequest('POST', '/v1/me/presence')).toBeNull()
+    const [url, init] = (fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[0]!
+    expect(url).toBe('https://raidos.app/v1/me/presence')
+    const headers = init.headers as Record<string, string>
+    expect(headers.authorization).toBe(`Bearer ${token}`)
+    expect(headers['x-raid-device']).toMatch(/^[A-Za-z0-9_-]{22,64}$/)
+    await expect(webServiceRequest('GET', '/v1/accounts/me/admin/online')).rejects.toThrow('Неизвестный запрос сервиса')
+    // Other personal routes still go without the device.
+    await webServiceRequest('GET', '/v1/me/settings').catch(() => null)
+    expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[1]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
+  })
+})

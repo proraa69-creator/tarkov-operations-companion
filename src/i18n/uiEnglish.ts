@@ -8,7 +8,7 @@ import { MOBILE_PHRASES } from './uiEnglishMobile'
 import { SETTINGS_AREA_PHRASES } from './uiEnglishSettingsArea'
 import { ACCOUNT_PHRASES } from './uiEnglishAccount'
 import { OWNER_SITE_PHRASES } from './uiEnglishOwnerSite'
-import { OWNER_ADMIN_PHRASES } from './uiEnglishOwnerAdmin'
+import { OWNER_ADMIN_PHRASES, OWNER_ADMIN_RULES } from './uiEnglishOwnerAdmin'
 import { PAYMENT_PHRASES } from './uiEnglishPayments'
 import { PHONE_PHRASES } from './uiEnglishPhone'
 import { EMAIL_PHRASES } from './uiEnglishEmail'
@@ -152,7 +152,7 @@ export function translateUiText(value: string) {
   if (exact) return value.replace(value.trim(), exact)
   let output = value
   // Templates first, while their Russian words are still intact.
-  for (const [pattern, replacement] of [...MAP_RULES, ...QUEST_RULES]) output = output.replace(pattern, replacement)
+  for (const [pattern, replacement] of [...MAP_RULES, ...QUEST_RULES, ...OWNER_ADMIN_RULES]) output = output.replace(pattern, replacement)
   // Never replace part of a word (the old DOM translator turned Russian words into hybrids).
   for (const [source, target] of ORDERED) output = output.replace(new RegExp(`(?<![А-Яа-яЁё])${escapeRegex(source)}(?![А-Яа-яЁё])`, 'gu'), () => target)
   output = output

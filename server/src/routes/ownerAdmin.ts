@@ -28,6 +28,8 @@
  *   POST /me/admin/streamers/:code/revoke                              -> streamer settings (the account becomes a user)
  *   GET  /me/admin/sales-settings                    -> prices, plans, providers (no keys; editing stays in the desktop app)
  *   GET  /me/admin/audit?limit&offset                -> { entries, total }
+ *   GET  /me/admin/online                            -> { online, pc, phone, windowMinutes, at } («Онлайн сейчас»: accounts
+ *                                                       in the PC or phone app within the window, services/presence.ts)
  *
  * The owner's existing actions (streamer invites, payout decisions, payout limits; routes/accounts.ts, payouts.ts) are
  * written to the same audit log after they succeed. Rate limits are per owner account.
@@ -38,6 +40,7 @@ import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import type { AdminStore, PaymentFilter, RegionFilter, UserFilter } from '../services/adminStore.js'
 import { PaymentError } from '../services/paymentStore.js'
+import type { PresenceTracker } from '../services/presence.js'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const pageSchema = z.object({
@@ -71,7 +74,7 @@ const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' |
   { method: 'PUT', path: '/me/admin/payout-limits', action: 'payout.limits', describe: (body) => ({ details: { min: Number(body.min), max: Number(body.max) } }) },
 ]
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore) {
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker) {
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
   const writeLimiter = new FixedWindowRateLimiter(30, 60 * 1000)
@@ -184,6 +187,13 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     res.json(admin.setStreamerLink(actor, codeSchema.parse(req.params.code), enabled))
   }))
   router.post('/me/admin/streamers/:code/revoke', owner('write', (req, res, actor) => { res.json(admin.revokeStreamer(actor, codeSchema.parse(req.params.code))) }))
+
+  // «Онлайн сейчас» (owner, 14.10.2026): the owner app reads it every ~45 s under «Ваши предложения», the website's
+  // admin panel at its top. In memory, nothing personal: just the counts.
+  router.get('/me/admin/online', owner('read', (_req, res) => {
+    if (!presence) throw new AccountError(404, 'Не найдено')
+    res.json(presence.count())
+  }))
 
   router.get('/me/admin/sales-settings', owner('read', (_req, res) => { res.json(admin.salesSettings()) }))
   router.get('/me/admin/audit', owner('read', (req, res) => {

@@ -52,6 +52,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  // «Онлайн сейчас» (src/sync/presence.ts): the phone app's heartbeat, with its device id (server/src/routes/presence.ts).
+  { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
   { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
@@ -102,6 +104,8 @@ interface StoredSession { token: string; email: string; kind: 'user' | 'streamer
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players)\//
+/** «Онлайн сейчас»: the heartbeat goes with the device id, which tells the phone from the browser (server/src/routes/presence.ts). */
+const PRESENCE_PATH = '/v1/me/presence'
 
 function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
@@ -194,7 +198,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  const { response, result } = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

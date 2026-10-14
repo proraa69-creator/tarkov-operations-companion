@@ -7,6 +7,7 @@ import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
 import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
+import { AdminOnline } from '../components/admin/AdminOnline'
 import { ServerExeSection } from '../components/admin/ServerExeSection'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
@@ -64,6 +65,8 @@ export function AdminPage() {
           <div style={{ minWidth: 0 }}>
             <div className="eyebrow"><Crown size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 6 }} />Владелец · {auth.account.email}</div>
             <h1 className="page-title">Админ-панель</h1>
+            {/* «Онлайн сейчас» (owner, 14.10.2026): on every tab, at the top. */}
+            <AdminOnline />
           </div>
           <Link to="/cabinet" className="button ghost"><ArrowLeft aria-hidden="true" />Личный кабинет</Link>
         </div>

@@ -4,8 +4,8 @@ import { createPortal } from 'react-dom'
 import { api, type AdminCalendarDay, type AdminDay } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
-import { Loading } from './adminShared'
-import { failure, formatRub, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
+import { FriendDiscountTag, Loading } from './adminShared'
+import { failure, formatRub, inviterText, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 import '../../admin-calendar.css'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -183,7 +183,7 @@ function DayDetails({ day }: { day: AdminDay }) {
                   return (
                     <tr key={payment.id}>
                       <td className="mono">{timeOnly.format(new Date(payment.paidAt ?? payment.createdAt))}</td>
-                      <td className="day-email">{payment.email}{payment.referralCode && <span className="tag">{payment.referralCode}</span>}</td>
+                      <td className="day-email">{payment.email}{payment.referralCode && <span className="tag">{payment.referralCode}</span>}{payment.friendDiscount && <FriendDiscountTag discount={payment.friendDiscount} />}</td>
                       <td>{PLAN_LABEL[payment.plan]}{payment.renewal && ' · продление'}</td>
                       <td>{PROVIDER_LABEL[payment.provider] ?? payment.provider}</td>
                       <td><span className={`tag ${status.tone}`}>{status.label}</span></td>
@@ -207,7 +207,9 @@ function DayDetails({ day }: { day: AdminDay }) {
                 <span className="day-email">{item.email}</span>
                 {item.kind === 'streamer' && <span className="tag">стример</span>}
                 {item.referredBy && <span className="tag" title="Код стримера">{item.referredBy}</span>}
-                {item.invitedByFriend && <span className="tag green">по коду друга</span>}
+                {/* The inviter's e-mail instead of a bare flag (owner, 14.10.2026); an older server sends only the flag. */}
+                {item.invitedBy ? <span className="tag green" title="Пришёл по коду друга: скидка на первый месяц">от {inviterText(item.invitedBy)}</span>
+                  : item.invitedByFriend && <span className="tag green">по коду друга</span>}
               </li>
             ))}
           </ul>
