@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from './gameKeys'
+import { gameKeyLabel, gameKeyVk, isPrintScreen, parseScreenshotBinding, parseScreenshotBindingAt, screenshotOnKey, unityKey } from './gameKeys'
+import { HOTKEYS, hotkeyForGameKeys } from './hotkeys'
 
 // The settings JSON EFT writes to application.log at start (shortened).
 const SETTINGS_LINE = '2026-09-29 20:31:05.123|1.0.0.1.39234|Info|application|{"InvertedXAxis":false,"keyBindings":[{"keyName":"OpticCalibrationSwitchDown","variants":[{"keyCode":["PageDown"],"axisName":""},{"keyCode":[]}],"pressType":"Press"},{"keyName":"MakeScreenshot","variants":[{"keyCode":["F12"]},{"keyCode":[]}],"pressType":"Press"},{"keyName":"Recorder","variants":[{"keyCode":[]},{"keyCode":[]}],"pressType":"Release"}]}'
@@ -74,5 +75,44 @@ describe('unity key names', () => {
     expect(gameKeyLabel(['Keypad5'])).toBe('Num 5')
     expect(isPrintScreen(['SysReq'])).toBe(true)
     expect(isPrintScreen(['F12'])).toBe(false)
+  })
+})
+
+// owner, 14.10.2026: «сделай что бы человек билдил кнопку в игре одну и туже куда он билдит миникарту в приложении».
+describe('the game\'s screenshot on the minimap\'s key', () => {
+  it('compares one key by its Windows key, mouse side buttons included', () => {
+    expect(screenshotOnKey(['M'], HOTKEYS.KeyM!.vk)).toBe(true)
+    expect(screenshotOnKey(['Alpha5'], HOTKEYS.Digit5!.vk)).toBe(true)
+    expect(screenshotOnKey(['Mouse3'], HOTKEYS.Mouse4!.vk)).toBe(true)
+    expect(screenshotOnKey(['Mouse4'], HOTKEYS.Mouse5!.vk)).toBe(true)
+    expect(screenshotOnKey(['Mouse2'], HOTKEYS.MouseMiddle!.vk)).toBe(true)
+    expect(screenshotOnKey(['Print'], HOTKEYS.KeyM!.vk)).toBe(false)
+    expect(screenshotOnKey(['LeftAlt', 'M'], HOTKEYS.KeyM!.vk)).toBe(false)
+    expect(screenshotOnKey([], HOTKEYS.KeyM!.vk)).toBe(false)
+    expect(screenshotOnKey(['M'], undefined)).toBe(false)
+    expect(gameKeyVk('Mouse0')).toBeNull()
+  })
+
+  it('finds the app hotkey for the game\'s key, none for PrtSc or a combination', () => {
+    expect(hotkeyForGameKeys(['F12'])).toBe('F12')
+    expect(hotkeyForGameKeys(['M'])).toBe('KeyM')
+    expect(hotkeyForGameKeys(['Mouse3'])).toBe('Mouse4')
+    expect(hotkeyForGameKeys(['Print'])).toBeNull()
+    expect(hotkeyForGameKeys(['LeftAlt', 'F12'])).toBeNull()
+  })
+})
+
+describe('when the game logged its screenshot key', () => {
+  const settings = (key: string) => `{"keyBindings":[{"keyName":"MakeScreenshot","variants":[{"keyCode":["${key}"]},{"keyCode":[]}],"pressType":"Press"}]}`
+
+  it('takes the newest binding and the time of its log line, to weigh it against Control.ini', () => {
+    const text = `2026-10-14 10:00:01.120|1.0.0|Info|application|Controls: ${settings('Print')}\n`
+      + `2026-10-14 11:30:05.500|1.0.0|Info|application|Controls: ${settings('M')}\n`
+    expect(parseScreenshotBindingAt(text)).toEqual({ keys: ['M'], at: Date.parse('2026-10-14T11:30:05') })
+  })
+
+  it('has no time when no log line is in reach, and nothing when the binding is missing', () => {
+    expect(parseScreenshotBindingAt(settings('F12'))).toEqual({ keys: ['F12'], at: 0 })
+    expect(parseScreenshotBindingAt('2026-10-14 10:00:01|nothing here')).toBeNull()
   })
 })

@@ -1,6 +1,4 @@
-import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { release } from 'node:os'
 
 const require = createRequire(import.meta.url)
 
@@ -15,8 +13,6 @@ let api: {
   foreground: () => unknown
   windowText: (hwnd: unknown, buffer: Uint16Array, size: number) => number
   keyState: (key: number) => number
-  sendInput: (count: number, input: Record<string, number>, size: number) => number
-  scanCode: (code: number, mapType: number) => number
   isAdmin: (() => number) | null
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
   gdi: Gdi | null
@@ -64,15 +60,11 @@ function win32() {
     const user32 = koffi.load('user32.dll')
     const shell32 = koffi.load('shell32.dll')
     const optional = <T>(load: () => T) => { try { return load() } catch { return null } }
-    // INPUT with the KEYBDINPUT member, laid out for x64 (40 bytes: the union is sized by MOUSEINPUT).
-    koffi.struct('KEYINPUT64', { type: 'uint32', pad0: 'uint32', wVk: 'uint16', wScan: 'uint16', dwFlags: 'uint32', time: 'uint32', pad1: 'uint32', dwExtraInfo: 'uint64', pad2: 'uint64' })
     api = {
       notificationState: shell32.func('long __stdcall SHQueryUserNotificationState(_Out_ int32_t* pquns)') as (out: Int32Array) => number,
       foreground: user32.func('void* __stdcall GetForegroundWindow()') as () => unknown,
       keyState: user32.func('short __stdcall GetAsyncKeyState(int vKey)') as (key: number) => number,
-      sendInput: user32.func('uint32 __stdcall SendInput(uint32 cInputs, KEYINPUT64 *pInputs, int cbSize)') as (count: number, input: Record<string, number>, size: number) => number,
       windowText: user32.func('int __stdcall GetWindowTextW(void* hWnd, _Out_ uint16_t* lpString, int nMaxCount)') as (hwnd: unknown, buffer: Uint16Array, size: number) => number,
-      scanCode: user32.func('uint32 __stdcall MapVirtualKeyW(uint32 uCode, uint32 uMapType)') as (code: number, mapType: number) => number,
       isAdmin: optional(() => shell32.func('int __stdcall IsUserAnAdmin()') as () => number),
       shellExecute: optional(() => shell32.func('intptr_t __stdcall ShellExecuteW(void* hwnd, const char16_t* lpOperation, const char16_t* lpFile, const char16_t* lpParameters, const char16_t* lpDirectory, int nShowCmd)') as (hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint),
       gdi: optional(() => {
@@ -249,33 +241,6 @@ export function runElevated(file: string, params: string, dir: string) {
 }
 
 /**
- * Turns off «Use the Print screen key to open screen capture» for this Windows user (HKCU, no administrator rights),
- * only on the player's click («Включить точку» on the Mini Map page). Windows' own keyboard settings switch it back.
- */
-export function disablePrintScreenSnipping(): Promise<boolean> {
-  if (process.platform !== 'win32') return Promise.resolve(false)
-  return new Promise((resolve) => {
-    execFile('reg', ['add', 'HKCU\\Control Panel\\Keyboard', '/v', 'PrintScreenKeyForSnippingEnabled', '/t', 'REG_DWORD', '/d', '0', '/f'], { windowsHide: true, timeout: 4000 }, (error) => resolve(!error))
-  })
-}
-
-/**
- * Whether Windows opens the Snipping Tool on PrtSc (and so keeps the key from the game). The value is
- * missing until the player changes the setting; Windows 11 then does it by default, Windows 10 does not.
- */
-export function printScreenOpensSnipping(): Promise<'on' | 'off' | 'unknown'> {
-  if (process.platform !== 'win32') return Promise.resolve('unknown')
-  return new Promise((resolve) => {
-    execFile('reg', ['query', 'HKCU\\Control Panel\\Keyboard', '/v', 'PrintScreenKeyForSnippingEnabled'], { windowsHide: true, timeout: 4000 }, (error, stdout) => {
-      const value = /PrintScreenKeyForSnippingEnabled\s+REG_DWORD\s+0x([0-9a-f]+)/i.exec(String(stdout ?? ''))
-      if (value) { resolve(parseInt(value[1]!, 16) ? 'on' : 'off'); return }
-      const build = Number(release().split('.')[2])
-      resolve(error && Number.isFinite(build) ? (build >= 22000 ? 'on' : 'off') : 'unknown')
-    })
-  })
-}
-
-/**
  * How Windows sees the foreground full-screen app (SHQueryUserNotificationState):
  * - `exclusive`: a Direct3D exclusive full-screen game. Nothing can be drawn over it —
  *   the same limit every overlay (TarkovRaidCompass, TarkovQuestie, Discord) has.
@@ -296,58 +261,6 @@ export function foregroundDisplayMode(): DisplayMode {
     return 'normal'
   } catch {
     return 'unknown'
-  }
-}
-
-const INPUT_KEYBOARD = 1
-const KEYEVENTF_EXTENDEDKEY = 0x0001
-const KEYEVENTF_KEYUP = 0x0002
-const KEYEVENTF_SCANCODE = 0x0008
-const MAPVK_VK_TO_VSC = 0
-const VK_SNAPSHOT = 0x2c
-/** PrintScreen is the extended scan code E0 37 (MapVirtualKey answers with the Alt+SysRq code). */
-const SCAN_PRINTSCREEN = 0x37
-/** Pause and Num Lock share scan code 45 and are only told apart by their virtual key. */
-const BY_VIRTUAL_KEY = new Set([0x13, 0x90])
-
-export interface KeyStroke { vk: number; extended: boolean }
-
-type Calls = NonNullable<ReturnType<typeof win32>>
-
-function keyInput(calls: Calls, { vk, extended }: KeyStroke, up: boolean) {
-  const scan = vk === VK_SNAPSHOT ? SCAN_PRINTSCREEN : calls.scanCode(vk, MAPVK_VK_TO_VSC) & 0xff
-  let flags = scan && !BY_VIRTUAL_KEY.has(vk) ? KEYEVENTF_SCANCODE : 0
-  if (extended) flags |= KEYEVENTF_EXTENDEDKEY
-  if (up) flags |= KEYEVENTF_KEYUP
-  return { type: INPUT_KEYBOARD, pad0: 0, wVk: vk, wScan: scan, dwFlags: flags, time: 0, pad1: 0, dwExtraInfo: 0, pad2: 0 }
-}
-
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-/**
- * Presses the game's screenshot key (or combination) like a real keyboard: scan codes, the keys held
- * together for a moment so a game that samples input once per frame sees them, then released in
- * reverse order — always, so no key stays stuck. False when native input is unavailable.
- * Windows reports success even when it drops the input for an elevated game (see isElevated).
- */
-export async function pressKeys(strokes: KeyStroke[], holdMs = 60) {
-  const calls = win32()
-  if (!calls || !strokes.length) return false
-  const down: KeyStroke[] = []
-  try {
-    for (const stroke of strokes) {
-      if (down.length) await pause(15)
-      if (calls.sendInput(1, keyInput(calls, stroke, false), 40) !== 1) return false
-      down.push(stroke)
-    }
-    await pause(holdMs)
-    return true
-  } catch {
-    return false
-  } finally {
-    for (const stroke of down.reverse()) {
-      try { calls.sendInput(1, keyInput(calls, stroke, true), 40) } catch { /* nothing more to release */ }
-    }
   }
 }
 

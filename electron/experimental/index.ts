@@ -2,10 +2,10 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type Display, type Point, type Rectangle, type WebContents } from 'electron'
-import { gameKeyLabel, isPrintScreen, parseScreenshotBinding, unityKey } from '../../src/overlay/gameKeys.js'
+import { gameKeyLabel, parseScreenshotBinding, screenshotOnKey } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
-import { readScreenshotBinding } from '../logScanner.js'
+import { readScreenshotBindingAt } from '../logScanner.js'
 import { recognizeTooltip, warmUpOcr } from '../screenOcr.js'
 import { TOOLTIP_CAPTURE, type Bitmap, type Rect } from '../../src/overlay/tooltipDetect.js'
 import { readGameTooltip, retryOcrReadings, type TooltipReading } from '../../src/overlay/tooltipLookup.js'
@@ -23,8 +23,8 @@ import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteAppli
 import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
-  captureScreenRegion, disablePrintScreenSnipping, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping, wasVirtualKeyPressed,
-  type DisplayMode, type KeyStroke,
+  captureScreenRegion, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
+  type DisplayMode,
 } from './win32.js'
 
 const require = createRequire(import.meta.url)
@@ -312,11 +312,10 @@ function registerIpc() {
     screenshotsFolder: screenshotsFolder(),
     screenshotCandidates: screenshotFolderCandidates(),
     lastScreenshot: tracker.lastSeen,
-    screenshotPresses,
-    filesAfterPress,
     screenshotKey: await resolveScreenshotKey(),
+    minimapKey: readSettings().minimapKey,
+    otherKeys: [readSettings().itemKey, readSettings().collectorKey].filter(Boolean),
     elevated: isElevated(),
-    snipping: await snippingState(),
     nativeError: nativeError(),
     gameSeenAt: lastGameSeenAt || null,
     gameKeys: gameKeysState(),
@@ -346,17 +345,6 @@ function registerIpc() {
     return (await shell.openPath(lookupLogDir())) === ''
   })
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
-  // Only opens the Windows settings page; the player changes the setting there.
-  ipcMain.handle('experimental:open-keyboard-settings', () => shell.openExternal('ms-settings:easeofaccess-keyboard').then(() => true, () => false))
-  // «Включить точку» (owner, 13.10.2026: «сделай включение точки на миникарте проще»): on the player's click the app turns
-  // off «PrtSc opens the Snipping Tool» for this Windows user, so the game gets the key and writes its screenshot.
-  ipcMain.handle('experimental:fix-snipping', async () => {
-    const ok = await disablePrintScreenSnipping()
-    snipping = null
-    const state = await snippingState()
-    if (minimapWindow?.isVisible()) void sendPositionHint()
-    return { ok, snipping: state }
-  })
 }
 
 let appliedScreenshotsDir: string | null = null
@@ -386,8 +374,8 @@ function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: {
   if (!minimapOn(settings)) releaseMinimap()
   if (settings.tracking && minimapOn(settings)) void tracker.start()
   else tracker.stop()
-  // No automatic screenshots any more (the game's «screenshot taken» notice distracted the player): the app
-  // presses the screenshot key once when the minimap opens, and the player's own screenshots move the marker.
+  // The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу. не программа»): the screenshots the
+  // player takes with the game's own key — best the minimap's key too — move the marker.
 }
 
 function startHook() {
@@ -416,8 +404,7 @@ function startHook() {
         lastKeyAt = now
         if (item && !previousItem) void lookupItem(false)
         else {
-          // A screenshot only when the minimap opens — closing it needs no new position.
-          if (settings.tracking && !minimapShown()) void takeScreenshot()
+          if (settings.tracking) void noteMinimapKey(settings, now)
           void toggleMinimap(false)
         }
       }
@@ -425,10 +412,10 @@ function startHook() {
     previousMap = map
     previousItem = item
   }, 40)
+  // The global hook only where the key state cannot be polled; the app never presses keys with it either.
+  if (nativeKeysAvailable()) return
   try {
     hook = require('uiohook-napi') as UiohookModule
-    // Kept for pressing PrtSc (pressScreenshotKeys); its listener only where the key state cannot be polled.
-    if (nativeKeysAvailable()) return
     const { uIOhook, UiohookKey } = hook
     uIOhook.on('keydown', (event) => {
       if (event.ctrlKey || event.altKey || event.metaKey) return
@@ -452,9 +439,7 @@ function startHook() {
       lastKeyAt = now
       if (isItemKey) void lookupItem(false)
       else {
-        // Opening the map should immediately request a fresh coordinate-bearing EFT screenshot.
-        // The tracker will update the marker as soon as the game writes the file.
-        if (settings.tracking && !minimapShown()) void takeScreenshot()
+        if (settings.tracking) void noteMinimapKey(settings, now)
         void toggleMinimap(false)
       }
     })
@@ -465,68 +450,25 @@ function startHook() {
   }
 }
 
-let lastScreenshotPress = 0
-let screenshotPresses = 0
-/** Screenshots the game wrote right after a press by the app. */
-let filesAfterPress = 0
-/** Presses by the app since the last screenshot that followed one. */
-let pressesSinceFile = 0
-/** Times of the latest presses by the app, to tell its screenshots from the player's own. */
-const recentPresses: number[] = []
-/** The game writes the file this long after the key press at most. */
-const PRESS_FILE_MS = 3000
-const MISSES_BEFORE_BACKOFF = 8
-
 /**
- * One press of the game's screenshot key for the position tracker. False when the app cannot press it:
- * no key bound in the game, a mouse button, or PrtSc while Windows gives that key to the Snipping Tool
- * (pressing it would open the snipping overlay over the game).
+ * The minimap key was pressed with the game in front. The app presses nothing (owner, 14.10.2026: «человек сам меняет
+ * клавишу нажатия скриншота и привязывает ее на ту же кнопку что и карта, и он сам нажимает клавишу. не программа»). When
+ * the game's «Скриншот» is on this same key («сделай что бы человек билдил кнопку в игре одну и туже куда он билдит
+ * миникарту в приложении»), the game writes a screenshot right now: it belongs to the minimap, and only the newest of
+ * those is kept (MapScreenshotRetention), so they do not pile up in the player's folder.
  */
-async function takeScreenshot() {
-  const now = Date.now()
-  if (now - lastScreenshotPress < 500) return false
-  lastScreenshotPress = now
+async function noteMinimapKey(settings: ExperimentalSettings, at: number) {
   const key = await resolveScreenshotKey()
-  if (!key.sendable) return false
-  if (isPrintScreen(key.keys) && await snippingState() === 'on') return false
+  if (!screenshotOnKey(key.keys, HOTKEYS[settings.minimapKey]?.vk)) return
   const request = await mapScreenshotRetention.prepare(screenshotsFolder())
-  const successful = await pressScreenshotKeys(key)
-  mapScreenshotRetention.sent(request, successful, now)
-  return successful
+  mapScreenshotRetention.sent(request, true, at)
 }
 
-async function pressScreenshotKeys(key: ScreenshotKeyInfo) {
-  const strokes = key.keys.map(unityKey).filter((stroke): stroke is KeyStroke => Boolean(stroke))
-  screenshotPresses += 1
-  pressesSinceFile += 1
-  recentPresses.push(Date.now())
-  if (recentPresses.length > 12) recentPresses.shift()
-  if (await pressKeys(strokes)) return true
-  if (!hook || !isPrintScreen(key.keys)) return false
-  try {
-    hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'down')
-    await new Promise((resolve) => setTimeout(resolve, 60))
-    hook.uIOhook.keyToggle(hook.UiohookKey.PrintScreen!, 'up')
-  } catch {
-    hook.uIOhook.keyTap(hook.UiohookKey.PrintScreen!)
-  }
-  return true
-}
-
-const pressedBefore = (at: number) => recentPresses.some((press) => at >= press - 300 && at <= press + PRESS_FILE_MS)
-/** The app's own presses bring screenshots right now: automatic screenshots keep the minimap fresh by themselves. */
-const autoScreenshotsWork = () => filesAfterPress > 0 && pressesSinceFile < MISSES_BEFORE_BACKOFF && Date.now() - (recentPresses.at(-1) ?? 0) < 10_000
-
-/** Every new screenshot: counts the ones that followed the app's presses; the player's own may open the minimap. */
+/** Every new screenshot: the minimap's own are kept to the newest; another may open the minimap (when that is on). */
 function noteScreenshotFile(file: { folder: string; name: string; withCoordinates: boolean; at: number }) {
   void mapScreenshotRetention.observe(file)
-  if (pressedBefore(file.at)) {
-    filesAfterPress += 1
-    pressesSinceFile = 0
-    return
-  }
   const settings = readSettings()
-  if (!file.withCoordinates || !minimapOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000 || autoScreenshotsWork()) return
+  if (!file.withCoordinates || !minimapOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000) return
   // Taken with the game in front: the player pressed the screenshot key in a raid.
   if (isTarkovForeground()) void peekMinimap()
 }
@@ -534,38 +476,40 @@ function noteScreenshotFile(file: { folder: string; name: string; withCoordinate
 const GAME_SETTINGS = () => join(app.getPath('appData'), 'Battlestate Games', 'Escape from Tarkov', 'Settings', 'Control.ini')
 const KEY_CACHE_MS = 30_000
 let keyCache: { at: number; key: ScreenshotKeyInfo } | null = null
+/** The Logs folder for the logged keys: looking for it may sweep the drives, so not more than every 10 minutes. */
+const ROOT_CACHE_MS = 10 * 60_000
+let rootCache: { at: number; root: string } | null = null
+
+async function logsRoot() {
+  if (rootCache && Date.now() - rootCache.at < ROOT_CACHE_MS) return rootCache.root
+  const root = await options.logsRoot().catch(() => '')
+  rootCache = { at: Date.now(), root }
+  return root
+}
 
 /**
- * The key the app presses for a screenshot: PrtSc, the game's standard key, unless another one is chosen on the Mini Map
- * page; with «По настройкам игры» the one set in the game — its settings file, then the bindings it logs at start —
- * else PrtSc.
+ * The game's screenshot key: the one the player presses (the app only reads it, to tell whether it is the minimap's key).
+ * Its Control.ini and the keys it logs at start are both read and the fresher wins: the Steam game (store app 3932890)
+ * logs into its own Steam library while a Control.ini may be left from the launcher's game, and a key changed during a
+ * session is only in Control.ini. Neither found: PrtSc, the game's default.
  */
 async function resolveScreenshotKey(fresh = false): Promise<ScreenshotKeyInfo> {
-  const chosen = readSettings().screenshotKey
-  if (chosen) return describeKey([chosen], chosen === 'Print' ? 'standard' : 'setting')
   if (!fresh && keyCache && Date.now() - keyCache.at < KEY_CACHE_MS) return keyCache.key
-  let keys: string[] | null = parseScreenshotBinding(await readFile(GAME_SETTINGS(), 'utf8').catch(() => ''))
-  let source: ScreenshotKeyInfo['source'] = keys ? 'game-settings' : 'default'
-  if (!keys) {
-    const root = await options.logsRoot().catch(() => '')
-    keys = root ? await readScreenshotBinding(root).catch(() => null) : null
-    if (keys) source = 'game-log'
-  }
-  const key = describeKey(keys ?? ['Print'], source)
+  const [ini, logged] = await Promise.all([
+    Promise.all([readFile(GAME_SETTINGS(), 'utf8'), stat(GAME_SETTINGS())])
+      .then(([text, info]) => ({ keys: parseScreenshotBinding(text), at: info.mtimeMs }), () => null),
+    logsRoot().then((root) => (root ? readScreenshotBindingAt(root) : null)).catch(() => null),
+  ])
+  const fromIni = ini?.keys ? { keys: ini.keys, at: ini.at, source: 'game-settings' as const } : null
+  const fromLog = logged ? { keys: logged.keys, at: logged.at, source: 'game-log' as const } : null
+  const chosen = fromIni && fromLog ? (fromLog.at > fromIni.at ? fromLog : fromIni) : fromIni ?? fromLog
+  const key = describeKey(chosen?.keys ?? ['Print'], chosen?.source ?? 'default')
   keyCache = { at: Date.now(), key }
   return key
 }
 
 function describeKey(keys: string[], source: ScreenshotKeyInfo['source']): ScreenshotKeyInfo {
-  return { keys, label: gameKeyLabel(keys), source, unbound: keys.length === 0, sendable: keys.length > 0 && keys.every((key) => unityKey(key)) }
-}
-
-let snipping: { at: number; value: 'on' | 'off' | 'unknown' } | null = null
-async function snippingState() {
-  if (snipping && Date.now() - snipping.at < 60_000) return snipping.value
-  const value = await printScreenOpensSnipping().catch(() => 'unknown' as const)
-  snipping = { at: Date.now(), value }
-  return value
+  return { keys, label: gameKeyLabel(keys), source, unbound: keys.length === 0 }
 }
 
 /** Asks the main window (which holds the catalog and quest progress) to answer a query. */
@@ -647,8 +591,6 @@ function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void
   window.on('closed', () => { if (timer) clearTimeout(timer) })
   return window
 }
-
-const minimapShown = () => Boolean(minimapWindow && !minimapWindow.isDestroyed() && minimapWindow.isVisible())
 
 /** «Отключить мини-карту»: the window (and its renderer process) goes now, not ten minutes after it was hidden. */
 function releaseMinimap() {
@@ -967,7 +909,7 @@ async function toggleMinimap(fromApp: boolean) {
  * game's screenshot, in the minimap itself, so the player learns it in the raid instead of guessing. Null clears it.
  */
 async function sendPositionHint() {
-  const problem = positionProblem({ native: nativeKeysAvailable(), key: await resolveScreenshotKey(), snipping: await snippingState(), elevated: isElevated(), gameKeys: gameKeysState() })
+  const problem = positionProblem({ native: nativeKeysAvailable(), key: await resolveScreenshotKey(), minimapKey: readSettings().minimapKey, elevated: isElevated(), gameKeys: gameKeysState() })
   sendOverlay(minimapWindow, 'overlay:hint', problem)
 }
 
@@ -1026,14 +968,15 @@ async function openMinimap(window: BrowserWindow, fromApp: boolean) {
 
 const IMAGE = /\.(png|jpe?g|bmp)$/i
 const CHECK_WAIT_GAME_S = 20
-const CHECK_WAIT_FILE_MS = 6000
+/** The player presses the game's screenshot key themselves: time for that once the game is in front. */
+const CHECK_WAIT_FILE_MS = 20_000
 let check: ScreenshotCheck | null = null
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
- * The «Проверить скриншоты» button: where the game saves screenshots and whether coordinates can be read
- * from their names, which key the app presses, then one real press with the game in front and the file
- * it brings. A screenshot the player takes meanwhile counts too. Progress goes to the page as it happens.
+ * The «Проверить скриншоты» check: where the game saves screenshots and whether coordinates can be read from their
+ * names, the game's screenshot key, then — with the game in front — the screenshot the player takes with that key. The
+ * app presses nothing. Progress goes to the page as it happens.
  */
 async function checkScreenshots(): Promise<ScreenshotCheck> {
   if (check && check.phase !== 'done') return { ...check }
@@ -1043,10 +986,8 @@ async function checkScreenshots(): Promise<ScreenshotCheck> {
     countdown: 0,
     folder: { path: folder, exists: false, images: 0, withCoordinates: 0, newest: null },
     key: await resolveScreenshotKey(true),
-    snipping: await snippingState(),
     elevated: isElevated(),
     nativeError: nativeError(),
-    pressed: false,
     file: null,
     raid: options.raidState(),
     verdict: null,
@@ -1069,8 +1010,7 @@ async function checkScreenshots(): Promise<ScreenshotCheck> {
     }
     emit()
     if (report.nativeError) return 'no-native'
-    if (!report.key.sendable) return 'no-key'
-    if (isPrintScreen(report.key.keys) && report.snipping === 'on') return 'snipping'
+    if (report.key.unbound) return 'no-key'
     const known = new Set((before ?? []).map((file) => file.name))
     report.phase = 'waiting-game'
     let file: ScreenshotCheckFile | null = null
@@ -1083,10 +1023,6 @@ async function checkScreenshots(): Promise<ScreenshotCheck> {
     report.countdown = 0
     if (!file) {
       if (!isTarkovForeground()) return 'no-game'
-      // Let the game take the keyboard after the switch, then press only if it is still in front.
-      await pause(700)
-      if (!isTarkovForeground()) return 'no-game'
-      report.pressed = await pressScreenshotKeys(report.key)
       report.phase = 'waiting-file'
       emit()
       const until = Date.now() + CHECK_WAIT_FILE_MS

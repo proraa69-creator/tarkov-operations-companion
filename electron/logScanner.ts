@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { RaidMode } from '../src/domain/types.js'
 import { buildScanResult, parseLogTime, readLogSignalsFrom, type LogSignal, type ModeLogScanResult } from '../src/import/eftLogTimeline.js'
 import { raidEventsFromText, raidStateFromEvents, type RaidLogEvent, type RaidState } from '../src/import/raidState.js'
-import { parseScreenshotBinding } from '../src/overlay/gameKeys.js'
+import { parseScreenshotBindingAt } from '../src/overlay/gameKeys.js'
 
 export type { ModeLogScanResult, RaidState }
 
@@ -199,6 +199,11 @@ function sameInputs(previous: Array<LogSignal[] | undefined>, next: Array<LogSig
  * few launches that logged them: [] = not bound, null = not found.
  */
 export async function readScreenshotBinding(root: string): Promise<string[] | null> {
+  return (await readScreenshotBindingAt(root))?.keys ?? null
+}
+
+/** The same with the time the game logged it (0 when the log line had none), to weigh it against Control.ini. */
+export async function readScreenshotBindingAt(root: string): Promise<{ keys: string[]; at: number } | null> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const launches = entries
     .filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))
@@ -208,9 +213,9 @@ export async function readScreenshotBinding(root: string): Promise<string[] | nu
     .map((entry) => join(root, entry.name))
   for (const folder of launches.length ? launches : [root]) {
     const files = (await relevantLogs(folder)).filter((file) => /application[^\\/]*\.log$/i.test(file)).sort()
-    let keys: string[] | null = null
-    for (const file of files) keys = await fileBinding(file) ?? keys
-    if (keys) return keys
+    let found: { keys: string[]; at: number } | null = null
+    for (const file of files) found = await fileBinding(file) ?? found
+    if (found) return found
   }
   return null
 }
@@ -218,34 +223,34 @@ export async function readScreenshotBinding(root: string): Promise<string[] | nu
 const BINDING_CHUNK = 4 * 1024 * 1024
 /** Chunks overlap so a binding cut in half by a chunk edge is still read whole. */
 const BINDING_OVERLAP = 8 * 1024
-const bindingCache = new Map<string, { size: number; keys: string[] | null }>()
+const bindingCache = new Map<string, { size: number; found: { keys: string[]; at: number } | null }>()
 
 /** A running game keeps appending to its log: only the new part is read, in chunks. */
 async function fileBinding(file: string) {
   const info = await stat(file).catch(() => null)
   if (!info) return null
   const cached = bindingCache.get(file)
-  if (cached && cached.size === info.size) return cached.keys
+  if (cached && cached.size === info.size) return cached.found
   const from = cached && info.size > cached.size ? Math.max(0, cached.size - BINDING_OVERLAP) : 0
-  let keys = cached && from > 0 ? cached.keys : null
+  let found = cached && from > 0 ? cached.found : null
   const handle = await open(file, 'r').catch(() => null)
-  if (!handle) return keys
+  if (!handle) return found
   try {
     const buffer = Buffer.alloc(BINDING_CHUNK)
     for (let position = from; position < info.size;) {
       const { bytesRead } = await handle.read(buffer, 0, Math.min(BINDING_CHUNK, info.size - position), position)
       if (!bytesRead) break
-      keys = parseScreenshotBinding(buffer.toString('utf8', 0, bytesRead)) ?? keys
+      found = parseScreenshotBindingAt(buffer.toString('utf8', 0, bytesRead)) ?? found
       if (position + bytesRead >= info.size) break
       position += Math.max(1, bytesRead - BINDING_OVERLAP)
     }
   } catch {
-    return keys
+    return found
   } finally {
     await handle.close().catch(() => {})
   }
-  bindingCache.set(file, { size: info.size, keys })
-  return keys
+  bindingCache.set(file, { size: info.size, found })
+  return found
 }
 
 /** «log_2026.09.27_2-33-45_1.1.5.1» → sortable launch time (the hour is not zero-padded). */

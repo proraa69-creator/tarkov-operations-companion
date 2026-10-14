@@ -1,3 +1,5 @@
+import { gameKeyVk } from './gameKeys.js'
+
 /** Keys the overlay hotkeys can be bound to, keyed by KeyboardEvent.code. */
 export interface HotkeyDefinition {
   label: string
@@ -56,4 +58,14 @@ export function isKnownHotkey(code: unknown): code is string {
 
 export function hotkeyLabel(code: string) {
   return HOTKEYS[code]?.label ?? code
+}
+
+/**
+ * The app hotkey that is the game's screenshot key, when it is one key the app can watch («Открывать мини-карту клавишей
+ * F12»: the other way round to make both the same key). Null for PrtSc, combinations and keys missing here.
+ */
+export function hotkeyForGameKeys(keys: string[]): string | null {
+  if (keys.length !== 1) return null
+  const vk = gameKeyVk(keys[0]!)
+  return vk === null ? null : Object.keys(HOTKEYS).find((code) => HOTKEYS[code]!.vk === vk) ?? null
 }
