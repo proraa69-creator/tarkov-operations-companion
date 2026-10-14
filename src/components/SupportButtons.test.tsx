@@ -125,7 +125,8 @@ describe('SupportButtons', () => {
     const serviceRequest = mockDesktop(signedIn)
     const user = userEvent.setup({ applyAccept: false })
     render(<SupportButtons variant="nav" />)
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Связаться', 'Сообщить об ошибке', 'Ваши предложения'])
+    // The sidebar names the chat right under «Сообщить об ошибке» (owner, 14.10.2026), «Ваши предложения» comes after it.
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Связаться', 'Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
     await user.click(screen.getByRole('button', { name: 'Ваши предложения' }))
     const dialog = await screen.findByRole('dialog', { name: 'Ваши предложения' })
     expect(dialog).toHaveTextContent('Есть идея для Raid OS?')

@@ -59,6 +59,24 @@
 :root[data-layout="mobile"] .support-chat-message { max-width: 88%; }
 :root[data-layout="mobile"] .support-chat-hint { display: none; }
 
+/* «Новое сообщение от поддержки» (SupportNotice): top right under the top bar and the owner's notice, over the pages and
+   under the dialogs (.registration-overlay is 3000); the trader restock notes keep the bottom corner. The phone: across
+   the top under its bar. */
+.support-notice {
+  position: fixed; top: calc(var(--topbar) + var(--announcement-height, 0px) + 12px); right: 18px; z-index: 70;
+  display: flex; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 36px)); padding: 8px 8px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--line)); border-radius: 12px;
+  background: var(--surf-2, var(--panel)); box-shadow: 0 14px 34px rgb(0 0 0 / 45%); font-size: 13px;
+  animation: support-chat-pop .2s var(--ease-out) both;
+}
+.support-notice > svg { flex: none; color: var(--brass-strong, var(--brass)); }
+.support-notice strong { flex: 1 1 auto; min-width: 0; }
+.support-notice .button { flex: none; }
+.support-notice-close { flex: none; width: 30px; height: 30px; }
+:root[data-layout="mobile"] .support-notice {
+  top: calc(var(--topbar) + 8px); left: calc(10px + var(--safe-left)); right: calc(10px + var(--safe-right)); max-width: none;
+}
+
 /* «Заявки» → «Чаты» in the owner app: the conversations on the left, the open one on the right. */
 .owner-chats { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: 12px; align-items: start; }
 .owner-chats-list { display: grid; gap: 4px; padding: 6px; max-height: calc(100dvh - 250px); overflow-y: auto; overscroll-behavior: contain; }

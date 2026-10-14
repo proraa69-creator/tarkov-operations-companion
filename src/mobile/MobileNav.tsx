@@ -9,7 +9,7 @@ import { useAppVersion } from '../app/appVersion'
 import { nativePlatform } from '../platform'
 import { useLocale } from '../i18n/LocaleProvider'
 import { SupportChatDialog } from '../support/SupportChat'
-import { useSupportUnread } from '../support/supportChatClient'
+import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
 
 /**
  * Owner, 13.10.2026: «в нижнем меню убери раздел миникарта … вместо миникарты сделай оружейника туда» (the position
@@ -41,7 +41,8 @@ const MORE = [
 /**
  * Phone layout: the bottom tab bar and the «Ещё» sheet (replaces the desktop sidebar). «Чат с поддержкой» is in the sheet
  * (support/SupportChat.tsx, a sheet of its own above the tab bar; any tab closes it); «Ещё» counts the friend and squad
- * requests and the support answers not read yet.
+ * requests and the support answers not read yet. «Открыть» on the toast «Новое сообщение от поддержки» opens the same
+ * chat sheet.
  */
 export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number }) {
   const badge = (count: number, label = 'Новых заявок') => count > 0 ? <span className="nav-badge" aria-label={uiText(`${label}: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
@@ -54,6 +55,13 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
   const location = useLocation()
   const moreActive = MORE.some((entry) => location.pathname.startsWith(entry.to))
   const label = (entry: { ru: string; en: string }) => uiText(locale === 'en' ? entry.en : entry.ru)
+
+  // The toast «Новое сообщение от поддержки» (support/SupportChat.tsx SupportNotice): its «Открыть» opens the chat here.
+  useEffect(() => {
+    const show = () => { setMoreOpen(false); setChatOpen(true) }
+    window.addEventListener(SUPPORT_CHAT_OPEN_EVENT, show)
+    return () => window.removeEventListener(SUPPORT_CHAT_OPEN_EVENT, show)
+  }, [])
 
   // Choosing a section, tapping the backdrop or Escape closes the sheet.
   useEffect(() => {

@@ -1,7 +1,8 @@
 /**
  * English for «Чат с поддержкой» (src/support/SupportChat.tsx, src/support/supportChatClient.ts), its places in the
- * sidebar, Settings and the phone's «Ещё», the owner's «Заявки» → «Чаты» (src/support/OwnerChats.tsx) and the server's
- * chat errors (server/src/routes/supportChat.ts, services/supportChatStore.ts).
+ * sidebar, Settings and the phone's «Ещё», its toast, the owner's «Заявки» → «Чаты» (src/support/OwnerChats.tsx, «Открыть
+ * чат» in src/pages/RequestsPage.tsx) and the server's chat errors (server/src/routes/supportChat.ts,
+ * services/supportChatStore.ts).
  */
 export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Чат с поддержкой', 'Support chat'],
@@ -18,6 +19,9 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Прочитано', 'Read'],
   ['Новых сообщений', 'New messages'],
   ['Новых уведомлений', 'New notifications'],
+  // The toast when an answer arrives while the chat is closed (owner, 14.10.2026).
+  ['Новое сообщение от поддержки', 'New message from support'],
+  ['Открыть', 'Open'],
   ['Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.', 'Message us in the support chat, send a bug report with screenshots or share an idea for the app.'],
   // The app's and the server's refusals.
   ['Напишите сообщение', 'Write a message'],
@@ -33,4 +37,10 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Ответ игроку…', 'Reply to the player…'],
   ['Все чаты', 'All chats'],
   ['Непрочитанных', 'Unread'],
+  // «Открыть чат» on a report and «Проблема решена» (owner, 14.10.2026).
+  ['Открыть чат', 'Open chat'],
+  ['Проблема решена', 'Problem solved'],
+  ['Удалить переписку?', 'Delete the conversation?'],
+  ['Да', 'Yes'],
+  ['Нет', 'No'],
 ]
