@@ -642,9 +642,24 @@ function showOverlay(window: BrowserWindow) {
 }
 
 function ensureItemWindow() {
-  if (!itemWindow || itemWindow.isDestroyed()) itemWindow = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), 5 * 60_000, () => { itemWindow = null; itemCardAnchor = null })
+  if (!itemWindow || itemWindow.isDestroyed()) {
+    const window = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), OVERLAY_RELEASE_MS, () => { itemWindow = null; itemCardAnchor = null })
+    // Hidden while it was still «reading…»: the overlays keep drawing while hidden, and the spinner would turn on for minutes.
+    window.on('hide', () => {
+      const shown = overlayPayloads.get(window)?.get('overlay:item') as { state?: string } | undefined
+      if (shown?.state === 'loading') sendOverlay(window, 'overlay:item', { state: 'idle' })
+    })
+    itemWindow = window
+  }
   return itemWindow
 }
+
+/**
+ * A hidden overlay window still holds a whole page (~60–100 MB) and Chromium keeps drawing it (backgroundThrottling is
+ * off for the instant show): closed after 2 minutes hidden (was 5 for the card, 10 for the minimap), reopened on demand —
+ * the next opening then loads the page again, about a second.
+ */
+const OVERLAY_RELEASE_MS = 2 * 60_000
 
 /** A hidden overlay window still holds a whole page (~60–100 MB): close it after a while hidden, reopen on demand. */
 function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void) {
@@ -670,7 +685,7 @@ function releaseMinimap() {
 
 function ensureMinimapWindow() {
   if (!minimapWindow || minimapWindow.isDestroyed()) {
-    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), 10 * 60_000, () => { minimapWindow = null })
+    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), OVERLAY_RELEASE_MS, () => { minimapWindow = null })
     // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again, and
     // show Chromium's input window again once the show is through (inputReattach.ts).
     const shown = () => {

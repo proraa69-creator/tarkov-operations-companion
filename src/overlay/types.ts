@@ -42,6 +42,8 @@ export interface ItemOverlayInfo {
 }
 
 export type ItemOverlayPayload =
+  /** Nothing to show: a card not used yet, or one hidden while it was still reading (no spinner left running hidden). */
+  | { state: 'idle' }
   | { state: 'loading' }
   | { state: 'not-found'; text?: string }
   | ItemOverlayInfo

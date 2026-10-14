@@ -83,6 +83,40 @@ describe('minimap controls after reopening', () => {
   })
 })
 
+describe('overlays hidden over the game', () => {
+  afterEach(() => { vi.useRealTimers(); document.documentElement.classList.remove('overlay-hidden') })
+
+  it('the minimap stops its animations and timers while hidden, and picks them up when shown again', async () => {
+    vi.useFakeTimers()
+    render(<OverlayApp kind="minimap" />)
+    ready()
+    act(() => listeners.get('overlay:position')?.({ x: 1, y: 1, z: 1, yaw: 0, at: Date.now() }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    act(() => listeners.get('overlay:visibility')?.(false))
+    expect(document.documentElement.classList.contains('overlay-hidden')).toBe(true)
+    // The last report was «no zones»; hidden, nothing is measured or sent any more.
+    expect(zones).toHaveBeenLastCalledWith([])
+    const sent = zones.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(zones.mock.calls.length).toBe(sent)
+    expect(vi.getTimerCount()).toBe(0)
+    act(() => listeners.get('overlay:visibility')?.(true))
+    expect(document.documentElement.classList.contains('overlay-hidden')).toBe(false)
+    expect(zones.mock.calls.length).toBeGreaterThan(sent)
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+  })
+
+  it('the item card waits without a spinner, and turns back to idle when hidden while reading', () => {
+    const { container } = render(<OverlayApp kind="item" />)
+    expect(container.querySelector('.ov-spinner')).toBeNull()
+    act(() => listeners.get('overlay:item')?.({ state: 'loading' }))
+    expect(container.querySelector('.ov-spinner')).not.toBeNull()
+    act(() => listeners.get('overlay:item')?.({ state: 'idle' }))
+    expect(container.querySelector('.ov-spinner')).toBeNull()
+    expect(container.querySelector('.eft-card')).not.toBeNull()
+  })
+})
+
 /** Factory with its floors as the live catalog has them: heights from tarkov.dev, each floor with its own render tiles. */
 const tiles = (floor: string) => `https://assets.tarkov.dev/maps/factory/${floor}/{z}/{x}/{y}.png`
 const factory = {
