@@ -16,3 +16,14 @@
 .experimental-page .exp-power-body p { margin: 3px 0 0; color: var(--text-muted); line-height: 1.45; max-width: 760px; }
 .experimental-page .exp-power .button { flex: none; }
 @media (max-width: 760px) { .experimental-page .exp-power .panel-body { flex-wrap: wrap; } }
+
+/* The owner's switch for every app (owner edition only) and the one-time notice while it is off (14.10.2026). */
+.experimental-page .settings-grid.is-single { grid-template-columns: minmax(0, 1fr); }
+.experimental-page .exp-owner-switch { border-color: color-mix(in srgb, var(--brass) 45%, var(--border)); }
+.experimental-page .exp-owner-state { font-weight: 650; color: var(--text-dim); }
+.experimental-page .exp-owner-state.is-on { color: var(--green); }
+.experimental-page .exp-owner-switch .is-error { display: block; margin-top: 4px; color: var(--danger, #d46a5f); }
+.minimap-off-dialog .registration-icon { color: var(--brass); background: color-mix(in srgb, var(--brass) 12%, var(--panel)); }
+.minimap-off-dialog .minimap-off-text { margin: 0 0 18px; font-size: 15.5px; line-height: 1.55; color: var(--text); }
+.minimap-off-dialog .minimap-off-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.minimap-off-dialog .minimap-off-actions .button { display: inline-flex; align-items: center; gap: 6px; }

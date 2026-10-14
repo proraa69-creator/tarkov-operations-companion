@@ -1,7 +1,12 @@
 import { uiText } from '../i18n/renderText'
-import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, Power, ShieldAlert } from 'lucide-react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { AlertTriangle, MapPinOff, MessageCircle, Power, ShieldAlert, X } from 'lucide-react'
 import { startActivePolling } from '../app/activePolling'
+import { isOwnerApp } from '../app/buildEdition'
+import { SUPPORT_TELEGRAM_URL } from '../app/support'
+import { checkAnnouncementNow } from '../announcement/announcement'
+import { markMinimapNoticeSeen, minimapNoticeDue, parseFeatures, setRemoteFeatures, useRemoteFeatures } from '../announcement/features'
 import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
@@ -22,6 +27,12 @@ const SCREENSHOT_KEY_USE = 'Raid OS сам ничего не нажимает в
 const MINIMAP_ON_NOTE = 'Клавиша карты открывает мини-карту поверх игры. Позицию даёт скриншот, который делает сама игра по той же клавише, — она видна здесь и в телефоне.'
 const MINIMAP_OFF_NOTE = 'Клавиша карты ничего не делает: приложение не открывает мини-карту и не следит за папкой скриншотов, поэтому вашей позиции нет ни на картах, ни в телефоне. Информация о предмете работает как раньше.'
 
+/**
+ * The one-time notice while the owner keeps the minimap off for everybody (owner, 14.10.2026: «когда люди зайдут в блок
+ * мини карта, у них появится разовое уведомление во всплывающем окне… и кнопка на телеграм»).
+ */
+export const MINIMAP_OFF_NOTICE = 'Функция мини-карты временно выключена — для спокойствия пользователей. Ожидаем официального ответа от BSG! Спасибо за понимание. Если возникли вопросы, задайте их в нашем Telegram.'
+
 const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: string }> = [
   { id: 'arrow', label: 'Стрелка' },
   { id: 'chevron', label: 'Шеврон' },
@@ -40,8 +51,24 @@ function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined)
   return `${uiText(source[key.source])} ${key.label}`
 }
 
+/**
+ * «Мини Карта». While the owner keeps the minimap off for everybody (src/announcement/features.ts; owner, 14.10.2026:
+ * «по кнопке выключить в реальном времени должны исчезать зачеркнутые блоки»), everything about the minimap over the game
+ * and the position tracking is not drawn at all; the item card, the Collector scan and the administrator rights stay.
+ */
 export function ExperimentalPage() {
   const api = window.tarkovDesktop?.experimental
+  const features = useRemoteFeatures()
+  const minimap = features.minimap
+  // Seen (stored in this installation): drawn again without the notice.
+  const [, setNoticeSeen] = useState(0)
+  const notice = Boolean(api) && minimapNoticeDue(features)
+  // Entering the page asks the server again (a switch shows here before the next regular check).
+  useEffect(() => { void checkAnnouncementNow() }, [])
+  const closeNotice = useCallback(() => {
+    markMinimapNoticeSeen(features)
+    setNoticeSeen((count) => count + 1)
+  }, [features])
   const [settings, setSettings] = useState<ExperimentalSettings | null>(null)
   const [status, setStatus] = useState<ExperimentalStatus | null>(null)
   const [adminRefused, setAdminRefused] = useState(false)
@@ -92,14 +119,17 @@ export function ExperimentalPage() {
         <>
           {actionError && <p className="notice error" role="alert">{actionError}</p>}
           {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
-          {settings && <MinimapPower off={settings.minimapOff} onChange={(minimapOff) => update({ minimapOff })} />}
-          {status && settings && !settings.minimapOff && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
-          <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
-            <div className="panel-body">
-              <AlertTriangle size={18} />
-              <p>{uiText(OVERLAY_NOTE)}{status?.displayMode === 'exclusive' ? <strong>{uiText(' Сейчас игра в эксклюзивном полноэкранном режиме — окна поверх неё не видны.')}</strong> : null}</p>
-            </div>
-          </section>
+          {isOwnerApp() && <OwnerMinimapSwitch on={minimap} />}
+          {minimap && settings && <MinimapPower off={settings.minimapOff} onChange={(minimapOff) => update({ minimapOff })} />}
+          {minimap && status && settings && !settings.minimapOff && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
+          {minimap && (
+            <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
+              <div className="panel-body">
+                <AlertTriangle size={18} />
+                <p>{uiText(OVERLAY_NOTE)}{status?.displayMode === 'exclusive' ? <strong>{uiText(' Сейчас игра в эксклюзивном полноэкранном режиме — окна поверх неё не видны.')}</strong> : null}</p>
+              </div>
+            </section>
+          )}
 
           {status?.elevated === false && (
             <section className="panel exp-warning is-alert exp-admin">
@@ -118,7 +148,7 @@ export function ExperimentalPage() {
             </section>
           )}
 
-          <div className="settings-grid">
+          <div className={`settings-grid${minimap ? '' : ' is-single'}`}>
             <section className="panel">
               <div className="panel-header"><div className="panel-title">{uiText('Функции')}</div></div>
               <div className="panel-body">
@@ -129,6 +159,7 @@ export function ExperimentalPage() {
                   taken={[settings?.minimapKey, settings?.collectorKey]}
                   onChange={(itemKey) => update({ itemKey })}
                 />
+                {minimap && <>
                 <div className="setting-row">
                   <span>
                     <strong>{uiText('Прозрачность мини-карты')}</strong>
@@ -161,6 +192,7 @@ export function ExperimentalPage() {
                   <span><strong>{uiText('Размер мини-карты')}</strong><small>{settings?.minimapWidth ?? 420} px</small></span>
                   <input type="range" min={280} max={720} step={20} value={settings?.minimapWidth ?? 420} aria-label={uiText('Размер мини-карты')} onChange={(event) => update({ minimapWidth: Number(event.target.value) })} />
                 </div>
+                </>}
                 <HotkeyRow
                   label="Клавиша сканирования предметов для коллекционера"
                   hint="Поместите все предметы для квеста «Коллекционер» в один контейнер."
@@ -168,13 +200,15 @@ export function ExperimentalPage() {
                   taken={[settings?.itemKey, settings?.minimapKey]}
                   onChange={(collectorKey) => update({ collectorKey })}
                 />
-                <div className="setting-row exp-screenshot-key">
-                  <span>
-                    <strong>{uiText('Клавиша скриншота в игре')}</strong>
-                    <small className="exp-key-found">{screenshotKeyText(status?.screenshotKey)}</small>
-                    <small>{uiText(SCREENSHOT_KEY_USE)}</small>
-                  </span>
-                </div>
+                {minimap && (
+                  <div className="setting-row exp-screenshot-key">
+                    <span>
+                      <strong>{uiText('Клавиша скриншота в игре')}</strong>
+                      <small className="exp-key-found">{screenshotKeyText(status?.screenshotKey)}</small>
+                      <small>{uiText(SCREENSHOT_KEY_USE)}</small>
+                    </span>
+                  </div>
+                )}
                 <Toggle
                   icon={<ShieldAlert size={16} />}
                   title="Запускать от имени администратора"
@@ -185,7 +219,7 @@ export function ExperimentalPage() {
               </div>
             </section>
 
-            <section className="panel exp-side">
+            {minimap && <section className="panel exp-side">
               <div className="panel-header"><div className="panel-title">{uiText('Папка со скриншотами')}</div></div>
               <div className="panel-body exp-status">
                 <div className="exp-folder">
@@ -199,11 +233,80 @@ export function ExperimentalPage() {
                   <button className="button ghost" disabled={Boolean(settings?.minimapOff)} onClick={() => void perform(() => api.toggleMinimap())}>{uiText('Показать / скрыть мини-карту')}</button>
                 </div>
               </div>
-            </section>
+            </section>}
           </div>
         </>
       )}
+      {notice && <MinimapOffNotice onClose={closeNotice} />}
     </div>
+  )
+}
+
+/** The one-time notice (see MINIMAP_OFF_NOTICE), in the app's dialog style; Telegram opens in the system browser. */
+function MinimapOffNotice({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return createPortal(
+    <div className="registration-overlay minimap-off-overlay" role="dialog" aria-modal="true" aria-label={uiText('Мини-карта')} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <section className="panel registration-dialog minimap-off-dialog">
+        <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
+        <div className="registration-icon"><MapPinOff size={26} aria-hidden="true" /></div>
+        <p className="minimap-off-text">{uiText(MINIMAP_OFF_NOTICE)}</p>
+        <div className="minimap-off-actions">
+          <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} aria-hidden="true" />Telegram</a>
+          <button type="button" className="button primary" onClick={onClose}>{uiText('Понятно')}</button>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  )
+}
+
+const FEATURES_PATH = '/v1/accounts/me/admin/features'
+
+/**
+ * The owner app only (owner, 14.10.2026: «у меня кнопка которая моментально убирает эти меню функций из приложения»):
+ * the minimap over the game and the tracking, on or off for every app (server/src/routes/announcement.ts). This page
+ * follows at once; the players' apps at their next check.
+ */
+function OwnerMinimapSwitch({ on }: { on: boolean }) {
+  const request = window.tarkovDesktop?.serviceRequest
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const flip = async () => {
+    if (!request || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const saved = parseFeatures(await request('PUT', FEATURES_PATH, { minimap: !on }))
+      if (!saved) throw new Error('no answer')
+      setRemoteFeatures(saved)
+    } catch {
+      setError(uiText('Не удалось переключить. Проверьте вход в аккаунт владельца и попробуйте ещё раз.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <section className={`panel exp-power exp-owner-switch${on ? '' : ' is-off'}`} aria-label={uiText('Функции мини-карты (окно поверх игры и отслеживание)')}>
+      <div className="panel-body">
+        <Power size={18} aria-hidden="true" />
+        <div className="exp-power-body">
+          <strong>{uiText('Функции мини-карты (окно поверх игры и отслеживание)')}</strong>
+          <p>
+            <span className={`exp-owner-state${on ? ' is-on' : ''}`}>{uiText(on ? 'Сейчас включены у всех игроков' : 'Сейчас выключены у всех игроков')}</span>
+            {' · '}{uiText('Эту карточку видит только владелец.')}
+          </p>
+          {error && <small className="is-error" role="alert">{error}</small>}
+        </div>
+        <button type="button" className={`button ${on ? 'ghost' : 'primary'}`} disabled={busy || !request} onClick={() => void flip()}>
+          {uiText(on ? 'Выключить для всех' : 'Включить для всех')}
+        </button>
+      </div>
+    </section>
   )
 }
 

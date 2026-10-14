@@ -69,4 +69,13 @@ export const MINIMAP_PAGE_PHRASES: Array<[string, string]> = [
   ['Готово: мини-карта открывается клавишей', 'Done: the mini map opens with'],
   ['— той же, что делает скриншот в игре.', '— the same key that takes the screenshot in the game.'],
   ['Не получилось. Попробуйте ещё раз.', 'That did not work. Try again.'],
+  // The owner's minimap switch for every app and the one-time notice while it is off (14.10.2026).
+  ['Функция мини-карты временно выключена — для спокойствия пользователей. Ожидаем официального ответа от BSG! Спасибо за понимание. Если возникли вопросы, задайте их в нашем Telegram.', 'The minimap feature is temporarily turned off, for our users\' peace of mind. We are waiting for an official answer from BSG. Thank you for understanding! If you have questions, ask us on Telegram.'],
+  ['Функции мини-карты (окно поверх игры и отслеживание)', 'Mini map features (the window over the game and tracking)'],
+  ['Сейчас включены у всех игроков', 'Now on for all players'],
+  ['Сейчас выключены у всех игроков', 'Now off for all players'],
+  ['Эту карточку видит только владелец.', 'Only the owner sees this card.'],
+  ['Выключить для всех', 'Turn off for everyone'],
+  ['Включить для всех', 'Turn on for everyone'],
+  ['Не удалось переключить. Проверьте вход в аккаунт владельца и попробуйте ещё раз.', 'Could not switch. Check the owner account sign-in and try again.'],
 ]
