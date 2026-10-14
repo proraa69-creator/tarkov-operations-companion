@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rename, rm, statfs, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, rm, stat, statfs, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 
 const SLOT = /^[a-z0-9][a-z0-9_.-]{0,79}$/
@@ -98,6 +98,7 @@ export class MirrorStorage {
   private readonly mountCheck: (path: string) => Promise<boolean>
   private readonly free: (path: string) => Promise<number>
   private publication = Promise.resolve()
+  private activeCache?: { key: string; active: MirrorActive }
 
   constructor(private readonly options: MirrorStorageOptions) {
     this.root = resolve(options.root)
@@ -148,6 +149,25 @@ export class MirrorStorage {
     const active = await this.active()
     const id = active.slots[slot]?.current
     if (!id) return undefined
+    return readFile(join(this.generations, id, safeRelative(path))).catch(() => undefined)
+  }
+
+  /**
+   * The current generation of a slot, cheap enough for every request (the catalog's prices): active.json is parsed
+   * again only once it was replaced — every publish and rollback renames a new file over it, which moves its inode,
+   * time or size. Otherwise one stat.
+   */
+  async currentGeneration(slot: string): Promise<string | undefined> {
+    const info = await stat(this.activePath).catch(() => undefined)
+    if (!info) return undefined
+    const key = `${info.ino}:${info.mtimeMs}:${info.size}`
+    if (this.activeCache?.key !== key) this.activeCache = { key, active: await this.active() }
+    return this.activeCache.active.slots[slot]?.current
+  }
+
+  /** A file of one generation (the one currentGeneration named), even if a newer one was published in between. */
+  async readGeneration(id: string, path: string) {
+    if (!GENERATION_ID.test(id)) return undefined
     return readFile(join(this.generations, id, safeRelative(path))).catch(() => undefined)
   }
 

@@ -2,9 +2,11 @@ import cors from 'cors'
 import express from 'express'
 import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
+import type { AppDataset, RaidMode } from '../../src/domain/types'
 import { fetchPlayerProfile } from '../../electron/playerProfileService'
-import { getCatalogSnapshot, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
-import { catalogEtag, catalogNotModified } from './services/catalogCache.js'
+import { getCatalogAnswer, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
+import { catalogNotModified, type CatalogLocale } from './services/catalogCache.js'
+import { createCatalogAnswers } from './services/catalogAnswers.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
@@ -96,8 +98,11 @@ export interface ApiOptions {
   catalog?: CatalogPeek
   /** The notice's English for foreign players (services/announcementLanguage.ts): MyMemory by default; tests pass a fake. */
   translateAnnouncement?: AnnouncementTranslator
-  /** The catalog GET /v1/catalog/:mode serves (services/catalogService.ts); tests pass their own. */
-  catalogSnapshot?: typeof getCatalogSnapshot
+  /**
+   * Tests: a catalog to serve at GET /v1/catalog/:mode instead of the server's quest base (services/catalogService.ts);
+   * its answer is prepared again for every new object it returns.
+   */
+  catalogSnapshot?: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -331,16 +336,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     res.set('Cache-Control', 'no-store')
     res.json({ country: countryCode(proxiedCountry(req)) ?? null })
   })
-  const catalogSnapshot = options.catalogSnapshot ?? getCatalogSnapshot
+  const catalogAnswer = options.catalogSnapshot ? createCatalogAnswers({ snapshot: options.catalogSnapshot }).get : getCatalogAnswer
   app.get('/v1/catalog/:mode', perIp('catalog'), paid, async (req, res) => {
     const lang = z.enum(['ru', 'en']).default('ru').parse(req.query.lang ?? undefined)
-    const body = JSON.stringify(await catalogSnapshot(modeSchema.parse(req.params.mode), lang))
+    // Prepared once per quest base version, price generation and image set (services/catalogAnswers.ts): the bytes and
+    // their ETag are kept, nothing is stringified or hashed here.
+    const answer = await catalogAnswer(modeSchema.parse(req.params.mode), lang)
     // The catalog's content version: an app that sends it back (If-None-Match) while nothing changed gets an empty «304
     // Not Modified». The access check above runs first either way.
-    const etag = catalogEtag(body)
-    res.set('ETag', etag)
-    if (catalogNotModified(req.get('if-none-match'), etag)) { res.status(304).end(); return }
-    res.type('application/json').send(body)
+    res.set('ETag', answer.etag)
+    if (catalogNotModified(req.get('if-none-match'), answer.etag)) { res.status(304).end(); return }
+    res.type('application/json').send(answer.body)
   })
   app.post('/v1/players/resolve', players, paid, async (req, res) => {
     // `accountId`: the account the desktop app read from this player's own game logs (optional).

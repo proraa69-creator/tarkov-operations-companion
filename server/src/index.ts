@@ -22,8 +22,9 @@ import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
-import { configureCatalogMirror, configureGuideImages } from './services/catalogService.js'
+import { configureCatalogMirror, configureGuideImages, configureQuestBase } from './services/catalogService.js'
 import { GuideImageMirror } from './services/guideImages.js'
+import { questBasePeriodMs } from './services/questBase.js'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -81,6 +82,15 @@ const guideImages = mirrorEnabled ? new GuideImageMirror({
   log: (message) => console.log(message),
 }) : undefined
 configureGuideImages(guideImages)
+// «Одна общая база квестов» (owner, 14.10.2026): every mode's catalog in Russian and English, built every
+// RAIDOS_QUEST_BASE_MINUTES (30), kept next to the database and read back at once after a restart
+// (services/questBase.ts). The players' apps get it from there; nothing is built per request.
+const questBase = configureQuestBase({
+  dir: dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-base'),
+  periodMs: questBasePeriodMs(process.env.RAIDOS_QUEST_BASE_MINUTES),
+  app: { version: process.env.TARKOV_APP_VERSION, build: Number(process.env.TARKOV_APP_BUILD) || undefined, commit: process.env.TARKOV_APP_COMMIT },
+  log: (message) => console.log(message),
+})
 const dataMirror = mirrorStorage ? new TarkovDataMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
@@ -88,6 +98,7 @@ const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
   ? new MapMirror({ dir: mirrorRoot, storage: mirrorStorage, log: (message) => console.log(message) })
   : undefined
 mapMirror?.start()
+void questBase.start()
 dataMirror?.start()
 priceMirror?.start()
 const priceHistory = mirrorStorage ? new PriceHistoryMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
@@ -101,6 +112,6 @@ if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARK
 const port = Number(process.env.PORT ?? 8787)
 const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
-  mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop()
+  mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop(); questBase.stop()
   listener.close(() => { db.close(); process.exit(0) })
 })

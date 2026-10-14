@@ -33,6 +33,21 @@ function sanitizeCatalogAssets(catalog: AppDataset): AppDataset {
   }
 }
 
+/**
+ * What withCachedItemImages reads besides the catalog: the image set in use (its folder and manifest time) and the
+ * public address. A prepared catalog answer (services/catalogAnswers.ts) is made again only when this moves.
+ */
+export function itemImageVersion(): string {
+  const directory = process.env.RAIDOS_ITEM_IMAGE_DIR
+  const base = process.env.RAIDOS_ITEM_IMAGE_URL
+  const origin = process.env.TARKOV_PUBLIC_URL ?? ''
+  if (!directory || !base) return `none|${base ?? ''}|${origin}`
+  try {
+    const activeDirectory = activeItemImageDirectory(directory)
+    return `${activeDirectory}|${statSync(join(activeDirectory, 'manifest.json')).mtimeMs}|${base}|${origin}`
+  } catch { return `missing|${base}|${origin}` }
+}
+
 /** Only verified, locally cached assets replace upstream links. Prices and game modes are untouched. */
 export function withCachedItemImages(catalog: AppDataset): AppDataset {
   const directory = process.env.RAIDOS_ITEM_IMAGE_DIR
