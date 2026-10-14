@@ -413,7 +413,7 @@ test('MyMemory: an HTTP error, the quota warning, another status, an empty answe
   assert.ok(count > 1)
 })
 
-interface Features { minimap: boolean; minimapChangedAt: string | null; updatedBy?: string | null }
+interface Features { minimap: boolean; minimapChangedAt: string | null; minimapOverlay: boolean; updatedBy?: string | null }
 const FEATURES = '/accounts/me/admin/features'
 
 test('the minimap switch: off by default, only the owner turns it, every app reads it without an account, logged', async () => {
@@ -429,14 +429,14 @@ test('the minimap switch: off by default, only the owner turns it, every app rea
       return answer.json.features
     }
     // After the update: off for everybody, never switched off yet.
-    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null })
-    assert.deepEqual(await read(player), { minimap: false, minimapChangedAt: null })
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null, minimapOverlay: true })
+    assert.deepEqual(await read(player), { minimap: false, minimapChangedAt: null, minimapOverlay: true })
 
     assert.equal((await call('PUT', FEATURES, undefined, { minimap: true })).status, 401)
     assert.equal((await call('PUT', FEATURES, player, { minimap: true })).status, 404)
     assert.equal((await call('GET', FEATURES, player)).status, 404)
     assert.equal((await call('PUT', FEATURES, owner, { minimap: 'yes' })).status, 400)
-    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null }, 'refused writes change nothing')
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null, minimapOverlay: true }, 'refused writes change nothing')
 
     // On: an app waiting with `since` gets it at once.
     const first = await call<Answer>('GET', '/announcement')
@@ -446,14 +446,14 @@ test('the minimap switch: off by default, only the owner turns it, every app rea
     assert.equal(on.status, 200)
     assert.deepEqual([on.json.features.minimap, on.json.features.minimapChangedAt, on.json.features.updatedBy], [true, null, 'owner@example.com'])
     assert.equal((await waiting).json.features.minimap, true)
-    assert.deepEqual(await read(player), { minimap: true, minimapChangedAt: null })
+    assert.deepEqual(await read(player), { minimap: true, minimapChangedAt: null, minimapOverlay: true })
 
     // Off again: the time of the switch-off is new (the apps show their notice once more); off twice keeps it.
     const off = await call<{ features: Features }>('PUT', FEATURES, owner, { minimap: false })
     const offAt = off.json.features.minimapChangedAt
     assert.equal(off.json.features.minimap, false)
     assert.ok(offAt && !Number.isNaN(Date.parse(offAt)))
-    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: offAt })
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: offAt, minimapOverlay: true })
     await call('PUT', FEATURES, owner, { minimap: false })
     assert.equal((await read()).minimapChangedAt, offAt)
     // The public answer carries no author.
@@ -463,6 +463,50 @@ test('the minimap switch: off by default, only the owner turns it, every app rea
     const logged = (db.prepare("SELECT actor, target, details FROM owner_audit_log WHERE action = 'features.minimap' ORDER BY id").all() as Array<{ actor: string; target: string; details: string }>)
       .map((row) => [row.actor, row.target, JSON.parse(row.details) as Record<string, unknown>])
     assert.deepEqual(logged, [['owner@example.com', 'minimap', { enabled: true }], ['owner@example.com', 'minimap', { enabled: false }], ['owner@example.com', 'minimap', { enabled: false }]])
+  } finally {
+    await close()
+  }
+})
+
+test('the window switch: on by default, the owner turns it apart from the tracking, logged', async () => {
+  let db!: DatabaseSync
+  const { call, login, close } = await setup({ database: (opened) => { db = opened } })
+  try {
+    const owner = await login('owner@example.com')
+    const player = await login('player@example.com')
+    const read = async () => (await call<Answer & { features: Features }>('GET', '/announcement')).json.features
+    assert.deepEqual(await read(), { minimap: false, minimapChangedAt: null, minimapOverlay: true })
+
+    assert.equal((await call('PUT', FEATURES, undefined, { minimapOverlay: false })).status, 401)
+    assert.equal((await call('PUT', FEATURES, player, { minimapOverlay: false })).status, 404)
+    assert.equal((await call('PUT', FEATURES, owner, {})).status, 400)
+    assert.equal((await call('PUT', FEATURES, owner, { minimapOverlay: 'no' })).status, 400)
+    assert.equal((await read()).minimapOverlay, true, 'refused writes change nothing')
+
+    // Tracking on, the window off: the position only in the app.
+    assert.equal((await call('PUT', FEATURES, owner, { minimap: true })).status, 200)
+    const windowOff = await call<{ features: Features }>('PUT', FEATURES, owner, { minimapOverlay: false })
+    assert.equal(windowOff.status, 200)
+    assert.deepEqual([windowOff.json.features.minimap, windowOff.json.features.minimapOverlay], [true, false])
+    assert.deepEqual(await read(), { minimap: true, minimapChangedAt: null, minimapOverlay: false })
+    // The first switch off and on again keeps the window's own.
+    await call('PUT', FEATURES, owner, { minimap: false })
+    await call('PUT', FEATURES, owner, { minimap: true })
+    assert.equal((await read()).minimapOverlay, false)
+    // Both in one request.
+    const both = await call<{ features: Features }>('PUT', FEATURES, owner, { minimap: true, minimapOverlay: true })
+    assert.deepEqual([both.json.features.minimap, both.json.features.minimapOverlay], [true, true])
+
+    const logged = (db.prepare("SELECT action, target, details FROM owner_audit_log WHERE action LIKE 'features.%' ORDER BY id").all() as Array<{ action: string; target: string; details: string }>)
+      .map((row) => [row.action, row.target, JSON.parse(row.details) as Record<string, unknown>])
+    assert.deepEqual(logged, [
+      ['features.minimap', 'minimap', { enabled: true }],
+      ['features.minimapOverlay', 'minimapOverlay', { enabled: false }],
+      ['features.minimap', 'minimap', { enabled: false }],
+      ['features.minimap', 'minimap', { enabled: true }],
+      ['features.minimap', 'minimap', { enabled: true }],
+      ['features.minimapOverlay', 'minimapOverlay', { enabled: true }],
+    ])
   } finally {
     await close()
   }
