@@ -3,13 +3,16 @@ import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
 import { existsSync } from 'node:fs'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RaidMode } from '../src/domain/types.js'
+import type { ModeLogScanResult } from '../src/import/eftLogTimeline.js'
 import { discoverAllEftLogs, discoverEftLogs, eftLogSearchReport, freshestLogsFolder, normalizeSelectedLogsFolder } from './logDiscovery.js'
-import { readRaidState, scanLogFolderBySession, type RaidState } from './logScanner.js'
-import { fetchPlayerProfile, resolvePlayerByNickname, humanizeNetworkError } from './playerProfileService.js'
+import { clearLogCaches, loadLogCache, readRaidState, saveLogCache, scanLogFolderBySession, scanLogIdentity } from './logScanner.js'
+import { createLogWatcher, emptyLogScan, type QuestIdsByMode } from './logWatcher.js'
+import { foregroundGame } from './experimental/win32.js'
+import { fetchPlayerProfile } from './playerProfileService.js'
 import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureQuestFrame, captureQuestScreenshot, clearScanFrames, recognizeQuestPng } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
@@ -49,8 +52,6 @@ const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
 let mainWindow: BrowserWindow | null = null
-const LOG_POLL_MS = 5000
-let watchedFolder = ''
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
  * 13.10.2026: Cloudflare refuses our VPS on players.tarkov.dev; «если все таки запрос будет от компьютера пользователя,
@@ -62,17 +63,71 @@ const profileFetch: JsonFetch = async (url) => {
   return { status: response.status, json: () => response.json() }
 }
 const playerProfileFromPc = cachedProfileLookup(profileFetch)
-let scanInterval: NodeJS.Timeout | null = null
-let scanning = false
-let lastPublished = ''
-let raidState: RaidState = { inRaid: false }
 /** Log folders the page may ask to watch (electron/logFolders.ts): found by discovery or picked in the folder dialog. */
 const logFolderGrants = new LogFolderGrants()
+/** The Logs folder followed last (found by this process, or picked in the dialog of an older version). */
 const pickedLogsFolderFile = () => join(app.getPath('userData'), 'logs-folder.json')
 async function rememberedLogsFolder() {
   const value = (JSON.parse(await readFile(pickedLogsFolderFile(), 'utf8')) as { folder?: unknown }).folder
   return typeof value === 'string' ? value : ''
 }
+/** What the logs gave so far, kept for the next start (electron/logScanner.ts). */
+const logCacheFile = () => join(app.getPath('userData'), 'logs-cache.json')
+/** The catalog's trader quest ids per mode, from the page (`logs:set-quest-ids`): resets count only for these. */
+const logQuestIdsFile = () => join(app.getPath('userData'), 'logs-quest-ids.json')
+const QUEST_ID = /^[a-f0-9]{24}$/i
+
+/** A file of this process replaced at once (never half-written). */
+async function writeAtomically(file: string, text: string) {
+  const temporary = `${file}.${process.pid}.tmp`
+  try {
+    await writeFile(temporary, text, 'utf8')
+    await rename(temporary, file)
+  } catch {
+    await unlink(temporary).catch(() => {})
+  }
+}
+
+/**
+ * The game's logs from this process alone, from the app's start (electron/logWatcher.ts): the Logs folder is found and
+ * followed before sign-in, the page gets what was read through `logs:updated` and asks for the latest on opening.
+ */
+const logWatcher = createLogWatcher({
+  discover: async ({ thorough, extra }) => {
+    const found = await discoverAllEftLogs(app.getPath('appData'), thorough ? { fresh: true } : { drives: false, lookupMaxAgeMs: 10 * 60_000 })
+    const remembered = await rememberedLogsFolder().catch(() => '')
+    return freshestLogsFolder([...extra, remembered || undefined, ...found])
+  },
+  scan: (root, options) => scanLogFolderBySession(root, options),
+  identity: (root, options) => scanLogIdentity(root, options),
+  raidState: (root) => readRaidState(root),
+  send: (channel, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
+    if (channel === 'logs:updated') void pushToDevelopmentServer(payload as ModeLogScanResult)
+  },
+  gameWindow: () => foregroundGame()?.id ?? null,
+  onFolder: (folder) => {
+    logFolderGrants.grant(folder)
+    void rememberedLogsFolder().catch(() => '').then((remembered) => {
+      if (remembered !== folder) void writeAtomically(pickedLogsFolderFile(), JSON.stringify({ folder }))
+    })
+  },
+  onRaidOver: () => clearRaidSignals(),
+  loadKept: async () => {
+    // The logs read in the last run: the first scan after a start reads only what is new.
+    await loadLogCache(logCacheFile()).catch(() => 0)
+    let parsed: { modes?: Record<string, unknown> } = {}
+    try { parsed = JSON.parse(await readFile(logQuestIdsFile(), 'utf8')) as typeof parsed } catch { /* none kept yet */ }
+    const ids: QuestIdsByMode = {}
+    for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+      const list = parsed.modes?.[mode]
+      if (Array.isArray(list)) ids[mode] = list.filter((id): id is string => typeof id === 'string' && QUEST_ID.test(id)).slice(0, 5000)
+    }
+    return ids
+  },
+  saveQuestIds: (ids) => writeAtomically(logQuestIdsFile(), JSON.stringify({ modes: ids })),
+  saveCache: () => saveLogCache(logCacheFile()),
+})
 
 
 // UI hover ticks must play before the first click in the window.
@@ -194,17 +249,19 @@ app.whenReady().then(async () => {
   else if (!isTrialBuild()) startUpdateChecks((status) => mainWindow?.webContents.send('update:status', status), { inRaid: async () => {
     // No game running = no raid, whatever the last log says (a game closed or crashed mid-raid never logs the end).
     if (await isTarkovRunning() === false) return false
-    if (raidState.inRaid) return true
-    const folder = watchedFolder || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
+    if (logWatcher.raidState().inRaid) return true
+    const folder = logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
     return folder ? (await readRaidState(folder)).inRaid : false
   } })
   if (!serverMode) startExperimental({
     preload: join(appDir, '../../electron/preload.cjs'),
     load: loadRenderer,
     mainWindow: () => mainWindow,
-    raidState: () => raidState,
-    logsRoot: async () => watchedFolder || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
+    raidState: () => logWatcher.raidState(),
+    logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
   })
+  // The game's logs from the start, before sign-in (#202): the account, the mode and the raid state within seconds.
+  if (!serverMode) logWatcher.start()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
   // What the API process may ask this app (electron/apiChannel.ts): the «Обновление» tab and error reports.
   if (ownerBuild) {
@@ -297,7 +354,7 @@ async function confirmOwnerChange(event: IpcMainInvokeEvent, change: OwnerChange
 }
 
 app.on('window-all-closed', () => {
-  stopWatchingLogs()
+  logWatcher.stop()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -315,11 +372,14 @@ const OWNER_CHANNELS = [
 
 function registerIpc() {
   ipcMain.handle('app:clear-data', async () => {
-    stopWatchingLogs()
+    // Everything read from the logs is forgotten too; they are found and read again from the start.
+    logWatcher.stop()
+    await clearLogCaches(logCacheFile()).catch(() => undefined)
     if (!mainWindow) return false
     await clearScanFrames().catch(() => 0)
     await clearGameCache()
     await mainWindow.webContents.session.clearStorageData({ storages: ['localstorage', 'indexdb', 'cachestorage', 'serviceworkers'] })
+    if (!(isOwnerBuild() && isServerMode())) logWatcher.start()
     return true
   })
   ipcMain.handle('service:request', async (_event, method: string, path: string, body: unknown) => serviceRequest(method, path, body))
@@ -355,20 +415,26 @@ function registerIpc() {
     await shell.openExternal(target)
     return true
   })
-  // `current`: the folder the app used last. It competes with every Logs folder found, and the one where the game
-  // started last wins (logDiscovery.ts freshestLogsFolder); a path from the page counts only if it may be watched.
-  ipcMain.handle('logs:auto-find-and-scan', async (_event, current: unknown) => {
-    const found = await discoverAllEftLogs(app.getPath('appData'))
-    const known = typeof current === 'string' && current && await mayWatchLogFolder(current, {
+  // The page's status line and the locked app's re-check (src/account/eftAccountLink.ts): this process found and follows
+  // the logs already; the answer is what it has (the identity at least), sent again through `logs:updated` too, where the
+  // page applies it (once: src/import/logResults.ts). Nothing is discovered or read again for a page that opens or
+  // re-renders. `current`: the folder the page used last, looked at only while none is followed (when it may be watched).
+  ipcMain.handle('logs:auto-find-and-scan', async (event, current: unknown) => {
+    const known = !logWatcher.folder() && typeof current === 'string' && current && await mayWatchLogFolder(current, {
       grants: logFolderGrants,
       remembered: rememberedLogsFolder,
       discover: async () => (await discoverEftLogs(app.getPath('appData'))).logsFolder,
     }) ? current : undefined
-    const folder = await freshestLogsFolder([known, ...found])
-    if (!folder) return null
-    logFolderGrants.grant(folder)
-    const parsed = await scanLogFolderBySession(folder)
-    return { ...parsed, folder }
+    const status = await logWatcher.ready(known ? [known] : [])
+    if (!status.folder) return null
+    if (status.result && !event.sender.isDestroyed()) event.sender.send('logs:updated', status.result)
+    return status.result ?? emptyLogScan(status.folder)
+  })
+
+  // The catalog's trader quest ids of a mode (src/app/AppShell.tsx, when the catalog loads): only those reveal a reset.
+  ipcMain.handle('logs:set-quest-ids', async (_event, mode: unknown, ids: unknown) => {
+    if ((mode !== 'pvp' && mode !== 'pve' && mode !== 'seasonal') || !Array.isArray(ids) || ids.length > 5000) return false
+    return logWatcher.setQuestIds(mode, ids.filter((id): id is string => typeof id === 'string' && QUEST_ID.test(id)))
   })
 
   // «Где искали журналы»: every place looked at and every Logs folder found — paths only, shown to the player.
@@ -386,9 +452,10 @@ function registerIpc() {
     const folder = await normalizeSelectedLogsFolder(result.filePaths[0])
     // Picked by the player in the dialog: may be watched now and after a restart (remembered here, not by the page).
     logFolderGrants.grant(folder)
-    await writeFile(pickedLogsFolderFile(), JSON.stringify({ folder }), 'utf8').catch(() => {})
-    const parsed = await scanLogFolderBySession(folder)
-    return { ...parsed, folder }
+    await writeAtomically(pickedLogsFolderFile(), JSON.stringify({ folder }))
+    logWatcher.watch(folder)
+    const status = await logWatcher.ready()
+    return status.result ?? emptyLogScan(folder)
   })
 
   ipcMain.handle('logs:start-watching', async (_event, folder: unknown) => {
@@ -400,7 +467,7 @@ function registerIpc() {
     }))) return false
     const info = await stat(folder).catch(() => null)
     if (!info?.isDirectory()) return false
-    startLogWatcher(folder)
+    logWatcher.watch(folder)
     return true
   })
 
@@ -527,32 +594,6 @@ function registerIpc() {
   // A player's copy (client build) has no server, tunnel or owner controls at all, not even hidden ones.
   if (!isOwnerBuild()) for (const channel of OWNER_CHANNELS) ipcMain.removeHandler(channel)
 
-  ipcMain.handle('profile:resolve', async (_event, rawMode: unknown, rawNickname: unknown) => {
-    const mode = validateMode(rawMode)
-    const nickname = typeof rawNickname === 'string' ? rawNickname.trim().replace(/[\u200B-\u200D\uFEFF]/g, '') : ''
-    if (!nickname || !/^[a-zA-Z0-9_-]{3,15}$/i.test(nickname)) throw new Error('Введите корректный ник Escape from Tarkov (3–15 латиница/цифры/_/-)')
-
-    const modeLabel = mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : 'сезонного режима'
-    try {
-      // The account id of this mode from the player's own game logs: a new character after a wipe, or a renamed one,
-      // is bound at once even before tarkov.dev publishes its profile (electron/playerProfileService.ts).
-      const discovered = await discoverEftLogs(app.getPath('appData')).catch(() => null)
-      const scan = discovered?.logsFolder ? await scanLogFolderBySession(discovered.logsFolder).catch(() => null) : null
-      const logAccountId = scan?.latestAccountIdByMode[mode]
-      const body = { mode, nickname, ...(logAccountId ? { accountId: logAccountId } : {}) }
-      // Every packaged edition asks only the server (subscription required, docs/subscription-protection.md).
-      if (dataGatewayOnly) return await serviceRequest('POST', '/v1/players/resolve', body)
-      const remote = await serviceRequest('POST', '/v1/players/resolve', body).catch(() => null)
-      if (remote) return remote
-      return await resolvePlayerByNickname(mode, nickname, logAccountId).catch((error: unknown) => {
-        if (error instanceof Error && (error as Error & { status?: number }).status === 404) throw new Error(`${error.message} Проверьте режим (${modeLabel}).`)
-        throw error
-      })
-    } catch (error) {
-      throw humanizeNetworkError(error)
-    }
-  })
-
   ipcMain.handle('profile:refresh', async (_event, rawMode: unknown, rawAccountId: unknown) => {
     const mode = validateMode(rawMode)
     const accountId = Number(rawAccountId)
@@ -563,7 +604,7 @@ function registerIpc() {
     if (snapshot || dataGatewayOnly) return snapshot
     return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
-  ipcMain.handle('game:get-raid-state', () => raidState)
+  ipcMain.handle('game:get-raid-state', () => logWatcher.raidState())
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
     const raw = options && typeof options === 'object' ? options as { restart?: unknown; names?: unknown } : {}
     // The wanted items' labels (a second look at a misread one): a short list of short strings, nothing else.
@@ -571,7 +612,7 @@ function registerIpc() {
     return scanCollectorScreen({ restart: raw.restart === true, names })
   })
   // A watched Logs folder tells the raids; otherwise the minimap and the other signs do (electron/experimental/raidSignals.ts).
-  ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(watchedFolder) }))
+  ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(logWatcher.folder()) }))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   ipcMain.handle('quests:recognize-png', async (_event, raw: unknown) => {
     if (typeof raw !== 'string' || raw.length > 18_000_000) throw new Error('Скриншот слишком большой')
@@ -580,65 +621,25 @@ function registerIpc() {
   })
 }
 
-function stopWatchingLogs() {
-  if (scanInterval) clearInterval(scanInterval)
-  scanInterval = null
-  watchedFolder = ''
-  scanning = false
-  lastPublished = ''
-}
-
-function startLogWatcher(folder: string) {
-  if (watchedFolder === folder && scanInterval) { void pollLogs(true); return }
-  if (scanInterval) clearInterval(scanInterval)
-  watchedFolder = folder
-  lastPublished = ''
-  scanInterval = setInterval(() => void pollLogs(), LOG_POLL_MS)
-  void pollLogs(true)
-}
-
-/** Quest logs are re-read every few seconds, but never while the player is in a raid. */
-async function pollLogs(force = false) {
-  if (scanning || !watchedFolder) return
-  scanning = true
-  try {
-    const next = await readRaidState(watchedFolder).catch((): RaidState => ({ inRaid: false }))
-    const changed = next.inRaid !== raidState.inRaid
-    raidState = next
-    // The raid is over: the minimap and the other raid signs from it no longer hold the quest scanner back.
-    if (changed && !next.inRaid) clearRaidSignals()
-    if (changed || force) mainWindow?.webContents.send('game:raid-state', next)
-    if (!next.inRaid) await publishLogs(force)
-  } finally {
-    scanning = false
+/**
+ * The single-owner development integration (server/README.md): with TARKOV_API_URL and TARKOV_API_TOKEN set, every
+ * published full scan also goes to /v1/sync/events, per mode, game account and character.
+ */
+async function pushToDevelopmentServer(result: ModeLogScanResult) {
+  if (!process.env.TARKOV_API_URL || !process.env.TARKOV_API_TOKEN || result.identityOnly) return
+  const groups = new Map<string, typeof result.events>()
+  for (const event of result.events) {
+    if (!event.mode || !event.accountId || !event.profileId) continue
+    const key = `${event.mode}:${event.accountId}:${event.profileId}`
+    groups.set(key, [...(groups.get(key) ?? []), event])
   }
-}
-
-async function publishLogs(force: boolean) {
-  try {
-    const result = await scanLogFolderBySession(watchedFolder)
-    const signature = JSON.stringify([result.events.length, result.events.at(-1)?.timestamp, result.sessionCount, result.latestMode])
-    if (!force && signature === lastPublished) return
-    lastPublished = signature
-    if (process.env.TARKOV_API_URL && process.env.TARKOV_API_TOKEN) {
-      const groups = new Map<string, typeof result.events>()
-      for (const event of result.events) {
-        if (!event.mode || !event.accountId || !event.profileId) continue
-        const key = `${event.mode}:${event.accountId}:${event.profileId}`
-        const events = groups.get(key) ?? []
-        events.push(event)
-        groups.set(key, events)
-      }
-      for (const events of groups.values()) {
-        const first = events[0]
-        await serviceRequest('POST', '/v1/sync/events', {
-          mode: first.mode, accountId: first.accountId, characterId: first.profileId,
-          events: events.map(({ taskId, status, timestamp }) => ({ taskId, status, timestamp })),
-        }).catch(() => { /* The local projection stays available; the idempotent batch is resent on the next change. */ })
-      }
-    }
-    mainWindow?.webContents.send('logs:updated', result)
-  } catch { /* Retried on the next poll when a log is temporarily unavailable. */ }
+  for (const events of groups.values()) {
+    const first = events[0]!
+    await serviceRequest('POST', '/v1/sync/events', {
+      mode: first.mode, accountId: first.accountId, characterId: first.profileId,
+      events: events.map(({ taskId, status, timestamp }) => ({ taskId, status, timestamp })),
+    }).catch(() => { /* The local projection stays available; the idempotent batch is resent on the next change. */ })
+  }
 }
 
 function validateMode(value: unknown): RaidMode {

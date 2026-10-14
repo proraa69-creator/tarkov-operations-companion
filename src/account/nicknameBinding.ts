@@ -6,9 +6,7 @@
  * so another install or the phone shows it.
  */
 import type { LocalProfile, RaidMode } from '../domain/types'
-import type { PlayerProfileCandidate } from '../profile/playerProfileGateway'
-import { desktopPlayerProfileGateway } from '../profile/playerProfileGateway'
-import { cleanIpcError, refreshServerStatus, usesWebAccount } from '../sync/serverSync'
+import { refreshServerStatus, usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
 
 export const RAID_MODE_ORDER: RaidMode[] = ['pvp', 'pve', 'seasonal']
@@ -20,17 +18,6 @@ export function modeTitle(mode: RaidMode) {
 
 export function cleanNickname(raw: string) {
   return raw.trim().replace(/[\u200B-\u200D\uFEFF]/g, '')
-}
-
-/** Finds the Tarkov.dev profile of `nickname` in `mode`; throws a readable Russian message. */
-export async function findNickname(mode: RaidMode, raw: string): Promise<PlayerProfileCandidate> {
-  const nickname = cleanNickname(raw)
-  if (!NICKNAME_PATTERN.test(nickname)) throw new Error('Введите корректный ник Escape from Tarkov (3–15 латиница/цифры/_/-)')
-  try {
-    return await desktopPlayerProfileGateway().resolveByNickname(mode, nickname)
-  } catch (error) {
-    throw new Error(cleanIpcError(error).replace(/^TimeoutError:\s*/i, '').replace(/^Error:\s*/i, '') || 'Профиль не найден', { cause: error })
-  }
 }
 
 /** Gives every bound mode (except `skip`) the new nickname, keeping its game account id — so its progress stays. */

@@ -206,6 +206,8 @@ interface TarkovDesktopApi {
   /** «Где искали журналы»: every place the app looked for the game's logs (electron/logDiscovery.ts). */
   logSearchReport?: () => Promise<LogSearchReport>
   startWatchingLogs: (folder: string) => Promise<boolean>
+  /** The catalog's trader quest ids of a mode (src/import/eftLogTimeline.ts traderQuestIdsForResets): only these reveal a reset. */
+  setLogQuestIds?: (mode: RaidMode, ids: string[]) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
   getRaidState: () => Promise<RaidState>

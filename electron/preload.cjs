@@ -82,6 +82,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan'),
   logSearchReport: () => ipcRenderer.invoke('logs:search-report'),
   startWatchingLogs: (folder) => ipcRenderer.invoke('logs:start-watching', folder),
+  setLogQuestIds: (mode, ids) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []),
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data'),
   onLogsUpdated: (callback) => {
     const listener = (_event, result) => callback(result)
