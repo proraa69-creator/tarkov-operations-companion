@@ -1,10 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** Manual objectives are archived in the app; one test turns them on to check their sync still works when they return. */
+const archived = vi.hoisted(() => ({ manualObjectives: true }))
+vi.mock('../app/archivedFeatures', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../app/archivedFeatures')>()
+  return { ...original, featureEnabled: (feature: Parameters<typeof original.featureEnabled>[0]) => feature === 'manualObjectives' ? !archived.manualObjectives : original.featureEnabled(feature) }
+})
 import type { ModeRegistration } from '../domain/types'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindObjectiveSync, createPositionThrottle, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, pushLogProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindObjectiveSync, createPositionThrottle, forgetProgressSync, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -59,6 +66,7 @@ describe('server sync with the desktop gateway', () => {
 
   beforeEach(async () => {
     localStorage.clear()
+    forgetProgressSync()
     serviceRequest.mockReset()
     status.mockReset()
     status.mockResolvedValue({ signedIn: true, email: 'a@example.com', kind: 'user', online: true, serverUrl: 'http://127.0.0.1:8787', persistent: true })
@@ -97,7 +105,7 @@ describe('server sync with the desktop gateway', () => {
     await pushLogProgress(scan(), () => unregistered, apply)
     expect(serviceRequest).toHaveBeenCalledTimes(1)
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, events: [{ taskId: TASK, status: 'completed', timestamp: '2026-09-25T12:00:00.000Z' }] })
-    expect(apply).toHaveBeenCalledWith('pve', expect.arrayContaining([expect.objectContaining({ taskId: '5936d90786f7742b1420ba5c', status: 'active' })]), CHARACTER)
+    expect(apply).toHaveBeenCalledWith('pve', expect.arrayContaining([expect.objectContaining({ taskId: '5936d90786f7742b1420ba5c', status: 'active' })]), CHARACTER, undefined)
   })
 
   it('pushes objective progress and unconfirmed events, then merges the server copy (marking echoes synced)', async () => {
@@ -116,9 +124,10 @@ describe('server sync with the desktop gateway', () => {
       updatedAt: '2026-09-25T11:00:00.000Z',
     })
     bindObjectiveSync({ read: () => progress, apply: (_mode, remote) => { progress = mergeRemoteObjectives(progress, remote) } })
+    archived.manualObjectives = false
     try {
       await syncObjectives('pve')
-    } finally { bindObjectiveSync(null) }
+    } finally { bindObjectiveSync(null); archived.manualObjectives = true }
     expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/objectives/pve/sync', payload)
     expect(Object.keys(progress.objectiveProgress).sort()).toEqual(['obj-1', 'obj-2', 'obj-3'])
     expect(progress.progressEvents.map((event) => [event.id, Boolean(event.synced)])).toEqual([['ev-local-1', true], ['ev-local-2', false], ['ev-phone-1', true]])
@@ -135,5 +144,98 @@ describe('server sync with the desktop gateway', () => {
     await syncCollector('pvp')
     expect(serviceRequest).not.toHaveBeenCalled()
     expect(apply).not.toHaveBeenCalled()
+  })
+
+  it('sends no objective events while manual objectives are archived: nothing reads them (P21)', async () => {
+    let progress = applyObjectiveChange(createModeProgress(), 'pve', { objectiveId: 'obj-1', taskId: TASK, type: 'shoot', target: 5, current: 3, source: 'manual', confidence: 1, observedAt: '2026-09-25T10:00:00.000Z' }, { eventId: 'ev-local-1' }).progress
+    bindObjectiveSync({ read: () => progress, apply: (_mode, remote) => { progress = mergeRemoteObjectives(progress, remote) } })
+    try {
+      await syncObjectives('pve')
+    } finally { bindObjectiveSync(null) }
+    expect(serviceRequest).not.toHaveBeenCalled()
+  })
+
+  it('sends only the events the server has not confirmed, and still applies its whole answer', async () => {
+    const answer = { records: [{ taskId: TASK, status: 'completed', updatedAt: '2026-09-25T12:00:00.000Z' }], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x' } }
+    serviceRequest.mockResolvedValue(answer)
+    const apply = vi.fn()
+    await pushLogProgress(scan(), () => unregistered, apply)
+    await pushLogProgress(scan(), () => unregistered, apply)
+    expect(serviceRequest.mock.calls.map((call) => (call[2] as { events: unknown[] }).events.length)).toEqual([1, 0])
+    expect(apply).toHaveBeenCalledTimes(2)
+    // Another account signed in: everything goes again (its server has none of it).
+    status.mockResolvedValue({ signedIn: true, email: 'b@example.com', kind: 'user', online: true, serverUrl: 'http://127.0.0.1:8787', persistent: true })
+    await refreshServerStatus()
+    await pushLogProgress(scan(), () => unregistered, apply)
+    expect((serviceRequest.mock.lastCall![2] as { events: unknown[] }).events).toHaveLength(1)
+  })
+
+  it('pushes again right after a push that was running when a new scan came (P15)', async () => {
+    let finish!: (value: unknown) => void
+    serviceRequest.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER } })
+    const apply = vi.fn()
+    const first = pushLogProgress(scan(), () => unregistered, apply)
+    await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledTimes(1))
+    const newer = scan()
+    newer.eventsByMode.pve = [...newer.eventsByMode.pve, { taskId: '5936d90786f7742b1420ba5c', status: 'active', timestamp: '2026-09-25T13:00:00.000Z', mode: 'pve' }]
+    // The first push is still waiting for the server: this one is not lost, it goes right after.
+    await pushLogProgress(newer, () => unregistered, apply)
+    expect(serviceRequest).toHaveBeenCalledTimes(1)
+    finish({ records: [], scope: { characterId: CHARACTER } })
+    await first
+    expect(serviceRequest).toHaveBeenCalledTimes(2)
+    expect((serviceRequest.mock.calls[0]![2] as { events: Array<{ taskId: string }> }).events.map((event) => event.taskId)).toEqual([TASK])
+    expect((serviceRequest.mock.lastCall![2] as { events: Array<{ taskId: string }> }).events.map((event) => event.taskId)).toEqual(['5936d90786f7742b1420ba5c'])
+  })
+
+  it('pushes events without a profile line to the character the server keeps for the mode (P17)', async () => {
+    const result = scan()
+    result.latestCharacterIdByMode = {}
+    serviceRequest.mockImplementation(async (method: string) => method === 'GET'
+      ? { records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x' } }
+      : { records: [{ taskId: TASK, status: 'completed', updatedAt: '2026-09-25T12:00:00.000Z' }], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x' } })
+    const apply = vi.fn()
+    await pushLogProgress(result, () => unregistered, apply)
+    expect(serviceRequest).toHaveBeenNthCalledWith(1, 'GET', '/v1/me/progress/pve', undefined)
+    expect(serviceRequest).toHaveBeenNthCalledWith(2, 'POST', '/v1/me/progress/pve/events', expect.objectContaining({ characterId: CHARACTER }))
+    expect(apply).toHaveBeenCalledWith('pve', [expect.objectContaining({ taskId: TASK })], CHARACTER, undefined)
+    // No character known anywhere: nothing goes (the events would land under no character).
+    forgetProgressSync()
+    serviceRequest.mockReset()
+    serviceRequest.mockResolvedValue({ records: [], scope: null })
+    await pushLogProgress(result, () => unregistered, apply)
+    expect(serviceRequest.mock.calls.map((call) => call[0])).toEqual(['GET'])
+  })
+
+  it('a desktop pulls a mode its logs do not show, with the server\'s character and reset (P10, P16)', async () => {
+    Object.assign(window.tarkovDesktop!, { isDesktop: true })
+    const answer = { records: [{ taskId: TASK, status: 'active', updatedAt: '2026-09-25T12:00:00.000Z' }], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: '2026-09-20T00:00:00.000Z' } }
+    serviceRequest.mockResolvedValue(answer)
+    const apply = vi.fn()
+    // Nothing known about this PC's logs yet: no pull.
+    await pullServerProgress('pvp', apply)
+    expect(serviceRequest).not.toHaveBeenCalled()
+    // Its logs show PvE only: PvP comes from the server (another PC); PvE is pushed, not pulled.
+    await pushLogProgress(scan(), () => unregistered, vi.fn())
+    serviceRequest.mockClear()
+    expect([pullsServerProgress('pvp'), pullsServerProgress('pve')]).toEqual([true, false])
+    await pullServerProgress('pve', apply)
+    expect(serviceRequest).not.toHaveBeenCalled()
+    await pullServerProgress('pvp', apply)
+    expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/me/progress/pvp', undefined)
+    expect(apply).toHaveBeenCalledWith('pvp', [expect.objectContaining({ taskId: TASK })], CHARACTER, '2026-09-20T00:00:00.000Z')
+    // No Logs folder on this PC: every mode comes from the server.
+    forgetProgressSync()
+    noteDesktopLogsMissing()
+    expect([pullsServerProgress('pvp'), pullsServerProgress('pve'), pullsServerProgress('seasonal')]).toEqual([true, true, true])
+  })
+
+  it('reads the server\'s character scope and its reset, and nothing it cannot trust', () => {
+    expect(parseServerScope({ scope: { characterId: CHARACTER, resetAt: '2026-09-20T00:00:00Z' } })).toEqual({ characterId: CHARACTER, resetAt: '2026-09-20T00:00:00.000Z' })
+    expect(parseServerScope({ scope: { characterId: CHARACTER, resetAt: 'yesterday' } })).toEqual({ characterId: CHARACTER })
+    expect(parseServerScope({ scope: { characterId: '' } })).toBeNull()
+    expect(parseServerScope({ scope: null })).toBeNull()
+    expect(parseServerScope(null)).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
+import { DatabaseSync } from 'node:sqlite'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
@@ -218,4 +219,48 @@ test('/v1/me/objectives undo restores the old value and answers 404 for another 
     const untouched = await (await call('GET', '/v1/me/objectives/pvp', undefined, other)).json() as Snapshot
     assert.equal(untouched.events.length, 0)
   })
+})
+
+test('/v1/me/progress keeps the latest trusted reset with the character scope', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'reset@example.com')
+    type Answer = { records: Array<{ taskId: string }>; scope: { characterId: string; resetAt?: string } | null }
+    const post = async (body: unknown) => await (await call('POST', '/v1/me/progress/pvp/events', body, token)).json() as Answer
+    const old = [
+      { taskId: TASK_A, status: 'active', timestamp: '2026-09-25T10:00:00.000Z' },
+      { taskId: TASK_A, status: 'completed', timestamp: '2026-09-25T11:00:00.000Z' },
+    ]
+    assert.equal((await post({ accountId: 100, characterId: CHARACTER, events: old })).scope?.resetAt, undefined)
+    // A prestige seen by one PC: older events go, and the scope keeps the reset for the phone and the other PCs.
+    const reset = await post({ characterId: CHARACTER, resetAt: '2026-09-25T11:30:00.000Z', events: [{ taskId: TASK_B, status: 'active', timestamp: '2026-09-25T11:40:00.000Z' }] })
+    assert.deepEqual(reset.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(reset.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // Another PC whose logs never showed the reset sends the old events again: they are not stored again.
+    const stale = await post({ characterId: CHARACTER, events: old })
+    assert.deepEqual(stale.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(stale.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // An older reset never moves it back; the phone reads it with the records.
+    assert.equal((await post({ characterId: CHARACTER, resetAt: '2026-09-25T09:00:00.000Z', events: [] })).scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    const get = await (await call('GET', '/v1/me/progress/pvp', undefined, token)).json() as Answer
+    assert.equal(get.scope?.resetAt, '2026-09-25T11:30:00.000Z')
+    // A clock far ahead is held to the server's time.
+    const future = await post({ characterId: CHARACTER, resetAt: '2099-01-01T00:00:00.000Z', events: [] })
+    assert.ok(future.scope?.resetAt && Date.parse(future.scope.resetAt) <= Date.now() + 61_000)
+    // A new character (after a wipe) starts without a reset.
+    const wiped = await post({ characterId: 'fedcba9876543210fedcba98', events: [] })
+    assert.equal(wiped.scope?.characterId, 'fedcba9876543210fedcba98')
+    assert.equal(wiped.scope?.resetAt, undefined)
+  })
+})
+
+test('a progress database from before the reset column gets it', () => {
+  const db = new DatabaseSync(':memory:')
+  db.exec(`CREATE TABLE progress_scopes (owner TEXT NOT NULL, mode TEXT NOT NULL, account_id INTEGER NOT NULL, character_id TEXT NOT NULL,
+    synced_at TEXT NOT NULL, PRIMARY KEY(owner, mode));
+    INSERT INTO progress_scopes VALUES ('user:1', 'pvp', 5, '${CHARACTER}', '2026-09-25T12:00:00.000Z');`)
+  const store = new ProgressStore(db)
+  assert.deepEqual(store.scope('user:1', 'pvp'), { accountId: 5, characterId: CHARACTER, syncedAt: '2026-09-25T12:00:00.000Z' })
+  store.syncUser('user:1', 'pvp', { resetAt: '2026-09-25T11:00:00.000Z', events: [] })
+  assert.equal(store.scope('user:1', 'pvp')?.resetAt, '2026-09-25T11:00:00.000Z')
+  db.close()
 })

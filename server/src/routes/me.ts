@@ -2,8 +2,8 @@
  * Per-user data API, mounted at `/v1/me`. Every route needs `Authorization: Bearer <session token>` from
  * POST /v1/accounts/login. PvP, PvE and Seasonal data are stored and returned separately.
  *
- *   GET  /progress/:mode                 -> { revision, records, coverage, scope }
- *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records
+ *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
+ *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
  *   GET  /position/:mode                 -> { position | null }
