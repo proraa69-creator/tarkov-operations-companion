@@ -2,8 +2,10 @@
  * Per-user data API, mounted at `/v1/me`. Every route needs `Authorization: Bearer <session token>` from
  * POST /v1/accounts/login. PvP, PvE and Seasonal data are stored and returned separately.
  *
- *   GET  /progress/:mode                 -> { revision, records, coverage, scope }
- *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records
+ *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
+ *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
+ *   GET  /story/:mode?characterId=       -> { characterId, records: [{ chapterId, status, stageId?, updatedAt }] }
+ *   POST /story/:mode                    { characterId?, records[] } -> the same, the newer readings kept
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
  *   GET  /position/:mode                 -> { position | null }
@@ -44,6 +46,14 @@ const eventsSchema = z.object({
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
 }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
+/** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
+const storyRecordSchema = z.object({
+  chapterId: z.string().regex(ENTITY_ID_PATTERN),
+  status: z.enum(['active', 'completed']),
+  stageId: z.string().regex(ENTITY_ID_PATTERN).optional(),
+  updatedAt: isoTime,
+}).strict()
+const storySchema = z.object({ characterId: hexId.optional(), records: z.array(storyRecordSchema).max(200) }).strict()
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const positionSchema = z.object({
   x: coordinate, y: coordinate, z: coordinate,
@@ -149,6 +159,21 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     res.json(progress.syncUser(owner(account(res)), parsed.data, body.data))
     // A quest started or handed in: friends and squad mates (and this account's other devices) reload at once.
     progressChanged(account(res))
+  })
+
+  router.get('/story/:mode', (req, res) => {
+    const parsed = mode(req)
+    const characterId = req.query.characterId === undefined ? undefined : hexId.safeParse(req.query.characterId)
+    if (!parsed.success || (characterId && !characterId.success)) { bad(res); return }
+    res.json(progress.storyRecords(owner(account(res)), parsed.data, characterId?.data))
+  })
+
+  router.post('/story/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = storySchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)()))
+    if (body.data.records.length) progressChanged(account(res))
   })
 
   // «Моментально»: waits up to ~25 s for anything new among this account's friends and squad (services/socialSignals.ts).

@@ -84,6 +84,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
   logSearchReport: () => ipcRenderer.invoke('logs:search-report') as Promise<EftLogSearchReport>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,
+  /** The catalog's trader quest ids of a mode: only these reveal a profile reset in the logs (electron/logWatcher.ts). */
+  setLogQuestIds: (mode: string, ids: string[]) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []) as Promise<boolean>,
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data') as Promise<boolean>,
   onLogsUpdated: (callback: (result: LogParseResult) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, result: LogParseResult) => callback(result)

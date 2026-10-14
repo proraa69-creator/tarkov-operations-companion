@@ -1,10 +1,10 @@
-import { appendFile, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildScanResult, readLogSignals } from '../src/import/eftLogTimeline'
 import { raidStateFromLogs } from '../src/import/raidState'
-import { readRaidState, readScreenshotBinding, scanLogFolderBySession } from './logScanner'
+import { clearLogCaches, loadLogCache, readRaidState, readScreenshotBinding, saveLogCache, scanLogFolderBySession, scanLogIdentity } from './logScanner'
 
 const V = '1.1.5.1.47510'
 const PVP_PROFILE = '61c4752c091f387bc2448d1c'
@@ -70,7 +70,7 @@ describe('EFT log scanner', () => {
     expect(result.summaryByMode.pvp.resetAt).toBeUndefined()
   })
 
-  it('detects a profile reset and drops everything before it', async () => {
+  it('detects a profile reset of a catalog trader quest and drops everything before it', async () => {
     const root = await mkdtemp(join(tmpdir(), 'eft-reset-'))
     await session(root, 'log_2026.09.12_22-32-39_1.1.5.0.47242', {
       application: [app('2026-09-12 22:32:54.000', 'Session mode: Regular'), app('2026-09-12 22:33:30.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
@@ -83,9 +83,41 @@ describe('EFT log scanner', () => {
       ],
       'push-notifications': [quest('2026-09-26 23:22:18.000', 10, QUEST_B), quest('2026-09-26 23:25:05.000', 10, QUEST_A)],
     })
-    const result = await scanLogFolderBySession(root)
+    // Before the catalog told the trader quests, nothing counts as a reset (nothing is dropped, nothing deleted on the server).
+    const unknown = await scanLogFolderBySession(root)
+    expect(unknown.summaryByMode.pvp.resetAt).toBeUndefined()
+    expect(unknown.eventsByMode.pvp.map((event) => event.taskId).sort()).toEqual([QUEST_A, QUEST_B, '5b47926a86f7747ccc057c15'].sort())
+    const result = await scanLogFolderBySession(root, { trustedQuestIds: { pvp: new Set([QUEST_A, QUEST_B]) } })
     expect(result.eventsByMode.pvp.map((event) => [event.taskId, event.status])).toEqual([[QUEST_B, 'active'], [QUEST_A, 'active']])
     expect(result.summaryByMode.pvp.resetAt).toBe(new Date('2026-09-26T23:20:09.011').toISOString())
+    expect(result.summaryByMode.pvp.historyStartsInLogs).toBe(true)
+  })
+
+  it('keeps the quests of a launch with «Session mode» in its mode whatever gateway a request went to', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-stray-'))
+    await session(root, 'log_2026.09.27_0-05-51_1.1.5.1.47510', {
+      application: [app('2026-09-27 00:06:07.000', 'Session mode: Pve'), app('2026-09-27 00:06:20.000', `CompleteSelectedProfile ProfileId:${PVE_PROFILE} AccountId:7690289`)],
+      backend: [backend('2026-09-27 00:06:30.000', 'gw-pve'), backend('2026-09-27 00:20:00.000', 'gw-pvp'), backend('2026-09-27 00:40:00.000', 'gw-pve')],
+      'push-notifications': [quest('2026-09-27 00:30:00.000', 10, QUEST_A)],
+    })
+    const result = await scanLogFolderBySession(root)
+    expect(result.eventsByMode.pve.map((event) => event.taskId)).toEqual([QUEST_A])
+    expect(result.eventsByMode.pvp).toEqual([])
+  })
+
+  it('knows whether a mode\'s profile started inside the logs (after the oldest launch on disk)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-oldest-'))
+    await session(root, 'log_2026.09.20_20-00-00_1.1.5.1.47510', {
+      application: [app('2026-09-20 20:00:10.000', 'Session mode: Regular'), app('2026-09-20 20:00:20.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
+    })
+    await session(root, 'log_2026.09.21_20-00-00_1.1.5.1.47510', {
+      application: [app('2026-09-21 20:00:10.000', 'Session mode: Pve'), app('2026-09-21 20:00:20.000', `CompleteSelectedProfile ProfileId:${PVE_PROFILE} AccountId:7690289`)],
+      'push-notifications': [quest('2026-09-21 20:10:00.000', 10, QUEST_A)],
+    })
+    const result = await scanLogFolderBySession(root)
+    // PvP's profile is in the oldest launch: it may be older than every log. PvE's first appears in a later launch.
+    expect(result.summaryByMode.pvp.historyStartsInLogs).toBeUndefined()
+    expect(result.summaryByMode.pve.historyStartsInLogs).toBe(true)
   })
 
   it('ignores flea market and trader messages', async () => {
@@ -238,5 +270,72 @@ describe('following the logs of a running game', () => {
     await appendFile(pushLog(first), `\n${block('2026-09-30 00:30:00.000', QUEST_E).join('\n')}`)
     await appendFile(pushLog(second), `\n${block('2026-09-30 18:20:00.000', QUEST_D).join('\n')}`)
     expect(await ids()).toEqual([QUEST_A, QUEST_B, QUEST_C, QUEST_D])
+  })
+})
+
+describe('identity first and the logs kept between starts', () => {
+  const NEWEST = 'log_2026.09.30_18-02-10_1.1.5.1.47510'
+  const OLDER = 'log_2026.09.29_20-31-00_1.1.5.1.47510'
+
+  async function twoLaunches() {
+    const root = await mkdtemp(join(tmpdir(), 'eft-identity-'))
+    await session(root, OLDER, {
+      application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular'), app('2026-09-29 20:31:10.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`)],
+      'push-notifications': [quest('2026-09-29 20:40:00.000', 10, QUEST_A)],
+    })
+    await session(root, NEWEST, {
+      application: [app('2026-09-30 18:02:20.000', 'Session mode: Pve'), app('2026-09-30 18:02:25.000', `CompleteSelectedProfile ProfileId:${PVE_PROFILE} AccountId:7690289`)],
+      'push-notifications': [quest('2026-09-30 18:10:00.000', 10, QUEST_B)],
+    })
+    return root
+  }
+
+  it('tells the mode and every game account and profile from the application logs alone', async () => {
+    const root = await twoLaunches()
+    const identity = await scanLogIdentity(root)
+    expect(identity).toMatchObject({ identityOnly: true, latestMode: 'pve', latestCharacterIdByMode: { pvp: PVP_PROFILE, pve: PVE_PROFILE }, latestAccountIdByMode: { pvp: 7690289, pve: 7690289 }, events: [] })
+    expect(Object.values(identity.summaryByMode).some((summary) => summary.lastActivityAt)).toBe(false)
+    const full = await scanLogFolderBySession(root)
+    expect(full.identityOnly).toBeUndefined()
+    expect(full.eventsByMode.pve.map((event) => event.taskId)).toEqual([QUEST_B])
+    expect(full.signature).not.toBe(identity.signature)
+  })
+
+  it('keeps what was read for the next start and reads only what is new then', async () => {
+    const root = await twoLaunches()
+    const pushLog = join(root, OLDER, `${OLDER.slice(4)} push-notifications_000.log`)
+    // A whole-second time, so the garbage below can get exactly the same one.
+    const time = new Date('2026-09-30T00:00:00Z')
+    await utimes(pushLog, time, time)
+    const kept = join(await mkdtemp(join(tmpdir(), 'eft-kept-')), 'logs-cache.json')
+    const first = await scanLogFolderBySession(root)
+    expect(await saveLogCache(kept)).toBe(true)
+    // Nothing new since: nothing written again.
+    expect(await saveLogCache(kept)).toBe(false)
+
+    // The next start: memory is empty, the kept file is loaded; a finished launch is not read again (its log is
+    // replaced by garbage of the same size and time here — a re-read would lose its quest).
+    await clearLogCaches()
+    expect(await loadLogCache(kept)).toBeGreaterThan(0)
+    await writeFile(pushLog, 'x'.repeat((await stat(pushLog)).size))
+    await utimes(pushLog, time, time)
+    const again = await scanLogFolderBySession(root)
+    expect(again.eventsByMode).toEqual(first.eventsByMode)
+    expect(again.signature).toBe(first.signature)
+
+    // The running launch went on: only its new lines are read, from where the kept read stopped.
+    await appendFile(join(root, NEWEST, `${NEWEST.slice(4)} push-notifications_000.log`), `\n${quest('2026-09-30 18:30:00.000', 12, QUEST_B)}`)
+    const grown = await scanLogFolderBySession(root)
+    expect(grown.eventsByMode.pve).toEqual([expect.objectContaining({ taskId: QUEST_B, status: 'completed' })])
+  })
+
+  it('ignores a kept file it cannot trust', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'eft-kept-'))
+    await clearLogCaches()
+    await writeFile(join(folder, 'broken.json'), '{ not json')
+    expect(await loadLogCache(join(folder, 'broken.json'))).toBe(0)
+    await writeFile(join(folder, 'other.json'), JSON.stringify({ version: 1, logs: [{ path: '/x', size: 1, mtimeMs: 1, offset: 5, head: '', signals: [], open: [] }, { path: '/y', size: 9, mtimeMs: 1, offset: 1, head: '', signals: [{ kind: 'quest', at: 1, taskId: 'nope', status: 'active' }], open: [] }] }))
+    expect(await loadLogCache(join(folder, 'other.json'))).toBe(0)
+    expect(await loadLogCache(join(folder, 'missing.json'))).toBe(0)
   })
 })

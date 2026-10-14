@@ -42,7 +42,7 @@ function wholeLog() {
     { kind: 'quest', at: at + 2, taskId: quests[0]!.id, status: 'active' },
     { kind: 'quest', at: at + 3, taskId: quests[0]!.id, status: 'completed' },
     { kind: 'quest', at: at + 4, taskId: quests[1]!.id, status: 'active' },
-  ], 1)
+  ], 2, 0, { oldestLaunchUntil: at - 1 })
 }
 
 /** Logs that name the game's mode and hold no quest history (so the Tasks table is still read for it). */
@@ -103,7 +103,7 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
       { kind: 'quest', at: Date.parse('2026-10-14T08:00:03Z'), taskId: quests[0]!.id, status: 'completed' },
       { kind: 'quest', at: Date.parse('2026-10-14T08:00:04Z'), taskId: quests[1]!.id, status: 'active' },
       { kind: 'mode', at: Date.parse('2026-10-14T09:00:00Z'), mode: 'pvp' },
-    ], 2)
+    ], 2, 0, { oldestLaunchUntil: Date.parse('2026-10-14T07:59:59Z') })
     expect(logsCoverModes(scan, quests)).toMatchObject({ pve: true, pvp: false })
     expect(scan.latestMode).toBe('pvp')
     updateLogStatus({ scan })
