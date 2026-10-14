@@ -206,17 +206,25 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         },
       },
     })),
-    applyStoryScanForMode: (selectedMode, matches) => updateActive((profile) => {
+    // Screen readings that change nothing leave the state as it is (audit P5f): no new state, so no profile write to
+    // localStorage and no re-render of the app, although the scanner reads the Tasks table every few seconds.
+    applyStoryScanForMode: (selectedMode, matches) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      if (!profile) return state
       const current = profile.modes[selectedMode]
       const next = applyStoryScan(current, matches)
-      if (next === current) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      if (next === current) return state
+      const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => updateActive((profile) => {
+    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      if (!profile) return state
       const current = profile.modes[selectedMode]
       const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true })
-      if (next === current || logStateFingerprint(next) === logStateFingerprint(current)) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      if (next === current) return state
+      const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
     applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => {
       const current = profile.modes[selectedMode]

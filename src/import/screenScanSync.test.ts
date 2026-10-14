@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
 import { createModeProgress } from '../domain/progress'
-import { applyScreenScanProgress, isTasksMenuText, shouldApplyQuestScan, tableMatches } from './screenScanSync'
+import { applyScreenScanProgress, isTasksMenuText, tableMatches } from './screenScanSync'
 import { matchQuestsFromOcr } from './questOcr'
 import { tasksScreenKind } from './storyScan'
 import { ENGLISH_TABLE_QUESTS } from './__fixtures__/englishGameOcr'
@@ -20,9 +20,9 @@ const parallel: Quest = {
 describe('screen scan sync after turn-in', () => {
   it('detects the Tasks menu and ignores raid HUD noise', () => {
     expect(isTasksMenuText('ЗАДАНИЯ\nПОБОЧНЫЕ\nВитамины Любая локация активно!')).toBe(true)
-    expect(shouldApplyQuestScan('ЗАДАНИЯ ПОБОЧНЫЕ активно!', 1)).toBe(true)
-    expect(shouldApplyQuestScan('убить 3 scav\nвыход', 0)).toBe(false)
-    expect(shouldApplyQuestScan('сдать задание\nнаграда', 1)).toBe(false)
+    expect(isTasksMenuText('ЗАДАНИЯ ПОБОЧНЫЕ активно!')).toBe(true)
+    expect(isTasksMenuText('убить 3 scav\nвыход')).toBe(false)
+    expect(isTasksMenuText('сдать задание\nнаграда')).toBe(false)
   })
 
   it('moves the turned-in quest out of current when the next one appears', () => {
@@ -40,24 +40,13 @@ describe('screen scan sync after turn-in', () => {
     expect(next.taskProgress.checking?.status).toBe('active')
   })
 
-  it('keeps other story chapters when only one detail pane is visible', () => {
+  it('leaves story chapters to the story pane reader: a chapter on a table frame changes nothing', () => {
     const tour: Quest = { id: 'story-tour', kind: 'story', name: 'Тур', trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [] }
     const maze: Quest = { id: 'story-labyrinth', kind: 'story', name: 'Лабиринт', trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [] }
     const progress = createModeProgress()
     progress.taskProgress['story-labyrinth'] = { taskId: 'story-labyrinth', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z', currentStageIndex: 5 }
-    const next = applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [tour, maze])
-    expect(next.taskProgress['story-tour']?.status).toBe('active')
-    expect(next.taskProgress['story-tour']?.currentStageIndex).toBe(4)
-    expect(next.taskProgress['story-labyrinth']).toBe(progress.taskProgress['story-labyrinth'])
-  })
-
-  it('does not wipe trader currents when only a story chapter is scanned', () => {
-    const tour: Quest = { id: 'story-tour', kind: 'story', name: 'Тур', trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [] }
-    const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
-    const next = applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [debut, tour])
-    expect(next.taskProgress.debut?.status).toBe('active')
-    expect(next.taskProgress['story-tour']?.status).toBe('active')
+    expect(applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [debut, tour, maze])).toBe(progress)
   })
 
   it('completes a quest that left the Tasks screen while neighbors stayed', () => {
@@ -179,5 +168,38 @@ describe('a trader\'s own Tasks tab in the Russian game (audit P13)', () => {
     const read = matchQuestsFromOcr(unmarked, quests)
     expect(read.length).toBeGreaterThan(3)
     expect(tableMatches(unmarked, read).map((match) => name(match.questId))).toEqual(['Работа для патриота'])
+  })
+})
+
+describe('a Tasks frame that shows nothing new changes nothing (audit P5f)', () => {
+  const stored = () => {
+    const progress = createModeProgress()
+    progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
+    progress.taskProgress.side = { taskId: 'side', status: 'active', source: 'eft-log', updatedAt: '2026-09-25T00:00:00.000Z' }
+    return progress
+  }
+
+  it('the same rows read again: the same object, no new time, no new record', () => {
+    const progress = stored()
+    const options = { previousSeenIds: ['debut', 'side'], requireConfirmation: true, now: Date.parse('2026-10-14T10:00:00Z') }
+    expect(applyScreenScanProgress(progress, [{ questId: 'debut', status: 'active' }, { questId: 'side', status: 'active' }], [debut, parallel], options)).toBe(progress)
+  })
+
+  it('a quest the logs hold as current stays the logs\' record', () => {
+    const progress = stored()
+    const next = applyScreenScanProgress(progress, [{ questId: 'side', status: 'active' }], [debut, parallel], { previousSeenIds: ['side'], requireConfirmation: true })
+    expect(next).toBe(progress)
+    expect(next.taskProgress.side?.source).toBe('eft-log')
+  })
+
+  it('a new quest or a changed status is written, and only that record', () => {
+    const progress = stored()
+    progress.taskProgress.checking = { taskId: 'checking', status: 'completed', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
+    const now = Date.parse('2026-10-14T10:00:00Z')
+    const next = applyScreenScanProgress(progress, [{ questId: 'debut', status: 'active' }, { questId: 'checking', status: 'active' }], [debut, checking, parallel], { previousSeenIds: ['debut', 'checking'], requireConfirmation: true, now })
+    expect(next).not.toBe(progress)
+    expect(next.taskProgress.checking).toMatchObject({ status: 'active', updatedAt: new Date(now).toISOString() })
+    expect(next.taskProgress.debut).toBe(progress.taskProgress.debut)
+    expect(next.taskProgress.side).toBe(progress.taskProgress.side)
   })
 })
