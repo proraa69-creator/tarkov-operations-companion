@@ -4,9 +4,11 @@ import { timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import type { AppDataset, RaidMode } from '../../src/domain/types'
 import { fetchPlayerProfile } from '../../electron/playerProfileService'
-import { getCatalogAnswer, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
+import { currentQuestBase, getCatalogAnswer, peekCatalogSnapshot, resolvePlayer } from './services/catalogService.js'
 import { catalogNotModified, type CatalogLocale } from './services/catalogCache.js'
 import { createCatalogAnswers } from './services/catalogAnswers.js'
+import type { QuestBaseReport } from './services/questBase.js'
+import { createQuestBaseRouter } from './routes/questBase.js'
 import type { ProgressStore } from './services/progressStore.js'
 import { createGoonsRouter } from './routes/goons.js'
 import { createAccountsRouter } from './routes/accounts.js'
@@ -103,6 +105,8 @@ export interface ApiOptions {
    * its answer is prepared again for every new object it returns.
    */
   catalogSnapshot?: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
+  /** The quest base the owner's report reads (routes/questBase.ts); default: the server's (services/catalogService.ts). */
+  questBase?: { report: () => QuestBaseReport }
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -262,6 +266,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
+  app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))
   // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
   // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
   const announcements = new AnnouncementStore(accounts.database)
