@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(inter-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(inter-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(oswald-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(oswald-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+:root { --bg: #0a0f0c; --panel: #141d18; --panel-2: #19241e; --line: #2b3a30; --text: #edf2ed; --muted: #a3afa6; --brass: #c4a665; --brass-strong: #dfbd70; --os: #a9b973; --green: #9fd0a8; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #000; }
+body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+.abs { position: absolute; }
+#stage { position: absolute; inset: 0; overflow: hidden; background: var(--bg); }
+
+/* Backdrop of the closing scenes: the app's colours, a soft brass light, a faint grid and grain. */
+#backdrop { position: absolute; inset: 0;
+  background: radial-gradient(1100px 700px at 72% 46%, rgb(196 166 101 / 16%), transparent 70%), radial-gradient(900px 640px at 18% 80%, rgb(127 161 131 / 12%), transparent 70%), linear-gradient(180deg, #0d140f, #070a08); }
+#backdrop .grid { position: absolute; inset: 0; opacity: .5;
+  background-image: linear-gradient(rgb(237 242 237 / 4%) 1px, transparent 1px), linear-gradient(90deg, rgb(237 242 237 / 4%) 1px, transparent 1px); background-size: 64px 64px;
+  mask-image: radial-gradient(1200px 800px at 50% 50%, #000 30%, transparent 85%); }
+#backdrop .grain { position: absolute; inset: 0; opacity: .12; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>"); }
+#backdrop .vignette { position: absolute; inset: 0; background: radial-gradient(1300px 820px at 50% 50%, transparent 45%, rgb(0 0 0 / 70%) 100%); }
+
+/* Intro */
+#intro-bg { position: absolute; inset: 0; transform-origin: 50% 50%; }
+#intro-bg img { width: 1920px; height: 1080px; display: block; }
+#intro-shade { position: absolute; inset: 0; background: radial-gradient(900px 520px at 50% 50%, rgb(10 15 12 / 55%), rgb(5 8 6 / 82%)); }
+.logo { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; }
+.logo-row { display: flex; align-items: center; gap: 38px; }
+.logo-icon { width: 176px; height: 176px; border-radius: 40px; filter: drop-shadow(0 22px 50px rgb(0 0 0 / 60%)); }
+.wordmark { font: 600 136px/1 Oswald, sans-serif; letter-spacing: .06em; color: #f3f1e8; text-shadow: 0 10px 40px rgb(0 0 0 / 55%); white-space: nowrap; }
+.wordmark b { font-weight: 600; color: var(--os); }
+.rule { height: 3px; margin: 34px auto 30px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+.subtitle { font: 500 40px/1.25 Inter, sans-serif; color: #dfe5de; letter-spacing: .01em; text-align: center; text-shadow: 0 6px 24px rgb(0 0 0 / 70%); }
+.subtitle em { font-style: normal; color: var(--brass-strong); font-weight: 700; }
+
+/* Closing · phones */
+.text-block { position: absolute; left: 140px; width: 760px; }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 9px 18px 9px 14px; border-radius: 999px; border: 1px solid rgb(196 166 101 / 55%); background: rgb(196 166 101 / 12%);
+  color: var(--brass-strong); font: 800 22px/1 Inter, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+.pill svg { width: 22px; height: 22px; }
+.title { margin-top: 26px; font: 600 104px/1.02 Oswald, sans-serif; letter-spacing: .01em; color: #f3f1e8; }
+.title b { font-weight: 600; color: var(--brass-strong); }
+.lead { margin-top: 26px; font: 500 38px/1.3 Inter, sans-serif; color: #d5ddd6; }
+.lead strong { color: #fff; font-weight: 700; }
+.platforms { margin-top: 34px; display: flex; gap: 16px; }
+.platform { display: inline-flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 16px; background: rgb(20 29 24 / 92%); border: 1px solid var(--line); font: 700 28px/1 Inter, sans-serif; color: #eef2ee; }
+.platform svg { width: 28px; height: 28px; color: var(--brass); }
+.phone { position: absolute; width: 400px; height: 864px; border-radius: 62px; background: linear-gradient(160deg, #3a3f3b, #121513 40%, #262a27); padding: 10px; box-sizing: border-box;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 10%), 0 40px 90px rgb(0 0 0 / 65%), 0 0 0 1px rgb(0 0 0 / 80%); transform-origin: 50% 100%; }
+.phone .screen { position: relative; width: 380px; height: 844px; border-radius: 52px; overflow: hidden; background: var(--bg); }
+.phone .screen .inner { position: absolute; left: 0; top: 0; width: 390px; height: 844px; transform-origin: 0 0; transform: scale(.974359); }
+.phone .content { position: absolute; left: 0; top: 0; width: 390px; display: block; }
+.phone .top { position: absolute; left: 0; top: 0; width: 390px; display: block; }
+.phone .tabs { position: absolute; left: 0; bottom: 0; width: 390px; display: block; }
+.phone .island { position: absolute; left: 50%; top: 14px; width: 116px; height: 32px; margin-left: -58px; border-radius: 20px; background: #050605; z-index: 3; }
+.phone .glare { position: absolute; inset: 0; border-radius: 52px; background: linear-gradient(115deg, rgb(255 255 255 / 9%), transparent 38%); pointer-events: none; }
+
+/* Closing · fair play */
+.fair { position: absolute; left: 0; right: 0; top: 150px; display: flex; flex-direction: column; align-items: center; }
+.shield { width: 150px; height: 150px; color: var(--green); filter: drop-shadow(0 16px 40px rgb(0 0 0 / 60%)); }
+.fair .pill { margin-top: 26px; }
+.fair .title { margin-top: 22px; font-size: 84px; text-align: center; }
+.rows { margin-top: 54px; display: grid; grid-template-columns: repeat(2, 640px); gap: 22px 28px; }
+.row { position: relative; display: flex; align-items: center; gap: 22px; padding: 26px 30px; border-radius: 18px; background: linear-gradient(180deg, rgb(25 36 30 / 96%), rgb(18 26 21 / 96%));
+  border: 1px solid rgb(127 161 131 / 38%); box-shadow: 0 18px 44px rgb(0 0 0 / 45%); font: 650 38px/1.15 Inter, sans-serif; color: #eef2ee; }
+.row .mark { flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: rgb(127 161 131 / 16%); border: 2px solid rgb(159 208 168 / 70%); }
+.row .mark svg { width: 30px; height: 30px; color: var(--green); }
+.row .ping { position: absolute; left: 30px; top: 50%; width: 52px; height: 52px; margin-top: -26px; border-radius: 50%; border: 3px solid var(--green); }
+
+/* Closing · end card */
+.end { position: absolute; left: 0; right: 0; top: 200px; display: flex; flex-direction: column; align-items: center; }
+.end .logo-icon { width: 150px; height: 150px; border-radius: 34px; }
+.end .wordmark { font-size: 120px; }
+.tagline { margin-top: 46px; font: 600 76px/1.1 Oswald, sans-serif; color: #f3f1e8; letter-spacing: .01em; white-space: nowrap; }
+.tagline span { display: inline-block; }
+.tagline .hot { color: var(--brass-strong); }
+.cta { margin-top: 58px; display: flex; align-items: center; gap: 34px; }
+.button { display: inline-flex; align-items: center; gap: 18px; padding: 26px 44px; border-radius: 18px; background: linear-gradient(180deg, #e6c87f, #b8954f); color: #17150e;
+  font: 800 40px/1 Inter, sans-serif; box-shadow: 0 0 0 1px rgb(255 240 200 / 35%) inset, 0 22px 48px rgb(196 166 101 / 28%), 0 16px 34px rgb(0 0 0 / 50%); white-space: nowrap; }
+.button svg { width: 40px; height: 40px; }
+.url { font: 700 46px/1 Oswald, sans-serif; letter-spacing: .1em; color: var(--brass-strong); }
+.soon { margin-top: 40px; display: inline-flex; align-items: center; gap: 14px; font: 600 34px/1 Inter, sans-serif; color: #c9d2ca; }
+.soon svg { width: 34px; height: 34px; color: var(--brass); }
+/* the not-affiliated note under the end card (the site's «О нас» wording): silent, for the whole end card */
+.disclaimer { position: absolute; left: 0; right: 0; bottom: 62px; display: flex; flex-direction: column; align-items: center; gap: 8px; font: 500 26px/1.3 Inter, sans-serif; color: #a7b0a7; text-align: center; }
+.disclaimer::before { content: ''; width: 120px; height: 2px; margin-bottom: 14px; background: linear-gradient(90deg, transparent, rgb(196 166 101 / 60%), transparent); }
+#fade { position: absolute; inset: 0; background: #000; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const P = JSON.parse(decodeURIComponent(new URLSearchParams(location.search).get('p')))
+const stage = document.getElementById('stage')
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+const prog = (t, a, b) => clamp((t - a) / (b - a))
+const easeOut = (x) => 1 - Math.pow(1 - x, 4)
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+const el = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild }
+const ICON = {
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>',
+  monitor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 5.5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10v-6z" fill="rgb(127 161 131 / 14%)"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>',
+}
+const wordmark = '<div class="wordmark">RAID <b>OS</b></div>'
+const T = P.text
+
+// ---------------------------------------------------------------------------------------------------------------------
+function buildIntro() {
+  const bg = el(`<div id="intro-bg"><img src="${P.introBg}"></div>`)
+  const shade = el('<div id="intro-shade"></div>')
+  const logo = el(`<div class="logo" style="top:338px"><div class="logo-row"><img class="logo-icon" src="raidos-icon.svg">${wordmark}</div><div class="rule"></div><div class="subtitle">${T.introSub}</div></div>`)
+  const fade = el('<div id="fade"></div>')
+  stage.append(bg, shade, logo, fade)
+  const [icon, mark] = logo.querySelector('.logo-row').children
+  const rule = logo.querySelector('.rule'), sub = logo.querySelector('.subtitle')
+  return (t) => {
+    const end = P.duration
+    // The blurred app comes into focus at the end: the last frame is the Overview the next take opens on.
+    const focus = easeInOut(prog(t, end - 1.0, end - 0.15))
+    bg.style.transform = `scale(${1.06 - 0.06 * focus})`
+    bg.style.filter = `blur(${14 * (1 - focus)}px) saturate(${0.8 + 0.2 * focus})`
+    shade.style.opacity = String(1 - focus)
+    fade.style.opacity = String(1 - easeOut(prog(t, 0, 0.55)))
+    const out = easeInOut(prog(t, end - 1.05, end - 0.45))
+    const a = easeOut(prog(t, P.voice - 0.4, P.voice + 0.2))
+    icon.style.opacity = String(a * (1 - out)); icon.style.transform = `scale(${0.9 + 0.1 * a})`
+    const b = easeOut(prog(t, P.voice - 0.2, P.voice + 0.45))
+    mark.style.opacity = String(b * (1 - out)); mark.style.transform = `translateX(${(1 - b) * 26}px)`
+    const r = easeOut(prog(t, P.voice + 0.1, P.voice + 0.8))
+    rule.style.width = `${560 * r}px`; rule.style.opacity = String(1 - out)
+    const s = easeOut(prog(t, P.phrase2 - 0.1, P.phrase2 + 0.45))
+    sub.style.opacity = String(s * (1 - out)); sub.style.transform = `translateY(${(1 - s) * 16}px)`
+    logo.style.transform = `scale(${1 + 0.035 * out})`
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+function phoneEl(name) {
+  const p = el(`<div class="phone"><div class="screen"><div class="inner"><img class="content" src="${P.phones[name].content}"><img class="top" src="${P.phones[name].top}"><img class="tabs" src="${P.phones[name].tabs}"></div><div class="island"></div><div class="glare"></div></div></div>`)
+  return p
+}
+
+function buildClosing() {
+  const backdrop = el('<div id="backdrop"><div class="grid"></div><div class="grain"></div><div class="vignette"></div></div>')
+  stage.append(backdrop)
+  const A = P.at
+
+  // 18 · phones
+  const text18 = el(`<div class="text-block" style="top:330px"><div class="pill">${ICON.clock}<span>${T.soon}</span></div><div class="title">${T.phonesTitle}</div><div class="lead">${T.phonesLead}</div><div class="platforms"><span class="platform">${ICON.phone}iOS</span><span class="platform">${ICON.phone}Android</span></div></div>`)
+  const phones = [
+    { name: 'overview', x: 1135, y: 150, s: 0.84, r: -7, delay: 0.12, scroll: [1.5, 5.4, 0, 560] },
+    { name: 'maps', x: 1625, y: 150, s: 0.84, r: 7, delay: 0.24, scroll: [2.6, 5.4, 0, 240] },
+    { name: 'kappa', x: 1380, y: 96, s: 0.95, r: 0, delay: 0, scroll: [1.3, 5.5, 0, 620] },
+  ].map((spec) => ({ ...spec, node: phoneEl(spec.name) }))
+  for (const p of phones) stage.append(p.node)
+  stage.append(text18)
+  const [pill18, title18, lead18, plat18] = text18.children
+
+  // 19 · fair play
+  const fair = el(`<div class="fair"><div class="shield">${ICON.shield}</div><div class="pill"><span>${T.fairEyebrow}</span></div><div class="title">${T.fairTitle}</div><div class="rows">${T.fairRows.map((r) => `<div class="row"><span class="mark">${ICON.check}</span><span>${r}</span><span class="ping"></span></div>`).join('')}</div></div>`)
+  stage.append(fair)
+  const [shield, pill19, title19, rows19] = fair.children
+
+  // 20 · end card
+  const end = el(`<div class="end"><div class="logo-row"><img class="logo-icon" src="raidos-icon.svg">${wordmark}</div><div class="tagline"><span class="w1">${T.tag1}</span> <span class="w2 hot">${T.tag2}</span></div><div class="cta"><span class="button">${ICON.download}${T.download}</span><span class="url">raidos.app</span></div><div class="soon">${ICON.phone}<span>${T.soonPhones}</span></div></div>`)
+  stage.append(end)
+  const [endLogo, tagline, cta, soon] = end.children
+  const note = el(`<div class="disclaimer">${T.disclaimer.map((line) => `<span>${line}</span>`).join('')}</div>`)
+  stage.append(note)
+  const [w1, w2] = tagline.querySelectorAll('span')
+  const fade = el('<div id="fade"></div>')
+  stage.append(fade)
+
+  return (t) => {
+    // 18 — in with the voice, out before 19
+    const out18 = easeInOut(prog(t, A.s19 - 0.55, A.s19 - 0.05))
+    const pin = easeOut(prog(t, A.v18 - 0.55, A.v18 + 0.15))
+    pill18.style.opacity = String(pin * (1 - out18)); pill18.style.transform = `translateY(${(1 - pin) * 14}px)`
+    const tin = easeOut(prog(t, A.v18 - 0.4, A.v18 + 0.35))
+    title18.style.opacity = String(tin * (1 - out18)); title18.style.transform = `translateY(${(1 - tin) * 22}px)`
+    const lin = easeOut(prog(t, A.v18 + A.p18b - 0.1, A.v18 + A.p18b + 0.45))
+    lead18.style.opacity = String(lin * (1 - out18)); lead18.style.transform = `translateY(${(1 - lin) * 16}px)`
+    const qin = easeOut(prog(t, A.v18 + 1.7, A.v18 + 2.3))
+    plat18.style.opacity = String(qin * (1 - out18)); plat18.style.transform = `translateY(${(1 - qin) * 14}px)`
+    for (const p of phones) {
+      const k = easeOut(prog(t, 0.15 + p.delay, 1.05 + p.delay))
+      const [a, b, from, to] = p.scroll
+      const y = from + (to - from) * easeInOut(prog(t, a, b))
+      p.node.querySelector('.content').style.transform = `translateY(${-y}px)`
+      const drop = out18 * 140
+      p.node.style.left = `${p.x - 200}px`; p.node.style.top = `${p.y + (1 - k) * 260 + drop}px`
+      p.node.style.transform = `rotate(${p.r}deg) scale(${p.s})`
+      p.node.style.opacity = String(k * (1 - out18))
+      p.node.style.filter = p.s < 0.9 ? 'brightness(.78)' : 'none'
+    }
+    // 19
+    const in19 = easeOut(prog(t, A.s19 - 0.1, A.s19 + 0.5)), out19 = easeInOut(prog(t, A.s20 - 0.55, A.s20 - 0.05))
+    shield.style.opacity = String(in19 * (1 - out19)); shield.style.transform = `scale(${0.9 + 0.1 * in19})`
+    const e19 = easeOut(prog(t, A.v19 - 0.15, A.v19 + 0.35))
+    pill19.style.opacity = String(e19 * (1 - out19))
+    const t19 = easeOut(prog(t, A.v19 + A.p19[0] - 0.15, A.v19 + A.p19[0] + 0.45))
+    title19.style.opacity = String(t19 * (1 - out19)); title19.style.transform = `translateY(${(1 - t19) * 20}px)`
+    ;[...rows19.children].forEach((row, i) => {
+      const at = A.v19 + A.p19[i + 1]
+      const k = easeOut(prog(t, at - 0.12, at + 0.4))
+      row.style.opacity = String(k * (1 - out19)); row.style.transform = `translateX(${(1 - k) * -28}px)`
+      const ping = prog(t, at, at + 0.75)
+      const p = row.querySelector('.ping')
+      p.style.opacity = String(ping > 0 && ping < 1 ? 0.9 * (1 - ping) : 0); p.style.transform = `scale(${1 + ping * 0.9})`
+    })
+    // 20
+    const in20 = easeOut(prog(t, A.s20 - 0.15, A.s20 + 0.5))
+    const fadeOut = easeInOut(prog(t, P.duration - 0.7, P.duration))
+    endLogo.style.opacity = String(in20); endLogo.style.transform = `scale(${0.94 + 0.06 * in20})`
+    const a1 = easeOut(prog(t, A.v20 - 0.1, A.v20 + 0.4)), a2 = easeOut(prog(t, A.v20 + A.p20[0] - 0.1, A.v20 + A.p20[0] + 0.4))
+    w1.style.opacity = String(a1); w1.style.transform = `translateY(${(1 - a1) * 18}px)`
+    w2.style.opacity = String(a2); w2.style.transform = `translateY(${(1 - a2) * 18}px)`
+    const c = easeOut(prog(t, A.v20 + A.p20[1] - 0.1, A.v20 + A.p20[1] + 0.45))
+    cta.style.opacity = String(c); cta.style.transform = `translateY(${(1 - c) * 18}px) scale(${0.97 + 0.03 * c})`
+    const s = easeOut(prog(t, A.v20 + A.p20[2] - 0.1, A.v20 + A.p20[2] + 0.45))
+    soon.style.opacity = String(s); soon.style.transform = `translateY(${(1 - s) * 14}px)`
+    const d = easeOut(prog(t, A.s20 + 1.2, A.s20 + 1.9))
+    note.style.opacity = String(d); note.style.transform = `translateY(${(1 - d) * 10}px)`
+    fade.style.opacity = String(fadeOut)
+  }
+}
+
+window.render = P.scene === 'intro' ? buildIntro() : buildClosing()
+window.render(0)
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((img) => img.decode().catch(() => {}))])
+</script>
+</body>
+</html>

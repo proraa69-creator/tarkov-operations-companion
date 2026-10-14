@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, CheckCircle2, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, ExternalLink, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
+import { useAppState } from '../state/AppState'
+import { chronologyNote } from '../progression/chronologyText'
 import { readMapView } from '../data/mapView'
 import { MarkerMiniMap } from './MarkerMiniMap'
 import { QuestObjectivesPanel } from './QuestObjectivesPanel'
@@ -41,8 +43,14 @@ const MAX_MINI_MAPS = 4
  */
 export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullViewProps) {
   const { data } = useTarkovData()
+  const state = useAppState()
   const [imageBroken, setImageBroken] = useState(false)
   const status = availability.get(quest.id)?.status ?? 'unknown'
+  const questsById = useMemo(() => new Map(data.quests.map((entry) => [entry.id, entry])), [data.quests])
+  // what dates this status: the logs, a chain, the chronology (src/progression/chronology.ts)
+  const note = chronologyNote(quest, availability.get(quest.id), state.activeProfile.modes[state.raidMode], questsById)
+  const ownLoyalty = Math.max(0, ...(quest.traderLoyalty?.needed ?? []).filter((entry) => !quest.traderId || entry.traderId === quest.traderId).map((entry) => entry.level))
+  const reachedLine = availability.get(quest.id)?.line
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
   const maps = quest.anyMap ? [] : mapsForQuest(quest, data.maps)
@@ -96,6 +104,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
         {quest.anyMap && <span className="tag"><MapPin size={11} /> {uiText('Любая карта')}</span>}
         {maps.map((map) => <span className="tag" key={map.id}><MapPin size={11} /> {uiText(map.name)}</span>)}
       </div>
+      {note && <p className="quest-full-note">{uiText(note)}</p>}
     </div>
 
     {quest.imageUrl && !imageBroken && <figure className="quest-full-image">
@@ -119,7 +128,11 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       <h4>{uiText('Условия')}</h4>
       <div className="quest-full-conditions">
         <span className="quest-full-condition"><Unlock size={14} />{uiText(`Уровень персонажа от ${quest.level}`)}</span>
+        {quest.unlock?.dialogue && <span className="quest-full-condition"><Unlock size={14} />{uiText('Выдаётся в диалоге с торговцем (первые задания)')}</span>}
+        {quest.unlock?.lines?.map((line) => <span className="quest-full-condition" key={line.id}><Unlock size={14} />{uiText(`Ветка ${line.order ?? ''} торговца${line.ll ? ` (LL${line.ll})` : ''}: уровень ${line.level}`.replace('  ', ' '))}{reachedLine?.reached ? ` · ${uiText(`по логам ${reachedLine.reached}`)}` : ''}</span>)}
+        {ownLoyalty > 0 && <span className="quest-full-condition"><Unlock size={14} />{uiText(`Лояльность торговца ${ownLoyalty}`)}</span>}
         {factionLabel(quest.faction) && <span className="quest-full-condition"><Lock size={14} />{uiText(`Только для ${factionLabel(quest.faction)}`)}</span>}
+        {quest.helpView && helpDifference(quest) && <span className="quest-full-condition is-help"><ExternalLink size={14} />{uiText(helpDifference(quest)!)}</span>}
         {previous.map((entry) => {
           const done = availability.get(entry.id)?.status === 'completed'
           // A finished prerequisite is only shown (like finished quests in the list), an open one can be opened.
@@ -193,6 +206,18 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       {(firstMap || quest.anyMap) && <Link className="button ghost" to={`/maps/${firstMap ?? data.maps[0]?.id ?? 'customs'}?quest=${encodeURIComponent(quest.id)}`}><MapPin size={15} />{uiText(' Показать на карте')}</Link>}
     </div>
   </div>
+}
+
+/** Where tarkov.help sees the quest otherwise (src/data/questGrid.ts): its level, loyalty, earlier quests the game no longer has. */
+function helpDifference(quest: Quest) {
+  const view = quest.helpView
+  if (!view) return undefined
+  const parts: string[] = []
+  if (view.level && view.level !== quest.level) parts.push(`уровень ${view.level}`)
+  const devLoyalty = Math.max(0, ...(quest.traderLoyalty?.needed ?? []).map((entry) => entry.level), ...(quest.unlock?.lines ?? []).map((line) => line.ll ?? 0))
+  if (view.ll && view.ll !== devLoyalty) parts.push(`лояльность ${view.ll}`)
+  if (view.afterNames?.length) parts.push(`после «${view.afterNames.join('», «')}»`)
+  return parts.length ? `На tarkov.help: ${parts.join(', ')}` : undefined
 }
 
 function statusTone(status: TaskProgressStatus) {

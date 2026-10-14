@@ -65,6 +65,8 @@
 :root[data-layout="mobile"] .setting-row > span:first-child { min-width: 0; flex: 1 1 180px; }
 :root[data-layout="mobile"] .setting-row.theme-row { flex-direction: column; align-items: stretch; }
 :root[data-layout="mobile"] .setting-row.theme-row > span:first-child { flex: none; }
+/* «Обновление приложения»: the buttons start under the text instead of a right-aligned 60 % column. */
+:root[data-layout="mobile"] .app-update-actions { max-width: none; justify-content: flex-start; }
 :root[data-layout="mobile"] .theme-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
 :root[data-layout="mobile"] .settings-server { margin-top: 14px; }
 :root[data-layout="mobile"] .settings-server .panel { margin-top: 0 !important; }

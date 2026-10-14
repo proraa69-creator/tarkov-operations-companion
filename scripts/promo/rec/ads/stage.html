@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(inter-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(inter-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(oswald-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(oswald-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+:root { --line: #2b3a30; --text: #edf2ed; --muted: #b6c0b8; --brass: #c4a665; --brass-strong: #dfbd70; --os: #a9b973; --green: #9fd0a8; }
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow: hidden; }
+body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased;
+  background: radial-gradient(900px 700px at 75% 30%, rgb(196 166 101 / 16%), transparent 70%), radial-gradient(800px 700px at 15% 90%, rgb(127 161 131 / 14%), transparent 70%), linear-gradient(180deg, #0d140f, #070a08); }
+body::before { content: ''; position: absolute; inset: 0; opacity: .45; background-image: linear-gradient(rgb(237 242 237 / 4%) 1px, transparent 1px), linear-gradient(90deg, rgb(237 242 237 / 4%) 1px, transparent 1px); background-size: 60px 60px; }
+body::after { content: ''; position: absolute; inset: 0; opacity: .12; mix-blend-mode: overlay; pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>"); }
+.abs { position: absolute; }
+.brand { display: flex; align-items: center; gap: 18px; }
+.brand img { width: 72px; height: 72px; border-radius: 17px; }
+.brand .wm { font: 600 60px/1 Oswald, sans-serif; letter-spacing: .06em; color: #f3f1e8; }
+.brand .wm b { font-weight: 600; color: var(--os); }
+.pill { display: inline-flex; padding: 10px 20px; border-radius: 999px; border: 1px solid rgb(196 166 101 / 55%); background: rgb(196 166 101 / 12%); color: var(--brass-strong); font: 800 24px/1 Inter, sans-serif; letter-spacing: .15em; text-transform: uppercase; }
+h1 { margin: 0; font: 600 84px/1.04 Oswald, sans-serif; color: #f3f1e8; letter-spacing: .005em; }
+h1 .hot { color: var(--brass-strong); }
+.lead { font: 500 34px/1.35 Inter, sans-serif; color: var(--muted); }
+.shot { position: absolute; overflow: hidden; border-radius: 26px; box-shadow: 0 0 0 1px rgb(196 166 101 / 40%), 0 34px 90px rgb(0 0 0 / 60%); background: #050806; }
+.shot img { position: absolute; display: block; }
+.shot .label { position: absolute; left: 18px; bottom: 18px; padding: 12px 18px; border-radius: 14px; background: rgb(8 12 10 / 88%); border: 1px solid rgb(196 166 101 / 45%); font: 700 28px/1.15 Inter, sans-serif; color: #f3f1e8; }
+.button { display: inline-flex; align-items: center; gap: 16px; padding: 24px 40px; border-radius: 18px; background: linear-gradient(180deg, #e6c87f, #b8954f); color: #17150e; font: 800 38px/1 Inter, sans-serif;
+  box-shadow: 0 0 0 1px rgb(255 240 200 / 35%) inset, 0 22px 48px rgb(196 166 101 / 28%), 0 16px 34px rgb(0 0 0 / 50%); white-space: nowrap; }
+.button svg { width: 38px; height: 38px; }
+.url { font: 700 44px/1 Oswald, sans-serif; letter-spacing: .1em; color: var(--brass-strong); }
+.list { margin: 0; padding: 0; list-style: none; display: grid; gap: 18px; }
+.list li { display: flex; align-items: center; gap: 18px; font: 600 32px/1.25 Inter, sans-serif; color: #e9eee9; }
+.list li i { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgb(127 161 131 / 16%); border: 2px solid rgb(159 208 168 / 70%); }
+.list li i svg { width: 26px; height: 26px; color: var(--green); }
+.trust { display: inline-flex; align-items: center; gap: 12px; font: 600 26px/1.3 Inter, sans-serif; color: #c9d2ca; }
+.trust svg { width: 32px; height: 32px; color: var(--green); flex: none; }
+.soon { display: inline-flex; align-items: center; gap: 12px; font: 600 30px/1 Inter, sans-serif; color: #c9d2ca; }
+.soon svg { width: 32px; height: 32px; color: var(--brass); }
+.window { position: absolute; border-radius: 22px; overflow: hidden; box-shadow: 0 0 0 1px rgb(255 255 255 / 10%), 0 50px 120px rgb(0 0 0 / 70%); }
+.window img { display: block; width: 100%; }
+.fade-top::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(7 10 8 / 92%) 0%, rgb(7 10 8 / 55%) 32%, transparent 55%, transparent 70%, rgb(7 10 8 / 90%) 100%); z-index: 1; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const P = JSON.parse(decodeURIComponent(new URLSearchParams(location.search).get('p')))
+const T = P.text
+document.body.style.width = `${P.w}px`; document.body.style.height = `${P.h}px`
+const root = document.getElementById('root')
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>'
+const DOWNLOAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>'
+const SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 5.5v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10v-6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>'
+const PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>'
+const brand = (size = 1) => `<div class="brand" style="transform:scale(${size});transform-origin:left center"><img src="raidos-icon.svg"><div class="wm">RAID <b>OS</b></div></div>`
+/** A crop of a 1920×1080 frame shown in a box: { img, x, y, w, h } of the source, into a box of width bw (height keeps the ratio). */
+function shot(c, left, top, bw, label = '') {
+  const s = bw / c.w, bh = Math.round(c.h * s)
+  return `<div class="shot" style="left:${left}px;top:${top}px;width:${bw}px;height:${bh}px"><img src="${c.img}" style="left:${-c.x * s}px;top:${-c.y * s}px;width:${1920 * s}px">${label ? `<div class="label">${label}</div>` : ''}</div>`
+}
+const html = {
+  cover: () => `
+    <div class="abs" style="left:110px;top:96px">${brand()}</div>
+    <div class="abs" style="left:110px;top:230px;width:760px"><div class="pill">${T.cover.eyebrow}</div><h1 style="margin-top:26px">${T.cover.title}</h1></div>
+    <ul class="list abs" style="left:110px;top:560px;width:760px">${T.cover.bullets.map((b) => `<li><i>${CHECK}</i>${b}</li>`).join('')}</ul>
+    <div class="abs" style="left:110px;top:892px;display:flex;align-items:center;gap:30px"><span class="button">${DOWNLOAD}${T.download}</span><span class="url">raidos.app</span></div>
+    <div class="window" style="left:930px;top:150px;width:1120px;transform:perspective(2200px) rotateY(-14deg) rotateX(3deg);transform-origin:left center"><img src="${P.frames.overview}"></div>`,
+  square: (k) => {
+    const sq = T.squares[k], c = P.crops[k], sc = P.w / c.w
+    return `<div class="abs" style="inset:0;overflow:hidden"><img src="${c.img}" style="position:absolute;left:${-c.x * sc}px;top:${-c.y * sc}px;width:${1920 * sc}px"></div>
+      <div class="abs" style="inset:0;background:linear-gradient(180deg, rgb(7 10 8 / 96%) 0%, rgb(7 10 8 / 84%) 24%, transparent 40%, transparent 66%, rgb(7 10 8 / 97%) 86%, rgb(7 10 8) 100%)"></div>
+      <div class="abs" style="left:60px;right:60px;top:56px"><div class="pill">${sq.eyebrow}</div><h1 style="margin-top:20px;font-size:70px">${sq.title}</h1></div>
+      <div class="abs" style="left:60px;right:60px;bottom:50px;display:flex;align-items:center;justify-content:space-between">${brand(0.8)}<span class="url" style="font-size:40px">raidos.app</span></div>`
+  },
+  feed: () => `
+    <div class="abs" style="left:64px;top:60px">${brand(0.9)}</div>
+    <div class="abs" style="left:64px;right:64px;top:166px"><h1 style="font-size:76px">${T.tag1}<br><span class="hot">${T.tag2}</span></h1><div class="lead" style="margin-top:16px;font-size:31px;white-space:nowrap">${T.feed.lead}</div></div>
+    ${shot(P.crops.kappa2, 64, 440, 468, T.feed.labels[0])}${shot(P.crops.item2, 548, 440, 468, T.feed.labels[1])}
+    ${shot(P.crops.minimap2, 64, 797, 468, T.feed.labels[2])}${shot(P.crops.gunsmith2, 548, 797, 468, T.feed.labels[3])}
+    <div class="abs" style="left:64px;right:64px;top:1180px;display:flex;align-items:center;justify-content:space-between"><span class="button" style="font-size:34px;padding:22px 32px">${DOWNLOAD}${T.download}</span><span class="url">raidos.app</span></div>`,
+  story: () => `
+    <div class="abs" style="left:0;right:0;top:110px;display:flex;justify-content:center">${brand(1.25)}</div>
+    <div class="abs" style="left:60px;right:60px;top:250px;text-align:center"><h1 style="font-size:92px">${T.tag1}<br><span class="hot">${T.tag2}</span></h1></div>
+    ${shot(P.crops.kappa3, 60, 500, 960, T.story.labels[0])}
+    ${shot(P.crops.item3, 60, 974, 470, T.story.labels[1])}${shot(P.crops.minimap3, 550, 974, 470, T.story.labels[2])}
+    <div class="abs" style="left:0;right:0;top:1530px;display:flex;flex-direction:column;align-items:center;gap:30px"><span class="button" style="font-size:44px;padding:28px 48px">${DOWNLOAD}${T.download}</span><span class="url" style="font-size:54px">raidos.app</span><span class="soon">${PHONE}${T.soonPhones}</span></div>`,
+}
+root.innerHTML = P.layout === 'square' ? html.square(P.key) : html[P.layout]()
+if (P.layout === 'cover') root.insertAdjacentHTML('beforeend', `<div class="trust abs" style="left:110px;top:1012px">${SHIELD}${T.trust}</div>`)
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((img) => img.decode().catch(() => {}))])
+</script>
+</body>
+</html>

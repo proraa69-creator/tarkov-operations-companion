@@ -107,8 +107,8 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Торговцы' })).toBeInTheDocument()
     expect(screen.getByText(/задания идут по порядку выдачи в игре/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Прапор' })).toBeInTheDocument()
-    // the selected trader's quests, in the order the game gives them out
-    expect(screen.getByRole('tab', { name: /Общий список/ })).toHaveAttribute('aria-selected', 'true')
+    // the selected trader's quests, in the order the game gives them out (by stage and line level)
+    expect(screen.getByRole('tab', { name: /Хронология/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: /Завершённые/ })).toBeInTheDocument()
     const rows = [...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)
     expect(rows.indexOf('Дебют')).toBeLessThan(rows.indexOf('Проверка'))
@@ -126,8 +126,9 @@ describe('App', () => {
     expect(screen.getByRole('tab', { name: /Текущие/ })).toHaveAttribute('aria-selected', 'true')
     // «Дебют» could be taken (level 1, nothing before it) but is not: only the taken «Проверка» is listed
     expect([...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)).toEqual(['Проверка'])
-    await user.click(screen.getByRole('tab', { name: /Общий список/ }))
-    expect([...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)).toContain('Дебют')
+    // the first tab («Хронология» here) still has every quest of the trader
+    await user.click(screen.getByRole('tab', { name: /Хронология/ }))
+    expect(screen.getAllByText('Дебют').length).toBeGreaterThan(0)
   })
 
   it('has the «Концовки» tab with the four endings (owner, 12.10.2026)', () => {

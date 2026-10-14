@@ -1,0 +1,19 @@
+# Work files of the promo tooling never go into the repository: the owner's clips, voice clips, request cache,
+# takes and finished files, the dumped catalog and every rendered picture (see README.md).
+/src/
+/voice/
+/netcache/
+/out/
+/bin/
+rec/__pycache__/
+rec/catalog-*.json
+rec/minimap-*.json
+rec/item/
+rec/kappa/*/
+rec/**/frames-*/
+rec/**/zone-*/
+rec/**/*.png
+rec/**/*.jpg
+rec/**/*.mp4
+rec/**/*.woff2
+rec/**/raidos-icon.svg

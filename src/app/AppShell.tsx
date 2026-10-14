@@ -33,8 +33,9 @@ import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { useMobileLayout } from '../platform'
+import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
+import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
@@ -332,6 +333,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>)}
       {mobile && <ShellTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} />}
+      {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}
       <SupportNotice />
