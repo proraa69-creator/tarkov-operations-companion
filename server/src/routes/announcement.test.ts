@@ -31,28 +31,29 @@ function fakeTranslator() {
   return { calls, translate, answer: (replace: AnnouncementTranslator) => { next = replace } }
 }
 
-async function setup(before?: (db: DatabaseSync) => void) {
+/** `database`: the fresh database before the server opens it (to keep it, or to put an older table in). */
+async function setup(options: { translator?: ReturnType<typeof fakeTranslator>; database?: (db: DatabaseSync) => void } = {}) {
   const db = openDatabase(':memory:')
-  before?.(db)
+  options.database?.(db)
   const first = new AccountStore({ db, ownerEmails: [] })
   await first.register('owner@example.com', password)
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
-  const translator = fakeTranslator()
-  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments: new PaymentStore(db, undefined), translateAnnouncement: translator.translate }).listen(0, '127.0.0.1')
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments: new PaymentStore(db, undefined), translateAnnouncement: (options.translator ?? fakeTranslator()).translate }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
   const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown, headers: Record<string, string> = {}) => {
     const response = await fetch(`${base}${path}`, { method, headers: { ...headers, ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
-    const text = await response.text()
-    return { status: response.status, json: (text ? JSON.parse(text) : null) as T, headers: response.headers }
+    return { status: response.status, json: (response.status === 204 ? null : await response.json()) as T, headers: response.headers }
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
-  /** A player with the country named at registration; the session comes with the registration. */
-  const player = async (email: string, country: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country })).json.token
   await call('POST', '/accounts/register', undefined, { email: 'player@example.com', password })
-  return { db, call, login, player, translator, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+  return { call, login, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
+
+/** A player with the country named at registration; the session comes with the registration. */
+const register = async (call: Awaited<ReturnType<typeof setup>>['call'], email: string, country: string) =>
+  (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country })).json.token
 
 interface Answer { version: number; announcement: { text: string; lang?: string; updatedAt: string } | null }
 interface Owned { text: string; textEn: string | null; textEnSource: string | null; active: boolean }
@@ -108,17 +109,19 @@ test('the Russian-speaking countries: the CIS with Ukraine and Georgia, apart fr
 
 test('every reader gets the notice in their language: the account\'s country, else Cloudflare\'s, else Russian', async (t) => {
   t.mock.method(console, 'warn', () => {})
-  const { db, call, login, player, translator, close } = await setup()
+  let db!: DatabaseSync
+  const translator = fakeTranslator()
+  const { call, login, close } = await setup({ translator, database: (opened) => { db = opened } })
   try {
     const owner = await login('owner@example.com')
-    const moscow = await player('moscow@example.com', 'RU')
-    const kyiv = await player('kyiv@example.com', 'UA')
-    const tbilisi = await player('tbilisi@example.com', 'GE')
-    const berlin = await player('berlin@example.com', 'de')
+    const moscow = await register(call, 'moscow@example.com', 'RU')
+    const kyiv = await register(call, 'kyiv@example.com', 'UA')
+    const tbilisi = await register(call, 'tbilisi@example.com', 'GE')
+    const berlin = await register(call, 'berlin@example.com', 'de')
     // An account from before the question at registration (13.10.2026): no country.
-    const older = await player('older@example.com', 'RU')
+    const older = await register(call, 'older@example.com', 'RU')
     db.prepare('UPDATE accounts SET country = NULL WHERE email = ?').run('older@example.com')
-    const gone = await player('gone@example.com', 'RU')
+    const gone = await register(call, 'gone@example.com', 'RU')
     assert.equal((await call('POST', '/accounts/logout', gone)).status, 204)
 
     const saved = await call<Saved>('PUT', PATH, owner, { text: WORKS, active: true })
@@ -185,7 +188,9 @@ test('every reader gets the notice in their language: the account\'s country, el
 
 test('the English is made when the owner saves: translated, kept while the Russian stays, or the owner\'s own', async (t) => {
   const warnings = t.mock.method(console, 'warn', () => {})
-  const { db, call, login, translator, close } = await setup()
+  let db!: DatabaseSync
+  const translator = fakeTranslator()
+  const { call, login, close } = await setup({ translator, database: (opened) => { db = opened } })
   try {
     const owner = await login('owner@example.com')
     const own = async () => (await call<{ announcement: Owned }>('GET', PATH, owner)).json.announcement
@@ -265,13 +270,14 @@ const EN = 'Dear friends! We launched recently; if any issues arise, we identify
 
 test('a notice written the old way, a Russian and an English paragraph, is split: no machine translation', async () => {
   // The live notice of 13.10.2026, stored by the server from before the English (no English columns yet).
-  const { call, login, player, translator, close } = await setup((db) => {
+  const translator = fakeTranslator()
+  const { call, login, close } = await setup({ translator, database: (db) => {
     db.exec('CREATE TABLE announcement (id INTEGER PRIMARY KEY CHECK (id = 1), text TEXT NOT NULL, active INTEGER NOT NULL, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL)')
     db.prepare('INSERT INTO announcement (id, text, active, updated_by, updated_at) VALUES (1, ?, 1, ?, ?)').run(`${RU}\n\n${EN}`, 'owner@example.com', '2026-10-13T21:29:13.856Z')
-  })
+  } })
   try {
     const owner = await login('owner@example.com')
-    const berlin = await player('berlin@example.com', 'DE')
+    const berlin = await register(call, 'berlin@example.com', 'DE')
     const read = async (token?: string, country?: string) => (await call<Answer>('GET', '/announcement', token, undefined, country ? { 'cf-ipcountry': country } : {})).json.announcement
     assert.deepEqual(await read(), { text: RU, lang: 'ru', updatedAt: '2026-10-13T21:29:13.856Z' })
     assert.deepEqual(await read(berlin), { text: EN, lang: 'en', updatedAt: '2026-10-13T21:29:13.856Z' })
