@@ -1,6 +1,6 @@
 import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types'
 import { latinize } from './modeSelectScreen'
-import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey } from './questOcr'
+import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey, titleKeys as questTitleKeys } from './questOcr'
 import { isTasksMenuText, tableRowCount } from './screenScanSync'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
 import { readStoryObjectives } from './storyObjectives'
@@ -31,7 +31,8 @@ export interface StoryScanMatch {
 export function storyPaneChapter(text: string, story: Quest[]): { quest: Quest; active: boolean } | undefined {
   // The header sits on banner art: OCR puts junk before «ИСТОРИЯ» («> ИСТОРИЯ >. a.») and after the name («Typ > tgs»).
   const lines = text.slice(0, 20000).split(/\r?\n/).map((line) => line.trim().replace(/^[^\p{L}]+/u, '')).filter(Boolean)
-  const names = story.map((quest) => ({ quest, keys: [quest.name, quest.normalizedName ?? ''].map(ocrKey).filter((key) => key.length >= 3) }))
+  // Every name of the chapter, in either language (audit P11): the game's language need not be the app's.
+  const names = story.map((quest) => ({ quest, keys: questTitleKeys(quest).filter((key) => key.length >= 3) }))
   const STATUS = /(?:^|\s)(?:активно|active|выполнено|завершено|completed)(?=\s|$)/gi
   // «АКТИВНО» may come with Latin look-alikes (folded to Cyrillic), the English «ACTIVE» with Cyrillic ones (latinized).
   const isActive = (line: string) => /(?:^|\s)активно(?=\s|$)/i.test(foldOcrGlyphs(line).toLowerCase()) || /(?:^|\s)active(?=\s|$)/i.test(latinize(line))
