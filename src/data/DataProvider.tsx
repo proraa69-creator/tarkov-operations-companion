@@ -6,6 +6,7 @@ import { demoDataset } from './demo'
 import { fetchTarkovCatalog } from './tarkovJsonClient'
 import { useAppState } from '../state/AppState'
 import { cleanDatasetText } from '../shared/questText'
+import { withQuestGrid } from './questGrid'
 import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
@@ -13,6 +14,7 @@ import { catalogRefetchDelay, createFailureCounter, isInitialCatalogLoad } from 
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useMapBossPlacements, withOwnerBosses } from './mapBossPlacements'
 import { useQuestPointOverrides, withQuestPointOverrides } from './questPointOverrides'
+import { useQuestTextOverrides, withQuestTextOverrides } from './questTextOverrides'
 import { useLiveMapUpdates } from './mapUpdates'
 
 interface DataContextValue {
@@ -51,7 +53,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   })
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
-  const russian = useMemo(() => cleanDatasetText(query.data ?? demoDataset), [query.data])
+  // Each quest's trader line and level and tarkov.help's view of it (src/data/questGrid.ts): the quest chronology.
+  const russian = useMemo(() => cleanDatasetText(withQuestGrid(query.data ?? demoDataset, raidMode)), [query.data, raidMode])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
   // Bosses the owner placed by hand (in this mode, or for every mode) replace the automatic markers of that boss on that
@@ -59,13 +62,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const placements = useMapBossPlacements(allowed)
   // Quest points the owner corrected by hand (bug reports) are moved / hidden / added on top (src/data/questPointOverrides.ts).
   const questPoints = useQuestPointOverrides(allowed)
+  // Quest texts the owner corrected in the quest constructor, in this interface language (src/data/questTextOverrides.ts).
+  const questTexts = useQuestTextOverrides(allowed)
   // The owner's map corrections reach this app as soon as they are saved on the server (data/mapUpdates.ts).
   useLiveMapUpdates(allowed)
   const data = useMemo(() => {
-    if (!placements.length && !questPoints.length) return translated
-    const withBosses = placements.length ? withOwnerBosses(translated.markers, placements, raidMode) : translated.markers
-    return { ...translated, markers: withQuestPointOverrides(withBosses, questPoints, translated.quests) }
-  }, [translated, placements, questPoints, raidMode])
+    // Texts first: a point the owner added or moved then carries the corrected objective / stage text too.
+    const texted = withQuestTextOverrides(translated, questTexts, locale === 'en' ? 'en' : 'ru')
+    if (!placements.length && !questPoints.length) return texted
+    const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
+    return { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests) }
+  }, [translated, questTexts, locale, placements, questPoints, raidMode])
   const value: DataContextValue = {
     data,
     source,
@@ -83,4 +90,9 @@ export function useTarkovData() {
   const value = useContext(DataContext)
   if (!value) throw new Error('useTarkovData must be used within DataProvider')
   return value
+}
+
+/** The game data when there is a provider (a dialog that also opens outside it, e.g. in tests). */
+export function useOptionalTarkovData() {
+  return useContext(DataContext)
 }

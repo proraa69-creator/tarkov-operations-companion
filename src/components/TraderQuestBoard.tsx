@@ -6,7 +6,10 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { calculateAvailability, isLiveGameQuest } from '../progression/requirementEngine'
 import { sortQuestsChronologically } from '../progression/questChronology'
+import { chronologyStages } from '../progression/chronology'
+import { traderChronologyGroups } from '../progression/chronologyView'
 import { QuestFullView } from './QuestFullView'
+import { QuestChronology } from './QuestChronology'
 import { questStatusText } from '../shared/questStatus'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
 import './traderQuests.css'
@@ -18,7 +21,8 @@ type QuestList = 'all' | 'current' | 'completed'
  * текущие» — the old «Доступные» also listed quests not yet taken, some not even given out yet).
  */
 const LISTS: Array<{ id: QuestList; label: string }> = [
-  { id: 'all', label: 'Общий список' },
+  // all of the trader's quests by stage and line level (src/progression/chronologyView.ts)
+  { id: 'all', label: 'Хронология' },
   { id: 'current', label: 'Текущие' },
   { id: 'completed', label: 'Завершённые' },
 ]
@@ -27,8 +31,9 @@ const closed = (status: TaskProgressStatus) => status === 'completed' || status 
 const taken = (status: TaskProgressStatus) => status === 'active'
 
 /**
- * A trader's quests in the order the game gives them out. Finished quests are struck through and cannot be
- * opened; every other quest opens its full description on the right.
+ * A trader's quests in the order the game gives them out: «Хронология» groups them by the first dialogue, the trader's
+ * lines level by level and the loyalty stages, each with what dates its status (owner, 12.10.2026: «полную хронологию
+ * выставить по уровням»). Finished quests are struck through; every quest opens its full description on the right.
  */
 export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const { data } = useTarkovData()
@@ -45,6 +50,9 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
     data.quests.filter((quest) => isLiveGameQuest(quest) && quest.trader === trader.name),
     data.quests,
   ), [data.quests, trader.name])
+  const stages = useMemo(() => chronologyStages(data.quests), [data.quests])
+  const groups = useMemo(() => traderChronologyGroups(quests, stages, data.quests), [quests, stages, data.quests])
+  const questsById = useMemo(() => new Map(data.quests.map((quest) => [quest.id, quest])), [data.quests])
   const statusOf = (quest: Quest) => availability.get(quest.id)?.status ?? 'unknown'
   const counts = {
     all: quests.length,
@@ -84,7 +92,10 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
           {uiText(entry.label)} <small>{counts[entry.id]}</small>
         </button>)}
       </div>
-      <ol className="trader-quests-rows">
+      {list === 'all' && <div className="trader-quests-rows quest-chronology-scroll">
+        <QuestChronology groups={groups} availability={availability} progress={progress} questsById={questsById} selectedId={selected?.id} onOpen={openQuest} />
+      </div>}
+      {list !== 'all' && <ol className="trader-quests-rows">
         {shown.map((quest) => {
           const status = statusOf(quest)
           const done = closed(status)
@@ -101,7 +112,7 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
             <button type="button" className={`trader-quest-row is-${status}${quest.id === selected?.id ? ' is-selected' : ''}`} aria-current={quest.id === selected?.id ? 'true' : undefined} title={done ? uiText(questStatusText(status)) : undefined} onClick={() => openQuest(quest.id)}>{body}<ChevronRight size={15} className="trader-quest-chevron" /></button>
           </li>
         })}
-      </ol>
+      </ol>}
       {!shown.length && <div className="empty-state trader-quests-empty"><div><ListChecks size={26} /><p>{uiText(list === 'completed' ? 'Завершённых заданий у этого торговца пока нет.' : list === 'current' ? 'Сейчас у этого торговца нет текущих заданий: принятое в игре появится здесь само.' : 'У этого торговца нет заданий.')}</p></div></div>}
     </section>
 

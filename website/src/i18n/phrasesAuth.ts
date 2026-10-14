@@ -30,6 +30,9 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
     'The code is applied automatically — nothing to type. With a friend’s link you get 20% off the first month.'],
   ['Код приглашения', 'Invitation code'], ['(необязательно)', '(optional)'], ['Код друга даёт скидку 20 % на первый месяц.', 'A friend’s code gives 20% off the first month.'],
   ['У меня есть код приглашения', 'I have an invitation code'], ['Создаём аккаунт…', 'Creating your account…'], ['Уже есть аккаунт?', 'Already have an account?'],
+  // The country of every registration form and of the cabinet (components/CountrySelect.tsx)
+  ['Страна', 'Country'], ['Выберите страну', 'Choose your country'], ['Выберите страну.', 'Choose your country.'],
+  ['Для статистики по регионам и выбора способов оплаты.', 'Used for statistics by region and to offer suitable payment methods.'],
 
   // Password reset (pages/ResetPasswordPage.tsx)
   ['Восстановление пароля', 'Password reset'],
@@ -152,6 +155,7 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Укажите корректный e-mail и пароль от 8 до 128 символов', 'Enter a valid e-mail and a password of 8 to 128 characters'],
   ['Не удалось зарегистрировать этот e-mail. Если это ваш адрес — войдите или восстановите пароль.', 'This e-mail could not be registered. If it is yours, sign in or reset your password.'],
   ['Этот e-mail уже зарегистрирован', 'This e-mail is already registered'],
+  ['Неизвестная страна. Выберите страну из списка.', 'Unknown country. Choose one from the list.'],
   ['Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.', 'We sent a code to your e-mail. Enter it to finish signing up.'],
   ['Сессия недействительна', 'The session is no longer valid. Sign in again.'],
   ['Новый пароль: от 8 до 128 символов', 'New password: 8 to 128 characters'], ['Текущий пароль указан неверно', 'The current password is wrong'],

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AccountStore, canonicalEmail, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
+import { AccountStore, canonicalEmail, COUNTRY_INVALID_MESSAGE, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 
 const password = 'correct horse battery'
@@ -361,4 +361,70 @@ test('accounts from before the free day keep what they had: nothing, or the stre
   // A new account in the updated database: its day waits for the app too.
   const fresh = after.authenticate((await after.register('fresh@example.com', password)).token)!
   assert.deepEqual(after.view(fresh).subscription, { status: 'inactive', trialPendingDays: 1 })
+})
+
+test('registration asks the country (owner, 13.10.2026): stored upper-case, optional for older apps, an unassigned code refused', async () => {
+  const { api, store } = setup()
+  const registered = await api.register({ ip: '1', body: { email: 'almaty@example.com', password, country: ' kz ' } })
+  assert.equal(registered.status, 201)
+  assert.equal((registered.body as { account: AccountView }).account.country, 'KZ')
+  // Apps from before the question register without it (also with an empty value): no country until the cabinet sets one.
+  for (const [email, country] of [['old-app@example.com', undefined], ['empty@example.com', ''], ['null@example.com', null]] as const) {
+    const older = await api.register({ ip: '1', body: { email, password, ...(country === undefined ? {} : { country }) } })
+    assert.equal(older.status, 201, email)
+    assert.equal((older.body as { account: AccountView }).account.country, undefined, email)
+    assert.equal('country' in (older.body as { account: AccountView }).account, false)
+  }
+  // Kosovo's XK, the old USSR code, a name instead of a code, a number: refused before any account exists.
+  for (const [n, country] of (['XK', 'SU', 'Kazakhstan', 7] as const).entries()) {
+    const refused = await api.register({ ip: '2', body: { email: `refused-${n}@example.com`, password, country } })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], String(country))
+    assert.equal(store.hasAccount(`refused-${n}@example.com`), false)
+  }
+  // The store checks it too (registration with an e-mail code creates the account there).
+  await assert.rejects(store.register('direct@example.com', password, undefined, undefined, 'ZZ'), { status: 400, message: COUNTRY_INVALID_MESSAGE })
+  assert.equal(store.hasAccount('direct@example.com'), false)
+})
+
+test('«Страна» in the cabinet: PUT /me/country sets or changes it, refuses unassigned codes and strangers, 20 changes a day', async () => {
+  const { api, advance } = setup()
+  const { token } = (await api.register({ ip: '1', body: { email: 'before@example.com', password } })).body as { token: string }
+  assert.equal((await api.setCountry({ body: { country: 'DE' } })).status, 401)
+  const set = await api.setCountry({ authorization: auth(token), body: { country: 'de' } })
+  assert.equal(set.status, 200)
+  assert.equal((set.body as AccountView).country, 'DE')
+  assert.equal(((await api.setCountry({ authorization: auth(token), body: { country: 'UA' } })).body as AccountView).country, 'UA')
+  for (const body of [{ country: 'XK' }, { country: '' }, { country: null }, {}, 'UA']) {
+    const refused = await api.setCountry({ authorization: auth(token), body })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], JSON.stringify(body))
+  }
+  assert.equal(((await api.me({ authorization: auth(token) })).body as AccountView).country, 'UA', 'a refused value changes nothing')
+  // 7 calls so far: the 21st of the day is refused, the next day it works again.
+  for (let n = 7; n < 20; n += 1) assert.equal((await api.setCountry({ authorization: auth(token), body: { country: 'PL' } })).status, 200)
+  const limited = await api.setCountry({ authorization: auth(token), body: { country: 'CZ' } })
+  assert.equal(limited.status, 429)
+  assert.ok(Number(limited.headers?.['Retry-After']) > 0)
+  advance(24 * 60 * 60 * 1000)
+  assert.equal(((await api.setCountry({ authorization: auth(token), body: { country: 'CZ' } })).body as AccountView).country, 'CZ')
+})
+
+test('«Удалить аккаунт» erases the country with the rest of the personal data', async () => {
+  const { api, store } = setup()
+  const { token } = (await api.register({ ip: '1', body: { email: 'gone@example.com', password, country: 'BY' } })).body as { token: string }
+  const id = store.authenticate(token)!
+  assert.equal(store.view(id).country, 'BY')
+  store.deleteAccount(id)
+  assert.equal((store.database.prepare('SELECT country FROM accounts WHERE id = ?').get(id) as { country: unknown }).country, null)
+})
+
+test('the country column is added to an older database, NULL for the accounts already there', async () => {
+  const db = openDatabase(':memory:')
+  const before = new AccountStore({ db })
+  const old = before.authenticate((await before.register('old@example.com', password)).token)!
+  db.exec('ALTER TABLE accounts DROP COLUMN country')
+  const after = new AccountStore({ db })
+  assert.equal((db.prepare('SELECT country FROM accounts WHERE id = ?').get(old) as { country: unknown }).country, null)
+  assert.equal(after.view(old).country, undefined)
+  after.setCountry(old, 'AM')
+  assert.equal(after.view(old).country, 'AM')
 })

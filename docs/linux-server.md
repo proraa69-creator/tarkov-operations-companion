@@ -55,7 +55,15 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
   payment methods and recurring charges for the shop. Keep it unset otherwise.
 - Check now: `systemctl start raidos-update.service`
-- ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook`
+- ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook` (payment.succeeded, payment.canceled;
+  refund.succeeded takes a refunded payment back). As of 04.10.2026 the separate RaidOS shop, shopId 1481580, was
+  still «Подключается» with the two payment events saved; the bot's shop 1457509 is another shop and stays as it is.
+  The secret key never goes through the website: when the API runs from the owner's desktop app,
+  `/v1/accounts/me/admin/payment-settings/yookassa` changes only the shop id, price, receipts, streamer share and
+  autopay (the site has no form for it since 13.10.2026).
+- Payments of the removed «Другие страны» provider (owner, 13.10.2026): its logs, unpaid invoices and stopped
+  autopayments are deleted on the first start of a build without it (one line in the API log); paid ones stay and are
+  shown as «Архив». Its variables in `raidos.env`, if any were added by hand, are not read any more and can be deleted.
 
 ## Tarkov data mirror
 

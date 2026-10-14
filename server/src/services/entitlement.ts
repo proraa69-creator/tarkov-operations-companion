@@ -2,7 +2,7 @@
  * Signed entitlements and device binding (docs/subscription-protection.md).
  *
  * - Access is decided only here, from server data: the owner (TARKOV_OWNER_EMAILS + proven e-mail), streamers (free for
- *   good), a paid period (ЮKassa / Lava payments and the owner's «Выдать дни» grants) or the free period (a day after
+ *   good), a paid period (payments and the owner's «Выдать дни» grants) or the free period (a day after
  *   registration for everybody, owner 12.10.2026; three days with a streamer's code while that programme runs).
  * - The app asks POST /v1/entitlement for an Ed25519-signed token {account, device, plan, iat, exp}; exp is at most
  *   72 hours ahead (offline grace) and never later than the end of the paid period + 1 day (trial: its end).

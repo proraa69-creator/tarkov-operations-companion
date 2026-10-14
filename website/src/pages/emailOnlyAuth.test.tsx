@@ -52,10 +52,11 @@ describe('website: e-mail-only sign-in', () => {
     expectNoPhoneUi()
   })
 
-  it('registration asks for e-mail and password only, with the consent checkbox', async () => {
+  it('registration asks for e-mail, password and country only, with the consent checkbox', async () => {
     render(<MemoryRouter><RegisterPage /></MemoryRouter>)
     await settle()
     expect(screen.getByRole('heading', { name: 'Регистрация' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Страна' })).toBeRequired()
     expect(screen.getByRole('checkbox')).not.toBeChecked()
     expectNoPhoneUi()
   })

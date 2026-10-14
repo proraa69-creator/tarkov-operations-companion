@@ -28,8 +28,15 @@ export class MapUpdates {
   private readonly waiters = new Set<Waiter>()
   private readonly perAddress = new Map<string, number>()
 
-  constructor(start = Date.now(), private readonly waitMs = MAP_UPDATE_WAIT_MS) {
+  /** `extra`: fields sent along with the version in every answer (the owner's «Заявки» count, routes/bugReports.ts). */
+  constructor(start = Date.now(), private readonly waitMs = MAP_UPDATE_WAIT_MS, private readonly extra?: () => Record<string, unknown>) {
     this.current = start
+  }
+
+  private body() {
+    let extra: Record<string, unknown> = {}
+    try { extra = this.extra?.() ?? {} } catch { /* the version alone still wakes the app */ }
+    return { ...extra, version: this.current }
   }
 
   get version() { return this.current }
@@ -45,7 +52,7 @@ export class MapUpdates {
   wait(res: Response, address: string, since: number | undefined) {
     const count = this.perAddress.get(address) ?? 0
     if (since === undefined || since !== this.current || this.waiters.size >= MAX_WAITING || count >= MAX_WAITING_PER_ADDRESS) {
-      res.json({ version: this.current })
+      res.json(this.body())
       return
     }
     const waiter: Waiter = { res, address, timer: setTimeout(() => this.answer(waiter), this.waitMs) }
@@ -57,7 +64,7 @@ export class MapUpdates {
 
   private answer(waiter: Waiter) {
     if (!this.forget(waiter)) return
-    if (!waiter.res.writableEnded && !waiter.res.destroyed) waiter.res.json({ version: this.current })
+    if (!waiter.res.writableEnded && !waiter.res.destroyed) waiter.res.json(this.body())
   }
 
   private forget(waiter: Waiter) {

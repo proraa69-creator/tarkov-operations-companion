@@ -22,15 +22,19 @@ const month: Calendar = {
 }
 month.days = Array.from({ length: 30 }, (_, index) => ({
   date: `${month.month}-${String(index + 1).padStart(2, '0')}`,
-  registrations: index === 1 ? 3 : 0, payments: index === 1 ? 2 : 0, revenue: index === 1 ? 600 : 0, yookassa: index === 1 ? 600 : 0, lava: 0, plans: plans(index === 1 ? 2 : 0, index === 1 ? 600 : 0),
+  registrations: index === 1 ? 3 : 0, payments: index === 1 ? 2 : 0, revenue: index === 1 ? 600 : 0, plans: plans(index === 1 ? 2 : 0, index === 1 ? 600 : 0),
 }))
 month.today = month.days[27]!.date
 
 const day: AdminDay = {
   date: month.days[1]!.date,
-  totals: { registrations: 3, payments: 2, revenue: 600, yookassa: 600, lava: 0, streamerEarnings: 30, plans: plans(2, 600) },
+  totals: { registrations: 3, payments: 2, revenue: 600, streamerEarnings: 30, plans: plans(2, 600) },
   registrations: [{ id: 'a', email: 'new@example.com', kind: 'user', createdAt: `${month.days[1]!.date}T09:00:00.000Z`, referredBy: 'HUNTER' }],
-  payments: [{ id: 'p1', email: 'payer@example.com', plan: '1m', provider: 'yookassa', status: 'succeeded', amount: 300, createdAt: `${month.days[1]!.date}T10:00:00.000Z`, paidAt: `${month.days[1]!.date}T10:01:00.000Z` }],
+  payments: [
+    { id: 'p1', email: 'payer@example.com', plan: '1m', provider: 'yookassa', status: 'succeeded', amount: 300, createdAt: `${month.days[1]!.date}T10:00:00.000Z`, paidAt: `${month.days[1]!.date}T10:01:00.000Z` },
+    // A payment of a payment service that is no longer connected (owner, 13.10.2026): «Архив», with what was paid.
+    { id: 'p2', email: 'archived@example.com', plan: '1m', provider: 'archive', status: 'succeeded', amount: 300, original: { amount: 3.5, currency: 'USD' }, createdAt: `${month.days[1]!.date}T11:00:00.000Z`, paidAt: `${month.days[1]!.date}T11:00:00.000Z` },
+  ],
   grants: [{ email: 'friend@example.com', days: 5, reason: 'компенсация', actor: 'owner@example.com', at: `${month.days[1]!.date}T12:00:00.000Z` }],
   invites: [],
 }
@@ -54,7 +58,10 @@ describe('admin calendar', () => {
     expect(within(dialog).getByText('new@example.com')).toBeInTheDocument()
     expect(within(dialog).getByText('HUNTER')).toBeInTheDocument()
     expect(within(dialog).getByText('+5 дн.')).toBeInTheDocument()
-    expect(within(dialog).getByText('Оплачен')).toBeInTheDocument()
+    expect(within(dialog).getAllByText('Оплачен')).toHaveLength(2)
+    const archived = within(dialog).getByText('archived@example.com').closest('tr')!
+    expect(archived).toHaveTextContent('Архив')
+    expect(archived).toHaveTextContent('3,50 USD')
 
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

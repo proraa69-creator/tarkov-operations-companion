@@ -23,7 +23,8 @@ import { MapFloorLayers } from '../components/MapFloorLayers'
 import { LivePlayerMarker, useLivePlayer } from '../components/LivePlayerMarker'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
-import { QuestPointCardActions, QuestPointControls, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
+import { firstQuestPoint, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
+import { QuestTextEditor } from '../components/QuestTextEditor'
 import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
 import { mapViewSupport, planMapLayers, readMapView, saveMapView } from '../data/mapView'
@@ -335,7 +336,11 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const allBossMarkers = useMemo(() => data.markers.filter((marker) => marker.type === 'boss'), [data.markers])
   const bossPlacement = useBossPlacement(activeMap.id, floor, baseFloor, plottedMarkersForBosses, allBossMarkers, state.raidMode)
   // «Квесты: правка точек» (owner app): one editing mode at a time with «Расставить боссов».
-  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers })
+  // «Заявки» → «Открыть в конструкторе» (owner app): ?quest=<id>&edit=1 opens the constructor on that quest, and
+  // &proposal=<x>,<z> shows where the players say the point is.
+  const editQuestId = params.get('edit') === '1' ? params.get('quest') ?? undefined : undefined
+  const proposal = proposalOf(params.get('proposal'))
+  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers, initialQuestId: editQuestId })
   const editingQuest = questEditor.editingQuest
   const questEditorShows = questEditor.shows
   const setBossActive = bossPlacement.setActive
@@ -461,12 +466,13 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     if (quest) setSelectedMarker(questInfoMarker(quest, activeMap.id))
   }, [focusedQuestId, focusedStage, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress])
 
-  const selectMap = (id: string) => {
+  /** `questId`: open that quest on the new map (the quest constructor jumps to the map a picked quest is plotted on). */
+  const selectMap = (id: string, questId?: string) => {
     state.setSelectedMapId(id)
     setSelectedMarker(null)
     const nextMap = data.maps.find((entry) => entry.id === id)
     setFloor(nextMap ? mainFloor(nextMap) : baseFloor)
-    navigate(`/maps/${id}`)
+    navigate(questId ? `/maps/${id}?quest=${encodeURIComponent(questId)}` : `/maps/${id}`)
   }
 
   // Checking a quest takes its points off the map; if it is the selected one, the selection goes too.
@@ -510,6 +516,20 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
     setSelectedMarker(questInfoMarker(quest, activeMap.id))
   }
 
+  /**
+   * The quest constructor's list (owner, 13.10.2026: «нахожу в поиске, открывается карта с этим квестом»): a quest plotted
+   * on this map opens at its first point; one plotted elsewhere opens on the map with most of its points; one without
+   * points opens its window here (to add points and edit its texts).
+   */
+  const pickEditorQuest = (quest: Quest) => {
+    questEditor.pick(quest.id)
+    const here = firstQuestPoint(data.markers, quest.id, activeMap.id)
+    if (here) { showMarker(here); return }
+    const elsewhere = [...(questEditor.pointCounts.get(quest.id) ?? new Map<string, number>())].sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (elsewhere && elsewhere !== activeMap.id) { selectMap(elsewhere, quest.id); return }
+    showQuest(quest)
+  }
+
   // The quest list on the right: a second click on the open quest closes its window (owner, 10.10.2026).
   const toggleQuest = (quest: Quest, marker?: MapMarker) => {
     if (selectedMarker?.questId === quest.id) clearQuestSelection()
@@ -532,6 +552,8 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
   const relatedSheet = relatedQuest ? sheetObjectives(relatedQuest, { mapId: activeMap.id, maps: data.maps, itemsById, progress }) : null
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
+  // The quest constructor: the quest being edited shows its texts as fields in its window (components/QuestTextEditor.tsx).
+  const editingTexts = Boolean(questEditor.active && relatedQuest && questEditor.questId === relatedQuest.id)
 
   return <div className={`page map-page${liveBanner ? ' is-live' : ''}`}>
     {liveBanner}
@@ -576,7 +598,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           <FriendQuestToggle layer={friendQuests} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
-          <QuestPointControls state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} onSelectMap={selectMap} onFocus={showMarker} onToggle={(on) => { if (on) setBossActive(false) }} />
+          <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -606,6 +628,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
+          {questEditor.active && proposal && <Marker position={[proposal.z, proposal.x]} icon={PROPOSAL_ICON} interactive={false} keyboard={false}><Tooltip permanent direction="top">{uiText('Место из заявок игроков')}</Tooltip></Marker>}
           <MapToolLayer value={tools} onChange={setTools} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
@@ -681,7 +704,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
         </div>
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
-        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}`} aria-hidden={!sheetOpen}>
+        <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
           {uiText(relatedQuest && (
             <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}`}>
               <div className="map-quest-sheet-copy">
@@ -696,7 +719,7 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
                   {uiText(sheetPoint?.guaranteedSpawn && <span className="tag brass">{uiText(GUARANTEED_SPAWN_TEXT)}</span>)}
                 </div>
                 <div className="map-quest-sheet-section">
-                  {uiText(relatedStage ? (
+                  {editingTexts ? <QuestTextEditor quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} /> : uiText(relatedStage ? (
                     <>
                       <h4>{uiText('Задача')}</h4>
                       <p><strong>{uiText(relatedStage.title)}</strong></p>
@@ -755,79 +778,85 @@ export function MapsPage({ forcedMapId, liveBanner }: { forcedMapId?: string; li
 
       <aside className="map-detail">
         <div className="panel-header">
-          <div className="panel-title">{uiText("Квесты на карте")}</div>
+          <div className="panel-title">{uiText(questEditor.active ? 'Конструктор квестов' : 'Квесты на карте')}</div>
         </div>
-        {featureEnabled('raidBriefing') && route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
-        <div className="filter-row" style={{ padding: 12, margin: 0 }}>
-          <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={14} style={{ position: 'absolute', left: 11, top: 13, color: 'var(--text-dim)' }} />
-            <input
-              className="input"
-              style={{ width: '100%', paddingLeft: 34 }}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={uiText("Найти точку…")}
-            />
-          </div>
-        </div>
-        {uiText(activeMap.floors && activeMap.floors.length > 1 && (
-          <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>
-            {uiText(activeMap.floors.map((entry) => (
-              <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
-                {entry === playerOnFloor && <Crosshair size={12} aria-hidden="true" />}
-                {uiText(entry)}
-              </button>
-            )))}
-            {plan.floorWithoutScheme && <small className="dim map-floor-note">{uiText('У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».')}</small>}
-            {plan.floorWithoutRender && <small className="dim map-floor-note">{uiText('У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».')}</small>}
-          </div>
-        ))}
-        {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
-          <div className="detail-section" style={{ padding: '0 12px 16px' }}>
-            {uiText(localMapQuests.length > 0 && (
-              <>
-                <h4>{uiText("Актуальные квесты")}</h4>
-                {uiText(localMapQuests.map(({ quest, marker }) => (
-                  <QuestMapRow
-                    key={quest.id}
-                    quest={quest}
-                    selected={selectedMarker?.questId === quest.id}
-                    onSelect={() => toggleQuest(quest, marker)}
-                    squad={squadShared.get(quest.id)}
-                    checked={questChecks.has(quest.id)}
-                    onToggleCheck={() => toggleRaidCheck(quest.id)}
-                  />
-                )))}
-              </>
-            ))}
-            {uiText(anyMapQuests.length > 0 && (
-              <>
-                <h4 style={{ marginTop: localMapQuests.length ? 16 : 0 }}>{uiText("Любая карта")}</h4>
-                {uiText(anyMapQuests.map(({ quest, marker }) => (
-                  <QuestMapRow
-                    key={quest.id}
-                    quest={quest}
-                    selected={selectedMarker?.questId === quest.id}
-                    onSelect={() => toggleQuest(quest, marker)}
-                    squad={squadShared.get(quest.id)}
-                    checked={questChecks.has(quest.id)}
-                    onToggleCheck={() => toggleRaidCheck(quest.id)}
-                  />
-                )))}
-              </>
-            ))}
-            {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
-          </div>
+        {questEditor.active ? (
+          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
         ) : (
-          <div className="map-detail-empty">
-            <div>
-              <Target size={28} />
-              <h3>{uiText("Нет текущих квестов")}</h3>
-              <p>{uiText("На этой карте сейчас нет активных заданий.")}</p>
+          <>
+          {featureEnabled('raidBriefing') && route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
+          <div className="filter-row" style={{ padding: 12, margin: 0 }}>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <Search size={14} style={{ position: 'absolute', left: 11, top: 13, color: 'var(--text-dim)' }} />
+              <input
+                className="input"
+                style={{ width: '100%', paddingLeft: 34 }}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={uiText("Найти точку…")}
+              />
             </div>
           </div>
-        ))}
-        {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
+          {uiText(activeMap.floors && activeMap.floors.length > 1 && (
+            <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>
+              {uiText(activeMap.floors.map((entry) => (
+                <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
+                  {entry === playerOnFloor && <Crosshair size={12} aria-hidden="true" />}
+                  {uiText(entry)}
+                </button>
+              )))}
+              {plan.floorWithoutScheme && <small className="dim map-floor-note">{uiText('У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».')}</small>}
+              {plan.floorWithoutRender && <small className="dim map-floor-note">{uiText('У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».')}</small>}
+            </div>
+          ))}
+          {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
+            <div className="detail-section" style={{ padding: '0 12px 16px' }}>
+              {uiText(localMapQuests.length > 0 && (
+                <>
+                  <h4>{uiText("Актуальные квесты")}</h4>
+                  {uiText(localMapQuests.map(({ quest, marker }) => (
+                    <QuestMapRow
+                      key={quest.id}
+                      quest={quest}
+                      selected={selectedMarker?.questId === quest.id}
+                      onSelect={() => toggleQuest(quest, marker)}
+                      squad={squadShared.get(quest.id)}
+                      checked={questChecks.has(quest.id)}
+                      onToggleCheck={() => toggleRaidCheck(quest.id)}
+                    />
+                  )))}
+                </>
+              ))}
+              {uiText(anyMapQuests.length > 0 && (
+                <>
+                  <h4 style={{ marginTop: localMapQuests.length ? 16 : 0 }}>{uiText("Любая карта")}</h4>
+                  {uiText(anyMapQuests.map(({ quest, marker }) => (
+                    <QuestMapRow
+                      key={quest.id}
+                      quest={quest}
+                      selected={selectedMarker?.questId === quest.id}
+                      onSelect={() => toggleQuest(quest, marker)}
+                      squad={squadShared.get(quest.id)}
+                      checked={questChecks.has(quest.id)}
+                      onToggleCheck={() => toggleRaidCheck(quest.id)}
+                    />
+                  )))}
+                </>
+              ))}
+              {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
+            </div>
+          ) : (
+            <div className="map-detail-empty">
+              <div>
+                <Target size={28} />
+                <h3>{uiText("Нет текущих квестов")}</h3>
+                <p>{uiText("На этой карте сейчас нет активных заданий.")}</p>
+              </div>
+            </div>
+          ))}
+          {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
+          </>
+        )}
       </aside>
     </div>
   </div>
@@ -1007,6 +1036,14 @@ function bossFanOut(markers: MapMarker[]) {
 function isPlottedMarker(marker: MapMarker) {
   return marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
 }
+
+/** «Заявки» → «Открыть в конструкторе»: the place the players agree on (?proposal=<x>,<z>, game metres). */
+function proposalOf(raw: string | null): { x: number; z: number } | null {
+  const [x, z] = (raw ?? '').split(',').map(Number)
+  return raw && Number.isFinite(x) && Number.isFinite(z) && Math.abs(x!) <= 5000 && Math.abs(z!) <= 5000 ? { x: x!, z: z! } : null
+}
+
+const PROPOSAL_ICON = divIcon({ className: 'marker-icon', html: '<div class="quest-report-pin"><span></span></div>', iconSize: [24, 24], iconAnchor: [12, 12] })
 
 function questInfoMarker(quest: Quest, mapId: string): MapMarker {
   return {

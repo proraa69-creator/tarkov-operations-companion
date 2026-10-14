@@ -12,6 +12,9 @@ import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
 import { belongsInQuestSection } from '../progression/questSections'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { StoryObjectivesPanel } from '../components/StoryObjectivesPanel'
+import { QuestChronologyPanel } from '../components/QuestChronologyPanel'
+import { chronologyNote } from '../progression/chronologyText'
+import '../components/traderQuests.css'
 import { gunsmithHref, isGunsmithQuest, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { featureEnabled } from '../app/archivedFeatures'
@@ -25,6 +28,7 @@ const filterLabels: Record<string, string> = {
   completed: 'Выполненные',
   all: 'Все',
   kappa: 'Капа',
+  chronology: 'Хронология',
   // the four endings and the choices that lead there (src/endings/, switched off with `storyEndings`)
   ...(featureEnabled('storyEndings') ? { endings: 'Концовки' } : {}),
 }
@@ -35,6 +39,7 @@ const pageTitles: Record<string, string> = {
   completed: 'Выполненные задания',
   all: 'Все задания',
   kappa: 'Задания капы',
+  chronology: 'Хронология заданий',
   endings: 'Концовки игры',
 }
 
@@ -58,11 +63,17 @@ export function QuestsPage() {
     const status = availability.get(quest.id)?.status ?? 'unknown'
     const matchesQuery = `${quest.name} ${quest.trader} ${quest.description} ${uiText(quest.name)} ${uiText(quest.trader)}`.toLowerCase().includes(query.toLowerCase())
     const matchesTrader = trader === 'Все торговцы' || quest.trader === trader
-    return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter, status)
+    // «Хронология» lays out every quest (src/components/QuestChronologyPanel.tsx)
+    return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter === 'chronology' ? 'all' : statusFilter, status)
   }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, progress, query, trader, statusFilter])
-  const selectedId = params.get('selected') ?? filtered[0]?.id
-  const selected = filtered.find((quest) => quest.id === selectedId) ?? filtered[0]
+  // «Хронология» opens on a quest taken now rather than the first one by name
+  const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : filtered[0]
+  const selectedId = params.get('selected') ?? fallback?.id
+  const selected = filtered.find((quest) => quest.id === selectedId) ?? fallback
   const selectedAvailability = selected ? availability.get(selected.id) : undefined
+  const questsById = useMemo(() => new Map(data.quests.map((quest) => [quest.id, quest])), [data.quests])
+  // what dates the selected quest's status: the logs, a chain, the chronology (src/progression/chronology.ts)
+  const selectedNote = selected && !isStoryQuest(selected) ? chronologyNote(selected, selectedAvailability, progress, questsById) : undefined
   const selectedStageIndex = selected ? currentStoryStageIndex(selected, progress) : 0
   const selectedStage = selected?.stages?.[selectedStageIndex]
   const mapTarget = selectedStage?.mapIds[0] ?? selected?.mapId ?? selected?.mapIds?.[0] ?? 'customs'
@@ -85,7 +96,10 @@ export function QuestsPage() {
     {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : <div className="split-page">
       <section className="panel">
         <div className="panel-header"><div className="panel-title">{uiText(statusFilter === 'story' ? 'Главы истории' : 'Каталог заданий')}</div><span className="tag green">{uiText(stats.completed)}{uiText(" выполнено · ")}{uiText(state.raidMode.toUpperCase())}</span></div>
-        <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+        {statusFilter === 'chronology' && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+          <QuestChronologyPanel quests={data.quests} shown={filtered} availability={availability} progress={progress} selectedId={selected?.id} onOpen={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); return next })} />
+        </div>}
+        {statusFilter !== 'chronology' && <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
           {gunsmithActive.map((quest) => <Link key={quest.id} className="catalog-card quest-catalog-card gunsmith-link-card" to={gunsmithHref(quest)}>
             <span className="quest-card-copy"><h3>{uiText(quest.name)}</h3><p>{uiText('В блоке «Оружейник»: оружие, модули и пример сборки')}</p></span>
             <span className="tag brass">{uiText('Оружейник')}</span>
@@ -109,13 +123,13 @@ export function QuestsPage() {
             </div>
           }))}
           {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
-        </div>
+        </div>}
       </section>
 
       <aside className="panel detail-panel quest-detail">
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
-        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : selected.mapId && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === selected.mapId)?.name ?? selected.mapId)}</span>))}</div></div>
+        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : selected.mapId && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === selected.mapId)?.name ?? selected.mapId)}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}</div>
         {isStoryQuest(selected) ? <><StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /><StoryDecisionNotes quest={selected} /></> : <>
         <div className="detail-section"><h4>{uiText("Задача")}</h4><p>{uiText(selected.description)}</p></div>
         <QuestObjectivesPanel quest={selected} />

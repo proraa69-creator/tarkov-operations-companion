@@ -1,10 +1,11 @@
-import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Globe, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
+import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
@@ -20,7 +21,8 @@ import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { PlanSaving } from '../components/PlanSaving'
 import { LEGAL_VERSION } from '../legal/documents'
-import { localeTag, tr } from '../i18n'
+import { localeTag, siteLocale, tr } from '../i18n'
+import { countryName, REGION_LABELS, regionOf } from '../../../src/shared/countries'
 import '../invites.css'
 
 /** «12 октября 2026» / «October 12, 2026»: dates and numbers in the site's language (src/i18n). */
@@ -110,6 +112,7 @@ export function CabinetPage() {
             <SubscriptionPanel account={account} />
             {account.kind === 'user' && <InviteFriendsPanel />}
             <NicknamesPanel account={account} />
+            <CountryPanel account={account} />
           </div>
           <div className="cabinet-col">
             <AppPanel />
@@ -255,7 +258,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
     setPaying(true)
     setPayError(null)
     try {
-      const { confirmationUrl } = await api.createPayment(token, selectedPlan.id, LEGAL_VERSION, { region: 'ru', method, language: 'ru', ...(autoRenew ? { autopayVersion: LEGAL_VERSION } : {}) })
+      const { confirmationUrl } = await api.createPayment(token, selectedPlan.id, LEGAL_VERSION, { method, ...(autoRenew ? { autopayVersion: LEGAL_VERSION } : {}) })
       window.location.assign(confirmationUrl)
     } catch (reason) {
       setPayError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
@@ -411,7 +414,7 @@ function PaymentHistory({ payments }: { payments: Payment[] }) {
               return (
                 <tr key={payment.id}>
                   <td className="mono">{formatShortDate(payment.paidAt ?? payment.createdAt)}</td>
-                  <td>{shortPlanLabel(payment.plan)}{payment.renewal ? ` · ${tr('автопродление')}` : ''}{payment.provider === 'lava' ? ' · Lava.top' : ''}{payment.discountPercent ? <span className="tag brass tag-mini">{tr('скидка {percent} %', { percent: payment.discountPercent })}</span> : null}</td>
+                  <td>{shortPlanLabel(payment.plan)}{payment.renewal ? ` · ${tr('автопродление')}` : ''}{payment.discountPercent ? <span className="tag brass tag-mini">{tr('скидка {percent} %', { percent: payment.discountPercent })}</span> : null}</td>
                   <td className="num mono">{formatMoney(payment.amount, payment.currency)}</td>
                   <td><span className={`tag ${status.tone}`}>{tr(status.label)}</span></td>
                 </tr>
@@ -500,6 +503,62 @@ function NicknamesPanel({ account }: { account: Account }) {
       <div className="panel-body form">
         <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}</p>
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.')}</p>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * «Страна» (owner, 13.10.2026: «при регистрации нужно указать страну»): the one named at registration, with its region.
+ * Accounts from before the question show «Страна не указана — указать»; a named country can be corrected.
+ */
+function CountryPanel({ account }: { account: Account }) {
+  const auth = useAuth()
+  const locale = siteLocale()
+  const [editing, setEditing] = useState(false)
+  const [country, setCountry] = useState(account.country ?? '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<{ message: string; offline: boolean } | null>(null)
+
+  const edit = () => { setCountry(account.country ?? ''); setError(null); setEditing(true) }
+
+  async function save(event: FormEvent) {
+    event.preventDefault()
+    if (!country) { setError({ message: tr('Выберите страну.'), offline: false }); return }
+    if (!auth.token) return
+    setBusy(true)
+    setError(null)
+    try {
+      auth.setAccount(await api.setCountry(auth.token, country))
+      setEditing(false)
+    } catch (reason) {
+      setError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="panel" aria-labelledby="country-title">
+      <div className="panel-header">
+        <div className="panel-title" id="country-title"><Globe aria-hidden="true" />{tr('Страна')}</div>
+        {account.country && <span className="tag">{REGION_LABELS[locale][regionOf(account.country)]}</span>}
+      </div>
+      <div className="panel-body form">
+        {editing ? (
+          <form onSubmit={save} className="form">
+            <CountrySelect value={country} onChange={setCountry} disabled={busy} />
+            {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="submit" className="button primary" disabled={busy || !country}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}{tr('Сохранить')}</button>
+              <button type="button" className="button ghost" disabled={busy} onClick={() => setEditing(false)}>{tr('Отмена')}</button>
+            </div>
+          </form>
+        ) : account.country ? (
+          <p className="nick-value"><strong>{countryName(account.country, locale)}</strong> <button type="button" className="link-button" style={{ fontSize: 14 }} onClick={edit}>{tr('Изменить')}</button></p>
+        ) : (
+          <p style={{ margin: 0 }}><span className="muted">{tr('Страна не указана')}</span> — <button type="button" className="link-button" onClick={edit}>{tr('указать')}</button></p>
+        )}
       </div>
     </section>
   )

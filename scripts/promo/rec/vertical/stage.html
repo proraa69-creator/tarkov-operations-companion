@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(inter-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(inter-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(oswald-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(oswald-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+:root { --bg: #0a0f0c; --line: #2b3a30; --text: #edf2ed; --brass: #c4a665; --brass-strong: #dfbd70; --os: #a9b973; }
+html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+.layer { position: absolute; inset: 0; }
+/* backdrop (rendered once, opaque) */
+#backdrop { background: radial-gradient(900px 700px at 70% 30%, rgb(196 166 101 / 16%), transparent 70%), radial-gradient(800px 700px at 20% 85%, rgb(127 161 131 / 14%), transparent 70%), linear-gradient(180deg, #0d140f, #070a08); }
+#backdrop .grid { position: absolute; inset: 0; opacity: .5; background-image: linear-gradient(rgb(237 242 237 / 4%) 1px, transparent 1px), linear-gradient(90deg, rgb(237 242 237 / 4%) 1px, transparent 1px); background-size: 60px 60px; }
+#backdrop .grain { position: absolute; inset: 0; opacity: .12; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>"); }
+#backdrop .zone { position: absolute; left: 34px; top: 494px; width: 1012px; height: 1092px; border-radius: 34px; background: #050806; box-shadow: 0 0 0 1px rgb(196 166 101 / 40%), 0 30px 80px rgb(0 0 0 / 60%); }
+#zone { position: absolute; left: 40px; top: 500px; width: 1000px; height: 1080px; border-radius: 30px; }
+.brandbar { position: absolute; left: 0; right: 0; top: 1660px; display: flex; align-items: center; justify-content: center; gap: 20px; }
+.brandbar img { width: 74px; height: 74px; border-radius: 18px; }
+.brandbar .wm { font: 600 64px/1 Oswald, sans-serif; letter-spacing: .06em; color: #f3f1e8; }
+.brandbar .wm b { font-weight: 600; color: var(--os); }
+.brandbar .url { margin-left: 18px; padding-left: 26px; border-left: 2px solid var(--line); font: 700 44px/1 Oswald, sans-serif; letter-spacing: .08em; color: var(--brass-strong); }
+/* captions */
+.cap { position: absolute; left: 60px; right: 60px; top: 150px; height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.pill { display: inline-flex; padding: 10px 22px; border-radius: 999px; border: 1px solid rgb(196 166 101 / 55%); background: rgb(196 166 101 / 12%); color: var(--brass-strong); font: 800 26px/1 Inter, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+.cap h2 { margin: 22px 0 0; font: 600 76px/1.08 Oswald, sans-serif; color: #f3f1e8; letter-spacing: .005em; }
+/* intro & end cards (opaque) */
+.card { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(900px 900px at 50% 45%, rgb(196 166 101 / 14%), transparent 70%), linear-gradient(180deg, #0d140f, #060806); }
+.card .bgimg { position: absolute; inset: -40px; background-size: cover; background-position: 50% 50%; filter: blur(16px) brightness(.32) saturate(.8); }
+.card .icon { position: relative; width: 230px; height: 230px; border-radius: 52px; filter: drop-shadow(0 26px 60px rgb(0 0 0 / 60%)); }
+.card .wm { position: relative; margin-top: 46px; font: 600 150px/1 Oswald, sans-serif; letter-spacing: .06em; color: #f3f1e8; }
+.card .wm b { font-weight: 600; color: var(--os); }
+.card .rule { position: relative; height: 3px; margin: 44px 0 40px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+.card .sub { position: relative; font: 500 50px/1.25 Inter, sans-serif; color: #dfe5de; text-align: center; padding: 0 60px; }
+.card .sub em { font-style: normal; color: var(--brass-strong); font-weight: 700; }
+.card .tag { position: relative; margin-top: 70px; font: 600 92px/1.08 Oswald, sans-serif; text-align: center; color: #f3f1e8; }
+.card .tag span { display: block; }
+.card .tag .hot { color: var(--brass-strong); }
+.card .button { position: relative; margin-top: 80px; display: inline-flex; align-items: center; gap: 20px; padding: 32px 52px; border-radius: 22px; background: linear-gradient(180deg, #e6c87f, #b8954f); color: #17150e; font: 800 48px/1 Inter, sans-serif;
+  box-shadow: 0 0 0 1px rgb(255 240 200 / 35%) inset, 0 22px 48px rgb(196 166 101 / 28%), 0 16px 34px rgb(0 0 0 / 50%); }
+.card .button svg { width: 48px; height: 48px; }
+.card .url { position: relative; margin-top: 40px; font: 700 60px/1 Oswald, sans-serif; letter-spacing: .1em; color: var(--brass-strong); }
+.card .soon { position: relative; margin-top: 56px; display: inline-flex; align-items: center; gap: 16px; font: 600 40px/1 Inter, sans-serif; color: #c9d2ca; }
+.card .soon svg { width: 40px; height: 40px; color: var(--brass); }
+#fade { position: absolute; inset: 0; background: #000; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const P = JSON.parse(decodeURIComponent(new URLSearchParams(location.search).get('p')))
+const root = document.getElementById('root')
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+const prog = (t, a, b) => clamp((t - a) / (b - a))
+const easeOut = (x) => 1 - Math.pow(1 - x, 4)
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+const el = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild }
+const T = P.text
+const DOWNLOAD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>'
+const PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>'
+const WM = '<div class="wm">RAID <b>OS</b></div>'
+
+const BACKDROP = `<div id="backdrop" class="layer"><div class="grid"></div><div class="grain"></div><div class="zone"></div><div class="brandbar"><img src="raidos-icon.svg"><div class="wm">RAID <b>OS</b></div><div class="url">raidos.app</div></div></div>`
+if (P.mode === 'backdrop') {
+  root.append(el(BACKDROP))
+  window.render = () => {}
+} else {
+  // Whole frame: the backdrop and the video zone (one still per frame) under the captions and cards.
+  if (P.full) {
+    root.append(el(BACKDROP))
+    const zone = el('<img id="zone" alt="">')
+    root.append(zone)
+    window.setZone = (src) => new Promise((resolve, reject) => { zone.onload = () => zone.decode().then(resolve, resolve); zone.onerror = reject; zone.src = src })
+  }
+  const caps = P.shots.filter((s) => s.title).map((s) => {
+    const node = el(`<div class="cap"><div class="pill">${s.eyebrow}</div><h2>${s.title}</h2></div>`)
+    root.append(node)
+    return { ...s, node }
+  })
+  const intro = el(`<div class="card"><div class="bgimg" style="background-image:url(${P.introBg})"></div><img class="icon" src="raidos-icon.svg">${WM}<div class="rule"></div><div class="sub">${T.introSub}</div></div>`)
+  const end = el(`<div class="card"><img class="icon" src="raidos-icon.svg">${WM}<div class="tag"><span>${T.tag1}</span><span class="hot">${T.tag2}</span></div><span class="button">${DOWNLOAD}${T.download}</span><div class="url">raidos.app</div><div class="soon">${PHONE}<span>${T.soonPhones}</span></div></div>`)
+  const fade = el('<div id="fade"></div>')
+  root.append(intro, end, fade)
+  const [iBg, iIcon, iWm, iRule, iSub] = intro.children
+  const [eIcon, eWm, eTag, eButton, eUrl, eSoon] = end.children
+  const [tag1, tag2] = eTag.children
+  const A = P.at
+  window.render = (t) => {
+    // intro card, out into the first shot
+    const introOut = easeInOut(prog(t, A.introEnd - 0.4, A.introEnd))
+    intro.style.opacity = String(1 - introOut)
+    const a = easeOut(prog(t, A.v1 - 0.4, A.v1 + 0.2)), b = easeOut(prog(t, A.v1 - 0.2, A.v1 + 0.45)), r = easeOut(prog(t, A.v1 + 0.1, A.v1 + 0.8)), s = easeOut(prog(t, A.v1 + A.p1 - 0.1, A.v1 + A.p1 + 0.45))
+    iIcon.style.opacity = String(a); iIcon.style.transform = `scale(${0.9 + 0.1 * a})`
+    iWm.style.opacity = String(b); iWm.style.transform = `translateY(${(1 - b) * 24}px)`
+    iRule.style.width = `${620 * r}px`
+    iSub.style.opacity = String(s); iSub.style.transform = `translateY(${(1 - s) * 18}px)`
+    iBg.style.transform = `scale(${1.04 + 0.04 * prog(t, 0, A.introEnd)})`
+    // captions
+    for (const c of caps) {
+      const k = easeOut(prog(t, c.from + 0.05, c.from + 0.45)) * (1 - easeInOut(prog(t, c.to - 0.3, c.to)))
+      c.node.style.opacity = String(k); c.node.style.transform = `translateY(${(1 - k) * 22}px)`
+    }
+    // end card
+    const e = easeOut(prog(t, A.endStart - 0.05, A.endStart + 0.4))
+    end.style.opacity = String(e)
+    const i = easeOut(prog(t, A.endStart, A.endStart + 0.5))
+    eIcon.style.transform = `scale(${0.9 + 0.1 * i})`; eWm.style.transform = `scale(${0.95 + 0.05 * i})`
+    const t1 = easeOut(prog(t, A.v20 - 0.1, A.v20 + 0.4)), t2 = easeOut(prog(t, A.v20 + A.p20[0] - 0.1, A.v20 + A.p20[0] + 0.4))
+    tag1.style.opacity = String(t1); tag1.style.transform = `translateY(${(1 - t1) * 20}px)`
+    tag2.style.opacity = String(t2); tag2.style.transform = `translateY(${(1 - t2) * 20}px)`
+    const c = easeOut(prog(t, A.v20 + A.p20[1] - 0.1, A.v20 + A.p20[1] + 0.45))
+    eButton.style.opacity = String(c); eButton.style.transform = `scale(${0.95 + 0.05 * c})`; eUrl.style.opacity = String(c)
+    const so = easeOut(prog(t, A.v20 + A.p20[2] - 0.1, A.v20 + A.p20[2] + 0.45))
+    eSoon.style.opacity = String(so); eSoon.style.transform = `translateY(${(1 - so) * 16}px)`
+    fade.style.opacity = String(easeInOut(prog(t, A.duration - 0.5, A.duration)) + (1 - easeOut(prog(t, 0, 0.35))))
+  }
+}
+window.render(0)
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((img) => img.decode().catch(() => {}))])
+</script>
+</body>
+</html>

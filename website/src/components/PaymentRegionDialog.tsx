@@ -111,7 +111,8 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
 /** The cabinet's autopayment block: amount, period, next charge and «Отменить автопродление» (one click). */
 export function AutopayCard({ autopay, busy, error, onCancel }: { autopay: Autopay; busy: boolean; error: string | null; onCancel: () => void }) {
   const date = (iso?: string) => (iso ? new Intl.DateTimeFormat(localeTag(), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(iso)) : '')
-  const via = autopay.provider === 'lava' ? 'Lava.top' : autopay.method ? methodLabel(autopay.method) : tr('ЮKassa')
+  // An archived autopayment (a payment service that is no longer connected) names no method.
+  const via = autopay.provider === 'yookassa' ? ` · ${autopay.method ? methodLabel(autopay.method) : tr('ЮKassa')}` : ''
   const amount = formatMoney(autopay.amount, autopay.currency)
   if (autopay.status === 'active') {
     return (
@@ -119,7 +120,7 @@ export function AutopayCard({ autopay, busy, error, onCancel }: { autopay: Autop
         <Repeat aria-hidden="true" />
         <div className="autopay-text">
           <strong>{tr('Автопродление включено')}</strong>
-          <span>{amount} {tr(PERIOD_TEXT[autopay.plan])} · {via}</span>
+          <span>{amount} {tr(PERIOD_TEXT[autopay.plan])}{via}</span>
           {autopay.nextChargeAt && <span className="dim">{tr('Следующее списание — около {date}', { date: date(autopay.nextChargeAt) })}</span>}
           {error && <span className="autopay-error">{error}</span>}
         </div>

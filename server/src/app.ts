@@ -28,6 +28,7 @@ import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
+import { createQuestTextsRouter } from './routes/questTexts.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
 import { createDataMirrorRouter } from './routes/dataMirror.js'
@@ -41,6 +42,7 @@ import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
+import { QuestTextStore } from './services/questTextStore.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
 import { MemoryGoonStore, type GoonStore } from './services/goonStore.js'
@@ -176,8 +178,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).
   const bugReports = new BugReportStore(accounts.database, { now: accounts.clock })
   const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
+  // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed (routes/bugReports.ts).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount() }))
   app.use(createBugReportsRouter(accounts, bugReports, {
     limits: options.bugReportLimits,
+    signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
     mail: bugReportMail,
     grant: (actor, accountId, days, reason) => {
@@ -230,6 +235,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
+  app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   const emails = options.emails ?? new EmailAuthService(accounts)
   app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
@@ -237,7 +244,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const phones = options.phones ?? new PhoneAuthService(accounts)
   app.use('/v1/accounts', createPhoneRouter(accounts, phones, { extraConfig: () => emails.publicConfig() }))
   app.use('/v1/accounts', createEmailRouter(accounts, emails))
-  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails, payments))
+  app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
   let circle: (accountId: string) => string[] = (accountId) => [accountId]

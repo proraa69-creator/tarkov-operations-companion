@@ -52,6 +52,9 @@
 .admin-table tr.owner-detail > td { padding: 12px; white-space: normal; background: var(--surf-1); }
 .admin-email { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .admin-users .admin-email { white-space: normal; word-break: break-all; min-width: 200px; }
+.admin-registered { display: inline-grid; gap: 1px; }
+.admin-country { color: var(--text-muted); font-size: 12px; white-space: normal; }
+.admin-country.dim { color: var(--text-dim); }
 .admin-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
 .tag.admin-mini { min-height: 18px; padding: 0 6px; font-size: 10px; margin-left: 4px; }
 .admin-badges .tag.admin-mini { margin-left: 0; }
@@ -59,6 +62,11 @@
 .admin-audit td { font-size: 12px; }
 
 .admin-filters { display: grid; gap: 10px; }
+/* «Пользователи» → регион (owner, 13.10.2026): «Все · СНГ · Европа · Другие · Не указана», one segmented control with counts. */
+.admin-regions { display: flex; flex-wrap: wrap; gap: 4px; justify-self: start; max-width: 100%; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); }
+.admin-regions .button.ghost { border-color: transparent; box-shadow: none; }
+.admin-region-count { color: var(--text-dim); font-size: 11px; }
+.admin-regions .button.primary .admin-region-count { color: inherit; opacity: .78; }
 .admin-selects { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .admin-selects .input, .admin-dates .input { height: 38px; font-size: 13px; }
 .admin-dates { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -128,10 +136,6 @@
 .admin-action .inline-form .admin-days { height: 38px; }
 .admin-action .inline-form .input { flex: 1 1 auto; min-width: 0; width: auto; }
 .admin-action .inline-form .input.admin-days { flex: 0 0 72px; }
-/* Owner Lava settings: controls use the existing site's inputs and buttons. */
-.lava-settings-fields { display: grid; gap: 12px; border: 0; padding: 0; margin: 16px 0; max-width: 720px; }
-.lava-settings-fields label { display: grid; gap: 6px; }
-.lava-settings-fields input, .lava-settings-fields select { width: 100%; min-width: 0; }
 /* «Баг-репорты» (components/admin/AdminBugReports.tsx). */
 .admin-bug-detail { display: grid; gap: 12px; }
 .admin-bug-text { margin: 6px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); color: var(--text); font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto; }

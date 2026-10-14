@@ -43,12 +43,21 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/map-bosses(?:\/[a-f0-9]{24}\/remove|\/batch)?$/ },
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts): everybody reads, only the owner's account writes.
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
+  { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
   // «Правки карты сразу у всех»: waits up to ~25 s for the owner's next map correction (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-points\/[a-f0-9]{24}\/remove$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-texts$/ },
+  // «Заявки» (owner app, src/pages/RequestsPage.tsx): players' reports and quest corrections, the live count, the
+  // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward)$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-texts\/[a-f0-9]{24}\/remove$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/events$`) },
@@ -311,7 +320,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
-  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
@@ -591,6 +600,8 @@ export type RegistrationResult = { pending: PendingRegistration } | { status: Ac
 
 const CHALLENGE_ID = /^[A-Za-z0-9_-]{32}$/
 const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
+/** An ISO 3166-1 alpha-2 shape; the server checks the code against its list (src/shared/countries.ts). */
+const COUNTRY_CODE = /^[A-Z]{2}$/
 
 /** A session answer ({ token, account }) of the server: kept in this process, only the status goes back. */
 async function adoptSessionAnswer(result: unknown) {
@@ -613,15 +624,18 @@ async function sendAccountRequest(path: string, body: unknown) {
 /**
  * Registration in the app (POST /v1/accounts/register). With e-mail codes on the server answers 202 for every address
  * and the account appears only after the code (accountRegisterConfirm); otherwise 201 with a session, kept here.
+ * `rawCountry`: the country of the form (owner, 13.10.2026: «при регистрации нужно указать страну»).
  */
-export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown): Promise<RegistrationResult> {
+export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown, rawCountry?: unknown): Promise<RegistrationResult> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
   const password = typeof rawPassword === 'string' ? rawPassword : ''
   const referralCode = typeof rawReferral === 'string' ? rawReferral.trim() : ''
+  const country = typeof rawCountry === 'string' ? rawCountry.trim().toUpperCase() : ''
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
   if (referralCode && !REFERRAL_CODE.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
-  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}) })
+  if (country && !COUNTRY_CODE.test(country)) throw new Error('Выберите страну из списка')
+  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) })
   if (response.status === 202) {
     const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
     if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')

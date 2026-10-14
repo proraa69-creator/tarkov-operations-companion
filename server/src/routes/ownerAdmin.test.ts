@@ -250,6 +250,48 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
   } finally { await t.close() }
 })
 
+test('users by region: «Все · СНГ · Европа · Другие · Не указана» with counts, the country in rows and the card (owner, 13.10.2026)', async () => {
+  const t = await setup()
+  try {
+    for (const [email, country] of [['moscow@example.com', 'RU'], ['almaty@example.com', 'KZ'], ['kyiv@example.com', 'UA'], ['berlin@example.com', 'DE'], ['tbilisi@example.com', 'GE'], ['old-app@example.com', undefined]] as const) {
+      const registered = await t.call('POST', '/accounts/register', undefined, { email, password, ...(country ? { country } : {}) })
+      assert.equal(registered.status, 201, JSON.stringify(registered.json))
+    }
+    const owner = await t.login('owner@example.com')
+    type List = { users: Array<{ id: string; email: string; country?: string }>; total: number; regions: Record<string, number> }
+    const list = async (query = '') => {
+      const response = await t.call<List>('GET', `/accounts/me/admin/users${query}`, owner)
+      assert.equal(response.status, 200, JSON.stringify(response.json))
+      return response.json
+    }
+    const emails = (body: List) => body.users.map((user) => user.email).sort()
+    const all = await list()
+    // The owner registered before the question: with the older app's account under «Не указана». Georgia is not Europe.
+    assert.deepEqual(all.regions, { all: 7, cis: 2, europe: 2, other: 1, none: 2 })
+    assert.equal(all.total, 7)
+    assert.equal(all.users.find((user) => user.email === 'almaty@example.com')!.country, 'KZ')
+    assert.equal(all.users.find((user) => user.email === 'old-app@example.com')!.country, undefined)
+    const cis = await list('?region=cis')
+    assert.deepEqual([emails(cis), cis.total], [['almaty@example.com', 'moscow@example.com'], 2])
+    assert.deepEqual(cis.regions, all.regions, 'the counts do not follow the chosen tab')
+    assert.deepEqual(emails(await list('?region=europe')), ['berlin@example.com', 'kyiv@example.com'])
+    assert.deepEqual(emails(await list('?region=other')), ['tbilisi@example.com'])
+    assert.deepEqual(emails(await list('?region=none')), ['old-app@example.com', 'owner@example.com'])
+    // The search and the status filter narrow the counts and combine with the region.
+    assert.deepEqual((await list('?q=kyiv')).regions, { all: 1, cis: 0, europe: 1, other: 0, none: 0 })
+    assert.deepEqual(emails(await list('?q=example&region=europe&filter=trial')), [])
+    assert.deepEqual((await list('?filter=streamers')).regions, { all: 0, cis: 0, europe: 0, other: 0, none: 0 })
+    assert.equal((await t.call('GET', '/accounts/me/admin/users?region=asia', owner)).status, 400)
+    // A player from before the question sets it in the cabinet: he moves from «Не указана» to his region.
+    const late = await t.login('old-app@example.com')
+    assert.equal((await t.call('PUT', '/accounts/me/country', late, { country: 'AM' })).status, 200)
+    assert.deepEqual((await list()).regions, { all: 7, cis: 3, europe: 2, other: 1, none: 1 })
+    // The user card has the country too.
+    const kyiv = all.users.find((user) => user.email === 'kyiv@example.com')!.id
+    assert.equal((await t.call<{ user: { country?: string } }>('GET', `/accounts/me/admin/users/${kyiv}`, owner)).json.user.country, 'UA')
+  } finally { await t.close() }
+})
+
 test('«Удалить аккаунт» from the admin panel: owner only, erased like the user\'s own deletion, logged; not the owner, not with an active autopay (owner, 13.10.2026)', async () => {
   const t = await setup()
   try {
@@ -283,10 +325,10 @@ test('«Удалить аккаунт» from the admin panel: owner only, erased
   } finally { await t.close() }
 })
 
-test('statistics: users, revenue by provider and plan per day / month, payouts, filters and CSV', async () => {
+test('statistics: users, revenue by plan per day / month, payouts, filters and CSV', async () => {
   const t = await setup()
   try {
-    // A streamer and two referred players; one pays 1 month, the other 12 months the next day; a Lava payment by SQL.
+    // A streamer and two referred players; one pays 1 month, the other 12 months the next day; one more payment by SQL.
     await t.register('streamer@example.com')
     t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
     const a = await t.register('a@example.com', 'HUNTER')
@@ -295,31 +337,30 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     const b = await t.register('b@example.com', 'HUNTER')
     await t.pay(b, '12m')
     const bId = t.accounts.authenticate(b)!
-    t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider, currency, amount_original) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaa', ?, '3m', 90000, 'succeeded', ?, ?, 'lava', 'USD', 1000)").run(bId, Date.parse('2026-10-02T11:00:00.000Z'), Date.parse('2026-10-02T11:00:00.000Z'))
+    t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider, currency, amount_original) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaa', ?, '3m', 90000, 'succeeded', ?, ?, 'yookassa', 'RUB', 90000)").run(bId, Date.parse('2026-10-02T11:00:00.000Z'), Date.parse('2026-10-02T11:00:00.000Z'))
     t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, provider, currency) VALUES ('bbbbbbbbbbbbbbbbbbbbbbbb', ?, '6m', 180000, 'canceled', ?, 'yookassa', 'RUB')").run(bId, Date.parse('2026-10-02T11:30:00.000Z'))
     const owner = await t.login('owner@example.com')
 
     const overview = (await t.call('GET', '/accounts/me/admin/overview', owner)).json as unknown as {
       users: { total: number; today: number; days7: number }; subscriptions: { active: number; trials: number; streamers: number }
-      revenue: { today: { yookassa: number; lava: number; total: number }; month: { total: number }; all: { total: number; payments: number }; lavaOriginal: Array<{ currency: string; amount: number }> }
+      revenue: { today: { total: number; payments: number }; month: { total: number }; all: { total: number; payments: number } }
       payouts: { earned: number }
     }
     assert.deepEqual([overview.users.total, overview.users.today, overview.users.days7], [4, 1, 4])
     assert.equal(overview.subscriptions.active, 2)
     assert.equal(overview.subscriptions.streamers, 1)
-    // 12 months: 2400 ₽ today (ЮKassa) + 900 ₽ (Lava at the owner's rate).
-    assert.deepEqual(overview.revenue.today, { yookassa: 2400, lava: 900, total: 3300, payments: 2 })
+    // 12 months: 2400 ₽ today + 900 ₽ (the 3 months inserted by SQL).
+    assert.deepEqual(overview.revenue.today, { total: 3300, payments: 2 })
     assert.equal(overview.revenue.all.total, 3600)
     assert.equal(overview.revenue.all.payments, 3)
-    assert.deepEqual(overview.revenue.lavaOriginal, [{ currency: 'USD', amount: 10 }])
-    // 10 % of the two referred ЮKassa payments (the Lava row was inserted without a referral code); no streamer discount.
+    // 10 % of the two referred payments (the SQL row was inserted without a referral code); no streamer discount.
     assert.equal(overview.payouts.earned, 270)
 
-    const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; yookassa: number; lava: number; plans: Record<string, { count: number; revenue: number }> }> }
+    const days = (await t.call('GET', '/accounts/me/admin/series?period=day', owner)).json as unknown as { rows: Array<{ period: string; registrations: number; payments: number; revenue: number; plans: Record<string, { count: number; revenue: number }> }> }
     assert.equal(days.rows.length, 31)
     const [today, yesterday] = days.rows
     assert.equal(today!.period, '2026-10-02')
-    assert.deepEqual([today!.registrations, today!.payments, today!.revenue, today!.yookassa, today!.lava], [1, 2, 3300, 2400, 900])
+    assert.deepEqual([today!.registrations, today!.payments, today!.revenue], [1, 2, 3300])
     assert.deepEqual(today!.plans['12m'], { count: 1, revenue: 2400 })
     assert.deepEqual(today!.plans['3m'], { count: 1, revenue: 900 })
     assert.deepEqual([yesterday!.period, yesterday!.registrations, yesterday!.payments, yesterday!.revenue], ['2026-10-01', 3, 1, 300])
@@ -331,10 +372,8 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.equal((await t.call('GET', '/accounts/me/admin/series?period=week', owner)).status, 400)
 
     // Payments: filters and totals.
-    const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; lava: number; yookassa: number } }
-    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.lava, all.totals.yookassa], [4, 3, 3600, 900, 2700])
-    const lava = (await t.call('GET', '/accounts/me/admin/payments?provider=lava', owner)).json as unknown as { payments: Array<{ original: { amount: number; currency: string } }> }
-    assert.deepEqual(lava.payments.map((item) => item.original), [{ amount: 10, currency: 'USD' }])
+    const all = (await t.call('GET', '/accounts/me/admin/payments', owner)).json as unknown as { total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
+    assert.deepEqual([all.total, all.totals.succeeded, all.totals.revenue, all.totals.streamerEarnings], [4, 3, 3600, 270])
     const canceled = (await t.call('GET', '/accounts/me/admin/payments?status=canceled&plan=6m', owner)).json as unknown as { total: number }
     assert.equal(canceled.total, 1)
     const byEmail = (await t.call('GET', '/accounts/me/admin/payments?q=A%40EXAMPLE', owner)).json as unknown as { total: number; payments: Array<{ email: string }> }
@@ -354,7 +393,7 @@ test('statistics: users, revenue by provider and plan per day / month, payouts, 
     assert.equal(lines.length, 4)
     assert.equal(lines[0]!.split(';')[2], 'E-mail')
     assert.ok(lines.some((line) => line.includes('b@example.com;12m;ЮKassa;Оплачен;2400,00')), lines.join('\n'))
-    assert.ok(lines.some((line) => line.includes('Lava.top;Оплачен;900,00;10,00;USD')))
+    assert.ok(lines.some((line) => line.includes('b@example.com;3m;ЮKassa;Оплачен;900,00;;;')), lines.join('\n'))
     const exported = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; details: { rows: number } }> }).entries[0]!
     assert.deepEqual([exported.action, exported.details.rows], ['payments.export', 3])
   } finally { await t.close() }
@@ -481,8 +520,10 @@ test('sales settings show prices and providers, never keys; the database migrati
     new AdminStore(accounts, new PaymentStore(db, undefined))
   }
   const columns = (db.prepare('PRAGMA table_info(accounts)').all() as Array<{ name: string }>).map((row) => row.name)
-  for (const name of ['blocked_at', 'last_seen_at', 'referral_disabled_at']) assert.ok(columns.includes(name), name)
-  assert.equal((db.prepare('SELECT email, blocked_at FROM accounts').get() as { email: string; blocked_at: null }).blocked_at, null)
+  for (const name of ['blocked_at', 'last_seen_at', 'referral_disabled_at', 'country']) assert.ok(columns.includes(name), name)
+  const old = db.prepare('SELECT email, blocked_at, country FROM accounts').get() as { email: string; blocked_at: null; country: null }
+  assert.equal(old.blocked_at, null)
+  assert.equal(old.country, null)
   assert.throws(() => new AdminStore(new AccountStore({ db, ownerEmails: [] }), new PaymentStore(openDatabase(':memory:'), undefined)), /share one database/)
 })
 

@@ -1,4 +1,22 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
+
+// One version everywhere (scripts/set-version.mjs writes package.json): «0.6.0-29» there is versionName «0.6.0.29», and
+// versionCode grows with every release (0.6.0.29 → 600029, 0.7.0 → 700000), so an update from the site always
+// installs over the previous build.
+def packageVersion = new JsonSlurper().parse(rootProject.file('../package.json')).version as String
+def versionNumbers = packageVersion.replace('-', '.').tokenize('.').collect { it as int }
+if (versionNumbers.size() < 3 || versionNumbers.size() > 4) throw new GradleException("package.json version ${packageVersion}: three or four numbers expected")
+def (major, minor, patch) = versionNumbers
+def small = versionNumbers.size() > 3 ? versionNumbers[3] : 0
+if (major > 209 || minor > 99 || patch > 99 || small > 999) throw new GradleException("package.json version ${packageVersion} does not fit versionCode")
+def appVersionName = versionNumbers.join('.')
+def appVersionCode = major * 10_000_000 + minor * 100_000 + patch * 1_000 + small
+
+// A release build is signed only when the key is given, never from git (docs/mobile.md «Подпись»):
+// RAIDOS_ANDROID_KEYSTORE (path), RAIDOS_ANDROID_KEYSTORE_PASSWORD, RAIDOS_ANDROID_KEY_ALIAS, RAIDOS_ANDROID_KEY_PASSWORD.
+def releaseKeystore = System.getenv('RAIDOS_ANDROID_KEYSTORE')
 
 android {
     namespace = "com.tarkovoperator.app"
@@ -7,8 +25,8 @@ android {
         applicationId "com.tarkovoperator.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "0.5.4"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +34,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseKeystore) {
+            release {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('RAIDOS_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('RAIDOS_ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('RAIDOS_ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseKeystore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

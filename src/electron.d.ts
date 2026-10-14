@@ -71,21 +71,18 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
 /** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean }
+/** ownerExe: the owner's copy and a release only a whole owner exe brings (from the admin panel, «Серверная версия»). */
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
-export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'; status: UpdateStatus; current: string; checkedAt: string }
+export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy' | 'owner-exe'; status: UpdateStatus; current: string; checkedAt: string }
 
-/** Owner controls for the server on this PC (electron/ownerAdmin.ts). */
-export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
-/** `autopay`/`lava` are missing when the main process is older than the renderer. */
-export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean; lava?: LavaSettings }
+/** Owner controls for the server on this PC (electron/ownerAdmin.ts). `autopay` is missing when the main process is older than the renderer. */
+export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean }
 /** «SMS: одноразовые коды» (electron/ownerAdmin.ts). The key is write-only. */
 export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
 export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
-export interface LavaWebhookStatus { configured: boolean; last: { at: string; result: string; eventType?: string } | null }
-export interface LavaWebhookTest { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
 export interface SmsServerStatus { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
 /** «Почта: коды подтверждения» (electron/ownerAdmin.ts). The key is write-only. */
 export type EmailProvider = '' | 'resend'
@@ -127,16 +124,11 @@ interface TarkovDesktopApi {
   }
   owner?: {
     payments: () => Promise<PaymentSettings>
-    setPayments: (settings:
-      | { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }
-      | { section: 'lava'; offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: LavaSettings['paymentMethod']; apiKey?: string; webhookKey?: string; clearKeys?: boolean }) => Promise<PaymentSettings>
+    setPayments: (settings: { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }) => Promise<PaymentSettings>
     streamers: () => Promise<{ streamers: StreamerRow[]; invites: Array<{ code: string; expiresAt: string }> }>
     /** Missing when the main process is older than the renderer. */
     sms?: () => Promise<SmsSettings>
     setSms?: (settings: { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; apiKey?: string; clearKey?: boolean }) => Promise<SmsSettings>
-    /** Missing when the main process is older than the renderer. */
-    lavaWebhookStatus?: () => Promise<LavaWebhookStatus>
-    testLavaWebhook?: () => Promise<LavaWebhookTest>
     smsStatus?: () => Promise<SmsServerStatus>
     sendTestSms?: (phone: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
     email?: () => Promise<EmailSettings>
@@ -176,8 +168,11 @@ interface TarkovDesktopApi {
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
     /** Sign-in or password reset by e-mail code; the session stays in the main process. */
     emailSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
-    /** Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process). */
-    register?: (email: string, password: string, referralCode?: string) => Promise<ServerRegistrationResult>
+    /**
+     * Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process).
+     * `country`: ISO 3166-1 alpha-2 from the form (src/shared/countries.ts); apps before 13.10.2026 sent none.
+     */
+    register?: (email: string, password: string, referralCode?: string, country?: string) => Promise<ServerRegistrationResult>
     /** The code from the registration e-mail: the account appears and is signed in (the session stays in the main process). */
     registerConfirm?: (challengeId: string, code: string) => Promise<{ status: ServerAccountStatus; referralApplied: boolean }>
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
