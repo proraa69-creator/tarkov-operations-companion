@@ -30,6 +30,8 @@ import { InviteProgram } from './services/invites.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createPayoutsRouter } from './routes/payouts.js'
 import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
+import { createPresenceRouter } from './routes/presence.js'
+import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
@@ -144,6 +146,8 @@ export interface ApiOptions {
   supportChatLimits?: Partial<SupportChatLimits>
   /** «Доступ Claude к заявкам» (routes/agentRequests.ts): per-key / per-address limits of the read-only key for tests. */
   requestsKeyLimits?: Partial<AgentRequestLimits>
+  /** «Онлайн сейчас» (services/presence.ts): in memory; defaults to one on the accounts' clock. */
+  presence?: PresenceTracker
 }
 
 /**
@@ -253,7 +257,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Signed entitlements, the device limit and the owner's device list (docs/subscription-protection.md).
   const entitlements = options.entitlements ?? new EntitlementService(accounts)
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore))
+  // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
+  const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
@@ -299,6 +305,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     now: accounts.clock,
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
+  app.use(createPresenceRouter(accounts, entitlements, presence))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
   circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })

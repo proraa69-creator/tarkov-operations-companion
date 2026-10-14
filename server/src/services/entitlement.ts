@@ -194,6 +194,17 @@ export class EntitlementService {
     return true
   }
 
+  /**
+   * The name of the account's device when it is active and bound to this very session (the same pair as
+   * `isActiveDevice`), else undefined. Read only: «Онлайн сейчас» (services/presence.ts) writes nothing per heartbeat.
+   */
+  activeDeviceName(accountId: string, deviceId: string | undefined, sessionDigest: string | undefined) {
+    if (!deviceId || !DEVICE_ID.test(deviceId) || !sessionDigest) return undefined
+    const row = this.db.prepare('SELECT name, revoked_at, session_digest FROM account_devices WHERE account_id = ? AND device_id = ?').get(accountId, deviceId) as Row | undefined
+    if (!row || row.revoked_at != null || row.session_digest == null || String(row.session_digest) !== sessionDigest) return undefined
+    return String(row.name)
+  }
+
   /** Why a device is not active (for the app's notice), or undefined when it is active / unknown. */
   revokedReason(accountId: string, deviceId: string | undefined) {
     if (!deviceId || !DEVICE_ID.test(deviceId)) return undefined
