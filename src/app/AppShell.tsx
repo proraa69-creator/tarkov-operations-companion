@@ -21,7 +21,7 @@ import { useAccountNickname } from '../account/useAccountNickname'
 import { useQuestExperienceLevel } from '../profile/questExperience'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
-import { updateLogStatus } from '../import/logStatus'
+import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
 import { bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, pushLogProgress, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
@@ -62,6 +62,8 @@ const raidNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeo
 const raidNavigation = raidNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
 /** Ticking and counting objectives by hand (archived): only then is objective progress synced with the server. */
 const manualObjectives = featureEnabled('manualObjectives')
+/** The game's mode the app switched to last in this session (the logs' own mode is logStatus.ts DETECTED_MODE_KEY). */
+const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
@@ -174,19 +176,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     const desktop = window.tarkovDesktop
     if (!desktop) return
     let active = true
-    // Each mode gets only its own log events (split by session mode, gateway and profile id).
-    let detectedMode = sessionStorage.getItem('eft-last-detected-mode')
+    // The status line and the game's mode follow the main process from the first reader on (the locked app included).
+    followDesktopLogStatus()
+    // The app's mode follows the game's when the game's changes — not at every scan: the player may look at another mode.
+    let followedMode = sessionStorage.getItem(FOLLOWED_MODE_KEY)
     const registrationOf = (mode: RaidMode) => stateRef.current.activeProfile.modes[mode].registration
     // The main process found and reads the logs itself, from the app's start (electron/logWatcher.ts): first the identity
     // of the newest launches (mode, game accounts, profiles), then every launch. Each scan is applied once (P20).
     const applyLogResult = (result: ModeLogScanResult & { folder?: string }) => {
       if (!active) return
-      updateLogStatus({ scan: result, notFound: false, ...(result.folder ? { folder: result.folder } : {}) })
+      noteLogScan(result)
       if (!firstApplication(result, stateRef.current.activeProfile.id)) return
+      // Each mode gets only its own log events (split by session mode, gateway and profile id).
       if (result.latestMode) {
-        if (detectedMode !== result.latestMode) stateRef.current.setRaidMode(result.latestMode)
-        detectedMode = result.latestMode
-        sessionStorage.setItem('eft-last-detected-mode', result.latestMode)
+        if (followedMode !== result.latestMode) stateRef.current.setRaidMode(result.latestMode)
+        followedMode = result.latestMode
+        try { sessionStorage.setItem(FOLLOWED_MODE_KEY, result.latestMode) } catch { /* storage unavailable */ }
       }
       // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
