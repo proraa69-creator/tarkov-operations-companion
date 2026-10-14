@@ -251,6 +251,8 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
 .download-icon { width: 64px; height: 64px; display: grid; place-items: center; border: 1px solid #5f553a; border-radius: 18px; color: var(--brass-strong); background: linear-gradient(145deg, #2a2a1e, #161d18); box-shadow: 0 0 40px rgb(223 189 112 / 14%); }
 .download-icon svg { width: 28px; height: 28px; }
 .download-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+/* The caution under the portable line: read together with it, quieter than it. */
+.download-note { margin: -8px auto 0; max-width: 620px; color: var(--text-muted); font-size: 13px; line-height: 1.5; opacity: .85; }
 
 
 /* About */
