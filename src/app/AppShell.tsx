@@ -42,7 +42,8 @@ import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 
 const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
-  { to: '/quests', ru: 'Текущие задания', en: 'Current Tasks', icon: Target },
+  // «Квесты», as on the phone (owner, 13.10.2026: «Задания» → «Квесты» on the PC too).
+  { to: '/quests', ru: 'Квесты', en: 'Quests', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },

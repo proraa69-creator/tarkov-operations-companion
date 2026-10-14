@@ -31,6 +31,7 @@ import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
 import { useMobileLayout } from '../platform'
+import { PositionSetupNotice } from '../overlay/PositionSetupCard'
 import '../styles/overviewEdit.css'
 
 type Blocks = Record<string, { label: string; node: ReactNode }>
@@ -182,6 +183,7 @@ export function DashboardPage() {
         <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>
+    {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
       ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Прогресс» можно сделать узкими и поставить рядом.'
       : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}

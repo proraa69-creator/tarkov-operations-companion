@@ -5,15 +5,13 @@
 export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Связаться', 'Contact us'],
   ['Сообщить об ошибке', 'Report a bug'],
-  // «Связаться» asks first (owner, 12.10.2026)
-  ['Связаться с нами', 'Contact us'], ['Перейти в Telegram-канал Raid OS, чтобы написать нам?', 'Open the Raid OS Telegram channel to message us?'], ['Да', 'Yes'],
+  ['Да', 'Yes'],
   // Traders page 3D figure (src/components/TraderFigure.tsx)
   ['3D модель этого торговца скоро появится.', 'The 3D model of this trader is coming soon.'], ['Перетащите — повернуть · двойной клик — сброс', 'Drag to turn · double-click to reset'], ['Проведите пальцем — повернуть · двойное касание — сброс', 'Swipe to turn · double-tap to reset'],
   ['Нашёл баг или ошибку?', 'Found a bug or an error?'], ['+1 день', '+1 day'],
   ['Если ошибка подтвердится, к подписке добавится 1 день.', 'If the bug is confirmed, 1 day is added to your subscription.'],
   ['Поддержка', 'Support'],
   ['Нашли ошибку или есть вопрос?', 'Found a bug or have a question?'], ['+1 день за ошибку', '+1 day per bug'],
-  ['Напишите нам в Telegram, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.', 'Message us on Telegram, send a bug report with screenshots or share an idea for the app.'],
   ['Написать в Telegram', 'Message on Telegram'],
   ['Тема', 'Topic'],
   ['Коротко: что сломалось', 'In short: what broke'],

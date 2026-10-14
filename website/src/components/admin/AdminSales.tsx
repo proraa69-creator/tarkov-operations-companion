@@ -28,6 +28,7 @@ const ACTION_LABEL: Record<string, string> = {
   'payout.limits': 'Интервал автовыплат',
   'invite.decide': 'Решение по награде за друга',
   'bug.status': 'Статус баг-репорта',
+  'support.reply': 'Ответ в чате поддержки',
   'payments.export': 'Выгрузка платежей CSV',
   'device.revoke': 'Отключено устройство',
   'server.update-check': 'Проверка обновления сервера',

@@ -1,5 +1,6 @@
-/* «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx). The dialog reuses .registration-overlay /
-   .registration-dialog (pages.css) so every theme styles it like the other dialogs. */
+/* «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx; the chat itself is
+   src/support/supportChat.css). The dialog reuses .registration-overlay / .registration-dialog (pages.css) so every theme
+   styles it like the other dialogs. */
 .support-nav-link { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .support-overlay { overflow-y: auto; }
 .bug-report-dialog { width: min(600px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
@@ -37,16 +38,6 @@
 .support-row { display: flex; flex-wrap: wrap; gap: 8px; }
 /* Settings → «Поддержка»: the reward next to the heading */
 .support-reward { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; vertical-align: 2px; white-space: nowrap; }
-/* «Связаться» asks first (owner, 12.10.2026): «Да» opens the Telegram channel, «Нет» closes. */
-.contact-dialog { width: min(420px, 100%); animation: support-pop .2s var(--ease-out) both; }
-.contact-dialog h2 { margin-top: 0; }
-.contact-dialog p { margin: 0 0 18px; line-height: 1.5; }
-.contact-handle { color: var(--text); white-space: nowrap; }
-.contact-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.contact-actions .button { justify-content: center; }
-@keyframes support-pop { from { opacity: 0; transform: translateY(6px) scale(.97); } }
-@media (prefers-reduced-motion: reduce) { .contact-dialog { animation: support-fade .2s ease both; } }
-@keyframes support-fade { from { opacity: 0; } }
 
 /* «Сообщить об ошибке» unfolds under the chosen category (owner, 13.10.2026: «окно, которое раскладывается и
    прокручивается вверх низ»): the categories first, then the form opens (grid rows 0fr → 1fr, the content fades in once

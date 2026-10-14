@@ -135,6 +135,11 @@ export interface LevelAnchor {
   /** When the level was true: the game's screen at that moment, or Tarkov.dev's update time of the profile. */
   observedAt: string
   source: 'screen' | 'tarkov-dev'
+  /**
+   * A screen reading whose digits were also read from their shapes (src/import/levelDigits.ts). Readings stored before
+   * 14.10.2026 were OCR alone, which took the game's «3» for a «5» (PvE 39 shown as 59): any newer reading replaces those.
+   */
+  checked?: true
   /** Total experience (Tarkov.dev only): quest experience after the anchor adds to it. */
   experience?: number
 }

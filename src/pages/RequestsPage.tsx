@@ -1,12 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { Bug, CheckCircle2, ChevronDown, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, PencilRuler, RotateCcw, Users } from 'lucide-react'
+import { Bug, CheckCircle2, ChevronDown, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, RotateCcw, Users } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isOwnerApp } from '../app/buildEdition'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { useQuestPointWriter } from '../data/questPointOverrides'
-import { useOwnerReportActions, useOwnerReports, type OwnerReport, type OwnerReportDetail } from '../data/ownerRequests'
+import { useOwnerChats, useOwnerReportActions, useOwnerReports, type OwnerReport, type OwnerReportDetail } from '../data/ownerRequests'
+import { OwnerChats } from '../support/OwnerChats'
 import { cleanIpcError } from '../sync/serverSync'
 import { MATCHES_CONFIRMED, QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS } from '../shared/reportCategories'
 import type { GameMap, Quest } from '../domain/types'
@@ -60,13 +61,13 @@ const avg = (values: number[]) => Math.round(values.reduce((sum, value) => sum +
 const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const when = (iso: string) => { try { return dateTime.format(new Date(iso)) } catch { return iso } }
 
-type Tab = 'quests' | 'bugs' | 'ideas' | 'closed'
+type Tab = 'quests' | 'bugs' | 'ideas' | 'chats' | 'closed'
 
 /**
  * «Заявки» (owner app only; owner, 13.10.2026): players' quest corrections grouped by what they agree on («если она
  * сходится 2-3-4 раза значит буду в ручную менять»), bug reports and ideas. From here the owner opens the quest in the
  * constructor, applies the agreed place to the quest for every player, closes and grants subscription days. Nothing is
- * changed until the owner does it.
+ * changed until the owner does it. «Чаты»: the players' support chats, answered here (support/OwnerChats.tsx).
  */
 export function RequestsPage() {
   if (!isOwnerApp()) return <Navigate to="/" replace />
@@ -77,6 +78,7 @@ function Requests() {
   const [tab, setTab] = useState<Tab>('quests')
   const open = useOwnerReports('open')
   const closed = useOwnerReports('closed')
+  const chats = useOwnerChats()
   const data = useOptionalTarkovData()?.data
   const reports = useMemo(() => open.data ?? [], [open.data])
   const groups = useMemo(() => groupQuestReports(reports), [reports])
@@ -86,6 +88,7 @@ function Requests() {
     { id: 'quests', label: 'Квесты', count: reports.filter((report) => report.quest).length, icon: MapPinned },
     { id: 'bugs', label: 'Ошибки', count: bugs.length, icon: Bug },
     { id: 'ideas', label: 'Предложения', count: ideas.length, icon: Lightbulb },
+    { id: 'chats', label: 'Чаты', count: chats.data?.unread, icon: MessagesSquare },
     { id: 'closed', label: 'Закрытые', icon: CheckCircle2 },
   ]
   const error = open.error instanceof Error ? cleanIpcError(open.error) : ''
@@ -112,6 +115,7 @@ function Requests() {
         : !open.isLoading && <EmptyRequests text="Исправлений квестов пока нет." />)}
       {tab === 'bugs' && (bugs.length ? bugs.map((report) => <ReportCard key={report.id} report={report} />) : !open.isLoading && <EmptyRequests text="Открытых отчётов об ошибках нет." />)}
       {tab === 'ideas' && (ideas.length ? ideas.map((report) => <ReportCard key={report.id} report={report} />) : !open.isLoading && <EmptyRequests text="Новых предложений нет." />)}
+      {tab === 'chats' && <OwnerChats />}
       {tab === 'closed' && ((closed.data ?? []).length ? (closed.data ?? []).map((report) => <ReportCard key={report.id} report={report} />) : !closed.isLoading && <EmptyRequests text="Закрытых заявок нет." />)}
     </div>
   )

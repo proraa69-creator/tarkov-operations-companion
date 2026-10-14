@@ -143,6 +143,11 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   background: linear-gradient(0deg, color-mix(in srgb, var(--surf-1) 88%, transparent) 0%, color-mix(in srgb, var(--surf-1) 52%, transparent) 34%, transparent 64%);
 }
 :root[data-layout="mobile"] .raid-content > * { pointer-events: auto; }
+/* The name and the buttons always over the bosses: on the iPhone a boss being drawn by the graphics chip (fading in,
+   lit by a touch) came out over them now and then while the page scrolled (owner's recording, 14.10.2026). The card
+   keeps its layers to itself and the text gets a layer of its own, which WebKit stacks by z-index. */
+:root[data-layout="mobile"] .raid-card { isolation: isolate; }
+:root[data-layout="mobile"] .raid-content { transform: translateZ(0); }
 :root[data-layout="mobile"] .raid-map-name { margin-top: 0; font-size: 34px; text-shadow: 0 2px 12px rgb(0 0 0 / 85%); }
 :root[data-layout="mobile"] .raid-actions { flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
@@ -167,6 +172,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 }
 .mobile-more-grid .nav-link.mobile-more-link span { display: block; overflow-wrap: anywhere; }
 .mobile-more-grid .nav-link.mobile-more-link.active::before { display: none; }
+/* «Чат с поддержкой» opens a sheet, not a page: a button that looks like the links. */
+.mobile-more-grid button.nav-link.mobile-more-link { font-family: inherit; background-color: transparent; cursor: pointer; }
 .mobile-more-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .mobile-more-tools .button { flex: 1 1 120px; }
 .mobile-more-tools .locale-switch button { min-width: 48px; min-height: 38px; }
@@ -188,7 +195,10 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 :root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .layer-button { min-height: 42px; }
-:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px); min-height: 360px; }
+/* The page scrolls under the top bar and the tab bar: the map's own layers (Leaflet panes, z-index 400+) stay inside the
+   map instead of being drawn over both bars. */
+/* The owner's notice above the page takes its height from the map, so the whole map still fits under it. */
+:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px - var(--announcement-height, 0px)); min-height: 360px; isolation: isolate; }
 :root[data-layout="mobile"] .map-hud { left: 8px; top: 8px; gap: 5px; max-width: calc(100% - 64px); }
 :root[data-layout="mobile"] .map-hud > span:nth-child(2), :root[data-layout="mobile"] .map-hud > span:nth-child(3) { display: none; }
 :root[data-layout="mobile"] .map-layers-toggle {

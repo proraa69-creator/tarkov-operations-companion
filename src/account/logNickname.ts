@@ -205,9 +205,10 @@ export function bindNicknameFromLogs(result: Pick<ModeLogScanResult, 'latestAcco
 }
 
 /**
- * The game's «Выбор профиля и режима» cards (two readings agreed on each, electron/screenOcr.ts): every mode's level at
- * once, and the nickname when all the cards show the same one. The spelling the app knows stays when the screen shows
- * the same name; another name replaces it (the player renamed the character, or typed it wrong).
+ * The game's «Выбор профиля и режима» cards (an OCR reading and the digits' shapes agreed on each level,
+ * electron/screenOcr.ts): every mode's level at once, and the nickname when all the cards that read one show the same.
+ * The spelling the app knows stays when the screen shows the same name; another name replaces it (the player renamed
+ * the character, or typed it wrong).
  */
 export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: number, state: () => LogNicknameTarget) {
   if (!cards.length) return
@@ -233,8 +234,8 @@ let lastTrader: { at: number; key: string } | null = null
 
 /**
  * The traders' screen (two readings agreed, electron/screenOcr.ts): the level of the mode the game is in now (`mode`, from
- * the logs; nothing without it) — raised only, it does not name its mode — the player's nickname marked «(вы)» and the
- * traders' loyalty levels.
+ * the logs; nothing without it) — raised only, it does not name its mode, and only as far as play since the last reading
+ * allows (src/domain/progress.ts) — the player's nickname marked «(вы)» and the traders' loyalty levels.
  */
 export function applyTraderScreen(reading: TraderScreenReading, mode: RaidMode | undefined, observedAt: number, state: () => LogNicknameTarget) {
   // The traders' loyalty levels of the mode the game is in (the badges on the portraits): the game's own, so they win

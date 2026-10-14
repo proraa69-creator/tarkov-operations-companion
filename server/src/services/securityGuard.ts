@@ -136,10 +136,11 @@ export function bodyInjection(body: unknown, budget = 16_384) {
 const LOGIN_PATHS = /^\/v1\/accounts\/(?:login|email\/login|phone\/login|login-codes\/redeem|register\/confirm|email\/reset|phone\/reset)\/?$/
 export const isLoginPath = (path: string) => LOGIN_PATHS.test(path)
 /**
- * Personal documents (settings, Collector, notes) and bug reports (a description may quote code or SQL, screenshots are
- * base64): free text the user owns, never scanned for markers.
+ * Personal documents (settings, Collector, notes, the player's support chat), bug reports (a description may quote code
+ * or SQL, screenshots are base64) and the owner's answers in the support chat (routes/supportChat.ts): free text people
+ * own, never scanned for markers.
  */
-const UNSCANNED_PATHS = /^\/v1\/(?:me\/|bug-reports\/?$)/
+const UNSCANNED_PATHS = /^\/v1\/(?:me\/|bug-reports\/?$|accounts\/me\/admin\/support\/)/
 
 function safeDecode(text: string) {
   try { return decodeURIComponent(text.replace(/\+/g, ' ')) } catch { return text }

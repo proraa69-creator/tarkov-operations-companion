@@ -622,6 +622,7 @@ export function MapsPage() {
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <FocusOnMarker marker={flyTarget} />
           <MapRefCapture mapRef={mapRef} />
+          <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
@@ -949,6 +950,22 @@ function MapRefCapture({ mapRef }: { mapRef: { current: LeafletMap | null } }) {
     mapRef.current = map
     return () => { mapRef.current = null }
   }, [map, mapRef])
+  return null
+}
+
+/**
+ * The map's box changes without a window resize: the owner's notice above the page arrives or goes (the phone's map
+ * gives it its height), a sheet or the iPhone keyboard opens. Leaflet keeps the old size until told, and then centres
+ * on and loads the pictures for a box that is no longer there.
+ */
+function FollowContainerSize() {
+  const map = useMap()
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => map.invalidateSize({ pan: false }))
+    observer.observe(map.getContainer())
+    return () => observer.disconnect()
+  }, [map])
   return null
 }
 

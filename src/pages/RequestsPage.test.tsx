@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppDataset } from '../domain/types'
-import type { OwnerReport } from '../data/ownerRequests'
+import type { OwnerChatThread, OwnerReport } from '../data/ownerRequests'
 
 /** «Заявки» (owner app, owner 13.10.2026): agreeing quest corrections grouped; the owner applies, closes, grants days. */
 const data = {
@@ -27,13 +27,29 @@ const bug: OwnerReport = { id: 7, kind: 'bug', category: 'map', topic: 'Карт
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); Reflect.deleteProperty(window, 'tarkovDesktop') })
 
-function ownerApp(reports: OwnerReport[], edition: 'owner' | 'client' = 'owner') {
+const PLAYER = 'a1b2c3d4e5f6a1b2c3d4e5f6'
+const chat = (unread: number): OwnerChatThread => ({
+  accountId: PLAYER, email: 'p1@mail.ru', nickname: 'Shturman_77', unread, lastAt: '2026-10-13T10:00:00.000Z',
+  lastMessage: { id: 2, author: 'user', text: 'Карта Таможни не грузится', createdAt: '2026-10-13T10:00:00.000Z', read: false },
+})
+
+function ownerApp(reports: OwnerReport[], edition: 'owner' | 'client' = 'owner', chats: OwnerChatThread[] = []) {
   const calls: Array<[string, string, unknown]> = []
   const serviceRequest = vi.fn(async (method: string, path: string, body?: unknown) => {
     calls.push([method, path, body])
     if (path.startsWith('/v1/accounts/me/admin/bug-reports?status=open')) return { reports }
     if (path.startsWith('/v1/accounts/me/admin/bug-reports?status=closed')) return { reports: [] }
-    if (path.startsWith('/v1/accounts/me/admin/requests/events')) return path.includes('since') ? new Promise(() => {}) : { version: 5, open: reports.length }
+    if (path.startsWith('/v1/accounts/me/admin/requests/events')) return path.includes('since') ? new Promise(() => {}) : { version: 5, open: reports.length, ...(chats.length ? { unreadChats: chats.filter((entry) => entry.unread).length } : {}) }
+    // «Чаты» (server/src/routes/supportChat.ts)
+    if (path.startsWith('/v1/accounts/me/admin/support/threads?')) return { threads: chats, total: chats.length, unread: chats.filter((entry) => entry.unread).length }
+    if (path === `/v1/accounts/me/admin/support/threads/${PLAYER}`) {
+      return { account: { id: PLAYER, email: 'p1@mail.ru', nickname: 'Shturman_77' }, messages: [
+        { id: 1, author: 'user', text: 'Здравствуйте!', createdAt: '2026-10-13T09:59:00.000Z', read: false },
+        { id: 2, author: 'user', text: 'Карта Таможни не грузится', createdAt: '2026-10-13T10:00:00.000Z', read: false },
+      ] }
+    }
+    if (method === 'POST' && path === `/v1/accounts/me/admin/support/threads/${PLAYER}/messages`) return { message: { id: 3, author: 'owner', text: (body as { text: string }).text, createdAt: '2026-10-13T10:05:00.000Z', read: false } }
+    if (method === 'POST' && path === `/v1/accounts/me/admin/support/threads/${PLAYER}/read`) return null
     if (path === '/v1/accounts/me/admin/quest-points') return { overrides: [] }
     return { report: reports[0] }
   })
@@ -93,6 +109,40 @@ describe('«Заявки»', () => {
       ['/v1/accounts/me/admin/bug-reports/1/status', { status: 'closed' }], ['/v1/accounts/me/admin/bug-reports/2/status', { status: 'closed' }],
     ]))
     expect(await screen.findByText('Точка применена, заявки закрыты')).toBeInTheDocument()
+  })
+
+  it('the «Заявки» badge counts the open reports and the chats with unread messages', async () => {
+    ownerApp([bug], 'owner', [chat(2)])
+    const nav = await screen.findByRole('navigation', { name: 'Заявки' })
+    expect(await within(nav).findByLabelText('Открытых заявок: 2')).toHaveTextContent('2')
+  })
+
+  it('«Чаты»: the conversations with the unread ones counted; opening one shows it, marks it read, and the owner answers (owner, 13.10.2026)', async () => {
+    const { calls } = ownerApp([], 'owner', [chat(2)])
+    const user = userEvent.setup()
+    const tab = await screen.findByRole('tab', { name: /Чаты/ })
+    await waitFor(() => expect(tab).toHaveTextContent('Чаты1'))
+    await user.click(tab)
+    const thread = await screen.findByRole('button', { name: /Shturman_77/ })
+    expect(thread).toHaveTextContent('Карта Таможни не грузится')
+    expect(within(thread).getByLabelText('Непрочитанных: 2')).toBeInTheDocument()
+    expect(screen.getByText('Выберите переписку слева.')).toBeInTheDocument()
+
+    await user.click(thread)
+    const view = await screen.findByRole('region', { name: 'Shturman_77' })
+    expect(within(view).getByText('p1@mail.ru')).toBeInTheDocument()
+    const first = await within(view).findByText('Здравствуйте!')
+    // The player's messages on the left: they are not the owner's own.
+    expect(first.closest('.support-chat-message')).not.toHaveClass('is-own')
+    await waitFor(() => expect(calls.some(([method, path]) => method === 'POST' && path === `/v1/accounts/me/admin/support/threads/${PLAYER}/read`)).toBe(true))
+
+    const box = within(view).getByRole('textbox', { name: 'Сообщение' })
+    expect(box).toHaveAttribute('placeholder', 'Ответ игроку…')
+    await user.type(box, 'Добрый день! Уже чиним.{Enter}')
+    await waitFor(() => expect(calls.filter(([method, path]) => method === 'POST' && path.endsWith('/messages')).map(([, path, body]) => [path, body])).toEqual([
+      [`/v1/accounts/me/admin/support/threads/${PLAYER}/messages`, { text: 'Добрый день! Уже чиним.' }],
+    ]))
+    await waitFor(() => expect(box).toHaveValue(''))
   })
 
   it('«Открыть в конструкторе» opens the quest on its map with the agreed place; bug reports have their own tab', async () => {

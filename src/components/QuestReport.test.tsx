@@ -35,7 +35,8 @@ describe('«Сообщить об ошибке» → «Квест»', () => {
     await user.type(screen.getByRole('textbox', { name: 'Заметка к квесту' }), 'Нужно найти 2 посылки')
     await user.click(screen.getByRole('button', { name: 'Отправить отчёт' }))
     expect(await screen.findByText('Спасибо! Отчёт отправлен')).toBeInTheDocument()
-    const body = serviceRequest.mock.calls[0]![2] as Record<string, unknown>
+    // The other calls are the support chat's (the badge on «Связаться»).
+    const body = serviceRequest.mock.calls.find(([, path]) => path === '/v1/bug-reports')![2] as Record<string, unknown>
     expect(body.category).toBe('quest')
     expect(body.description).toBe('')
     expect(body.quest).toEqual({ questId: 'q-parcel', issue: 'wrong-text', mode: 'pvp', questNote: 'Нужно найти 2 посылки' })

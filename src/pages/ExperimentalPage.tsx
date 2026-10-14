@@ -5,6 +5,7 @@ import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from
 import { gameKeyLabel, isPrintScreen, SCREENSHOT_KEY_CHOICES } from '../overlay/gameKeys'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
+import { PositionSetupCard } from '../overlay/PositionSetupCard'
 import './experimentalPage.css'
 
 const OVERLAY_NOTE = 'Мини-карта и карточка предмета показываются поверх игры. Для этого в настройках графики поставьте режим экрана «Безрамочный».'
@@ -88,6 +89,7 @@ export function ExperimentalPage() {
         <>
           {actionError && <p className="notice error" role="alert">{actionError}</p>}
           {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
+          {status && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
           <section className={`panel exp-warning${status?.displayMode === 'exclusive' ? ' is-alert' : ''}`}>
             <div className="panel-body">
               <AlertTriangle size={18} />

@@ -6,6 +6,8 @@ import { app } from 'electron'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 
 const POLL_MS = 1000
+/** An unchanged folder is listed again after this long anyway (a file system that does not update folder times). */
+const RELIST_MS = 5000
 
 let override = ''
 
@@ -66,7 +68,8 @@ let folderCache: { at: number; folder: string } | null = null
  */
 export function screenshotsFolder() {
   if (process.env.TARKOV_SCREENSHOTS_DIR) return process.env.TARKOV_SCREENSHOTS_DIR
-  if (folderCache && Date.now() - folderCache.at < 5000) return folderCache.folder
+  // Lists every candidate folder synchronously (players keep thousands of screenshots): not more than twice a minute.
+  if (folderCache && Date.now() - folderCache.at < 30_000) return folderCache.folder
   let folder: string
   if (override && newestScreenshotTime(override) > 0) folder = override
   else {
@@ -90,6 +93,9 @@ export class PositionTracker {
   lastSeen: { folder: string; name: string; withCoordinates: boolean; at: number } | null = null
   private folder = ''
   private lastFolderCheck = 0
+  /** The folder's time at the last full listing: adding a file changes it, so an unchanged folder is not listed again. */
+  private listedFolderTime = -1
+  private listedAt = 0
   private busy = false
   /** Screenshots that existed before the tracker started belong to the player and are never touched. */
   private preexisting = new Set<string>()
@@ -156,6 +162,11 @@ export class PositionTracker {
         if (detected !== this.folder) { this.stop(); await this.start(); return }
       }
       const folder = this.folder
+      // The poll runs every second: list the folder only when something was added (or now and then all the same).
+      const folderTime = (await stat(folder).catch(() => null))?.mtimeMs ?? -1
+      if (!includePreexisting && folderTime === this.listedFolderTime && Date.now() - this.listedAt < RELIST_MS) return
+      this.listedFolderTime = folderTime
+      this.listedAt = Date.now()
       const all = await readdir(folder).catch(() => [] as string[])
       const fresh = all.filter((name) => /\.(png|jpe?g|bmp)$/i.test(name) && !this.preexisting.has(name))
       let newFile: PositionTracker['lastSeen'] = null

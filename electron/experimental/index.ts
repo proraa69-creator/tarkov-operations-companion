@@ -18,11 +18,12 @@ import { InputWatch, reattachInput } from './inputReattach.js'
 import { isTrustedAppPage } from '../ipcGuard.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
+import { positionProblem } from '../../src/overlay/positionReadiness.js'
 import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
 import { readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
 import { zoomToDisplay } from '../uiScale.js'
 import {
-  captureScreenRegion, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping,
+  captureScreenRegion, disablePrintScreenSnipping, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, pressKeys, printScreenOpensSnipping, wasVirtualKeyPressed,
   type DisplayMode, type KeyStroke,
 } from './win32.js'
 
@@ -65,10 +66,16 @@ let hitTimer: NodeJS.Timeout | null = null
 /** Click-through state of the minimap window (see src/overlay/minimapClicks.ts). */
 const minimapClicks = initialMinimapClicks()
 
+/**
+ * Click-through without Electron's `forward` option: forwarding mouse moves to an ignoring window installs a low-level
+ * mouse hook on the main process's thread, and every pause of that thread (OCR, a screen copy, garbage collection)
+ * then froze the cursor in every program, the game included (players, 13.10.2026: «мышь дёргается и замораживается»,
+ * «Micro freezes»). The overlays need no forwarded moves: the hit loop below decides when a window takes the mouse.
+ */
 function setMinimapInteractive(window: BrowserWindow, value: boolean) {
   if (value) interactive.add(window)
   else interactive.delete(window)
-  window.setIgnoreMouseEvents(!value, { forward: true })
+  window.setIgnoreMouseEvents(!value)
 }
 
 /**
@@ -341,6 +348,15 @@ function registerIpc() {
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
   // Only opens the Windows settings page; the player changes the setting there.
   ipcMain.handle('experimental:open-keyboard-settings', () => shell.openExternal('ms-settings:easeofaccess-keyboard').then(() => true, () => false))
+  // «Включить точку» (owner, 13.10.2026: «сделай включение точки на миникарте проще»): on the player's click the app turns
+  // off «PrtSc opens the Snipping Tool» for this Windows user, so the game gets the key and writes its screenshot.
+  ipcMain.handle('experimental:fix-snipping', async () => {
+    const ok = await disablePrintScreenSnipping()
+    snipping = null
+    const state = await snippingState()
+    if (minimapWindow?.isVisible()) void sendPositionHint()
+    return { ok, snipping: state }
+  })
 }
 
 let appliedScreenshotsDir: string | null = null
@@ -373,16 +389,19 @@ function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: {
 }
 
 function startHook() {
-  // A native polling fallback works even when a low-level hook misses a game input event.
+  // The keys are polled (GetAsyncKeyState, 40 ms; a press shorter than that still sets its «pressed» bit). The global
+  // uiohook hook is started only where that is unavailable: it hooked the mouse too, and every move of a 1–8 kHz mouse
+  // became an event on the main process's thread, only to read a few hotkeys.
+  const keyDown = (vk: number) => wasVirtualKeyPressed(vk)
   let previousMap = false
   let previousItem = false
   let previousCollector = false
   keyTimer = setInterval(() => {
     const settings = readSettings()
-    const map = isVirtualKeyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d)
-    const item = isVirtualKeyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
+    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d)
+    const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
     const collectorVk = HOTKEYS[settings.collectorKey]?.vk
-    const collector = collectorVk ? isVirtualKeyDown(collectorVk) : false
+    const collector = collectorVk ? keyDown(collectorVk) : false
     if (collector && !previousCollector && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       options.mainWindow()?.webContents.send('experimental:collector-scan')
@@ -405,6 +424,8 @@ function startHook() {
   }, 40)
   try {
     hook = require('uiohook-napi') as UiohookModule
+    // Kept for pressing PrtSc (pressScreenshotKeys); its listener only where the key state cannot be polled.
+    if (nativeKeysAvailable()) return
     const { uIOhook, UiohookKey } = hook
     uIOhook.on('keydown', (event) => {
       if (event.ctrlKey || event.altKey || event.metaKey) return
@@ -575,7 +596,7 @@ function overlayWindow(route: 'item' | 'minimap', size: { width: number; height:
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event, url) => { if (!isTrustedAppPage(url)) event.preventDefault() })
   window.setAlwaysOnTop(true, 'screen-saver')
-  window.setIgnoreMouseEvents(true, { forward: true })
+  window.setIgnoreMouseEvents(true)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   options.load(window, `/overlay/${route}`)
   return window
@@ -588,7 +609,7 @@ function reassertOverlay(window: BrowserWindow) {
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   // Reasserting the native topmost styles can reset hit testing after hide/show.
-  window.setIgnoreMouseEvents(!interactive.has(window), { forward: true })
+  window.setIgnoreMouseEvents(!interactive.has(window))
   window.moveTop()
 }
 
@@ -926,7 +947,17 @@ async function toggleMinimap(fromApp: boolean) {
     window.hide()
     return false
   }
+  void sendPositionHint()
   return openMinimap(window, fromApp)
+}
+
+/**
+ * The minimap's line about the player's dot when it cannot come (src/overlay/positionReadiness.ts): what stops the
+ * game's screenshot, in the minimap itself, so the player learns it in the raid instead of guessing. Null clears it.
+ */
+async function sendPositionHint() {
+  const problem = positionProblem({ native: nativeKeysAvailable(), key: await resolveScreenshotKey(), snipping: await snippingState(), elevated: isElevated(), gameKeys: gameKeysState() })
+  sendOverlay(minimapWindow, 'overlay:hint', problem)
 }
 
 /** How long the minimap stays open after a screenshot the player took. */

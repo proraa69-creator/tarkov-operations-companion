@@ -60,6 +60,8 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
+import { createSupportChatRouter, type SupportChatLimits } from './routes/supportChat.js'
+import { SupportChatStore } from './services/supportChatStore.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
@@ -121,6 +123,8 @@ export interface ApiOptions {
   bugReportLimits?: Partial<BugReportLimits>
   /** Every report to the owner's mailbox as a PDF (services/bugReportMail.ts): the e-mail provider and the address. */
   bugReportMail?: { sender?: EmailSender; to?: string }
+  /** «Чат с поддержкой» (routes/supportChat.ts): per-account / per-IP limits of the players' messages for tests. */
+  supportChatLimits?: Partial<SupportChatLimits>
 }
 
 /**
@@ -180,8 +184,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).
   const bugReports = new BugReportStore(accounts.database, { now: accounts.clock })
   const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
-  // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed (routes/bugReports.ts).
-  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount() }))
+  // «Чат с поддержкой» (routes/supportChat.ts, mounted with the players' routes below): its unread conversations count on
+  // the same «Заявки» badge.
+  const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock })
+  // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
+  // the support chat (routes/bugReports.ts).
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount(), unreadChats: supportChat.unreadThreads() }))
   app.use(createBugReportsRouter(accounts, bugReports, {
     limits: options.bugReportLimits,
     signals: reportSignals,
@@ -253,6 +261,15 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
+  // «Чат с поддержкой»: before /v1/me, whose router answers every other path under it. The owner's answer reaches the
+  // player's app through the social events, a player's message the owner app through the «Заявки» wait.
+  app.use(createSupportChatRouter(accounts, supportChat, {
+    limits: options.supportChatLimits,
+    social: socialSignals,
+    ownerSignals: reportSignals,
+    now: accounts.clock,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
   circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile })
