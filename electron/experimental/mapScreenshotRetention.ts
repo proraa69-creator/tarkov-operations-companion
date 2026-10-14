@@ -5,7 +5,10 @@ import { isPositionScreenshot } from '../../src/overlay/screenshotPosition.js'
 interface Request { folder: string; before: Set<string>; sentAt: number }
 interface OwnedFile { path: string; folder: string; size: number; mtimeMs: number; birthtimeMs: number }
 
-/** Only one unambiguous coordinate image following a successful app keypress can be owned. */
+/**
+ * Only one unambiguous coordinate image following a press of the minimap key can be owned — when the game's «Скриншот» is
+ * on that same key, so the press made the game write it (the app itself presses nothing). The newest owned one is kept.
+ */
 export class MapScreenshotRetention {
   private requests: Request[] = []
   private latest: OwnedFile | null = null
