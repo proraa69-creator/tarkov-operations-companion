@@ -13,6 +13,12 @@ describe('overlayEnglish', () => {
     expect(result).toMatchObject({ name: 'Gratitude', description: 'Hand over 3 Bottles of water', wikiLink: 'https://escapefromtarkov.fandom.com/wiki/Gratitude' })
   })
 
+  it('keeps the game\'s Russian and English titles for the screen reader', () => {
+    const ru = dataset([quest({})])
+    const [result] = overlayEnglish(ru, dataset([quest({ name: 'Gratitude' })])).quests
+    expect(result).toMatchObject({ name: 'Gratitude', nameRu: 'Благодарность', nameEn: 'Gratitude' })
+  })
+
   it('keeps counts and ids from the Russian catalog', () => {
     const ru = dataset([quest({ id: 'a' }), quest({ id: 'b' })])
     expect(overlayEnglish(ru, dataset([quest({ id: 'a', name: 'A' })])).quests.map((entry) => entry.id)).toEqual(['a', 'b'])

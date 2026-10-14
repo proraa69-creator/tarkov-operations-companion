@@ -402,7 +402,17 @@ export interface BuildGuidePart {
 export interface Quest {
   id: string
   normalizedName?: string
+  /** The title in the app's language. */
   name: string
+  /**
+   * The title as the game shows it in Russian and in English, whatever the app's language: the screen reader matches
+   * both, so a Russian game read by the English app (or the other way round) still finds its quests (product roadmap:
+   * «Quest counts must not change when switching interface language»). Absent from catalogs that do not carry them.
+   */
+  nameRu?: string
+  nameEn?: string
+  /** Other titles the game has shown for this quest (renames, the owner's corrections), for the same matching. */
+  ocrAliases?: string[]
   trader: string
   /**
    * Trader loyalty the task tells about (tarkov.dev, by trader id): `needed` to take it (`traderRequirements` of type

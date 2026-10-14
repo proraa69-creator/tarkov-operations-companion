@@ -49,6 +49,9 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
         ...quest,
         trader,
         name,
+        // The game's titles in both languages stay known to the screen reader whatever the app's language.
+        nameRu: quest.nameRu || quest.name,
+        nameEn: english?.name || quest.nameEn,
         description: englishOr(english?.description || quest.description, summary || 'See the objectives below.'),
         objectives,
         // Objectives are matched by id: the display lines may be deduplicated and shift.
