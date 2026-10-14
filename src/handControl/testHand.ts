@@ -16,6 +16,8 @@ export interface SyntheticHand {
   fingers?: Partial<Record<Finger, boolean | number>>
   /** thumb tip in metres relative to the wrist; default tucked against the hand */
   thumbTip?: Point3
+  /** whole hand tilted towards the camera around the wrist, degrees (wrist bent down) */
+  tilt?: number
   score?: number
   t: number
 }
@@ -25,7 +27,7 @@ const FRAME_H = 480
 const MCP_X: Record<Finger, number> = { index: -0.03, middle: -0.01, ring: 0.01, pinky: 0.03 }
 
 /** Builds a plausible MediaPipe-shaped observation for tests: palm facing the camera, fingers up. */
-export function syntheticHand({ x, y, k, fingers = {}, thumbTip, score = 0.95, t }: SyntheticHand): HandObservation {
+export function syntheticHand({ x, y, k, fingers = {}, thumbTip, tilt = 0, score = 0.95, t }: SyntheticHand): HandObservation {
   const world: Point3[] = new Array(21)
   world[0] = { x: 0, y: 0, z: 0 }
   world[1] = { x: -0.03, y: -0.02, z: 0 }
@@ -55,6 +57,13 @@ export function syntheticHand({ x, y, k, fingers = {}, thumbTip, score = 0.95, t
     world[base + 2] = dip
     world[base + 3] = tip
   })
+  if (tilt) {
+    const a = (tilt * Math.PI) / 180
+    for (let i = 0; i < world.length; i++) {
+      const p = world[i]
+      world[i] = { x: p.x, y: p.y * Math.cos(a) - p.z * Math.sin(a), z: p.y * Math.sin(a) + p.z * Math.cos(a) }
+    }
+  }
   const image = world.map((point) => ({ x: x + (point.x * k) / FRAME_W, y: y + (point.y * k) / FRAME_H, z: point.z }))
   return { t, image, world, score, handedness: 'Right', frameWidth: FRAME_W, frameHeight: FRAME_H }
 }

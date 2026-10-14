@@ -365,3 +365,31 @@ describe('HandGestureEngine — fist resets', () => {
     expect(types(fist.events)).toEqual(['scroll-end'])
   })
 })
+
+describe('HandGestureEngine — wrist tilt is not a finger gesture', () => {
+  it('bending the wrist down from a vertical hand (index comes towards the camera) neither taps nor freezes', () => {
+    const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, clickMode: 'both' })
+    run(engine, 0, 800, () => ({ x: 0.5, y: 0.5, k: 1000, fingers: { index: 10 } }))
+    // Wrist bends the whole hand 70° towards the camera; the index looks a little more folded too.
+    const tilt = run(engine, 800, 300, (_t, p) => ({ x: 0.5, y: 0.5, k: 1000, fingers: { index: lerp(10, 75, p) }, tilt: 70 * p }))
+    const hold = run(engine, tilt.end, 600, () => ({ x: 0.5, y: 0.5, k: 1000, fingers: { index: 75 }, tilt: 70 }))
+    const back = run(engine, hold.end, 300, (_t, p) => ({ x: 0.5, y: 0.5, k: 1000, fingers: { index: lerp(75, 10, p) }, tilt: 70 * (1 - p) }))
+    expect([...tilt.events, ...hold.events, ...back.events]).toEqual([])
+    expect([...tilt.frames, ...hold.frames].every((frame) => frame.pressProgress < ENGINE.freezeAt)).toBe(true)
+  })
+
+  it('a two-finger hand tilting forward does not scroll a step', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    run(engine, 600, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
+    const tilt = run(engine, 900, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(15, 45, p), middle: lerp(15, 45, p) }, tilt: 70 * p }))
+    expect(tilt.events.filter((event) => event.type === 'scroll')).toEqual([])
+  })
+
+  it('a real tap with the hand slightly tilted still clicks', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, tilt: 40 }))
+    const result = tap(engine, rest.end, { extra: { tilt: 40 } })
+    expect(types(result.events)).toEqual(['press', 'click'])
+  })
+})

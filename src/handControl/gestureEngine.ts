@@ -82,10 +82,20 @@ export const ENGINE = {
   fistHoldMs: 200,
   fistHoldScrollMs: 700,
   fistFormedMs: 600,
+  /**
+   * Finger gestures must be made by the fingers, not by the wrist. Tilting the whole hand (e.g.
+   * bending the wrist down from a vertical hand) turns the palm and brings the index towards the
+   * camera, which can look like a fold. Measured on real taps the palm turns 16–29° during the
+   * fold while the finger folds ~80°; so a fold counts only if the palm turned at most
+   * `maxPalmTurn` and the finger folded at least `foldToTurn` times more than the palm turned.
+   */
+  maxPalmTurn: 35,
+  foldToTurn: 2,
+  maxPushTurn: 30,
 } as const
 
 type Pose = Record<FingerName, boolean>
-type Sample = { t: number; x: number; y: number; flexIndex: number; flexTwo: number; pinch: number; thumb: Point3; tip: Point3; depth: number; palmX: number; palmY: number }
+type Sample = { t: number; x: number; y: number; flexIndex: number; flexTwo: number; pinch: number; thumb: Point3; tip: Point3; depth: number; palmX: number; palmY: number; palmDir: Point3 }
 
 const vectorFilter = (minCutoff: number, beta: number) => ({
   x: new OneEuroFilter(30, minCutoff, beta),
@@ -94,6 +104,17 @@ const vectorFilter = (minCutoff: number, beta: number) => ({
 })
 
 const distance3 = (a: Point3, b: Point3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+
+/** Unit direction wrist → middle knuckle in camera-aligned world space (the palm's "up"). */
+function palmDirection(world: Point3[]): Point3 {
+  const x = world[LM.MIDDLE_MCP].x - world[LM.WRIST].x
+  const y = world[LM.MIDDLE_MCP].y - world[LM.WRIST].y
+  const z = world[LM.MIDDLE_MCP].z - world[LM.WRIST].z
+  const n = Math.hypot(x, y, z) || 1
+  return { x: x / n, y: y / n, z: z / n }
+}
+
+const angleDeg = (a: Point3, b: Point3) => (Math.acos(Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z))) * 180) / Math.PI
 
 /**
  * Turns raw hand observations into pointer, press, scroll, zoom and grab state:
@@ -187,8 +208,11 @@ export class HandGestureEngine {
     const flexTwo = (flexIndex + fingerFlex(world, 'middle')) / 2
     const pinch = pinchDistance(world)
     const depth = this.updateDepth(observation, seconds, dt)
-    this.history.push({ t, x: pointer.x, y: pointer.y, flexIndex, flexTwo, pinch, thumb: world[LM.THUMB_TIP], tip: world[LM.INDEX_TIP], depth, palmX: palm.x, palmY: palm.y })
+    const palmDir = palmDirection(world)
+    this.history.push({ t, x: pointer.x, y: pointer.y, flexIndex, flexTwo, pinch, thumb: world[LM.THUMB_TIP], tip: world[LM.INDEX_TIP], depth, palmX: palm.x, palmY: palm.y, palmDir })
     while (this.history.length && t - this.history[0].t > ENGINE.historyMs) this.history.shift()
+    // How far the whole hand turned during the last fold window (wrist bends, hand tilts).
+    const palmTurn = this.palmTurnSince(t - ENGINE.foldWindowMs, palmDir)
 
     const scrollPose = this.pose.index && this.pose.middle && !this.pose.ring && !this.pose.pinky
     const openPalm = this.pose.index && this.pose.middle && this.pose.ring && this.pose.pinky && thumbOut(world) >= ENGINE.thumbOutOpen
@@ -198,7 +222,9 @@ export class HandGestureEngine {
     const indexRecent = t - this.indexExtendedAt <= ENGINE.indexRecentMs
     // A tap folds the index alone: if the other fingers were open a moment ago, this is a fist forming.
     const othersFolded = t - this.middleExtendedAt > ENGINE.foldWindowMs
-    const tapProgress = useTap && indexRecent && othersFolded && !openPalm && !this.fistLock ? clamp01((flexIndex - tapBase) / settings.tapAngle) : 0
+    const fingerFold = flexIndex - tapBase
+    const madeByFinger = palmTurn <= ENGINE.maxPalmTurn && fingerFold >= palmTurn * ENGINE.foldToTurn
+    const tapProgress = useTap && indexRecent && othersFolded && madeByFinger && !openPalm && !this.fistLock ? clamp01(fingerFold / settings.tapAngle) : 0
     const pokeProgress = usePoke && this.pose.index && !scrollPose && !openPalm ? clamp01(depth / settings.pressThreshold) : 0
     const grabProgress = settings.palmGrab && openPalm ? clamp01(depth / settings.grabThreshold) : 0
     const progress = Math.max(tapProgress, pokeProgress, grabProgress)
@@ -211,7 +237,7 @@ export class HandGestureEngine {
     if (this.phase === 'point') this.updateAim(t, pointer, tapProgress)
 
     if (this.phase === 'scroll' && this.scroll) {
-      this.updateScroll(events, t, scrollPose, openPalm, flexTwo, palm.y)
+      this.updateScroll(events, t, scrollPose, openPalm, flexTwo, palm.y, palmTurn)
     } else if (this.phase === 'press' && this.press) {
       this.updatePress(events, t, flexIndex, depth)
     } else if (this.phase === 'grab' && this.grab) {
@@ -223,7 +249,7 @@ export class HandGestureEngine {
       } else this.scrollPoseSince = Number.NaN
 
       const ready = tracking === 'good' && t >= this.cooldownUntil && !this.fistLock
-      if (ready && settings.palmGrab && openPalm && this.isPush(t, depth, settings.grabThreshold)) {
+      if (ready && settings.palmGrab && openPalm && palmTurn <= ENGINE.maxPushTurn && this.isPush(t, depth, settings.grabThreshold)) {
         const id = this.nextId++
         const start = this.pushStart(t, pointer)
         // Drag relative to where the palm is now (the push itself shifts the image of the hand).
@@ -236,12 +262,12 @@ export class HandGestureEngine {
         this.exitPoseSince = Number.NaN
         this.phase = 'scroll'
         events.push({ type: 'scroll-start', id, x: at.x, y: at.y })
-      } else if (ready && useTap && indexRecent && !openPalm && this.aim && flexIndex >= ENGINE.tapMinFlex && flexIndex - tapBase >= settings.tapAngle) {
+      } else if (ready && useTap && indexRecent && madeByFinger && !openPalm && this.aim && flexIndex >= ENGINE.tapMinFlex && fingerFold >= settings.tapAngle) {
         this.startPress(events, t, at, 'tap', tapBase)
-      } else if (ready && usePoke && this.pose.index && !scrollPose && !openPalm && this.isPush(t, depth, settings.pressThreshold)) {
+      } else if (ready && usePoke && this.pose.index && !scrollPose && !openPalm && palmTurn <= ENGINE.maxPushTurn && this.isPush(t, depth, settings.pressThreshold)) {
         this.startPress(events, t, this.pushStart(t, pointer), 'poke', 0)
       } else if (settings.pinchZoom && tracking === 'good' && !this.fistLock && t >= this.zoomCooldownUntil) {
-        const steps = this.detectPinch(t, pinch)
+        const steps = palmTurn <= ENGINE.maxPalmTurn ? this.detectPinch(t, pinch) : 0
         if (steps) {
           this.zoomCooldownUntil = t + ENGINE.zoomCooldownMs
           events.push({ type: 'zoom', id: this.nextId++, x: at.x, y: at.y, steps })
@@ -292,6 +318,13 @@ export class HandGestureEngine {
       return
     }
     this.aim = null
+  }
+
+  /** Largest angle (degrees) between the palm direction now and since `from`. */
+  private palmTurnSince(from: number, now: Point3) {
+    let turn = 0
+    for (const sample of this.history) if (sample.t >= from) turn = Math.max(turn, angleDeg(sample.palmDir, now))
+    return turn
   }
 
   /** Palm travel (calibrated units, bounding-box diagonal) between two times. */
@@ -373,13 +406,14 @@ export class HandGestureEngine {
     }
   }
 
-  private updateScroll(events: HandEvent[], t: number, scrollPose: boolean, openPalm: boolean, flexTwo: number, handY: number) {
+  private updateScroll(events: HandEvent[], t: number, scrollPose: boolean, openPalm: boolean, flexTwo: number, handY: number, palmTurn: number) {
     const scroll = this.scroll!
     const { settings } = this
     const base = this.minSince(t - ENGINE.foldWindowMs, 'flexTwo')
     const fold = flexTwo - base
     if (scrollPose) scroll.activeAt = t
-    if (!scroll.flicking && fold >= Math.max(ENGINE.flickMinFold, settings.tapAngle * 0.9) && flexTwo >= ENGINE.flickMinFlex) {
+    const flickByFingers = palmTurn <= ENGINE.maxPalmTurn && fold >= palmTurn * ENGINE.foldToTurn
+    if (!scroll.flicking && flickByFingers && fold >= Math.max(ENGINE.flickMinFold, settings.tapAngle * 0.9) && flexTwo >= ENGINE.flickMinFlex) {
       scroll.flicking = true
       scroll.activeAt = t
       const dy = settings.flickStep * (settings.flickDirection === 'down' ? 1 : -1)
