@@ -1,41 +1,45 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, LocateFixed } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { hotkeyForGameKeys, hotkeyLabel } from './hotkeys'
 import { POSITION_PROBLEM_TEXT, positionFix, positionProblem } from './positionReadiness'
 import type { ExperimentalStatus } from './types'
 import './positionSetup.css'
 
 /**
  * «Точка на мини-карте» in one card (owner, 13.10.2026: «сделай включение точки на миникарте проще… что бы люди не
- * настраивали 100 лет ее»): what stops the dot, in plain words, and one button for what the app can fix itself — the
- * PrtSc / Snipping Tool switch of Windows, or administrator rights. When nothing stops it: how to see it.
+ * настраивали 100 лет ее»): what stops the dot, in plain words, and one button for what the app can fix itself. The app
+ * presses no keys (owner, 14.10.2026): the game's «Скриншот» belongs on the minimap's key, and the card says which keys
+ * they are now. When nothing stops it: how to see it.
  */
 export function PositionSetupCard({ status, onFixed, compact = false }: { status: ExperimentalStatus; onFixed?: () => void; compact?: boolean }) {
   const api = window.tarkovDesktop?.experimental
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
-  const problem = positionProblem({ native: !status.nativeError, key: status.screenshotKey, snipping: status.snipping, elevated: status.elevated, gameKeys: status.gameKeys })
-  const fix = positionFix(problem)
-  const working = !problem && (status.filesAfterPress > 0 || Boolean(status.lastPosition))
+  const problem = positionProblem({ native: !status.nativeError, key: status.screenshotKey, minimapKey: status.minimapKey, elevated: status.elevated, gameKeys: status.gameKeys })
+  const fix = positionFix(problem, status.screenshotKey.keys, status.otherKeys)
+  const working = !problem && Boolean(status.lastPosition)
   if (compact && !problem) return null
+  const gameKey = status.screenshotKey.unbound ? uiText('не назначен') : status.screenshotKey.label
 
   const run = async () => {
     if (!api || busy) return
     setBusy(true)
     setNote('')
     try {
-      if (fix === 'snipping') {
-        const result = await api.fixSnipping()
-        setNote(result.snipping === 'off'
-          ? 'Готово: PrtSc больше не открывает «Ножницы». Откройте мини-карту в рейде — точка появится через секунду.'
-          : 'Windows не дал изменить настройку. Откройте настройки клавиатуры Windows и выключите «Использовать клавишу Print Screen для открытия функции создания фрагмента экрана».')
+      if (fix === 'use-game-key') {
+        const code = hotkeyForGameKeys(status.screenshotKey.keys)
+        if (code) {
+          await api.updateSettings({ minimapKey: code })
+          setNote(`${uiText('Готово: мини-карта открывается клавишей')} ${hotkeyLabel(code)} ${uiText('— той же, что делает скриншот в игре.')}`)
+        }
       } else if (fix === 'admin') {
         const started = await api.relaunchAsAdmin()
-        if (!started) setNote('Windows не дал права администратора — приложение работает дальше без них.')
+        if (!started) setNote(uiText('Windows не дал права администратора — приложение работает дальше без них.'))
       }
       onFixed?.()
     } catch {
-      setNote('Не получилось. Попробуйте ещё раз или откройте настройки Windows.')
+      setNote(uiText('Не получилось. Попробуйте ещё раз.'))
     } finally {
       setBusy(false)
     }
@@ -50,17 +54,21 @@ export function PositionSetupCard({ status, onFixed, compact = false }: { status
           <p>{uiText(problem
             ? POSITION_PROBLEM_TEXT[problem].text
             : working
-              ? 'Игра делает скриншот с координатами, когда вы открываете мини-карту, — позиция обновляется сама.'
-              : 'Откройте мини-карту в рейде своей клавишей — приложение само попросит игру сделать скриншот, и точка появится через секунду.')}</p>
+              ? 'Одна клавиша открывает мини-карту, и игра в тот же момент делает скриншот — точка обновляется сама.'
+              : 'Откройте мини-карту в рейде — игра сделает скриншот той же клавишей, и точка появится через секунду.')}</p>
+          {(problem === 'no-key' || problem === 'other-key') && (
+            <small className="position-setup-keys">{uiText('Сейчас «Скриншот» в игре:')} <kbd>{gameKey}</kbd> · {uiText('мини-карта:')} <kbd>{hotkeyLabel(status.minimapKey)}</kbd></small>
+          )}
           {fix && (
             <div className="exp-actions">
               <button type="button" className="button primary" disabled={busy || !api} onClick={() => void run()}>
-                {uiText(fix === 'snipping' ? (busy ? 'Включаю…' : 'Включить точку') : 'Перезапустить от имени администратора')}
+                {fix === 'use-game-key'
+                  ? `${uiText('Открывать мини-карту клавишей')} ${status.screenshotKey.label}`
+                  : uiText('Перезапустить от имени администратора')}
               </button>
-              {fix === 'snipping' && <button type="button" className="button ghost small" onClick={() => void api?.openKeyboardSettings()}>{uiText('Открыть настройки Windows')}</button>}
             </div>
           )}
-          {note && <small className="position-setup-note" role="status">{uiText(note)}</small>}
+          {note && <small className="position-setup-note" role="status">{note}</small>}
         </div>
       </div>
     </section>

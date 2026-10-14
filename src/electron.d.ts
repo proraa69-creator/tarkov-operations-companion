@@ -239,10 +239,6 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
-    /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
-    openKeyboardSettings: () => Promise<boolean>
-    /** «Включить точку»: turns off «PrtSc opens the Snipping Tool» for this Windows user; the new state. */
-    fixSnipping: () => Promise<{ ok: boolean; snipping: 'on' | 'off' | 'unknown' }>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void

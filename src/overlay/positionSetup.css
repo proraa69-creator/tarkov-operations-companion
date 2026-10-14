@@ -8,3 +8,6 @@
 .position-setup-body p { margin: 0; color: var(--text-muted); }
 .position-setup-note { color: var(--text); }
 .position-setup.is-compact { margin-bottom: 14px; }
+/* Which keys the game's «Скриншот» and the minimap have now: both belong on one key. */
+.position-setup-keys { color: var(--text); }
+.position-setup-keys kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-weight: 600; }

@@ -109,8 +109,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback: (payload: unknown) => void) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),
-    fixSnipping: () => ipcRenderer.invoke('experimental:fix-snipping'),
     answer: (id: number, payload: unknown) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback: (payload: unknown) => void) => subscribe('experimental:query', callback),
     onPosition: (callback: (payload: unknown) => void) => subscribe('experimental:position', callback),
