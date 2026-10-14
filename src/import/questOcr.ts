@@ -6,10 +6,19 @@ const SKIP_LINE = /^(задачи|задания|задание|текущие|�
 
 const STORY_CHROME_LINE = /^(задачи|задания|задание|текущие|выполненные|недоступные|сюжетные|побочные|оперативные|завершенные|заблокированные|завершить|найти|поиск|фильтр|торговцы|торговец|карта|уровень|награда|награды|цели|цель|описание|глава истории|история|локация|статус|прогресс|назад|активно!?|главные задачи|опциональные задачи|связанные предметы|стартовое снаряжение|любая локация)$/i
 
+/** The English game's menu words, column heads and labels (owner's PvE screenshots, 14.10.2026): never a quest title. */
+const EN_CHROME_LINE = /^(trader|type|class|task|tasks|location|status|progress|any location|active!?|story|side|operational|chapter|main objectives|optional objectives|related items|rewards|objective\(s\)|initial equipment|task items on character|task items in stash|show completed|show locked|complete|back|search|overall|gear|health|skills|map|achievements|prestige)$/i
+
 /** Story detail pane: «ИСТОРИЯ» header (often cut to «ТОРИЯ») or the objectives blocks. */
-const STORY_PANE = /истори|тори[яи]|(?<![а-яё])[а-яё]{0,4}ные\s*задачи|иональн[а-яё]*\s*задачи/i
+const STORY_PANE = /истори|тори[яи]|(?<![а-яё])[а-яё]{0,4}ные\s*задачи|иональн[а-яё]*\s*задачи|main\s+objectives|optional\s+objectives/i
 
 const TABLE_SPLIT = /любая(?:[ \t]+\S+){0,2}|[‘'"«]?(?:активно|выполнено|доступно|провалено|заблокировано)!?|\[?\s*pvp\s*zone\s*\]?|\d{1,3}\s*%|[ \t]+(берег|таможня|завод|развязка|резерв|маяк|лаборатория|эпицентр|терминал|лабиринт|лес|улицы таркова|ледокол)(?![а-яё])[.,:;]?/gim
+
+/**
+ * The English table's cells after the title: «Any location», the status («active!», OCR often «activel») and the
+ * progress. A map name only right before the status: titles carry map names too («The Huntsman Path - Woods Keeper»).
+ */
+const EN_TABLE_SPLIT = /[ \t]+any\s+location\b|[ \t]+(?:factory|customs|woods|shoreline|interchange|reserve|lighthouse|streets\s+of(?:\s+tarkov)?|the\s+lab|ground\s+zero|labyrinth|terminal|icebreaker)(?=[ \t]+(?:active|complete|available|failed|locked))|[ \t]+(?:active|completed?|available|failed|locked)[!l1|]?(?=[ \t]|$)/gim
 
 const PVP_ZONE_TAG = /\[?\s*pvp\s*zone\s*\]?/gi
 
@@ -34,14 +43,14 @@ export interface OcrQuestMatch {
 
 export type QuestRowStatus = 'active' | 'ready' | 'available' | 'locked' | 'failed'
 
-/** Status cell of a Tasks table row: «активно!», «выполнено!», «доступно», … */
+/** Status cell of a Tasks table row: «активно!», «выполнено!», «доступно», …; in the English game «active!», … */
 export function rowStatus(rawLine: string): QuestRowStatus | undefined {
   const line = rawLine.toLowerCase()
-  if (/выполнено|готово к сдаче|завершить/.test(line)) return 'ready'
-  if (/активно/.test(line)) return 'active'
-  if (/провал/.test(line)) return 'failed'
-  if (/заблокир|недоступ/.test(line)) return 'locked'
-  if (/доступно|принять/.test(line)) return 'available'
+  if (/выполнено|готово к сдаче|завершить/.test(line) || /\bcompleted?!|ready to turn in/.test(line)) return 'ready'
+  if (/активно/.test(line) || /\bactive[!l1|]?(?![a-z])/.test(line)) return 'active'
+  if (/провал/.test(line) || /\bfailed\b/.test(line)) return 'failed'
+  if (/заблокир|недоступ/.test(line) || /\blocked\b|unavailable/.test(line)) return 'locked'
+  if (/доступно|принять/.test(line) || /\bavailable\b/.test(line)) return 'available'
   return undefined
 }
 
@@ -65,8 +74,20 @@ export function foldOcrGlyphs(value: string) {
     .replace(/[Yy]/g, 'у')
 }
 
+/**
+ * A story frame asks for the key of the same catalog titles and aliases thousands of times (every stage against every
+ * line): each one is worked out once. Bounded, as OCR lines pass through here too.
+ */
+const keyCache = new Map<string, string>()
+const KEY_CACHE_LIMIT = 20_000
+
 export function ocrKey(value: string) {
-  return normalizeQuestKey(foldOcrGlyphs(value))
+  const known = keyCache.get(value)
+  if (known !== undefined) return known
+  const key = normalizeQuestKey(foldOcrGlyphs(value))
+  if (keyCache.size >= KEY_CACHE_LIMIT) keyCache.clear()
+  keyCache.set(value, key)
+  return key
 }
 
 export function matchQuestsFromOcr(text: string, quests: Quest[]) {
@@ -114,7 +135,7 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
 
   // Story detail pane whose title is lost in the banner art: the objective lines themselves name
   // exactly one chapter stage («Выжить на локации Таможня…» belongs to Тур only).
-  if (STORY_PANE.test(text) && /задачи/i.test(text) && ![...found.values()].length) {
+  if (STORY_PANE.test(text) && /задачи|objectives/i.test(text) && ![...found.values()].length) {
     const evidence = catalog
       .filter((entry) => entry.quest.kind === 'story')
       .map((entry) => ({ entry, stageIndex: storyStageEvidence(text, entry.quest) }))
@@ -134,7 +155,7 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
   for (const rawLine of rawLines) {
     const status = rowStatus(rawLine)
     for (const line of ocrRowLines(rawLine)) {
-      if (SKIP_LINE.test(line.trim())) continue
+      if (SKIP_LINE.test(line.trim()) || EN_CHROME_LINE.test(line.trim())) continue
       const key = ocrKey(line)
       if (key.length < 3 || GENERIC_KEY.test(key)) continue
 
@@ -198,11 +219,11 @@ export function matchQuestsFromOcr(text: string, quests: Quest[]) {
 
 /** Lines that can name a story chapter — map-only labels outside the story tab are excluded. */
 function storyChapterTitleLines(text: string) {
-  const inStoryMenu = /сюжетн|главн(ые|ая)\s*задач/i.test(text)
+  const inStoryMenu = /сюжетн|главн(ые|ая)\s*задач|main\s+objectives|(?:^|\s)story(?:\s|$)/i.test(text)
   return extractOcrLines(text)
     .map((line) => line.trim())
     .filter((line) => {
-      if (line.length < 3 || STORY_CHROME_LINE.test(line)) return false
+      if (line.length < 3 || STORY_CHROME_LINE.test(line) || EN_CHROME_LINE.test(line)) return false
       const key = ocrKey(line)
       if (!key || GENERIC_KEY.test(key)) return false
       // «Лабиринт» as a map cell must not unlock the chapter unless we are in the story UI.
@@ -239,11 +260,11 @@ function storyTitleVisible(name: string, titleLines: string[], text: string) {
 /** Chapter title sitting just above the detail pane («Главные задачи»). */
 function focusedStoryChapterKey(text: string) {
   const lines = extractOcrLines(text)
-  const detailLineIdx = lines.findIndex((line) => /главн(?:ые|ая)\s*задач/i.test(line))
+  const detailLineIdx = lines.findIndex((line) => /главн(?:ые|ая)\s*задач|main\s+objectives/i.test(line))
   if (detailLineIdx <= 0) return undefined
   for (let index = detailLineIdx - 1; index >= 0; index -= 1) {
     const line = lines[index]!.trim()
-    if (!line || STORY_CHROME_LINE.test(line) || /^активно!?$/i.test(line)) continue
+    if (!line || STORY_CHROME_LINE.test(line) || EN_CHROME_LINE.test(line) || /^(?:активно|active)!?$/i.test(line)) continue
     const key = ocrKey(line)
     if (!key || GENERIC_KEY.test(key)) continue
     return key
@@ -271,12 +292,15 @@ export function extractOcrLines(text: string) {
 /** Whole OCR rows after splitting table columns — no single-word fragments. */
 function ocrRowLines(text: string) {
   const out: string[] = []
-  for (const raw of text.replace(TABLE_SPLIT, '\n').split(/\r?\n|[•·|]/g)) {
+  for (const raw of text.replace(TABLE_SPLIT, '\n').replace(EN_TABLE_SPLIT, '\n').split(/\r?\n|[•·|]/g)) {
     const line = raw.replace(/\s+/g, ' ').trim()
     if (line.length < 3) continue
     out.push(line)
     const stripped = line.replace(/^[^0-9a-zа-яё]+/i, '').replace(/^\d+\s+/, '').trim()
     if (stripped && stripped !== line && stripped.length >= 3) out.push(stripped)
+    // The trader, type and class icons before an English title come out as one- or two-letter junk («x №1 п The …»).
+    const untagged = stripped.replace(/^(?:\S{1,2}\s+)+(?=[A-Za-z]{3})/, '')
+    if (untagged !== stripped && untagged.length >= 3) out.push(untagged)
   }
   return [...new Set(out)]
 }

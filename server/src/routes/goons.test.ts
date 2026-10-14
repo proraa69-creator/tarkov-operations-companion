@@ -179,7 +179,7 @@ test('goons through the real API: the account nickname is attached and every app
     return { status: response.status, json: await response.json() as Record<string, unknown> }
   }
   try {
-    await call('POST', '/accounts/register', undefined, { email: 'player@example.com', password: 'correct horse battery' })
+    await call('POST', '/accounts/register', undefined, { email: 'player@example.com', password: 'correct horse battery', country: 'RU' })
     const token = (await call('POST', '/accounts/login', undefined, { email: 'player@example.com', password: 'correct horse battery' })).json.token as string
     assert.equal(((await call('POST', '/goons/pvp/sightings', token, { mapId: 'woods' })).json as { reason?: string }).reason, 'nickname')
     assert.equal((await call('PUT', '/accounts/me/nicknames', token, { pvp: 'SHAURMA' })).status, 200)

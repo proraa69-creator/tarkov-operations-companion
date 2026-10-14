@@ -98,4 +98,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Точка применена, заявки закрыты', 'Point applied, requests closed'], ['Дни начислены', 'Days granted'], ['Заявки закрыты', 'Requests closed'],
   ['Предложение', 'Idea'], ['Ошибка', 'Bug'], ['изображений', 'images'], ['Изображение', 'Image'], ['Открыть снова', 'Reopen'],
   ['Место из заявок игроков', 'The place from players\' requests'],
+  // A report's images full size (owner, 14.10.2026).
+  ['Открыть изображение', 'Open image'], ['Открыть во весь размер', 'Open full size'],
+  ['Предыдущее изображение', 'Previous image'], ['Следующее изображение', 'Next image'],
 ]

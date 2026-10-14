@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { startActivePolling } from '../app/activePolling'
 import { useNavigate } from 'react-router-dom'
 import { BellRing, Timer, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -12,13 +13,14 @@ import '../arsenal/arsenal.css'
 
 const SOON_MS = 10 * 60_000
 
-/** Re-renders every `interval` ms (countdowns). */
+/**
+ * Re-renders every `interval` ms (countdowns). In the desktop app only while the window is in use: the top-bar countdown
+ * re-rendered every second behind the game, where nobody sees it; it shows the right time again the moment the window
+ * is used (src/app/activePolling.ts). The restock notifications have their own timer (RestockNotifier).
+ */
 function useNow(interval = 1000) {
   const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), interval)
-    return () => window.clearInterval(timer)
-  }, [interval])
+  useEffect(() => startActivePolling(() => setNow(Date.now()), { activeEveryMs: interval, followFocus: Boolean(window.tarkovDesktop) }), [interval])
   return now
 }
 

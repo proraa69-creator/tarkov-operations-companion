@@ -3,7 +3,8 @@
 .sidebar .requests-nav + .sidebar-operator { margin-top: 0; }
 
 .requests-page { display: grid; gap: 14px; align-content: start; }
-.requests-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Открыть чат» scrolls them into view under the fixed top bar. */
+.requests-tabs { display: flex; flex-wrap: wrap; gap: 6px; scroll-margin-top: calc(var(--topbar) + var(--announcement-height, 0px) + 12px); }
 .requests-tab {
   display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: 99px;
   background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; cursor: pointer;
@@ -26,5 +27,37 @@
 .requests-detail { display: grid; gap: 10px; }
 .requests-detail p { margin: 0; white-space: pre-wrap; }
 .requests-images { display: flex; flex-wrap: wrap; gap: 8px; }
-.requests-images img { max-width: min(420px, 100%); max-height: 260px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
+.requests-images img { display: block; max-width: min(420px, 100%); max-height: 260px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
+.requests-notes li .requests-note-chat { justify-self: start; min-height: 26px; margin-top: 2px; }
 .requests-report .is-flipped { rotate: 180deg; }
+
+/* A report's images open full size (RequestsPage ImageViewer): the thumbnails and «изображений: N» are buttons. */
+.requests-image { max-width: min(420px, 100%); padding: 0; border: 0; border-radius: 6px; background: none; cursor: zoom-in; }
+.requests-image:focus-visible, .requests-files-link:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .requests-image:hover img { border-color: var(--brass); } }
+.requests-files-link { padding: 0; border: 0; background: none; color: var(--brass-strong, var(--brass)); font: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: zoom-in; }
+.requests-files-link[aria-busy="true"] { cursor: progress; opacity: .7; }
+/* Over everything, the image fitted to the window (never enlarged past its own size); the buttons around it. */
+.requests-viewer {
+  position: fixed; inset: 0; z-index: 5000; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center;
+  padding: 58px 76px; background: rgb(4 5 4 / 92%);
+}
+.requests-viewer img {
+  max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; background: #0b0d0c; box-shadow: 0 20px 60px rgb(0 0 0 / 60%);
+  -webkit-user-select: none; user-select: none;
+}
+.requests-viewer-close, .requests-viewer-step {
+  position: absolute; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%;
+  background: var(--panel); color: var(--text); cursor: pointer;
+}
+.requests-viewer-close { top: 12px; right: 12px; width: 40px; height: 40px; }
+.requests-viewer-step { top: 50%; width: 48px; height: 48px; translate: 0 -50%; }
+.requests-viewer-step.is-prev { left: 14px; }
+.requests-viewer-step.is-next { right: 14px; }
+@media (hover: hover) and (pointer: fine) { .requests-viewer-close:hover, .requests-viewer-step:hover { border-color: var(--brass); } }
+.requests-viewer-close:focus-visible, .requests-viewer-step:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.requests-viewer-count { position: absolute; top: 22px; left: 50%; translate: -50% 0; color: var(--text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) {
+  .requests-viewer { padding: 60px 8px 76px; }
+  .requests-viewer-step { top: auto; bottom: 14px; translate: none; }
+}

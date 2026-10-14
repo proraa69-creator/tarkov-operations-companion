@@ -425,7 +425,17 @@ export interface QuestHelpView {
 export interface Quest {
   id: string
   normalizedName?: string
+  /** The title in the app's language. */
   name: string
+  /**
+   * The title as the game shows it in Russian and in English, whatever the app's language: the screen reader matches
+   * both, so a Russian game read by the English app (or the other way round) still finds its quests (product roadmap:
+   * «Quest counts must not change when switching interface language»). Absent from catalogs that do not carry them.
+   */
+  nameRu?: string
+  nameEn?: string
+  /** Other titles the game has shown for this quest (renames, the owner's corrections), for the same matching. */
+  ocrAliases?: string[]
   trader: string
   /** The trader's game id (tarkov.dev), when known. */
   traderId?: string
@@ -595,5 +605,10 @@ export interface AppDataset {
     sourceUpdatedAt?: string
     /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
     fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
+    /**
+     * Desktop app: the server's version of this catalog's content (its ETag, electron/serviceGateway.ts). The next
+     * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).
+     */
+    contentVersion?: string
   }
 }

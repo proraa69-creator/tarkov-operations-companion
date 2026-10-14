@@ -1,4 +1,5 @@
 import type { ModeProgress, Quest, StoryObjectiveReading } from '../domain/types'
+import { latinize } from './modeSelectScreen'
 import { foldOcrGlyphs, matchQuestsFromOcr, ocrKey } from './questOcr'
 import { isTasksMenuText } from './screenScanSync'
 import { completedStoryStageIndexes, hasExactStoryStageEvidence, storyObjectivesBlock, storyStageCopies } from './storyStageOcr'
@@ -32,9 +33,11 @@ export function storyPaneChapter(text: string, story: Quest[]): { quest: Quest; 
   const lines = text.slice(0, 20000).split(/\r?\n/).map((line) => line.trim().replace(/^[^\p{L}]+/u, '')).filter(Boolean)
   const names = story.map((quest) => ({ quest, keys: [quest.name, quest.normalizedName ?? ''].map(ocrKey).filter((key) => key.length >= 3) }))
   const STATUS = /(?:^|\s)(?:активно|active|выполнено|завершено|completed)(?=\s|$)/gi
-  const isActive = (line: string) => /(?:^|\s)(?:активно|active)(?=\s|$)/i.test(foldOcrGlyphs(line).toLowerCase())
+  // «АКТИВНО» may come with Latin look-alikes (folded to Cyrillic), the English «ACTIVE» with Cyrillic ones (latinized).
+  const isActive = (line: string) => /(?:^|\s)активно(?=\s|$)/i.test(foldOcrGlyphs(line).toLowerCase()) || /(?:^|\s)active(?=\s|$)/i.test(latinize(line))
   for (let index = 0; index < lines.length; index += 1) {
-    const header = lines[index]!.match(/^(?:история|[а-яё]{0,2}тория|story)(?=\s|$)(.*)$/i)
+    // The English game's banner says «CHAPTER» (OCR may read it in Cyrillic look-alikes, «СНАРТЕВ»), the name under it.
+    const header = lines[index]!.match(/^(?:история|[а-яё]{0,2}тория|story|[cс][hн][aа][pр][tт][eе][rв]?)(?=\s|$)(.*)$/i)
     if (!header) continue
     const window = [header[1]!, ...lines.slice(index + 1, index + 3)]
     for (const candidate of window) {
@@ -81,6 +84,7 @@ export function nearestStageCopy(copies: number[], reference: number) {
 export function isStoryMenuText(text: string) {
   if (!isTasksMenuText(text)) return false
   return /сюжетн|истори|тори[яи]|главн(?:ые|ая)\s*задач|(?<![а-яё])[а-яё]{0,4}ные\s*задачи|иональн[а-яё]*\s*задачи/i.test(text)
+    || /main\s+objectives|optional\s+objectives|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i.test(text)
 }
 
 /** Story chapters named on a story-menu frame; trader quests are left to the game logs. */

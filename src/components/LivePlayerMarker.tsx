@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { startActivePolling } from '../app/activePolling'
 import { divIcon, latLng } from 'leaflet'
 import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { canonicalMapId } from '../data/mapIds'
@@ -96,10 +97,8 @@ function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source:
   const [now, setNow] = useState(() => Date.now())
   const [style, setStyle] = useState<PlayerMarkerStyle>('arrow')
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 5000)
-    return () => window.clearInterval(timer)
-  }, [])
+  // «Вы · N с назад» is read on hover: it ticks while the window is in use, not behind the game (src/app/activePolling.ts).
+  useEffect(() => startActivePolling(() => setNow(Date.now()), { activeEveryMs: 5000 }), [])
 
   useEffect(() => {
     const experimental = window.tarkovDesktop?.experimental

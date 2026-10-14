@@ -3,14 +3,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ExperimentalPage } from './ExperimentalPage'
 
 vi.mock('../i18n/renderText', () => ({ uiText: (text: unknown) => text }))
-const settings = { minimapOpacity: 0.9, minimapWidth: 420, playerMarker: 'arrow', itemKey: 'Semicolon', minimapKey: 'KeyM', collectorKey: '', screenshotKey: '', screenshotsDir: '' }
+const settings = { minimapOpacity: 0.9, minimapWidth: 420, playerMarker: 'arrow', itemKey: 'Semicolon', minimapKey: 'KeyM', collectorKey: '', screenshotsDir: '' }
 const api = {
   getSettings: vi.fn(), getStatus: vi.fn(), updateSettings: vi.fn(), toggleMinimap: vi.fn(), pickScreenshotsFolder: vi.fn(),
 }
 beforeEach(() => {
   vi.stubGlobal('tarkovDesktop', { experimental: api })
   api.getSettings.mockResolvedValue(settings)
-  api.getStatus.mockResolvedValue({ screenshotKey: { keys: [], source: 'default', sendable: true, label: 'Home' }, elevated: true, screenshotsFolder: 'screenshots', nativeError: '' })
+  api.getStatus.mockResolvedValue({ screenshotKey: { keys: ['M'], source: 'game-settings', unbound: false, label: 'M' }, minimapKey: 'KeyM', otherKeys: ['Semicolon'], elevated: true, screenshotsFolder: 'screenshots', nativeError: '', gameKeys: 'visible', lastPosition: null })
   api.updateSettings.mockImplementation(async (patch) => ({ ...settings, ...patch }))
   api.toggleMinimap.mockResolvedValue(true)
 })

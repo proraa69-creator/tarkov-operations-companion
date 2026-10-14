@@ -60,6 +60,7 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/bug-reports/12/files/0', '/v1/accounts/me/admin/bug-reports/12/status',
   '/v1/accounts/me/admin/bug-reports/12/files/0/data', '/v1/accounts/me/admin/requests/events', '/v1/accounts/me/admin/requests/events?since=1791283908575',
   '/v1/accounts/me/admin/quest-texts', '/v1/accounts/me/admin/quest-texts/0123456789abcdef01234567/remove',
+  '/v1/accounts/me/admin/requests-key', '/v1/agent/requests', '/v1/agent/requests?status=all&limit=200&offset=0', '/v1/agent/requests/12/images/0',
   '/v1/admin/streamers', '/v1/admin/streamer-invites', '/v1/admin/accounts', '/v1/admin/sms', '/v1/admin/email',
   '/v1/me/progress/pvp', '/v1/me/progress/pve/events', '/v1/me/collector/seasonal', '/v1/me/position/pvp', '/v1/me/settings', '/v1/me/summary',
 ]
@@ -237,7 +238,7 @@ test('API: a normal visitor session through the site proxy never scores', async 
   const { server, call, events } = await startApi()
   try {
     const ip = '198.51.100.23'
-    const registered = await call('POST', '/v1/accounts/register', { ip, body: { email: 'gamer@example.com', password } })
+    const registered = await call('POST', '/v1/accounts/register', { ip, body: { email: 'gamer@example.com', password, country: 'RU' } })
     assert.equal(registered.status, 201)
     const token = registered.json.token as string
     for (let round = 0; round < 5; round += 1) {
@@ -285,7 +286,7 @@ test('API: a scanner is banned with a cheap 403; this PC is never banned; the ow
 
     // Admin tab: owner only.
     assert.equal((await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.2' })).status, 401)
-    const user = (await call('POST', '/v1/accounts/register', { ip: '198.51.100.2', body: { email: 'user@example.com', password } })).json.token as string
+    const user = (await call('POST', '/v1/accounts/register', { ip: '198.51.100.2', body: { email: 'user@example.com', password, country: 'RU' } })).json.token as string
     assert.equal((await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.2', token: user })).status, 404)
     const owner = await login('owner@example.com', '198.51.100.3')
     const view = await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.3', token: owner })

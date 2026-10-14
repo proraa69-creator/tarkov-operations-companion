@@ -14,7 +14,7 @@ function setup(limits: Parameters<typeof createLoginCodeHandlers>[2] = {}) {
   const accounts = createAccountsHandlers(store, { now })
   const codes = new LoginCodeStore({ now })
   const api = createLoginCodeHandlers(store, codes, { now, ...limits })
-  const register = async (email: string) => ((await accounts.register({ ip: 'r', body: { email, password } })).body as { token: string }).token
+  const register = async (email: string) => ((await accounts.register({ ip: 'r', body: { email, password, country: 'RU' } })).body as { token: string }).token
   return { store, accounts, codes, api, register, advance: (ms: number) => { clock += ms } }
 }
 
@@ -153,7 +153,7 @@ test('over HTTP the origin comes from the proxy chain: X-Forwarded-For and Cloud
   const base = `http://127.0.0.1:${address.port}/v1/accounts`
   const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
   try {
-    const { token } = await (await post('/register', { email: 'player@example.com', password })).json() as { token: string }
+    const { token } = await (await post('/register', { email: 'player@example.com', password, country: 'RU' })).json() as { token: string }
     const request = await (await post('/qr-login', {}, { 'x-forwarded-for': '198.51.100.23', 'cf-ipcountry': 'NL', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/140' })).json() as { code: string }
     const inspected = await (await post('/me/qr-login/inspect', { code: request.code }, { authorization: `Bearer ${token}` })).json() as Record<string, unknown>
     assert.deepEqual([inspected.ip, inspected.country], ['198.51.100.x', 'NL'])
@@ -181,7 +181,7 @@ test('the QR sign-in routes are mounted on the API', async () => {
   const base = `http://127.0.0.1:${address.port}/v1/accounts`
   const post = (path: string, body: unknown, token?: string) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
   try {
-    const { token } = await (await post('/register', { email: 'player@example.com', password })).json() as { token: string }
+    const { token } = await (await post('/register', { email: 'player@example.com', password, country: 'RU' })).json() as { token: string }
     const opened = await post('/qr-login', {})
     assert.equal(opened.status, 201)
     assert.equal(opened.headers.get('cache-control'), 'no-store')

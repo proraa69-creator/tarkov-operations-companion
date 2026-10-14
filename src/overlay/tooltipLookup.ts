@@ -1,4 +1,4 @@
-import { findTooltipAtScales, ocrVariants, tooltipForOcr, type Bitmap, type Rect } from './tooltipDetect.js'
+import { findTooltipAtScales, ocrVariants, tooltipForOcr, tooltipScaleSchedule, type Bitmap, type Rect } from './tooltipDetect.js'
 
 /** A grab of the screen around the cursor (see TOOLTIP_CAPTURE). */
 export interface TooltipShot {
@@ -26,9 +26,8 @@ export interface TooltipReading<Answer, Shot extends TooltipShot> {
 }
 
 export interface TooltipLookupSteps<Answer, Shot extends TooltipShot> {
+  /** The area around the cursor (TOOLTIP_CAPTURE: generous enough for a big item's tooltip) — never the whole display. */
   grab: () => Promise<Shot | null>
-  /** A large item may place its tooltip outside the first crop. No game input is generated. */
-  grabWide?: () => Promise<Shot | null>
   recognize: (bitmap: Bitmap) => Promise<string>
   /** The item for an OCR line, or null. */
   match: (text: string) => Promise<Answer | null>
@@ -43,17 +42,25 @@ export const TOOLTIP_TIMING = {
   appearMs: 900,
   /** A tooltip read without a match (still fading in, or the previous item's) is looked at again until then. */
   totalMs: 1800,
-  /** Between grabs; finding the box takes a few ms, only a found box is read (OCR). */
-  intervalMs: 60,
+  /**
+   * Between grabs. Each grab is a copy of the screen around the cursor and a search of it on the main process (players,
+   * 14.10.2026: «при использовании приложения начинает тупить экран и мышка»): every 120 ms, at most 9 grabs while the
+   * tooltip has not appeared, instead of 16 at 60 ms.
+   */
+  intervalMs: 120,
 }
+
+/** The game's interface scale the last tooltip was found at: tried first by the next lookups (tooltipScaleSchedule). */
+export interface TooltipScaleMemory { factor?: number }
+export const TOOLTIP_SCALE_MEMORY: TooltipScaleMemory = {}
 
 /**
  * Reads the game's name tooltip for the item under the cursor. Pressing the key right after pointing at an item
- * is normal, so the screen is grabbed again every few dozen milliseconds until the tooltip appears; only a found
+ * is normal, so the screen is grabbed again every 120 ms until the tooltip appears; only a found
  * tooltip is read. A reading without a match is not the end either: the tooltip may still be fading in, or be the
  * previous item's — a tooltip that looks different from the ones read already is read again, for a little while.
  */
-export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: TooltipLookupSteps<Answer, Shot>, timing = TOOLTIP_TIMING): Promise<TooltipReading<Answer, Shot>> {
+export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: TooltipLookupSteps<Answer, Shot>, timing = TOOLTIP_TIMING, scales: TooltipScaleMemory = TOOLTIP_SCALE_MEMORY): Promise<TooltipReading<Answer, Shot>> {
   const now = steps.now ?? (() => Date.now())
   const sleep = steps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
   const started = now()
@@ -63,12 +70,13 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
   let first: { shot: Shot; rect: Rect; unit: number } | null = null
   let latest: Shot | null = null
   let grabs = 0
-  let wide = false
   for (;;) {
-    const shot = await (wide && steps.grabWide ? steps.grabWide() : steps.grab()).catch(() => null)
+    const shot = await steps.grab().catch(() => null)
+    // At most two of the game's interface scales a grab: the last one found first.
+    const found = shot ? findTooltipAtScales(shot.image, shot.cursor, shot.unit, tooltipScaleSchedule(grabs, scales.factor)) : null
     grabs += 1
     latest = shot ?? latest
-    const found = shot ? findTooltipAtScales(shot.image, shot.cursor, shot.unit) : null
+    if (found) scales.factor = found.factor
     const rect = found?.rect ?? null
     if (shot && rect) {
       const key = tooltipKey(shot.image, rect)
@@ -87,7 +95,6 @@ export async function readGameTooltip<Answer, Shot extends TooltipShot>(steps: T
       }
     }
     const elapsed = now() - started
-    if (!last && steps.grabWide && elapsed >= timing.intervalMs) wide = true
     if (elapsed >= (last ? timing.totalMs : timing.appearMs)) break
     await sleep(timing.intervalMs)
   }

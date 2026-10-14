@@ -6,13 +6,16 @@ const talk = (id: string, title: string, description: string, aliases: string[])
   id, title, description, mapIds: [], ocrAliases: aliases,
 })
 
-const survive = (id: string, mapId: string, locative: string, accusative: string, extra: string[] = []): QuestStage => ({
+// The English game's wording (owner's PvE screenshots, 14.10.2026: «Talk to Skier», «Visit Woods 1/3») is an alias too:
+// the Tasks → Story pane of either language names the stage.
+const survive = (id: string, mapId: string, locative: string, accusative: string, extra: string[] = [], english = ''): QuestStage => ({
   id,
   title: `Выжить на локации ${locative} и выйти или посетить ${accusative} 3 раза`,
   description: `Выйдите с локации ${locative} со статусом «Выжил» / «Проскочил» либо посетите её 3 раза. Конкретной точки нет — вся карта.`,
   mapIds: [mapId],
   progressTotal: 3,
-  ocrAliases: [`выжить на локации ${locative.toLowerCase()}`, `посетить ${accusative.toLowerCase()}`, ...extra],
+  ocrAliases: [`выжить на локации ${locative.toLowerCase()}`, `посетить ${accusative.toLowerCase()}`, ...extra,
+    ...(english ? [`survive and extract from ${english}`, `visit ${english}`] : [])],
 })
 
 /**
@@ -28,54 +31,54 @@ const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestS
         title: 'Выбраться из Эпицентра',
         description: 'Выйдите с Эпицентра через выход «Улица Климова» за «Skyside».',
         mapIds: ['ground-zero'],
-        ocrAliases: ['выбраться из эпицентра', 'побег с эпицентра'],
+        ocrAliases: ['выбраться из эпицентра', 'побег с эпицентра', 'escape from ground zero', 'extract from ground zero'],
         landmarkHints: ['климова', 'skyside'],
       },
-      talk('story-tour-1', 'Поговорить с Терапевтом', 'Разговор с Терапевтом в меню торговцев.', ['поговорить с терапевтом']),
+      talk('story-tour-1', 'Поговорить с Терапевтом', 'Разговор с Терапевтом в меню торговцев.', ['поговорить с терапевтом', 'talk to therapist']),
       {
         id: 'story-tour-2',
         title: 'Обеспечить доступ на локацию Улицы Таркова',
         description: 'Передайте Терапевту 250 000 ₽ (опционально — собрать сумму). Передача в меню торговца, точки на карте нет.',
         mapIds: [],
-        ocrAliases: ['доступ на локацию улицы таркова', 'передать рубли терапевту', 'собрать сумму в 250 000'],
+        ocrAliases: ['доступ на локацию улицы таркова', 'передать рубли терапевту', 'собрать сумму в 250 000', 'access to streets of tarkov', 'roubles to therapist'],
       },
-      talk('story-tour-3', 'Поговорить с Барахольщиком', 'Разговор с Барахольщиком в меню торговцев.', ['поговорить с барахольщиком']),
-      survive('story-tour-4', 'interchange', 'Развязка', 'Развязку', ['выйти с развязки', 'выйдите с развязки', 'развязку 3 раза']),
-      talk('story-tour-5', 'Рассказать Барахольщику о результатах разведки', 'Доклад Барахольщику в меню торговцев.', ['рассказать барахольщику', 'результатах разведки']),
-      talk('story-tour-6', 'Поговорить с Лыжником', 'Разговор с Лыжником в меню торговцев.', ['поговорить с лыжником']),
-      survive('story-tour-7', 'customs', 'Таможня', 'Таможню', ['таможню 3 раза']),
+      talk('story-tour-3', 'Поговорить с Барахольщиком', 'Разговор с Барахольщиком в меню торговцев.', ['поговорить с барахольщиком', 'talk to ragman']),
+      survive('story-tour-4', 'interchange', 'Развязка', 'Развязку', ['выйти с развязки', 'выйдите с развязки', 'развязку 3 раза'], 'interchange'),
+      talk('story-tour-5', 'Рассказать Барахольщику о результатах разведки', 'Доклад Барахольщику в меню торговцев.', ['рассказать барахольщику', 'результатах разведки', 'tell ragman about']),
+      talk('story-tour-6', 'Поговорить с Лыжником', 'Разговор с Лыжником в меню торговцев.', ['поговорить с лыжником', 'talk to skier']),
+      survive('story-tour-7', 'customs', 'Таможня', 'Таможню', ['таможню 3 раза'], 'customs'),
       {
         id: 'story-tour-8',
         title: 'Передать Лыжнику 5 предметов из категории Стройматериалы',
         description: 'Сдача в меню Лыжника (опционально — найти в рейде). Точки на карте нет.',
         mapIds: [],
-        ocrAliases: ['передать лыжнику 5 предметов', 'категории стройматериалы'],
+        ocrAliases: ['передать лыжнику 5 предметов', 'категории стройматериалы', 'building materials category'],
       },
-      talk('story-tour-9', 'Поговорить с Механиком', 'Разговор с Механиком в меню торговцев.', ['поговорить с механиком']),
-      survive('story-tour-10', 'factory', 'Завод', 'Завод', ['завод 3 раза']),
+      talk('story-tour-9', 'Поговорить с Механиком', 'Разговор с Механиком в меню торговцев.', ['поговорить с механиком', 'talk to mechanic']),
+      survive('story-tour-10', 'factory', 'Завод', 'Завод', ['завод 3 раза'], 'factory'),
       {
         id: 'story-tour-11',
         title: 'Передать Механику 2 предмета из категории Оружие',
         description: 'Сдача в меню Механика (опционально — найти в рейде). Точки на карте нет.',
         mapIds: [],
-        ocrAliases: ['передать механику 2 предмета', 'категории оружие'],
+        ocrAliases: ['передать механику 2 предмета', 'категории оружие', 'weapons category to mechanic'],
       },
-      talk('story-tour-12', 'Поговорить с Лыжником', 'Повторный разговор с Лыжником в меню торговцев.', ['поговорить с лыжником']),
+      talk('story-tour-12', 'Поговорить с Лыжником', 'Повторный разговор с Лыжником в меню торговцев.', ['поговорить с лыжником', 'talk to skier']),
       {
         id: 'story-tour-13',
         title: 'Убить 3 любые цели на локации Лес',
         description: 'Любые ЧВК или Дикие на Лесу. Конкретной точки нет — вся карта.',
         mapIds: ['woods'],
         progressTotal: 3,
-        ocrAliases: ['убить 3 любые цели на локации лес', 'любые цели на локации лес'],
+        ocrAliases: ['убить 3 любые цели на локации лес', 'любые цели на локации лес', 'eliminate any target on woods'],
       },
-      survive('story-tour-14', 'woods', 'Лес', 'Лес', ['лес 3 раза']),
+      survive('story-tour-14', 'woods', 'Лес', 'Лес', ['лес 3 раза'], 'woods'),
       {
         id: 'story-tour-15',
         title: 'Найти вход в портовый Терминал',
         description: 'Берег, западный край карты (дальше радиовышки): подход к порту у сторожевой вышки.',
         mapIds: ['shoreline'],
-        ocrAliases: ['найти вход в портовый терминал', 'портовый терминал'],
+        ocrAliases: ['найти вход в портовый терминал', 'портовый терминал', 'entrance to the port terminal'],
         landmarkHints: ['терминал', 'вышка'],
       },
       {
@@ -83,7 +86,7 @@ const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestS
         title: 'Найти способ связаться с военными на Терминале',
         description: 'Берег, у входа в порт Терминала.',
         mapIds: ['shoreline'],
-        ocrAliases: ['связаться с военными на терминале'],
+        ocrAliases: ['связаться с военными на терминале', 'contact the military'],
         landmarkHints: ['терминал', 'интерком'],
       },
       {
@@ -91,31 +94,31 @@ const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestS
         title: 'Связаться с гарнизоном порта через интерком',
         description: 'Интерком у сторожевой вышки перед Терминалом (западный край Берега).',
         mapIds: ['shoreline'],
-        ocrAliases: ['гарнизоном порта через интерком', 'связаться с гарнизоном порта'],
+        ocrAliases: ['гарнизоном порта через интерком', 'связаться с гарнизоном порта', 'port garrison via the intercom'],
         landmarkHints: ['интерком', 'вышка'],
       },
-      talk('story-tour-18', 'Узнать, как выбраться из Таркова', 'Разговоры с торговцами в меню, точки на карте нет.', ['как выбраться из таркова']),
+      talk('story-tour-18', 'Узнать, как выбраться из Таркова', 'Разговоры с торговцами в меню, точки на карте нет.', ['как выбраться из таркова', 'how to get out of tarkov']),
       {
         id: 'story-tour-19',
         title: 'Обеспечить доступ на локацию Резерв',
         description: 'Выжить на Береге и выйти или посетить Берег 3 раза; передать Прапору 5 армейских жетонов (сдача в меню).',
         mapIds: ['shoreline'],
         progressTotal: 3,
-        ocrAliases: ['доступ на локацию резерв', 'выжить на локации берег', 'посетить берег', 'армейских жетонов'],
+        ocrAliases: ['доступ на локацию резерв', 'выжить на локации берег', 'посетить берег', 'армейских жетонов', 'access to reserve', 'survive and extract from shoreline', 'visit shoreline'],
       },
       {
         id: 'story-tour-20',
         title: 'Обеспечить доступ на локацию Маяк',
         description: 'Передать Механику 20 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.',
         mapIds: [],
-        ocrAliases: ['доступ на локацию маяк', '20 000 долларов механику'],
+        ocrAliases: ['доступ на локацию маяк', '20 000 долларов механику', 'access to lighthouse', 'dollars to mechanic'],
       },
       {
         id: 'story-tour-21',
         title: 'Обеспечить доступ на локацию Лаборатория',
         description: 'Попасть на объект TerraGroup; найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»); осмотреть серверную (1-й уровень, у ангара); осмотреть офисы топ-менеджеров (O21, 2-й уровень).',
         mapIds: ['the-lab'],
-        ocrAliases: ['доступ на локацию лаборатория', 'водосток лаборатории', 'осмотреть серверную', 'офисы топ менеджеров', 'секретный объект terragroup'],
+        ocrAliases: ['доступ на локацию лаборатория', 'водосток лаборатории', 'осмотреть серверную', 'офисы топ менеджеров', 'секретный объект terragroup', 'access to the lab'],
         landmarkHints: ['накопительный коллектор', 'серверн', 'офис'],
       },
     ],
@@ -162,8 +165,10 @@ function seedStage(chapter: StoryChapterSeed, seed: StoryStageSeed, index: numbe
     mapIds: [...new Set([...seed.mapIds, ...(seed.points ?? []).map((point) => point.mapId)])],
     optional: seed.optional,
     points: seed.points ? distinctPoints(seed.points) : undefined,
-    // The Tasks → Story pane lists sub-objectives under the stage; any of them identifies it.
-    ocrAliases: [seed.ru.toLowerCase(), ...(seed.aliases ?? []).map((alias) => alias.toLowerCase()), ...(seed.steps ?? []).map((step) => step.ru.toLowerCase())],
+    // The Tasks → Story pane lists sub-objectives under the stage; any of them identifies it, in the Russian or the
+    // English game (the seeds' English is the game's wording).
+    ocrAliases: [seed.ru.toLowerCase(), seed.en.toLowerCase(), ...(seed.aliases ?? []).map((alias) => alias.toLowerCase()),
+      ...(seed.steps ?? []).flatMap((step) => [step.ru.toLowerCase(), step.en.toLowerCase()])],
   }
 }
 

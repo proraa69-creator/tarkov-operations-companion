@@ -162,7 +162,7 @@ interface TarkovDesktopApi {
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
   }
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
-  serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>
+  serviceRequest: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<unknown | null>
   /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */
   account?: {
     status: () => Promise<ServerAccountStatus>
@@ -219,7 +219,12 @@ interface TarkovDesktopApi {
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
   /** `profiles`: the game's «Выбор профиля и режима» cards two readings agree on (src/import/modeSelectScreen.ts). */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }>
+  /**
+   * One look at the game for the quest scanner (electron/screenOcr.ts). `raid`: a raid is likely (electron/experimental/raidSignals.ts),
+   * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
+   * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
+   */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
@@ -239,10 +244,6 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
-    /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
-    openKeyboardSettings: () => Promise<boolean>
-    /** «Включить точку»: turns off «PrtSc opens the Snipping Tool» for this Windows user; the new state. */
-    fixSnipping: () => Promise<{ ok: boolean; snipping: 'on' | 'off' | 'unknown' }>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void

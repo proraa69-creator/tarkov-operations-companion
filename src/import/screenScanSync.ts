@@ -1,4 +1,5 @@
 import type { ModeProgress, Quest, TaskRequirement } from '../domain/types'
+import { latinize } from './modeSelectScreen'
 import { ocrKey, type QuestRowStatus } from './questOcr'
 import { reconcileWithSession, type QuestScanSession } from './questSession'
 import { applyStoryScan, type StoryScanMatch } from './storyScan'
@@ -7,7 +8,38 @@ import { questRequirements } from '../progression/requirementEngine'
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
 
+/** The game's Tasks menu (the table or a story chapter), in the Russian or the English game. */
 export function isTasksMenuText(text: string) {
+  return isRussianTasksMenu(text) || isEnglishTasksMenu(text)
+}
+
+// The English game (owner's PvE screenshots, 14.10.2026: Character → Tasks → Story / Side / Operational). Its bottom bar
+// always says MESSENGER and FLEA MARKET, so a frame needs two of the strong marks, as with the Russian bar.
+const NOT_TASKS_SCREEN_EN = /messenger|flea\s*market|\bbuy\b|\bsell\b|\bdeal\b/
+/** A trader's own Tasks tab and the trading screen: quests taken and not taken alike, no status on their rows. */
+const TRADER_SCREEN_EN = /show\s+(?:completed|locked)|loyalty\s+level|current\s+(?:attitude|standing)|\(\s*you\s*\)/
+const STRONG_EN = [
+  /any\s+location/,
+  // «active!», which OCR often reads «activel».
+  /\bactive[!l1|]?(?![a-z])/,
+  /class\s+task\s+location|trader\s+type\s+class/,
+  /task\s+items\s+in\s+stash|items\s+on\s+character/,
+  /main\s+objectives|optional\s+objectives/,
+  // The story banner's «CHAPTER», also read in Cyrillic look-alikes («СНАРТЕВ»).
+  /\bchapt/,
+]
+const WEAK_EN = [/\btasks?\b/, /\bprogress\b/, /\bstatus\b/, /\blocation\b/, /\bstory\b/, /\bobjectives?\b/, /related\s+items/]
+
+function isEnglishTasksMenu(text: string) {
+  const lower = latinize(text).toLowerCase()
+  if (TRADER_SCREEN_EN.test(lower)) return false
+  const strong = STRONG_EN.filter((pattern) => pattern.test(lower)).length
+  if (!strong) return false
+  if (NOT_TASKS_SCREEN_EN.test(lower) && strong < 2) return false
+  return strong + WEAK_EN.filter((pattern) => pattern.test(lower)).length >= 2
+}
+
+function isRussianTasksMenu(text: string) {
   const lower = text.toLowerCase()
   const folded = `${lower}\n${ocrKey(text)}`
   // A Tasks screen always shows the quest table or the story detail pane.

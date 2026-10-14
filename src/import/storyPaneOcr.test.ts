@@ -74,7 +74,8 @@ describe('where the story pane parts are cut', () => {
   it('cuts a 16:9 frame by the measured fractions', () => {
     expect(storyPaneRects({ width: 1920, height: 1080 })).toEqual({
       title: { x: 144, y: 124, width: 557, height: 97 },
-      status: { x: 1123, y: 130, width: 154, height: 75 },
+      // Inside the orange status box only (the English game's «ACTIVE» misread with 8 px of banner art beside it).
+      status: { x: 1133, y: 130, width: 144, height: 75 },
       body: { x: 144, y: 248, width: 1133, height: 783 },
     })
   })

@@ -8,7 +8,7 @@ import { openAccountSignIn } from '../account/accountEvents'
 import { SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
 import { cleanSupportText, SUPPORT_MESSAGE_MAX } from '../shared/supportChat'
 import { cleanIpcError } from '../sync/serverSync'
-import { supportTime, useSupportChat, type SupportMessage } from './supportChatClient'
+import { openSupportChat, supportTime, useSupportChat, useSupportNotice, type SupportMessage } from './supportChatClient'
 import './supportChat.css'
 
 /**
@@ -45,6 +45,29 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
       </div>}
       <p className="support-chat-telegram">{uiText('Или напишите нам в Telegram')} <a href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer">{SUPPORT_TELEGRAM_HANDLE}</a></p>
     </section>
+  </div>, document.body)
+}
+
+/**
+ * «Новое сообщение от поддержки» (owner, 14.10.2026: «так же должно появляться уведомление о том что у человека новое
+ * сообщение»): a small note over the app when an answer arrives and no chat window is open — top right under the top bar
+ * on the PC, across the top on the phone. It stays until «Открыть» opens the chat (support/supportChatClient.ts
+ * openSupportChat) or «×» closes it; either way it comes back only for a newer answer. An answer read on another device,
+ * or a conversation the owner deleted, takes it away too. One note at a time, inside the app only: no system
+ * notification, no sound. Under the dialogs, so it never covers one.
+ */
+export function SupportNotice() {
+  const { message, dismiss } = useSupportNotice()
+  if (!message) return null
+  const open = () => {
+    dismiss(message.id)
+    openSupportChat()
+  }
+  return createPortal(<div className="support-notice" role="status" aria-live="polite">
+    <MessagesSquare size={18} aria-hidden="true" />
+    <strong>{uiText('Новое сообщение от поддержки')}</strong>
+    <button type="button" className="button small primary" onClick={open}>{uiText('Открыть')}</button>
+    <button type="button" className="icon-button support-notice-close" onClick={() => dismiss(message.id)} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
   </div>, document.body)
 }
 

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { RaidMode } from '../src/domain/types.js'
 import { buildScanResult, parseLogTime, readLogSignalsFrom, type LogSignal, type ModeLogScanResult } from '../src/import/eftLogTimeline.js'
 import { raidEventsFromText, raidStateFromEvents, type RaidLogEvent, type RaidState } from '../src/import/raidState.js'
-import { parseScreenshotBinding } from '../src/overlay/gameKeys.js'
+import { parseScreenshotBindingAt } from '../src/overlay/gameKeys.js'
 
 export type { ModeLogScanResult, RaidState }
 
@@ -42,6 +42,21 @@ interface Followed<S, R> {
 const HEAD_BYTES = 64
 
 /**
+ * New bytes are parsed a slice of about a megabyte at a time, with a pause for the main process's other work between
+ * slices: at the app's start every launch's logs are read, and a log of tens of megabytes held the main process for a
+ * second or more at once (the overlays, the hotkeys and the quest scanner waited meanwhile).
+ */
+const SLICE_BYTES = 1024 * 1024
+const pauseForEvents = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+/** Where the slice from `from` may end: the start of a record about SLICE_BYTES on (records are never split). */
+function sliceEnd(bytes: Buffer, from: number, cut: number) {
+  if (cut - from <= SLICE_BYTES) return cut
+  const start = lastRecordStart(bytes.subarray(from, from + SLICE_BYTES))
+  return start > 0 ? from + start : cut
+}
+
+/**
  * The first poll reads a log whole; later polls read only the bytes appended since (the log of a long session grows
  * to tens of MB and used to be read and parsed whole every 5 seconds). A shorter file (truncated) or a different
  * start (replaced) is read again from the beginning. Returns undefined when the file cannot be read.
@@ -62,7 +77,12 @@ async function follow<S, R>(file: string, cache: Map<string, Followed<S, R>>, re
     if (!entry) head = Buffer.from(bytes.subarray(0, HEAD_BYTES))
     const cut = lastRecordStart(bytes)
     const state = entry?.state ?? reader.init()
-    if (cut > 0) reader.feed(state, bytes.toString('utf8', 0, cut))
+    for (let from = 0; from < cut;) {
+      const to = sliceEnd(bytes, from, cut)
+      reader.feed(state, bytes.toString('utf8', from, to))
+      from = to
+      if (from < cut) await pauseForEvents()
+    }
     const next = reader.finish(state, bytes.toString('utf8', cut))
     // Appended lines rarely add anything: then hand out the previous result itself, so callers can tell nothing changed.
     const result = previous !== undefined && reader.same(previous, next) ? previous : next
@@ -137,7 +157,26 @@ let lastScan: { root: string; folders: number; inputs: Array<LogSignal[] | undef
  */
 const finishedLaunches = new Map<string, string[]>()
 
-export async function scanLogFolderBySession(root: string): Promise<ModeLogScanResult> {
+/**
+ * One read at a time of each kind (the 5-second poll, a search from the page, a profile lookup): reads share the kept
+ * state of each log, and a read now pauses between slices of a big log, where another could have slipped in.
+ */
+function oneAtATime() {
+  let last: Promise<unknown> = Promise.resolve()
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const run = last.then(task, task)
+    last = run.catch(() => undefined)
+    return run
+  }
+}
+const signalReads = oneAtATime()
+const raidReads = oneAtATime()
+
+export function scanLogFolderBySession(root: string): Promise<ModeLogScanResult> {
+  return signalReads(() => scanNow(root))
+}
+
+async function scanNow(root: string): Promise<ModeLogScanResult> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const launches = entries.filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name)).map((entry) => ({ folder: join(root, entry.name), key: launchKey(entry.name) }))
   const folders = launches.length ? launches : [{ folder: root, key: 0 }]
@@ -171,7 +210,11 @@ export async function scanLogFolderBySession(root: string): Promise<ModeLogScanR
 }
 
 /** Raid state of the newest game launch — only its application and notification logs are read. */
-export async function readRaidState(root: string): Promise<RaidState> {
+export function readRaidState(root: string): Promise<RaidState> {
+  return raidReads(() => raidStateNow(root))
+}
+
+async function raidStateNow(root: string): Promise<RaidState> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const latest = entries
     .filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))
@@ -199,6 +242,11 @@ function sameInputs(previous: Array<LogSignal[] | undefined>, next: Array<LogSig
  * few launches that logged them: [] = not bound, null = not found.
  */
 export async function readScreenshotBinding(root: string): Promise<string[] | null> {
+  return (await readScreenshotBindingAt(root))?.keys ?? null
+}
+
+/** The same with the time the game logged it (0 when the log line had none), to weigh it against Control.ini. */
+export async function readScreenshotBindingAt(root: string): Promise<{ keys: string[]; at: number } | null> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const launches = entries
     .filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))
@@ -208,9 +256,9 @@ export async function readScreenshotBinding(root: string): Promise<string[] | nu
     .map((entry) => join(root, entry.name))
   for (const folder of launches.length ? launches : [root]) {
     const files = (await relevantLogs(folder)).filter((file) => /application[^\\/]*\.log$/i.test(file)).sort()
-    let keys: string[] | null = null
-    for (const file of files) keys = await fileBinding(file) ?? keys
-    if (keys) return keys
+    let found: { keys: string[]; at: number } | null = null
+    for (const file of files) found = await fileBinding(file) ?? found
+    if (found) return found
   }
   return null
 }
@@ -218,34 +266,34 @@ export async function readScreenshotBinding(root: string): Promise<string[] | nu
 const BINDING_CHUNK = 4 * 1024 * 1024
 /** Chunks overlap so a binding cut in half by a chunk edge is still read whole. */
 const BINDING_OVERLAP = 8 * 1024
-const bindingCache = new Map<string, { size: number; keys: string[] | null }>()
+const bindingCache = new Map<string, { size: number; found: { keys: string[]; at: number } | null }>()
 
 /** A running game keeps appending to its log: only the new part is read, in chunks. */
 async function fileBinding(file: string) {
   const info = await stat(file).catch(() => null)
   if (!info) return null
   const cached = bindingCache.get(file)
-  if (cached && cached.size === info.size) return cached.keys
+  if (cached && cached.size === info.size) return cached.found
   const from = cached && info.size > cached.size ? Math.max(0, cached.size - BINDING_OVERLAP) : 0
-  let keys = cached && from > 0 ? cached.keys : null
+  let found = cached && from > 0 ? cached.found : null
   const handle = await open(file, 'r').catch(() => null)
-  if (!handle) return keys
+  if (!handle) return found
   try {
     const buffer = Buffer.alloc(BINDING_CHUNK)
     for (let position = from; position < info.size;) {
       const { bytesRead } = await handle.read(buffer, 0, Math.min(BINDING_CHUNK, info.size - position), position)
       if (!bytesRead) break
-      keys = parseScreenshotBinding(buffer.toString('utf8', 0, bytesRead)) ?? keys
+      found = parseScreenshotBindingAt(buffer.toString('utf8', 0, bytesRead)) ?? found
       if (position + bytesRead >= info.size) break
       position += Math.max(1, bytesRead - BINDING_OVERLAP)
     }
   } catch {
-    return keys
+    return found
   } finally {
     await handle.close().catch(() => {})
   }
-  bindingCache.set(file, { size: info.size, keys })
-  return keys
+  bindingCache.set(file, { size: info.size, found })
+  return found
 }
 
 /** «log_2026.09.27_2-33-45_1.1.5.1» → sortable launch time (the hour is not zero-padded). */

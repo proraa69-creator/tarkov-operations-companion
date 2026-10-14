@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync, watch, type FSWatcher } from 'node:fs'
+import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { homedir } from 'node:os'
 import { mkdir, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -13,8 +13,11 @@ let override = ''
 
 /** A folder the player picked by hand in the Mini Map section; empty means auto-detect. */
 export function setScreenshotsOverride(folder: string) {
+  if (folder === override && folderCache) return
   override = folder
   folderCache = null
+  finding = null
+  void findScreenshotsFolder().catch(() => {})
 }
 
 /** Where EFT may write screenshots: Documents (possibly redirected to OneDrive) under the user profile. */
@@ -30,54 +33,82 @@ const TAKEN_AT = /^\d{4}-\d{2}-\d{2}\[\d{2}-\d{2}\]/
 
 /**
  * When the game last wrote a coordinate screenshot here (0: never, −1: no folder). The names give the minute, so only
- * the newest minute's files are looked at, not each of the thousands a player keeps (this runs every 15 seconds).
+ * the newest minute's files are looked at, not each of the thousands a player keeps.
  */
-function newestScreenshotTime(folder: string) {
+async function newestScreenshotTime(folder: string) {
   try {
     let minute = ''
     let latest: string[] = []
     const undated: string[] = []
-    for (const name of readdirSync(folder)) {
+    for (const name of await readdir(folder)) {
       if (!isPositionScreenshot(name)) continue
       const taken = TAKEN_AT.exec(name)?.[0]
       if (!taken) undated.push(name)
       else if (taken > minute) { minute = taken; latest = [name] }
       else if (taken === minute) latest.push(name)
     }
-    let newest = 0
-    for (const name of [...latest, ...undated]) newest = Math.max(newest, statSync(join(folder, name)).mtimeMs)
-    return newest
+    const times = await Promise.all([...latest, ...undated].map(async (name) => (await stat(join(folder, name))).mtimeMs))
+    return Math.max(0, ...times)
   } catch {
     return -1
   }
 }
 
-function autoFolder() {
+async function autoFolder() {
   const candidates = screenshotFolderCandidates()
-  const existing = candidates.filter((folder) => existsSync(folder))
-  // Prefer the folder EFT wrote coordinate screenshots to most recently.
-  const best = existing.map((folder) => ({ folder, time: newestScreenshotTime(folder) })).sort((a, b) => b.time - a.time)[0]
+  // Prefer the folder EFT wrote coordinate screenshots to most recently (−1: no such folder).
+  const found = await Promise.all(candidates.map(async (folder) => ({ folder, time: await newestScreenshotTime(folder) })))
+  const best = found.filter((entry) => entry.time >= 0).sort((a, b) => b.time - a.time)[0]
   return best ?? { folder: candidates[0]!, time: -1 }
 }
 
+/**
+ * A folder found is trusted this long, then looked for again in the background (the one found last is used meanwhile).
+ * The lookup lists every candidate folder — players keep thousands of screenshots, often on OneDrive — and used to do it
+ * synchronously on the main process's thread twice a minute (the status of the Mini Map page, the tracker, the scanner).
+ */
+export const FOLDER_CACHE_MS = 2 * 60_000
+
 let folderCache: { at: number; folder: string } | null = null
+let finding: Promise<string> | null = null
 
 /**
- * The folder to watch. A folder picked by hand wins only while it actually holds the game's screenshots: a
- * wrong pick (e.g. Pictures\Screenshots) must not hide the game's own folder that has them.
+ * Looks for the folder to watch, off the main thread's way (file listing in the background). A folder picked by hand
+ * wins only while it actually holds the game's screenshots: a wrong pick (e.g. Pictures\Screenshots) must not hide the
+ * game's own folder that has them. One lookup at a time; a fresh answer is given at once.
+ */
+export function findScreenshotsFolder(): Promise<string> {
+  if (process.env.TARKOV_SCREENSHOTS_DIR) return Promise.resolve(process.env.TARKOV_SCREENSHOTS_DIR)
+  if (folderCache && Date.now() - folderCache.at < FOLDER_CACHE_MS) return Promise.resolve(folderCache.folder)
+  if (finding) return finding
+  const picked = override
+  const lookup: Promise<string> = (async () => {
+    let folder: string
+    if (picked && await newestScreenshotTime(picked) > 0) folder = picked
+    else {
+      const auto = await autoFolder()
+      folder = picked && auto.time <= 0 ? picked : auto.folder
+    }
+    // A folder picked by hand meanwhile makes this answer out of date: not kept.
+    if (picked === override) folderCache = { at: Date.now(), folder }
+    return folder
+  })().finally(() => { if (finding === lookup) finding = null })
+  finding = lookup
+  return lookup
+}
+
+/**
+ * The folder to watch, at once and without listing anything: the one found last (looked for again in the background once
+ * it is FOLDER_CACHE_MS old). Before the first lookup has answered, the folder picked by hand or the first candidate that
+ * exists.
  */
 export function screenshotsFolder() {
   if (process.env.TARKOV_SCREENSHOTS_DIR) return process.env.TARKOV_SCREENSHOTS_DIR
-  // Lists every candidate folder synchronously (players keep thousands of screenshots): not more than twice a minute.
-  if (folderCache && Date.now() - folderCache.at < 30_000) return folderCache.folder
-  let folder: string
-  if (override && newestScreenshotTime(override) > 0) folder = override
-  else {
-    const auto = autoFolder()
-    folder = override && auto.time <= 0 ? override : auto.folder
-  }
-  folderCache = { at: Date.now(), folder }
-  return folder
+  if (!folderCache || Date.now() - folderCache.at >= FOLDER_CACHE_MS) void findScreenshotsFolder().catch(() => {})
+  if (folderCache) return folderCache.folder
+  if (override) return override
+  const candidates = screenshotFolderCandidates()
+  return candidates.find((folder) => existsSync(folder)) ?? candidates[0]!
 }
 
 /**
@@ -115,7 +146,7 @@ export class PositionTracker {
   async start() {
     if (this.running) return
     this.startedAt = Date.now()
-    const folder = screenshotsFolder()
+    const folder = await findScreenshotsFolder()
     this.folder = folder
     await mkdir(folder, { recursive: true }).catch(() => {})
     this.preexisting = new Set(await readdir(folder).catch(() => [] as string[]))

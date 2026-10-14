@@ -203,6 +203,8 @@ export function eftDigest(eftAccountId: string) {
 
 /** A country that is not an assigned ISO 3166-1 code (src/shared/countries.ts). */
 export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. Выберите страну из списка.'
+/** A registration without a country: only an app from before the question (13.10.2026) sends one, its form has no field. */
+export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
  * The country of a registration or of «Страна» in the cabinet as stored: the upper-case code, or null when none was
@@ -863,6 +865,11 @@ export class AccountStore {
     return this.findByEmail(email) !== undefined
   }
 
+  /** Whether this id is a live account: a deleted one stays only as an anonymous stub (deleteAccount). */
+  exists(accountId: string) {
+    return this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND deleted_at IS NULL').get(accountId) !== undefined
+  }
+
   /** Remembers that the account accepted the documents of `version` (registration or a payment). */
   recordConsent(accountId: string, kind: ConsentKind, version: string) {
     if (!CONSENT_VERSION.test(version)) throw new AccountError(400, 'Некорректная версия документов')
@@ -1045,6 +1052,12 @@ export class AccountStore {
   emailOf(accountId: string) {
     const row = this.db.prepare('SELECT email FROM accounts WHERE id = ?').get(accountId) as Row | undefined
     return row ? String(row.email) : undefined
+  }
+
+  /** The country named at registration or in «Страна» (two letters); undefined when none was given (routes/announcement.ts). */
+  countryOf(accountId: string) {
+    const row = this.db.prepare('SELECT country FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.country == null ? undefined : String(row.country)
   }
 
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
@@ -1335,7 +1348,7 @@ export const REGISTRATION_PENDING_MESSAGE = 'Мы отправили код на
 const emailSchema = z.string().trim().toLowerCase().max(254).email()
 const passwordSchema = z.string().min(8).max(128)
 const credentialsSchema = z.object({ email: emailSchema, password: passwordSchema })
-// `country` is checked after the parse (its own message, COUNTRY_INVALID_MESSAGE); apps from before 13.10.2026 omit it.
+// `country` is checked after the parse, with its own messages (COUNTRY_REQUIRED_MESSAGE, COUNTRY_INVALID_MESSAGE).
 const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional(), country: z.unknown().optional() })
 const countrySchema = z.object({ country: z.string().max(16) })
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
@@ -1411,12 +1424,14 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = registerSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Укажите корректный e-mail и пароль от 8 до 128 символов')
       const { email, password, referralCode } = parsed.data
-      // Every registration form asks the country since 13.10.2026 (owner: «при регистрации нужно указать страну»); older
-      // apps send none and still register. Whatever is given must be an assigned code — checked the same way for every
-      // address, so the refusal says nothing about the e-mail.
-      const givenCountry = parsed.data.country ?? ''
-      const country = givenCountry === '' ? undefined : normalizeCountry(givenCountry)
-      if (givenCountry !== '' && !country) return invalid(COUNTRY_INVALID_MESSAGE)
+      // Every registration form asks the country since 13.10.2026 (owner: «при регистрации нужно указать страну»), and it is
+      // mandatory (owner, 14.10.2026: «на сайте сделай указывать страну обязательно при регистрации»): only an app from
+      // before the question sends none, and it is told to update. It must be an assigned code — both checked the same way
+      // for every address, so the refusal says nothing about the e-mail.
+      const givenCountry = parsed.data.country
+      if (givenCountry == null || (typeof givenCountry === 'string' && givenCountry.trim() === '')) return invalid(COUNTRY_REQUIRED_MESSAGE)
+      const country = normalizeCountry(givenCountry)
+      if (!country) return invalid(COUNTRY_INVALID_MESSAGE)
       const registrations = options.registrations
       if (registrations?.enabled) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or

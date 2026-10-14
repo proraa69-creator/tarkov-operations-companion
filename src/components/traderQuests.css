@@ -5,7 +5,7 @@
 .trader-quests-tabs button { display: inline-flex; align-items: center; gap: 6px; }
 .trader-quests-tabs button small { min-width: 20px; padding: 1px 6px; border-radius: 99px; background: var(--panel-3); color: var(--text-muted); font-size: 10px; font-weight: 700; }
 .trader-quests-tabs button.active small { background: color-mix(in srgb, var(--brass) 26%, transparent); color: var(--brass-strong); }
-.trader-quests-rows { list-style: none; margin: 0; padding: 8px 12px 14px; max-height: calc(100vh - var(--topbar) - 250px); min-height: 220px; overflow: auto; }
+.trader-quests-rows { list-style: none; margin: 0; padding: 8px 12px 14px; max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 250px); min-height: 220px; overflow: auto; }
 .trader-quests-rows li + li { margin-top: 4px; }
 .trader-quest-row {
   width: 100%; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 15px; align-items: center; gap: 10px;
