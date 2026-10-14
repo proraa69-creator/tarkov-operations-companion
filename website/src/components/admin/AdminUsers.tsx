@@ -152,10 +152,8 @@ function CameFrom({ user }: { user: AdminUser }) {
       <span className="admin-came-from">
         <span className={`admin-inviter${inviter.deleted ? ' dim' : ''}`} title={inviter.deleted ? 'Аккаунт пригласившего удалён' : 'Пригласил по своему коду'}>{inviterText(inviter)}</span>
         {inviter.nickname && <span className="admin-nick" title="Ник пригласившего в Escape from Tarkov"><Gamepad2 aria-hidden="true" />{inviter.nickname}</span>}
-        <span className="admin-badges">
-          <span className="tag green admin-mini">друг · скидка</span>
-          {discount && <span className={`tag admin-mini ${discount.tone}`} title={discount.hint}>{discount.label}</span>}
-        </span>
+        <span className="admin-badges"><span className="tag green admin-mini">друг · скидка</span></span>
+        {discount && <span className={`admin-discount ${discount.tone}`} title={discount.hint}>{discount.label}</span>}
       </span>
     )
   }

@@ -49,7 +49,7 @@ export function AdminOnline() {
     <div className="admin-online" role="status" title={title} aria-label={`Онлайн сейчас: ${online.online}. ПК: ${online.pc}, телефон: ${online.phone}. ${title}`}>
       <span className="admin-online-dot" aria-hidden="true" />
       <span>Онлайн сейчас: <strong className="mono">{numberFormat.format(online.online)}</strong></span>
-      <span className="admin-online-split mono">ПК {numberFormat.format(online.pc)} · телефон {numberFormat.format(online.phone)}</span>
+      <span className="admin-online-split">ПК {numberFormat.format(online.pc)} · телефон {numberFormat.format(online.phone)}</span>
       <span className="admin-online-window">за {online.windowMinutes} мин</span>
     </div>
   )
