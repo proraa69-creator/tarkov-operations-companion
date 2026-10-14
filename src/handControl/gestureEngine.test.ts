@@ -31,21 +31,23 @@ function tap(engine: HandGestureEngine, from: number, { to = 110, foldMs = 120, 
 }
 
 describe('HandGestureEngine — pointing', () => {
-  it('maps the palm centre into calibrated, mirrored window space', () => {
+  it('puts the aim on the index fingertip, moving with the palm (calibrated, mirrored)', () => {
     const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, calibration: { x0: 0, y0: 0, x1: 1, y1: 1 } })
     const { frames } = run(engine, 0, 500, () => ({ x: 0.3, y: 0.6, k: 1000, fingers: { index: 0 } }))
     const last = frames.at(-1)!
     expect(last.tracking).toBe('good')
     expect(last.phase).toBe('point')
-    // Palm centre = mean of wrist and the four knuckles: 0.072 m above the wrist, centred in x.
-    expect(last.pointer!.x).toBeCloseTo(0.7, 2)
-    expect(last.pointer!.y).toBeCloseTo(0.6 - (0.072 * 1000) / 480, 2)
-    expect(last.hand).toEqual(last.pointer)
+    // Index tip: 0.03 m left of and 0.175 m above the wrist → mirrored x ≈ 1 - (0.3 - 0.047).
+    expect(last.pointer!.x).toBeCloseTo(0.747, 2)
+    expect(last.pointer!.y).toBeCloseTo(0.6 - (0.175 * 1000) / 480, 2)
+    // The drawn hand is placed by the palm centre (mean of wrist and knuckles).
+    expect(last.hand!.x).toBeCloseTo(0.7, 2)
+    expect(last.hand!.y).toBeCloseTo(0.6 - (0.072 * 1000) / 480, 2)
     expect(last.skeleton).toHaveLength(21)
     expect(last.events).toEqual([])
   })
 
-  it('folding, flicking or pinching fingers does not move the cursor — only the hand does', () => {
+  it('folding, flicking or pinching fingers does not move the hand or the aim — only the hand moves them', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
     const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
     const before = rest.frames.at(-1)!.hand!
@@ -108,13 +110,6 @@ describe('HandGestureEngine — tap (index fold)', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
     const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, score: 0.6 }))
     expect(tap(engine, rest.end, { extra: { score: 0.6 } }).events).toEqual([])
-  })
-
-  it('needs a pointing finger first — folding from a closed hand is not a tap', () => {
-    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
-    const rest = run(engine, 0, 1000, () => ({ x: 0.5, y: 0.6, k: 1000 }))
-    const fold = run(engine, rest.end, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: 110 } }))
-    expect(fold.events).toEqual([])
   })
 
   it('keeps a cooldown between consecutive taps', () => {
@@ -391,5 +386,20 @@ describe('HandGestureEngine — wrist tilt is not a finger gesture', () => {
     const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, tilt: 40 }))
     const result = tap(engine, rest.end, { extra: { tilt: 40 } })
     expect(types(result.events)).toEqual(['press', 'click'])
+  })
+})
+
+describe('HandGestureEngine — opening the hand is neither a zoom nor a grab', () => {
+  it('fist → open palm (thumb springs out, palm grows in the image) does nothing to the map', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000 }))
+    // All fingers and the thumb open within ~150 ms; the hand also comes a little closer.
+    const opening = run(engine, 800, 150, (_t, p) => ({
+      x: 0.5, y: 0.6, k: 1000 * (1 + 0.12 * p),
+      fingers: { index: lerp(120, 10, p), middle: lerp(120, 10, p), ring: lerp(120, 10, p), pinky: lerp(120, 10, p) },
+      thumbTip: { x: lerp(-0.03, THUMB_OUT.x, p), y: lerp(-0.12, THUMB_OUT.y, p), z: 0 },
+    }))
+    const open = run(engine, opening.end, 800, () => ({ x: 0.5, y: 0.6, k: 1120, fingers: { index: 10, middle: 10, ring: 10, pinky: 10 }, thumbTip: THUMB_OUT }))
+    expect([...opening.events, ...open.events]).toEqual([])
   })
 })

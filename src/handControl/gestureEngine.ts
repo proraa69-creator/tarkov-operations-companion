@@ -15,7 +15,7 @@ export const ENGINE = {
   fingerOff: 0.35,
   /** a fold must happen within this window (fast); slow curling is ignored */
   foldWindowMs: 350,
-  tapMinFlex: 65,
+  tapMinFlex: 55,
   /** release when the finger is back below base + this share of the tap angle */
   tapReleaseRatio: 0.45,
   indexRecentMs: 400,
@@ -70,9 +70,9 @@ export const ENGINE = {
    * No fixation while the hand moves: the aim may be held (and a tap, pinch or push may start) only
    * if the palm stood still just before the gesture; it is released as soon as the palm moves again.
    */
-  stillWindowMs: 250,
+  stillWindowMs: 150,
   stillGapMs: 50,
-  stillMaxTravel: 0.04,
+  stillMaxTravel: 0.05,
   frozenMaxTravel: 0.05,
   /**
    * Fist = reset: closing the hand (fingers folding together, not just the index) cancels a press,
@@ -92,10 +92,20 @@ export const ENGINE = {
   maxPalmTurn: 35,
   foldToTurn: 2,
   maxPushTurn: 30,
+  /** the palm must already be open this long before a push grabs (opening the hand is not a push) */
+  openBeforeGrabMs: 400,
+  /** pinch zoom: middle/ring/pinky must keep their fold (opening or closing the hand is not a pinch) */
+  pinchOthersSteady: 25,
+  /**
+   * The aim sits on the index fingertip: palm position + the fingertip offset. The offset follows
+   * the extended finger (~150 ms) and is held while the finger folds, so a tap never moves it.
+   */
+  tipOffsetMs: 150,
+  tipOffsetMaxFlex: 60,
 } as const
 
 type Pose = Record<FingerName, boolean>
-type Sample = { t: number; x: number; y: number; flexIndex: number; flexTwo: number; pinch: number; thumb: Point3; tip: Point3; depth: number; palmX: number; palmY: number; palmDir: Point3 }
+type Sample = { t: number; x: number; y: number; flexIndex: number; flexTwo: number; flexOthers: [number, number, number]; pinch: number; thumb: Point3; tip: Point3; depth: number; palmX: number; palmY: number; palmDir: Point3 }
 
 const vectorFilter = (minCutoff: number, beta: number) => ({
   x: new OneEuroFilter(30, minCutoff, beta),
@@ -118,8 +128,8 @@ const angleDeg = (a: Point3, b: Point3) => (Math.acos(Math.max(-1, Math.min(1, a
 
 /**
  * Turns raw hand observations into pointer, press, scroll, zoom and grab state:
- * - the centre of the palm drives the pointer (1€-filtered, calibrated, optionally mirrored), so
- *   moving the fingers never moves the cursor — the hand stays, only the fingers act;
+ * - the pointer sits on the index fingertip but moves with the palm (1€-filtered, calibrated,
+ *   optionally mirrored): the fingertip offset is held while fingers fold, so taps never move it;
  * - tap: a quick fold of the index finger presses, unfolding clicks (aim is frozen meanwhile);
  *   optionally a quick push of the whole hand towards the camera ("poke") does the same;
  * - index + middle raised (ring and pinky folded) enters scrolling: a quick fold of both
@@ -140,6 +150,8 @@ export class HandGestureEngine {
   private indexExtendedAt = Number.NEGATIVE_INFINITY
   private middleExtendedAt = Number.NEGATIVE_INFINITY
   private fistSince = Number.NaN
+  private openPalmSince = Number.NaN
+  private tipOffset: { x: number; y: number } | null = null
   private fistLock = false
   private palmFilter = vectorFilter(1.2, ENGINE.pointerBeta)
   private skeletonFilters: Array<ReturnType<typeof vectorFilter>> = []
@@ -202,20 +214,34 @@ export class HandGestureEngine {
     // used for drags, grabs and the "is the hand still" checks.
     const center = toWindowSpace(palmCenter(observation.image), settings.calibration, settings.mirror)
     const palm = { x: this.palmFilter.x.filter(center.x, seconds), y: this.palmFilter.y.filter(center.y, seconds) }
-    const pointer = { x: clamp01(palm.x), y: clamp01(palm.y) }
-
     const flexIndex = fingerFlex(world, 'index')
-    const flexTwo = (flexIndex + fingerFlex(world, 'middle')) / 2
+    // The aim point is the index fingertip, rigidly attached to the palm: the offset is learned
+    // while the finger is extended and held while it folds (taps, fists) — so it never jumps.
+    const tip = toWindowSpace(observation.image[LM.INDEX_TIP], settings.calibration, settings.mirror)
+    const rawOffset = { x: tip.x - center.x, y: tip.y - center.y }
+    if (!this.tipOffset) this.tipOffset = rawOffset
+    else if (this.pose.index && flexIndex < ENGINE.tipOffsetMaxFlex && !this.press && Number.isNaN(this.frozenAt)) {
+      const k = 1 - Math.exp(-dt / ENGINE.tipOffsetMs)
+      this.tipOffset = { x: this.tipOffset.x + (rawOffset.x - this.tipOffset.x) * k, y: this.tipOffset.y + (rawOffset.y - this.tipOffset.y) * k }
+    }
+    const pointer = { x: clamp01(palm.x + this.tipOffset.x), y: clamp01(palm.y + this.tipOffset.y) }
+
+    const flexMiddle = fingerFlex(world, 'middle')
+    const flexTwo = (flexIndex + flexMiddle) / 2
+    const flexOthers: [number, number, number] = [flexMiddle, fingerFlex(world, 'ring'), fingerFlex(world, 'pinky')]
     const pinch = pinchDistance(world)
     const depth = this.updateDepth(observation, seconds, dt)
     const palmDir = palmDirection(world)
-    this.history.push({ t, x: pointer.x, y: pointer.y, flexIndex, flexTwo, pinch, thumb: world[LM.THUMB_TIP], tip: world[LM.INDEX_TIP], depth, palmX: palm.x, palmY: palm.y, palmDir })
+    this.history.push({ t, x: pointer.x, y: pointer.y, flexIndex, flexTwo, flexOthers, pinch, thumb: world[LM.THUMB_TIP], tip: world[LM.INDEX_TIP], depth, palmX: palm.x, palmY: palm.y, palmDir })
     while (this.history.length && t - this.history[0].t > ENGINE.historyMs) this.history.shift()
     // How far the whole hand turned during the last fold window (wrist bends, hand tilts).
     const palmTurn = this.palmTurnSince(t - ENGINE.foldWindowMs, palmDir)
 
     const scrollPose = this.pose.index && this.pose.middle && !this.pose.ring && !this.pose.pinky
     const openPalm = this.pose.index && this.pose.middle && this.pose.ring && this.pose.pinky && thumbOut(world) >= ENGINE.thumbOutOpen
+    if (!openPalm) this.openPalmSince = Number.NaN
+    else if (Number.isNaN(this.openPalmSince)) this.openPalmSince = t
+    const palmSettled = openPalm && t - this.openPalmSince >= ENGINE.openBeforeGrabMs
     const useTap = settings.clickMode !== 'poke'
     const usePoke = settings.clickMode !== 'tap'
     const tapBase = this.minSince(t - ENGINE.foldWindowMs, 'flexIndex')
@@ -249,7 +275,7 @@ export class HandGestureEngine {
       } else this.scrollPoseSince = Number.NaN
 
       const ready = tracking === 'good' && t >= this.cooldownUntil && !this.fistLock
-      if (ready && settings.palmGrab && openPalm && palmTurn <= ENGINE.maxPushTurn && this.isPush(t, depth, settings.grabThreshold)) {
+      if (ready && settings.palmGrab && palmSettled && palmTurn <= ENGINE.maxPushTurn && this.isPush(t, depth, settings.grabThreshold)) {
         const id = this.nextId++
         const start = this.pushStart(t, pointer)
         // Drag relative to where the palm is now (the push itself shifts the image of the hand).
@@ -267,7 +293,7 @@ export class HandGestureEngine {
       } else if (ready && usePoke && this.pose.index && !scrollPose && !openPalm && palmTurn <= ENGINE.maxPushTurn && this.isPush(t, depth, settings.pressThreshold)) {
         this.startPress(events, t, this.pushStart(t, pointer), 'poke', 0)
       } else if (settings.pinchZoom && tracking === 'good' && !this.fistLock && t >= this.zoomCooldownUntil) {
-        const steps = palmTurn <= ENGINE.maxPalmTurn ? this.detectPinch(t, pinch) : 0
+        const steps = palmTurn <= ENGINE.maxPalmTurn && this.pose.index && !openPalm ? this.detectPinch(t, pinch) : 0
         if (steps) {
           this.zoomCooldownUntil = t + ENGINE.zoomCooldownMs
           events.push({ type: 'zoom', id: this.nextId++, x: at.x, y: at.y, steps })
@@ -287,7 +313,8 @@ export class HandGestureEngine {
       confidence: observation.score,
       phase: this.phase,
       pointer: output,
-      hand: pointer,
+      hand: palm,
+      aimOffset: this.tipOffset,
       pressProgress: this.phase === 'press' || this.phase === 'grab' ? 1 : this.phase === 'scroll' ? 0 : progress,
       depth,
       indexFlex: flexIndex,
@@ -498,6 +525,11 @@ export class HandGestureEngine {
     if (window.length < 3) return 0
     if (Math.max(...window.map((sample) => sample.flexIndex)) >= ENGINE.pinchMaxFlex) return 0
     if (this.palmTravel(t - ENGINE.pinchWindowMs, t) > ENGINE.pushMaxTravel) return 0
+    // Only the thumb may move: the other fingers opening or closing means the whole hand opens.
+    for (let finger = 0; finger < 3; finger++) {
+      const values = window.map((sample) => sample.flexOthers[finger])
+      if (Math.max(...values) - Math.min(...values) > ENGINE.pinchOthersSteady) return 0
+    }
     const first = window[0]
     const last = window[window.length - 1]
     // The thumb must do the moving — a folding index finger (tap) also closes the gap.
@@ -557,6 +589,8 @@ export class HandGestureEngine {
     this.baseline = Number.NaN
     this.scrollPoseSince = Number.NaN
     this.history = []
+    this.tipOffset = null
+    this.openPalmSince = Number.NaN
     for (const axis of ['x', 'y', 'z'] as const) this.palmFilter[axis].reset()
     this.depthFilter.reset()
     this.skeletonFilters = []
@@ -597,5 +631,5 @@ export class HandGestureEngine {
 }
 
 function emptyFrame(seq: number, t: number): HandFrame {
-  return { seq, t, tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, events: [] }
+  return { seq, t, tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, aimOffset: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, events: [] }
 }

@@ -16,15 +16,18 @@ export function handSpan(frame: HandFrame, width: number, height: number) {
 
 /**
  * Screen pose of the drawn hand: real finger shape at a steady size, anchored by the palm centre
- * on the live hand position, so folding fingers never moves the hand. `z` is in the same pixel
+ * on the live hand position (shifted so the extended index tip meets the aim point), so folding
+ * fingers never moves the hand. `z` is in the same pixel
  * scale, positive = closer to the viewer.
  */
 export function ghostPose(frame: HandFrame, width: number, height: number, span: number) {
   const points = frame.skeleton!
   const center = palmCenter(points)
   const scale = Math.min(3, Math.max(0.15, GHOST_PALM_PX / Math.max(1, span)))
-  const anchorX = frame.hand!.x * width
-  const anchorY = frame.hand!.y * height
+  // Place the drawn palm so the drawn (extended) index tip lands on the live aim point.
+  const offset = frame.aimOffset ?? { x: 0, y: 0 }
+  const anchorX = (frame.hand!.x + offset.x * (1 - scale)) * width
+  const anchorY = (frame.hand!.y + offset.y * (1 - scale)) * height
   const wristZ = points[LM.WRIST].z
   return {
     scale,

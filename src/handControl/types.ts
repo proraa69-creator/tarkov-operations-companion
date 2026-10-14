@@ -44,8 +44,10 @@ export interface HandFrame {
   phase: HandPhase
   /** aim point in window-normalized coordinates (0..1) — frozen during a press, scroll or grab; null when the hand is not usable */
   pointer: { x: number; y: number } | null
-  /** live (never frozen) fingertip position, used to draw the hand */
+  /** live palm centre (never frozen), used to place the drawn hand */
   hand: { x: number; y: number } | null
+  /** held fingertip offset from the palm centre (window units): pointer ≈ hand + aimOffset */
+  aimOffset: { x: number; y: number } | null
   /** 0..1 how far the current poke is towards a press */
   pressProgress: number
   /** relative distance to camera: >0 closer than the resting baseline, <0 further (log scale) */
@@ -98,7 +100,7 @@ export const DEFAULT_SETTINGS: HandControlSettings = {
   cursor: 'hand3d',
   calibration: { x0: 0.2, y0: 0.15, x1: 0.8, y1: 0.75 },
   clickMode: 'tap',
-  tapAngle: 45,
+  tapAngle: 35,
   pressThreshold: 0.07,
   scrollSpeed: 2.2,
   naturalScroll: true,

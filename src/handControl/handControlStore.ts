@@ -5,6 +5,8 @@ import { DEFAULT_SETTINGS, type HandControlSettings, type HandFrame, type HandOb
 import type { TrackerErrorCode, TrackerStats, WebcamHandTracker } from './webcamTracker'
 
 const SETTINGS_KEY = 'raidos-hand-control-v1'
+/** Bumped when default gesture thresholds change, so stored settings pick up the new values. */
+const SETTINGS_VERSION = 2
 const SNAPSHOT_INTERVAL_MS = 200
 
 export type HandControlStatus = 'off' | 'starting' | 'on' | 'error'
@@ -26,8 +28,12 @@ export interface HandControlSnapshot {
 
 function loadSettings(): HandControlSettings {
   try {
-    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null') as Partial<HandControlSettings> | null
-    return { ...DEFAULT_SETTINGS, ...(stored ?? {}), calibration: { ...DEFAULT_SETTINGS.calibration, ...(stored?.calibration ?? {}) } }
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null') as (Partial<HandControlSettings> & { version?: number }) | null
+    const settings = { ...DEFAULT_SETTINGS, ...(stored ?? {}), calibration: { ...DEFAULT_SETTINGS.calibration, ...(stored?.calibration ?? {}) } }
+    // v2: softer tap (35°) after the real test — older saved thresholds are replaced.
+    if ((stored?.version ?? 1) < 2) settings.tapAngle = DEFAULT_SETTINGS.tapAngle
+    delete (settings as { version?: number }).version
+    return settings
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
@@ -106,7 +112,7 @@ class HandControlRuntime {
     this.tracker?.stop()
     this.dispatcher.release()
     this.engine.reset()
-    const empty: HandFrame = { seq: 0, t: performance.now(), tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, events: [] }
+    const empty: HandFrame = { seq: 0, t: performance.now(), tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, aimOffset: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, events: [] }
     this.frameListeners.forEach((listener) => listener(empty))
     this.calibration = null
     this.set({ status: 'off', frame: null, raw: null, calibration: { step: null, progress: 0, hint: 'hold' } })
@@ -114,7 +120,7 @@ class HandControlRuntime {
 
   updateSettings(patch: Partial<HandControlSettings>) {
     const settings = { ...this.snapshot.settings, ...patch }
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch { /* storage unavailable */ }
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, version: SETTINGS_VERSION })) } catch { /* storage unavailable */ }
     this.engine.configure(settings)
     const restart = (patch.cameraId !== undefined && patch.cameraId !== this.snapshot.settings.cameraId)
       || (patch.compute !== undefined && patch.compute !== this.snapshot.settings.compute)
