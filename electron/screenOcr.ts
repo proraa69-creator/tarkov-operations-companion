@@ -366,10 +366,13 @@ function closeUpPicture(image: NativeImage) {
   return bitmap.length >= width * height * 4 ? grayPicture(bitmap, width, height) : null
 }
 
+/** The nickname each card's close-up read in the last frame of the mode selection screen (confirmCards' `earlier`). */
+let lastCloseUps: { at: number; names: Partial<Record<ModeSelectCard['mode'], string>> } | null = null
+
 /**
  * The mode selection screen: each card's «ник | уровень» line once more, close up (3×), next to what the whole pass read,
  * and the level's digits read from their shapes in that close-up. Only the levels an OCR reading and the shapes agree on
- * are returned (confirmCards). A few small reads, and only while this screen is open.
+ * are returned, and the nicknames two readings agree on (confirmCards). A few small reads, and only while this screen is open.
  */
 async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<ModeSelectCard[]> {
   const headers = modeSelectHeaders(words, image.getSize())
@@ -398,7 +401,10 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<
       }
       return result
     })
-    return confirmCards(readings)
+    const now = Date.now()
+    const earlier = lastCloseUps && now - lastCloseUps.at < 30_000 ? lastCloseUps.names : {}
+    lastCloseUps = { at: now, names: Object.fromEntries(readings.filter((reading) => reading.line).map((reading) => [reading.mode, reading.line!.nickname])) }
+    return confirmCards(readings, earlier)
   } finally {
     touchQuestWorker()
   }

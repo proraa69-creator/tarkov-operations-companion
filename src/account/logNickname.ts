@@ -218,7 +218,8 @@ export function applyModeSelectScreen(cards: ModeSelectCard[], observedAt: numbe
     && screen.cards.length === cards.length && cards.every((card) => screen!.cards.some((seen) => seen.mode === card.mode && seen.level === card.level))
   // The same screen read again a second later: nothing new.
   if (same) return
-  for (const card of cards) state().applyScreenLevel(card.mode, card.level, at)
+  // A card may give its nickname without a confirmed level (src/import/modeSelectScreen.ts confirmCards).
+  for (const card of cards) if (card.level !== undefined) state().applyScreenLevel(card.mode, card.level, at)
   if (nickname) {
     if (!best || at > best.updatedAt) best = { nickname, updatedAt: at }
     spreadNickname(state, best.nickname)

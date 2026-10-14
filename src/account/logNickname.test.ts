@@ -127,6 +127,22 @@ describe('the game\'s screens', () => {
     expect(logNickname()).toBe('Raid_OS')
   })
 
+  it('a card that gives the nickname without a confirmed level (audit P4e): the name is taken, no level is set', async () => {
+    vi.resetModules()
+    const { applyModeSelectScreen, logNickname, useScreenReading } = await import('./logNickname')
+    server.status = { signedIn: false, nicknames: {} }
+    const state = target()
+    applyModeSelectScreen([{ mode: 'pve', nickname: 'Raid_OS' }, { mode: 'pvp', level: 12 }], Date.parse('2026-10-14T18:00:00Z'), () => state)
+    expect(logNickname()).toBe('Raid_OS')
+    expect(state.applyScreenLevel.mock.calls.map((call) => [call[0], call[1]])).toEqual([['pvp', 12]])
+    expect(state.activeProfile.modes.pve.playerLevel).toBe(1)
+    expect(useScreenReading).toBeTypeOf('function')
+    // The same reading a second later: nothing new.
+    state.applyScreenLevel.mockClear()
+    applyModeSelectScreen([{ mode: 'pve', nickname: 'Raid_OS' }, { mode: 'pvp', level: 12 }], Date.parse('2026-10-14T18:00:02Z'), () => state)
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+  })
+
   it('the traders\' screen raises the level of the mode the game is in, never lowers it', async () => {
     vi.resetModules()
     const { applyTraderScreen } = await import('./logNickname')

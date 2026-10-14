@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GAME_RESTART_NOTICE_KEY, GameRestartNotice } from './GameRestartNotice'
 
-const reading = vi.hoisted(() => ({ value: null as null | { at: number; nickname: string | null; cards: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname: string; level: number }> } }))
+const reading = vi.hoisted(() => ({ value: null as null | { at: number; nickname: string | null; cards: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }> } }))
 vi.mock('../account/logNickname', () => ({ useScreenReading: () => reading.value }))
 
 describe('the first-launch notice', () => {
@@ -33,6 +33,14 @@ describe('the first-launch notice', () => {
     render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows a nickname read without a level, and only the levels confirmed', async () => {
+    const { rerender } = render(<GameRestartNotice />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    reading.value = { at: Date.now(), nickname: 'Raid_OS', cards: [{ mode: 'pve', nickname: 'Raid_OS' }, { mode: 'pvp', level: 12 }] }
+    rerender(<GameRestartNotice />)
+    expect(screen.getByRole('status').textContent).toBe('Raid_OS · PvP 12')
   })
 
   it('waits while another window (sign-in, update) is open', async () => {

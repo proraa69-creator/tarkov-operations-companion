@@ -51,7 +51,7 @@ export function GameRestartNotice() {
         <p id="grn-text">{uiLabel('Если игра запущена — закройте её и запустите снова. При входе игра покажет «Выбор профиля и режима»: Raid OS прочитает с этого экрана ваш ник и уровень в PvP, PvE и Сезоне. Вводить ник не нужно.')}</p>
         <div className={`grn-status${reading ? ' is-done' : ''}`} role="status">
           {reading
-            ? <><CheckCircle2 size={15} aria-hidden="true" /><span>{reading.nickname ? `${reading.nickname} · ` : ''}{reading.cards.map((card) => `${uiLabel(modeTitle(card.mode))} ${card.level}`).join(' · ')}</span></>
+            ? <><CheckCircle2 size={15} aria-hidden="true" /><span>{[reading.nickname ?? '', ...reading.cards.filter((card) => card.level !== undefined).map((card) => `${uiLabel(modeTitle(card.mode))} ${card.level}`)].filter(Boolean).join(' · ')}</span></>
             : <><LoaderCircle size={15} className="spin" aria-hidden="true" /><span>{uiLabel('Ждём экран выбора режима…')}</span></>}
         </div>
         <p className="grn-note">{uiLabel('Это нужно только при первом запуске. Экран читается на этом компьютере, картинки никуда не отправляются.')}</p>
