@@ -42,6 +42,21 @@ interface Followed<S, R> {
 const HEAD_BYTES = 64
 
 /**
+ * New bytes are parsed a slice of about a megabyte at a time, with a pause for the main process's other work between
+ * slices: at the app's start every launch's logs are read, and a log of tens of megabytes held the main process for a
+ * second or more at once (the overlays, the hotkeys and the quest scanner waited meanwhile).
+ */
+const SLICE_BYTES = 1024 * 1024
+const pauseForEvents = () => new Promise<void>((resolve) => setImmediate(resolve))
+
+/** Where the slice from `from` may end: the start of a record about SLICE_BYTES on (records are never split). */
+function sliceEnd(bytes: Buffer, from: number, cut: number) {
+  if (cut - from <= SLICE_BYTES) return cut
+  const start = lastRecordStart(bytes.subarray(from, from + SLICE_BYTES))
+  return start > 0 ? from + start : cut
+}
+
+/**
  * The first poll reads a log whole; later polls read only the bytes appended since (the log of a long session grows
  * to tens of MB and used to be read and parsed whole every 5 seconds). A shorter file (truncated) or a different
  * start (replaced) is read again from the beginning. Returns undefined when the file cannot be read.
@@ -62,7 +77,12 @@ async function follow<S, R>(file: string, cache: Map<string, Followed<S, R>>, re
     if (!entry) head = Buffer.from(bytes.subarray(0, HEAD_BYTES))
     const cut = lastRecordStart(bytes)
     const state = entry?.state ?? reader.init()
-    if (cut > 0) reader.feed(state, bytes.toString('utf8', 0, cut))
+    for (let from = 0; from < cut;) {
+      const to = sliceEnd(bytes, from, cut)
+      reader.feed(state, bytes.toString('utf8', from, to))
+      from = to
+      if (from < cut) await pauseForEvents()
+    }
     const next = reader.finish(state, bytes.toString('utf8', cut))
     // Appended lines rarely add anything: then hand out the previous result itself, so callers can tell nothing changed.
     const result = previous !== undefined && reader.same(previous, next) ? previous : next
@@ -137,7 +157,26 @@ let lastScan: { root: string; folders: number; inputs: Array<LogSignal[] | undef
  */
 const finishedLaunches = new Map<string, string[]>()
 
-export async function scanLogFolderBySession(root: string): Promise<ModeLogScanResult> {
+/**
+ * One read at a time of each kind (the 5-second poll, a search from the page, a profile lookup): reads share the kept
+ * state of each log, and a read now pauses between slices of a big log, where another could have slipped in.
+ */
+function oneAtATime() {
+  let last: Promise<unknown> = Promise.resolve()
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const run = last.then(task, task)
+    last = run.catch(() => undefined)
+    return run
+  }
+}
+const signalReads = oneAtATime()
+const raidReads = oneAtATime()
+
+export function scanLogFolderBySession(root: string): Promise<ModeLogScanResult> {
+  return signalReads(() => scanNow(root))
+}
+
+async function scanNow(root: string): Promise<ModeLogScanResult> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const launches = entries.filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name)).map((entry) => ({ folder: join(root, entry.name), key: launchKey(entry.name) }))
   const folders = launches.length ? launches : [{ folder: root, key: 0 }]
@@ -171,7 +210,11 @@ export async function scanLogFolderBySession(root: string): Promise<ModeLogScanR
 }
 
 /** Raid state of the newest game launch — only its application and notification logs are read. */
-export async function readRaidState(root: string): Promise<RaidState> {
+export function readRaidState(root: string): Promise<RaidState> {
+  return raidReads(() => raidStateNow(root))
+}
+
+async function raidStateNow(root: string): Promise<RaidState> {
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
   const latest = entries
     .filter((entry) => entry.isDirectory() && /^log_/i.test(entry.name))

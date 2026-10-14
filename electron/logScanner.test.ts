@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { appendFile, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -152,6 +152,24 @@ describe('following the logs of a running game', () => {
     // unrelated lines: the very same result comes back
     await appendFile(logPath(root, 'application'), `\n${app('2026-09-29 20:51:00.000', 'GC collected 10 objects')}`)
     expect(await scanLogFolderBySession(root)).toBe(grown)
+  })
+
+  it('parses a big log a slice at a time, the same as at once', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'eft-big-'))
+    try {
+      // Over a megabyte of ordinary lines with notifications at the start, in the middle (one cut across a slice is
+      // impossible: slices end where a record starts) and at the end.
+      const filler = (from: number) => Array.from({ length: 6000 }, (_, index) => app(`2026-09-29 20:${String(from + Math.floor(index / 600)).padStart(2, '0')}:00.000`, `Loaded bundle number ${index} with assets and textures`))
+      await session(root, NAME, {
+        application: [app('2026-09-29 20:31:06.000', 'Session mode: Regular'), app('2026-09-29 20:31:10.000', `CompleteSelectedProfile ProfileId:${PVP_PROFILE} AccountId:7690289`), ...filler(32)],
+        'push-notifications': [...block('2026-09-29 20:40:00.000', QUEST_A), ...filler(41).map((line) => line.replace('|application|', '|push-notifications|')), ...block('2026-09-29 20:52:00.000', QUEST_B), ...filler(53).map((line) => line.replace('|application|', '|push-notifications|')), ...block('2026-09-29 20:59:00.000', QUEST_A)],
+      })
+      const scanned = await scanLogFolderBySession(root)
+      expect(scanned).toEqual(await wholeRead(root))
+      expect(scanned.events.map((event) => event.taskId)).toEqual([QUEST_B, QUEST_A])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('reads a truncated or replaced log again from the start', async () => {
