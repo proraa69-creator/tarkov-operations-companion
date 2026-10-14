@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { release } from 'node:os'
+
 import { bindGameWindowApi, createGameSightings, createGameWindowCheck, GAME_CLASS, GAME_TITLE, type GameWindowInfo, type KoffiLibrary } from './gameWindow.js'
 
 const require = createRequire(import.meta.url)
@@ -14,6 +15,7 @@ type Koffi = {
 let api: {
   notificationState: (out: Int32Array) => number
   foreground: () => unknown
+  windowText: (hwnd: unknown, buffer: Uint16Array, size: number) => number
   keyState: (key: number) => number
   sendInput: (count: number, input: Record<string, number>, size: number) => number
   scanCode: (code: number, mapType: number) => number
@@ -74,6 +76,7 @@ function win32() {
       foreground: user32.func('void* __stdcall GetForegroundWindow()') as () => unknown,
       keyState: user32.func('short __stdcall GetAsyncKeyState(int vKey)') as (key: number) => number,
       sendInput: user32.func('uint32 __stdcall SendInput(uint32 cInputs, KEYINPUT64 *pInputs, int cbSize)') as (count: number, input: Record<string, number>, size: number) => number,
+      windowText: user32.func('int __stdcall GetWindowTextW(void* hWnd, _Out_ uint16_t* lpString, int nMaxCount)') as (hwnd: unknown, buffer: Uint16Array, size: number) => number,
       scanCode: user32.func('uint32 __stdcall MapVirtualKeyW(uint32 uCode, uint32 uMapType)') as (code: number, mapType: number) => number,
       isAdmin: optional(() => shell32.func('int __stdcall IsUserAnAdmin()') as () => number),
       shellExecute: optional(() => shell32.func('intptr_t __stdcall ShellExecuteW(void* hwnd, const char16_t* lpOperation, const char16_t* lpFile, const char16_t* lpParameters, const char16_t* lpDirectory, int nShowCmd)') as (hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint),
