@@ -30,6 +30,17 @@ export async function loadTarkovItemsDataset(mode: RaidMode, locale: AppLocale):
   }
 }
 
+/**
+ * Only the traders and their names (about 60 KB) — all the restock times need (src/restock/restockSource.ts). They are
+ * read every 2 minutes, in the background too, for the top-bar countdown and the restock notifications: with the whole
+ * dataset that was ~30 MB of JSON (items, maps, barters, crafts, prices) downloaded, parsed and copied each time.
+ */
+export async function loadTarkovTradersDataset(mode: RaidMode, locale: AppLocale): Promise<TarkovJsonBundle> {
+  const upstreamMode = mirrorMode(mode)
+  const [traders, traderNames] = await Promise.all([tarkovJson(`${upstreamMode}/traders`), tarkovJson(`${upstreamMode}/traders_${locale}`)])
+  return { items: {}, traders, mode, names: { data: dataObject(traderNames) } }
+}
+
 /** One coherent app view of a mirrored mode. All calls go through raidos.app in production. */
 export async function loadTarkovDataset(mode: RaidMode, locale: AppLocale): Promise<TarkovJsonBundle> {
   const upstreamMode = mirrorMode(mode)
