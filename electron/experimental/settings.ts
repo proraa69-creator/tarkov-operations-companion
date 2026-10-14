@@ -66,14 +66,28 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
  * first. Off until then: not known yet counts as off.
  */
 let remoteMinimap = false
-export const setRemoteMinimap = (enabled: boolean) => { remoteMinimap = enabled }
+/**
+ * The owner's second switch (owner, 14.10.2026: «отключить именно мини карту по кнопке. то есть ее выключаешь и
+ * местоположение появляется только в приложении. а всплывающее окно не появляется вообще»; `features.minimapOverlay`):
+ * the minimap window over the game. On unless the owner turned it off, so the first switch alone gives the whole minimap.
+ */
+let remoteOverlay = true
+/** `overlay` left out (a caller from before the second switch): the window follows the first switch alone. */
+export const setRemoteMinimap = (enabled: boolean, overlay = true) => { remoteMinimap = enabled; remoteOverlay = overlay }
 export const remoteMinimapOn = () => remoteMinimap
+export const remoteOverlayOn = () => remoteOverlay
 
 /**
- * The minimap and what it needs (its key, the screenshots folder, the position) are on: the owner allows it for
- * everybody, and the player did not turn it off («Отключить мини-карту»).
+ * The minimap's tracking and what it needs (the screenshots folder, the position on the app's maps and the phone) are
+ * on: the owner allows it for everybody, and the player did not turn it off («Отключить мини-карту»).
  */
 export const minimapOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>, remote = remoteMinimap) => remote && settings.minimap && !settings.minimapOff
+
+/**
+ * The minimap window over the game, its key and «Показать / скрыть»: the tracking is on (minimapOn) and the owner also
+ * allows the window. Off: the position shows only in the app.
+ */
+export const minimapOverlayOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>, remote = remoteMinimap, overlay = remoteOverlay) => minimapOn(settings, remote) && overlay
 
 let current: ExperimentalSettings | null = null
 

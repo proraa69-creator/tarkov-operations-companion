@@ -16,6 +16,11 @@ export interface RemoteFeatures {
   minimap: boolean
   /** When the owner last switched the minimap off; '' while never (the default off of the update). */
   minimapChangedAt: string
+  /**
+   * The minimap window over the game (owner, 14.10.2026: «отключить именно мини карту по кнопке… местоположение
+   * появляется только в приложении»), while `minimap` is on. On unless the owner turned it off (a server from before it).
+   */
+  minimapOverlay: boolean
   /** Learnt from the server (now or at an earlier start). */
   known: boolean
 }
@@ -23,7 +28,7 @@ export interface RemoteFeatures {
 const STORE_KEY = 'raidos.remoteFeatures.v1'
 /** The switch-off the one-time notice was shown for («функция мини-карты временно выключена»). */
 const NOTICE_KEY = 'raidos.minimapOffNotice.seen'
-const UNKNOWN: RemoteFeatures = { minimap: false, minimapChangedAt: '', known: false }
+const UNKNOWN: RemoteFeatures = { minimap: false, minimapChangedAt: '', minimapOverlay: true, known: false }
 
 function storage(): Storage | null {
   try { return typeof window === 'undefined' ? null : window.localStorage } catch { return null }
@@ -49,19 +54,24 @@ const subscribe = (listener: () => void) => {
 /** The answer's `features`, shape-checked; null when the server sent none (a server from before: nothing changes). */
 export function parseFeatures(value: unknown): Omit<RemoteFeatures, 'known'> | null {
   if (!value || typeof value !== 'object') return null
-  const raw = (value as { features?: unknown }).features as { minimap?: unknown; minimapChangedAt?: unknown } | null | undefined
+  const raw = (value as { features?: unknown }).features as { minimap?: unknown; minimapChangedAt?: unknown; minimapOverlay?: unknown } | null | undefined
   if (!raw || typeof raw !== 'object' || typeof raw.minimap !== 'boolean') return null
-  return { minimap: raw.minimap, minimapChangedAt: typeof raw.minimapChangedAt === 'string' ? raw.minimapChangedAt.slice(0, 40) : '' }
+  return {
+    minimap: raw.minimap,
+    minimapChangedAt: typeof raw.minimapChangedAt === 'string' ? raw.minimapChangedAt.slice(0, 40) : '',
+    minimapOverlay: raw.minimapOverlay !== false,
+  }
 }
 
-/** The value the main process has (null: not sent from this page yet). */
-let sent: boolean | null = null
-function tellMain(enabled: boolean) {
+/** The values the main process has (null: not sent from this page yet). */
+let sent: string | null = null
+function tellMain(enabled: boolean, overlay: boolean) {
   const set = typeof window === 'undefined' ? undefined : window.tarkovDesktop?.experimental?.setRemoteMinimap
-  if (!set || sent === enabled) return
-  sent = enabled
+  const key = `${enabled}:${overlay}`
+  if (!set || sent === key) return
+  sent = key
   try {
-    void Promise.resolve(set(enabled)).catch(() => { sent = null })
+    void Promise.resolve(set(enabled, overlay)).catch(() => { sent = null })
   } catch {
     sent = null
   }
@@ -69,15 +79,16 @@ function tellMain(enabled: boolean) {
 
 /** The main process starts with the minimap off: give it the last known value as the app opens. */
 export function sendRemoteFeaturesToMain() {
-  tellMain(current.minimap)
+  tellMain(current.minimap, current.minimapOverlay)
 }
 
 /** A server answer (or the owner's own switch): kept, shown to the pages, passed to the main process. */
-export function setRemoteFeatures(next: Omit<RemoteFeatures, 'known'>) {
-  tellMain(next.minimap)
-  if (current.known && next.minimap === current.minimap && next.minimapChangedAt === current.minimapChangedAt) return
-  current = { minimap: next.minimap, minimapChangedAt: next.minimapChangedAt, known: true }
-  try { storage()?.setItem(STORE_KEY, JSON.stringify({ minimap: current.minimap, minimapChangedAt: current.minimapChangedAt })) } catch { /* kept for this run */ }
+export function setRemoteFeatures(value: Omit<RemoteFeatures, 'known' | 'minimapOverlay'> & { minimapOverlay?: boolean }) {
+  const next = { ...value, minimapOverlay: value.minimapOverlay !== false }
+  tellMain(next.minimap, next.minimapOverlay)
+  if (current.known && next.minimap === current.minimap && next.minimapChangedAt === current.minimapChangedAt && next.minimapOverlay === current.minimapOverlay) return
+  current = { minimap: next.minimap, minimapChangedAt: next.minimapChangedAt, minimapOverlay: next.minimapOverlay, known: true }
+  try { storage()?.setItem(STORE_KEY, JSON.stringify({ minimap: current.minimap, minimapChangedAt: current.minimapChangedAt, minimapOverlay: current.minimapOverlay })) } catch { /* kept for this run */ }
   for (const listener of listeners) listener()
 }
 
@@ -87,8 +98,8 @@ export function useRemoteFeatures() {
   return useSyncExternalStore(subscribe, () => current, () => current)
 }
 
-/** The minimap over the game and the position tracking are allowed by the owner now. */
-export const useMinimapAllowed = () => useRemoteFeatures().minimap
+/** The minimap window over the game is allowed by the owner now: both switches on. */
+export const minimapOverlayAllowed = (features: RemoteFeatures) => features.minimap && features.minimapOverlay
 
 /**
  * The one-time notice is due: the minimap is off, and this installation has not seen this switch-off yet. Shown again

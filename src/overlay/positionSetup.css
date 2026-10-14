@@ -3,7 +3,6 @@
 .position-setup .panel-body > svg { flex: 0 0 auto; margin-top: 2px; color: var(--brass); }
 .position-setup.is-alert { border-color: color-mix(in srgb, #e0a24a 55%, var(--line)); }
 .position-setup.is-alert .panel-body > svg { color: #e0a24a; }
-.position-setup.is-ok .panel-body > svg { color: var(--success, #7fc28a); }
 .position-setup-body { display: grid; gap: 6px; min-width: 0; }
 .position-setup-body p { margin: 0; color: var(--text-muted); }
 .position-setup-note { color: var(--text); }
