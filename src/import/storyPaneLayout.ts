@@ -36,10 +36,22 @@ export function isStoryObjectivesText(text: string) {
   return /главн(?:ые|ая)\s*задач|[а-яё]{0,4}иональн[а-яё]*\s*задач|main\s+(?:tasks|objectives)|optional\s+(?:tasks|objectives)/i.test(text)
 }
 
-/** A full-screen reading that shows the story pane: the header or the objective blocks under the «Сюжетные» tab. */
+/**
+ * The pane's own header on a whole-screen pass: «ИСТОРИЯ» (or the clipped «ТОРИЯ»), the English «CHAPTER». Never the
+ * «СЮЖЕТНЫЕ» / «STORY» tab: that tab sits above every Tasks screen, the side table included.
+ */
+const PANE_HEADER = /истори|тори[яи]|(?:^|\s)[cс][hн][aа][pр][tт][eе][rв]?(?=\s|$)/i
+const STORY_TAB = /сюжетн|(?:^|\s)story(?:\s|$)/i
+
+/**
+ * A full-screen reading that shows the story pane: the pane's own marks — its header or its objective blocks — under
+ * the «Сюжетные» tab, or both of them. The «STORY» tab alone is not the pane: the English side table showed it on every
+ * frame and cost two or three part reads a look (audit P5c).
+ */
 export function isStoryPaneOcr(text: string) {
   const objectives = isStoryObjectivesText(text)
-  return (isStoryTitleText(text) && (objectives || /сюжетн|story/i.test(text))) || (objectives && /сюжетн|(?:^|\s)story(?:\s|$)/i.test(text))
+  const header = PANE_HEADER.test(text)
+  return (header && objectives) || ((header || objectives) && STORY_TAB.test(text))
 }
 
 /** One text the story parsers read: title column, status, then description and objectives. */

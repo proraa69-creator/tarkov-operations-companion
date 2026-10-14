@@ -127,6 +127,42 @@ describe('the game\'s screens', () => {
     expect(logNickname()).toBe('Raid_OS')
   })
 
+  it('a card that gives the nickname without a confirmed level (audit P4e): the name is taken, no level is set', async () => {
+    vi.resetModules()
+    const { applyModeSelectScreen, logNickname, useScreenReading } = await import('./logNickname')
+    server.status = { signedIn: false, nicknames: {} }
+    const state = target()
+    applyModeSelectScreen([{ mode: 'pve', nickname: 'Raid_OS' }, { mode: 'pvp', level: 12 }], Date.parse('2026-10-14T18:00:00Z'), () => state)
+    expect(logNickname()).toBe('Raid_OS')
+    expect(state.applyScreenLevel.mock.calls.map((call) => [call[0], call[1]])).toEqual([['pvp', 12]])
+    expect(state.activeProfile.modes.pve.playerLevel).toBe(1)
+    expect(useScreenReading).toBeTypeOf('function')
+    // The same reading a second later: nothing new.
+    state.applyScreenLevel.mockClear()
+    applyModeSelectScreen([{ mode: 'pve', nickname: 'Raid_OS' }, { mode: 'pvp', level: 12 }], Date.parse('2026-10-14T18:00:02Z'), () => state)
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+  })
+
+  it('what the locked app read is kept, not applied, until the app unlocks (audit P4a)', async () => {
+    vi.resetModules()
+    const { applyKeptIdentity, keepModeSelectScreen, keepTraderScreen, logNickname } = await import('./logNickname')
+    server.status = { signedIn: false, nicknames: {} }
+    const state = target()
+    keepModeSelectScreen([{ mode: 'pve', nickname: 'Raid_OS', level: 41 }], Date.parse('2026-10-14T18:00:00Z'))
+    keepTraderScreen({ nickname: 'Raid_OS', level: 42, loyalty: { prapor: 4 } }, undefined, Date.parse('2026-10-14T18:01:00Z'))
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+    expect(logNickname()).toBeUndefined()
+    applyKeptIdentity(() => state)
+    expect(state.activeProfile.modes.pve.playerLevel).toBe(41)
+    expect(logNickname()).toBe('Raid_OS')
+    // The traders' reading had no mode then: its nickname only, no level of a mode it does not name.
+    expect(state.applyScreenLevel.mock.calls.map((call) => [call[0], call[1]])).toEqual([['pve', 41]])
+    // Applied once.
+    state.applyScreenLevel.mockClear()
+    applyKeptIdentity(() => state)
+    expect(state.applyScreenLevel).not.toHaveBeenCalled()
+  })
+
   it('the traders\' screen raises the level of the mode the game is in, never lowers it', async () => {
     vi.resetModules()
     const { applyTraderScreen } = await import('./logNickname')
@@ -141,17 +177,21 @@ describe('the game\'s screens', () => {
     expect(state.activeProfile.modes.pvp.playerLevel).toBe(13)
   })
 
-  it('the traders\' loyalty badges set that mode\'s trader levels, other modes untouched', async () => {
+  it('the traders\' loyalty badges are kept for that mode\'s character with their time, other modes untouched (audit P18)', async () => {
     vi.resetModules()
     localStorage.clear()
     const { applyTraderScreen } = await import('./logNickname')
-    const { readManualTraderLevels } = await import('../gunsmith/traderLevels')
+    const { readManualTraderLevels, readScreenTraderLevels } = await import('../gunsmith/traderLevels')
     const state = target()
+    state.activeProfile = { ...state.activeProfile, modes: { ...state.activeProfile.modes, pve: { ...state.activeProfile.modes.pve, logCharacterId: 'a'.repeat(24) } } }
     applyTraderScreen({ loyalty: { prapor: 4, fence: 1, ragman: 3 } }, 'pve', Date.parse('2026-10-13T18:30:00Z'), () => state)
-    expect(readManualTraderLevels('pve')).toEqual({ prapor: 4, fence: 1, ragman: 3 })
-    expect(readManualTraderLevels('pvp')).toEqual({})
+    expect(readScreenTraderLevels('pve', 'a'.repeat(24))).toEqual({ at: '2026-10-13T18:30:00.000Z', levels: { prapor: 4, fence: 1, ragman: 3 } })
+    // Not a manual override, and no other character's.
+    expect(readManualTraderLevels('pve')).toEqual({})
+    expect(readScreenTraderLevels('pve', 'b'.repeat(24))).toBeUndefined()
+    expect(readScreenTraderLevels('pvp', undefined)).toBeUndefined()
     applyTraderScreen({ loyalty: { prapor: 4 } }, undefined, Date.parse('2026-10-13T18:31:00Z'), () => state)
-    expect(readManualTraderLevels('pvp')).toEqual({})
+    expect(readScreenTraderLevels('pvp', undefined)).toBeUndefined()
   })
 })
 

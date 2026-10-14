@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { isPositionScreenshot } from '../src/overlay/screenshotPosition.js'
 
 /** EFT names a screenshot by the minute it was taken (local time): `2024-06-13[11-05]_…`. */
 const TAKEN_AT = /^(\d{4})-(\d{2})-(\d{2})\[(\d{2})-(\d{2})\]/
@@ -15,7 +16,9 @@ export function screenshotNameTime(name: string) {
 /**
  * Only recent files in EFT's configured screenshot folder, never arbitrary renderer paths. Runs about every second
  * while the app watches the game, and players keep thousands of screenshots: a folder untouched since the cutoff is not
- * listed at all, and a file whose name says it was taken before the cutoff is not looked up.
+ * listed at all, and a file whose name says it was taken before the cutoff is not looked up. A screenshot with
+ * coordinates in its name is never one: the game writes coordinates only in a raid, and those are the minimap's
+ * position shots (the game's «Скриншот» on the minimap key), never a menu to read (audit P5d).
  */
 export async function readFreshQuestScreenshot(folder: string, after: number, now = Date.now()) {
   if (!Number.isFinite(after)) return null
@@ -25,7 +28,7 @@ export async function readFreshQuestScreenshot(folder: string, after: number, no
   if (!info?.isDirectory() || info.mtimeMs < cutoff - 60_000) return null
   const names = await readdir(folder).catch(() => [] as string[])
   const recent = names.filter((name) => {
-    if (!/\.(png|jpe?g)$/i.test(name)) return false
+    if (!/\.(png|jpe?g)$/i.test(name) || isPositionScreenshot(name)) return false
     const taken = screenshotNameTime(name)
     return taken === null || taken + 60_000 > cutoff
   })

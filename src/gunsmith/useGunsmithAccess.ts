@@ -14,7 +14,8 @@ export function useGunsmithAccess() {
   const progress = state.activeProfile.modes[state.raidMode]
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
   const statusOf = useCallback((questId: string) => availability.get(questId)?.status, [availability])
-  const { infos, setLevel } = useTraderLevels(state.raidMode, data.traders, data.quests, statusOf, progress.playerLevel)
+  // The traders' screen's loyalty of this mode's character only (src/gunsmith/traderLevels.ts).
+  const { infos, setLevel } = useTraderLevels(state.raidMode, data.traders, data.quests, statusOf, progress.playerLevel, progress.logCharacterId)
   const fleaEnabled = data.metadata?.fleaMarket?.enabled !== false
   const access = useMemo(() => playerAccess(infos, progress.playerLevel, fleaEnabled, (taskId) => statusOf(taskId) === 'completed'), [fleaEnabled, infos, progress.playerLevel, statusOf])
   const traders = useMemo(() => new Map(data.traders.map((trader) => [traderKey(trader), trader])), [data.traders])

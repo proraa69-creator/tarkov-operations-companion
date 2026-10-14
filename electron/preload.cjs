@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),
   captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
-  recognizeQuestPng: (image) => ipcRenderer.invoke('quests:recognize-png', image),
+  captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity'),
   scanScreenText: (options) => ipcRenderer.invoke('collector:scan-screen', options === undefined ? undefined : { restart: Boolean(options && options.restart), names: Array.isArray(options && options.names) ? options.names.map(String) : undefined }),
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),

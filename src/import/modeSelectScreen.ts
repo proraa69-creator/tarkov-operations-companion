@@ -8,7 +8,8 @@
  * reading of its line and its digits read from their shapes (src/import/levelDigits.ts) — and it is one the game has
  * (1–79). OCR alone is not enough (player's report, 14.10.2026: PvE 39 shown as 59): Tesseract takes the game's «3» for a
  * «5» about every other time, and the whole-screen pass, the close-up and two frames of this still screen all look at
- * the same pixels, so they agreed on «59». The nickname counts when the whole pass and the close-up read the same one.
+ * the same pixels, so they agreed on «59». The nickname is confirmed on its own, whatever the level (audit P4e): when the
+ * whole pass and the close-up read the same one, or — the whole pass missed the line — the close-ups of two frames did.
  */
 import type { RaidMode } from '../domain/types.js'
 import type { OcrWordBox, PaneRect } from './storyPaneLayout.js'
@@ -18,8 +19,8 @@ export const MAX_PLAYER_LEVEL = 79
 const NICKNAME = /^[A-Za-z0-9_-]{3,15}$/
 
 export interface NameLevel { nickname: string; level: number }
-/** A card's confirmed level, and its nickname when two readings agreed on that too. */
-export interface ModeSelectCard { mode: RaidMode; level: number; nickname?: string }
+/** A card's confirmed level and its confirmed nickname, each when two readings agreed on it; at least one of them. */
+export interface ModeSelectCard { mode: RaidMode; level?: number; nickname?: string }
 
 /** A card found on the screen: its mode, where its «ник | уровень» line is looked for and what the whole pass read. */
 export interface ModeSelectHeader {
@@ -188,17 +189,23 @@ function shapedLevel(level: number | null | undefined, digits: CardReadings['dig
 }
 
 /**
- * The cards whose level an OCR reading (the close-up or the whole pass) and the digits' shapes agree on. Two OCR
- * readings agreeing are not enough, nor the same close-up in two frames: the screen does not move, so they look at the
- * same pixels and share a misread «3». The nickname comes with a card when the whole pass and the close-up read it alike.
+ * Each card's level and nickname, each confirmed on its own (audit P4e: a clear «Raid_OS» next to a «39» whose shapes
+ * could not be read gave nothing at all before). The level: an OCR reading (the close-up or the whole pass) the digits'
+ * shapes agree on — two OCR readings agreeing are not enough, nor the same close-up in two frames: the screen does not
+ * move, so they look at the same pixels and share a misread «3». The nickname: the whole pass and the close-up read it
+ * alike; when the whole pass missed the line, the close-up and the previous frame's close-up of that card (`earlier`)
+ * did. A name has no look-alike digit to share (foldNickname folds what OCR mixes up), and the newest reading wins later.
  */
-export function confirmCards(readings: CardReadings[]): ModeSelectCard[] {
+export function confirmCards(readings: CardReadings[], earlier: Partial<Record<RaidMode, string>> = {}): ModeSelectCard[] {
   const confirmed: ModeSelectCard[] = []
   for (const { mode, full, line, digits } of readings) {
     const level = shapedLevel(line?.level, digits) ?? shapedLevel(full?.level, digits)
-    if (level === undefined) continue
-    const nickname = full && line && foldNickname(full.nickname) === foldNickname(line.nickname) ? line.nickname : undefined
-    confirmed.push({ mode, level, ...(nickname ? { nickname } : {}) })
+    const before = earlier[mode]
+    const nickname = !line ? undefined
+      : full ? (foldNickname(full.nickname) === foldNickname(line.nickname) ? line.nickname : undefined)
+        : before && foldNickname(before) === foldNickname(line.nickname) ? line.nickname : undefined
+    if (level === undefined && !nickname) continue
+    confirmed.push({ mode, ...(level !== undefined ? { level } : {}), ...(nickname ? { nickname } : {}) })
   }
   return confirmed
 }
