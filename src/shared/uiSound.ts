@@ -6,6 +6,26 @@ let context: AudioContext | null = null
 let master: GainNode | null = null
 let noise: AudioBuffer | null = null
 
+/**
+ * A running AudioContext keeps the sound device open and its audio thread mixing silence all the time, the player in
+ * the game included. After this long without a sound it is suspended; the next sound resumes it (it is scheduled on the
+ * context's clock, which stands still while suspended, so it still plays whole).
+ */
+export const UI_SOUND_REST_MS = 4000
+let restTimer: ReturnType<typeof setTimeout> | undefined
+/** suspend() was asked for: a sound right after it resumes the context even while it still reports 'running'. */
+let resting = false
+
+function restLater(ctx: AudioContext) {
+  clearTimeout(restTimer)
+  restTimer = setTimeout(() => {
+    restTimer = undefined
+    if (ctx.state !== 'running') return
+    resting = true
+    void ctx.suspend().catch(() => {})
+  }, UI_SOUND_REST_MS)
+}
+
 function audio() {
   if (context) return context
   const Ctor = typeof window === 'undefined' ? undefined : window.AudioContext
@@ -17,6 +37,7 @@ function audio() {
   noise = context.createBuffer(1, Math.ceil(context.sampleRate * 0.05), context.sampleRate)
   const data = noise.getChannelData(0)
   for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1
+  restLater(context)
   return context
 }
 
@@ -46,7 +67,11 @@ function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak
 export function playUiSound(kind: SoundKind) {
   const ctx = audio()
   if (!ctx || !master) return
-  if (ctx.state === 'suspended') void ctx.resume()
+  if (resting || ctx.state === 'suspended') {
+    resting = false
+    void ctx.resume().catch(() => {})
+  }
+  restLater(ctx)
   const at = ctx.currentTime + 0.002
   if (kind === 'hover') {
     // «Алькантара»: a soft brush over suede instead of the tick

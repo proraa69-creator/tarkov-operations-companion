@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, LocateFixed } from 'lucide-react'
+import { startActivePolling } from '../app/activePolling'
 import { uiText } from '../i18n/renderText'
 import { hotkeyForGameKeys, hotkeyLabel } from './hotkeys'
 import { POSITION_PROBLEM_TEXT, positionFix, positionProblem } from './positionReadiness'
@@ -89,9 +90,11 @@ export function PositionSetupNotice() {
     const refresh = () => void api.getStatus().then((next) => { if (alive) setStatus(next) }).catch(() => {})
     // Nothing to set up while the player turned the minimap off («Отключить мини-карту»).
     void api.getSettings().then((settings) => { if (alive) setMinimap(Boolean(settings.minimap && !settings.minimapOff)) }).catch(() => {})
-    refresh()
-    const timer = window.setInterval(refresh, 30_000)
-    return () => { alive = false; window.clearInterval(timer) }
+    // Asked when «Обзор» opens and each time the window is used again (back from the game), never on a timer: each
+    // answer may cost the main process a registry read and a search of the game's folders (src/app/activePolling.ts).
+    // The card's own button asks again itself (onFixed).
+    const stop = startActivePolling(refresh)
+    return () => { alive = false; stop() }
   }, [api])
   if (!api || !status || !minimap) return null
   return <PositionSetupCard status={status} compact onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />

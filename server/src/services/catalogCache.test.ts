@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
-import { CATALOG_FRESH_MS, CATALOG_MAX_STALE_MS, CATALOG_RETRY_MS, createCatalogCache, isUsableCatalog } from './catalogCache.js'
+import { CATALOG_FRESH_MS, CATALOG_MAX_STALE_MS, CATALOG_RETRY_MS, catalogEtag, catalogNotModified, createCatalogCache, isUsableCatalog } from './catalogCache.js'
 
 const catalog = (mode: RaidMode, quests: string[], bossChance = 0.4): AppDataset => ({
   maps: [{ id: 'interchange', name: 'Развязка', subtitle: '', raidTime: 40, players: '', difficulty: '', accent: '', markerCount: 1 }],
@@ -86,4 +86,36 @@ test('catalog cache: PvP and PvE are separate entries; a catalog labelled with a
   assert.equal(pve.markers[0].boss?.spawnChance, 1)
   answers.push(catalog('pvp', ['q1']))
   await assert.rejects(cache.get('seasonal'), /другого режима/)
+})
+
+test('catalog ETag: the same content keeps it whatever its loadedAt; any other change, or another mode, moves it', () => {
+  const body = (data: AppDataset) => JSON.stringify(data)
+  const first = catalog('pvp', ['q1'])
+  const etag = catalogEtag(body(first))
+  assert.match(etag, /^W\/"[a-f0-9]{40}"$/)
+  // Refreshed from tarkov.dev a minute later, nothing new in it.
+  assert.equal(catalogEtag(body({ ...first, metadata: { ...first.metadata!, loadedAt: '2026-10-06T00:01:00.000Z' } })), etag)
+  // A new quest, a moved price, PvE instead of PvP.
+  assert.notEqual(catalogEtag(body(catalog('pvp', ['q1', 'q2']))), etag)
+  const priced = catalog('pvp', ['q1'])
+  priced.items[0] = { ...priced.items[0]!, fleaPrice: 12_345 }
+  assert.notEqual(catalogEtag(body(priced)), etag)
+  assert.notEqual(catalogEtag(body(catalog('pve', ['q1']))), etag)
+  // A description quoting the field is content, not the field.
+  const quoting = catalog('pvp', ['q1'])
+  quoting.items[0] = { ...quoting.items[0]!, description: '"loadedAt":"x"' }
+  const other = catalog('pvp', ['q1'])
+  other.items[0] = { ...other.items[0]!, description: '"loadedAt":"y"' }
+  assert.notEqual(catalogEtag(body(quoting)), catalogEtag(body(other)))
+})
+
+test('catalog If-None-Match: weak comparison, lists and *; nothing sent, or another version, is a full answer', () => {
+  const etag = 'W/"0123456789abcdef0123456789abcdef01234567"'
+  assert.equal(catalogNotModified(undefined, etag), false)
+  assert.equal(catalogNotModified('', etag), false)
+  assert.equal(catalogNotModified(etag, etag), true)
+  assert.equal(catalogNotModified('"0123456789abcdef0123456789abcdef01234567"', etag), true)
+  assert.equal(catalogNotModified('W/"aaaa", W/"0123456789abcdef0123456789abcdef01234567"', etag), true)
+  assert.equal(catalogNotModified('*', etag), true)
+  assert.equal(catalogNotModified('W/"ffffffffffffffffffffffffffffffffffffffff"', etag), false)
 })

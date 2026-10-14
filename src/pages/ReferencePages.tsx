@@ -17,7 +17,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { useTarkovData } from "../data/DataProvider";
+import { useTarkovData, useTarkovDataStatus } from "../data/DataProvider";
 import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
 import { bestSale, displayPrice, fleaSale, traderQuotes } from "../domain/itemPrices";
@@ -33,7 +33,8 @@ import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 
 export function EconomyPage() {
-  const { data, source, updatedAt } = useTarkovData();
+  const { data, source } = useTarkovData();
+  const { updatedAt } = useTarkovDataStatus();
   const state = useAppState();
   const [query, setQuery] = useState("");
   const rows = useMemo(
@@ -609,7 +610,8 @@ import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 
 export function SettingsPage() {
-  const { data, source, updatedAt } = useTarkovData();
+  const { data, source } = useTarkovData();
+  const { updatedAt } = useTarkovDataStatus();
   const state = useAppState();
   const { locale, setLocale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();

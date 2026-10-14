@@ -15,7 +15,7 @@ import {
   Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
-import { useTarkovData } from '../data/DataProvider'
+import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { useQuestExperienceLevel } from '../profile/questExperience'
@@ -85,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mirrorServer = useServerAccount().status?.serverUrl
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
-  const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
+  const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
   // Quests turned in since the level was read raise it (src/profile/questExperience.ts).
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
@@ -259,7 +259,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="topbar">
         <button className="search-trigger" onClick={() => setSearchOpen(true)}><Search size={16} /><span>{uiText(locale === 'en' ? 'Search tasks, items, and maps' : 'Поиск по заданиям, предметам и картам')}</span><kbd>Ctrl K</kbd></button>
         <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
-        <button className="icon-button" onClick={refresh} title={uiText('Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching ? 'spin' : ''} /></button>
+        <RefreshDataButton onRefresh={refresh} />
         <button className="profile-chip" onClick={() => navigate('/profile')} title={uiText("Профиль")}><UserRound size={15} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
@@ -283,12 +283,27 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>)}
-      {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching} />}
+      {mobile && <ShellTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}
       <SupportNotice />
     </div>
   )
+}
+
+/**
+ * The top-bar refresh button. It alone follows the catalog's fetching (useTarkovDataStatus): the whole shell used to
+ * re-render when a refresh started and again when it ended.
+ */
+function RefreshDataButton({ onRefresh }: { onRefresh: () => void }) {
+  const { isFetching } = useTarkovDataStatus()
+  return <button className="icon-button" onClick={onRefresh} title={uiText('Обновить данные')} aria-label={uiText("Обновить данные")}><RefreshCw size={16} className={isFetching ? 'spin' : ''} /></button>
+}
+
+/** The phone's tab bar with the refresh spinner, for the same reason. */
+function ShellTabBar(props: Omit<Parameters<typeof MobileTabBar>[0], 'refreshing'>) {
+  const { isFetching } = useTarkovDataStatus()
+  return <MobileTabBar {...props} refreshing={isFetching} />
 }
 
 /** Cycles the colour schemes in order; the current one's name is in the tooltip. */
