@@ -3,6 +3,7 @@ import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
 import { runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, isTarkovForeground } from './experimental/win32.js'
+import { isGameWindowTitle } from './experimental/gameWindow.js'
 import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
@@ -389,9 +390,9 @@ const touchQuestWorker = idleRelease(2 * 60_000, () => {
   void engine?.terminate().catch(() => {})
 })
 
+/** desktopCapturer names a window source by its title: the game's is exactly «EscapeFromTarkov» (gameWindow.ts). */
 function isTarkovWindow(name: string) {
-  if (/companion|operations|chrome|cursor|code/i.test(name)) return false
-  return /escape\s*from\s*tarkov|escapefromtarkov|\beft\b/i.test(name)
+  return isGameWindowTitle(name)
 }
 
 function frameFingerprint(image: NativeImage) {

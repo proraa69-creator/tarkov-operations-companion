@@ -1,7 +1,8 @@
 import { desktopCapturer, screen } from 'electron'
 import { runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
-import { captureScreenRegion, gameCaptureAvailable, isTarkovTitle, visibleGameRect } from './experimental/win32.js'
+import { captureScreenRegion, gameCaptureAvailable, visibleGameRect } from './experimental/win32.js'
+import { isGameWindowTitle } from './experimental/gameWindow.js'
 import type { Raster } from '../src/kappa/labelScan.js'
 import { createLabelReader, toPgm, type FrameReading } from '../src/kappa/labelReader.js'
 
@@ -77,7 +78,7 @@ async function captureGame(): Promise<Raster | null> {
   const display = screen.getPrimaryDisplay()
   const size = { width: Math.round(display.size.width * display.scaleFactor), height: Math.round(display.size.height * display.scaleFactor) }
   const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: size, fetchWindowIcons: false })
-  const game = sources.find((source) => isTarkovTitle(source.name) && !source.thumbnail.isEmpty())
+  const game = sources.find((source) => isGameWindowTitle(source.name) && !source.thumbnail.isEmpty())
   if (!game) return null
   const { width, height } = game.thumbnail.getSize()
   const data = game.thumbnail.toBitmap()
