@@ -9,6 +9,7 @@ import { useOptionalTarkovData } from '../data/DataProvider'
 import { useQuestPointWriter } from '../data/questPointOverrides'
 import { useOwnerChats, useOwnerReportActions, useOwnerReports, type OwnerReport, type OwnerReportDetail } from '../data/ownerRequests'
 import { OwnerChats } from '../support/OwnerChats'
+import { ClaudeAccessPanel } from '../requests/ClaudeAccessPanel'
 import { cleanIpcError } from '../sync/serverSync'
 import { MATCHES_CONFIRMED, QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS } from '../shared/reportCategories'
 import type { GameMap, Quest } from '../domain/types'
@@ -140,6 +141,8 @@ function Requests() {
       {tab === 'ideas' && (ideas.length ? ideas.map((report) => <ReportCard key={report.id} report={report} onOpenChat={openChat} />) : !open.isLoading && <EmptyRequests text="Новых предложений нет." />)}
       {tab === 'chats' && <OwnerChats selected={chatWith} onSelect={setChatWith} />}
       {tab === 'closed' && ((closed.data ?? []).length ? (closed.data ?? []).map((report) => <ReportCard key={report.id} report={report} onOpenChat={openChat} />) : !closed.isLoading && <EmptyRequests text="Закрытых заявок нет." />)}
+      {/* «Доступ Claude к заявкам» (owner, 14.10.2026: «2 вариант да»): the read-only key for Claude's cloud sessions. */}
+      <ClaudeAccessPanel />
     </div>
   )
 }
