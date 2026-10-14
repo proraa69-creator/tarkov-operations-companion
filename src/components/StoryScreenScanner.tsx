@@ -5,11 +5,9 @@ import { confirmStoryFrame, isStoryMenuText, matchStoryChapters, type StoryConfi
 import { isTasksMenuText } from '../import/screenScanSync'
 import { matchQuestsFromOcr } from '../import/questOcr'
 import type { RaidMode } from '../domain/types'
-import { quietScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { GAME_AWAY_MS, FRESH_GAME_MS, gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
 
-/** Game open, but not on the story pane: look again every few seconds. */
-const MENU_CHECK_MS = STORY_SCAN_TIMING.menuMs
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
 /** Game closed or in a raid. */
@@ -62,6 +60,9 @@ export function StoryScreenScanner() {
       let contextStartedAt = Date.now()
       /** Looks in a row at the game showing no screen read here (quietScanDelay). */
       let quiet = 0
+      /** When the game's window came (gameScanDelay) and when it was last seen. */
+      let gameSince = 0
+      let gameSeenAt = 0
       while (!cancelled) {
         let delay: number = IDLE_MS
         if (!inRaid) {
@@ -95,9 +96,12 @@ export function StoryScreenScanner() {
               continue
             }
             if (frame?.gameWindow) {
+              const now = Date.now()
+              if (!gameSeenAt || now - gameSeenAt > GAME_AWAY_MS) gameSince = now
+              gameSeenAt = now
               const known = Boolean(frame.story || frame.profiles?.length || frame.trader || isStoryMenuText(frame.text) || isTasksMenuText(frame.text))
               quiet = known ? 0 : quiet + 1
-              delay = known ? MENU_CHECK_MS : quietScanDelay(quiet)
+              delay = gameScanDelay(known, quiet, now - gameSince < FRESH_GAME_MS)
             } else quiet = 0
             // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
             if (frame?.gameWindow && !inRaid && (frame.story || isStoryMenuText(frame.text))) {

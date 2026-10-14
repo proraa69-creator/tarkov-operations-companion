@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { quietScanDelay, reuseQuestReading, reuseStableReading, STORY_SCAN_TIMING as timing, unchangedFrame } from './storyScanTiming'
+import { FRESH_GAME_MS, gameScanDelay, quietScanDelay, reuseQuestReading, reuseStableReading, STORY_SCAN_TIMING as timing, unchangedFrame } from './storyScanTiming'
 
 describe('fast but fresh story scans', () => {
   it('looks at a game that shows no known screen less and less often, at most every four seconds', () => {
@@ -46,5 +46,14 @@ describe('fast but fresh story scans', () => {
     expect(unchangedFrame(frame, counter)).toBe(false)
     expect(unchangedFrame(null, frame)).toBe(false)
     expect(unchangedFrame(frame, new Uint8Array(8))).toBe(false)
+  })
+})
+
+describe('the first minutes of a game start', () => {
+  it('are looked at at the quick pace, so «Выбор профиля и режима» is read before the player picks a mode', () => {
+    expect(gameScanDelay(false, 9, true)).toBe(timing.menuMs)
+    expect(gameScanDelay(false, 9, false)).toBe(timing.quietMaxMs)
+    expect(gameScanDelay(true, 0, false)).toBe(timing.menuMs)
+    expect(FRESH_GAME_MS).toBeGreaterThanOrEqual(60_000)
   })
 })

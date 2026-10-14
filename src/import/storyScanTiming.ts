@@ -11,6 +11,20 @@ export function quietScanDelay(quietLooks: number) {
   return Math.min(STORY_SCAN_TIMING.quietMaxMs, Math.round(STORY_SCAN_TIMING.menuMs * Math.pow(1.6, Math.max(0, quietLooks - 1))))
 }
 
+/**
+ * The game's window has just come (it was started, or is back after a while away): «Выбор профиля и режима» shows for a
+ * few seconds only, and a player who picks the mode at once left it before a 4-second quiet gap was over (owner,
+ * 14.10.2026: «у многих людей первоначально не находит персонажа»). The first minutes are looked at at the quick pace.
+ */
+export const FRESH_GAME_MS = 3 * 60_000
+/** Away this long, the game's window coming back counts as a new start (an Alt+Tab is shorter). */
+export const GAME_AWAY_MS = 15_000
+
+/** The pause before the next look at the game (outside a raid). */
+export function gameScanDelay(known: boolean, quietLooks: number, freshGame: boolean) {
+  return known || freshGame ? STORY_SCAN_TIMING.menuMs : quietScanDelay(quietLooks)
+}
+
 export function reuseQuestReading(previous: { at: number; detail: boolean } | null, now: number, detail: boolean, same: boolean) {
   return Boolean(previous && same && previous.detail === detail && now >= previous.at
     && now - previous.at < (detail ? STORY_SCAN_TIMING.rereadDetailMs : STORY_SCAN_TIMING.rereadMenuMs))
