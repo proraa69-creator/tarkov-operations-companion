@@ -18,7 +18,8 @@ const EDGE = 12
 const now = () => Date.now()
 const appStarted = now()
 
-interface Tip {
+/** One tip: its words, and the part of the page it points at. Also used by the one-off tips (QuestSyncTip.tsx). */
+export interface GuideTipContent {
   title: Phrase
   text: (phone: boolean) => Phrase
   /** The part of the page the tip points at, when it is there. */
@@ -28,7 +29,7 @@ interface Tip {
   press?: boolean
 }
 
-const TIPS: Record<GuideStep, Tip> = {
+const TIPS: Record<GuideStep, GuideTipContent> = {
   // owner: «при нажатии на текущие задания, должен появится указатель на сюжетные квесты и всплывающее окно, о том что
   // нужно в игре открыть окно каждого сюжетного квеста для синхронизации… достаточно открыть окно на 3 секунды»
   quests: {
@@ -96,13 +97,13 @@ export function FirstRunGuide() {
   }, [status])
   const step = guide ? guideStepFor(pathname, phone) : null
   const pending = step && guide && !guide.record.accepted.includes(step) ? step : null
-  const ready = useReady(pending, pathname)
+  const ready = useGuideReady(pending, pathname)
   if (!guide || !pending || !ready) return null
-  return <GuideTip key={pending} step={pending} phone={phone} onAccept={() => acceptStep(guide.email, pending)} />
+  return <GuideTip key={pending} id={pending} tip={TIPS[pending]} phone={phone} onAccept={() => acceptStep(guide.email, pending)} />
 }
 
 /** True once the app has started, the page has settled and no other dialog (update, subscription) is open. */
-function useReady(step: GuideStep | null, pathname: string) {
+export function useGuideReady(step: string | null, pathname: string) {
   const [ready, setReady] = useState<string | null>(null)
   const key = step ? `${step}:${pathname}` : null
   useEffect(() => {
@@ -122,6 +123,11 @@ function useReady(step: GuideStep | null, pathname: string) {
 
 interface Box { left: number; top: number; width: number; height: number }
 
+const sameBox = (a: Box | null, b: Box | null) => (a && b ? (['left', 'top', 'width', 'height'] as const).every((key) => Math.abs(a[key] - b[key]) < 0.5) : a === b)
+
+/** How often the part is measured again while the tip is open. */
+const FOLLOW_MS = 400
+
 /** The part a tip points at, once the page has drawn it (looked for a few seconds), and where it is on the screen. */
 function useTarget(selector?: string) {
   const [box, setBox] = useState<Box | null>(null)
@@ -129,30 +135,39 @@ function useTarget(selector?: string) {
     if (!selector) return
     let element: HTMLElement | null = null
     let frame = 0
+    const lookup = () => [...document.querySelectorAll<HTMLElement>(selector)].find((candidate) => candidate.getClientRects().length > 0) ?? null
     const measure = () => {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
-        if (!element?.isConnected) { setBox(null); return }
-        const rect = element.getBoundingClientRect()
-        setBox(rect.width && rect.height ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null)
+        // The page may draw the part anew (the whole shell, once the words of the English interface arrive) or late:
+        // the tip follows the part that is there now.
+        if (!element?.isConnected) element = lookup()
+        const rect = element?.getBoundingClientRect()
+        const next = rect?.width && rect.height ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null
+        setBox((previous) => (sameBox(previous, next) ? previous : next))
       })
     }
     const started = now()
     const find = () => {
-      element = [...document.querySelectorAll<HTMLElement>(selector)].find((candidate) => candidate.getClientRects().length > 0) ?? null
+      element = lookup()
       if (element) {
         const rect = element.getBoundingClientRect()
-        if (rect.top < 0 || rect.bottom > window.innerHeight) element.scrollIntoView({ block: 'center' })
+        // A part taller than most of the window (a whole block of a column) is shown from its top, not its middle.
+        const tall = rect.height > window.innerHeight * 0.6
+        if (rect.top < 0 || (tall ? rect.top > window.innerHeight - 120 : rect.bottom > window.innerHeight)) element.scrollIntoView({ block: tall ? 'start' : 'center' })
         measure()
         return true
       }
       return now() - started > GUIDE_TIMING.targetWaitMs
     }
     const timer = find() ? 0 : window.setInterval(() => { if (find()) window.clearInterval(timer) }, 250)
+    // The page above the part may still be loading and move it: measured again now and then while the tip is open.
+    const follow = window.setInterval(measure, FOLLOW_MS)
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, true)
     return () => {
       window.clearInterval(timer)
+      window.clearInterval(follow)
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', measure)
       window.removeEventListener('scroll', measure, true)
@@ -161,18 +176,20 @@ function useTarget(selector?: string) {
   return box
 }
 
-interface Placement { left: number; top: number; pointer?: { left: number; top: number; up: boolean } }
+/** Where the card goes, and the pointer between it and the part: `turn` is the way the pointer points. */
+interface Placement { left: number; top: number; pointer?: { left: number; top: number; turn: 'up' | 'down' | 'left' | 'right' } }
 
-function GuideTip({ step, phone, onAccept }: { step: GuideStep; phone: boolean; onAccept: () => void }) {
+/** The tip card over the page, the part it points at lit up. `id`: the tip's name on the layer (`data-step`). */
+export function GuideTip({ id, tip, phone, onAccept }: { id: string; tip: GuideTipContent; phone: boolean; onAccept: () => void }) {
   const { locale } = useLocale()
   const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
-  const tip = TIPS[step]
   const target = useTarget(tip.target)
   const card = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
   const [place, setPlace] = useState<Placement | null>(null)
 
-  // Next to the part it points at (below, else above), the pointer between them; centred without one.
+  // Next to the part it points at (below, else above; beside a tall part with no room above or below), the pointer
+  // between them; centred without one.
   useLayoutEffect(() => {
     const node = card.current
     if (!node) return
@@ -185,10 +202,28 @@ function GuideTip({ step, phone, onAccept }: { step: GuideStep; phone: boolean; 
     const centre = target.left + target.width / 2
     const left = Math.min(Math.max(EDGE, centre - width / 2), window.innerWidth - width - EDGE)
     const below = target.top + target.height + POINTER_GAP
-    const fitsBelow = below + height + EDGE <= window.innerHeight
-    const top = fitsBelow ? below : Math.max(EDGE, target.top - POINTER_GAP - height)
-    const pointerTop = fitsBelow ? target.top + target.height + 8 : target.top - POINTER_GAP + 8
-    setPlace({ left, top, pointer: { left: centre, top: pointerTop, up: fitsBelow } })
+    if (below + height + EDGE <= window.innerHeight) {
+      setPlace({ left, top: below, pointer: { left: centre, top: target.top + target.height + 8, turn: 'up' } })
+      return
+    }
+    const above = target.top - POINTER_GAP - height
+    if (above >= EDGE) {
+      setPlace({ left, top: above, pointer: { left: centre, top: target.top - POINTER_GAP + 8, turn: 'down' } })
+      return
+    }
+    // A tall part (a whole block of a column): beside it, level with its upper part.
+    const top = Math.min(Math.max(EDGE, target.top + 24), window.innerHeight - height - EDGE)
+    const pointerTop = top + Math.min(height / 2, 64) - 15
+    if (target.left - POINTER_GAP - width >= EDGE) {
+      setPlace({ left: target.left - POINTER_GAP - width, top, pointer: { left: target.left - POINTER_GAP / 2, top: pointerTop, turn: 'right' } })
+      return
+    }
+    const right = target.left + target.width + POINTER_GAP
+    if (right + width + EDGE <= window.innerWidth) {
+      setPlace({ left: right, top, pointer: { left: right - POINTER_GAP / 2, top: pointerTop, turn: 'left' } })
+      return
+    }
+    setPlace({ left, top: Math.max(EDGE, above), pointer: { left: centre, top: target.top - POINTER_GAP + 8, turn: 'down' } })
   }, [target])
 
   // The button takes the focus; Escape is «Принял» too; the focus goes back where it was.
@@ -210,13 +245,13 @@ function GuideTip({ step, phone, onAccept }: { step: GuideStep; phone: boolean; 
   }, [])
 
   return createPortal(
-    <div className={`frg-layer${phone ? ' is-phone' : ''}`} data-step={step}>
+    <div className={`frg-layer${phone ? ' is-phone' : ''}`} data-step={id}>
       {target
         ? <div className="frg-spot" style={{ left: target.left - 6, top: target.top - 6, width: target.width + 12, height: target.height + 12 }}>
           {tip.press && <span className="frg-tap" aria-hidden="true" />}
         </div>
         : <div className="frg-dim" />}
-      {place?.pointer && <span className={`frg-pointer${place.pointer.up ? '' : ' is-down'}`} style={{ left: place.pointer.left, top: place.pointer.top }} aria-hidden="true">
+      {place?.pointer && <span className={`frg-pointer${place.pointer.turn === 'up' ? '' : ` is-${place.pointer.turn}`}`} style={{ left: place.pointer.left, top: place.pointer.top }} aria-hidden="true">
         <ArrowUp size={26} strokeWidth={2.6} />
       </span>}
       <div ref={card} className={`frg-card${place ? ' is-placed' : ''}`} style={place ? { left: place.left, top: place.top } : undefined}
