@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
-import { CATALOG_FRESH_MS, CATALOG_MAX_STALE_MS, CATALOG_RETRY_MS, catalogEtag, catalogNotModified, createCatalogCache, isUsableCatalog } from './catalogCache.js'
+import { CATALOG_FRESH_MS, CATALOG_MAX_STALE_MS, CATALOG_RETRY_MS, catalogEtag, catalogNotModified, createCatalogCache, hashWithoutLoadedAt, isUsableCatalog } from './catalogCache.js'
 
 const catalog = (mode: RaidMode, quests: string[], bossChance = 0.4): AppDataset => ({
   maps: [{ id: 'interchange', name: 'Развязка', subtitle: '', raidTime: 40, players: '', difficulty: '', accent: '', markerCount: 1 }],
@@ -118,4 +118,17 @@ test('catalog If-None-Match: weak comparison, lists and *; nothing sent, or anot
   assert.equal(catalogNotModified('W/"aaaa", W/"0123456789abcdef0123456789abcdef01234567"', etag), true)
   assert.equal(catalogNotModified('*', etag), true)
   assert.equal(catalogNotModified('W/"ffffffffffffffffffffffffffffffffffffffff"', etag), false)
+})
+
+test('catalog content hash: without loadedAt, SHA-1 for the ETag and SHA-256 for the quest base versions', () => {
+  const first = catalog('pvp', ['q1'])
+  const rebuilt = { ...first, metadata: { ...first.metadata!, loadedAt: '2026-10-14T12:00:00.000Z' } }
+  assert.equal(hashWithoutLoadedAt(JSON.stringify(first), 'sha256'), hashWithoutLoadedAt(JSON.stringify(rebuilt), 'sha256'))
+  assert.match(hashWithoutLoadedAt(JSON.stringify(first), 'sha256'), /^[a-f0-9]{64}$/)
+  assert.equal(catalogEtag(JSON.stringify(first)), `W/"${hashWithoutLoadedAt(JSON.stringify(first))}"`)
+  assert.notEqual(hashWithoutLoadedAt(JSON.stringify(catalog('pvp', ['q1', 'q2'])), 'sha256'), hashWithoutLoadedAt(JSON.stringify(first), 'sha256'))
+  // An empty or cut catalog is never usable.
+  assert.equal(isUsableCatalog(undefined), false)
+  assert.equal(isUsableCatalog(catalog('pvp', [])), false)
+  assert.equal(isUsableCatalog(catalog('pvp', ['q1'])), true)
 })
