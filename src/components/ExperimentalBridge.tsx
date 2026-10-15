@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTarkovData } from '../data/DataProvider'
-import { canonicalMapId } from '../data/mapIds'
-import { mapForView, readMapView, resolveMapView } from '../data/mapView'
 import { useAppState } from '../state/AppState'
-import { currentStoryStageIndex, isCurrentTrackedQuest } from '../progression/requirementEngine'
-import { readQuestChecks } from '../progression/questChecks'
 import { createItemMatcher, matchNearest } from '../overlay/itemMatch'
 import { createTooltipMatcher, foldTooltipText, type ItemNameVariant, type TooltipCandidate, type TooltipMatcher } from '../overlay/tooltipMatch'
 import { createLookupMemory } from '../overlay/tooltipLookup'
@@ -13,15 +9,13 @@ import type { PictureSignature } from '../overlay/iconSignature'
 import { loadItemNameVariants } from '../overlay/itemNames'
 import { describeItem } from '../overlay/itemInfo'
 import { isKappaBadgeMissingOnly } from '../kappa/kappaBadgeSetting'
-import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload, MinimapQuest } from '../overlay/types'
-import type { Item, MarkerLayerId } from '../domain/types'
+import type { ItemOverlayInfo, ItemOverlayPayload } from '../overlay/types'
+import type { Item } from '../domain/types'
+import { setRecognisedItem } from '../items/recognisedItem'
 import { collectorEntries, loadCollected, scanForCollectorItems } from '../kappa/collector'
 import { computeKeepList, keepBadge, type KeepRow } from '../raidprep/keepList'
 import { mateNamesFor, mateNeedsItem, useMateNeedsRefresh } from '../squad/mateNeeds'
 import { featureEnabled } from '../app/archivedFeatures'
-
-const MINIMAP_LAYERS = new Set<MarkerLayerId>(['extract.pmc', 'extract.coop', 'transit', 'quest.zone', 'quest.item', 'loot.documents'])
-const PLOTTED_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
 
 /** Readings the second attempt found an item for (one list for the app, see createLookupMemory). */
 const lookupMemory = createLookupMemory(() => window.localStorage, foldTooltipText)
@@ -97,8 +91,10 @@ async function checkPicture(matcher: TooltipMatcher, items: Map<string, Item>, i
 }
 
 /**
- * Answers the in-game overlays from the main window, which already holds the catalog and quest progress:
- * «Ж» asks what the item under the cursor is needed for, «M» asks for the current raid map.
+ * Answers the item lookup of the main process from the main window, which already holds the catalog and quest progress:
+ * the item key («Ж») asks what the item under the cursor is and what it is needed for. The answer comes back as
+ * `experimental:item` and becomes the card on «Карты» under «Вид» (items/recognisedItem.ts); nothing is drawn over the
+ * game (owner, 15.10.2026).
  */
 export function ExperimentalBridge() {
   const { data } = useTarkovData()
@@ -142,9 +138,9 @@ export function ExperimentalBridge() {
     return api.onQuery((query) => {
       const { data, state, matcher, tooltipMatcher, itemsById, keepRows } = latest.current
       const progress = state.activeProfile.modes[state.raidMode]
-      // Two independent overlay slots: the keep badge («Что не продавать») and who of the friends / squad needs the item.
+      // Two independent parts of the card: the keep badge («Что не продавать») and who of the friends / squad needs the item.
       const card = (item: Item, source?: ItemOverlayInfo['source']): ItemOverlayPayload => ({
-        // «Значок «Каппа» в рейде только на недостающих» (Kappa page): no badge on items already checked in this mode.
+        // «Значок «Каппа» только на недостающих» (Kappa page): no Kappa badge on items already checked in this mode.
         ...describeItem(item, data.quests, progress, state.raidMode, keepBadge(keepRows.get(item.id)), isKappaBadgeMissingOnly() ? loadCollected(state.raidMode) : undefined),
         ...(mateNeedsItem(state.raidMode, item.id) ? { mate: true, mateNames: mateNamesFor(state.raidMode, item.id) ?? [] } : {}),
         ...(source ? { source } : {}),
@@ -182,43 +178,15 @@ export function ExperimentalBridge() {
           const answer: PictureAnswer<ItemOverlayPayload> = { payload: item ? card(item, 'picture') : { state: 'not-found', text: input.texts[0] ?? '' }, reason, candidates: report }
           return api.answer(query.id, answer)
         }).catch(() => api.answer(query.id, null))
-        return
       }
-      // Raid location can be absent during the first seconds after spawning or in incomplete logs.
-      // Never degrade the M hotkey to a tiny "no data" card: use the map selected in the app.
-      const mapId = canonicalMapId(query.input.location ?? '') || state.selectedMapId
-      const map = data.maps.find((entry) => entry.id === mapId)
-      if (!map) {
-        void api.answer(query.id, { state: 'no-data', reason: query.input.location ? `Карта «${query.input.location}» не найдена` : 'Карта определится, когда начнётся рейд' } satisfies MinimapPayload)
-        return
-      }
-      // «Сделал в этом рейде» on the Maps page takes a quest off the minimap too.
-      const checks = readQuestChecks(state.activeProfile.id, state.raidMode)
-      const current = new Set(data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress) && !checks.has(quest.id)).map((quest) => quest.id))
-      const markers: MinimapMarker[] = data.markers.flatMap((marker) => {
-        const layerId = marker.layerId
-        if (marker.mapId !== map.id || !layerId || !MINIMAP_LAYERS.has(layerId) || PLOTTED_SOURCES_EXCLUDED.has(marker.source ?? '')) return []
-        const isQuest = layerId.startsWith('quest')
-        if (isQuest ? !marker.questId || !current.has(marker.questId) : false) return []
-        // Quest points carry their height: the minimap's quest button steps through them room by room.
-        const height = isQuest ? marker.height ?? (marker.heightRange ? (marker.heightRange[0] + marker.heightRange[1]) / 2 : undefined) : undefined
-        return [{ id: marker.id, position: marker.position, layerId, title: marker.title, subtitle: marker.meta, questId: isQuest ? marker.questId : undefined, ...(height != null ? { height } : {}) }]
-      })
-      const quests: MinimapQuest[] = []
-      for (const marker of markers) {
-        if (!marker.questId) continue
-        const existing = quests.find((entry) => entry.questId === marker.questId)
-        if (existing) { existing.markerIds.push(marker.id); continue }
-        const quest = data.quests.find((entry) => entry.id === marker.questId)
-        if (!quest) continue
-        const stage = quest.stages?.[currentStoryStageIndex(quest, progress)]
-        const objectives = stage ? [stage.title] : (quest.objectives.length ? quest.objectives : [quest.description]).slice(0, 4)
-        quests.push({ questId: quest.id, name: quest.name, trader: quest.trader, markerIds: [marker.id], objectives })
-      }
-      // The overlay follows the map view chosen on the Maps page (satellite or schematic).
-      const preferred = readMapView()
-      void api.answer(query.id, { state: 'ready', map: mapForView(map, preferred), view: resolveMapView(map, preferred), markers, questCount: quests.length, quests } satisfies MinimapPayload)
     })
+  }, [])
+
+  // The lookup's «reading…», card or «not recognised»: kept for «Карты» whatever page is open (no window over the game).
+  useEffect(() => {
+    const api = window.tarkovDesktop?.experimental
+    if (!api?.onItem) return
+    return api.onItem((payload) => setRecognisedItem(payload, { mode: latest.current.state.raidMode, from: 'pc' }))
   }, [])
 
   useEffect(() => {

@@ -116,29 +116,18 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch) => ipcRenderer.invoke('experimental:update-settings', patch),
     getStatus: () => ipcRenderer.invoke('experimental:status'),
-    toggleMinimap: () => ipcRenderer.invoke('experimental:toggle-minimap'),
     pickScreenshotsFolder: () => ipcRenderer.invoke('experimental:pick-screenshots'),
     testItemLookup: () => ipcRenderer.invoke('experimental:test-item'),
     checkScreenshots: () => ipcRenderer.invoke('experimental:check-screenshots'),
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    setRemoteMinimap: (enabled, overlay) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true, overlay !== false),
+    setRemoteMinimap: (enabled) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true),
     answer: (id, payload) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback) => subscribe('experimental:query', callback),
     onPosition: (callback) => subscribe('experimental:position', callback),
+    onItem: (callback) => subscribe('experimental:item', callback),
     onCollectorScan: (callback) => subscribe('experimental:collector-scan', () => callback()),
-  },
-  overlaySetInteractive: (value) => ipcRenderer.send('overlay:interactive', Boolean(value)),
-  overlayResize: (width, height) => ipcRenderer.send('overlay:resize', Number(width), Number(height)),
-  overlayDrag: (active) => ipcRenderer.send('overlay:drag', Boolean(active)),
-  overlayHold: (held) => ipcRenderer.send('overlay:hold', Boolean(held)),
-  overlayZones: (zones) => ipcRenderer.send('overlay:zones', zones),
-  onOverlay: (channel, callback) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
-    const unsubscribe = subscribe(channel, callback)
-    ipcRenderer.send('overlay:subscribe', channel)
-    return unsubscribe
   },
 })
 

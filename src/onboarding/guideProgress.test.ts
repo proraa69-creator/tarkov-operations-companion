@@ -36,9 +36,9 @@ describe('first-run guide: who gets it', () => {
 })
 
 describe('first-run guide: sections', () => {
-  it('maps the sections to their tips; the phone has no story sync or overlay mini map', () => {
+  it('maps the sections to their tips; the phone has no story sync; no «Мини Карта» tip (no overlays)', () => {
     expect(guideStepFor('/quests', false)).toBe('quests')
-    expect(guideStepFor('/experimental', false)).toBe('minimap')
+    expect(guideStepFor('/experimental', false)).toBeNull()
     expect(guideStepFor('/maps', false)).toBe('maps')
     expect(guideStepFor('/maps/customs', true)).toBe('maps')
     expect(guideStepFor('/kappa-items', true)).toBe('kappa')

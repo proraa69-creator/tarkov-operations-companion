@@ -12,7 +12,6 @@ import kappaShot from '../../assets/promo/kappa.webp'
 import squadShot from '../../assets/promo/squad-board.webp'
 import bossShot from '../../assets/promo/boss-tagilla.webp'
 import ballisticsShot from '../../assets/promo/ballistics.webp'
-import minimapShot from '../../assets/promo/minimap.webp'
 import updateShot from '../../assets/promo/update.webp'
 import themeTarkov from '../../assets/promo/theme-tarkov.webp'
 import themeBlackmc from '../../assets/promo/theme-blackmc.webp'
@@ -38,7 +37,6 @@ import modeSeasonEn from '../../assets/promo/mode-season-en.webp'
 import squadShotEn from '../../assets/promo/squad-board-en.webp'
 import bossShotEn from '../../assets/promo/boss-tagilla-en.webp'
 import ballisticsShotEn from '../../assets/promo/ballistics-en.webp'
-import minimapShotEn from '../../assets/promo/minimap-en.webp'
 import updateShotEn from '../../assets/promo/update-en.webp'
 import themeTarkovEn from '../../assets/promo/theme-tarkov-en.webp'
 import themeBlackmcEn from '../../assets/promo/theme-blackmc-en.webp'
@@ -160,17 +158,6 @@ export function BallisticsVisual() {
   )
 }
 
-export function MinimapVisual() {
-  return (
-    <figure className="promo-figure">
-      <div className="scene minimap-scene">
-        <span className="minimap-scene-label" aria-hidden="true">{tr('Окно игры')}</span>
-        <img className="minimap-shot" src={shot(minimapShot, minimapShotEn)} width={560} height={695} loading="lazy" decoding="async" alt={tr('Мини-карта поверх окна игры: позиция игрока, квестовые точки рядом, этажи и ползунки размера и прозрачности')} />
-      </div>
-    </figure>
-  )
-}
-
 export function UpdateVisual() {
   return (
     <figure className="promo-figure">
@@ -227,11 +214,11 @@ export function SyncVisual() {
         <div className="sync-devices" role="img" aria-label={tr('Схема: приложение для ПК, сайт и телефон связаны через один аккаунт на сервере Raid OS')}>
           <div className="sync-node"><Monitor aria-hidden="true" /><strong>{tr('ПК')}</strong><span>{tr('квесты, сюжет, Каппа')}</span></div>
           <div className="sync-node"><Globe aria-hidden="true" /><strong>{tr('Сайт')}</strong><span>{tr('кабинет и подписка')}</span></div>
-          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>{tr('Телефон')}</strong><span>{tr('прогресс и мини-карта')}</span></div>
+          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>{tr('Телефон')}</strong><span>{tr('прогресс, позиция и цены')}</span></div>
           <div className="sync-hub"><Server aria-hidden="true" /><strong>{tr('Один аккаунт')}</strong></div>
         </div>
         <div className="sync-live">
-          <div className="phone-frame is-small"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1125} loading="lazy" decoding="async" alt={tr('Мини-карта на телефоне: местоположение игрока с ПК')} /></div>
+          <div className="phone-frame is-small"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1125} loading="lazy" decoding="async" alt={tr('Карта на телефоне: местоположение игрока с ПК')} /></div>
           <div className="sync-qr">
             <LoginQr value={downloadUrl} size={120} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} />
             <p><strong>{tr('Вход по QR')}</strong>{tr('В приложении так входят на телефоне: код живёт 2 минуты и срабатывает один раз. Этот код — просто ссылка на страницу загрузки.')}</p>

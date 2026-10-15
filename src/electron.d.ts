@@ -2,7 +2,7 @@ import type { ModeLogScanResult } from './import/eftLogTimeline'
 import type { RaidState } from './import/raidState'
 import type { PlayerProfileSnapshot, RaidMode } from './domain/types'
 import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
-import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
+import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
 import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
@@ -250,7 +250,6 @@ interface TarkovDesktopApi {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
     getStatus: () => Promise<ExperimentalStatus>
-    toggleMinimap: () => Promise<boolean>
     pickScreenshotsFolder: () => Promise<ExperimentalSettings>
     testItemLookup: () => Promise<unknown>
     /** Folder, key, one real press with the game in front, the file and its coordinates. */
@@ -260,30 +259,17 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
-    /** The owner's minimap switches for every app as the server answered (src/announcement/features.ts): the tracking, and the window over the game (`overlay`, on when left out); resolves to whether the tracking is on now. Absent in apps before 14.10.2026. */
-    setRemoteMinimap?: (enabled: boolean, overlay?: boolean) => Promise<boolean>
+    /** The owner's position-tracking switch for every app as the server answered (src/announcement/features.ts); resolves to whether the tracking is on now. Absent in apps before 14.10.2026. */
+    setRemoteMinimap?: (enabled: boolean) => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
+    /**
+     * The item key's lookup (electron/experimental/index.ts): «reading…», the card or «not recognised». Shown on «Карты»
+     * under «Вид»; nothing is drawn over the game. Absent in apps before 15.10.2026.
+     */
+    onItem?: (callback: (payload: ItemOverlayPayload) => void) => () => void
     onCollectorScan: (callback: () => void) => () => void
-  }
-  /** Overlay windows only: let the mouse through (false) or catch it over controls (true). */
-  overlaySetInteractive?: (value: boolean) => void
-  /** Overlay windows only: fit the window to its content. */
-  overlayResize?: (width: number, height: number) => void
-  /** Overlay windows only: start (true) or finish (false) dragging the window with the mouse. */
-  overlayDrag?: (active: boolean) => void
-  /** Overlay windows only: a mouse button went down (true) or up (false) over a control; the window keeps the mouse meanwhile. */
-  overlayHold?: (held: boolean) => void
-  /** Overlay windows only: rectangles (window coordinates) that should catch the mouse. */
-  overlayZones?: (zones: Array<{ x: number; y: number; width: number; height: number }>) => void
-  onOverlay?: {
-    (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
-    (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
-    (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
-    (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
-    /** What stops the player's dot (src/overlay/positionReadiness.ts); null when nothing. Checked again on arrival. */
-    (channel: 'overlay:hint', callback: (problem: unknown) => void): () => void
   }
 }
 

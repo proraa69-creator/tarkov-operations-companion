@@ -11,8 +11,9 @@
  *   POST /story/:mode                    { characterId?, records[] } -> the same, the newer readings kept
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
- *   GET  /position/:mode                 -> { position | null }
- *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept)
+ *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
+ *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept; the apps
+ *                                        with the in-game overlays; the newer ones publish to /v1/live, which stores nothing)
  *   GET  /settings                       -> { settings, updatedAt }
  *   PUT  /settings                       { settings } -> { settings, updatedAt } (max 16 KB)
  *   PUT  /levels                         { modes: { pvp?|pve?|seasonal?: { level, prestige | null, observedAt } } }
@@ -36,6 +37,7 @@ import type { UserDataStore } from '../services/userDataStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
 import { resolvedRecords } from '../services/sharedProgress.js'
+import type { LiveRelay } from '../services/liveRelay.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -122,6 +124,11 @@ export interface MeRouterOptions {
   now?: () => number
   /** Instant updates for friends and squad mates (services/socialSignals.ts): who sees this account's progress. */
   social?: { signals: SocialSignals; circle: (accountId: string) => string[] }
+  /**
+   * The live position the new PC apps publish (services/liveRelay.ts): an older phone polling GET /position sees it too,
+   * and a position an older PC posts here reaches the new phones at once.
+   */
+  live?: LiveRelay
 }
 
 export interface ModeSummary {
@@ -240,7 +247,9 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   router.get('/position/:mode', (req, res) => {
     const parsed = mode(req)
     if (!parsed.success) { bad(res, 'Некорректный режим'); return }
-    res.json({ position: userData.getPosition(account(res), parsed.data) })
+    const stored = userData.getPosition(account(res), parsed.data)
+    const live = options.live?.position(account(res), parsed.data) ?? null
+    res.json({ position: live && (!stored || live.at >= stored.at) ? live : stored })
   })
 
   router.post('/position/:mode', (req, res) => {
@@ -250,6 +259,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // Client clocks drift; a capture time far in the future is clamped to the server time.
     const now = (options.now ?? Date.now)()
     const at = Math.min(body.data.at, now + 60_000)
+    options.live?.setPosition(account(res), parsed.data, { ...body.data, at })
     res.status(201).json({ position: userData.setPosition(account(res), parsed.data, { ...body.data, at }) })
   })
 

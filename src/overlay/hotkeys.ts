@@ -1,6 +1,4 @@
-import { gameKeyVk } from './gameKeys.js'
-
-/** Keys the overlay hotkeys can be bound to, keyed by KeyboardEvent.code. */
+/** Keys the app's hotkeys (item info, Collector scan) can be bound to, keyed by KeyboardEvent.code. */
 export interface HotkeyDefinition {
   label: string
   /** Windows virtual-key code, used by the native polling fallback. */
@@ -50,7 +48,6 @@ export function mouseHotkey(button: number): string | null {
 
 export const HOTKEYS: Readonly<Record<string, HotkeyDefinition>> = table
 export const DEFAULT_ITEM_KEY = 'Semicolon'
-export const DEFAULT_MINIMAP_KEY = 'KeyM'
 
 export function isKnownHotkey(code: unknown): code is string {
   return typeof code === 'string' && Object.hasOwn(HOTKEYS, code)
@@ -58,14 +55,4 @@ export function isKnownHotkey(code: unknown): code is string {
 
 export function hotkeyLabel(code: string) {
   return HOTKEYS[code]?.label ?? code
-}
-
-/**
- * The app hotkey that is the game's screenshot key, when it is one key the app can watch («Открывать мини-карту клавишей
- * F12»: the other way round to make both the same key). Null for PrtSc, combinations and keys missing here.
- */
-export function hotkeyForGameKeys(keys: string[]): string | null {
-  if (keys.length !== 1) return null
-  const vk = gameKeyVk(keys[0]!)
-  return vk === null ? null : Object.keys(HOTKEYS).find((code) => HOTKEYS[code]!.vk === vk) ?? null
 }

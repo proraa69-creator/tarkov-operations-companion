@@ -41,7 +41,7 @@ afterEach(() => { setRenderLanguage('ru'); vi.restoreAllMocks(); vi.unstubAllGlo
 
 // The whole Maps page on the real catalog: slower than 5 s on a loaded machine.
 describe('Maps page: «С условиями на снаряжение»', () => {
-  it('lists the quests with gear conditions in their own section at the bottom; the sheet shows the build to take', async () => {
+  it('lists the quests with gear conditions in their own section at the bottom; the sheet adds no gear block', async () => {
     const { container } = await renderStreets()
     const section = await waitFor(() => {
       const found = container.querySelector('.map-gear-section') as HTMLElement | null
@@ -59,25 +59,14 @@ describe('Maps page: «С условиями на снаряжение»', () =>
     expect(rows.slice(-GEAR.length).every((row) => row.classList.contains('is-gear'))).toBe(true)
 
     fireEvent.click([...section.querySelectorAll('.quest-map-row-main')].find((button) => button.textContent?.includes('Работа для патриота'))!)
-    const block = await waitFor(() => {
-      const found = container.querySelector('.map-quest-sheet .qc-raid-gear') as HTMLElement | null
-      expect(found).not.toBeNull()
-      return found!
-    })
-    expect(block).toHaveTextContent('Снаряжение для рейда')
-    expect(block.querySelector('.qc-weapon-card')).toHaveTextContent('АК-12')
-    expect(block).toHaveTextContent('ПС-320')
-    expect(block).toHaveTextContent('Глушитель 5.45x39 для АК-12')
-    expect(block).toHaveTextContent('Условия убийства')
-    expect(screen.getAllByText('Работа для патриота').length).toBeGreaterThan(1)
+    await waitFor(() => expect(screen.getAllByText('Работа для патриота').length).toBeGreaterThan(1))
+    // What to take is shown only in «Сбор на рейд» on the Overview (owner, 15.10.2026: «больше ничего нигде не добавляй»).
+    expect(container.querySelector('.map-quest-sheet .qc-weapon-card')).toBeNull()
   }, 20_000)
 
   it('speaks English', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     const { container } = await renderStreets()
     await waitFor(() => expect(container.querySelector('.map-gear-section .gear-section-head')).toHaveTextContent('Gear conditions'))
-    fireEvent.click(container.querySelector('.map-gear-section .quest-map-row-main')!)
-    await waitFor(() => expect(container.querySelector('.map-quest-sheet .qc-raid-gear')).toHaveTextContent('Raid gear'))
-    expect(container.querySelector('.map-quest-sheet .qc-raid-gear')).toHaveTextContent('Kill conditions')
   }, 20_000)
 })

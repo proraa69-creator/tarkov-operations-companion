@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchLiveCatalog } from './catalogSource'
 import { adaptObjectiveDetails } from './objectiveDetails'
-import { adaptObjectiveConditions, hasGearConditions, joinMergedGear } from './objectiveConditions'
+import { adaptObjectiveConditions, hasGearConditions, joinMergedGear, onlyFragGrenades } from './objectiveConditions'
 import fixture from './__fixtures__/tarkovDevConditionQuests.json'
 import { conditionQuestsFetcher } from './__fixtures__/conditionQuestsFeed'
 
@@ -119,11 +119,13 @@ describe('the catalog keeps the conditions (real tarkov.dev quests)', () => {
     expect(english.targets).toEqual([{ key: 'AnyPmc', name: 'any PMC operatives' }])
   })
 
-  it('every quest of the fixture has gear conditions; outfits, merged gear and «any of» suppressors keep their shape', async () => {
+  it('every quest of the fixture but the one with gear not to wear alone has gear conditions; outfits, merged gear and «any of» suppressors keep their shape', async () => {
     stubRealFeed()
     const catalog = await fetchLiveCatalog('pvp', 'ru', fetch, { wiki: noWiki })
     const geared = catalog.quests.filter((quest) => quest.objectiveDetails?.some((objective) => hasGearConditions(objective.conditions)))
-    expect(geared).toHaveLength(Object.keys(fixture.tasks.tasks).length)
+    // 60e729cf5698ee7b05057439 asks only not to wear 24 items: nothing to take, not shown (owner, 15.10.2026)
+    expect(geared).toHaveLength(Object.keys(fixture.tasks.tasks).length - 1)
+    expect(geared.some((quest) => quest.id === '60e729cf5698ee7b05057439')).toBe(false)
     const conditionsOf = (name: string) => catalog.quests.find((quest) => quest.name === name)!.objectiveDetails!.flatMap((objective) => objective.conditions ? [objective.conditions] : [])
     // «Стиляги»: a beanie AND sunglasses (two merged upstream conditions) — one outfit of two
     const [dandies] = conditionsOf('Стиляги')
@@ -150,5 +152,24 @@ describe('the catalog keeps the conditions (real tarkov.dev quests)', () => {
         expect(ref.name).not.toMatch(/^[0-9a-f]{24}/)
       }
     }
+  })
+})
+
+describe('«Гренадер»: only the frag grenades', () => {
+  // json.tarkov.dev regular/tasks, Grenadier (5c0d190cd09282029f5390d8): smoke, stun, frag and impact grenades and two
+  // underbarrel launchers; the owner (15.10.2026): «для гренадера нужны только боевые гранаты, а не дымовые и подствольники».
+  const KINDS: Record<string, string> = { m18: 'Smoke', zarya: 'Flashbang', f1: 'Grenade', rgd5: 'Grenade', vog17: 'Impact Grenade', gp25: 'launcher', m203: 'launcher' }
+  const weaponKind = (id: string) => KINDS[id]
+  const ids = ['m18', 'zarya', 'f1', 'rgd5', 'vog17', 'gp25', 'm203']
+
+  it('keeps the frag and impact grenades of a grenade list', () => {
+    const conditions = adaptObjectiveConditions({ type: 'shoot', usingWeapon: ids }, { weaponKind })
+    expect(conditions?.weapons?.map((weapon) => weapon.id)).toEqual(['f1', 'rgd5', 'vog17'])
+  })
+
+  it('leaves any other weapon list as it is', () => {
+    const rifles = [{ id: 'ak12', name: 'АК-12' }, { id: 'gp25', name: 'ГП-25' }]
+    expect(onlyFragGrenades(rifles, weaponKind)).toEqual(rifles)
+    expect(onlyFragGrenades([{ id: 'f1', name: 'Ф-1' }, { id: 'm18', name: 'M18' }], undefined)).toHaveLength(2)
   })
 })

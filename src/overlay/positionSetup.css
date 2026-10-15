@@ -1,12 +1,8 @@
-/* «Точка на мини-карте» (overlay/PositionSetupCard.tsx): the one thing that stops the dot and its one-click fix. */
+/* «Точка на карте» (overlay/PositionSetupCard.tsx): the one thing that stops the dot. */
 .position-setup .panel-body { display: flex; gap: 12px; align-items: flex-start; }
 .position-setup .panel-body > svg { flex: 0 0 auto; margin-top: 2px; color: var(--brass); }
 .position-setup.is-alert { border-color: color-mix(in srgb, #e0a24a 55%, var(--line)); }
 .position-setup.is-alert .panel-body > svg { color: #e0a24a; }
 .position-setup-body { display: grid; gap: 6px; min-width: 0; }
 .position-setup-body p { margin: 0; color: var(--text-muted); }
-.position-setup-note { color: var(--text); }
 .position-setup.is-compact { margin-bottom: 14px; }
-/* Which keys the game's «Скриншот» and the minimap have now: both belong on one key. */
-.position-setup-keys { color: var(--text); }
-.position-setup-keys kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-weight: 600; }

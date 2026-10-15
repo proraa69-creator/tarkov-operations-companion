@@ -68,10 +68,3 @@ export function followDisplayScale(window: BrowserWindow, minimum?: { width: num
   apply()
   return apply
 }
-
-/** An overlay over the game takes the scale of the display it is on (called after it was placed). */
-export function zoomToDisplay(window: BrowserWindow) {
-  if (window.isDestroyed()) return
-  const scale = displayScale(screen.getDisplayMatching(window.getBounds()))
-  if (Math.abs(window.webContents.getZoomFactor() - scale) > 0.001) window.webContents.setZoomFactor(scale)
-}
