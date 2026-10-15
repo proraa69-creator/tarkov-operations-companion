@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, applyScreenLevel, createLocalProfile, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -17,6 +17,7 @@ import {
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { applyLogQuestState, dropRecordsBefore, logEpochChange, logStateFingerprint, type LogIdentityInput } from '../import/logApply'
 import { announceLogEpochChange } from './logEpoch'
+import { afterModeReset, type ModeResetReason } from './modeReset'
 import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
@@ -56,6 +57,13 @@ interface AppStateValue extends UiState {
   /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
+  /**
+   * «Престиж +» or a nickname change (src/state/modeReset.ts): every progress record of one mode of the active profile
+   * goes (src/domain/progress.ts wipeModeProgress), with the per-mode stores outside the profile, and the server is told
+   * (queued while offline). `at` (now by default) becomes the mode's epoch. Other modes, settings, the account and the
+   * nickname stay.
+   */
+  resetModeProgress: (mode: RaidMode, at?: string, reason?: ModeResetReason) => void
   /**
    * A mode's quests from its logs (applyLogStateForMode: the server's records of its character, from another PC or for the
    * phone). Another character, or a newer trusted reset, first drops the mode's records older than the change, once
@@ -186,7 +194,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       modes: {
         ...profile.modes,
         [selectedMode]: {
-          ...withTaskEvents(profile.modes[selectedMode], mergeTaskRecords(profile.modes[selectedMode], records), selectedMode),
+          ...withTaskEvents(profile.modes[selectedMode], mergeTaskRecords(profile.modes[selectedMode], records.filter((record) => !beforeModeReset(profile.modes[selectedMode], record.updatedAt))), selectedMode),
           logCharacterId: characterId ?? profile.modes[selectedMode].logCharacterId,
           lastLogSyncAt: new Date().toISOString(),
         },
@@ -214,6 +222,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt })),
     applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity)),
+    resetModeProgress: (selectedMode, at = new Date().toISOString(), reason = 'prestige') => {
+      const profileId = activeProfile.id
+      setProfileState((state) => ({
+        ...state,
+        profiles: state.profiles.map((profile) => profile.id === profileId ? wipeModeProgress(profile, selectedMode, at) : profile),
+      }))
+      // The same point as a trusted reset of the logs (src/state/logEpoch.ts), then the stores outside the profile, the
+      // server and the notice.
+      announceLogEpochChange({ kind: 'reset', at, profileId, mode: selectedMode })
+      afterModeReset({ profileId, mode: selectedMode, at, reason })
+    },
     applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
       // Another character's chapters (this mode's character is another one now): not these.
@@ -257,7 +276,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
     }),
     applyRemoteObjectives: (selectedMode, remote) => updateActive((profile) => {
-      const next = mergeRemoteObjectives(profile.modes[selectedMode], remote)
+      // Nothing from before the mode's reset comes back from the server (an app that has not heard of it yet sent it).
+      const current = profile.modes[selectedMode]
+      const fresh = current.modeResetAt
+        ? { objectives: remote.objectives.filter((entry) => !beforeModeReset(current, entry.observedAt)), events: remote.events.filter((entry) => !beforeModeReset(current, entry.observedAt)) }
+        : remote
+      const next = mergeRemoteObjectives(current, fresh)
       if (next === profile.modes[selectedMode]) return profile
       return { ...profile, modes: { ...profile.modes, [selectedMode]: next } }
     }),
@@ -357,9 +381,11 @@ function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: Pa
   const base = change ? dropRecordsBefore(current, change.at) : current
   // The first character a mode learns: what an older version kept from the logs is read again from them.
   const firstCharacter = Boolean(characterId) && !current.logCharacterId
-  // Events from before the character's last reset never come back (a PC whose own logs never showed the reset).
+  // Events from before the character's last reset never come back (a PC whose own logs never showed the reset), nor
+  // from before the mode's reset in the app («Престиж +», a nickname change: src/state/modeReset.ts).
   const logResetAt = change ? resetAt : current.logResetAt
-  const fresh = logResetAt ? events.filter((event) => event.timestamp >= logResetAt) : events
+  const floor = laterTime(logResetAt, current.modeResetAt)
+  const fresh = floor ? events.filter((event) => event.timestamp >= floor) : events
   const next = applyLogQuestState(base, fresh, { keepPreviousLogRecords: !firstCharacter })
   if (!change && logStateFingerprint(next) === logStateFingerprint(current) && (!characterId || current.logCharacterId === characterId)) return profile
   if (change) announceLogEpochChange({ ...change, profileId: profile.id, mode: selectedMode })

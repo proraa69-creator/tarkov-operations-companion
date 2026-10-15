@@ -169,6 +169,12 @@ export interface ModeProgress {
    * src/import/logApply.ts): every quest, story and objective record older than this was dropped then. Undefined until one.
    */
   logEpochAt?: string
+  /**
+   * The last reset of the whole mode the player asked for in the app — «Престиж +» or a nickname change
+   * (src/state/modeReset.ts): nothing older than this is applied again in this mode, from any source (logs, the server,
+   * the game's screens, Tarkov.dev). Undefined until one.
+   */
+  modeResetAt?: string
   /** Objective state keyed by objectiveId (schema v6). */
   objectiveProgress: Record<string, ObjectiveProgress>
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */

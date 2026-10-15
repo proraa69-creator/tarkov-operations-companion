@@ -136,6 +136,17 @@ export function saveScreenTraderLevels(mode: RaidMode, character: string | undef
   screenStore.write({ ...stored, [mode]: Object.fromEntries(kept) })
 }
 
+/**
+ * «Престиж +» or a nickname change (src/state/modeReset.ts): the mode's loyalty starts again — the traders' screen's
+ * readings of every character of that mode and the player's own levels for it go; other modes keep theirs.
+ */
+export function clearTraderLevels(mode: RaidMode) {
+  const screen = screenStore.read()
+  if (screen[mode]) { const next = { ...screen }; delete next[mode]; screenStore.write(next) }
+  const manual = manualStore.read()
+  if (manual[mode]) { const next = { ...manual }; delete next[mode]; manualStore.write(next) }
+}
+
 export function traderLevelInfos(traders: Trader[], quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined, playerLevel: number, manual: Record<string, number> = {}, screen: Record<string, number> = {}): TraderLevelInfo[] {
   const order = (key: string) => { const index = TRADER_ORDER.indexOf(key); return index < 0 ? TRADER_ORDER.length : index }
   return traders

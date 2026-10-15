@@ -4,6 +4,9 @@
  *
  *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
  *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
+ *   POST /progress/:mode/reset           { at? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
+ *                                        starts again; its older quest events, story chapters, objectives, Collector
+ *                                        checklist and shared level go, other modes stay)
  *   GET  /story/:mode?characterId=       -> { characterId, records: [{ chapterId, status, stageId?, updatedAt }] }
  *   POST /story/:mode                    { characterId?, records[] } -> the same, the newer readings kept
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
@@ -45,6 +48,7 @@ const eventsSchema = z.object({
   resetAt: isoTime.optional(),
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
 }).strict()
+const resetSchema = z.object({ at: isoTime.optional() }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
 const storyRecordSchema = z.object({
@@ -161,6 +165,20 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     progressChanged(account(res))
   })
 
+  // «Престиж +» or a nickname change in the app (src/state/modeReset.ts): one mode only. Repeating it, or sending an
+  // older one later (a queued offline reset), changes nothing more than the newest one did.
+  router.post('/progress/:mode/reset', (req, res) => {
+    const parsed = mode(req)
+    const body = resetSchema.safeParse(req.body ?? {})
+    if (!parsed.success || !body.success) { bad(res); return }
+    const now = (options.now ?? Date.now)()
+    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now)
+    objectives.dropBefore(owner(account(res)), parsed.data, answer.resetAt)
+    userData.clearModeBefore(account(res), parsed.data, answer.resetAt)
+    res.json(answer)
+    progressChanged(account(res))
+  })
+
   router.get('/story/:mode', (req, res) => {
     const parsed = mode(req)
     const characterId = req.query.characterId === undefined ? undefined : hexId.safeParse(req.query.characterId)
@@ -251,10 +269,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // A client clock far in the future must not make its values «newer» than everything else for good.
     const latest = new Date((options.now ?? Date.now)() + 60_000).toISOString()
     const clamp = (time: string) => time > latest ? latest : time
+    // Nothing from before a reset of the whole mode comes back (an app that has not heard of it yet).
+    const resetAt = progress.modeResetAt(owner(account(res)), parsed.data)
+    const fresh = (time: string) => !resetAt || time >= resetAt
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {
-        objectives: body.data.objectives.map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
-        events: body.data.events.map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
+        objectives: body.data.objectives.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
+        events: body.data.events.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
       }))
       progressChanged(account(res))
     } catch (error) {

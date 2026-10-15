@@ -63,7 +63,7 @@ export function StoryScreenScanner() {
     const desktop = window.tarkovDesktop
     if (!desktop) return
     // Unlocked now: what the locked app's identity reader kept (src/components/IdentityScreenReader.tsx) is applied.
-    applyKeptIdentity(() => stateRef.current)
+    applyKeptIdentity(() => stateRef.current, logsGameMode(logStatusRef.current))
     let cancelled = false
     let inRaid = false
     // Back from a raid: look at once. While the window sits minimized behind the game its timers are throttled,
@@ -115,7 +115,7 @@ export function StoryScreenScanner() {
         // Shown on every game start, for all modes at once: applied right away, whatever mode the app shows.
         if (frame?.gameWindow && frame.profiles?.length) {
           noteModeSelectRead()
-          applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current)
+          applyModeSelectScreen(frame.profiles, frame.observedAt ?? Date.now(), () => stateRef.current, logsGameMode(logStatusRef.current))
         }
         // The traders' screen: the level of the mode the game is in (from the logs) and the nickname marked «(вы)».
         if (frame?.gameWindow && frame.trader) applyTraderScreen(frame.trader, logsGameMode(logStatusRef.current), frame.observedAt ?? Date.now(), () => stateRef.current)
