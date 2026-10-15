@@ -20,7 +20,7 @@ vi.mock('electron', () => ({ app: { isPackaged: false, on: vi.fn(), quit: vi.fn(
 vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => build.owner, buildDefaultServerUrl: () => build.defaultServer }))
 vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.3', build: 100, commit: 'old', trialLaunches: 0, edition: build.owner ? 'owner' : 'client' }) }))
 // The address typed in the app: a player's copy must never update from it.
-vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => 'https://typed-in.example', apiBaseUrl: () => 'https://typed-in.example' }))
+vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => 'https://typed-in.example', apiBaseUrl: () => 'https://typed-in.example', ownerExeManifest: async () => null, ownerExeLink: async () => { throw new Error('no owner exe') } }))
 const child = vi.hoisted(() => ({ spawn: vi.fn(() => ({ unref: vi.fn() })) }))
 vi.mock('node:child_process', () => ({ spawn: child.spawn }))
 // The partial update (electron/deltaUpdate.ts): the published parts are mocked here, appDelta.test.ts covers them.
