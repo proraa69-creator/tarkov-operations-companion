@@ -415,7 +415,7 @@
 /* every gear .panel is position:relative, which (with the detail panel's `top`) pushed it down instead of sticking */
 :root[data-theme="gear"] .quest-detail { position: sticky; }
 @media (max-width: 980px) { :root[data-theme="gear"] .quest-detail { position: static; } }
-:root[data-theme="gear"] .quest-detail .detail-hero {
+:root[data-theme="gear"] :is(.quest-detail, .gunsmith-detail) .detail-hero {
   position: relative; border-bottom: 0; border-radius: 6px 6px 3px 3px;
   background:
     linear-gradient(180deg, rgb(255 240 205 / 7%), transparent 40%),
@@ -423,12 +423,12 @@
     var(--gear-molle) calc(var(--gear-tex-x) - 9px) 7px / 2048px 2048px;
   box-shadow: inset 0 0 0 1px #0a0b07, inset 0 1px 0 1px rgb(255 240 205 / 9%), 0 1px 0 #0b0c08, 0 4px 7px -2px rgb(0 0 0 / 70%);
 }
-:root[data-theme="gear"] .quest-detail .detail-hero::after {
+:root[data-theme="gear"] :is(.quest-detail, .gunsmith-detail) .detail-hero::after {
   content: ''; position: absolute; left: 50%; bottom: -10px; width: 20px; height: 20px; margin-left: -10px;
   background: var(--gear-snap) center / contain no-repeat; pointer-events: none;
   filter: drop-shadow(1px 2px 1.5px rgb(0 0 0 / 60%));
 }
-:root[data-theme="gear"] .quest-detail .detail-hero h2 {
+:root[data-theme="gear"] :is(.quest-detail, .gunsmith-detail) .detail-hero h2 {
   font-family: "Oswald", "Bahnschrift", sans-serif; font-weight: 600; letter-spacing: .01em; text-transform: uppercase;
   text-shadow: 0 -1px 0 rgb(0 0 0 / 60%), 0 1px 0 rgb(255 245 220 / 12%), 0 3px 14px rgb(0 0 0 / 60%);
 }
