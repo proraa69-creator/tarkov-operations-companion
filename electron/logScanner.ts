@@ -387,7 +387,8 @@ interface KeptLog {
   open: LogSignal[]
 }
 
-const LOG_CACHE_VERSION = 1
+/** 2: the game's prestige / new-profile requests are signals too (read again once, so older ones count). */
+const LOG_CACHE_VERSION = 2
 /** A kept file bigger than this is not read (something else wrote it); a player's logs give a few MB at most. */
 const MAX_CACHE_FILE_BYTES = 64 * 1024 * 1024
 /** Log bytes read since the last save after which the offsets alone are worth saving (a growing log of a long session). */
@@ -412,6 +413,7 @@ function validSignal(value: unknown): value is LogSignal {
   if (signal.kind === 'mode') return MODES.has(String(signal.mode)) && (signal.via === undefined || signal.via === 'gateway')
   if (signal.kind === 'profile') return HEX_ID.test(String(signal.profileId)) && Number.isSafeInteger(signal.accountId)
   if (signal.kind === 'quest') return HEX_ID.test(String(signal.taskId)) && STATUSES.has(String(signal.status))
+  if (signal.kind === 'reset') return (signal.via === 'prestige' || signal.via === 'profile-create') && (signal.mode === undefined || MODES.has(String(signal.mode)))
   return false
 }
 
