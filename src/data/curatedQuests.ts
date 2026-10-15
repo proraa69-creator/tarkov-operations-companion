@@ -75,6 +75,10 @@ interface CuratedQuest {
   delay?: [number, number]
   /** Items to bring that the task data cannot name (a flare of `useAny`, the transponder). */
   bring?: Array<{ itemIds: string[]; count: number; maps: string[]; objective: number }>
+  /**
+   * The quest's description in the app: how it opens, what to do, tips. Player-facing: no source names and no notes about
+   * the data (those belong in docs/quests/na-svet-audit.md).
+   */
   note: Text
 }
 
@@ -186,8 +190,8 @@ export const TO_THE_LIGHT: CuratedSeries = {
       ],
       rewards: [[ROUBLES, 300_000], ['5c94bbff86f7747ee735c08f', 2]],
       note: {
-        ru: 'Открывается в разговоре с Механиком (спросить о работе со Смотрителем) после главы «Тур», когда открыт доступ на Маяк, при 3-м уровне лояльности у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря (tarkov.help называет ещё 2-й уровень у Скупщика). Жёсткий диск с дезой выдаётся при взятии задания; закладка занимает около 40 секунд, выход «Вентиляционная шахта» — без рюкзака. Точки серверной на карте нет: ни один источник не даёт её координат.',
-        en: 'Given in a talk with Mechanic (ask about working with Lightkeeper) after the Tour chapter has opened Lighthouse, with loyalty level 3 at Prapor, Therapist, Skier, Peacekeeper, Mechanic, Ragman and Jaeger (tarkov.help also names Fence level 2). The hard drive with false data comes with the task; stashing takes about 40 seconds, and the Ventilation Shaft is used without a backpack. The server room has no map point: no source gives its coordinates.',
+        ru: 'Открывается в разговоре с Механиком (спросить о работе со Смотрителем) после главы «Тур», когда открыт доступ на Маяк, при 3-м уровне лояльности у Прапора, Терапевта, Лыжника, Миротворца, Механика, Барахольщика и Егеря. Жёсткий диск с дезой выдаётся при взятии задания. Закладка ~40 с, выход «Вентиляционная шахта» — без рюкзака; погибнете — диск снова придёт в сообщении от Механика.',
+        en: 'Given in a talk with Mechanic (ask about working with Lightkeeper) after the Tour chapter has opened Lighthouse, with loyalty level 3 at Prapor, Therapist, Skier, Peacekeeper, Mechanic, Ragman and Jaeger. The hard drive with false data comes with the task. Stashing takes ~40 s, and the Ventilation Shaft is used without a backpack; if you die, the drive comes again in Mechanic\'s message.',
       },
     },
     {
@@ -206,8 +210,8 @@ export const TO_THE_LIGHT: CuratedSeries = {
       ],
       bring: [{ itemIds: [RSP_YELLOW, FLARE_26X75_YELLOW], count: 1, maps: ['customs'], objective: 3 }],
       note: {
-        ru: 'Появляется через 10–30 минут после «Доверяй, но проверяй». Всё — за один ночной рейд на Таможне. Сигнал: РСП-30 (жёлтый) или жёлтый патрон 26x75 из сигнального пистолета СП-81. Точка — переход на Берег (tarkov.dev); места камеры в магазине на карте нет: ни один источник не даёт его координат.',
-        en: 'Appears 10–30 minutes after Trust but Verify. Everything in one night raid on Customs. The signal: an RSP-30 (yellow) or a yellow 26x75 flare from the SP-81 signal pistol. The point is the Shoreline transit (tarkov.dev); the camera spot in the store has no map point: no source gives its coordinates.',
+        ru: 'Появляется через 10–30 минут после «Доверяй, но проверяй». Всё — за один ночной рейд на Таможне. Возьмите ПНВ. Сигнал: РСП-30 (жёлтый) или жёлтый патрон 26x75 из сигнального пистолета СП-81 — стрелять вверх прямо у перехода на Берег, у автобуса.',
+        en: 'Appears 10–30 minutes after Trust but Verify. Everything in one night raid on Customs. Bring NVGs. The signal: an RSP-30 (yellow) or a yellow 26x75 flare from the SP-81 signal pistol, fired upwards right at the Shoreline transit, by the bus.',
       },
     },
     {
@@ -239,8 +243,8 @@ export const TO_THE_LIGHT: CuratedSeries = {
         { type: 'plantItem', maps: ['shoreline'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов в архиве на 2 этаже административного корпуса санатория на локации Берег (В одном рейде)', en: 'Plant a Signal jammer at the second floor archives in the Health Resort admin building on Shoreline (In one raid)' } },
       ],
       note: {
-        ru: 'Появляется через 10–15 минут после «Ложного вызова». Всё — за один заход через переходы Лес → Таможня → Берег; выход до последней цели — начинать заново. Нужно 4 подавителя сигналов (Механик, 1-й уровень). Точки — два перехода (tarkov.dev); мест закладки на карте нет: ни один источник не даёт их координат.',
-        en: 'Appears 10–15 minutes after False Call. Everything in one run through the transits Woods → Customs → Shoreline; extracting before the last objective starts it over. Needs 4 Signal jammers (Mechanic, level 1). The points are the two transits (tarkov.dev); the jammer spots have no map points: no source gives their coordinates.',
+        ru: 'Появляется через 10–15 минут после «Ложного вызова». Всё — за один заход через переходы Лес → Таможня → Берег; выход до последней цели — начинать заново. Нужно 4 подавителя сигналов (Механик, 1-й уровень лояльности).',
+        en: 'Appears 10–15 minutes after False Call. Everything in one run through the transits Woods → Customs → Shoreline; extracting before the last objective starts it over. Needs 4 Signal jammers (Mechanic, loyalty level 1).',
       },
     },
     {
@@ -332,8 +336,8 @@ export const TO_THE_LIGHT: CuratedSeries = {
       rewards: [[ROUBLES, 300_000], ['5fc22d7c187fea44d52eda44', 1], ['5fc23426900b1d5091531e15', 3], ['657023ccbfc87b3a3409320a', 2]],
       standing: [[LIGHTKEEPER, 0.01]],
       note: {
-        ru: 'Три папки «Документы компании TerraGroup» — по одной в меченую комнату на Резерве (РБ-БК, РБ-ПКПМ или РБ-ВО), Улицах Таркова (заброшенный завод или странная комната) и Таможне (комната 314 общежития). Ключ нужен один на локацию. Точки — двери меченых комнат (замки tarkov.dev).',
-        en: 'Three TerraGroup "Blue Folders" materials — one in a marked room each on Reserve (RB-BK, RB-PKPM or RB-VO), Streets of Tarkov (abandoned factory or mysterious room) and Customs (dorm room 314). One key per location. The points are the marked rooms\' doors (tarkov.dev locks).',
+        ru: 'Три папки «Документы компании TerraGroup» — по одной в меченую комнату на Резерве (РБ-БК, РБ-ПКПМ или РБ-ВО), Улицах Таркова (заброшенный завод или странная комната) и Таможне (комната 314 общежития). Ключ нужен один на локацию; папки можно купить, найти или сделать в Разведцентре 2-го уровня.',
+        en: 'Three TerraGroup "Blue Folders" materials — one in a marked room each on Reserve (RB-BK, RB-PKPM or RB-VO), Streets of Tarkov (abandoned factory or mysterious room) and Customs (dorm room 314). One key per location; the folders can be bought, found or crafted in the Intelligence Center level 2.',
       },
     },
     {
@@ -354,8 +358,8 @@ export const TO_THE_LIGHT: CuratedSeries = {
       craftUnlock: { itemId: DSP_TRANSMITTER, station: { ru: 'Разведцентр, ур. 2', en: 'Intelligence Center level 2' } },
       bring: [{ itemIds: [DSP_TRANSMITTER], count: 1, maps: ['lighthouse'], objective: 3 }],
       note: {
-        ru: 'Флешка V3 лежит у шале на базе Отступников (верхнее и нижнее шале, коттеджи); перепрошивка — в Разведцентре 2-го уровня, при включённом электричестве. С перепрошитым радиопередатчиком в спецслоте Зрячий и мины на мосту пропускают к маяку; в группе он нужен у всех. После задания открывается Смотритель («Источник информации»). Точек флешки и маяка на карте нет: ни один источник не даёт их координат после переделки Маяка.',
-        en: 'The V3 flash drive lies around the chalets of the Rogue base (upper and lower chalet, cottages); the reflash is done in the Intelligence Center level 2 with power on. With the reflashed transmitter in the special slot, Zryachiy and the mines on the bridge let you through to the lighthouse; in a group everyone needs one. The task opens Lightkeeper (Information Source). The flash drive and the lighthouse have no map points: no source gives their coordinates since the Lighthouse rework.',
+        ru: 'Флешка V3 лежит у шале на базе Отступников (верхнее и нижнее шале, коттеджи); перепрошивка — в Разведцентре 2-го уровня, при включённом электричестве. С перепрошитым радиопередатчиком в спецслоте Зрячий и мины на мосту пропускают к маяку; в группе он нужен у всех. Не стреляйте в Зрячего и не подходите к нему близко. После задания открывается Смотритель («Источник информации»).',
+        en: 'The V3 flash drive lies around the chalets of the Rogue base (upper and lower chalet, cottages); the reflash is done in the Intelligence Center level 2 with power on. With the reflashed transmitter in the special slot, Zryachiy and the mines on the bridge let you through to the lighthouse; in a group everyone needs one. Do not aim at Zryachiy or come close to him. The task opens Lightkeeper (Information Source).',
       },
     },
   ],
@@ -423,8 +427,8 @@ export function applyCuratedQuestNotes(quests: Quest[], added: ReadonlySet<strin
     if (!entry) return row
     const { series, quest, order } = entry
     const lead = locale === 'en'
-      ? `${series.name.en} series (Mechanic → Lightkeeper, game ${series.gameVersion.split('.').slice(0, 3).join('.')}), task ${order} of ${series.quests.length}.`
-      : `Серия «${series.name.ru}» (Механик → Смотритель, игра ${series.gameVersion.split('.').slice(0, 3).join('.')}), задание ${order} из ${series.quests.length}.`
+      ? `${series.name.en} series (Mechanic → Lightkeeper), task ${order} of ${series.quests.length}.`
+      : `Серия «${series.name.ru}» (Механик → Смотритель), задание ${order} из ${series.quests.length}.`
     const objectiveIds = row.objectiveIds ?? []
     const bring = (quest.bring ?? []).flatMap((need) => need.itemIds.map((itemId) => ({
       itemId,

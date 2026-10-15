@@ -14,6 +14,7 @@ const ORDER = [
   TO_THE_LIGHT_IDS.gatherStones, TO_THE_LIGHT_IDS.otherSide, TO_THE_LIGHT_IDS.gettingAcquainted,
 ]
 const SERIES = new Set<string>(ORDER)
+const RESEARCH_NOTE = /tarkov\.(help|dev)|tarkov-?dev|wiki|вики|fandom|координат|coordinat|источник(и|а|ов)? (не|даёт)|no source|игра \d|game \d/i
 
 const RU_NAMES = [
   'На свет. Доверяй, но проверяй', 'На свет. Ложный вызов', 'На свет. Вызывали?', 'На свет. Подрезать крылья', 'На свет. Павшая птица',
@@ -67,6 +68,10 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
           expect(quest.kappa).toBe(false)
           expect(quest.kind).toBeUndefined()
           expect(quest.description).toContain(locale === 'ru' ? 'Серия «На свет»' : 'To the Light series')
+          // player-facing texts: no source names, no notes about the data (docs/quests/na-svet-audit.md keeps those)
+          for (const line of [quest.description, ...quest.objectives, ...quest.rewards]) expect(line).not.toMatch(RESEARCH_NOTE)
+          // no source gives a player level for any of them: the catalog's floor for «no level requirement» (catalogSource.ts)
+          expect(quest.level).toBe(1)
         }
         // the other quests: the feed's two and the story chapters, nothing else and nothing lost
         const others = catalog.quests.filter((quest) => !SERIES.has(quest.id))
