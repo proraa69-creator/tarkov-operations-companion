@@ -1,7 +1,7 @@
 import type { Point3 } from './types'
 
 export type WorkerRequest =
-  | { type: 'init'; base: string; compute: 'auto' | 'GPU' | 'CPU' }
+  | { type: 'init'; base: string; compute: 'auto' | 'GPU' | 'CPU'; numHands: 1 | 2 }
   | { type: 'frame'; id: number; t: number; bitmap: ImageBitmap }
   | { type: 'close' }
 
@@ -9,5 +9,5 @@ export type WorkerHand = { image: Point3[]; world: Point3[]; score: number; hand
 
 export type WorkerResponse =
   | { type: 'ready'; delegate: 'GPU' | 'CPU' }
-  | { type: 'result'; id: number; delegate: 'GPU' | 'CPU'; inferenceMs: number; width: number; height: number; hand: WorkerHand | null }
+  | { type: 'result'; id: number; delegate: 'GPU' | 'CPU'; inferenceMs: number; width: number; height: number; hands: WorkerHand[] }
   | { type: 'error'; id?: number; message: string }

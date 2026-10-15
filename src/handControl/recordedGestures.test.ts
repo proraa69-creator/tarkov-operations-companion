@@ -2,18 +2,21 @@ import { describe, expect, it } from 'vitest'
 import { gunzipSync, strFromU8 } from 'fflate'
 // gzip + base64 keeps the fixture small and loadable with Vite's ?raw.
 import recordingB64 from './fixtures/recorded-gestures.json.gz.b64?raw'
+import zoomRecordingB64 from './fixtures/recorded-zoom.json.gz.b64?raw'
 import { HandGestureEngine } from './gestureEngine'
-import { DEFAULT_SETTINGS, type HandEvent, type HandObservation } from './types'
+import { DEFAULT_SETTINGS, type HandEvent, type HandFrame, type HandObservation } from './types'
 
 // MediaPipe landmarks (no video) of the reference gestures recorded by the product owner:
 // pointing 0.6–11.4 s, four index taps, then index+middle raised with four flicks.
 type Frame = { t: number; score?: number; hand?: 'Left' | 'Right'; image?: number[][]; world?: number[][] }
-const gz = Uint8Array.from(atob(recordingB64.trim()), (char) => char.charCodeAt(0))
-const recording = JSON.parse(strFromU8(gunzipSync(gz))) as { W: number; H: number; frames: Frame[] }
+type Recording = { W: number; H: number; frames: Frame[] }
+const load = (b64: string) => JSON.parse(strFromU8(gunzipSync(Uint8Array.from(atob(b64.trim()), (char) => char.charCodeAt(0))))) as Recording
+const recording = load(recordingB64)
 
-function replay() {
+function replay(recording: Recording) {
   const engine = new HandGestureEngine(DEFAULT_SETTINGS)
   const events: Array<{ t: number; event: HandEvent }> = []
+  const frames: Array<{ t: number; frame: HandFrame }> = []
   for (const frame of recording.frames) {
     const t = frame.t * 1000
     const observation: HandObservation | null = frame.image && frame.world ? {
@@ -25,16 +28,18 @@ function replay() {
       image: frame.image.map(([x, y, z]) => ({ x, y, z })),
       world: frame.world.map(([x, y, z]) => ({ x, y, z })),
     } : null
-    for (const event of engine.process(observation, t).events) events.push({ t: frame.t, event })
+    const out = engine.process(observation, t)
+    frames.push({ t: frame.t, frame: out })
+    for (const event of out.events) events.push({ t: frame.t, event })
   }
-  return events
+  return { events, frames }
 }
 
 const near = (times: number[], expected: number[], tolerance = 0.2) =>
   times.length === expected.length && times.every((time, index) => Math.abs(time - expected[index]) <= tolerance)
 
 describe('recorded reference gestures', () => {
-  const events = replay()
+  const { events, frames } = replay(recording)
   const at = (predicate: (event: HandEvent) => boolean) => events.filter(({ event }) => predicate(event)).map(({ t }) => t)
 
   it('turns the four index taps into exactly four clicks', () => {
@@ -55,5 +60,32 @@ describe('recorded reference gestures', () => {
     // Only a little real hand movement may drag-scroll right after entering the mode.
     const drag = events.filter(({ event }) => event.type === 'scroll' && !event.step).reduce((sum, { event }) => sum + Math.abs((event as Extract<HandEvent, { type: 'scroll' }>).dy), 0)
     expect(drag).toBeLessThan(0.15)
+  })
+
+  it('the drawn hand stays exactly where it was while the finger taps', () => {
+    const presses = events.filter(({ event }) => event.type === 'press').map(({ t }) => t)
+    const clicks = events.filter(({ event }) => event.type === 'click').map(({ t }) => t)
+    presses.forEach((press, index) => {
+      const during = frames.filter(({ t }) => t >= press && t <= clicks[index]).map(({ frame }) => frame.hand!)
+      const range = Math.hypot(Math.max(...during.map((p) => p.x)) - Math.min(...during.map((p) => p.x)), Math.max(...during.map((p) => p.y)) - Math.min(...during.map((p) => p.y)))
+      expect(range).toBeLessThan(0.005)
+    })
+  })
+})
+
+// The zoom gestures recorded by the product owner: pointing, then the L pose (index up, thumb out)
+// with the thumb closed onto the index and opened again six times.
+describe('recorded zoom gestures', () => {
+  const { events } = replay(load(zoomRecordingB64))
+  const zooms = events.filter(({ event }) => event.type === 'zoom').map(({ t, event }) => ({ t, steps: (event as Extract<HandEvent, { type: 'zoom' }>).steps }))
+
+  it('turns the six closes and six opens of the thumb into alternating zoom steps', () => {
+    expect(zooms.map(({ steps }) => steps)).toEqual([-1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1])
+    expect(near(zooms.map(({ t }) => t), [6.13, 6.43, 6.7, 7.43, 7.83, 8.53, 9.53, 10.43, 11.43, 11.8, 12.33, 12.63])).toBe(true)
+  })
+
+  it('does nothing while the user only points (0.8–4.3 s) and never clicks', () => {
+    expect(events.filter(({ t }) => t < 4.4)).toEqual([])
+    expect(events.filter(({ event }) => event.type === 'click' || event.type === 'scroll-start' || event.type === 'grab-start')).toEqual([])
   })
 })

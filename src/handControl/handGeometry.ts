@@ -95,6 +95,16 @@ export function inverseDepth(observation: HandObservation) {
   return pixels / metres
 }
 
+/**
+ * Rotation-robust palm size in camera pixels: the longest palm span. Turning the hand edge-on or
+ * showing its back shortens some spans but rarely all of them.
+ */
+export function imageSpan(observation: HandObservation) {
+  const { image, frameWidth, frameHeight } = observation
+  const d = (a: number, b: number) => Math.hypot((image[a].x - image[b].x) * frameWidth, (image[a].y - image[b].y) * frameHeight)
+  return Math.max(d(LM.WRIST, LM.MIDDLE_MCP), d(LM.WRIST, LM.INDEX_MCP), d(LM.WRIST, LM.PINKY_MCP), d(LM.INDEX_MCP, LM.PINKY_MCP) * 1.3)
+}
+
 /** 3×3 projective map (row-major, h33 = 1) from user-space image points to window space. */
 export type Homography = number[]
 

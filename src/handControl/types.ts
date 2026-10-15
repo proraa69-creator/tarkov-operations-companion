@@ -17,7 +17,7 @@ export interface HandObservation {
   frameHeight: number
 }
 
-export type HandPhase = 'idle' | 'point' | 'press' | 'scroll' | 'grab'
+export type HandPhase = 'idle' | 'point' | 'press' | 'scroll' | 'grab' | 'zoom'
 export type TrackingQuality = 'none' | 'weak' | 'good'
 
 export type HandEvent =
@@ -48,7 +48,7 @@ export interface HandFrame {
   pointer: { x: number; y: number } | null
   /** live palm centre (never frozen), used to place the drawn hand */
   hand: { x: number; y: number } | null
-  /** held fingertip offset from the palm centre (window units): pointer ≈ hand + aimOffset */
+  /** aim (index distal phalanx of the drawn hand) relative to the hand anchor, window units */
   aimOffset: { x: number; y: number } | null
   /** 0..1 how far the current poke is towards a press */
   pressProgress: number
@@ -58,8 +58,10 @@ export interface HandFrame {
   indexFlex: number
   /** thumb tip ↔ index tip distance in palm lengths (pinched < 0.3, spread > 0.75) */
   pinch: number
-  /** 21 landmarks mapped into window-normalized space for the drawn hand (z relative, in x units) */
+  /** the drawn hand: 21 points, x/y window-normalized, z in CSS pixels (positive = towards the viewer) */
   skeleton: Point3[] | null
+  /** which hand the drawn shape is: a mirrored view shows a right hand as a left one */
+  chirality: 'left' | 'right' | null
   events: HandEvent[]
 }
 
@@ -92,6 +94,8 @@ export interface HandControlSettings {
   smoothing: number
   cameraId: string
   showPreview: boolean
+  /** also track and draw a second hand (gestures stay with the hand that was controlling) */
+  secondHand: boolean
   /** where MediaPipe runs: GPU is faster, CPU leaves the graphics card to the game */
   compute: 'auto' | 'GPU' | 'CPU'
   /** quick thumb-from-index spread / pinch zooms the map */
@@ -117,6 +121,7 @@ export const DEFAULT_SETTINGS: HandControlSettings = {
   smoothing: 1.2,
   cameraId: '',
   showPreview: true,
+  secondHand: false,
   compute: 'auto',
   pinchZoom: true,
   palmGrab: true,

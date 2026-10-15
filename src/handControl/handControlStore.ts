@@ -6,7 +6,7 @@ import type { TrackerErrorCode, TrackerStats, WebcamHandTracker } from './webcam
 
 const SETTINGS_KEY = 'raidos-hand-control-v1'
 /** Bumped when default gesture thresholds change, so stored settings pick up the new values. */
-const SETTINGS_VERSION = 2
+const SETTINGS_VERSION = 3
 const SNAPSHOT_INTERVAL_MS = 200
 
 export type HandControlStatus = 'off' | 'starting' | 'on' | 'error'
@@ -32,6 +32,9 @@ function loadSettings(): HandControlSettings {
     const settings = { ...DEFAULT_SETTINGS, ...(stored ?? {}), calibration: { ...DEFAULT_SETTINGS.calibration, ...(stored?.calibration ?? {}) } }
     // v2: softer tap (35°) after the real test — older saved thresholds are replaced.
     if ((stored?.version ?? 1) < 2) settings.tapAngle = DEFAULT_SETTINGS.tapAngle
+    // v3: the hand is placed by the palm and presses with the index phalanx; a 5-point map fitted
+    // to the fingertip (v2) would be off by the finger length — calibrate again.
+    if ((stored?.version ?? 1) < 3) settings.homography = null
     delete (settings as { version?: number }).version
     return settings
   } catch {
@@ -65,8 +68,10 @@ class HandControlRuntime {
     raw: null,
   }
   private listeners = new Set<() => void>()
-  private frameListeners = new Set<(frame: HandFrame) => void>()
+  private frameListeners = new Set<(frame: HandFrame, second: HandFrame | null) => void>()
   private engine = new HandGestureEngine(this.snapshot.settings)
+  /** The second hand (when enabled) is only drawn: its own engine places it, its events are dropped. */
+  private secondEngine = new HandGestureEngine(this.snapshot.settings)
   private dispatcher = new HandUiDispatcher(armFocusGuard)
   private tracker: WebcamHandTracker | null = null
   private publishTimer = 0
@@ -79,7 +84,7 @@ class HandControlRuntime {
 
   getSnapshot = () => this.snapshot
 
-  onFrame(listener: (frame: HandFrame) => void) {
+  onFrame(listener: (frame: HandFrame, second: HandFrame | null) => void) {
     this.frameListeners.add(listener)
     return () => { this.frameListeners.delete(listener) }
   }
@@ -91,14 +96,16 @@ class HandControlRuntime {
     this.set({ status: 'starting', error: null, errorDetail: '' })
     try {
       // Loaded on demand: the main edition never downloads the tracker.
-      const { WebcamHandTracker, setComputePreference } = await import('./webcamTracker')
+      const { WebcamHandTracker, setComputePreference, setHandCount } = await import('./webcamTracker')
       setComputePreference(this.snapshot.settings.compute)
+      setHandCount(this.snapshot.settings.secondHand ? 2 : 1)
       this.tracker ??= new WebcamHandTracker(
-        (observation, stats) => this.onSample(observation, stats),
+        (observation, stats, second) => this.onSample(observation, stats, second),
         (error) => { this.dispatcher.release(); this.engine.reset(); this.set({ status: 'error', error: error.code, errorDetail: error.message, frame: null }) },
       )
       await this.tracker.start(this.snapshot.settings.cameraId)
       this.engine.reset()
+      this.secondEngine.reset()
       this.set({ status: 'on' })
     } catch (error) {
       const code = (error as { code?: TrackerErrorCode }).code ?? 'model'
@@ -112,8 +119,9 @@ class HandControlRuntime {
     this.tracker?.stop()
     this.dispatcher.release()
     this.engine.reset()
-    const empty: HandFrame = { seq: 0, t: performance.now(), tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, aimOffset: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, events: [] }
-    this.frameListeners.forEach((listener) => listener(empty))
+    this.secondEngine.reset()
+    const empty: HandFrame = { seq: 0, t: performance.now(), tracking: 'none', confidence: 0, phase: 'idle', pointer: null, hand: null, aimOffset: null, pressProgress: 0, depth: 0, indexFlex: 0, pinch: 0, skeleton: null, chirality: null, events: [] }
+    this.frameListeners.forEach((listener) => listener(empty, null))
     this.calibration = null
     this.set({ status: 'off', frame: null, raw: null, calibration: { step: null, progress: 0, hint: 'hold' } })
   }
@@ -124,8 +132,10 @@ class HandControlRuntime {
     if (patch.mirror !== undefined && patch.mirror !== this.snapshot.settings.mirror && patch.homography === undefined) settings.homography = null
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, version: SETTINGS_VERSION })) } catch { /* storage unavailable */ }
     this.engine.configure(settings)
+    this.secondEngine.configure(settings)
     const restart = (patch.cameraId !== undefined && patch.cameraId !== this.snapshot.settings.cameraId)
       || (patch.compute !== undefined && patch.compute !== this.snapshot.settings.compute)
+      || (patch.secondHand !== undefined && patch.secondHand !== this.snapshot.settings.secondHand)
     this.set({ settings })
     if (restart && this.snapshot.status === 'on') {
       this.tracker?.stop()
@@ -145,21 +155,29 @@ class HandControlRuntime {
     this.set({ calibration: { step: null, progress: 0, hint: 'hold' } })
   }
 
-  private onSample(observation: HandObservation | null, stats: TrackerStats) {
+  private onSample(observation: HandObservation | null, stats: TrackerStats, secondObservation: HandObservation | null = null) {
+    this.engine.setViewport(window.innerWidth, window.innerHeight)
     const frame = this.engine.process(observation)
+    let second: HandFrame | null = null
+    if (this.snapshot.settings.secondHand) {
+      this.secondEngine.setViewport(window.innerWidth, window.innerHeight)
+      second = this.secondEngine.process(secondObservation, observation?.t ?? performance.now())
+      second.events = []
+    }
     if (this.calibration) {
       // The hand keeps moving on screen during calibration; its gestures do nothing meanwhile.
       frame.events = []
       this.dispatcher.release()
-      const { state, result } = this.calibration.feed(observation, observation?.t ?? performance.now())
+      const { state, result } = this.calibration.feed(observation, observation?.t ?? performance.now(), frame.aimOffset)
       this.snapshot = { ...this.snapshot, calibration: state }
       if (result) {
         this.calibration = null
         this.updateSettings({ calibration: result.box, homography: result.homography })
         this.engine.reset()
+        this.secondEngine.reset()
       }
     } else this.apply(frame)
-    this.frameListeners.forEach((listener) => listener(frame))
+    this.frameListeners.forEach((listener) => listener(frame, second))
     this.snapshot = { ...this.snapshot, frame, stats, raw: observation, pose: { ...this.engine.currentPose } }
     this.schedulePublish()
   }

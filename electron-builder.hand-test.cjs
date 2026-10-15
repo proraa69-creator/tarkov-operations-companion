@@ -11,4 +11,9 @@ module.exports = {
   extraMetadata: { name: 'raidos-hand-control-test', productName },
   directories: { output: 'release-hand' },
   win: { ...pkg.build.win, artifactName: `${productName} \${version}.exe` },
+  // The 3D hand models are MIT-licensed third-party assets: ship their notice with the app.
+  extraResources: [
+    ...(pkg.build.extraResources ?? []),
+    { from: 'src/handControl/assets/LICENSE-webxr-input-profiles.md', to: 'licenses/LICENSE-webxr-input-profiles.md' },
+  ],
 }

@@ -4,12 +4,11 @@ import { uiText } from '../i18n/renderText'
 import { CALIBRATION_TARGETS } from './calibration'
 import { handControl } from './handControlStore'
 import { useHandControl } from './edition'
-import { GHOST_PALM_PX, ghostPose, handSpan } from './ghostPose'
+import { ghostPose } from './ghostPose'
 import { HAND_BONES, type HandFrame } from './types'
 import './handControl.css'
 
 const FADE_MS = 320
-const SPAN_SMOOTH_MS = 1500
 const BRASS = [223, 189, 112] as const
 const TRACKING_LABEL = { none: 'руки нет', weak: 'слабый трекинг', good: 'трекинг хороший' } as const
 const CALIBRATION_HINTS = {
@@ -43,19 +42,18 @@ export function HandControlLayer() {
     if (!canvas) return
     let latest: HandFrame | null = null
     let shown: HandFrame | null = null
+    let second: HandFrame | null = null
     let lostAt = 0
     let raf = 0
-    let span0 = 0
-    let spanAt = 0
     // The 3D hand loads on demand; until then (or if WebGL is unavailable) the outline is drawn.
     let hand3d: import('./hand3d').Hand3D | null = null
     let disposed = false
     if (cursorStyle === 'hand3d' && canvas3dRef.current) {
       const target = canvas3dRef.current
-      void import('./hand3d').then(({ Hand3D }) => {
-        if (disposed) return
-        try { hand3d = new Hand3D(target) } catch (error) { console.warn('Hand Control: 3D hand unavailable', error) }
-      })
+      void import('./hand3d').then(({ Hand3D }) => Hand3D.create(target)).then((created) => {
+        if (disposed) created.dispose()
+        else hand3d = created
+      }, (error) => console.warn('Hand Control: 3D hand unavailable', error))
     }
 
     const draw = () => {
@@ -75,24 +73,22 @@ export function HandControlLayer() {
       else if (shown && !lostAt) lostAt = performance.now()
       if (!shown?.pointer) return
       const fade = lostAt ? 1 - (performance.now() - lostAt) / FADE_MS : 1
-      if (fade <= 0) { shown = null; span0 = 0; hand3d?.render(null, 0, 0, width, height); return }
+      if (fade <= 0) { shown = null; hand3d?.render([], 0, width, height); return }
       const alpha = fade * (shown.tracking === 'good' || lostAt ? 1 : 0.55)
       if (cursorStyle !== 'finger' && shown.skeleton && shown.hand) {
-        // Size follows the hand slowly (~1.5 s), so a turn of the wrist cannot stretch or pump it.
-        const now = performance.now()
-        const span = handSpan(shown, width, height)
-        span0 = span0 ? span0 + (span - span0) * (1 - Math.exp(-(now - spanAt) / SPAN_SMOOTH_MS)) : span
-        spanAt = now
-        if (hand3d) hand3d.render(ghostPose(shown, width, height, span0).points, GHOST_PALM_PX, alpha, width, height)
-        else drawGhost(context, shown, width, height, alpha, span0)
+        // The second hand (if enabled and in view) is drawn the same way; it does not control.
+        const hands = [shown, ...(second?.skeleton && !lostAt ? [second] : [])]
+        if (hand3d) hand3d.render(hands.map((frame) => ({ points: ghostPose(frame, width, height), chirality: frame.chirality ?? 'right' })), alpha, width, height)
+        else hands.forEach((frame, index) => drawGhost(context, frame, width, height, index ? alpha * 0.75 : alpha))
       }
       // With a drawn hand the fingertip is the pointer; the ring is only for the "cursor" view.
       if (cursorStyle === 'finger' || !shown.skeleton) drawCursor(context, shown, width, height, alpha, Boolean(lostAt))
       if (lostAt) raf = requestAnimationFrame(draw)
     }
 
-    const off = handControl.onFrame((frame) => {
+    const off = handControl.onFrame((frame, other) => {
       latest = frame
+      second = other
       if (!raf) raf = requestAnimationFrame(draw)
     })
     const onResize = () => { if (!raf) raf = requestAnimationFrame(draw) }
@@ -148,10 +144,10 @@ export function HandControlLayer() {
   )
 }
 
-function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: number, height: number, alpha: number, span: number) {
-  const pose = ghostPose(frame, width, height, span)
-  const at = (index: number) => [pose.points[index].x, pose.points[index].y] as const
-  const size = (index: number) => Math.max(2, Math.min(8, 5.5 + pose.points[index].z * 0.08))
+function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: number, height: number, alpha: number) {
+  const points = ghostPose(frame, width, height)
+  const at = (index: number) => [points[index].x, points[index].y] as const
+  const size = (index: number) => Math.max(2, Math.min(8, 5.5 + points[index].z * 0.08))
 
   context.save()
   context.lineCap = 'round'
@@ -176,7 +172,7 @@ function drawGhost(context: CanvasRenderingContext2D, frame: HandFrame, width: n
     context.stroke()
   }
   context.fillStyle = `rgba(237, 242, 237, ${0.7 * alpha})`
-  for (let index = 0; index < pose.points.length; index++) {
+  for (let index = 0; index < points.length; index++) {
     context.beginPath()
     context.arc(...at(index), size(index) / 2, 0, Math.PI * 2)
     context.fill()

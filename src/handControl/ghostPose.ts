@@ -1,40 +1,13 @@
-import { palmCenter } from './handGeometry'
-import { LM, type HandFrame } from './types'
+import type { HandFrame } from './types'
 
-/** Palm span the drawn hand is scaled to, in CSS pixels. */
+/** Palm span of the drawn hand, CSS pixels. */
 export const GHOST_PALM_PX = 64
 
 /**
- * Rotation-robust hand size in pixels: the longest palm span. Turning the hand edge-on or
- * showing its back shortens some spans but rarely all of them.
+ * Screen pose of the drawn hand in CSS pixels. The engine already places the real finger shape at
+ * a steady size on the hand's anchor (see HandGestureEngine.drawnHand), so fingers moving never
+ * move the hand; `z` is in pixels, positive = closer to the viewer.
  */
-export function handSpan(frame: HandFrame, width: number, height: number) {
-  const points = frame.skeleton!
-  const d = (a: number, b: number) => Math.hypot((points[a].x - points[b].x) * width, (points[a].y - points[b].y) * height)
-  return Math.max(d(LM.WRIST, LM.MIDDLE_MCP), d(LM.WRIST, LM.INDEX_MCP), d(LM.WRIST, LM.PINKY_MCP), d(LM.INDEX_MCP, LM.PINKY_MCP) * 1.3)
-}
-
-/**
- * Screen pose of the drawn hand: real finger shape at a steady size, anchored by the palm centre
- * on the live hand position (shifted so the extended index tip meets the aim point), so folding
- * fingers never moves the hand. `z` is in the same pixel
- * scale, positive = closer to the viewer.
- */
-export function ghostPose(frame: HandFrame, width: number, height: number, span: number) {
-  const points = frame.skeleton!
-  const center = palmCenter(points)
-  const scale = Math.min(3, Math.max(0.15, GHOST_PALM_PX / Math.max(1, span)))
-  // Place the drawn palm so the drawn (extended) index tip lands on the live aim point.
-  const offset = frame.aimOffset ?? { x: 0, y: 0 }
-  const anchorX = (frame.hand!.x + offset.x * (1 - scale)) * width
-  const anchorY = (frame.hand!.y + offset.y * (1 - scale)) * height
-  const wristZ = points[LM.WRIST].z
-  return {
-    scale,
-    points: points.map((point) => ({
-      x: anchorX + (point.x - center.x) * width * scale,
-      y: anchorY + (point.y - center.y) * height * scale,
-      z: -(point.z - wristZ) * width * scale,
-    })),
-  }
+export function ghostPose(frame: HandFrame, width: number, height: number) {
+  return frame.skeleton!.map((point) => ({ x: point.x * width, y: point.y * height, z: point.z }))
 }

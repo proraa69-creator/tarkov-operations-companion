@@ -14,7 +14,7 @@ const ERRORS: Record<TrackerErrorCode, string> = {
   model: 'Не удалось загрузить модель распознавания руки.',
 }
 
-const PHASE: Record<string, string> = { idle: 'нет руки', point: 'наведение', press: 'нажатие', scroll: 'прокрутка', grab: 'захват' }
+const PHASE: Record<string, string> = { idle: 'нет руки', point: 'наведение', press: 'нажатие', scroll: 'прокрутка', grab: 'захват', zoom: 'зум карты' }
 
 export function HandControlPanel() {
   const snapshot = useHandControl()
@@ -54,7 +54,7 @@ export function HandControlPanel() {
         <div className="panel-title">{uiText('Hand Control — управление рукой через веб-камеру (тест)')}</div>
       </div>
       <div className="panel-body">
-        <p className="hand-note">{uiText('Точка нажатия — на кончике указательного пальца: её ведёт кисть; при сгибе пальца она не сдвигается. Нажатие — быстро согнуть указательный палец и разогнуть (тап). Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг (частые взмахи подряд — всё дальше); движение руки вверх-вниз листает плавно; быстрый взмах всей рукой вверх или вниз — листает с разгоном (кулак — стоп). Карта: щипок большим и указательным — зум; раскрытая ладонь с толчком к камере — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
+        <p className="hand-note">{uiText('Нарисованная кисть двигается только вместе с вашей кистью — пальцы её не сдвигают. Нажимает крайняя фаланга указательного: то что она накрывает на экране. Нажатие — быстро согнуть указательный палец и разогнуть (тап). Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг (частые взмахи подряд — всё дальше); движение руки вверх-вниз листает плавно; быстрый взмах всей рукой вверх или вниз — листает с разгоном (кулак — стоп). Карта: поза «L» (указательный вверх и большой в сторону) — режим зума: свести большой с указательным — отдалить; развести — приблизить; раскрытая ладонь с толчком к камере — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
         <div className="hand-actions">
           {running || status === 'starting'
             ? <button className="button" onClick={() => handControl.stop()}><Square size={15} />{uiText('Остановить')}</button>
@@ -72,7 +72,7 @@ export function HandControlPanel() {
                 {cameras.map((camera, index) => <option key={camera.deviceId || index} value={camera.deviceId}>{camera.label || `${uiText('Камера')} ${index + 1}`}</option>)}
               </select>
             </Setting>
-            <Setting icon={<Hand size={16} />} title="Вид руки" hint="3D-кисть и контур повторяют все пальцы — указатель это кончик пальца; «Курсор» — только точка.">
+            <Setting icon={<Hand size={16} />} title="Вид руки" hint="3D-кисть и контур повторяют все пальцы — нажимает крайняя фаланга указательного; «Курсор» — только точка.">
               <div className="hand-segmented">
                 {(['hand3d', 'ghost', 'finger'] as const).map((cursor) => (
                   <button key={cursor} className={settings.cursor === cursor ? 'is-active' : ''} onClick={() => update({ cursor })}>{uiText({ hand3d: '3D-кисть', ghost: 'Контур', finger: 'Курсор' }[cursor])}</button>
@@ -105,11 +105,12 @@ export function HandControlPanel() {
               </div>
             </Setting>
             <Slider title="Шаг взмаха" hint="Сколько экрана пролистывает один взмах." min={0.15} max={0.9} step={0.05} value={settings.flickStep} onChange={(flickStep) => update({ flickStep })} />
-            <ToggleRow title="Зум карты щипком" hint="Быстро отвести большой палец от указательного — приблизить; быстро свести — отдалить. Медленное движение не считается." on={settings.pinchZoom} onChange={(pinchZoom) => update({ pinchZoom })} />
+            <ToggleRow title="Зум карты позой «L»" hint="Указательный вверх и большой в сторону — режим зума. Свести большой с указательным — отдалить; развести — приблизить. Тапов в этом режиме нет." on={settings.pinchZoom} onChange={(pinchZoom) => update({ pinchZoom })} />
             <ToggleRow title="Перетаскивание карты ладонью" hint="Раскрытая ладонь и быстрый толчок к камере — карта «зажата»; ведите рукой. Отвести руку назад или сжать кулак — отпустить." on={settings.palmGrab} onChange={(palmGrab) => update({ palmGrab })} />
             {settings.palmGrab ? <Slider title="Чувствительность толчка ладонью" hint="Насколько резко нужно толкнуть ладонь к камере." min={0.03} max={0.14} step={0.005} value={0.17 - settings.grabThreshold} onChange={(value) => update({ grabThreshold: Number((0.17 - value).toFixed(3)) })} /> : null}
             <Slider title="Плавность курсора" hint="Меньше дрожания или меньше задержки." min={0.3} max={3} step={0.1} value={3.3 - settings.smoothing} onChange={(value) => update({ smoothing: Number((3.3 - value).toFixed(2)) })} />
             <Slider title="Скорость прокрутки" min={0.8} max={5} step={0.1} value={settings.scrollSpeed} onChange={(scrollSpeed) => update({ scrollSpeed })} />
+            <ToggleRow title="Включить вторую кисть" hint="Камера ищет две руки и рисует обе. Жесты делает рука которая уже управляла. Немного больше нагрузки на компьютер." on={settings.secondHand} onChange={(secondHand) => update({ secondHand })} />
             <ToggleRow title="Показывать камеру здесь" hint="Превью видно только на этой странице." on={settings.showPreview} onChange={(showPreview) => update({ showPreview })} />
           </div>
 

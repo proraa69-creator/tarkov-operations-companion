@@ -18,7 +18,7 @@ export interface TrackerStats {
 }
 
 type Compute = 'auto' | 'GPU' | 'CPU'
-type Detection = { hand: WorkerHand | null; inferenceMs: number; delegate: 'GPU' | 'CPU'; width: number; height: number }
+type Detection = { hands: WorkerHand[]; inferenceMs: number; delegate: 'GPU' | 'CPU'; width: number; height: number }
 
 interface Detector {
   readonly thread: 'worker' | 'main'
@@ -32,10 +32,16 @@ const IDLE_STRIDE = 3
 const WORKER_INIT_TIMEOUT_MS = 20000
 
 let compute: Compute = 'auto'
+let numHands: 1 | 2 = 1
 
 /** Applies on the next start (a running tracker keeps its detector). */
 export function setComputePreference(next: Compute) {
   compute = next
+}
+
+/** Track one hand, or two ("second hand"). Applies on the next start. */
+export function setHandCount(next: 1 | 2) {
+  numHands = next
 }
 
 /** Assets are bundled with the app (public/hand-control) — nothing is fetched from the internet. */
@@ -74,7 +80,7 @@ async function createWorkerDetector(): Promise<Detector> {
         else if (event.data.type === 'error' && event.data.id === undefined) { window.clearTimeout(timer); reject(new Error(event.data.message)) }
       }
       worker.addEventListener('message', onReady)
-      worker.postMessage({ type: 'init', base: assetBase(), compute } satisfies WorkerRequest)
+      worker.postMessage({ type: 'init', base: assetBase(), compute, numHands } satisfies WorkerRequest)
     })
   } catch (error) {
     worker.terminate()
@@ -108,7 +114,7 @@ async function createMainThreadDetector(): Promise<Detector> {
   const options = (delegate: 'GPU' | 'CPU') => ({
     baseOptions: { modelAssetPath: `${base}hand_landmarker.task`, delegate },
     runningMode: 'VIDEO' as const,
-    numHands: 1,
+    numHands,
     minHandDetectionConfidence: 0.6,
     minHandPresenceConfidence: 0.6,
     minTrackingConfidence: 0.5,
@@ -139,20 +145,21 @@ async function createMainThreadDetector(): Promise<Detector> {
         landmarker = await HandLandmarker.createFromOptions(fileset, options('CPU'))
         result = landmarker.detectForVideo(pixels(video), t)
       }
-      const image = result.landmarks[0]
-      const world = result.worldLandmarks[0]
-      const category = result.handedness[0]?.[0]
       return {
         delegate,
         inferenceMs: performance.now() - started,
         width: video.videoWidth,
         height: video.videoHeight,
-        hand: image && world ? {
-          image: image.map(({ x, y, z }) => ({ x, y, z })),
-          world: world.map(({ x, y, z }) => ({ x, y, z })),
-          score: category?.score ?? 0,
-          handedness: category?.categoryName === 'Left' ? 'Left' : 'Right',
-        } : null,
+        hands: result.landmarks.flatMap((image, index) => {
+          const world = result.worldLandmarks[index]
+          const category = result.handedness[index]?.[0]
+          return world ? [{
+            image: image.map(({ x, y, z }) => ({ x, y, z })),
+            world: world.map(({ x, y, z }) => ({ x, y, z })),
+            score: category?.score ?? 0,
+            handedness: category?.categoryName === 'Left' ? 'Left' as const : 'Right' as const,
+          }] : []
+        }),
       }
     },
     close() {
@@ -206,10 +213,13 @@ export class WebcamHandTracker {
   private frameCount = 0
   private emptyFrames = 0
   private fpsWindow: number[] = []
+  /** wrist of the controlling hand (camera frame): with two hands, control stays with that hand */
+  private primaryWrist: { x: number; y: number } | null = null
   private stats: TrackerStats = { fps: 0, inferenceMs: 0, delegate: 'GPU', width: 0, height: 0, thread: 'worker' }
 
   constructor(
-    private readonly onSample: (observation: HandObservation | null, stats: TrackerStats) => void,
+    /** `observation` is the controlling hand; `second` the other one when two hands are tracked */
+    private readonly onSample: (observation: HandObservation | null, stats: TrackerStats, second: HandObservation | null) => void,
     private readonly onFailure: (error: HandTrackerError) => void = () => {},
   ) {
     this.video = document.createElement('video')
@@ -305,23 +315,26 @@ export class WebcamHandTracker {
     this.fpsWindow.push(finished)
     while (this.fpsWindow.length && finished - this.fpsWindow[0] > 1000) this.fpsWindow.shift()
     this.stats.fps = this.fpsWindow.length
-    const hand = detection.hand
-    if (!hand) {
+    const hands = detection.hands
+    if (!hands.length) {
       this.emptyFrames++
-      this.onSample(null, { ...this.stats })
+      this.primaryWrist = null
+      this.onSample(null, { ...this.stats }, null)
       return
     }
     this.emptyFrames = 0
-    // A hand partly outside the frame is tracked less reliably: scale confidence down.
-    const inFrame = hand.image.filter(({ x, y }) => x > 0.02 && x < 0.98 && y > 0.02 && y < 0.98).length / hand.image.length
-    this.onSample({
-      t: capturedAt,
-      image: hand.image,
-      world: hand.world,
-      score: hand.score * inFrame,
-      handedness: hand.handedness,
-      frameWidth: detection.width,
-      frameHeight: detection.height,
-    }, { ...this.stats })
+    // With two hands the one nearest to the previous controlling hand keeps control; a new one
+    // starts with the more confident hand.
+    const last = this.primaryWrist
+    const order = [...hands].sort((a, b) => last
+      ? Math.hypot(a.image[0].x - last.x, a.image[0].y - last.y) - Math.hypot(b.image[0].x - last.x, b.image[0].y - last.y)
+      : b.score - a.score)
+    this.primaryWrist = { x: order[0].image[0].x, y: order[0].image[0].y }
+    const observe = (hand: WorkerHand): HandObservation => {
+      // A hand partly outside the frame is tracked less reliably: scale confidence down.
+      const inFrame = hand.image.filter(({ x, y }) => x > 0.02 && x < 0.98 && y > 0.02 && y < 0.98).length / hand.image.length
+      return { t: capturedAt, image: hand.image, world: hand.world, score: hand.score * inFrame, handedness: hand.handedness, frameWidth: detection.width, frameHeight: detection.height }
+    }
+    this.onSample(observe(order[0]), { ...this.stats }, order[1] ? observe(order[1]) : null)
   }
 }

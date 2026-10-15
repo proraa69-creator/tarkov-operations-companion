@@ -2,13 +2,14 @@
 // MediaPipe hand tracking off the UI thread: inference and model loading never block Raid OS.
 // Frames arrive as transferred ImageBitmaps and are closed right after use; only landmark
 // coordinates go back.
-import { HandLandmarker } from '@mediapipe/tasks-vision'
-import type { WorkerRequest, WorkerResponse } from './workerProtocol'
+import { HandLandmarker, type HandLandmarkerResult } from '@mediapipe/tasks-vision'
+import type { WorkerHand, WorkerRequest, WorkerResponse } from './workerProtocol'
 
 const scope = self as unknown as DedicatedWorkerGlobalScope
 let landmarker: HandLandmarker | null = null
 let delegate: 'GPU' | 'CPU' = 'GPU'
 let base = ''
+let numHands: 1 | 2 = 1
 let canvas: OffscreenCanvas | null = null
 
 const post = (message: WorkerResponse) => scope.postMessage(message)
@@ -19,7 +20,7 @@ async function create(kind: 'GPU' | 'CPU') {
   landmarker = await HandLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: `${base}hand_landmarker.task`, delegate: kind },
     runningMode: 'VIDEO',
-    numHands: 1,
+    numHands,
     minHandDetectionConfidence: 0.6,
     minHandPresenceConfidence: 0.6,
     minTrackingConfidence: 0.5,
@@ -34,6 +35,19 @@ function pixels(bitmap: ImageBitmap) {
   return context.getImageData(0, 0, bitmap.width, bitmap.height)
 }
 
+function toHands(result: HandLandmarkerResult): WorkerHand[] {
+  return result.landmarks.flatMap((image, index) => {
+    const world = result.worldLandmarks[index]
+    const category = result.handedness[index]?.[0]
+    return world ? [{
+      image: image.map(({ x, y, z }) => ({ x, y, z })),
+      world: world.map(({ x, y, z }) => ({ x, y, z })),
+      score: category?.score ?? 0,
+      handedness: category?.categoryName === 'Left' ? 'Left' as const : 'Right' as const,
+    }] : []
+  })
+}
+
 async function fallBackToCpu() {
   try { landmarker?.close() } catch { /* already broken */ }
   landmarker = null
@@ -44,6 +58,7 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const message = event.data
   if (message.type === 'init') {
     base = message.base
+    numHands = message.numHands
     try {
       if (message.compute !== 'CPU') {
         try { await create('GPU') } catch { await create('CPU') }
@@ -72,9 +87,6 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       await fallBackToCpu()
       result = landmarker!.detectForVideo(pixels(bitmap), t)
     }
-    const image = result.landmarks[0]
-    const world = result.worldLandmarks[0]
-    const category = result.handedness[0]?.[0]
     post({
       type: 'result',
       id,
@@ -82,12 +94,7 @@ scope.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       inferenceMs: performance.now() - started,
       width: bitmap.width,
       height: bitmap.height,
-      hand: image && world ? {
-        image: image.map(({ x, y, z }) => ({ x, y, z })),
-        world: world.map(({ x, y, z }) => ({ x, y, z })),
-        score: category?.score ?? 0,
-        handedness: category?.categoryName === 'Left' ? 'Left' : 'Right',
-      } : null,
+      hands: toHands(result),
     })
   } catch (error) {
     post({ type: 'error', id, message: error instanceof Error ? error.message : String(error) })

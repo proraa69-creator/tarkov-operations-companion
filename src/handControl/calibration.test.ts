@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CALIBRATION, CALIBRATION_TARGETS, CalibrationSession, fitCalibration } from './calibration'
-import { applyHomography, solveHomography, toWindowSpace } from './handGeometry'
+import { applyHomography, palmCenter, solveHomography, toWindowSpace } from './handGeometry'
 import { syntheticHand } from './testHand'
 import { DEFAULT_SETTINGS, LM } from './types'
 
@@ -69,13 +69,30 @@ describe('homography', () => {
 })
 
 describe('CalibrationSession (5 points)', () => {
+  it('maps the palm so the drawn phalanx (palm + offset) lands on each target', () => {
+    const session = new CalibrationSession(false)
+    const offset = { x: 0.01, y: -0.06 }
+    let t = 0
+    let last = null as ReturnType<CalibrationSession['feed']> | null
+    for (const target of CALIBRATION_TARGETS) {
+      const tip = keystone(target)
+      for (let end = t + CALIBRATION.holdMs + 200; t < end && !last?.result; t += STEP) last = session.feed(handWithTipAt(tip.x, tip.y, t), t, offset)
+    }
+    const { homography } = last!.result!
+    const at = keystone({ x: 0.3, y: 0.6 })
+    const anchor = applyHomography(homography, palmCenter(handWithTipAt(at.x, at.y, 0).image))
+    expect(Math.hypot(anchor.x + offset.x - 0.3, anchor.y + offset.y - 0.6)).toBeLessThan(0.03)
+  })
+
   it('captures each target once the hand is held still and fits the camera angle', () => {
     const session = new CalibrationSession(false)
     const result = calibrate(session, keystone)
     expect(result.result).toBeDefined()
     const { homography, box } = result.result!
-    // The fingertip seen where the screen point (0.3, 0.6) is now maps onto it.
-    const mapped = applyHomography(homography, keystone({ x: 0.3, y: 0.6 }))
+    // A hand pointing (as during the calibration) at the screen point (0.3, 0.6) is placed onto it:
+    // the palm is mapped (here the drawn finger offset is 0, so the palm itself lands there).
+    const at = keystone({ x: 0.3, y: 0.6 })
+    const mapped = applyHomography(homography, palmCenter(handWithTipAt(at.x, at.y, 0).image))
     expect(Math.hypot(mapped.x - 0.3, mapped.y - 0.6)).toBeLessThan(0.03)
     expect(box.x1).toBeGreaterThan(box.x0)
     expect(box.y1).toBeGreaterThan(box.y0)
@@ -120,8 +137,9 @@ describe('CalibrationSession (5 points)', () => {
   it('works in mirrored mode like the pointer does', () => {
     const session = new CalibrationSession(true)
     const result = calibrate(session, (p) => { const image = keystone(p); return { x: 1 - image.x, y: image.y } })
-    const image = keystone({ x: 0.7, y: 0.4 })
-    const mapped = toWindowSpace({ x: 1 - image.x, y: image.y }, result.result!.box, true, result.result!.homography)
+    const at = keystone({ x: 0.7, y: 0.4 })
+    const palm = palmCenter(handWithTipAt(1 - at.x, at.y, 0).image)
+    const mapped = toWindowSpace(palm, result.result!.box, true, result.result!.homography)
     expect(Math.hypot(mapped.x - 0.7, mapped.y - 0.4)).toBeLessThan(0.03)
   })
 })

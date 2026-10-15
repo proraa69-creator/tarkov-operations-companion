@@ -1,5 +1,5 @@
 import { applyHomography, fingerStraightness, homographyScale, palmCenter, solveHomography, type Homography } from './handGeometry'
-import { LM, type CalibrationBox, type HandObservation } from './types'
+import type { CalibrationBox, HandObservation } from './types'
 
 export type CalibrationHint = 'hold' | 'move' | 'lost' | 'point' | 'retry'
 
@@ -35,8 +35,8 @@ export const CALIBRATION = {
   /** palm travel (camera-frame units) that still counts as "held still" */
   stillRadius: 0.03,
   lostResetMs: 400,
-  /** each captured fingertip must be at least this far from the earlier ones (camera-frame units) */
-  minSeparation: 0.05,
+  /** each captured palm position must be at least this far from the earlier ones (camera-frame units) */
+  minSeparation: 0.03,
   /** the corner quad must be at least this wide / tall in the camera frame, or the pointer gets jittery */
   minWidth: 0.1,
   minHeight: 0.08,
@@ -57,13 +57,14 @@ const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floo
 /**
  * Five-point calibration. The engine keeps running (only its events are dropped) while the user
  * points the index finger at each target in turn; a target is captured once the palm stays still
- * for a moment. The fingertip positions are then fitted with a homography: it corrects the
- * perspective of a camera that sits above (or beside) the screen.
+ * for a moment. The palm positions are then fitted with a homography (palm → target minus the
+ * drawn phalanx offset): it corrects the perspective of a camera above (or beside) the screen.
  */
 export class CalibrationSession {
   private step = 0
   private palmRun: Sample[] = []
-  private tipRun: Point[] = []
+  private offsetRun: Point[] = []
+  private offsets: Point[] = []
   private lostSince = Number.NaN
   private captures: Point[] = []
   private hint: CalibrationHint = 'hold'
@@ -71,7 +72,11 @@ export class CalibrationSession {
   constructor(private readonly mirror: boolean) {}
 
   /** Feeds one observation; returns the result once all targets are captured and the fit is sound. */
-  feed(observation: HandObservation | null, t = observation?.t ?? 0): { state: CalibrationState; result?: CalibrationResult } {
+  /**
+   * @param aimOffset where the aim (the drawn index phalanx) sits relative to the hand anchor, in
+   * window units; the palm is mapped to `target - aimOffset`, so the phalanx lands on the target.
+   */
+  feed(observation: HandObservation | null, t = observation?.t ?? 0, aimOffset: Point | null = null): { state: CalibrationState; result?: CalibrationResult } {
     if (!observation || observation.score < CALIBRATION.minScore) {
       if (Number.isNaN(this.lostSince)) this.lostSince = t
       if (t - this.lostSince >= CALIBRATION.lostResetMs) { this.resetRun(); this.hint = 'lost' }
@@ -85,10 +90,7 @@ export class CalibrationSession {
     }
     const center = palmCenter(observation.image)
     const palm = { t, x: this.user(center.x), y: center.y }
-    const rawTip = observation.image[LM.INDEX_TIP]
-    const tip = { x: this.user(rawTip.x), y: rawTip.y }
-
-    if (!this.farFromCaptures(tip)) {
+    if (!this.farFromCaptures(palm)) {
       this.resetRun()
       this.hint = 'move'
       return { state: this.state(t) }
@@ -96,21 +98,23 @@ export class CalibrationSession {
     const anchor = this.palmRun[0]
     if (!anchor || Math.hypot(palm.x - anchor.x, palm.y - anchor.y) > CALIBRATION.stillRadius) this.resetRun()
     this.palmRun.push(palm)
-    this.tipRun.push(tip)
+    this.offsetRun.push(aimOffset ?? { x: 0, y: 0 })
     // After a failed fit the 'retry' notice stays until the first target is captured again.
     if (this.hint !== 'retry') this.hint = 'hold'
 
     if (t - this.palmRun[0].t < CALIBRATION.holdMs) return { state: this.state(t) }
-    this.captures.push({ x: median(this.tipRun.map((point) => point.x)), y: median(this.tipRun.map((point) => point.y)) })
+    this.captures.push({ x: median(this.palmRun.map((point) => point.x)), y: median(this.palmRun.map((point) => point.y)) })
+    this.offsets.push({ x: median(this.offsetRun.map((point) => point.x)), y: median(this.offsetRun.map((point) => point.y)) })
     this.resetRun()
     this.step++
     this.hint = 'move'
     if (this.step < CALIBRATION_TARGETS.length) return { state: this.state(t) }
 
-    const result = fitCalibration(this.captures)
+    const result = fitCalibration(this.captures, this.offsets)
     if (!result) {
       // A target was missed (or the hand barely moved): start over rather than keep a skewed map.
       this.captures = []
+      this.offsets = []
       this.step = 0
       this.hint = 'retry'
       return { state: this.state(t) }
@@ -124,11 +128,11 @@ export class CalibrationSession {
 
   private resetRun() {
     this.palmRun = []
-    this.tipRun = []
+    this.offsetRun = []
   }
 
-  private farFromCaptures(tip: Point) {
-    return this.captures.every((capture) => Math.hypot(tip.x - capture.x, tip.y - capture.y) >= CALIBRATION.minSeparation)
+  private farFromCaptures(palm: Point) {
+    return this.captures.every((capture) => Math.hypot(palm.x - capture.x, palm.y - capture.y) >= CALIBRATION.minSeparation)
   }
 
   private state(t: number): CalibrationState {
@@ -139,8 +143,11 @@ export class CalibrationSession {
 
 const cross = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
 
-/** Fits and sanity-checks the camera → window map from fingertips captured at CALIBRATION_TARGETS. */
-export function fitCalibration(captures: Point[]): CalibrationResult | null {
+/**
+ * Fits and sanity-checks the camera → window map from palm positions captured while the drawn
+ * index phalanx pointed at CALIBRATION_TARGETS (`offsets`: phalanx relative to the palm, window units).
+ */
+export function fitCalibration(captures: Point[], offsets: Point[] = captures.map(() => ({ x: 0, y: 0 }))): CalibrationResult | null {
   if (captures.length !== CALIBRATION_TARGETS.length) return null
   const [tl, tr, br, bl] = captures
   // The four corners must form a convex quad of reasonable size.
@@ -150,19 +157,20 @@ export function fitCalibration(captures: Point[]): CalibrationResult | null {
   const height = (Math.hypot(bl.x - tl.x, bl.y - tl.y) + Math.hypot(br.x - tr.x, br.y - tr.y)) / 2
   if (width < CALIBRATION.minWidth || height < CALIBRATION.minHeight) return null
 
-  const homography = solveHomography(captures, [...CALIBRATION_TARGETS])
+  const anchors = CALIBRATION_TARGETS.map((target, index) => ({ x: target.x - offsets[index].x, y: target.y - offsets[index].y }))
+  const homography = solveHomography(captures, anchors)
   if (!homography) return null
   // The scale is linear in x, y, so checking the frame corners covers the whole camera frame.
   const frame = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }]
   if (frame.some((corner) => homographyScale(homography, corner) < CALIBRATION.minScale)) return null
   const residual = Math.max(...captures.map((capture, index) => {
     const mapped = applyHomography(homography, capture)
-    return Math.hypot(mapped.x - CALIBRATION_TARGETS[index].x, mapped.y - CALIBRATION_TARGETS[index].y)
+    return Math.hypot(mapped.x - anchors[index].x, mapped.y - anchors[index].y)
   }))
   if (residual > CALIBRATION.maxResidual) return null
 
   // Box: the same area as an axis-aligned rectangle, extrapolated from the targets (0.1..0.9 and
-  // 0.12..0.88) to the full window. Used for the 3D hand's depth scale and as a fallback.
+  // 0.12..0.88) to the full window. Kept as the fallback map.
   const left = Math.min((tl.x + bl.x) / 2, (tr.x + br.x) / 2)
   const right = Math.max((tl.x + bl.x) / 2, (tr.x + br.x) / 2)
   const top = Math.min((tl.y + tr.y) / 2, (bl.y + br.y) / 2)

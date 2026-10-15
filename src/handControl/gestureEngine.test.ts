@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ENGINE, HandGestureEngine } from './gestureEngine'
+import { GHOST_PALM_PX } from './ghostPose'
 import { indexTipAt, syntheticHand, THUMB_OUT, type SyntheticHand } from './testHand'
 import { DEFAULT_SETTINGS, type HandEvent, type HandFrame, type Point3 } from './types'
 
@@ -31,20 +32,48 @@ function tap(engine: HandGestureEngine, from: number, { to = 110, foldMs = 120, 
 }
 
 describe('HandGestureEngine — pointing', () => {
-  it('puts the aim on the index fingertip, moving with the palm (calibrated, mirrored)', () => {
+  it('aims with the drawn index distal phalanx, placed on the palm (calibrated, mirrored)', () => {
     const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, calibration: { x0: 0, y0: 0, x1: 1, y1: 1 } })
     const { frames } = run(engine, 0, 500, () => ({ x: 0.3, y: 0.6, k: 1000, fingers: { index: 0 } }))
     const last = frames.at(-1)!
     expect(last.tracking).toBe('good')
     expect(last.phase).toBe('point')
-    // Index tip: 0.03 m left of and 0.175 m above the wrist → mirrored x ≈ 1 - (0.3 - 0.047).
-    expect(last.pointer!.x).toBeCloseTo(0.747, 2)
-    expect(last.pointer!.y).toBeCloseTo(0.6 - (0.175 * 1000) / 480, 2)
-    // The drawn hand is placed by the palm centre (mean of wrist and knuckles).
-    expect(last.hand!.x).toBeCloseTo(0.7, 2)
-    expect(last.hand!.y).toBeCloseTo(0.6 - (0.072 * 1000) / 480, 2)
+    // The drawn hand stands on the palm centre (mean of wrist and knuckles), mirrored.
+    expect(last.hand!.x).toBeCloseTo(0.7, 3)
+    expect(last.hand!.y).toBeCloseTo(0.6 - (0.072 * 1000) / 480, 3)
+    // Its fingers keep their real shape at GHOST_PALM_PX per palm span (0.0949 m here): the middle
+    // of the distal phalanx is 0.03 m to the side and 0.093 m above the palm centre.
+    const span = Math.hypot(0.03, 0.09)
+    expect(last.pointer!.x - last.hand!.x).toBeCloseTo(((0.03 / span) * GHOST_PALM_PX) / 1920, 4)
+    expect(last.pointer!.y - last.hand!.y).toBeCloseTo((-(0.093 / span) * GHOST_PALM_PX) / 1080, 4)
     expect(last.skeleton).toHaveLength(21)
     expect(last.events).toEqual([])
+  })
+
+  it('a still hand stays exactly still on screen whatever the fingers do (tracking noise and knuckle shifts included)', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    const before = rest.frames.at(-1)!.hand!
+    // Noise up to ±0.04 span, and folding fingers drag the knuckles (the palm centre) by up to
+    // 0.5 span — as MediaPipe does on real taps.
+    const noise = (t: number) => 0.04 * 95 * Math.sin(t * 0.37) / 640
+    const fingers = run(engine, rest.end, 3000, (t, p) => {
+      const fold = Math.abs(Math.sin(p * 14))
+      return { x: 0.5 + noise(t), y: 0.6 + (fold * 0.5 * 95) / 480 + noise(t * 1.3) * 0.75, k: 1000, fingers: { index: lerp(30, 120, fold), middle: lerp(0, 90, Math.abs(Math.cos(p * 9))) } }
+    })
+    for (const frame of fingers.frames) {
+      expect(frame.hand!.x).toBeCloseTo(before.x, 4)
+      expect(frame.hand!.y).toBeCloseTo(before.y, 4)
+    }
+  })
+
+  it('the hand follows as soon as the whole hand really moves', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const rest = run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    const before = rest.frames.at(-1)!.hand!
+    const move = run(engine, rest.end, 400, (_t, p) => ({ x: 0.5 - 0.2 * p, y: 0.6, k: 1000, fingers: pointing }))
+    // Mirrored: the hand moving left in the image goes right on screen, trailing a little.
+    expect(move.frames.at(-1)!.hand!.x - before.x).toBeGreaterThan(0.25)
   })
 
   it('folding, flicking or pinching fingers does not move the hand or the aim — only the hand moves them', () => {
@@ -311,33 +340,66 @@ describe('HandGestureEngine — no fixation while the hand moves', () => {
 
 })
 
-describe('HandGestureEngine — pinch zoom', () => {
+describe('HandGestureEngine — zoom with the L pose (index up, thumb out)', () => {
   const thumbPath = (from: Point3, to: Point3, p: number): Point3 => ({ x: lerp(from.x, to.x, p), y: lerp(from.y, to.y, p), z: lerp(from.z, to.z, p) })
-  const pinched = indexTipAt(30)
+  const beak = indexTipAt(30)
+  const L = { x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: THUMB_OUT }
 
-  it('quickly moving the thumb away from the index zooms in, quickly pinching zooms out', () => {
+  function enterZoom(engine: HandGestureEngine) {
+    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    return run(engine, 600, 300, () => L)
+  }
+
+  it('the L pose enters zoom mode; closing the thumb onto the index zooms out, opening zooms in', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
-    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: pinched }))
-    const open = run(engine, 600, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(pinched, THUMB_OUT, p) }))
-    const hold = run(engine, open.end, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: THUMB_OUT }))
-    const close = run(engine, hold.end, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(THUMB_OUT, pinched, p) }))
-    const zooms = [...open.events, ...hold.events, ...close.events].filter((event) => event.type === 'zoom') as Array<Extract<HandEvent, { type: 'zoom' }>>
-    expect(zooms.map((event) => event.steps)).toEqual([1, -1])
-    expect([...open.events, ...close.events].some((event) => event.type === 'press')).toBe(false)
+    const pose = enterZoom(engine)
+    expect(pose.frames.at(-1)!.phase).toBe('zoom')
+    const events: HandEvent[] = []
+    let t = pose.end
+    for (let i = 0; i < 2; i++) {
+      const close = run(engine, t, 250, (_t, p) => ({ ...L, thumbTip: thumbPath(THUMB_OUT, beak, p) }))
+      const held = run(engine, close.end, 300, () => ({ ...L, thumbTip: beak }))
+      // Opening slowly still counts (the user opened over ~0.7 s in the recording).
+      const open = run(engine, held.end, 700, (_t, p) => ({ ...L, thumbTip: thumbPath(beak, THUMB_OUT, p) }))
+      const rest = run(engine, open.end, 300, () => L)
+      events.push(...close.events, ...held.events, ...open.events, ...rest.events)
+      t = rest.end
+    }
+    expect(events.filter((event) => event.type === 'zoom').map((event) => (event as Extract<HandEvent, { type: 'zoom' }>).steps)).toEqual([-1, 1, -1, 1])
+    expect(types(events).filter((type) => type !== 'zoom')).toEqual([])
   })
 
-  it('a slow thumb movement does not zoom (so the thumb can be repositioned)', () => {
+  it('zooms around where the phalanx pointed when the L pose began', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
-    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: THUMB_OUT }))
-    const slow = run(engine, 600, 1500, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(THUMB_OUT, pinched, p) }))
-    expect(slow.events).toEqual([])
+    const pointed = run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing })).frames.at(-1)!.pointer!
+    const pose = run(engine, 600, 300, () => L)
+    const close = run(engine, pose.end, 250, (_t, p) => ({ ...L, thumbTip: thumbPath(THUMB_OUT, beak, p) }))
+    const zoom = close.events.find((event) => event.type === 'zoom') as Extract<HandEvent, { type: 'zoom' }>
+    expect(zoom.x).toBeCloseTo(pointed.x, 2)
+    expect(zoom.y).toBeCloseTo(pointed.y, 2)
+  })
+
+  it('back to pointing leaves zoom mode, and taps work again', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const pose = enterZoom(engine)
+    const back = run(engine, pose.end, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
+    expect(back.frames.at(-1)!.phase).toBe('point')
+    expect(back.events).toEqual([])
+    expect(types(tap(engine, back.end + 400).events)).toEqual(['press', 'click'])
+  })
+
+  it('plain pointing (thumb along the hand) never enters zoom mode', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const frames = run(engine, 0, 2000, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: 0 } })).frames
+    expect(frames.every((frame) => frame.phase !== 'zoom')).toBe(true)
   })
 
   it('can be switched off', () => {
     const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, pinchZoom: false })
-    run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: pinched }))
-    const open = run(engine, 600, 250, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: thumbPath(pinched, THUMB_OUT, p) }))
-    expect(open.events).toEqual([])
+    const pose = enterZoom(engine)
+    const close = run(engine, pose.end, 250, (_t, p) => ({ ...L, thumbTip: thumbPath(THUMB_OUT, beak, p) }))
+    expect(pose.frames.at(-1)!.phase).not.toBe('zoom')
+    expect(close.events.filter((event) => event.type === 'zoom')).toEqual([])
   })
 })
 
