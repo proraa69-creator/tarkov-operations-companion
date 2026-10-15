@@ -13,7 +13,7 @@ import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapter
 import { applyQuestCorrections } from './questCorrections'
 import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
 import type { AppLocale } from '../i18n/LocaleProvider'
-import { adaptObjectiveDetails } from './objectiveDetails'
+import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
 
@@ -58,8 +58,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   // The items as upstream stores them (names are translation keys) and their dictionary: the wiki's Gunsmith tables name
   // parts in English (src/data/wikiGunsmith.ts).
   const rawItems: RawEndpoint = {}
+  // The tasks untranslated: the game's keys of a kill objective's body parts and targets (src/data/objectiveConditions.ts).
+  const rawTasks: RawEndpoint = {}
   const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
-    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher),
+    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher, rawTasks),
     fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
     fetchTranslated(upstreamMode, 'traders', locale, undefined, fetcher),
@@ -81,7 +83,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const mapNameById = buildMapNameIndex(maps)
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
-  const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items))
+  const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items), conditionSourceOf(rawTasks.data, items, itemById))
   const withBuilds = await withBuildGuides(taskRows, tasks, traderById, itemById, locale, async () => {
     // English names for the wiki's tables: the `_en` dictionary (the English catalog has its own already).
     const english = locale === 'en' ? rawItems.dictionary ?? {}
@@ -150,6 +152,27 @@ async function withBuildGuides(
   const tables = pages.length ? await fetchWikiBuildTables(pages) : new Map<string, never>()
   return tables.size ? withWikiBuilds(guided, tables, await englishResolver()) : guided
 }
+
+/**
+ * What the kill objectives' conditions need (src/data/objectiveConditions.ts): each task's untranslated objectives, the
+ * item names in the catalog's language and each item's equipment slot (its own category, `categories[0]`).
+ */
+export function conditionSourceOf(rawTasksRoot: unknown, itemsRoot: JsonRecord, items: Map<string, Item>): ConditionSources {
+  const rawTasks = asRecord(asRecord(rawTasksRoot).tasks)
+  const rawItems = asRecord(itemsRoot.items)
+  const context = {
+    itemName: (id: string) => items.get(id)?.name,
+    itemSlot: (id: string) => {
+      const entry = asRecord(rawItems[id])
+      const categories = Array.isArray(entry.categories) ? entry.categories : []
+      return refId(categories[0]) || refId(entry.bsgCategoryId) || refId(entry.bsgCategory) || undefined
+    },
+  }
+  return (taskId) => ({ ...context, rawObjectives: asRecord(rawTasks[taskId]).objectives })
+}
+
+/** The conditions' source of a task by its id (task ids are never translated; objective ids are). */
+export type ConditionSources = (taskId: string) => ObjectiveConditionSource
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
 interface RawEndpoint { data?: unknown; dictionary?: JsonRecord }
@@ -337,6 +360,7 @@ function adaptTasks(
   items: Map<string, Item>,
   maps: Map<string, string>,
   categoryNames: Map<string, string> = new Map(),
+  conditionSources: ConditionSources = () => ({}),
 ): Quest[] {
   const rawTasks = asRecord(root.tasks)
   return recordValues(rawTasks).map((entry) => {
@@ -425,7 +449,7 @@ function adaptTasks(
       description: `Задание от торговца ${traders.get(text(entry.trader))?.name ?? 'неизвестно'}.`,
       objectives: objectives.map((objective) => text(objective.description)).filter(Boolean),
       objectiveIds: objectives.map((objective) => text(objective.id)).filter(Boolean),
-      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id)), (id) => categoryNames.get(id)),
+      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id)), (id) => categoryNames.get(id), conditionSources(text(entry.id))),
       rewards,
       requiredItems: [...new Set([...objectiveItems, ...requiredKeys])],
       raidRequirements,

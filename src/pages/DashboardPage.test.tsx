@@ -128,7 +128,7 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('button', { name: /Готово/ })).toHaveAttribute('aria-pressed', 'true')
     // the four cards, the strip, the raid map and the two left blocks, the three right ones; only the rows stay put
     const handles = () => [...container.querySelectorAll('.overview-veil')].map((veil) => veil.closest('[data-block]')?.getAttribute('data-block'))
-    expect(handles().sort()).toEqual(['favorites', 'gunsmith', 'priority', 'raid', 'requirements', 'squad', 'stat-goons', 'stat-kappa', 'stat-progress', 'stat-tasks', 'tasks'].sort())
+    expect(handles().sort()).toEqual(['favorites', 'gunsmith', 'priority', 'raid', 'requirements', 'squad', 'stat-goons', 'stat-kappa', 'stat-conditions', 'stat-tasks', 'tasks'].sort())
     expect(container.querySelector('.raid-card')!.closest('[data-block]')).toHaveAttribute('data-block', 'raid')
     // while editing, the content under a handle does not react
     expect(container.querySelector('[data-block="stat-kappa"] > .overview-block-content')).toHaveAttribute('inert')
@@ -144,7 +144,7 @@ describe('DashboardPage', () => {
     fireEvent.keyDown(veil('raid'), { key: 'ArrowDown' })
     expect(order('.dashboard-column:first-child > .overview-block')).toEqual(['squad', 'raid', 'requirements'])
     expect(order('.overview-rows > .overview-block')).toEqual(['priority', 'stats', 'columns'])
-    expect(order('.stat-grid > .overview-block')).toEqual(['stat-tasks', 'stat-kappa', 'stat-progress', 'stat-goons'])
+    expect(order('.stat-grid > .overview-block')).toEqual(['stat-tasks', 'stat-kappa', 'stat-conditions', 'stat-goons'])
     expect(order('.dashboard-column:last-child > .overview-block')).toEqual(['favorites', 'tasks', 'gunsmith'])
     expect(JSON.parse(localStorage.getItem('raidos-overview-layout-v1')!)).toMatchObject({ rows: ['priority', 'stats', 'columns'], left: ['squad', 'raid', 'requirements'], right: ['favorites', 'tasks', 'gunsmith'] })
 
@@ -153,7 +153,7 @@ describe('DashboardPage', () => {
     expect(container.querySelector('.overview-veil')).toBeNull()
     unmount()
     const again = renderDashboard()
-    expect([...again.container.querySelectorAll('.stat-grid > .overview-block')].map((element) => element.getAttribute('data-block'))).toEqual(['stat-tasks', 'stat-kappa', 'stat-progress', 'stat-goons'])
+    expect([...again.container.querySelectorAll('.stat-grid > .overview-block')].map((element) => element.getAttribute('data-block'))).toEqual(['stat-tasks', 'stat-kappa', 'stat-conditions', 'stat-goons'])
     await user.click(screen.getByRole('button', { name: /Настроить блоки/ }))
     await user.click(screen.getByRole('button', { name: /Сбросить/ }))
     expect([...again.container.querySelectorAll('.overview-rows > .overview-block')].map((row) => row.getAttribute('data-block'))).toEqual(['stats', 'priority', 'columns'])
