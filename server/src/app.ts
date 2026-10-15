@@ -20,6 +20,8 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { countryCode, LoginCodeStore } from './services/loginCodes.js'
 import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
+import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
+import { LiveRelay } from './services/liveRelay.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
@@ -133,6 +135,10 @@ export interface ApiOptions {
   data?: DataGateway
   /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
   dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
+  /** The PC's live position and recognised item for the phone (services/liveRelay.ts); tests pass one with their clock. */
+  live?: LiveRelay
+  /** Publishes per account and minute on /v1/live (defaults: LIVE_PUBLISH_LIMITS). */
+  livePublishLimits?: Partial<typeof LIVE_PUBLISH_LIMITS>
   /** «Страж сервера» (routes/serverGuard.ts): bans, health detail, backups. */
   guard?: ServerGuardOptions
   /** «Отряд» and friends (routes/social.ts): rate limits for tests. */
@@ -331,7 +337,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   }))
   app.use(createPresenceRouter(accounts, entitlements, presence))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
-  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
+  // The PC's position and recognised item for the phone, in memory only (services/liveRelay.ts, routes/live.ts).
+  const live = options.live ?? new LiveRelay(accounts.clock)
+  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live }))
   circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
@@ -366,6 +374,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Game data only for signed-in accounts with access on an active device (402 «Нужна подписка» otherwise): the
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
+  // The same access as the game data, with limits of its own: the phone's waits must not use up the catalog's.
+  app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits }))
   app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.
