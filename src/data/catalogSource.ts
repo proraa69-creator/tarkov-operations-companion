@@ -5,6 +5,7 @@ import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
+import { withQuestTransits } from './questTransits'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
@@ -83,7 +84,8 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const mapNameById = buildMapNameIndex(maps)
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
-  const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items), conditionSourceOf(rawTasks.data, items, itemById))
+  // Transit objectives and the maps they lead to (src/data/questTransits.ts).
+  const taskRows = withQuestTransits(adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items), conditionSourceOf(rawTasks.data, items, itemById)), tasks, maps, mapNameById)
   const withBuilds = await withBuildGuides(taskRows, tasks, traderById, itemById, locale, async () => {
     // English names for the wiki's tables: the `_en` dictionary (the English catalog has its own already).
     const english = locale === 'en' ? rawItems.dictionary ?? {}

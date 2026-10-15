@@ -416,6 +416,8 @@ export interface QuestObjective {
    * The objective's `count`, `mapIds` and `zones` stay where they are.
    */
   conditions?: ObjectiveConditions
+  /** A transit objective («Совершить переход с Улиц Таркова на Лабораторию»): the transit it is done at (src/data/questTransits.ts). */
+  transit?: QuestObjectiveTransit
 }
 
 /**
@@ -458,6 +460,13 @@ export interface ObjectiveConditions {
   enemyEffects?: string[]
   /** The player must be under these effects (`playerHealthEffect`, e.g. a stimulant). */
   playerEffects?: string[]
+}
+
+/** Where a transit objective is done: the map, the map it leads to and the transit's id in the tarkov.dev maps file. */
+export interface QuestObjectiveTransit {
+  fromMapId: string
+  toMapId: string
+  transitId?: string
 }
 
 /** A stat a modified weapon must reach (tarkov.dev `attributes` of a buildWeapon objective), e.g. ergonomics ≥ 50. */

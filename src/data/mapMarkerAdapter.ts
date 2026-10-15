@@ -3,6 +3,7 @@ import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
+import { adaptMapTransits, questTransitPoints, questTransitTexts } from './questTransits'
 
 type JsonRecord = Record<string, unknown>
 
@@ -37,6 +38,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
+  markers.push(...adaptQuestTransits(root, taskRoot, context))
   return [...new Map(markers.map((marker) => [marker.id, marker])).values()]
 }
 
@@ -658,6 +660,40 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
   }
 
   return markers
+}
+
+/**
+ * Quests that need a transit: a transit objective is drawn at its transit (src/data/questTransits.ts). Same layer, icon and
+ * click as the quest's other points.
+ */
+function adaptQuestTransits(root: JsonRecord, taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
+  const maps = new Map(context.maps.map((map) => [map.id, map]))
+  const resolve = (rawId: string) => resolveApiMapId(rawId, context)
+  const transits = adaptMapTransits(root, resolve)
+  if (!transits.length) return []
+  const tasks = asRecord(taskRoot.tasks)
+  return context.quests.flatMap((quest) => {
+    const task = asRecord(tasks[quest.id])
+    if (quest.anyMap || !text(task.id)) return []
+    return questTransitPoints(task, transits, resolve).flatMap((point) => {
+      const map = maps.get(point.transit.mapId)
+      if (!map) return []
+      const base = baseMarker(map, `quest-transit-${quest.id}-${point.transit.id}`, point.transit.position, point.transit.outline, point.transit.top, point.transit.bottom)
+      if (!base) return []
+      const texts = questTransitTexts(point, quest, context.maps)
+      return [{
+        ...base,
+        type: 'quest' as const,
+        layerId: 'quest.zone' as const,
+        title: texts.title,
+        description: texts.description,
+        meta: texts.meta,
+        questId: quest.id,
+        objectiveId: point.objectiveId,
+        source: 'quest-transit',
+      } satisfies MapMarker]
+    })
+  })
 }
 
 function pointCoords(position: JsonRecord) {
