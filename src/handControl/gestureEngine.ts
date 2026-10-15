@@ -66,28 +66,25 @@ export const ENGINE = {
   pointerBeta: 6,
   historyMs: 600,
   /**
-   * Map zoom, from the product owner's recording. The "L" pose — index up, thumb sticking out
+   * Map zoom, from the product owner's recordings. The "L" pose — index up, thumb sticking out
    * (thumb↔index angle ≥ 42°, tips ≥ 0.95 palm lengths apart; plain pointing measured 18–37° and
-   * ≤ 0.96) — held for `zoomPoseMs` enters zoom mode. In it, closing the thumb onto the index
-   * ("beak": tips ≤ `zoomClosed`, measured 0.28–0.45) zooms out one step, opening it again
-   * (≥ `zoomOpen`) zooms in one step. No taps in zoom mode. It ends when the hand is neither in
-   * the L nor the beak for `zoomExitMs` (e.g. back to pointing), or other fingers open.
+   * ≤ 0.96) — held for `zoomPoseMs` enters zoom mode. In it the hand's distance to the camera
+   * zooms the map: moving the hand away zooms in, bringing it closer zooms out, one step per
+   * `zoomDepthStep` of log palm size (measured on the recording: away 720→500 px/m = −0.37,
+   * closer 500→930 = +0.62; a still hand wobbles ±0.04). No taps in zoom mode. It ends when the
+   * hand is no longer in the L for `zoomExitMs` (e.g. back to pointing), or other fingers open.
    */
   zoomAngle: 42,
   zoomPinch: 0.95,
   /** the index must be straight up in the L (measured 24–31°; a half-folded index turns away from the thumb) */
   zoomMaxFlex: 45,
   zoomPoseMs: 150,
+  zoomDepthStep: 0.14,
+  /** thumb↔index gap counted as the thumb closed onto the index (the L is left, not a zoom) */
   zoomClosed: 0.5,
-  /** in the beak the index bends ~50–57°; folded much further (a tap, a fist) it is not a zoom */
-  zoomCloseMaxFlex: 75,
   zoomOpen: 0.78,
   zoomExitMs: 400,
-  /**
-   * A slow close passes through a pointing-like pose (the thumb first lies along the hand, then the
-   * index bends onto it): while the thumb↔index distance keeps changing this much within
-   * `zoomMovingMs`, zoom mode stays.
-   */
+  /** while the thumb↔index gap keeps changing this much within `zoomMovingMs` the hand is re-forming the L: zoom mode is kept */
   zoomMoving: 0.12,
   zoomMovingMs: 300,
   zoomOthersExitMs: 150,
@@ -217,7 +214,9 @@ export class HandGestureEngine {
   private press: { id: number; at: number; x: number; y: number; kind: 'tap' | 'poke'; base: number } | null = null
   private cooldownUntil = 0
   private zoomPoseSince = Number.NaN
-  private zoom: { id: number; x: number; y: number; closed: boolean; exitSince: number } | null = null
+  private zoom: { id: number; x: number; y: number; ref: number; exitSince: number } | null = null
+  /** smoothed log of the palm's size in the frame (larger = closer to the camera) */
+  private distanceLog = Number.NaN
   private scrollPoseSince = Number.NaN
   private exitPoseSince = Number.NaN
   private scroll: {
@@ -344,7 +343,7 @@ export class HandGestureEngine {
     if (this.phase === 'scroll' && this.scroll) {
       this.updateScroll(events, t, scrollPose, openPalm, flexTwo, palm.y, palmTurn)
     } else if (this.phase === 'zoom' && this.zoom) {
-      this.updateZoom(events, t, pinch, thumbAngle, flexIndex)
+      this.updateZoom(events, t, pinch, thumbAngle)
     } else if (this.phase === 'press' && this.press) {
       this.updatePress(events, t, flexIndex, depth)
     } else if (this.phase === 'grab' && this.grab) {
@@ -379,7 +378,7 @@ export class HandGestureEngine {
       } else if (settings.pinchZoom && !this.fistLock && zoomPose && t - this.zoomPoseSince >= ENGINE.zoomPoseMs) {
         // Zoom around the point the phalanx was on when the L pose began.
         const center = this.pointerAt(this.zoomPoseSince) ?? at
-        this.zoom = { id: this.nextId++, x: center.x, y: center.y, closed: false, exitSince: Number.NaN }
+        this.zoom = { id: this.nextId++, x: center.x, y: center.y, ref: this.distanceLog, exitSince: Number.NaN }
         this.phase = 'zoom'
         this.aim = null
         this.frozenAt = Number.NaN
@@ -652,20 +651,26 @@ export class HandGestureEngine {
     return { x: sample?.x ?? pointer.x, y: sample?.y ?? pointer.y }
   }
 
-  /** Zoom mode: the thumb closing onto the index zooms out a step, opening it zooms in a step. */
-  private updateZoom(events: HandEvent[], t: number, pinch: number, thumbAngle: number, flexIndex: number) {
+  /** Zoom mode: the hand moving away from the camera zooms in a step, coming closer zooms out. */
+  private updateZoom(events: HandEvent[], t: number, pinch: number, thumbAngle: number) {
     const zoom = this.zoom!
-    if (!zoom.closed && pinch <= ENGINE.zoomClosed && flexIndex <= ENGINE.zoomCloseMaxFlex) {
-      zoom.closed = true
-      events.push({ type: 'zoom', id: this.nextId++, x: zoom.x, y: zoom.y, steps: -1 })
-    } else if (zoom.closed && pinch >= ENGINE.zoomOpen) {
-      zoom.closed = false
-      events.push({ type: 'zoom', id: this.nextId++, x: zoom.x, y: zoom.y, steps: 1 })
-    }
     const others = this.pose.middle || this.pose.ring || this.pose.pinky
     const pinches = this.history.filter((sample) => sample.t >= t - ENGINE.zoomMovingMs).map((sample) => sample.pinch)
-    const moving = Math.max(...pinches) - Math.min(...pinches) >= ENGINE.zoomMoving
-    const inPose = !others && (moving || pinch <= ENGINE.zoomClosed || (pinch >= ENGINE.zoomOpen && thumbAngle >= ENGINE.zoomAngle))
+    const reforming = Math.max(...pinches) - Math.min(...pinches) >= ENGINE.zoomMoving
+    const inL = !others && pinch >= ENGINE.zoomOpen && thumbAngle >= ENGINE.zoomAngle
+    if (!inL || !Number.isFinite(zoom.ref)) {
+      // Out of the L (e.g. the thumb closed) the palm looks different: measure from where the L is back.
+      zoom.ref = this.distanceLog
+    } else {
+      const delta = this.distanceLog - zoom.ref
+      if (Math.abs(delta) >= ENGINE.zoomDepthStep) {
+        const steps = Math.trunc(delta / ENGINE.zoomDepthStep)
+        zoom.ref += steps * ENGINE.zoomDepthStep
+        // Closer (palm grows) zooms out, further away zooms in.
+        events.push({ type: 'zoom', id: this.nextId++, x: zoom.x, y: zoom.y, steps: -steps })
+      }
+    }
+    const inPose = !others && (reforming || inL || pinch <= ENGINE.zoomClosed)
     if (inPose) zoom.exitSince = Number.NaN
     else if (Number.isNaN(zoom.exitSince)) zoom.exitSince = t
     if (!Number.isNaN(zoom.exitSince) && t - zoom.exitSince >= (others ? ENGINE.zoomOthersExitMs : ENGINE.zoomExitMs)) {
@@ -679,6 +684,7 @@ export class HandGestureEngine {
     const q = inverseDepth(observation)
     if (!Number.isFinite(q)) return this.last.depth
     const value = this.depthFilter.filter(Math.log(q), seconds)
+    this.distanceLog = value
     if (!Number.isFinite(this.baseline)) this.baseline = value
     // The baseline drifts towards the current distance (slow leans are absorbed) but is fixed
     // during a poke or a grab so the pull-back can be measured.
@@ -751,6 +757,7 @@ export class HandGestureEngine {
     this.frozenAt = Number.NaN
     this.rearmBlocked = false
     this.baseline = Number.NaN
+    this.distanceLog = Number.NaN
     this.scrollPoseSince = Number.NaN
     this.history = []
     this.anchor.reset()

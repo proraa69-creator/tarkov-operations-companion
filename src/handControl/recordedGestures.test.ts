@@ -3,6 +3,7 @@ import { gunzipSync, strFromU8 } from 'fflate'
 // gzip + base64 keeps the fixture small and loadable with Vite's ?raw.
 import recordingB64 from './fixtures/recorded-gestures.json.gz.b64?raw'
 import zoomRecordingB64 from './fixtures/recorded-zoom.json.gz.b64?raw'
+import zoomDepthRecordingB64 from './fixtures/recorded-zoom-depth.json.gz.b64?raw'
 import { HandGestureEngine } from './gestureEngine'
 import { DEFAULT_SETTINGS, type HandEvent, type HandFrame, type HandObservation } from './types'
 
@@ -73,19 +74,36 @@ describe('recorded reference gestures', () => {
   })
 })
 
-// The zoom gestures recorded by the product owner: pointing, then the L pose (index up, thumb out)
-// with the thumb closed onto the index and opened again six times.
-describe('recorded zoom gestures', () => {
+// The earlier zoom recording: the L pose held in place while the thumb is closed onto the index
+// and opened again six times. Zoom now follows the hand's distance, so this is not a zoom — and
+// never a click.
+describe('recorded L pose with the thumb closing in place', () => {
   const { events } = replay(load(zoomRecordingB64))
+
+  it('does not zoom (the hand stays at the same distance) and never clicks', () => {
+    expect(events.filter(({ event }) => event.type === 'zoom')).toEqual([])
+    expect(events.filter(({ event }) => event.type === 'click' || event.type === 'scroll-start' || event.type === 'grab-start')).toEqual([])
+  })
+})
+
+// The product owner's recording of zoom by distance: the L pose held at 14.6–18.9 s, the hand
+// moving away from the camera (~16.4–17.8 s), then towards it (~17.8–18.9 s).
+describe('recorded zoom by distance', () => {
+  const { events } = replay(load(zoomDepthRecordingB64))
   const zooms = events.filter(({ event }) => event.type === 'zoom').map(({ t, event }) => ({ t, steps: (event as Extract<HandEvent, { type: 'zoom' }>).steps }))
 
-  it('turns the six closes and six opens of the thumb into alternating zoom steps', () => {
-    expect(zooms.map(({ steps }) => steps)).toEqual([-1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1])
-    expect(near(zooms.map(({ t }) => t), [6.13, 6.43, 6.7, 7.43, 7.83, 8.53, 9.53, 10.43, 11.43, 11.8, 12.33, 12.63])).toBe(true)
+  it('zooms in while the hand moves away and out while it comes closer', () => {
+    const away = zooms.filter(({ t }) => t >= 16.4 && t < 17.8)
+    const closer = zooms.filter(({ t }) => t >= 17.8 && t <= 19.1)
+    expect(away.length).toBeGreaterThanOrEqual(2)
+    expect(away.every(({ steps }) => steps > 0)).toBe(true)
+    expect(closer.length).toBeGreaterThanOrEqual(2)
+    expect(closer.every(({ steps }) => steps < 0)).toBe(true)
+    // Nothing while the L is just held (14.6–16.4 s).
+    expect(zooms.filter(({ t }) => t < 16.4)).toEqual([])
   })
 
-  it('does nothing while the user only points (0.8–4.3 s) and never clicks', () => {
-    expect(events.filter(({ t }) => t < 4.4)).toEqual([])
-    expect(events.filter(({ event }) => event.type === 'click' || event.type === 'scroll-start' || event.type === 'grab-start')).toEqual([])
+  it('does nothing else', () => {
+    expect(events.filter(({ event }) => event.type !== 'zoom' && event.type !== 'cancel')).toEqual([])
   })
 })

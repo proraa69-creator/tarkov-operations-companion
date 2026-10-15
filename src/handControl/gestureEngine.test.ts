@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { ENGINE, HandGestureEngine } from './gestureEngine'
 import { GHOST_PALM_PX } from './ghostPose'
-import { indexTipAt, syntheticHand, THUMB_OUT, type SyntheticHand } from './testHand'
-import { DEFAULT_SETTINGS, type HandEvent, type HandFrame, type Point3 } from './types'
+import { syntheticHand, THUMB_OUT, type SyntheticHand } from './testHand'
+import { DEFAULT_SETTINGS, type HandEvent, type HandFrame } from './types'
 
 const FPS = 30
 const STEP = 1000 / FPS
@@ -341,40 +341,46 @@ describe('HandGestureEngine — no fixation while the hand moves', () => {
 })
 
 describe('HandGestureEngine — zoom with the L pose (index up, thumb out)', () => {
-  const thumbPath = (from: Point3, to: Point3, p: number): Point3 => ({ x: lerp(from.x, to.x, p), y: lerp(from.y, to.y, p), z: lerp(from.z, to.z, p) })
-  const beak = indexTipAt(30)
   const L = { x: 0.5, y: 0.6, k: 1000, fingers: pointing, thumbTip: THUMB_OUT }
 
   function enterZoom(engine: HandGestureEngine) {
     run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing }))
-    return run(engine, 600, 300, () => L)
+    return run(engine, 600, 400, () => L)
   }
+  const zoomSteps = (events: HandEvent[]) => events.filter((event) => event.type === 'zoom').map((event) => (event as Extract<HandEvent, { type: 'zoom' }>).steps)
+  const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
 
-  it('the L pose enters zoom mode; closing the thumb onto the index zooms out, opening zooms in', () => {
+  it('the L pose enters zoom mode; moving the hand away zooms in, bringing it closer zooms out', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
     const pose = enterZoom(engine)
     expect(pose.frames.at(-1)!.phase).toBe('zoom')
-    const events: HandEvent[] = []
-    let t = pose.end
-    for (let i = 0; i < 2; i++) {
-      const close = run(engine, t, 250, (_t, p) => ({ ...L, thumbTip: thumbPath(THUMB_OUT, beak, p) }))
-      const held = run(engine, close.end, 300, () => ({ ...L, thumbTip: beak }))
-      // Opening slowly still counts (the user opened over ~0.7 s in the recording).
-      const open = run(engine, held.end, 700, (_t, p) => ({ ...L, thumbTip: thumbPath(beak, THUMB_OUT, p) }))
-      const rest = run(engine, open.end, 300, () => L)
-      events.push(...close.events, ...held.events, ...open.events, ...rest.events)
-      t = rest.end
-    }
-    expect(events.filter((event) => event.type === 'zoom').map((event) => (event as Extract<HandEvent, { type: 'zoom' }>).steps)).toEqual([-1, 1, -1, 1])
-    expect(types(events).filter((type) => type !== 'zoom')).toEqual([])
+    expect(pose.events).toEqual([])
+    // Away: the palm shrinks to 70 % (log −0.36) → about two steps in.
+    const away = run(engine, pose.end, 700, (_t, p) => ({ ...L, k: 1000 * Math.exp(-0.36 * p) }))
+    const hold = run(engine, away.end, 400, () => ({ ...L, k: 1000 * Math.exp(-0.36) }))
+    expect(zoomSteps([...away.events, ...hold.events]).every((steps) => steps > 0)).toBe(true)
+    expect(sum(zoomSteps([...away.events, ...hold.events]))).toBe(2)
+    // Closer: the palm grows to ×1.9 of that (log +0.62; 0.08 was left over from the way out) → three steps out.
+    const closer = run(engine, hold.end, 900, (_t, p) => ({ ...L, k: 1000 * Math.exp(-0.36 + 0.62 * p) }))
+    const rest = run(engine, closer.end, 400, () => ({ ...L, k: 1000 * Math.exp(0.26) }))
+    expect(zoomSteps([...closer.events, ...rest.events]).every((steps) => steps < 0)).toBe(true)
+    expect(sum(zoomSteps([...closer.events, ...rest.events]))).toBe(-3)
+    expect(types([...away.events, ...closer.events]).filter((type) => type !== 'zoom')).toEqual([])
+  })
+
+  it('a still hand in the L does not zoom', () => {
+    const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+    const pose = enterZoom(engine)
+    const still = run(engine, pose.end, 3000, (t) => ({ ...L, k: 1000 * (1 + 0.04 * Math.sin(t / 90)) }))
+    expect(still.events).toEqual([])
   })
 
   it('zooms around where the phalanx pointed when the L pose began', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
     const pointed = run(engine, 0, 600, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing })).frames.at(-1)!.pointer!
-    const pose = run(engine, 600, 300, () => L)
-    const close = run(engine, pose.end, 250, (_t, p) => ({ ...L, thumbTip: thumbPath(THUMB_OUT, beak, p) }))
-    const zoom = close.events.find((event) => event.type === 'zoom') as Extract<HandEvent, { type: 'zoom' }>
+    const pose = run(engine, 600, 400, () => L)
+    const away = run(engine, pose.end, 500, (_t, p) => ({ ...L, k: 1000 * Math.exp(-0.3 * p) }))
+    const zoom = away.events.find((event) => event.type === 'zoom') as Extract<HandEvent, { type: 'zoom' }>
     expect(zoom.x).toBeCloseTo(pointed.x, 2)
     expect(zoom.y).toBeCloseTo(pointed.y, 2)
   })
@@ -388,18 +394,18 @@ describe('HandGestureEngine — zoom with the L pose (index up, thumb out)', () 
     expect(types(tap(engine, back.end + 400).events)).toEqual(['press', 'click'])
   })
 
-  it('plain pointing (thumb along the hand) never enters zoom mode', () => {
+  it('plain pointing (thumb along the hand) never enters zoom mode, even moving in depth', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
-    const frames = run(engine, 0, 2000, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: 0 } })).frames
-    expect(frames.every((frame) => frame.phase !== 'zoom')).toBe(true)
+    const frames = run(engine, 0, 2000, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000 * Math.exp(-0.4 * p), fingers: { index: 0 } })).frames
+    expect(frames.every((frame) => frame.phase !== 'zoom' && frame.events.every((event) => event.type !== 'zoom'))).toBe(true)
   })
 
   it('can be switched off', () => {
     const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, pinchZoom: false })
     const pose = enterZoom(engine)
-    const close = run(engine, pose.end, 250, (_t, p) => ({ ...L, thumbTip: thumbPath(THUMB_OUT, beak, p) }))
+    const away = run(engine, pose.end, 700, (_t, p) => ({ ...L, k: 1000 * Math.exp(-0.4 * p) }))
     expect(pose.frames.at(-1)!.phase).not.toBe('zoom')
-    expect(close.events.filter((event) => event.type === 'zoom')).toEqual([])
+    expect(away.events.filter((event) => event.type === 'zoom')).toEqual([])
   })
 })
 
