@@ -49,7 +49,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Обеспечить доступ на локацию Резерв', 'Secure access to Reserve'],
   ['Выжить на Береге и выйти или посетить Берег 3 раза; передать Прапору 5 армейских жетонов (сдача в меню).', 'Survive and extract from Shoreline or visit it 3 times; hand over 5 military dog tags to Prapor (in the menu).'],
   ['Обеспечить доступ на локацию Маяк', 'Secure access to Lighthouse'],
-  ['Передать Механику 20 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.', 'Hand over $20,000 to Mechanic (optional: collect the sum). In the menu, no map point.'],
+  ['Передать Механику 8 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.', 'Hand over $8,000 to Mechanic (optional: collect the sum). In the menu, no map point.'],
   ['Обеспечить доступ на локацию Лаборатория', 'Secure access to The Lab'],
   ['Попасть на объект TerraGroup; найти путь отхода через водосток (подвал, у выхода «Накопительный коллектор»); осмотреть серверную (1-й уровень, у ангара); осмотреть офисы топ-менеджеров (O21, 2-й уровень).', 'Get into the TerraGroup facility; find the escape route through the drain (basement, by the “Sewage conduit” exit); inspect the server room (level 1, by the hangar); inspect the top managers’ offices (O21, level 2).'],
   ['Развязка', 'Interchange'], ['Развязку', 'Interchange'], ['Таможня', 'Customs'], ['Таможню', 'Customs'], ['Завод', 'Factory'], ['Береге', 'Shoreline'], ['Берег', 'Shoreline'],
