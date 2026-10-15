@@ -11,7 +11,7 @@ import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, MapPinned, PackageCheck, PackageX, Palette,
+  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
   Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -55,7 +55,6 @@ const navigation = [
   // «Квесты», as on the phone (owner, 13.10.2026: «Задания» → «Квесты» on the PC too).
   { to: '/quests', ru: 'Квесты', en: 'Quests', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
-  { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
 ]
 

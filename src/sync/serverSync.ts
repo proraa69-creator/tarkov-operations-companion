@@ -2,8 +2,9 @@
  * The desktop app as a shell of the API server (docs/local-server.md).
  *
  * When a server account is signed in (Profile → «Аккаунт сервера»), the app sends what only it can capture —
- * quest events from the EFT logs, the Collector checklist, the latest screenshot position and a few preferences —
- * to `/v1/me/*` and applies the server's copy back. Without a server or an account everything keeps working
+ * quest events from the EFT logs, the Collector checklist and a few preferences — to `/v1/me/*` and applies the
+ * server's copy back. The latest screenshot position and the recognised item go to the live relay (`/v1/live/*`, stored
+ * nowhere) for the phone of the account. Without a server or an account everything keeps working
  * locally; nothing here ever throws into the UI. PvP, PvE and Seasonal are always sent and applied separately.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
@@ -20,6 +21,8 @@ import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
 import { featureEnabled } from '../app/archivedFeatures'
+import { liveItemBody, onRecognisedItem, parseLiveItem } from '../items/recognisedItem'
+import type { ItemOverlayInfo } from '../overlay/types'
 import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 
@@ -722,7 +725,8 @@ export async function syncCollector(mode: RaidMode) {
 
 const SETTINGS_META_KEY = 'tarkov-server-settings-sync-v1'
 /** Machine-specific values (like the screenshots folder) never leave this computer. */
-const SYNCED_EXPERIMENTAL_KEYS = ['itemLookup', 'minimap', 'tracking', 'autoScreenshot', 'screenshotIntervalMs', 'itemKey', 'minimapKey', 'collectorKey', 'minimapOpacity', 'playerMarker'] as const
+// The in-game minimap's key and opacity went with the overlays (15.10.2026): an older PC of the account keeps its own.
+const SYNCED_EXPERIMENTAL_KEYS = ['itemLookup', 'minimap', 'tracking', 'autoScreenshot', 'screenshotIntervalMs', 'itemKey', 'collectorKey', 'playerMarker'] as const
 
 interface SyncedSettings { theme: string; experimental?: Partial<ExperimentalSettings> }
 
@@ -856,6 +860,31 @@ export async function fetchServerPosition(mode: RaidMode) {
   return answer ? parseServerPosition(answer) : null
 }
 
+/** What the live relay holds for this account and mode (server/src/routes/live.ts). */
+export interface LiveState {
+  version: number
+  position: ServerPosition | null
+  item: { payload: ItemOverlayInfo; at: number } | null
+}
+
+/** The live relay's answer, shape-checked; null when it is not one. */
+export function parseLiveState(value: unknown): LiveState | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as { version?: unknown; position?: unknown; item?: unknown }
+  if (typeof raw.version !== 'number' || !Number.isFinite(raw.version)) return null
+  return { version: raw.version, position: parseServerPosition({ position: raw.position }), item: parseLiveItem(raw.item) }
+}
+
+/**
+ * The phone: the PC's position and recognised item for this mode, pushed (server/src/routes/live.ts). With `since` (the
+ * version the phone has) the server answers the moment something new comes, or after ~25 s. Null when signed out, offline,
+ * without access or on a server from before the relay: the caller falls back to polling the stored position.
+ */
+export async function fetchLiveState(mode: RaidMode, since?: number) {
+  const answer = await meRequest<unknown>('GET', `/v1/live/${mode}${since === undefined ? '' : `?since=${Math.trunc(since)}`}`)
+  return answer ? parseLiveState(answer) : null
+}
+
 /**
  * The phone, and a desktop whose logs say nothing about this mode (pullsServerProgress): the merged task records the
  * desktop apps uploaded for this mode, applied like a log scan — with the server's character and its last trusted reset,
@@ -945,7 +974,8 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     }
   }, [pullProgress])
 
-  // Screenshot positions → /v1/me/position/:mode (the mode the app is on when the screenshot arrives).
+  // Screenshot positions → the live relay /v1/live/:mode/position (the mode the app is on when the screenshot arrives):
+  // the phone of the account gets it within a second; the server keeps it in memory for a few minutes only.
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!desktop?.experimental?.onPosition) return
@@ -954,7 +984,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     const offRaid = desktop.onRaidStateChanged?.((raid) => { location = raid.inRaid ? raid.location ?? '' : '' })
     const throttle = createPositionThrottle((position) => {
       const map = location ? canonicalMapId(location) : ''
-      void meRequest('POST', `/v1/me/position/${modeRef.current}`, {
+      void meRequest('POST', `/v1/live/${modeRef.current}/position`, {
         x: position.x, y: position.y, z: position.z, yaw: position.yaw, at: Math.round(position.at),
         ...(map && /^[A-Za-z0-9_-]{1,40}$/.test(map) ? { map } : {}),
       })
@@ -963,6 +993,17 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (connected() && validPosition(position)) throttle.push(position)
     })
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
+  }, [])
+
+  // The recognised item → /v1/live/:mode/item: the phone of the account shows the same card at once.
+  useEffect(() => {
+    if (!window.tarkovDesktop?.experimental) return
+    let sentAt = 0
+    return onRecognisedItem((item) => {
+      if (!item || item.from !== 'pc' || item.payload.state !== 'found' || item.at === sentAt || !connected()) return
+      sentAt = item.at
+      void meRequest('POST', `/v1/live/${item.mode ?? modeRef.current}/item`, liveItemBody(item.payload, item.at))
+    })
   }, [])
 
   // Switching mode pulls that mode's Collector checklist, objective progress and (on the phone, or for a mode this PC's

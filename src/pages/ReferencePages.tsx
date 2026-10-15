@@ -610,6 +610,7 @@ import { isAndroidApp } from "../platform";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
+import { RaidToolsSettings } from "./RaidToolsSettings";
 
 export function SettingsPage() {
   const { data, source } = useTarkovData();
@@ -631,6 +632,8 @@ export function SettingsPage() {
           {uiText(source === "demo" ? "Демо-режим" : `Данные ${timeAgo(updatedAt)}`)}
         </span>
       </header>
+      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026). */}
+      <RaidToolsSettings />
       <div className="settings-grid">
         <section className="panel">
           <div className="panel-header">

@@ -1,7 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { startActivePolling } from '../app/activePolling'
+import { useTarkovData } from '../data/DataProvider'
+import { useAppState } from '../state/AppState'
 import { divIcon, latLng } from 'leaflet'
 import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { canonicalMapId } from '../data/mapIds'
@@ -9,6 +12,7 @@ import type { PlayerPosition } from '../overlay/screenshotPosition'
 import type { RaidState } from '../import/raidState'
 import { playerMarkerSvg, type PlayerMarkerStyle } from '../overlay/playerMarker'
 import { useLivePositionContext, type LivePositionValue } from '../mobile/livePosition'
+import '../styles/playerMarker.css'
 
 /**
  * Where the player is, for a map page: on the phone the position the desktop app pushed to the server
@@ -17,7 +21,8 @@ import { useLivePositionContext, type LivePositionValue } from '../mobile/livePo
  */
 export type LivePlayer =
   | { source: 'server'; live: LivePositionValue; position: LivePositionValue['position']; onThisMap: boolean }
-  | { source: 'desktop'; position: PlayerPosition | null; onThisMap: boolean }
+  /** `raidMapId`: the map of the current raid from the game's logs ('' outside a raid). */
+  | { source: 'desktop'; position: PlayerPosition | null; onThisMap: boolean; raidMapId: string }
 
 /** Read by the map page itself (not by the marker), so the shown floor can follow the player (data/useAutoFloor.ts). */
 export function useLivePlayer(mapId: string): LivePlayer {
@@ -25,8 +30,32 @@ export function useLivePlayer(mapId: string): LivePlayer {
   const desktop = useDesktopPosition(!live)
   if (live) return { source: 'server', live, position: live.position, onThisMap: Boolean(live.position?.map && live.position.map === mapId) }
   const { position, raid } = desktop
-  const onThisMap = Boolean(position && raid.inRaid && canonicalMapId(raid.location ?? '') === mapId && !(raid.since && position.at < raid.since))
-  return { source: 'desktop', position, onThisMap }
+  const raidMapId = raid.inRaid ? canonicalMapId(raid.location ?? '') : ''
+  const onThisMap = Boolean(position && raidMapId && raidMapId === mapId && !(raid.since && position.at < raid.since))
+  return { source: 'desktop', position, onThisMap, raidMapId }
+}
+
+/**
+ * The PC's «Карты» follow the raid (owner, 15.10.2026: «Точка местоположения будет появляться на основной карте»): each
+ * new position of the current raid — and the raid's start — opens that raid's map once; another map can be looked at
+ * in between, until the next screenshot. Not while the owner edits the map (`enabled`).
+ */
+export function useFollowRaidMap(player: LivePlayer, mapId: string, enabled = true) {
+  const { data } = useTarkovData()
+  const { setSelectedMapId } = useAppState()
+  const navigate = useNavigate()
+  const handled = useRef<string | null>(null)
+  const raidMapId = player.source === 'desktop' ? player.raidMapId : ''
+  const at = player.source === 'desktop' ? player.position?.at ?? 0 : 0
+  useEffect(() => {
+    if (!enabled || !raidMapId) return
+    const key = `${raidMapId}:${at}`
+    if (handled.current === key) return
+    handled.current = key
+    if (raidMapId === mapId || !data.maps.some((map) => map.id === raidMapId)) return
+    setSelectedMapId(raidMapId)
+    navigate(`/maps/${raidMapId}`, { replace: true })
+  }, [at, data.maps, enabled, mapId, navigate, raidMapId, setSelectedMapId])
 }
 
 /** Desktop: the latest screenshot position and the raid state from the game logs. */
@@ -48,8 +77,9 @@ function useDesktopPosition(enabled: boolean) {
 }
 
 /**
- * The player's position from the latest EFT screenshot on the app's own map. This is the fallback
- * for exclusive full screen, where no overlay is visible: keep the app on a second monitor.
+ * The player's position on the app's own map, with the direction the player looks (yaw): on the PC from the latest EFT
+ * screenshot, on the phone as the PC sent it. There is no map over the game any more (owner, 15.10.2026): keep the app on
+ * a second monitor, or the phone next to the keyboard.
  */
 export function LivePlayerMarker({ player }: { player: LivePlayer }) {
   return player.source === 'server' ? <ServerPlayerMarker player={player} /> : <DesktopPlayerMarker player={player} />
@@ -92,6 +122,23 @@ function ServerPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 
   )
 }
 
+/**
+ * Keeps the PC's player in view: the first position on this map centres on it, a later one pans only when the player
+ * nears the edge. Dragging the map does not stop it: the next screenshot is the player's own request to see the dot.
+ */
+function useFollowPlayer(position: PlayerPosition | null, onThisMap: boolean) {
+  const map = useMap()
+  const centred = useRef(false)
+  const at = position?.at
+  useEffect(() => {
+    if (!position || !onThisMap) return
+    const target = latLng(position.z, position.x)
+    if (!centred.current) { centred.current = true; map.setView(target, map.getZoom(), { animate: false }); return }
+    if (!map.getBounds().pad(-0.2).contains(target)) map.panTo(target, { animate: true, duration: 0.5 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per new screenshot, not per render of the same one
+  }, [at, map, onThisMap])
+}
+
 function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 'desktop' }> }) {
   const { position, onThisMap } = player
   const [now, setNow] = useState(() => Date.now())
@@ -107,7 +154,8 @@ function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source:
   }, [])
 
   const angle = useScreenAngle(position)
-  const icon = useMemo(() => divIcon({ className: 'ov-player live-player', html: playerMarkerSvg(style, angle), iconSize: [20, 20], iconAnchor: [10, 10] }), [angle, style])
+  const icon = useMemo(() => divIcon({ className: 'ov-player live-player is-desktop', html: playerMarkerSvg(style, angle), iconSize: [26, 26], iconAnchor: [13, 13] }), [angle, style])
+  useFollowPlayer(position, onThisMap)
 
   if (!position || !onThisMap) return null
   return (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gameKeyLabel, gameKeyVk, isPrintScreen, parseScreenshotBinding, parseScreenshotBindingAt, screenshotOnKey, unityKey } from './gameKeys'
-import { HOTKEYS, hotkeyForGameKeys } from './hotkeys'
+import { HOTKEYS } from './hotkeys'
 
 // The settings JSON EFT writes to application.log at start (shortened).
 const SETTINGS_LINE = '2026-09-29 20:31:05.123|1.0.0.1.39234|Info|application|{"InvertedXAxis":false,"keyBindings":[{"keyName":"OpticCalibrationSwitchDown","variants":[{"keyCode":["PageDown"],"axisName":""},{"keyCode":[]}],"pressType":"Press"},{"keyName":"MakeScreenshot","variants":[{"keyCode":["F12"]},{"keyCode":[]}],"pressType":"Press"},{"keyName":"Recorder","variants":[{"keyCode":[]},{"keyCode":[]}],"pressType":"Release"}]}'
@@ -91,14 +91,6 @@ describe('the game\'s screenshot on the minimap\'s key', () => {
     expect(screenshotOnKey([], HOTKEYS.KeyM!.vk)).toBe(false)
     expect(screenshotOnKey(['M'], undefined)).toBe(false)
     expect(gameKeyVk('Mouse0')).toBeNull()
-  })
-
-  it('finds the app hotkey for the game\'s key, none for PrtSc or a combination', () => {
-    expect(hotkeyForGameKeys(['F12'])).toBe('F12')
-    expect(hotkeyForGameKeys(['M'])).toBe('KeyM')
-    expect(hotkeyForGameKeys(['Mouse3'])).toBe('Mouse4')
-    expect(hotkeyForGameKeys(['Print'])).toBeNull()
-    expect(hotkeyForGameKeys(['LeftAlt', 'F12'])).toBeNull()
   })
 })
 

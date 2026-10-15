@@ -5,7 +5,6 @@ import { ArrowUp, Check, Lightbulb, MapPin, MousePointer2 } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
-import { minimapOverlayAllowed, useRemoteFeatures } from '../announcement/features'
 import kappaContainer from '../assets/guide/kappa-container.webp'
 import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type SectionStep } from './guideProgress'
 import './firstRunGuide.css'
@@ -40,14 +39,6 @@ const TIPS: Record<SectionStep, GuideTipContent> = {
       en: 'To let the app know where you are in the story, open each story quest’s window in the game (Character → Tasks). Keeping it open for 3 seconds is enough: the app reads the quest and its stages by itself, and they appear on the “Story” tab.',
     }),
     target: '[data-guide="story-tab"]',
-  },
-  // owner: «при нажатии на блок мини карта, всплывающее окно: то что у нас написано сверху»
-  minimap: {
-    title: { ru: 'Мини-карта и карточка предмета', en: 'Mini map and item card' },
-    text: () => ({
-      ru: 'Мини-карта и карточка предмета показываются поверх игры. Для этого в настройках графики поставьте режим экрана «Безрамочный».',
-      en: 'The mini map and the item card are shown over the game. For this, set the screen mode to “Borderless” in the graphics settings.',
-    }),
   },
   // owner: «указатель на галочку с квестом. показать анимацию нажатия. и обяснить для чего эта кнопка»
   maps: {
@@ -96,11 +87,8 @@ export function FirstRunGuide() {
     window.addEventListener(GUIDE_CHANGED_EVENT, read)
     return () => window.removeEventListener(GUIDE_CHANGED_EVENT, read)
   }, [status])
-  // The tip is about the window over the game (borderless mode): it waits while the owner keeps that window off.
-  const minimapAllowed = minimapOverlayAllowed(useRemoteFeatures())
   const step = guide ? guideStepFor(pathname, phone) : null
-  // The minimap's tip waits while the owner keeps the minimap off for everybody: the page shows its own notice then.
-  const pending = step && guide && !guide.record.accepted.includes(step) && (step !== 'minimap' || minimapAllowed) ? step : null
+  const pending = step && guide && !guide.record.accepted.includes(step) ? step : null
   const ready = useGuideReady(pending, pathname)
   if (!guide || !pending || !ready) return null
   return <GuideTip key={pending} id={pending} tip={TIPS[pending]} phone={phone} onAccept={() => acceptStep(guide.email, pending)} />

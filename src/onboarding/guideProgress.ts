@@ -7,7 +7,7 @@ import type { ServerAccountStatus } from '../electron'
  */
 export type GuideStep = SectionStep | 'quest-sync'
 /** The tips that belong to a section of the app (guideStepFor). */
-export type SectionStep = 'quests' | 'minimap' | 'maps' | 'kappa'
+export type SectionStep = 'quests' | 'maps' | 'kappa'
 
 /** An account registered this recently is new: its owner gets the guide on the computer they sign in on. */
 export const NEW_ACCOUNT_MS = 7 * 24 * 60 * 60 * 1000
@@ -33,7 +33,7 @@ export interface GuideRecord {
 }
 
 const keyOf = (email: string) => `${PREFIX}${email.trim().toLowerCase()}`
-const STEPS: SectionStep[] = ['quests', 'minimap', 'maps', 'kappa']
+const STEPS: SectionStep[] = ['quests', 'maps', 'kappa']
 /** Every step a record may hold: the sections' tips and the quest sync tip of the Overview (QuestSyncTip.tsx). */
 const KNOWN_STEPS: GuideStep[] = [...STEPS, 'quest-sync']
 
@@ -93,12 +93,11 @@ export function guideForAccount(status: ServerAccountStatus | null, now = new Da
 }
 
 /**
- * The section a path belongs to. The PC app (desktop layout) has all four tips; the phone has no story sync or overlay
- * mini map, so only the map checkmarks and the Kappa items.
+ * The section a path belongs to. The PC app (desktop layout) has all three tips; the phone has no story sync, so only
+ * the map checkmarks and the Kappa items. The «Мини Карта» tip went with the in-game overlays (15.10.2026).
  */
 export function guideStepFor(pathname: string, phone: boolean): SectionStep | null {
   if (pathname === '/quests') return phone ? null : 'quests'
-  if (pathname === '/experimental') return phone ? null : 'minimap'
   if (pathname === '/maps' || pathname.startsWith('/maps/')) return 'maps'
   if (pathname === '/kappa-items') return 'kappa'
   return null
