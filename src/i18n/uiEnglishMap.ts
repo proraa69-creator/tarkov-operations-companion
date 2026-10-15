@@ -134,6 +134,10 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/^Этап (\d+):\s*/g, 'Stage $1: '],
   [/^Точка (\d+) из (\d+)$/g, 'Point $1 of $2'],
   [/Переход на карту\s+/g, 'Transit to '],
+  // Quest transit points (src/data/questTransits.ts questTransitTexts).
+  [/Задание продолжается на локаци(?:и|ях)\s+(.+?)\./g, 'The task continues on $1.'],
+  [/Прямого перехода нет — маршрут:\s*(.+?)\s+\(через\s+(.+?)\)\./g, 'No direct transit, route: $1 (via $2).'],
+  [/Условие перехода:\s*/g, 'Transit condition: '],
   [/Иконки на карте:\s*/g, 'Map icons: '],
   [/Вид карты:\s*/g, 'Map view: '],
   [/Выжить на локации\s+(.+?)\s+и выйти или посетить\s+(.+?)\s+3 раза/g, 'Survive and extract from $1 or visit $2 3 times'],
