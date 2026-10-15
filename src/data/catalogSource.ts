@@ -11,6 +11,7 @@ import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
+import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
@@ -57,7 +58,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   // The items as upstream stores them (names are translation keys) and their dictionary: the wiki's Gunsmith tables name
   // parts in English (src/data/wikiGunsmith.ts).
   const rawItems: RawEndpoint = {}
-  const [tasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
+  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
     fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher),
     fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
@@ -68,6 +69,9 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
   ])
 
+  // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
+  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders })
+  const tasks = curated.tasks
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
@@ -84,10 +88,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  const questRows = applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale)
+  ), locale)), locale), curated.added, locale, itemById)
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
