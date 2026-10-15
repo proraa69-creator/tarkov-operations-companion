@@ -19,18 +19,10 @@ let api: {
   shellExecute: ((hwnd: unknown, verb: string, file: string, params: string, dir: string | null, show: number) => number | bigint) | null
   gdi: Gdi | null
   windows: Windows | null
-  inputChild: InputChild | null
   /** Which window is the game's (gameWindow.ts). */
   gameWindow: ((hwnd: unknown) => GameWindowInfo | null) | null
   address: (pointer: unknown) => bigint
 } | null | undefined
-
-/** Window handles as numbers (intptr_t): Electron's getNativeWindowHandle() is a buffer holding the handle, and a buffer
- * passed as a pointer would hand over the buffer's address instead. */
-interface InputChild {
-  find: (parent: number | bigint, after: number | bigint, className: string, title: string | null) => number | bigint
-  visible: (hwnd: number | bigint) => boolean
-}
 
 interface Windows {
   find: (className: string | null, title: string | null) => unknown
@@ -106,10 +98,6 @@ function win32() {
           address: (pointer: unknown) => koffi.address(pointer),
         } as unknown as Windows
       }),
-      inputChild: optional(() => ({
-        find: user32.func('intptr_t __stdcall FindWindowExW(intptr_t hWndParent, intptr_t hWndChildAfter, const char16_t* lpszClass, const char16_t* lpszWindow)'),
-        visible: user32.func('bool __stdcall IsWindowVisible(intptr_t hWnd)'),
-      }) as unknown as InputChild),
       gameWindow: optional(() => createGameWindowCheck(bindGameWindowApi(user32 as KoffiLibrary, optional(() => koffi.load('kernel32.dll') as KoffiLibrary), (pointer) => koffi.address(pointer)))),
       address: (pointer: unknown) => koffi.address(pointer),
     }
@@ -118,27 +106,6 @@ function win32() {
     loadError = process.platform === 'win32' ? (error instanceof Error ? error.message : String(error)) || 'unknown error' : ''
   }
   return api
-}
-
-/**
- * Whether Chromium's input window inside an app window is shown. Chromium takes the mouse through a child window of
- * class «Chrome_RenderWidgetHostHWND»; while it is hidden, every press on a window that cannot be activated (the
- * overlays) is dropped by Windows. `handle` is Electron's getNativeWindowHandle(). Null when it cannot be told: not
- * Windows, the functions are missing, or no such child.
- */
-export function inputChildVisible(handle: Buffer): boolean | null {
-  const calls = win32()?.inputChild
-  if (!calls || handle.length < 4) return null
-  try {
-    const raw = handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0))
-    const parent = raw <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(raw) : raw
-    if (!parent) return null
-    const child = calls.find(parent, 0, 'Chrome_RenderWidgetHostHWND', null)
-    if (!child) return null
-    return Boolean(calls.visible(child))
-  } catch {
-    return null
-  }
 }
 
 /** Empty when the Windows functions (game window, key state, key presses) are available. */
@@ -264,9 +231,9 @@ export function runElevated(file: string, params: string, dir: string) {
 
 /**
  * How Windows sees the foreground full-screen app (SHQueryUserNotificationState):
- * - `exclusive`: a Direct3D exclusive full-screen game. Nothing can be drawn over it —
- *   the same limit every overlay (TarkovRaidCompass, TarkovQuestie, Discord) has.
- * - `fullscreen`: a borderless / optimized full-screen app. Topmost windows are shown over it.
+ * - `exclusive`: a Direct3D exclusive full-screen game. It hides from screen copies (they come out black), so the item
+ *   lookup does not read it.
+ * - `fullscreen`: a borderless / optimized full-screen app: the screen around the cursor can be read.
  * - `normal`: nothing full-screen in front.
  */
 export type DisplayMode = 'exclusive' | 'fullscreen' | 'normal' | 'unknown'
@@ -303,7 +270,7 @@ export function captureScreenRegion(x: number, y: number, width: number, height:
   const previous = memoryDC && bitmap ? gdi.selectObject(memoryDC, bitmap) : null
   try {
     // Plain SRCCOPY: CAPTUREBLT (layered windows too) hides and shows the cursor around every copy — the cursor flickered
-    // with each scan — and only adds our own overlays to the picture.
+    // with each scan — and only adds layered windows (other programs' overlays) to the picture.
     if (!memoryDC || !bitmap || !gdi.bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY)) return null
     // GetDIBits wants the bitmap unselected.
     gdi.selectObject(memoryDC, previous)

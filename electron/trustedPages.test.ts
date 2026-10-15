@@ -10,8 +10,8 @@ const win = { indexFile: WIN_INDEX, windows: true }
 describe('app pages (will-navigate of the main window, IPC senders)', () => {
   it('accepts the renderer file with any route, as Chromium reports it on Windows', () => {
     expect(isAppPageUrl(WIN_URL, win)).toBe(true)
-    expect(isAppPageUrl(`${WIN_URL}#/overlay/item`, win)).toBe(true)
-    expect(isAppPageUrl(`${WIN_URL}?x=1#/overlay/minimap`, win)).toBe(true)
+    expect(isAppPageUrl(`${WIN_URL}#/maps/customs`, win)).toBe(true)
+    expect(isAppPageUrl(`${WIN_URL}?x=1#/settings`, win)).toBe(true)
     expect(isAppPageUrl(WIN_URL.replace('file:///C:/Users/BANGKOK%20PC', 'file:///c:/users/bangkok%20pc'), win)).toBe(true)
     const cyrillic = 'C:\\Users\\Игрок\\AppData\\Local\\Temp\\x\\resources\\app.asar\\dist\\index.html'
     expect(isAppPageUrl(`file:///C:/Users/${encodeURIComponent('Игрок')}/AppData/Local/Temp/x/resources/app.asar/dist/index.html#/`, { indexFile: cyrillic, windows: true })).toBe(true)
@@ -28,7 +28,7 @@ describe('app pages (will-navigate of the main window, IPC senders)', () => {
 
   it('compares POSIX paths exactly', () => {
     const posix = { indexFile: '/opt/Raid OS/resources/app.asar/dist/index.html', windows: false }
-    expect(isAppPageUrl('file:///opt/Raid%20OS/resources/app.asar/dist/index.html#/overlay/item', posix)).toBe(true)
+    expect(isAppPageUrl('file:///opt/Raid%20OS/resources/app.asar/dist/index.html#/maps/customs', posix)).toBe(true)
     expect(isAppPageUrl('file:///opt/raid%20os/resources/app.asar/dist/index.html', posix)).toBe(false)
     expect(isAppPageUrl('file:///opt/Raid%20OS/resources/app.asar/dist/other/index.html', posix)).toBe(false)
   })
@@ -36,7 +36,7 @@ describe('app pages (will-navigate of the main window, IPC senders)', () => {
   it('trusts exactly the dev server origin, and only when there is one', () => {
     const dev = { ...win, devUrl: 'http://127.0.0.1:5173' }
     expect(isAppPageUrl('http://127.0.0.1:5173/', dev)).toBe(true)
-    expect(isAppPageUrl('http://127.0.0.1:5173/#/overlay/minimap', dev)).toBe(true)
+    expect(isAppPageUrl('http://127.0.0.1:5173/#/settings', dev)).toBe(true)
     expect(isAppPageUrl('http://127.0.0.1.evil.com/', dev)).toBe(false)
     expect(isAppPageUrl('http://127.0.0.1.evil.com:5173/', dev)).toBe(false)
     expect(isAppPageUrl('http://127.0.0.1:5174/', dev)).toBe(false)

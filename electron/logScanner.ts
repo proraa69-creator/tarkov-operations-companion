@@ -47,7 +47,7 @@ const HEAD_BYTES = 64
 /**
  * New bytes are parsed a slice of about a megabyte at a time, with a pause for the main process's other work between
  * slices: at the app's start every launch's logs are read, and a log of tens of megabytes held the main process for a
- * second or more at once (the overlays, the hotkeys and the quest scanner waited meanwhile). A big slice is decoded and
+ * second or more at once (the item lookup, the hotkeys and the quest scanner waited meanwhile). A big slice is decoded and
  * parsed on a worker thread (electron/logParser.ts); what a start reads at all is only what is new since the last run.
  */
 const SLICE_BYTES = 1024 * 1024

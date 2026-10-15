@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 /**
  * Which pages the app trusts (pure functions, no Electron: unit-tested in trustedPages.test.ts).
- * Every app window — the main window, the item card and minimap overlays — loads the same renderer page:
+ * The app's window loads the renderer page (there are no other windows since the in-game overlays went, 15.10.2026):
  * dist/index.html from the app (any #route), or in a development run the Vite dev server.
  */
 export interface AppPages {

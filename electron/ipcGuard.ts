@@ -10,8 +10,8 @@ import { isAppPageUrl } from './trustedPages.js'
  * that navigated away) is refused — an invoke rejects with an error, a send is ignored (a sendSync gets null, so the
  * page does not hang).
  *
- * App pages: dist/index.html of this app with any #route — the main window and the item card / minimap overlays
- * (loadRenderer in main.ts, overlayWindow in experimental/index.ts) — or, in a development run only, exactly the
+ * App pages: dist/index.html of this app with any #route — the main window (loadRenderer in main.ts; the in-game
+ * overlay windows went on 15.10.2026, nothing else loads the page) — or, in a development run only, exactly the
  * ELECTRON_RENDERER_URL origin (electron/trustedPages.ts).
  */
 export const APP_INDEX_FILE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'dist', 'index.html')

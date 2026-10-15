@@ -112,27 +112,19 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch: unknown) => ipcRenderer.invoke('experimental:update-settings', patch),
     getStatus: () => ipcRenderer.invoke('experimental:status'),
-    toggleMinimap: () => ipcRenderer.invoke('experimental:toggle-minimap'),
+    pickScreenshotsFolder: () => ipcRenderer.invoke('experimental:pick-screenshots'),
     testItemLookup: () => ipcRenderer.invoke('experimental:test-item'),
     checkScreenshots: () => ipcRenderer.invoke('experimental:check-screenshots'),
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback: (payload: unknown) => void) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    setRemoteMinimap: (enabled: boolean, overlay?: boolean) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true, overlay !== false),
+    setRemoteMinimap: (enabled: boolean) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true),
     answer: (id: number, payload: unknown) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback: (payload: unknown) => void) => subscribe('experimental:query', callback),
     onPosition: (callback: (payload: unknown) => void) => subscribe('experimental:position', callback),
-  },
-  overlaySetInteractive: (value: boolean) => ipcRenderer.send('overlay:interactive', Boolean(value)),
-  overlayResize: (width: number, height: number) => ipcRenderer.send('overlay:resize', Number(width), Number(height)),
-  overlayDrag: (active: boolean) => ipcRenderer.send('overlay:drag', Boolean(active)),
-  overlayHold: (held: boolean) => ipcRenderer.send('overlay:hold', Boolean(held)),
-  overlayZones: (zones: unknown) => ipcRenderer.send('overlay:zones', zones),
-  onOverlay: (channel: string, callback: (payload: unknown) => void) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
-    const unsubscribe = subscribe(channel, callback)
-    ipcRenderer.send('overlay:subscribe', channel)
-    return unsubscribe
+    /** The item lookup's «reading…», card or «not recognised», for «Карты» (no window over the game). */
+    onItem: (callback: (payload: unknown) => void) => subscribe('experimental:item', callback),
+    onCollectorScan: (callback: () => void) => subscribe('experimental:collector-scan', () => callback()),
   },
 })
 

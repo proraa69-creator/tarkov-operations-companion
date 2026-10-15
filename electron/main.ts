@@ -182,10 +182,10 @@ function createWindow() {
       webviewTag: true,
       // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
-      // overlays' questions (experimental:query) and log sync keep working. With `false` a minimized window kept
+      // item lookup's questions (experimental:query) and log sync keep working. With `false` a minimized window kept
       // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
       backgroundThrottling: false,
-      // The players' exe: no DevTools at all (lockDevTools also covers the overlay windows and webviews).
+      // The players' exe: no DevTools at all (lockDevTools also covers webviews).
       devTools: !releaseClient,
     },
   })
@@ -211,7 +211,7 @@ function createWindow() {
     if (!isEmbeddableWebviewUrl(params.src)) event.preventDefault()
   })
 
-  // Overlay windows stay alive while hidden; closing the main window ends the app.
+  // The only window: closing it ends the app.
   mainWindow.on('closed', () => {
     mainWindow = null
     stopExperimental()
@@ -261,8 +261,6 @@ app.whenReady().then(async () => {
     return folder ? (await readRaidState(folder)).inRaid : false
   } })
   if (!serverMode) startExperimental({
-    preload: join(appDir, '../../electron/preload.cjs'),
-    load: loadRenderer,
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),
     logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
@@ -619,7 +617,7 @@ function registerIpc() {
     const names = Array.isArray(raw.names) ? raw.names.filter((name): name is string => typeof name === 'string' && name.length <= 40).slice(0, 120) : undefined
     return scanCollectorScreen({ restart: raw.restart === true, names })
   })
-  // A watched Logs folder tells the raids; otherwise the minimap and the other signs do (electron/experimental/raidSignals.ts).
+  // A watched Logs folder tells the raids; otherwise the screenshots and the movement do (electron/experimental/raidSignals.ts).
   ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(logWatcher.folder()) }))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   // The locked app (sign-in, subscription): the game-start screens only, only right after a new game window (screenOcr.ts).
