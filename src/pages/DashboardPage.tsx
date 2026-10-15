@@ -74,7 +74,7 @@ export function DashboardPage() {
   const raidPrepPurposes = new Set(['place', 'mark', 'key', 'bring'])
   const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => [
     ...(quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })),
-    // The weapon, its parts and the gear a kill objective of this map asks for (the same quests as «Условия квестов»).
+    // The weapon, its parts and the gear a kill objective of this map asks for (the same quests as «Сбор на рейд»).
     ...gearRaidRequirements(quest, selectedMap.id),
   ])
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
@@ -120,7 +120,7 @@ export function DashboardPage() {
 
   const statCards: Blocks = {
     'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
-    'stat-conditions': { label: 'Условия квестов', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`} /> },
+    'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
@@ -198,7 +198,7 @@ export function DashboardPage() {
     </header>
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
-      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Условия квестов» можно сделать узкими и поставить рядом.'
+      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Сбор на рейд» можно сделать узкими и поставить рядом.'
       : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
     {mobile

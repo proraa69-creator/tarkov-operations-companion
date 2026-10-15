@@ -4,6 +4,7 @@ import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
 import { GUARANTEED_SPAWN_TEXT, possibleSpotText } from '../data/mapMarkerAdapter'
 import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
+import { MarkerHintBlock } from './QuestCuratedInfo'
 
 interface MapMarkerTooltipProps {
   marker: MapMarker
@@ -54,6 +55,8 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
       {uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
+      {marker.hint && <MarkerHintBlock hint={marker.hint} />}
       {uiText(!boss && marker.meta && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>

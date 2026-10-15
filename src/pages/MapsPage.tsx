@@ -38,6 +38,7 @@ import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
+import { QuestCuratedRequirements, QuestPointHints } from '../components/QuestCuratedInfo'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -762,6 +763,9 @@ export function MapsPage() {
                   {uiText(sheetPoint?.approximate && (
                     <p className="map-quest-sheet-note"><MapPin size={12} />{uiText(" Точное место этапа неизвестно — метка стоит приблизительно.")}</p>
                   ))}
+                  {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
+                  {!editingTexts && <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} />}
+                  {!editingTexts && <QuestCuratedRequirements quest={relatedQuest} items={data.items} />}
                   {!editingTexts && <RaidGearBlock quest={relatedQuest} mapId={activeMap.id} mapName={(id) => data.maps.find((map) => map.id === id)?.name ?? id} items={data.items} />}
                 </div>
                 <Link
@@ -804,7 +808,7 @@ export function MapsPage() {
           <div className="panel-title">{uiText(questEditor.active ? 'Конструктор квестов' : 'Квесты на карте')}</div>
         </div>
         {questEditor.active ? (
-          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
+          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
         ) : (
           <>
           {featureEnabled('raidBriefing') && route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}

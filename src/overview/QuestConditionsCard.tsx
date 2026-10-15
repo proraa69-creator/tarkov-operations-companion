@@ -184,7 +184,7 @@ function QuestCard({ entry, pictures, mapName, full, className = '', onOpen, ...
 }
 
 /**
- * The Overview card «Условия квестов»: one quest of the raid plan's map with a gear condition, picked at random and kept
+ * The Overview card «Сбор на рейд» (was «Условия квестов»): one quest of the raid plan's map with a gear condition, picked at random and kept
  * while the map and the quests stay the same. Hovering it unfolds the card over the grid (owner, 15.10.2026: «они должны
  * быть не уменьшеные, а полноценные как и основной блок»): the card's quest with all of its info, and every other such
  * quest below as the same full-size card, which shows all of its info in turn when pointed at. A touch: «ещё N». A click
@@ -267,7 +267,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
     fold()
     setDetails(entry)
   }
-  const label = uiText('Условия квестов')
+  const label = uiText('Сбор на рейд')
 
   return <div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">
@@ -279,7 +279,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
     {shown
       ? <QuestCard entry={shown} pictures={pictures} mapName={mapName} onOpen={() => openDetails(shown)} />
       : <p className="qc-empty">{uiText('На этой карте нет квестов с условиями на снаряжение')}</p>}
-    {unfoldable && shown && <div id={popId} className={`qc-pop${open ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!open} role="group" aria-label={uiText(`Условия квестов · ${uiText(map.name)}`)}>
+    {unfoldable && shown && <div id={popId} className={`qc-pop${open ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!open} role="group" aria-label={uiText(`Сбор на рейд · ${uiText(map.name)}`)}>
       <div className="qc-head">
         <div className="stat-label">{label}</div>
         <button ref={foldRef} type="button" className="qc-count" aria-expanded={open} aria-controls={popId} onClick={fold}>
@@ -415,7 +415,7 @@ export function QuestConditionsDialog({ entry, mapId, mapName, pictures, onClose
     <section className="panel quest-conditions-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="panel-header">
         <div className="qc-dialog-title">
-          <span className="stat-label">{uiText('Снаряжение для рейда')}</span>
+          <span className="stat-label">{uiText('Сбор на рейд')}</span>
           <h3 id={titleId}>{uiText(quest.name)}</h3>
           <small>{uiText(quest.trader)}</small>
         </div>

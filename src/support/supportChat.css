@@ -43,8 +43,31 @@
 .support-chat-error > svg { flex: none; }
 .support-chat-signin { flex: 1 1 auto; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 20px 0; text-align: center; border-block: 1px solid var(--line); }
 .support-chat-signin p { margin: 0; max-width: 300px; }
-.support-chat-telegram { margin: 0; color: var(--text-dim); font-size: 12px; text-align: center; }
-.support-chat-telegram a { color: var(--brass-strong, var(--brass)); }
+/* «Написать в Telegram» (owner, 15.10.2026): a button under the chat, signed in or not. */
+.support-chat-telegram { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; color: var(--text-dim); font-size: 12.5px; }
+.support-chat-telegram .button { gap: 6px; }
+
+/* Screenshots (owner, 15.10.2026): thumbnails in the bubble sized before they arrive; the box's waiting ones above it. */
+.support-chat-message.has-images { padding-top: 6px; }
+.support-chat-images { display: flex; flex-wrap: wrap; gap: 4px; }
+.support-chat-image {
+  display: grid; place-items: center; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surf-2, #0b0d0c); color: var(--text-dim); cursor: zoom-in;
+}
+.support-chat-image:disabled { cursor: default; }
+.support-chat-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.support-chat-image:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .support-chat-image:not(:disabled):hover { border-color: var(--brass); } }
+.support-chat-shots { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.support-chat-shots li { position: relative; display: grid; place-items: center; width: 64px; height: 64px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surf-2, #0b0d0c); }
+.support-chat-shots img { width: 100%; height: 100%; object-fit: cover; }
+.support-chat-shots button {
+  position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 22px; height: 22px; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer;
+}
+.support-chat-attach { flex: none; min-width: 46px; padding-inline: 0; }
+/* Files dragged over the window. */
+.support-chat-dialog.is-dropping, .owner-chat-thread.is-dropping, .support-chat-compose.is-dropping { outline: 2px dashed var(--brass); outline-offset: -6px; }
 
 @keyframes support-chat-pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 @keyframes support-chat-in { from { opacity: 0; transform: translateY(4px); } }
@@ -58,6 +81,11 @@
 :root[data-layout="mobile"] .support-chat-head h2 { font-size: 19px; }
 :root[data-layout="mobile"] .support-chat-message { max-width: 88%; }
 :root[data-layout="mobile"] .support-chat-hint { display: none; }
+/* The phone: the paperclip, the box and the send arrow on one row (the word «Отправить» stays for screen readers). */
+:root[data-layout="mobile"] .support-chat-compose-row .button.primary { min-width: 46px; padding-inline: 0; }
+:root[data-layout="mobile"] .support-chat-compose-row .button.primary > span {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 
 /* «Новое сообщение от поддержки» (SupportNotice): top right under the top bar and the owner's notice, over the pages and
    under the dialogs (.registration-overlay is 3000); the trader restock notes keep the bottom corner. The phone: across

@@ -13,6 +13,7 @@ const ACTION_LABEL: Record<string, string> = {
   'map.boss-remove': 'Босс убран с карты',
   'map.quest-point': 'Исправлена точка квеста',
   'map.quest-text': 'Исправлен текст квеста',
+  'map.quest-requirement': 'Изменено требование квеста',
   'subscription.grant': 'Выдана подписка',
   'autopay.cancel': 'Отменено автопродление',
   'account.block': 'Заблокирован вход',

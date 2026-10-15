@@ -9,10 +9,15 @@ import type { DatabaseSync } from 'node:sqlite'
  * - `move`: the point `markerId` (an app marker id: `quest-zone-<quest>-<zone>`, `quest-item-…`, `<map>-<quest>-stage-N`)
  *   is drawn at x / z instead (and on `floor`, absent = main level);
  * - `hide`: the point `markerId` is not drawn; x / z keep where it stood, so the editor can show it greyed out;
- * - `add`: an extra point of the quest (of `objectiveId` or story `stageIndex` when given).
+ * - `add`: an extra point of the quest (of `objectiveId` or story `stageIndex` when given);
+ * - `describe`: the point `markerId` stays where the catalog has it and only gets the description below.
  * Positions are game metres (x / z), the same as the map markers of the catalog.
+ *
+ * Every point (moved, added or described) may carry a player-facing description «где и что искать» (owner, 15.10.2026):
+ * `title` / `description` in Russian and optionally `titleEn` / `descriptionEn`. Every player sees them on the map. The
+ * `note` is the owner's own remark and never leaves the owner's routes.
  */
-export type QuestPointKind = 'move' | 'add' | 'hide'
+export type QuestPointKind = 'move' | 'add' | 'hide' | 'describe'
 
 export interface QuestPointOverride {
   id: string
@@ -26,6 +31,12 @@ export interface QuestPointOverride {
   z: number
   floor?: string
   kind: QuestPointKind
+  /** Player-facing: a short title and «где и что искать» (RU; EN optional). */
+  title?: string
+  titleEn?: string
+  description?: string
+  descriptionEn?: string
+  /** The owner's own remark: never in the public list. */
   note?: string
   updatedBy: string
   updatedAt: string
@@ -39,7 +50,11 @@ export const MAX_QUEST_POINT_OVERRIDES = 5000
 interface Row {
   id: string; quest_id: string; marker_id: string | null; objective_id: string | null; stage_index: number | null
   map_id: string; x: number; z: number; floor: string | null; kind: string; note: string | null; updated_by: string; updated_at: string
+  title: string | null; title_en: string | null; description: string | null; description_en: string | null
 }
+
+/** Columns added after the first release of the table (point descriptions, 15.10.2026). */
+const TEXT_COLUMNS = ['title', 'title_en', 'description', 'description_en'] as const
 
 export class QuestPointStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
@@ -59,6 +74,8 @@ export class QuestPointStore {
         updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS quest_point_overrides_quest ON quest_point_overrides(quest_id);
       CREATE UNIQUE INDEX IF NOT EXISTS quest_point_overrides_marker ON quest_point_overrides(marker_id) WHERE marker_id IS NOT NULL;`)
+    const columns = new Set((db.prepare('PRAGMA table_info(quest_point_overrides)').all() as Array<{ name: string }>).map((column) => column.name))
+    for (const column of TEXT_COLUMNS) if (!columns.has(column)) db.exec(`ALTER TABLE quest_point_overrides ADD COLUMN ${column} TEXT`)
   }
 
   list(): QuestPointOverride[] {
@@ -74,7 +91,7 @@ export class QuestPointStore {
   /**
    * Saves a correction. `id` updates that override; otherwise a move / hide replaces the override of the same original
    * point (one correction per point) and an add creates a new one.
-   * `missing`: no override with that id; `full`: the table is full; `invalid`: move / hide without a marker id.
+   * `missing`: no override with that id; `full`: the table is full; `invalid`: move / hide / describe without a marker id.
    */
   save(input: QuestPointInput, actor: string, id?: string): QuestPointOverride | 'missing' | 'full' | 'invalid' {
     if (input.kind !== 'add' && !input.markerId) return 'invalid'
@@ -101,15 +118,22 @@ export class QuestPointStore {
       note: input.note ?? null,
       updated_by: actor,
       updated_at: new Date(this.now()).toISOString(),
+      title: input.title ?? null,
+      title_en: input.titleEn ?? null,
+      description: input.description ?? null,
+      description_en: input.descriptionEn ?? null,
     }
     // An update by id may point the override at another original point: that point's own override gives way.
     if (existing && markerId) this.db.prepare('DELETE FROM quest_point_overrides WHERE marker_id = ? AND id <> ?').run(markerId, existing.id)
-    this.db.prepare(`INSERT INTO quest_point_overrides (id, quest_id, marker_id, objective_id, stage_index, map_id, x, z, floor, kind, note, updated_by, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    this.db.prepare(`INSERT INTO quest_point_overrides (id, quest_id, marker_id, objective_id, stage_index, map_id, x, z, floor, kind, note, updated_by, updated_at,
+          title, title_en, description, description_en)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET quest_id = excluded.quest_id, marker_id = excluded.marker_id, objective_id = excluded.objective_id,
           stage_index = excluded.stage_index, map_id = excluded.map_id, x = excluded.x, z = excluded.z, floor = excluded.floor,
-          kind = excluded.kind, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
-      .run(row.id, row.quest_id, row.marker_id, row.objective_id, row.stage_index, row.map_id, row.x, row.z, row.floor, row.kind, row.note, row.updated_by, row.updated_at)
+          kind = excluded.kind, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at,
+          title = excluded.title, title_en = excluded.title_en, description = excluded.description, description_en = excluded.description_en`)
+      .run(row.id, row.quest_id, row.marker_id, row.objective_id, row.stage_index, row.map_id, row.x, row.z, row.floor, row.kind, row.note, row.updated_by, row.updated_at,
+        row.title, row.title_en, row.description, row.description_en)
     return toOverride(row)
   }
 
@@ -133,7 +157,11 @@ function toOverride(row: Row): QuestPointOverride {
     x: Number(row.x),
     z: Number(row.z),
     ...(row.floor ? { floor: row.floor } : {}),
-    kind: row.kind === 'hide' || row.kind === 'add' ? row.kind : 'move',
+    kind: row.kind === 'hide' || row.kind === 'add' || row.kind === 'describe' ? row.kind : 'move',
+    ...(row.title ? { title: row.title } : {}),
+    ...(row.title_en ? { titleEn: row.title_en } : {}),
+    ...(row.description ? { description: row.description } : {}),
+    ...(row.description_en ? { descriptionEn: row.description_en } : {}),
     ...(row.note ? { note: row.note } : {}),
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,

@@ -91,6 +91,7 @@ export function QuestReportSection({ value, onChange, disabled }: { value: Quest
           <input className="input" value={query} disabled={disabled} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найдите квест по названию…')} aria-label={uiText('Найти квест')} />
         </label>
         {query.trim().length >= 2 && !results.length && <small className="dim">{uiText('Квест не найден')}</small>}
+        {!results.length && query.trim().length < 2 && <small className="dim">{uiText('Выберите квест — затем можно выбрать карту и отметить точку.')}</small>}
         <ul className="quest-point-results">
           {results.map((entry) => (
             <li key={entry.id}>
@@ -119,12 +120,16 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
   const set = (patch: Partial<QuestReportDraft>) => onChange({ ...value, ...patch })
   const pointIssue = POINT_ISSUES.includes(value.issue)
   const goals = useMemo(() => questGoals(quest, markers), [quest, markers])
+  // Every map can be chosen (owner, 15.10.2026: «нужно добавить выбор карты и возможность поставить точку»): the quest's
+  // own maps first, then the others — a point may belong on a map the catalog does not list for the quest.
   const questMaps = useMemo(() => {
     const ids = new Set([...(counts.get(quest.id)?.keys() ?? []), ...(quest.mapIds ?? []), ...(quest.mapId ? [quest.mapId] : [])])
-    const listed = maps.filter((map) => ids.has(map.id))
-    return listed.length ? listed : maps
+    return maps.filter((map) => ids.has(map.id))
   }, [counts, quest, maps])
-  const map = maps.find((entry) => entry.id === value.mapId) ?? questMaps[0]
+  const otherMaps = useMemo(() => maps.filter((map) => !questMaps.includes(map)), [maps, questMaps])
+  const map = maps.find((entry) => entry.id === value.mapId) ?? questMaps[0] ?? maps[0]
+  // The floor shown on the report map; a placed point takes it.
+  const [floor, setFloor] = useState(value.point?.floor ?? '')
   const points = useMemo(() => (map ? markers.filter((marker) => marker.questId === quest.id && marker.mapId === map.id && isQuestPoint(marker)) : []), [markers, quest.id, map])
   const wrong = points.find((marker) => marker.id === value.markerId)
   return (
@@ -149,11 +154,16 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
       {pointIssue && map && (
         <>
           <div className="quest-report-map-head">
-            <select className="input" value={map.id} disabled={disabled} onChange={(event) => set({ mapId: event.target.value, markerId: undefined, point: undefined })} aria-label={uiText('Карта')}>
-              {questMaps.map((entry) => <option key={entry.id} value={entry.id}>{uiText(entry.name)}</option>)}
+            <select className="input" value={map.id} disabled={disabled} onChange={(event) => { setFloor(''); set({ mapId: event.target.value, markerId: undefined, point: undefined }) }} aria-label={uiText('Карта')}>
+              {questMaps.length > 0 && <optgroup label={uiText('Карты квеста')}>
+                {questMaps.map((entry) => <option key={entry.id} value={entry.id}>{uiText(entry.name)}</option>)}
+              </optgroup>}
+              {otherMaps.length > 0 && <optgroup label={uiText('Другие карты')}>
+                {otherMaps.map((entry) => <option key={entry.id} value={entry.id}>{uiText(entry.name)}</option>)}
+              </optgroup>}
             </select>
             {map.layers && map.layers.length > 1 && (
-              <select className="input" value={value.point?.floor ?? ''} disabled={disabled || !value.point} onChange={(event) => value.point && set({ point: { ...value.point, floor: event.target.value || undefined } })} aria-label={uiText('Этаж')}>
+              <select className="input" value={floor} disabled={disabled} onChange={(event) => { const next = event.target.value; setFloor(next); if (value.point) set({ point: { x: value.point.x, z: value.point.z, ...(next ? { floor: next } : {}) } }) }} aria-label={uiText('Этаж')}>
                 <option value="">{uiText(mainFloor(map))}</option>
                 {map.layers.filter((layer) => layer.name !== mainFloor(map)).map((layer) => <option key={layer.name} value={layer.name}>{uiText(layer.name)}</option>)}
               </select>
@@ -164,11 +174,12 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
             : 'Нажмите на карте место, где должна быть точка. Метку можно перетащить.')}</small>
           <QuestPointPicker
             map={map}
+            floor={floor}
             points={points}
             wrongId={value.markerId}
             proposal={value.point}
             onPickWrong={(marker) => set({ markerId: marker.id === value.markerId ? undefined : marker.id, ...(marker.objectiveId ? { goal: `o:${marker.objectiveId}` } : marker.stageIndex != null ? { goal: `s:${marker.stageIndex}` } : {}) })}
-            onPlace={(x, z) => set({ point: { x, z, ...(value.point?.floor ? { floor: value.point.floor } : {}) } })}
+            onPlace={(x, z) => set({ point: { x, z, ...(floor ? { floor } : {}) } })}
           />
           <div className="quest-report-picked">
             <span><MapPin size={12} />{wrong ? uiText('Неверная точка выбрана') : uiText(value.issue === 'wrong-point' ? 'Неверная точка не выбрана' : 'Точек квеста на этой карте: ') + (value.issue === 'wrong-point' ? '' : String(points.length))}</span>
@@ -186,12 +197,12 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
 const proposalIcon = divIcon({ className: 'marker-icon', html: '<div class="quest-report-pin"><span></span></div>', iconSize: [24, 24], iconAnchor: [12, 12] })
 
 /** The map of the report: the quest's points (a click marks the wrong one), a click elsewhere places the proposed spot. */
-function QuestPointPicker({ map, points, wrongId, proposal, onPickWrong, onPlace }: {
-  map: GameMap; points: MapMarker[]; wrongId?: string; proposal?: { x: number; z: number }
+function QuestPointPicker({ map, floor, points, wrongId, proposal, onPickWrong, onPlace }: {
+  map: GameMap; floor?: string; points: MapMarker[]; wrongId?: string; proposal?: { x: number; z: number }
   onPickWrong: (marker: MapMarker) => void; onPlace: (x: number, z: number) => void
 }) {
   const crs = useMemo(() => createMapCrs(map), [map])
-  const level = mainFloor(map)
+  const level = floor || mainFloor(map)
   const plan = useMemo(() => planMapLayers(map, 'satellite', level), [map, level])
   return (
     <div className="quest-report-map" aria-label={uiText('Карта квеста')}>

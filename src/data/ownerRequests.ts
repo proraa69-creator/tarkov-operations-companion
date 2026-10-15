@@ -4,7 +4,7 @@ import { serviceClient } from '../account/nicknameBinding'
 import { isOwnerApp } from '../app/buildEdition'
 import { useServerAccount } from '../sync/serverSync'
 import type { QuestIssue, ReportCategory, ReportMode } from '../shared/reportCategories'
-import { cleanSupportMessage, cleanSupportMessages, type SupportMessage } from '../support/supportChatClient'
+import { cleanSupportMessage, cleanSupportMessages, supportMessageBody, type SupportImageUpload, type SupportMessage } from '../support/supportChatClient'
 
 /**
  * «Заявки» in the owner app (owner, 13.10.2026: «в админ приложении добавь снизу слева кнопку заявки и если они
@@ -219,13 +219,13 @@ export function useOwnerChat(accountId: string | null) {
   })
 }
 
-/** The owner's answer and «прочитано»; both refresh the conversations. */
+/** The owner's answer (with screenshots, owner 15.10.2026) and «прочитано»; both refresh the conversations. */
 export function useOwnerChatActions() {
   const client = useQueryClient()
   const refresh = useCallback(() => client.invalidateQueries({ queryKey: OWNER_CHATS_KEY }), [client])
   return {
-    reply: useCallback(async (accountId: string, message: string) => {
-      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, { text: message }) as { message?: unknown } | null
+    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = []) => {
+      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads)) as { message?: unknown } | null
       await refresh()
       return cleanSupportMessage(answer?.message)
     }, [refresh]),

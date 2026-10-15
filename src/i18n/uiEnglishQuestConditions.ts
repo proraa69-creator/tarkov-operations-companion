@@ -1,6 +1,6 @@
 /** English for «Условия квестов» on the Overview (src/overview/QuestConditionsCard.tsx, src/overview/conditionText.ts). */
 export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
-  ['Условия квестов', 'Quest conditions'],
+  ['Сбор на рейд', 'Raid loadout'],
   ['На этой карте нет квестов с условиями на снаряжение', 'No quests with gear conditions on this map'],
   ['Подробнее о сборке и предметах', 'The build and the items in detail'],
   ['Подходит и другое оружие из списка', 'Other weapons of the list count too'],

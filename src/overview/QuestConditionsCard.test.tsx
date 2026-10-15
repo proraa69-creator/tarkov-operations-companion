@@ -64,7 +64,7 @@ afterEach(() => { setRenderLanguage('ru'); vi.unstubAllGlobals() })
 describe('QuestConditionsCard', () => {
   it('shows one quest: its name, the maps as chips, the weapon picture, the parts as icons and a short line', () => {
     renderCard([patriot])
-    expect(within(card()).getByText('Условия квестов')).toBeInTheDocument()
+    expect(within(card()).getByText('Сбор на рейд')).toBeInTheDocument()
     expect(shownName()).toBe('Работа для патриота')
     expect([...card().querySelectorAll('.qc-main .qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', '+1'])
     // the whole AK-12 (its default preset), then the scope and the suppressor
@@ -177,7 +177,7 @@ describe('QuestConditionsCard', () => {
   it('speaks English', () => {
     setRenderLanguage('en')
     renderCard([shooter, patriot])
-    expect(card()).toHaveTextContent('Quest conditions')
+    expect(card()).toHaveTextContent('Raid loadout')
     expect(within(card()).getByRole('button', { name: /1 more/ })).toBeInTheDocument()
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
     fireEvent.pointerEnter(within(card().querySelector('.qc-list') as HTMLElement).getByText('Тарковский стрелок. Часть 1').closest('button')!, { pointerType: 'mouse' })
