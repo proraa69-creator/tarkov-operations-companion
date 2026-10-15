@@ -12,8 +12,15 @@ import type { RaidState } from '../src/import/raidState.js'
  *   a little later, whether another install of the game got the newer launch.
  * - Identity first: the newest launches' application logs give the mode, each mode's game account and profile, published
  *   as an identity-only scan; then every launch is read (the kept logs make that quick after the first run).
- * - Every 5 s: the raid state of the newest launch; outside a raid the full scan, published only when its signature
- *   changed (a PvP hand-in while a Season event was last in the list used to go unpublished).
+ * - Constant tracking (owner, 15.10.2026: «сделай постоянное отслеживание журналов»): the Logs folder is watched
+ *   (`watchFolder`, fs.watch with new launch folders and files), and every change polls within a second — the raid state
+ *   of the newest launch and, outside a raid, the scan of what was appended (the scanner reads only the new bytes, never
+ *   a whole log again). A slow safety poll (LOG_SAFETY_POLL_MS) catches what a watch missed; while the watch is down
+ *   (an error, EBUSY/EPERM, a rotated or deleted folder) the fast poll stands in and the watch restarts with backoff. A
+ *   folder that disappears is looked for again, and followed again when it reappears or the game starts. Nothing the app
+ *   does stops it: the first scan, «the logs hold the whole history», a reset, a sign-out, a hidden window.
+ * - Each scan is published only when its signature changed (a PvP hand-in while a Season event was last in the list
+ *   used to go unpublished). The watch state goes to the page as `logs:watch-state` (src/import/logStatus.ts).
  * - Resets count only for the catalog's trader quests (setQuestIds): before the page told them, none is detected.
  *
  * No Electron here: main.ts passes the file and window functions (unit-tested in logWatcher.test.ts).
@@ -33,7 +40,14 @@ export interface LogWatcherDeps {
   scan(root: string, options: { trustedQuestIds?: Partial<Record<RaidMode, ReadonlySet<string>>> }): Promise<ModeLogScanResult>
   identity(root: string, options: { trustedQuestIds?: Partial<Record<RaidMode, ReadonlySet<string>>> }): Promise<ModeLogScanResult>
   raidState(root: string): Promise<RaidState>
-  send(channel: 'logs:updated' | 'game:raid-state', payload: unknown): void
+  send(channel: 'logs:updated' | 'game:raid-state' | 'logs:watch-state', payload: unknown): void
+  /**
+   * Watches a Logs folder and its launch folders (fs.watch, recursive): `onChange` on any change, `onError` when the
+   * watch broke. Returns the function that ends the watch. Without it the folder is polled at LOG_POLL_MS.
+   */
+  watchFolder?(root: string, onChange: () => void, onError: (error: unknown) => void): () => void
+  /** Whether the folder still exists (a deleted or moved Logs folder is looked for again). */
+  exists?(root: string): Promise<boolean>
   /** The game's window in front (its handle and process), null for any other: a value not seen before is a game start. */
   gameWindow?(): string | null
   /** A folder is followed now (it may be watched by the page's requests, and is remembered for the next start). */
@@ -47,7 +61,18 @@ export interface LogWatcherDeps {
   saveCache?(): Promise<unknown>
 }
 
+/** The poll while the folder is not watched (no watch, or it is down): the raid state and appended lines within seconds. */
 export const LOG_POLL_MS = 5_000
+/** The safety poll while the folder is watched: catches what a watch missed. */
+export const LOG_SAFETY_POLL_MS = 45_000
+/** A burst of changes (a log written line by line) polls once, this long after the first. */
+export const WATCH_DEBOUNCE_MS = 400
+/** The watch restarts after an error this long later, doubled each time up to WATCH_RETRY_MAX_MS. */
+export const WATCH_RETRY_MS = 1_000
+export const WATCH_RETRY_MAX_MS = 60_000
+
+/** What the page shows (src/import/logStatus.ts): followed by a watch, by polling only, or nothing followed. */
+export interface LogWatchState { folder: string; mode: 'watch' | 'poll' | 'none'; changedAt?: number }
 /** No Logs folder yet: looked for again this often (the places known already). */
 export const LOG_RETRY_MS = 60_000
 /** The game's window is looked for this often (two cheap Windows calls). */
@@ -74,6 +99,8 @@ export interface LogWatcher {
   setQuestIds(mode: RaidMode, ids: readonly string[]): Promise<boolean>
   /** One poll now (tests; the timer does the same). */
   poll(): Promise<void>
+  /** How the folder is followed now. */
+  watchState(): LogWatchState
 }
 
 export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
@@ -96,6 +123,13 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
   let lastGameWindow: string | null = null
   let lastCacheSave = 0
   let cacheTimer: ReturnType<typeof setTimeout> | null = null
+  let closeWatch: (() => void) | null = null
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let watchRetryTimer: ReturnType<typeof setTimeout> | null = null
+  let watchFailures = 0
+  let watchMode: LogWatchState['mode'] = 'none'
+  let changedAt: number | undefined
+  let pollPace = 0
   /** Who waits for the identity of the followed folder (ready): told once it is published, or the poll gave up. */
   let identityWaiters: Array<() => void> = []
   /** Per mode, the ids as the page sent them; `trusted` is the one object a scan gets (a new one = summarize again). */
@@ -122,6 +156,85 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     lastSignature = signature
     latest = { ...result, signature, folder: root }
     deps.send('logs:updated', latest)
+    changedAt = Date.now()
+    sendWatchState()
+  }
+
+  function sendWatchState() {
+    deps.send('logs:watch-state', { folder, mode: watchMode, ...(changedAt ? { changedAt } : {}) } satisfies LogWatchState)
+  }
+
+  function setWatchMode(mode: LogWatchState['mode']) {
+    if (mode === watchMode) return
+    watchMode = mode
+    sendWatchState()
+  }
+
+  /** The poll's pace: slow while the watch works, fast while it does not. */
+  function schedulePolls() {
+    const pace = folder ? (watchMode === 'watch' ? LOG_SAFETY_POLL_MS : LOG_POLL_MS) : 0
+    // The same pace keeps its timer: a watch failing again and again must not keep postponing the fast poll.
+    if (pollTimer && pace === pollPace) return
+    if (pollTimer) clearInterval(pollTimer)
+    pollPace = pace
+    pollTimer = pace ? setInterval(() => { void poll() }, pace) : null
+  }
+
+  function stopWatch() {
+    closeWatch?.()
+    closeWatch = null
+    for (const timer of [debounceTimer, watchRetryTimer]) if (timer) clearTimeout(timer)
+    debounceTimer = watchRetryTimer = null
+  }
+
+  /** Watches `root`; on an error the fast poll stands in and the watch starts again with backoff. */
+  function startWatch(root: string) {
+    stopWatch()
+    if (!deps.watchFolder) { setWatchMode('poll'); schedulePolls(); return }
+    try {
+      closeWatch = deps.watchFolder(root, () => {
+        if (root !== folder || debounceTimer) return
+        debounceTimer = setTimeout(() => { debounceTimer = null; void poll() }, WATCH_DEBOUNCE_MS)
+      }, () => { if (root === folder) watchBroke(root) })
+      watchFailures = 0
+      setWatchMode('watch')
+    } catch {
+      watchBroke(root)
+      return
+    }
+    schedulePolls()
+  }
+
+  function watchBroke(root: string) {
+    closeWatch?.()
+    closeWatch = null
+    setWatchMode('poll')
+    schedulePolls()
+    if (watchRetryTimer) return
+    const wait = Math.min(WATCH_RETRY_MAX_MS, WATCH_RETRY_MS * 2 ** watchFailures)
+    watchFailures += 1
+    watchRetryTimer = setTimeout(() => {
+      watchRetryTimer = null
+      if (root !== folder) return
+      void (deps.exists?.(root) ?? Promise.resolve(true)).catch(() => false).then((there) => {
+        if (root !== folder) return
+        if (there) startWatch(root)
+        else folderGone(root)
+      })
+    }, wait)
+  }
+
+  /** The followed folder is gone (deleted, moved, a drive away): followed no more, looked for again until found. */
+  function folderGone(root: string) {
+    if (root !== folder) return
+    stopWatch()
+    if (pollTimer) clearInterval(pollTimer)
+    pollTimer = null
+    folder = ''
+    latest = null
+    lastSignature = ''
+    setWatchMode('none')
+    void find(true)
   }
 
   function scheduleCacheSave() {
@@ -143,6 +256,7 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
   async function pollOnce() {
     const root = folder
     if (!root) return
+    if (deps.exists && !await deps.exists(root).catch(() => false)) { folderGone(root); return }
     const next = await deps.raidState(root).catch((): RaidState => ({ inRaid: false }))
     if (root !== folder) return
     const changed = next.inRaid !== raid.inRaid
@@ -190,6 +304,7 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
   function watch(next: string) {
     if (!next || (next === folder && pollTimer)) return
     if (pollTimer) clearInterval(pollTimer)
+    pollTimer = null
     folder = next
     notFound = false
     latest = null
@@ -197,7 +312,7 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     identityDone = false
     firstPoll = true
     deps.onFolder?.(next)
-    pollTimer = setInterval(() => { void poll() }, LOG_POLL_MS)
+    startWatch(next)
     void poll()
   }
 
@@ -242,6 +357,10 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
   }
 
   function stop() {
+    stopWatch()
+    watchMode = 'none'
+    watchFailures = 0
+    changedAt = undefined
     for (const timer of [pollTimer, retryTimer, gameTimer]) if (timer) clearInterval(timer)
     for (const timer of [recheckTimer, cacheTimer]) if (timer) clearTimeout(timer)
     pollTimer = retryTimer = gameTimer = null
@@ -289,6 +408,7 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     watch,
     setQuestIds,
     poll,
+    watchState: () => ({ folder, mode: watchMode, ...(changedAt ? { changedAt } : {}) }),
   }
 }
 

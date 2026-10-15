@@ -19,7 +19,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
-import { normalizeCountry } from '../../../src/shared/countries'
+import { cleanManualCountry, countryByName, MANUAL_COUNTRY_CODE, normalizeCountry } from '../../../src/shared/countries'
 import { openDatabase } from './database.js'
 
 export type AccountKind = 'user' | 'streamer'
@@ -59,6 +59,8 @@ interface Account {
   nicknames: Partial<Record<AccountMode, string>>
   /** The country named at registration (ISO 3166-1 alpha-2); none for accounts from before 13.10.2026 until they set it. */
   country?: string
+  /** A country typed by hand («Моей страны нет в списке», country = MANUAL_COUNTRY_CODE): the player's own text. */
+  countryOther?: string
   /** End of the free period once it has started. None for older accounts and while it waits for the first app sign-in. */
   trialEndsAt?: number
   /** The free period not started yet (a day, three with a streamer's code): it starts at the first sign-in in an app. */
@@ -121,6 +123,13 @@ export interface AccountView {
    * the question (13.10.2026) until the player sets it in the cabinet.
    */
   country?: string
+  /** «XX» (MANUAL_COUNTRY_CODE): the country the player typed by hand, as typed (src/shared/countries.ts). */
+  countryOther?: string
+  /**
+   * The account has no country yet: the apps and the cabinet show «Укажите страну» until it is set (POST
+   * /v1/accounts/me/initial-country). Absent once it has one, and from servers before 15.10.2026 (no window then).
+   */
+  needsCountry?: true
   /** `lifetime`: streamers use the service free of charge, for good. */
   subscription: {
     status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true
@@ -204,6 +213,10 @@ export function eftDigest(eftAccountId: string) {
 /** A country that is not an assigned ISO 3166-1 code (src/shared/countries.ts). */
 export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. Выберите страну из списка.'
 /** A registration without a country: only an app from before the question (13.10.2026) sends one, its form has no field. */
+/** «Ввести вручную»: what the server keeps of a country typed by hand (src/shared/countries.ts cleanManualCountry). */
+export const MANUAL_COUNTRY_MESSAGE = 'Название страны: до 60 символов, только буквы, пробелы и дефисы.'
+/** «Укажите страну» once the account has one: changing it is «Страна» in the cabinet. */
+export const COUNTRY_ALREADY_SET = 'Страна уже указана. Изменить её можно в личном кабинете.'
 export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
@@ -317,6 +330,7 @@ function toAccount(row: Row | undefined): Account | undefined {
     referredAt: row.referred_at == null ? undefined : Number(row.referred_at),
     nicknames: parseNicknames(row.nicknames),
     country: row.country == null ? undefined : String(row.country),
+    countryOther: row.country_other == null ? undefined : String(row.country_other),
     trialEndsAt: row.trial_ends_at == null ? undefined : Number(row.trial_ends_at),
     trialPendingMs: row.trial_pending_ms == null ? undefined : Number(row.trial_pending_ms),
     trialDenied: row.trial_denied != null,
@@ -444,6 +458,11 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // The country named at registration (owner, 13.10.2026: «при регистрации нужно указать страну»): an ISO 3166-1
   // alpha-2 code from src/shared/countries.ts. NULL for the accounts from before; they can set it in the cabinet.
   ['country', 'TEXT'],
+  // «Укажите страну» (owner, 15.10.2026): a country typed by hand (country = 'XX', MANUAL_COUNTRY_CODE), and when an
+  // account without a country got one (NULL: it had one from registration or from before this column) — the owner's
+  // notices to «Не указана» still reach the accounts that had none when they were sent (services/noticeStore.ts).
+  ['country_other', 'TEXT'],
+  ['country_set_at', 'INTEGER'],
 ]
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
@@ -686,6 +705,8 @@ export class AccountStore {
       ...(primaryNickname(account.nicknames) ? { nickname: primaryNickname(account.nicknames) } : {}),
       nicknames: nicknamesFor(primaryNickname(account.nicknames)),
       ...(account.country ? { country: account.country } : {}),
+      ...(account.country === MANUAL_COUNTRY_CODE && account.countryOther ? { countryOther: account.countryOther } : {}),
+      ...(account.country ? {} : { needsCountry: true as const }),
       // An ended free period stays in the view while nothing was ever paid: the app then says the trial is over.
       subscription: trialEndsAt === undefined || (trialEndsAt <= this.now() && paidUntil !== undefined) ? { status: 'inactive' }
         : { status: trialEndsAt > this.now() ? 'trial' : 'inactive', trialEndsAt: new Date(trialEndsAt).toISOString() },
@@ -865,6 +886,19 @@ export class AccountStore {
     return this.findByEmail(email) !== undefined
   }
 
+  /**
+   * «Написать пользователю» (owner, 15.10.2026: «сделай что бы прям в приложении я мог найти человека по почте и написать
+   * ему»): live accounts whose e-mail contains `query` (any letter case), the ones that start with it first, at most
+   * `limit`. Ids only; the owner's route adds what it shows (routes/supportChat.ts).
+   */
+  searchByEmail(query: string, limit = 20): string[] {
+    const text = query.trim().toLowerCase()
+    if (!text) return []
+    const escaped = text.replace(/[\\%_]/g, (char) => `\\${char}`)
+    return (this.db.prepare(`SELECT id FROM accounts WHERE deleted_at IS NULL AND LOWER(email) LIKE ? ESCAPE '\\'
+      ORDER BY CASE WHEN LOWER(email) LIKE ? ESCAPE '\\' THEN 0 ELSE 1 END, email LIMIT ?`).all(`%${escaped}%`, `${escaped}%`, limit) as Row[]).map((row) => String(row.id))
+  }
+
   /** Whether this id is a live account: a deleted one stays only as an anonymous stub (deleteAccount). */
   exists(accountId: string) {
     return this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND deleted_at IS NULL').get(accountId) !== undefined
@@ -952,7 +986,35 @@ export class AccountStore {
    */
   setCountry(accountId: string, country: string) {
     const account = this.mustGet(accountId)
-    this.db.prepare('UPDATE accounts SET country = ? WHERE id = ?').run(storedCountry(country), account.id)
+    const code = storedCountry(country)
+    // A listed country replaces one typed by hand; the first country an account gets is dated (country_set_at).
+    this.db.prepare('UPDATE accounts SET country = ?, country_other = NULL, country_set_at = CASE WHEN country IS NULL THEN ? ELSE country_set_at END WHERE id = ?').run(code, this.now(), account.id)
+  }
+
+  /**
+   * «Укажите страну» (owner, 15.10.2026): the window over the apps and the cabinet for an account without a country. Only
+   * while it has none (409 COUNTRY_ALREADY_SET otherwise: changing it stays «Страна» in the cabinet). `country`: a listed
+   * code (400 COUNTRY_INVALID_MESSAGE otherwise); `other`: «Моей страны нет в списке», the text typed by hand — cleaned
+   * (cleanManualCountry, 400 MANUAL_COUNTRY_MESSAGE), stored as the listed country it names when it is one («Казахстан»,
+   * «USA»), else as MANUAL_COUNTRY_CODE with the text. One UPDATE guarded by `country IS NULL`: two devices at once set it
+   * once.
+   */
+  setInitialCountry(accountId: string, input: { country?: string; other?: string }) {
+    const account = this.mustGet(accountId)
+    let code: string
+    let other: string | null = null
+    if (input.country !== undefined) {
+      code = storedCountry(input.country)!
+    } else {
+      const text = cleanManualCountry(input.other)
+      if (!text) throw new AccountError(400, MANUAL_COUNTRY_MESSAGE)
+      const known = countryByName(text)
+      code = known ?? MANUAL_COUNTRY_CODE
+      if (!known) other = text
+    }
+    const changed = this.db.prepare('UPDATE accounts SET country = ?, country_other = ?, country_set_at = ? WHERE id = ? AND country IS NULL').run(code, other, this.now(), account.id)
+    if (!Number(changed.changes)) throw new AccountError(409, COUNTRY_ALREADY_SET)
+    return { country: code, ...(other ? { countryOther: other } : {}) }
   }
 
   /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
@@ -1161,7 +1223,7 @@ export class AccountStore {
       // Bug reports (services/bugReportStore.ts) stay for the owner to handle, without the e-mail and the account link.
       if (has('bug_reports')) this.db.prepare('UPDATE bug_reports SET account_id = NULL, email = NULL WHERE account_id = ?').run(account.id)
       // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
-      this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', country = NULL, phone = NULL, phone_verified_at = NULL,
+      this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', country = NULL, country_other = NULL, phone = NULL, phone_verified_at = NULL,
         email_canon = NULL, email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
         .run(`deleted-${account.id}@deleted.invalid`, randomBytes(16), randomBytes(64), this.now(), this.now(), this.now(), account.id)
       this.db.exec('COMMIT')
@@ -1351,6 +1413,8 @@ const credentialsSchema = z.object({ email: emailSchema, password: passwordSchem
 // `country` is checked after the parse, with its own messages (COUNTRY_REQUIRED_MESSAGE, COUNTRY_INVALID_MESSAGE).
 const registerSchema = credentialsSchema.extend({ referralCode: z.string().trim().max(24).optional(), country: z.unknown().optional() })
 const countrySchema = z.object({ country: z.string().max(16) })
+/** «Укажите страну»: a listed code or the text typed by hand, exactly one of them. */
+const initialCountrySchema = z.union([z.object({ country: z.string().max(16) }).strict(), z.object({ other: z.string().max(200) }).strict()])
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
 const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
@@ -1532,6 +1596,16 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const parsed = countrySchema.safeParse(req.body)
       if (!parsed.success) return invalid(COUNTRY_INVALID_MESSAGE)
       store.setCountry(accountId, parsed.data.country)
+      return { status: 200, body: store.view(accountId) }
+    }),
+
+    /** «Укажите страну» (see AccountStore.setInitialCountry): the account view comes back. */
+    setInitialCountry: (req: AccountsRequest) => authed(req, (accountId) => {
+      const blocked = limited(countryLimiter, `country:${accountId}`)
+      if (blocked) return blocked
+      const parsed = initialCountrySchema.safeParse(req.body)
+      if (!parsed.success) return invalid(COUNTRY_INVALID_MESSAGE)
+      store.setInitialCountry(accountId, parsed.data)
       return { status: 200, body: store.view(accountId) }
     }),
 

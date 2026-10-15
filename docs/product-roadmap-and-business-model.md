@@ -68,9 +68,9 @@ Important requirements:
 - The old “Available” tab should be removed or renamed depending on final UX.
 - “My tasks” should become “Current tasks” / “Текущие задания”.
 - Completed tab can remain as a read-only history.
-- User must not be able to manually mark quests completed or uncompleted in the production model.
-- Quest state should come from logs, screenshots/OCR, public profile data, or server-side inference.
-- If exact completed quest list cannot be read, infer previous chain completion from later completed/current quests using the Tarkov.dev quest dependency graph.
+- One quest-state engine decides every quest per mode (owner, 15.10.2026: «все должно взаимодействовать как одно целое и сравнивать данные»; `docs/quests/quest-state-engine.md`): the game logs are the main truth for trader quests, the Tasks-table screen reading fills gaps in PvE only, story chapters come from the story pane in every mode.
+- «Ручная отметка» (owner, 15.10.2026): a switch on the Quests page, off by default, lets the player mark a quest a bug got wrong («В текущие» / «Выполнено» / «Снять отметку»). A mark is tagged «вручную», synced, beats older log events and loses to newer ones, and is cleared by «Престиж +» / «Вайп». There is no other manual quest editing.
+- If exact completed quest list cannot be read, infer previous chain completion from later completed/current quests using the Tarkov.dev quest dependency graph — shown as «вероятно выполнено», never counted in «Выполнено» or Kappa (owner, 15.10.2026: 154 in the game, 226 in the app).
 - Kappa progress must be calculated correctly from actual Kappa-required tasks, not from incomplete demo/sample data.
 - Quest counts must not change when switching interface language.
 

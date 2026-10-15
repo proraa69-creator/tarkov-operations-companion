@@ -1,4 +1,5 @@
-import type { ModeProgress, ModeRegistration, RaidMode, TaskProgressRecord } from '../domain/types'
+import type { ModeProgress, ModeRegistration, RaidMode } from '../domain/types'
+import { commitQuestInputs, dropInputsBefore, inputsOf, mergeObservations, withLayer } from '../quests/questInputs'
 import type { ParsedTaskEvent } from './logParser'
 
 /** The game's Logs folder the desktop app found or was given (AppShell; the locked app's re-check, eftAccountLink.ts). */
@@ -19,25 +20,17 @@ export function logEventsForMode(result: ModeLogEvents, mode: RaidMode, registra
 }
 
 /**
- * The logs of one mode are the source of truth for that mode: every quest they mention takes its latest logged status.
- * Records from other sources are dropped, except scanned quests and story chapters (the game never logs those) and the
- * legacy manual records of older versions; previous log records stay with `keepPreviousLogRecords` (the same character:
- * game logs are rotated and deleted over time, and what an earlier scan or another PC read stays true).
- * A log event wins over a kept record unless that record is strictly newer and not manual: manual marking was retired
- * (P19), so a legacy manual record never beats the logs; a newer Tasks-table reading or another PC's later event does.
+ * A scan's events of one mode into its log layer (src/quests/questInputs.ts): per quest the newest event. The quest-state
+ * engine (src/quests/questEngine.ts) then decides against the other sources — a log event beats any Tasks-table reading,
+ * an older manual mark and an older event of another PC. Without `keepPreviousLogRecords` the log layer starts again
+ * from these events (the first character a mode learns); with it, what an earlier scan read stays (game logs are rotated
+ * and deleted over time).
  */
-export function applyLogQuestState(progress: ModeProgress, events: ParsedTaskEvent[], options: { keepPreviousLogRecords?: boolean } = {}): ModeProgress {
-  const taskProgress: Record<string, TaskProgressRecord> = {}
-  for (const [taskId, record] of Object.entries(progress.taskProgress)) {
-    if (record.source === 'manual' || record.source === 'screen-scan') taskProgress[taskId] = record
-    else if (options.keepPreviousLogRecords && record.source === 'eft-log') taskProgress[taskId] = record
-  }
-  for (const event of events) {
-    const kept = taskProgress[event.taskId]
-    if (kept && kept.source !== 'manual' && kept.updatedAt > event.timestamp) continue
-    taskProgress[event.taskId] = { taskId: event.taskId, status: event.status, source: 'eft-log', updatedAt: event.timestamp }
-  }
-  return { ...progress, taskProgress }
+export function applyLogQuestState(progress: ModeProgress, events: ParsedTaskEvent[], options: { keepPreviousLogRecords?: boolean; mode?: RaidMode; layer?: 'log' | 'server' } = {}): ModeProgress {
+  const mode = options.mode ?? 'pve'
+  const key = options.layer ?? 'log'
+  const layers = inputsOf(progress, mode)
+  return withLayer(progress, mode, key, mergeObservations(layers[key], events, key === 'server' || Boolean(options.keepPreviousLogRecords)))
 }
 
 /** Who the log records of a mode belong to, as a scan or the server tells it. */
@@ -83,11 +76,10 @@ export function logEpochChange(progress: Pick<ModeProgress, 'logCharacterId' | '
  * stage and objectives are records of the same map) and objective progress. Preferences stay: tracked quests, favourite
  * and raid items, item counts, hideout levels, the game account binding and the level.
  */
-export function dropRecordsBefore(progress: ModeProgress, at: string): ModeProgress {
-  const taskProgress = Object.fromEntries(Object.entries(progress.taskProgress).filter(([, record]) => record.updatedAt >= at))
+export function dropRecordsBefore(progress: ModeProgress, at: string, mode: RaidMode = 'pve'): ModeProgress {
   const objectiveProgress = Object.fromEntries(Object.entries(progress.objectiveProgress ?? {}).filter(([, record]) => record.observedAt >= at))
   const objectiveConflicts = (progress.objectiveConflicts ?? []).filter((conflict) => conflict.detectedAt >= at)
-  return { ...progress, taskProgress, objectiveProgress, objectiveConflicts }
+  return commitQuestInputs({ ...progress, objectiveProgress, objectiveConflicts }, mode, dropInputsBefore(inputsOf(progress, mode), at))
 }
 
 const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']

@@ -4,7 +4,8 @@ import { Check, ChevronRight, ListChecks, Lock, ScrollText } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { calculateAvailability, isLiveGameQuest } from '../progression/requirementEngine'
+import { isLiveGameQuest, provenCompleted } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { chronologyStages } from '../progression/chronology'
 import { traderChronologyGroups } from '../progression/chronologyView'
@@ -40,7 +41,7 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const state = useAppState()
   const [params, setParams] = useSearchParams()
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   // an old address with ?list=available opens the current quests
   const asked = params.get('list') === 'available' ? 'current' : params.get('list')
   const list = (LISTS.some((entry) => entry.id === asked) ? asked : 'all') as QuestList
@@ -57,8 +58,9 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const counts = {
     all: quests.length,
     current: quests.filter((quest) => taken(statusOf(quest))).length,
-    // «Выполнено» is handed-in quests only; failed ones stay in the «Завершённые» list but are not done.
-    completed: quests.filter((quest) => statusOf(quest) === 'completed').length,
+    // «Выполнено» is handed-in quests only, as the game reports them (not inferred: provenCompleted); failed ones stay in
+    // the «Завершённые» list but are not done.
+    completed: quests.filter((quest) => provenCompleted(availability.get(quest.id))).length,
   }
   const shown = quests.filter((quest) => list === 'all' || (list === 'current' ? taken(statusOf(quest)) : closed(statusOf(quest))))
   const position = new Map(quests.map((quest, index) => [quest.id, index + 1]))

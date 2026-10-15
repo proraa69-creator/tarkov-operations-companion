@@ -5,7 +5,8 @@ import { ListTree, MapPin, Search, Trophy, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
-import { calculateAvailability, currentStoryStageIndex, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import type { Quest, TaskProgressStatus } from '../domain/types'
 import { isMobileLayout, useMobileLayout } from '../platform'
 import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
@@ -22,6 +23,10 @@ import { StoryEndingsView } from '../endings/StoryEndingsView'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { StoryChaptersAll } from '../components/StoryChaptersAll'
 import './storyObjectives.css'
+import { useLocale } from '../i18n/LocaleProvider'
+import { ManualMarkActions, ManualMarksToggle, ManualTag } from '../quests/ManualMarks'
+import { useManualMarksSetting } from '../quests/manualMarksSetting'
+import { logWatchLine, useLogStatus } from '../import/logStatus'
 import '../components/storyChaptersAll.css'
 
 const filterLabels: Record<string, string> = {
@@ -54,7 +59,13 @@ export function QuestsPage() {
   const initialFilter = params.get('filter')
   const statusFilter = initialFilter && initialFilter in filterLabels ? initialFilter : 'active'
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const { locale } = useLocale()
+  // «Ручная отметка» (owner, 15.10.2026): off by default, remembered on this device (src/quests/ManualMarks.tsx).
+  const [manualMarks, setManualMarks] = useManualMarksSetting()
+  const kappaBadge = statusFilter !== 'story' && statusFilter !== 'endings'
+  // «Журналы: отслеживаются · последнее событие HH:MM» (the desktop's constant log tracking, electron/logWatcher.ts).
+  const logLine = logWatchLine(useLogStatus(), locale)
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const traders = ['Все торговцы', ...new Set(data.quests.filter((quest) => statusFilter === 'story' ? isStoryQuest(quest) : isLiveGameQuest(quest)).map((quest) => quest.trader))]
   // the same count as the Overview Kappa card: the four key tasks for «Коллекционер»
   const kappaKeys = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
@@ -93,7 +104,7 @@ export function QuestsPage() {
   const setShowAllStory = (on: boolean) => setParams((current) => { const next = new URLSearchParams(current); if (on) { next.set('all', '1'); next.delete('selected') } else next.delete('all'); return next })
 
   return <div className="page">
-    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!mobile ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}</p>}</div>{statusFilter !== 'endings' && <span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>}</header>
+    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!mobile ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}{!mobile && logLine && <small className="log-watch-line" data-testid="log-watch-line">{logLine}</small>}</p>}</div>{statusFilter !== 'endings' && <div className="quest-header-side"><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>{kappaBadge && <ManualMarksToggle on={manualMarks} onChange={setManualMarks} locale={locale} />}</div>}</header>
     <div className="filter-row quest-filter-bar">
       {statusFilter !== 'endings' && !showAllStory && <>
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
@@ -129,6 +140,8 @@ export function QuestsPage() {
               </button>
               {uiText(!isStoryQuest(quest) && (quest.anyMap || quest.mapId || quest.mapIds?.length || stage?.mapIds.length) && <Link className="quest-map-pin" to={mapLink(quest, stageIndex)} title={uiText("Показать на карте")} aria-label={uiText(`Показать ${quest.name} на карте`)} onClick={(event) => event.stopPropagation()}><MapPin size={15} /></Link>)}
               <QuestStatusTag status={info?.status ?? 'unknown'} kappa={quest.kappa} story={isStoryQuest(quest)} />
+              <ManualTag progress={progress} questId={quest.id} locale={locale} />
+              {manualMarks && kappaBadge && !isStoryQuest(quest) && <ManualMarkActions questId={quest.id} mode={state.raidMode} progress={progress} locale={locale} compact />}
             </div>
           }))}
           {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
@@ -141,7 +154,7 @@ export function QuestsPage() {
         {mobile && selected && <button type="button" className="registration-close quest-sheet-close" onClick={closeSelected} aria-label={uiText('Закрыть карточку')}><X size={16} /></button>}
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
-        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : selected.mapId && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === selected.mapId)?.name ?? selected.mapId)}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}</div>
+        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} /><ManualTag progress={progress} questId={selected.id} locale={locale} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : selected.mapId && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === selected.mapId)?.name ?? selected.mapId)}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}{manualMarks && !isStoryQuest(selected) && <ManualMarkActions questId={selected.id} mode={state.raidMode} progress={progress} locale={locale} />}</div>
         {isStoryQuest(selected) ? <><StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /><StoryDecisionNotes quest={selected} /></> : <>
         <div className="detail-section"><h4>{uiText("Задача")}</h4><p>{uiText(selected.description)}</p></div>
         <QuestObjectivesPanel quest={selected} />

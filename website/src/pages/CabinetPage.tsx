@@ -523,7 +523,8 @@ function CountryPanel({ account }: { account: Account }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ message: string; offline: boolean } | null>(null)
 
-  const edit = () => { setCountry(account.country ?? ''); setError(null); setEditing(true) }
+  // A country typed by hand («XX») is not in the list: the list opens with nothing chosen.
+  const edit = () => { setCountry(account.countryOther ? '' : account.country ?? ''); setError(null); setEditing(true) }
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -558,7 +559,7 @@ function CountryPanel({ account }: { account: Account }) {
             </div>
           </form>
         ) : account.country ? (
-          <p className="nick-value"><strong>{countryName(account.country, locale)}</strong> <button type="button" className="link-button" style={{ fontSize: 14 }} onClick={edit}>{tr('Изменить')}</button></p>
+          <p className="nick-value"><strong>{account.countryOther ? `«${account.countryOther}»` : countryName(account.country, locale)}</strong> <button type="button" className="link-button" style={{ fontSize: 14 }} onClick={edit}>{tr('Изменить')}</button></p>
         ) : (
           <p style={{ margin: 0 }}><span className="muted">{tr('Страна не указана')}</span> — <button type="button" className="link-button" onClick={edit}>{tr('указать')}</button></p>
         )}

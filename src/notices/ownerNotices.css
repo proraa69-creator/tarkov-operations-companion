@@ -1,0 +1,56 @@
+/* «Объявления по регионам» / «Опросы» for the owner (src/notices/OwnerNoticeTools.tsx): the owner app and the website's
+   admin panel share it, so only variables both define. */
+.owner-notices { display: grid; gap: 14px; min-width: 0; }
+.owner-notices-create { display: flex; flex-wrap: wrap; gap: 8px; }
+.owner-notices-create .button svg, .owner-notices-actions .button svg { width: 13px; height: 13px; }
+.owner-notices-form { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--surf-1, var(--panel-2)) 70%, transparent); min-width: 0; }
+.owner-notices-field { display: grid; gap: 5px; min-width: 0; color: var(--text-muted); font-size: 12.5px; }
+.owner-notices-field > span { color: var(--text-muted); }
+.owner-notices-field textarea { resize: vertical; font: inherit; line-height: 1.45; padding-block: 8px; min-height: 0; }
+.owner-notices-field small { justify-self: end; }
+.owner-notices-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.owner-notices-row > .owner-notices-field { flex: 1 1 180px; }
+.owner-notices-url { flex-basis: 260px !important; }
+.owner-notices-toggle { justify-self: start; font-size: 12.5px; }
+.owner-notices-check { display: inline-flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: 13px; cursor: pointer; }
+.owner-notices-check input[type="checkbox"], .owner-notices-check input[type="radio"] { width: 15px; height: 15px; margin: 0; accent-color: var(--brass); }
+.owner-notices-audience { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.owner-notices-audience fieldset { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.owner-notices-audience legend { float: left; width: 100%; margin-bottom: 4px; padding: 0; color: var(--text-muted); font-size: 12.5px; }
+.owner-notices-photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.owner-notices-photos li { position: relative; display: grid; place-items: center; width: 92px; height: 70px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1, var(--panel-2)); color: var(--text-dim, var(--text-muted)); }
+.owner-notices-photos li.is-error { border-color: var(--danger); }
+.owner-notices-photos img { width: 100%; height: 100%; object-fit: cover; }
+.owner-notices-photo-state { position: absolute; inset: auto 0 0; padding: 2px 4px; background: rgb(0 0 0 / 65%); color: #fff; font-size: 10px; line-height: 1.2; text-align: center; }
+.owner-notices-photo-remove { position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgb(0 0 0 / 65%); color: #fff; cursor: pointer; }
+.owner-notices-photo-add label { display: grid; place-items: center; gap: 2px; width: 100%; height: 100%; font-size: 11px; text-align: center; cursor: pointer; }
+.owner-notices-photo-add input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.owner-notices-photo-add:focus-within { border-color: var(--brass); }
+.owner-notices-error { margin: 0; color: var(--danger); font-size: 13px; }
+.owner-notices-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.owner-survey-questions { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.owner-survey-question { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); min-width: 0; }
+.owner-survey-question-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text); font-size: 13px; }
+.owner-survey-question-tools { display: inline-flex; gap: 4px; }
+.owner-notices .icon-button.small { width: 28px; height: 28px; }
+.owner-notices .icon-button.small:disabled { opacity: .4; cursor: default; }
+.owner-survey-types { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.owner-survey-options { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.owner-survey-options li { display: flex; align-items: center; gap: 6px; }
+.owner-survey-options .input { flex: 1; min-width: 0; }
+.owner-survey-max { width: 64px; min-height: 30px; padding: 0 8px; }
+.owner-survey-add { justify-self: start; }
+.owner-notices-sent { display: grid; gap: 8px; min-width: 0; }
+.owner-notices-sent-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.owner-notices-empty { margin: 0; font-size: 13px; }
+.owner-notices-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.owner-notices-list > li { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); min-width: 0; }
+.owner-notices-list > li.is-withdrawn { opacity: .65; }
+.owner-notices-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.owner-notices-item-head strong { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.owner-notices-item-text { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.owner-notices-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--text-muted); font-size: 12.5px; }
+.owner-notices-counts b { color: var(--text); font-variant-numeric: tabular-nums; }
+.owner-notices-counts .button { margin-left: auto; }
+.owner-notices-counts .button + .button { margin-left: 0; }
+.owner-notices-intro { margin: 0 0 12px; font-size: 12.5px; line-height: 1.45; }

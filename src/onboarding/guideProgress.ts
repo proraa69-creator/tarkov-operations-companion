@@ -104,8 +104,9 @@ export const QUEST_SYNC_TIP_KEY = 'raidos-quest-sync-tip-v1'
  * do not already hold the whole quest history of the mode shown (`logsCover`, src/import/logCoverage.ts): the tip asks to
  * open «Задания» and scroll through it, which then adds nothing.
  */
-export function questSyncTipDue({ desktop, phone, pathname, seen, logsCover = false }: { desktop: boolean; phone: boolean; pathname: string; seen: boolean; logsCover?: boolean }) {
-  return desktop && !phone && pathname === '/' && !seen && !logsCover
+export function questSyncTipDue({ desktop, phone, pathname, seen, logsCover = false, mode }: { desktop: boolean; phone: boolean; pathname: string; seen: boolean; logsCover?: boolean; mode?: string }) {
+  // The Tasks table is read in PvE only (owner, 15.10.2026): PvP and Season players are never asked to open it.
+  return desktop && !phone && pathname === '/' && !seen && !logsCover && mode !== 'pvp' && mode !== 'seasonal'
 }
 
 /** Every tip this layout has, accepted: the guide is over. */

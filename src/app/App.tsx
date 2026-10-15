@@ -35,6 +35,7 @@ import { FirstRunGuide } from '../onboarding/FirstRunGuide'
 import { QuestSyncTip } from '../onboarding/QuestSyncTip'
 import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
+import { AccountNotices } from '../notices/AccountNotices'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
@@ -52,9 +53,10 @@ export function App() {
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
   // The game started before the sign-in still gives the nickname and levels: its start screens are read and kept until
   // the app unlocks (audit P4a, #202), nothing else.
-  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
+  // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><QuestSyncTip /><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><QuestSyncTip /><AppShell key={`${locale}:${revision}`}><Routes>
     <Route path="/experimental" element={mobile ? <Navigate to="/maps" replace /> : <ExperimentalPage />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
     <Route path="/live" element={<Navigate to="/maps" replace />} />

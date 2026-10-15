@@ -34,6 +34,10 @@ export interface Account {
    * accounts from before it until «Страна» in the cabinet is set, and on older servers.
    */
   country?: string
+  /** «XX»: the country typed by hand in «Укажите страну» (src/shared/countries.ts MANUAL_COUNTRY_CODE). */
+  countryOther?: string
+  /** No country yet: the cabinet shows «Укажите страну» until it is set (components/CountryGateDialog.tsx). */
+  needsCountry?: true
   /**
    * `lifetime`: streamers use the service free of charge, for good. `trialPendingDays`: the free period starts with the
    * first sign-in in the app (status stays 'inactive' until then; owner, 12.10.2026).
@@ -299,6 +303,8 @@ export interface AdminUser {
   eftAccount?: { masked: string; boundAt: string }
   /** The country named at registration (ISO 3166-1 alpha-2); absent when the user has not named one. */
   country?: string
+  /** «XX»: the country typed by hand in «Укажите страну» (counted in «Другие»). */
+  countryOther?: string
   /** The Escape from Tarkov nickname the PC app found in the game logs; absent until it is found. */
   nickname?: string
   /** «Пригласи друга»: the player whose code this account used (a streamer's code stays in `referredBy`). */
@@ -428,6 +434,8 @@ export const api = {
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   /** «Страна» in the cabinet: sets or changes the country (ISO 3166-1 alpha-2). */
   setCountry: (token: string, country: string) => request<Account>('/me/country', { method: 'PUT', token, body: { country } }),
+  /** «Укажите страну»: the first country of an account without one — a listed code or one typed by hand (409 once set). */
+  setInitialCountry: (token: string, choice: { country: string } | { other: string }) => request<Account>('/me/initial-country', { method: 'POST', token, body: choice }),
   /** One nickname for all modes; '' removes it. */
   /** `kind`: whose code it is — a streamer's (3 days free) or a player's (friend: −20 % on the first month). Missing on older servers. */
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string; kind?: 'streamer' | 'friend' }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),

@@ -1,5 +1,6 @@
 import type { RaidMode } from '../models/api.js'
 import type { ProgressStore } from './progressStore.js'
+import { emptyQuestInputs, resolveQuestStates } from '../../../src/quests/questEngine'
 
 /** Progress of one objective as friends and squad mates see it (only ids and numbers, never free text). */
 export interface SharedObjective { objectiveId: string; count?: number; target?: number; done?: boolean }
@@ -31,20 +32,37 @@ export function sanitizeObjectives(raw: unknown): SharedObjective[] {
   })
 }
 
-/** The account's synced progress for one mode (PvP, PvE and Seasonal are never mixed). */
+/**
+ * The account's synced progress for one mode (PvP, PvE and Seasonal are never mixed), as the app shows it: the quest-state
+ * engine (src/quests/questEngine.ts) over the log records of every PC and the player's manual marks, after the mode's
+ * reset — the same decision the player's own app makes.
+ */
 export function sharedProgress(progress: ProgressStore, accountId: string, mode: RaidMode): SharedProgress {
   const { records, scope } = progress.userRecords(`user:${accountId}`, mode)
+  const states = resolvedRecords(progress, `user:${accountId}`, mode, records, scope?.resetAt)
+  const byId = new Map(records.map((record) => [record.taskId, record]))
   const activeQuestIds: string[] = []
   const objectives: Record<string, SharedObjective[]> = {}
   let completedCount = 0
-  for (const record of records) {
-    if (record.status === 'completed') completedCount += 1
-    if (record.status !== 'active') continue
-    activeQuestIds.push(record.taskId)
-    const list = sanitizeObjectives((record as { objectives?: unknown }).objectives)
-    if (list.length) objectives[record.taskId] = list
+  for (const [taskId, status] of states) {
+    if (status === 'completed') completedCount += 1
+    if (status !== 'active') continue
+    activeQuestIds.push(taskId)
+    const list = sanitizeObjectives((byId.get(taskId) as { objectives?: unknown } | undefined)?.objectives)
+    if (list.length) objectives[taskId] = list
   }
   return { activeQuestIds, objectives, completedCount, lastSyncAt: scope?.syncedAt ?? null }
+}
+
+/** Each quest's decided status of one owner and mode: the server's log records and the manual marks, through the engine. */
+export function resolvedRecords(progress: ProgressStore, owner: string, mode: RaidMode, records: ReadonlyArray<{ taskId: string; status: string; updatedAt: string }>, floor?: string) {
+  const layers = emptyQuestInputs()
+  for (const record of records) {
+    if (record.status === 'active' || record.status === 'completed' || record.status === 'failed') layers.server[record.taskId] = { status: record.status, at: record.updatedAt }
+  }
+  for (const mark of progress.manualMarks(owner, mode)) layers.manual[mark.taskId] = { status: mark.status, at: mark.at }
+  const resolution = resolveQuestStates({ ...layers, mode, ...(floor ? { floor } : {}) })
+  return new Map([...resolution.states.values()].filter((state) => state.status !== 'not-started').map((state) => [state.taskId, state.status]))
 }
 
 export const HIDDEN_PROGRESS: SharedProgress = { activeQuestIds: [], objectives: {}, completedCount: 0, lastSyncAt: null }

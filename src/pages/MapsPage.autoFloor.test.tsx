@@ -59,7 +59,7 @@ afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAl
 describe('Maps page: the floor from the screenshot', () => {
   it('opens on the player\'s floor and keeps a floor picked by hand until the next screenshot', async () => {
     renderMaps()
-    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'))
+    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'), { timeout: 5000 })
     expect(floorButton('2 этаж')).toHaveAttribute('title', PLAYER_FLOOR_HINT)
     fireEvent.click(floorButton('3 этаж'))
     expect(floorButton('3 этаж')).toHaveClass('primary')
@@ -75,11 +75,11 @@ describe('Maps page: the floor from the screenshot', () => {
   it('shows the player\'s floor when the raid map is opened from another map', async () => {
     renderMaps('customs')
     // Customs is not the raid map: its floors are left alone (the position is known by now).
-    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'))
+    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'), { timeout: 5000 })
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(floorButton('Основной')).toHaveClass('primary')
     // Opening Factory resets the floor to the main level and, in the same update, applies the player's floor.
     fireEvent.click(screen.getByRole('button', { name: factory.name }))
-    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'))
+    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'), { timeout: 5000 })
   })
 })

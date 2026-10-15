@@ -33,6 +33,13 @@ describe('quest sync tip', () => {
     expect(questSyncTipDue({ ...due, logsCover: false })).toBe(true)
   })
 
+  it('asks PvE players only: in PvP and Season the Tasks table is never read (owner, 15.10.2026)', () => {
+    const due = { desktop: true, phone: false, pathname: '/', seen: false }
+    expect(questSyncTipDue({ ...due, mode: 'pve' })).toBe(true)
+    expect(questSyncTipDue({ ...due, mode: 'pvp' })).toBe(false)
+    expect(questSyncTipDue({ ...due, mode: 'seasonal' })).toBe(false)
+  })
+
   it('shows once on the Overview, in plain words, and stays away after «Принял»', async () => {
     const view = open('/')
     await settle()
