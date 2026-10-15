@@ -32,7 +32,8 @@ export function StoryScreenScanner() {
   const state = useAppState()
   const logStatus = useLogStatus()
   // Per mode: the game's logs hold its whole quest history (src/import/logCoverage.ts).
-  const logsCover = useLogsCoverModes(logStatus.scan, data.quests)
+  // A reset of a mode in the app («Престиж +») that cut into its logs turns the Tasks-table reading back on for it.
+  const logsCover = useLogsCoverModes(logStatus.scan, data.quests, state.activeProfile.modes)
   const logsCoverRef = useRef(logsCover)
   const questsRef = useRef(data.quests)
   const logStatusRef = useRef(logStatus)

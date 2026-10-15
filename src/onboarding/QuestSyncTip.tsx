@@ -32,8 +32,9 @@ export function QuestSyncTip() {
   const phone = useMobileLayout()
   const [seen, setSeen] = useState(readSeen)
   // The logs of the mode shown hold every quest (src/import/logCoverage.ts): no need to open «Задания» and scroll.
-  const mode = useOptionalAppState()?.raidMode
-  const logsCover = useLogsCoverModes(useLogStatus().scan, useOptionalTarkovData()?.data.quests)
+  const appState = useOptionalAppState()
+  const mode = appState?.raidMode
+  const logsCover = useLogsCoverModes(useLogStatus().scan, useOptionalTarkovData()?.data.quests, appState?.activeProfile.modes)
   const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, logsCover: mode ? logsCover[mode] : false })
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname)
   if (!due || !ready) return null

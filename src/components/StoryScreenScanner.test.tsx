@@ -20,7 +20,7 @@ const quests = [
 ]
 const state = vi.hoisted(() => ({
   raidMode: 'pve' as 'pvp' | 'pve' | 'seasonal',
-  activeProfile: { id: 'profile-1' },
+  activeProfile: { id: 'profile-1' } as { id: string; modes?: Record<string, { modeResetAt?: string; logResetAt?: string }> },
   applyStoryScanForMode: vi.fn(),
   applyQuestScanForMode: vi.fn(),
 }))
@@ -92,6 +92,24 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     await run(1)
     expect(looks).toHaveLength(2)
     expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+  })
+
+  it('reads the table again for a mode whose logs a «Престиж +» cut into (owner, 15.10.2026), not for the others', async () => {
+    const scan = wholeLog()
+    // Pressed after the logs' whole history, with no prestige of the game in them: the older logged quests were dropped.
+    state.activeProfile = { id: 'profile-1', modes: { pve: { modeResetAt: '2026-10-14T09:00:00.000Z', logResetAt: '2026-10-14T09:00:00.000Z' }, pvp: {}, seasonal: {} } }
+    try {
+      expect(logsCoverModes(scan, quests)).toMatchObject({ pve: true })
+      expect(logsCoverModes(scan, quests, state.activeProfile.modes)).toMatchObject({ pve: false })
+      updateLogStatus({ scan })
+      desktop(tasksTable)
+      render(<StoryScreenScanner />)
+      await run(0)
+      expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+      expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
+    } finally {
+      state.activeProfile = { id: 'profile-1' }
+    }
   })
 
   it('reads the table again when the game is in a mode whose logs do not reach back (PvP while only PvE is whole)', async () => {
