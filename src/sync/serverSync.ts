@@ -287,11 +287,15 @@ async function pushMode(mode: RaidMode): Promise<void> {
     }
     const registration = registrationOf(mode)
     const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
-    const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
+    // The logs' last trusted reset, or the mode's reset in the app when newer («Престиж +», a nickname change): the
+    // server drops the character's older events either way, even before the queued reset itself gets through.
+    const logReset = summary.resetAt ? isoTime(summary.resetAt) : null
+    const appReset = modeResetFloor(mode)
+    const resetAt = appReset && (!logReset || appReset > logReset) ? appReset : logReset
     const key = `${accountKey()}|${characterId}|${resetAt ?? ''}`
     if (confirmed[mode]?.key !== key) confirmed[mode] = { key, events: new Set() }
     const known = confirmed[mode]!.events
-    const events = serverEventsForMode(result, mode, registration).filter((event) => !known.has(eventKey(event)))
+    const events = serverEventsForMode(result, mode, registration).filter((event) => !known.has(eventKey(event)) && (!appReset || event.timestamp >= appReset))
     let answer: unknown = null
     for (let start = 0; start === 0 || start < events.length; start += MAX_EVENTS_PER_BATCH) {
       answer = await meRequest('POST', `/v1/me/progress/${mode}/events`, {
@@ -329,6 +333,79 @@ async function fetchServerScope(mode: RaidMode) {
   const scope = parseServerScope(await meRequest('GET', `/v1/me/progress/${mode}`))
   if (scope) rememberScope(mode, scope)
   return scope
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// The reset of a whole mode («Престиж +», a nickname change: src/state/modeReset.ts)
+// ------------------------------------------------------------------------------------------------------------
+
+/** Per mode, the newest reset done in this app, and whether the server still has to hear of it (queued offline). */
+const MODE_RESETS_KEY = 'raidos-mode-resets-v1'
+type ModeResets = Partial<Record<RaidMode, { at: string; pending?: boolean }>>
+let modeResetsBusy = false
+
+function readModeResets(): ModeResets {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MODE_RESETS_KEY) ?? '{}') as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const resets: ModeResets = {}
+    for (const mode of RAID_MODES) {
+      const entry = (parsed as Record<string, { at?: unknown; pending?: unknown } | undefined>)[mode]
+      const at = typeof entry?.at === 'string' ? isoTime(entry.at) : null
+      if (at) resets[mode] = { at, ...(entry?.pending === true ? { pending: true } : {}) }
+    }
+    return resets
+  } catch {
+    return {}
+  }
+}
+
+function writeModeResets(resets: ModeResets) {
+  try { localStorage.setItem(MODE_RESETS_KEY, JSON.stringify(resets)) } catch { /* storage full: the pushes still carry it this session */ }
+}
+
+/** The mode's newest reset in this app, sent or not (pushes of the logs carry it as their reset, pushMode). */
+export function modeResetFloor(mode: RaidMode): string | undefined {
+  return readModeResets()[mode]?.at
+}
+
+/**
+ * A mode was reset in this app at `at`: the server is told now (POST /v1/me/progress/:mode/reset) or, offline or signed
+ * out, as soon as an account is online (runFullSync). An older reset than the one kept changes nothing.
+ */
+export function queueModeReset(mode: RaidMode, at: string) {
+  const time = isoTime(at)
+  if (!time) return
+  const resets = readModeResets()
+  const kept = resets[mode]
+  if (kept && kept.at >= time && !kept.pending) return
+  resets[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true }
+  writeModeResets(resets)
+  // The mode's records the server confirmed belong to the time before: sent again only if newer (pushMode).
+  delete confirmed[mode]
+  delete storySent[mode]
+  void sendModeResets().catch(() => {})
+}
+
+/** Sends every queued reset; each stays queued until the server answered it. */
+export async function sendModeResets() {
+  if (modeResetsBusy || !connected()) return
+  modeResetsBusy = true
+  try {
+    for (const mode of RAID_MODES) {
+      const entry = readModeResets()[mode]
+      if (!entry?.pending) continue
+      const answer = await meRequest<{ resetAt?: unknown; scope?: unknown }>('POST', `/v1/me/progress/${mode}/reset`, { at: entry.at })
+      if (!answer || typeof answer.resetAt !== 'string') continue
+      const scope = parseServerScope(answer)
+      if (scope) rememberScope(mode, scope)
+      const now = readModeResets()
+      // A newer reset queued meanwhile is sent on the next round.
+      if (now[mode]?.at === entry.at) { now[mode] = { at: entry.at }; writeModeResets(now) }
+    }
+  } finally {
+    modeResetsBusy = false
+  }
 }
 
 /** Tests: everything this module remembers about the logs and the server's progress goes. */
@@ -710,6 +787,8 @@ export async function runFullSync() {
   if (fullSyncRunning || !connected()) return
   fullSyncRunning = true
   try {
+    // A reset made offline first: what follows must not bring back what it removed.
+    await sendModeResets()
     for (const mode of RAID_MODES) await syncCollector(mode)
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
@@ -742,7 +821,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }

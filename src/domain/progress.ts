@@ -68,6 +68,43 @@ export function registerModeProfile(
   }, registration.verifiedAt)
 }
 
+/** The later of two ISO times (either may be missing). */
+export function laterTime(a: string | undefined, b: string | undefined) {
+  return a && b ? (a > b ? a : b) : a ?? b
+}
+
+/**
+ * «Престиж +» or a nickname change (src/state/modeReset.ts): every progress record of one mode goes — quests from the
+ * logs, the Tasks table and the story pane (chapters, stages, their objectives), objective progress, conflicts and the
+ * history of changes, hideout levels, «Что не продавать» counts, and the level, prestige, faction and Tarkov.dev profile
+ * read for the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the
+ * tracked quests, favourite and raid items (preferences), the season. The reset time `at` becomes the mode's epoch
+ * (`logResetAt`, `logEpochAt`, `modeResetAt`): nothing older comes back from a rescan, the server or a screen reading.
+ * Other modes are not touched.
+ */
+export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString()): LocalProfile {
+  const current = profile.modes[mode]
+  const next: ModeProgress = {
+    ...createModeProgress(),
+    registration: current.registration,
+    trackedTaskIds: [...current.trackedTaskIds],
+    favoriteItemIds: [...current.favoriteItemIds],
+    raidItemIds: [...current.raidItemIds],
+    ...(current.seasonId ? { seasonId: current.seasonId } : {}),
+    ...(current.lastLogSyncAt ? { lastLogSyncAt: current.lastLogSyncAt } : {}),
+    ...(current.logCharacterId ? { logCharacterId: current.logCharacterId } : {}),
+    logResetAt: laterTime(current.logResetAt, at),
+    logEpochAt: laterTime(current.logEpochAt, at),
+    modeResetAt: laterTime(current.modeResetAt, at),
+  }
+  return { ...profile, updatedAt: now, modes: { ...profile.modes, [mode]: next } }
+}
+
+/** A reading taken before the mode's last reset (wipeModeProgress) belongs to the progress before it. */
+export function beforeModeReset(progress: Pick<ModeProgress, 'modeResetAt'>, time: string | undefined) {
+  return Boolean(progress.modeResetAt && time && time < progress.modeResetAt)
+}
+
 export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): LocalProfile {
   return updateMode(profile, mode, {
     registration: { status: 'unregistered' },
@@ -77,6 +114,8 @@ export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): Lo
 
 export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snapshot: PlayerProfileSnapshot | null | undefined): LocalProfile {
   if (!snapshot) return profile
+  // A Tarkov.dev profile from before the mode's reset is the character before it: not its level, not its prestige.
+  if (beforeModeReset(profile.modes[mode], snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt)) return profile
   const current = profile.modes[mode].playerSnapshot
   if (current?.upstreamUpdatedAt && snapshot.upstreamUpdatedAt && snapshot.upstreamUpdatedAt < current.upstreamUpdatedAt) return profile
   if (!snapshot.upstreamUpdatedAt && current && snapshot.fetchedAt < current.fetchedAt) return profile
@@ -116,6 +155,8 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
  */
 export function applyScreenLevel(profile: LocalProfile, mode: RaidMode, level: number, observedAt: string, raiseOnly = false): LocalProfile {
   if (!Number.isInteger(level) || level < 1) return profile
+  // A screen read before the mode's reset (a reading kept while the app was locked).
+  if (beforeModeReset(profile.modes[mode], observedAt)) return profile
   const { levelAnchor: anchor, playerLevel } = profile.modes[mode]
   // Read by OCR alone before 14.10.2026 («39» stored as «59»): any newer reading replaces it, the traders' screen too.
   const unchecked = anchor?.source === 'screen' && !anchor.checked

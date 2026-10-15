@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -135,6 +135,39 @@ describe('server sync with the desktop gateway', () => {
     // Nothing left to send: ev-local-1 is confirmed, ev-local-2 cannot go to the server.
     expect(objectiveSyncPayload(progress).events).toEqual([])
     expect(parseObjectiveSnapshot({ objectives: 'x', events: [] }, 'pve')).toBeNull()
+  })
+
+  it('a reset of one mode is sent at once when online, queued while signed out, and carried by the log pushes', async () => {
+    const at = '2026-09-25T12:30:00.000Z'
+    serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+    queueModeReset('pve', at)
+    await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at }))
+    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('raidos-mode-resets-v1')!)).toEqual({ pve: { at } }))
+    expect(modeResetFloor('pve')).toBe(at)
+    expect(modeResetFloor('pvp')).toBeUndefined()
+
+    // Signed out: queued, nothing sent; sent once an account is online, then not again.
+    serviceRequest.mockClear()
+    status.mockResolvedValue({ signedIn: false, online: true, serverUrl: 'http://127.0.0.1:8787', persistent: true })
+    await refreshServerStatus()
+    const later = '2026-09-25T13:00:00.000Z'
+    queueModeReset('seasonal', later)
+    await sendModeResets()
+    expect(serviceRequest).not.toHaveBeenCalled()
+    expect(JSON.parse(localStorage.getItem('raidos-mode-resets-v1')!).seasonal).toEqual({ at: later, pending: true })
+    status.mockResolvedValue({ signedIn: true, email: 'a@example.com', kind: 'user', online: true, serverUrl: 'http://127.0.0.1:8787', persistent: true })
+    await refreshServerStatus()
+    serviceRequest.mockResolvedValue({ resetAt: later, scope: null })
+    await sendModeResets()
+    expect(serviceRequest.mock.calls).toEqual([['POST', '/v1/me/progress/seasonal/reset', { at: later }]])
+    await sendModeResets()
+    expect(serviceRequest).toHaveBeenCalledTimes(1)
+
+    // The pushes of the logs carry the mode's reset and leave out the events before it.
+    serviceRequest.mockReset()
+    serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+    await pushLogProgress(scan(), () => unregistered, vi.fn())
+    expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, resetAt: at, events: [] })
   })
 
   it('does nothing while signed out', async () => {
