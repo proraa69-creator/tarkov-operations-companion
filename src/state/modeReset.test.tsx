@@ -94,7 +94,7 @@ describe('resetModeProgress: one mode starts again («Престиж +», a nick
   it('wipes every progress record of PvE and keeps PvP and Season byte for byte', async () => {
     const before = JSON.stringify({ pvp: storedModes().pvp, seasonal: storedModes().seasonal })
     const at = '2026-10-10T12:00:00.000Z'
-    act(() => state.resetModeProgress('pve', at, 'prestige'))
+    act(() => state.resetModeProgress('pve', at, 'prestige', { prestige: 3 }))
     await act(async () => { await Promise.resolve() })
 
     // Other modes: untouched, in the state and as stored.
@@ -112,7 +112,8 @@ describe('resetModeProgress: one mode starts again («Престиж +», a nick
     expect(pve.playerSnapshot).toBeUndefined()
     expect(pve.levelAnchor).toBeUndefined()
     expect(pve.playerLevel).toBe(1)
-    expect(pve.prestige).toBe(0)
+    // The prestige the player chose in «Престиж +», the player's own value from the press on.
+    expect(pve).toMatchObject({ prestige: 3, prestigeSetAt: at })
     expect(pve.faction).toBe('unknown')
     // Kept: the game account binding, the logs' character, preferences; the reset is the mode's epoch.
     expect(pve.registration).toEqual(savedProfile().modes.pve.registration)

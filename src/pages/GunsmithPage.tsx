@@ -5,7 +5,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
-import { calculateAvailability } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { gunsmithSteps, gunsmithSummary, stepStatus, type GunsmithStep } from '../gunsmith/gunsmith'
 import { GunsmithQuestPlan } from '../gunsmith/GunsmithQuestPlan'
 import '../gunsmith/gunsmith.css'
@@ -20,7 +20,7 @@ export function GunsmithPage() {
   const state = useAppState()
   const [params, setParams] = useSearchParams()
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const steps = useMemo(() => gunsmithSteps(data.quests, (id) => availability.get(id)?.status), [availability, data.quests])
   const summary = gunsmithSummary(steps)
   // `?quest=<task id>` (links from the Overview and the task cards); `?part=N` (place in the chain) still works.

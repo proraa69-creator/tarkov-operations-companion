@@ -9,8 +9,8 @@ import { traderChronologyGroups } from '../progression/chronologyView'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { questGridSnapshotDate } from '../data/questGrid'
 import { QuestChronology } from './QuestChronology'
+import { TRACKED_SOURCES as TRACKED } from '../progression/questBasics'
 
-const TRACKED = new Set(['eft-log', 'manual', 'screen-scan'])
 const LOG_PREVIEW = 8
 
 interface QuestChronologyPanelProps {

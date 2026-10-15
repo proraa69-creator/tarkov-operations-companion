@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { calculateAvailability } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { playerAccess, traderKey, useTraderLevels } from './traderLevels'
 
 /**
@@ -12,7 +12,7 @@ export function useGunsmithAccess() {
   const { data } = useTarkovData()
   const state = useAppState()
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const statusOf = useCallback((questId: string) => availability.get(questId)?.status, [availability])
   // The traders' screen's loyalty of this mode's character only (src/gunsmith/traderLevels.ts).
   const { infos, setLevel } = useTraderLevels(state.raidMode, data.traders, data.quests, statusOf, progress.playerLevel, progress.logCharacterId)

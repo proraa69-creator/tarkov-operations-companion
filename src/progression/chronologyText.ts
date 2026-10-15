@@ -1,9 +1,9 @@
 import type { ModeProgress, Quest } from '../domain/types'
 import type { TaskAvailability } from './requirementEngine'
 import { questStage } from './chronology'
+import { TRACKED_SOURCES as TRACKED } from './questBasics'
 
 /** Russian words shown in the chronology (translated at render through uiText). */
-const TRACKED = new Set(['eft-log', 'manual', 'screen-scan'])
 
 export interface ChronologyTag {
   kind: 'log' | 'chain' | 'line' | 'stage' | 'start' | 'wait'

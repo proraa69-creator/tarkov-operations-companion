@@ -1,7 +1,7 @@
 import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from '../domain/types'
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
-import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements } from './questBasics'
+import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
@@ -83,8 +83,6 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   return unknown ? { status: 'unknown', blockers: [] } : { status: 'available', blockers: [] }
 }
 
-/** Sources that describe this mode's real quest state: logs (split per mode), manual edits, story-pane scans. */
-const TRACKED_SOURCES = new Set<TaskProgressRecord['source']>(['eft-log', 'manual', 'screen-scan'])
 
 export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
   const verified: ModeProgress = {

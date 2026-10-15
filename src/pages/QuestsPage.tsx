@@ -5,7 +5,8 @@ import { ListTree, MapPin, Search, Trophy, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
-import { calculateAvailability, currentStoryStageIndex, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import type { Quest, TaskProgressStatus } from '../domain/types'
 import { isMobileLayout, useMobileLayout } from '../platform'
 import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
@@ -54,7 +55,7 @@ export function QuestsPage() {
   const initialFilter = params.get('filter')
   const statusFilter = initialFilter && initialFilter in filterLabels ? initialFilter : 'active'
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const traders = ['Все торговцы', ...new Set(data.quests.filter((quest) => statusFilter === 'story' ? isStoryQuest(quest) : isLiveGameQuest(quest)).map((quest) => quest.trader))]
   // the same count as the Overview Kappa card: the four key tasks for «Коллекционер»
   const kappaKeys = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])

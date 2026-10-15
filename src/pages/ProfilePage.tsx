@@ -14,6 +14,7 @@ import { outdatedProfile } from '../account/logNickname'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { DonateCard } from '../components/DonateCard'
 import { PrestigeResetButton } from '../components/PrestigeResetButton'
+import { QuestDiagnosticsPanel } from '../quests/QuestDiagnosticsPanel'
 import '../account/account.css'
 
 export function ProfilePage() {
@@ -48,6 +49,8 @@ export function ProfilePage() {
     </div>
     {/* The owner's notice over every player's app («ведутся технические работы»). */}
     {owner && <OwnerAnnouncementPanel />}
+    {/* «Диагностика квестов»: what each quest source gave per mode (src/quests/questEngine.ts); players never see it. */}
+    {owner && <QuestDiagnosticsPanel />}
     {accountBlock}
     {status?.kind === 'streamer' && <StreamerCabinetPanel />}
     {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026). */}

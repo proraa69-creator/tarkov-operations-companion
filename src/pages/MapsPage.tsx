@@ -32,7 +32,8 @@ import { PLAYER_FLOOR_HINT, useAutoFloor } from '../data/useAutoFloor'
 import '../styles/mapView.css'
 import { useAppState } from '../state/AppState'
 import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
-import { calculateAvailability, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { sheetObjectives } from '../progression/sheetObjectives'
@@ -366,7 +367,7 @@ export function MapsPage() {
   const itemsById = useMemo(() => new Map<string, Item>(data.items.map((item) => [item.id, item])), [data.items])
 
   const availability = useMemo(
-    () => calculateAvailability(data.quests, progress),
+    () => questAvailabilityOf(data.quests, progress),
     [data.quests, progress],
   )
 

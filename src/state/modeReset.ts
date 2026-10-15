@@ -18,7 +18,7 @@ import { QUEST_SYNC_TIP_KEY } from '../onboarding/guideProgress'
 import { queueModeReset } from '../sync/serverSync'
 
 /** What reset the mode: «Престиж +» or a confirmed new nickname (src/account/nicknameChange.ts). */
-export type ModeResetReason = 'prestige' | 'nickname'
+export type ModeResetReason = 'prestige' | 'wipe' | 'nickname'
 
 export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeResetReason; at: string }
 
