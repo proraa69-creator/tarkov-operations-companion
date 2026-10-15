@@ -1,6 +1,20 @@
 import type { LocalProfile, ModeProgress, ModeRegistration, ObjectiveConflict, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from './types'
 import { MAX_LOCAL_EVENTS, normalizeObjective } from '../progression/objectiveProgress'
 import { levelReachable } from '../profile/levelExperience'
+import { STORY_QUEST_INDEX } from '../data/storyQuestIndex'
+
+/** Story chapters and their objective quests (read from the story pane in every mode, never from the Tasks table). */
+const STORY_IDS = new Set(STORY_QUEST_INDEX.flatMap((row) => [row.questId, ...row.objectiveQuestIds] as string[]))
+
+/**
+ * A Tasks-table reading of a trader quest (owner, 15.10.2026: «сканирование экрана только для пве режима и для сюжетных
+ * квестах во всех режимах»): a screen record that is no story chapter — not one of the chapter ids, no stage, no objectives.
+ */
+export function isTasksTableRecord(record: TaskProgressRecord) {
+  if (record.source !== 'screen-scan') return false
+  if (record.taskId.startsWith('story-') || record.taskId.startsWith('wiki:') || STORY_IDS.has(record.taskId)) return false
+  return record.currentStageIndex == null && !record.storyObjectives?.length
+}
 
 /** v6 adds objective progress, progress events and objective conflicts per mode (v5 data is kept as is). */
 export const PROFILE_SCHEMA_VERSION = 6 as const
@@ -211,6 +225,8 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       if (dropUntrusted && ['screen-scan', 'inferred', 'eft-log'].includes(record.source)) delete taskProgress[taskId]
       // Confirmed trader-task scans survive restart; inferred chains remain untrusted.
       else if (record.source === 'inferred') delete taskProgress[taskId]
+      // PvP and Season: trader quests come from the logs only; the Tasks-table readings of earlier versions go.
+      else if (mode !== 'pve' && isTasksTableRecord(record)) delete taskProgress[taskId]
     }
     return {
       ...createModeProgress(),

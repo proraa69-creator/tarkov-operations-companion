@@ -23,8 +23,9 @@ export function logEventsForMode(result: ModeLogEvents, mode: RaidMode, registra
  * Records from other sources are dropped, except scanned quests and story chapters (the game never logs those) and the
  * legacy manual records of older versions; previous log records stay with `keepPreviousLogRecords` (the same character:
  * game logs are rotated and deleted over time, and what an earlier scan or another PC read stays true).
- * A log event wins over a kept record unless that record is strictly newer and not manual: manual marking was retired
- * (P19), so a legacy manual record never beats the logs; a newer Tasks-table reading or another PC's later event does.
+ * A log event wins over a kept record unless that record is another log record that is strictly newer (another PC's later
+ * event): manual marking was retired (P19), and a screen reading never beats the logs (owner, 15.10.2026: the logs are
+ * the main source of trader quests; the Tasks table is read in PvE only, story chapters are never logged).
  */
 export function applyLogQuestState(progress: ModeProgress, events: ParsedTaskEvent[], options: { keepPreviousLogRecords?: boolean } = {}): ModeProgress {
   const taskProgress: Record<string, TaskProgressRecord> = {}
@@ -34,7 +35,7 @@ export function applyLogQuestState(progress: ModeProgress, events: ParsedTaskEve
   }
   for (const event of events) {
     const kept = taskProgress[event.taskId]
-    if (kept && kept.source !== 'manual' && kept.updatedAt > event.timestamp) continue
+    if (kept && kept.source === 'eft-log' && kept.updatedAt > event.timestamp) continue
     taskProgress[event.taskId] = { taskId: event.taskId, status: event.status, source: 'eft-log', updatedAt: event.timestamp }
   }
   return { ...progress, taskProgress }

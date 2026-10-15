@@ -13,8 +13,8 @@ import { useLogsCoverModes } from '../import/logCoverage'
 const TIP: GuideTipContent = {
   title: { ru: 'Полная синхронизация квестов', en: 'Full quest sync' },
   text: () => ({
-    ru: 'Чтобы Raid OS знал все ваши текущие квесты, их данные нужно один раз обновить. Не закрывая приложение, запустите игру, откройте «Персонаж» → «Задания» и не спеша пролистайте список до конца. Квесты появятся в этом блоке, а дальше будут обновляться сами. Играете в нескольких режимах (PvP, PvE) — сделайте это в каждом.',
-    en: 'For Raid OS to know all your current quests, their data needs one update. Keep the app open, start the game, open Character → Tasks and slowly scroll the list to the end. The quests appear in this block and update by themselves after that. Playing several modes (PvP, PvE)? Do it in each one.',
+    ru: 'Чтобы Raid OS знал все ваши текущие квесты, их данные нужно один раз обновить. Не закрывая приложение, запустите игру, откройте «Персонаж» → «Задания» и не спеша пролистайте список до конца. Квесты появятся в этом блоке, а дальше будут обновляться сами. Это нужно только в PvE.',
+    en: 'For Raid OS to know all your current quests, their data needs one update. Keep the app open, start the game, open Character → Tasks and slowly scroll the list to the end. The quests appear in this block and update by themselves after that. Only PvE needs this.',
   }),
   target: '[data-block="tasks"]',
 }
@@ -35,7 +35,7 @@ export function QuestSyncTip() {
   const appState = useOptionalAppState()
   const mode = appState?.raidMode
   const logsCover = useLogsCoverModes(useLogStatus().scan, useOptionalTarkovData()?.data.quests, appState?.activeProfile.modes)
-  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, logsCover: mode ? logsCover[mode] : false })
+  const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, logsCover: mode ? logsCover[mode] : false, mode })
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname)
   if (!due || !ready) return null
   return <GuideTip id="quest-sync" tip={TIP} phone={false} onAccept={() => {

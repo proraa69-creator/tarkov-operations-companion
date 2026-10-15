@@ -211,7 +211,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
+    // The Tasks table counts in PvE only (owner, 15.10.2026); PvP and Season take trader quests from the logs alone.
     applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
+      if (selectedMode !== 'pve') return state
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
