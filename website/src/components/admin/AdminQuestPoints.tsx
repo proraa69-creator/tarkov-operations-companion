@@ -20,14 +20,16 @@ export interface QuestPointOverrideRow {
   x: number
   z: number
   floor?: string
-  kind: 'move' | 'add' | 'hide'
+  kind: 'move' | 'add' | 'hide' | 'describe'
+  /** The point's description for players (quest constructor, 15.10.2026). */
+  description?: string
   note?: string
   updatedBy?: string
   updatedAt?: string
 }
 
 const BASE = '/v1/accounts/me/admin/quest-points'
-const KIND_LABEL: Record<QuestPointOverrideRow['kind'], string> = { move: 'Перенесена', add: 'Добавлена', hide: 'Скрыта' }
+const KIND_LABEL: Record<QuestPointOverrideRow['kind'], string> = { move: 'Перенесена', add: 'Добавлена', hide: 'Скрыта', describe: 'Описание' }
 
 async function call<T>(token: string, path: string, method: 'GET' | 'POST'): Promise<T> {
   let response: Response
@@ -95,7 +97,7 @@ export function AdminQuestPoints() {
                   <td className="mono">{row.updatedAt ? dateTime.format(new Date(row.updatedAt)) : '—'}</td>
                   <th scope="row" className="mono admin-wrap" title={row.markerId}>{row.questId}{row.stageIndex != null ? ` · этап ${row.stageIndex + 1}` : ''}</th>
                   <td>{row.mapId}{row.floor ? <span className="dim"> · {row.floor}</span> : null}</td>
-                  <td>{KIND_LABEL[row.kind]}</td>
+                  <td>{KIND_LABEL[row.kind] ?? row.kind}{row.description ? <span className="dim admin-wrap" title={row.description}> · с описанием</span> : null}</td>
                   <td className="mono">x {Math.round(row.x)}, z {Math.round(row.z)}</td>
                   <td className="admin-wrap">{row.note ?? <span className="dim">—</span>}</td>
                   <td className="admin-row-action">
