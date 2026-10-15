@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { ModeLogScanResult } from './eftLogTimeline'
 import { LOG_FOLDER_STORAGE_KEY } from './logApply'
+import type { LogWatchState } from '../electron.d'
 
 /**
  * The latest scan of the game's logs and the Logs folder it came from. The main process reads the logs from the app's
@@ -14,6 +15,8 @@ export interface LogStatus {
   scan?: ModeLogScanResult
   /** The automatic search finished and found no Logs folder (until one is found later). */
   notFound?: boolean
+  /** How the main process follows the folder now (electron/logWatcher.ts): watched, polled, or not at all. */
+  watch?: LogWatchState
 }
 
 /** The game's mode the logs reported last, kept for this session (src/components/StoryScreenScanner.tsx reads it too). */
@@ -45,6 +48,9 @@ export function followDesktopLogStatus() {
   if (following || !desktop?.onLogsUpdated || !desktop.autoFindAndScanLogs) return
   following = true
   desktop.onLogsUpdated(noteLogScan)
+  // Constant tracking: the watch state from the start, and every change of it.
+  desktop.onLogWatchState?.((watch) => updateLogStatus({ watch }))
+  void desktop.getLogWatchState?.().then((watch) => { if (watch) updateLogStatus({ watch }) }).catch(() => {})
   let saved: string | undefined
   try { saved = localStorage.getItem(LOG_FOLDER_STORAGE_KEY) ?? undefined } catch { saved = undefined }
   void desktop.autoFindAndScanLogs(saved).then((found) => {
@@ -77,4 +83,24 @@ export function tarkovEdition(folder: string | null | undefined, notFound = fals
 export function useTarkovEdition(savedFolder: () => string | null) {
   const status = useLogStatus()
   return tarkovEdition(status.folder ?? savedFolder(), Boolean(status.notFound))
+}
+
+/**
+ * The line of the constant log tracking (owner, 15.10.2026: «сделай постоянное отслеживание журналов»): «Журналы:
+ * отслеживаются · последнее событие HH:MM» — the newest thing the game logged in any mode (a mode line, a profile,
+ * a quest). Null while no Logs folder is followed.
+ */
+export function logWatchLine(status: LogStatus, locale: 'ru' | 'en', formatTime: (ms: number) => string = clockTime): string | null {
+  const watched = status.watch ? status.watch.mode !== 'none' : Boolean(status.folder && !status.notFound)
+  if (!watched) return status.notFound ? (locale === 'en' ? 'Logs: not found' : 'Журналы: не найдены') : null
+  const times = Object.values(status.scan?.summaryByMode ?? {}).map((summary) => Date.parse(summary?.lastActivityAt ?? '')).filter(Number.isFinite)
+  const last = times.length ? Math.max(...times) : status.watch?.changedAt
+  const head = locale === 'en' ? 'Logs: tracked' : 'Журналы: отслеживаются'
+  if (!last) return head
+  return `${head} · ${locale === 'en' ? 'last event' : 'последнее событие'} ${formatTime(last)}`
+}
+
+const clockTime = (ms: number) => {
+  const date = new Date(ms)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }

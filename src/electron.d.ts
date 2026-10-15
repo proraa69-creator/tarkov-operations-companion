@@ -116,6 +116,9 @@ export interface ServerUpdateView {
 }
 export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
 
+/** electron/logWatcher.ts LogWatchState: `changedAt` — when a scan last changed anything (ms). */
+export interface LogWatchState { folder: string; mode: 'watch' | 'poll' | 'none'; changedAt?: number }
+
 interface TarkovDesktopApi {
   isDesktop: true
   /** 'owner': server, tunnel, payments and streamers controls; 'client' (default): the players' app. */
@@ -213,6 +216,9 @@ interface TarkovDesktopApi {
   setLogQuestIds?: (mode: RaidMode, ids: string[]) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
+  /** How the main process follows the Logs folder: a watch, polling only, or nothing (electron/logWatcher.ts). */
+  onLogWatchState?: (callback: (state: LogWatchState) => void) => () => void
+  getLogWatchState?: () => Promise<LogWatchState>
   getRaidState: () => Promise<RaidState>
   onRaidStateChanged: (callback: (state: RaidState) => void) => () => void
   saveProfileBackup: (json: string) => Promise<boolean>

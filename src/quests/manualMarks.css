@@ -12,3 +12,6 @@
 .manual-mark-actions .button.is-chosen { border-color: var(--brass); color: var(--brass); }
 .manual-tag { color: var(--brass); border-style: dashed; }
 @media (max-width: 640px) { .quest-header-side { align-items: flex-start; } }
+/* «Журналы: отслеживаются · последнее событие HH:MM» under the Quests page title (desktop). */
+.log-watch-line { display: block; margin-top: 3px; color: var(--text-dim); font-size: 11.5px; }
+.log-watch-line::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--green, #6fbf73); vertical-align: 1px; }
