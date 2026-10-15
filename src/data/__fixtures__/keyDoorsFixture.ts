@@ -46,11 +46,11 @@ const lock = (mapId: string, id: string, keyId: string, keyName: string, positio
 
 export const keyMarkers: MapMarker[] = [
   lock('customs', 'dorm-206', DORM_KEY_ID, 'Ключ от комнаты 206 общежития', [150, 180]),
-  // The Factory exit key: three Factory doors (one on the 2nd floor) and a Lighthouse placeholder lock.
+  // The Factory exit key: three Factory doors (one on the 2nd floor) and a truck cab on Lighthouse.
   lock('factory', 'gate-3', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [60, 20], { floor: 'Основной', height: 1 }),
   lock('factory', 'office', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [40, 10], { floor: '2 этаж', height: 4 }),
   lock('factory', 'cellar', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [-50, 30], { floor: 'Основной', height: 0.5 }),
-  lock('lighthouse', 'placeholder', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [10, 10]),
+  lock('lighthouse', 'truck', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [10, 10], { lock: { keyId: FACTORY_KEY_ID, keyName: 'Ключ от аварийного выхода с завода', kind: 'trunk' } }),
   // A Labs keycard reader and a car door of the storage keycard on two maps.
   lock('the-lab', 'red', RED_CARD_ID, 'Ключ-карта TerraGroup Labs (Красная)', [-300, -250], { lock: { keyId: RED_CARD_ID, keyName: 'Ключ-карта TerraGroup Labs (Красная)', keycard: 'red', needsPower: true, kind: 'door' } }),
   lock('factory', 'storage', STORAGE_CARD_ID, 'Ключ-карта склада TerraGroup', [20, -20], { floor: 'Тоннели', height: -3 }),

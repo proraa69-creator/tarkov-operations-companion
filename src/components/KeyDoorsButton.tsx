@@ -19,11 +19,16 @@ function severalDoorsLabel(count: number, locale: AppLocale) {
   return locale === 'en' ? `${count} doors` : `Несколько дверей · ${count}`
 }
 
-/** «Таможня · 2 этаж · Дверь 2» — the map, the floor when it is not the main level, the kind and its number. */
-function keyDoorRowText(door: KeyDoor) {
+/** The wiki's name of the place in the language shown, else the kind and its number: «Подвалы (выход)», «Дверь 2». */
+function keyDoorLabel(door: KeyDoor, locale: AppLocale) {
+  if (door.name) return locale === 'en' ? door.name.en : door.name.ru
   // uiLabel: «Дверь» is also a catalog name, which uiText would prefer («The Door»).
-  const kind = `${uiLabel(keyDoorKindLabel(door))}${door.number ? ` ${door.number}` : ''}`
-  return { map: uiText(door.mapName), floor: door.rawFloor ? uiText(door.floor) : '', kind }
+  return `${uiLabel(keyDoorKindLabel(door))}${door.number ? ` ${door.number}` : ''}`
+}
+
+/** «Таможня · 2 этаж · Дверь 2» — the map, the floor when it is not the main level, the place (or the kind and its number). */
+function keyDoorRowText(door: KeyDoor, locale: AppLocale) {
+  return { map: uiText(door.mapName), floor: door.rawFloor ? uiText(door.floor) : '', kind: keyDoorLabel(door, locale) }
 }
 
 /**
@@ -47,7 +52,8 @@ function NoDoorButton({ variant }: { variant: 'row' | 'detail' }) {
 }
 
 function OneDoorButton({ keyName, door, variant }: { keyName: string; door: KeyDoor; variant: 'row' | 'detail' }) {
-  const where = [uiText(door.mapName), door.rawFloor ? uiText(door.floor) : ''].filter(Boolean).join(' · ')
+  const { locale } = useLocale()
+  const where = [uiText(door.mapName), door.rawFloor ? uiText(door.floor) : '', door.name ? keyDoorLabel(door, locale) : ''].filter(Boolean).join(' · ')
   const label = `${uiText('Показать дверь на карте')} · ${where}`
   const { anchorProps, card } = useHoverCard(variant === 'row' ? label : null)
   if (variant === 'detail') return <Link className="button ghost key-doors-button" to={keyDoorHref(door)}><MapPin size={15} /> {uiText('Показать дверь на карте')} <small className="dim">{where}</small></Link>
@@ -147,6 +153,7 @@ function KeyDoorsPopup({ id, popupRef, anchor, keyName, doors, onMouseEnter, onM
   onMouseLeave: () => void
   onPick: () => void
 }) {
+  const { locale } = useLocale()
   const [place, setPlace] = useState<{ left: number; top: number; above: boolean } | null>(null)
   useLayoutEffect(() => {
     const card = popupRef.current
@@ -175,7 +182,7 @@ function KeyDoorsPopup({ id, popupRef, anchor, keyName, doors, onMouseEnter, onM
       <div className="key-doors-popup-key">{uiText(keyName)}</div>
       <ul className="key-doors-list">
         {doors.map((door) => {
-          const text = keyDoorRowText(door)
+          const text = keyDoorRowText(door, locale)
           return <li key={door.markerId}>
             <Link role="menuitem" to={keyDoorHref(door)} onClick={onPick} className="key-doors-row">
               <MapPin size={13} />
