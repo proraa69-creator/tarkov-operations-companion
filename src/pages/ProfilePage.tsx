@@ -14,13 +14,16 @@ import { outdatedProfile } from '../account/logNickname'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { OwnerNoticesPanel } from '../notices/OwnerNoticesPanel'
 import { DonateCard } from '../components/DonateCard'
-import { PrestigeResetButton } from '../components/PrestigeResetButton'
+import { ModeResetButtons, PrestigeLine } from '../components/PrestigeResetButton'
+import { useLocale } from '../i18n/LocaleProvider'
+import { QuestDiagnosticsPanel } from '../quests/QuestDiagnosticsPanel'
 import '../account/account.css'
 
 export function ProfilePage() {
   const state = useAppState()
   const { status } = useServerAccount()
   const owner = isOwnerApp()
+  const { locale } = useLocale()
   const progress = state.activeProfile.modes[state.raidMode]
   const modeName = state.raidMode === 'seasonal' ? 'Сезон' : state.raidMode.toUpperCase()
   const currentNickname = useAccountNickname()
@@ -42,8 +45,8 @@ export function ProfilePage() {
       <section className="panel profile-live-card">
         {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
         <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div></div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
-        {/* «Престиж +» next to the level: the mode shown starts again (owner, 15.10.2026). */}
-        <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><PrestigeResetButton /></div></div>
+        {/* «Престиж +» and «Вайп» below it, next to the level: the mode shown starts again (owner, 15.10.2026). */}
+        <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><ModeResetButtons /></div><PrestigeLine level={progress.prestige} locale={locale} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>
     </div>
@@ -51,6 +54,8 @@ export function ProfilePage() {
     {owner && <OwnerAnnouncementPanel />}
     {/* «Объявления по регионам» and «Опросы»: popups for the chosen players (owner, 15.10.2026). */}
     {owner && <OwnerNoticesPanel />}
+    {/* «Диагностика квестов»: what each quest source gave per mode (src/quests/questEngine.ts); players never see it. */}
+    {owner && <QuestDiagnosticsPanel />}
     {accountBlock}
     {status?.kind === 'streamer' && <StreamerCabinetPanel />}
     {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026). */}

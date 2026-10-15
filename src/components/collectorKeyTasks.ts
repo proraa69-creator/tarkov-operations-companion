@@ -1,5 +1,5 @@
 import type { Quest } from '../domain/types'
-import { isLiveGameQuest, type TaskAvailability } from '../progression/requirementEngine'
+import { isLiveGameQuest, provenCompleted, type TaskAvailability } from '../progression/requirementEngine'
 
 /**
  * The four key tasks Fence wants before he hands out «Коллекционер» (the owner's list, 2026-10-08). Matched by the
@@ -34,7 +34,8 @@ export function collectorKeyTasks(quests: Quest[], availability: Map<string, Tas
     const found = task.alternatives.flatMap((name) => byName.get(name) ?? [])
     const main = byName.get(task.key)
     const status = (quest: Quest) => availability.get(quest.id)?.status
-    const done = found.find((quest) => status(quest) === 'completed')
+    // Done as the game reported it (a hand-in of the logs, a manual mark), never a chain guess (src/quests/questEngine.ts).
+    const done = found.find((quest) => provenCompleted(availability.get(quest.id)))
     const active = found.find((quest) => status(quest) === 'active')
     return {
       key: task.key,

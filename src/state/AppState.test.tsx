@@ -78,8 +78,9 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
     expect(pvp()).toMatchObject({ logResetAt: resetAt, logEpochAt: resetAt })
     await Promise.resolve()
     expect(events.map((event) => event.kind)).toEqual(['reset'])
-    // Another PC (or the server) still sends the hand-in from before the reset: it does not come back.
-    act(() => state.applyLogStateForMode('pvp', [{ taskId: QUEST, status: 'completed', timestamp: '2026-10-01T10:00:00.000Z' }], OLD))
+    // Another PC (or the server) still sends the hand-in from before the reset: it does not come back. (The server's
+    // answer is every record it keeps: OTHER with it.)
+    act(() => state.applyLogStateForMode('pvp', [{ taskId: QUEST, status: 'completed', timestamp: '2026-10-01T10:00:00.000Z' }, { taskId: OTHER, status: 'active', timestamp: '2026-10-06T00:00:00.000Z' }], OLD))
     expect(pvp().taskProgress[QUEST]).toBeUndefined()
     expect(pvp().taskProgress[OTHER]).toMatchObject({ status: 'active' })
   })
@@ -87,7 +88,9 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
   it('no profile line in the logs is no change: the records stay (P17)', async () => {
     act(() => state.applyLogStateForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: '2026-10-06T00:00:00.000Z' }]))
     expect(pvp().taskProgress[QUEST]).toMatchObject({ status: 'completed' })
-    expect(pvp().taskProgress.scanned).toMatchObject({ status: 'active' })
+    // A Tasks-table reading in PvP (an earlier version's) went at the load: trader quests come from the logs there.
+    expect(pvp().taskProgress.scanned).toBeUndefined()
+    expect(pvp().taskProgress['story-tour']).toMatchObject({ source: 'screen-scan', currentStageIndex: 2 })
     expect(pvp().taskProgress[OTHER]).toMatchObject({ status: 'active' })
     expect(pvp().logCharacterId).toBe(OLD)
     await Promise.resolve()

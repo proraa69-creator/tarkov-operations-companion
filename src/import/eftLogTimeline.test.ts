@@ -125,3 +125,28 @@ describe('the character of a mode', () => {
     expect(identity.signature).not.toBe(scan.signature)
   })
 })
+
+describe('the game\'s own profile resets in the backend log (owner, 15.10.2026: «из журналов должна получаться вся информация по максимуму»)', () => {
+  const P = '5936d90786f7742b1420ba5b'
+  const PROFILE = 'b'.repeat(24)
+  const app = (time: string, text: string) => `2026-10-15 ${time}.000|1.2.0.0|Info|application|${text}`
+  const backend = (time: string, text: string) => `2026-10-15 ${time}.000|1.2.0.0|Info|backend|${text}`
+  const quest = (time: string, type: number) => `2026-10-15 ${time}.000|1.2.0.0|Info|push-notifications|Got notification | ChatMessageReceived\n{"message":{"type":${type},"templateId":"${P} 0"}}`
+
+  it('a new profile request (a wipe or a profile reset) on a mode\'s gateway is that mode\'s reset; a response line is not a second one', () => {
+    const text = [
+      app('10:00:00', 'Session mode: Regular'), app('10:00:01', `SelectProfile ProfileId:${PROFILE} AccountId:1`),
+      quest('10:01:00', 10), quest('10:02:00', 12),
+      backend('11:00:00', '---> Request HTTPS, id [7]: URL: https://gw-pvp.escapefromtarkov.com/client/game/profile/create, crc: .'),
+      backend('11:00:01', '<--- Response HTTPS, id [7]: URL: https://gw-pvp.escapefromtarkov.com/client/game/profile/create, crc: .'),
+      app('11:01:00', `SelectProfile ProfileId:${PROFILE} AccountId:1`), quest('11:02:00', 10),
+    ].join('\n')
+    const signals = readLogSignals(text)
+    expect(signals.filter((signal) => signal.kind === 'reset')).toEqual([{ kind: 'reset', at: expect.any(Number), via: 'profile-create', mode: 'pvp' }])
+    const scan = buildScanResult(signals, 1)
+    expect(scan.summaryByMode.pvp).toMatchObject({ resetVia: 'profile-create', resetAt: new Date(signals.find((signal) => signal.kind === 'reset')!.at).toISOString() })
+    expect(scan.eventsByMode.pvp).toEqual([expect.objectContaining({ taskId: P, status: 'active' })])
+    // Other modes: nothing.
+    expect(scan.summaryByMode.pve.resetAt).toBeUndefined()
+  })
+})

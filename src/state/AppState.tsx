@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
-import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
+import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode } from '../domain/types'
 import {
   appendEvents,
   applyObjectiveChange,
@@ -15,7 +15,10 @@ import {
   type ObjectiveDef,
 } from '../progression/objectiveProgress'
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
-import { applyLogQuestState, dropRecordsBefore, logEpochChange, logStateFingerprint, type LogIdentityInput } from '../import/logApply'
+import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
+import { currentLogStatus } from '../import/logStatus'
+import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, setManualMark, withLayer } from '../quests/questInputs'
+import type { ManualMark, QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
 import { afterModeReset, type ModeResetReason } from './modeReset'
 import type { StoryProgressRecord } from '../sync/storyRecords'
@@ -51,11 +54,11 @@ interface AppStateValue extends UiState {
   raisePlayerLevel: (mode: RaidMode, level: number) => void
   setSelectedMapId: (id: string) => void
   toggleTrackedQuest: (id: string) => void
-  applyTaskRecordsForMode: (mode: RaidMode, records: TaskProgressRecord[], characterId?: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
   /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
+  /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   /**
    * «Престиж +» or a nickname change (src/state/modeReset.ts): every progress record of one mode of the active profile
@@ -63,7 +66,15 @@ interface AppStateValue extends UiState {
    * (queued while offline). `at` (now by default) becomes the mode's epoch. Other modes, settings, the account and the
    * nickname stay.
    */
-  resetModeProgress: (mode: RaidMode, at?: string, reason?: ModeResetReason) => void
+  resetModeProgress: (mode: RaidMode, at?: string, reason?: ModeResetReason, options?: { prestige?: number }) => void
+  /**
+   * «Ручная отметка» (owner, 15.10.2026): the player's own mark of a trader quest of one mode — «В текущие» (`active`),
+   * «Выполнено» (`completed`) or «Снять отметку» (null). The quest-state engine weighs it against the logs: it beats
+   * older log events, loses to newer ones. Synced through the server; «Престиж +» / «Вайп» clear it.
+   */
+  setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | null, at?: string) => void
+  /** Marks from the server (another device of the account): the newer per quest wins. */
+  applyRemoteManualMarks: (mode: RaidMode, marks: Array<{ taskId: string } & ManualMark>) => void
   /**
    * A mode's quests from its logs (applyLogStateForMode: the server's records of its character, from another PC or for the
    * phone). Another character, or a newer trusted reset, first drops the mode's records older than the change, once
@@ -188,48 +199,72 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     raisePlayerLevel: (selectedMode, level) => updateActive((profile) => raisePlayerLevel(profile, selectedMode, level)),
     setSelectedMapId: (selectedMapId) => setUi((current) => ({ ...current, selectedMapId })),
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
-    applyTaskRecordsForMode: (selectedMode, records, characterId) => updateActive((profile) => ({
-      ...profile,
-      updatedAt: new Date().toISOString(),
-      modes: {
-        ...profile.modes,
-        [selectedMode]: {
-          ...withTaskEvents(profile.modes[selectedMode], mergeTaskRecords(profile.modes[selectedMode], records.filter((record) => !beforeModeReset(profile.modes[selectedMode], record.updatedAt))), selectedMode),
-          logCharacterId: characterId ?? profile.modes[selectedMode].logCharacterId,
-          lastLogSyncAt: new Date().toISOString(),
-        },
-      },
-    })),
     // Screen readings that change nothing leave the state as it is (audit P5f): no new state, so no profile write to
     // localStorage and no re-render of the app, although the scanner reads the Tasks table every few seconds.
     applyStoryScanForMode: (selectedMode, matches) => setProfileState((state) => {
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
-      const next = applyStoryScan(current, matches)
+      // The story pane's layer of the quest-state engine (src/quests/questInputs.ts).
+      const layers = inputsOf(current, selectedMode)
+      const view = { ...current, taskProgress: layers.story }
+      const read = applyStoryScan(view, matches)
+      if (read === view) return state
+      const next = withLayer(current, selectedMode, 'story', read.taskProgress)
       if (next === current) return state
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
+    // The Tasks table counts in PvE only (owner, 15.10.2026); PvP and Season take trader quests from the logs alone.
     applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
+      if (selectedMode !== 'pve') return state
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
-      const next = applyScreenScanProgress(current, matches, quests, { previousSeenIds, requireConfirmation: true, session })
+      // The Tasks table fills gaps only (src/quests/questEngine.ts): rows of quests the logs, the server or a manual mark
+      // already decided are not written to its layer.
+      const layers = inputsOf(current, selectedMode)
+      const decided = new Set(Object.values(current.taskProgress).filter((record) => record.source === 'eft-log' || record.source === 'manual-fix').map((record) => record.taskId))
+      const view = { ...current, taskProgress: layers.table }
+      const read = applyScreenScanProgress(view, matches.filter((match) => !decided.has(match.questId)), quests, { previousSeenIds, requireConfirmation: true, session })
+      if (read === view) return state
+      const next = withLayer(current, selectedMode, 'table', read.taskProgress)
       if (next === current) return state
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt })),
-    applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity)),
-    resetModeProgress: (selectedMode, at = new Date().toISOString(), reason = 'prestige') => {
+    applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt }, 'server')),
+    applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity, 'log')),
+    setManualQuestMark: (selectedMode, taskId, status, at = new Date().toISOString()) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const layers = inputsOf(current, selectedMode)
+      if (!status && !layers.manual[taskId]) return profile
+      const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+    }),
+    applyRemoteManualMarks: (selectedMode, marks) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const layers = inputsOf(current, selectedMode)
+      // Marks from before the mode's reset never come back.
+      const floor = questFloor(current)
+      const merged = mergeManualMarks(layers.manual, floor ? marks.filter((mark) => mark.at >= floor) : marks)
+      if (merged === layers.manual) return profile
+      const next = withLayer(current, selectedMode, 'manual', merged)
+      if (next === current) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+    }),
+    resetModeProgress: (selectedMode, at = new Date().toISOString(), reason = 'prestige', options = {}) => {
       const profileId = activeProfile.id
+      // «Престиж +»: the level the player chose; «Вайп» / «Сброс»: the prestige stays (a game wipe keeps it); a nickname:
+      // read again.
+      const prestige = reason === 'prestige' && options.prestige != null ? { level: options.prestige } : reason === 'nickname' ? undefined : { keep: true }
+      // «Сброс» only rebuilds; the others also say the game was reset around now (a pending marker, src/domain/progress.ts).
+      const marker = reason === 'rebuild' ? undefined : reason
       setProfileState((state) => ({
         ...state,
-        profiles: state.profiles.map((profile) => profile.id === profileId ? wipeModeProgress(profile, selectedMode, at) : profile),
+        profiles: state.profiles.map((profile) => profile.id === profileId ? rebuildFromLogs(wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker), selectedMode) : profile),
       }))
-      // The same point as a trusted reset of the logs (src/state/logEpoch.ts), then the stores outside the profile, the
-      // server and the notice.
+      // The stores outside the profile (src/state/logEpoch.ts listeners, src/state/modeReset.ts), the server and the notice.
       announceLogEpochChange({ kind: 'reset', at, profileId, mode: selectedMode })
       afterModeReset({ profileId, mode: selectedMode, at, reason })
     },
@@ -237,10 +272,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const current = profile.modes[selectedMode]
       // Another character's chapters (this mode's character is another one now): not these.
       if (current.logCharacterId && current.logCharacterId !== characterId) return profile
-      let taskProgress = current.taskProgress
+      // The story pane's layer of the quest-state engine: another PC's readings of a chapter.
+      const story = inputsOf(current, selectedMode).story
+      let taskProgress = story
       for (const record of records) {
         // Readings from before a new character or a reset never come back.
-        if (current.logEpochAt && record.updatedAt < current.logEpochAt) continue
+        if ((current.logEpochAt && record.updatedAt < current.logEpochAt) || beforeModeReset(current, record.updatedAt)) continue
         const local = taskProgress[record.taskId]
         if (local && (local.updatedAt >= record.updatedAt || (local.status === 'completed' && record.status !== 'completed'))) continue
         const stage = record.currentStageIndex ?? local?.currentStageIndex
@@ -254,8 +291,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           },
         }
       }
-      if (taskProgress === current.taskProgress) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, { ...current, taskProgress }, selectedMode) } }
+      if (taskProgress === story) return profile
+      const next = withLayer(current, selectedMode, 'story', taskProgress)
+      if (next === current) return profile
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
     }),
     setObjectiveValue: (def, current) => updateActive((profile) => {
       const selectedMode = profile.selectedMode
@@ -289,7 +328,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       let changed = false
       const modes = { ...profile.modes }
       for (const key of Object.keys(modes) as RaidMode[]) {
-        const next = normalizeTaskKeys(modes[key], quests)
+        const next = normalizeTaskKeys(modes[key], quests, key)
         if (next !== modes[key]) { modes[key] = next; changed = true }
       }
       return changed ? { ...profile, modes } : profile
@@ -369,25 +408,42 @@ function toggle(values: string[], value: string) {
 }
 
 /**
- * A mode's quest events from its logs or the server. R4 / step 25: another character or a newer trusted reset — once, at
- * the change — drops the older records of every source first (log, Tasks table, story chapters, objectives); preferences
- * stay. No profile line is no change.
+ * A mode's quest events from its logs (`log`) or the server (`server`: all PCs' events of the character). R4 / step 25:
+ * another character or a newer trusted reset — once, at the change — drops the older readings of every source first
+ * (log, server, Tasks table, story chapters, manual marks, objectives); preferences stay. No profile line is no change.
+ * The quest-state engine then decides (src/quests/questEngine.ts).
  */
-function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: ParsedTaskEvent[], identity: LogIdentityInput): LocalProfile {
-  const { characterId, resetAt } = identity
+function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: ParsedTaskEvent[], given: LogIdentityInput, layer: 'log' | 'server'): LocalProfile {
   const current = profile.modes[selectedMode]
+  // A server of 0.6.0.41 still answers this app's own reset press as the character's «reset»: not the game's.
+  const identity = given.resetAt && current.appResetTimes?.includes(given.resetAt) ? { ...given, resetAt: undefined } : given
+  const { characterId, resetAt } = identity
   const now = new Date().toISOString()
   const change = logEpochChange(current, identity, now)
-  const base = change ? dropRecordsBefore(current, change.at) : current
+  const base = change ? dropRecordsBefore(current, change.at, selectedMode) : current
   // The first character a mode learns: what an older version kept from the logs is read again from them.
   const firstCharacter = Boolean(characterId) && !current.logCharacterId
-  // Events from before the character's last reset never come back (a PC whose own logs never showed the reset), nor
-  // from before the mode's reset in the app («Престиж +», a nickname change: src/state/modeReset.ts).
+  // Events from before the game's own last reset of the character never come back (a PC whose own logs never showed
+  // it). A reset press in the app is no floor (owner, 15.10.2026): only what the logs prove.
   const logResetAt = change ? resetAt : current.logResetAt
   const floor = laterTime(logResetAt, current.modeResetAt)
   const fresh = floor ? events.filter((event) => event.timestamp >= floor) : events
-  const next = applyLogQuestState(base, fresh, { keepPreviousLogRecords: !firstCharacter })
-  if (!change && logStateFingerprint(next) === logStateFingerprint(current) && (!characterId || current.logCharacterId === characterId)) return profile
+  const layers = inputsOf(base, selectedMode)
+  // The server answers with every record it keeps for the character: its layer is that answer (a wipe there reaches
+  // here too); this PC's logs add to what earlier scans read (the game deletes old logs).
+  const merged = layer === 'server' ? sameObservations(layers.server, mergeObservations({}, fresh, false)) : mergeObservations(layers.log, fresh, !firstCharacter)
+  // A pending «Престиж +» / «Вайп» marker resolves once the logs prove the game's own reset after it.
+  const proven = laterTime(logResetAt, change?.kind === 'character' ? change.at : undefined)
+  const marker = current.resetMarker && !current.resetMarker.resolvedAt && proven && proven > current.resetMarker.at
+    ? { ...current.resetMarker, resolvedAt: proven } : current.resetMarker
+  const identified: ModeProgress = { ...base, logResetAt, logEpochAt: change ? change.at : current.logEpochAt, ...(marker ? { resetMarker: marker } : {}) }
+  const nextLayers = merged === layers[layer] && base.questInputs ? base.questInputs : { ...layers, [layer]: merged }
+  const next = commitQuestInputs(identified, selectedMode, nextLayers)
+  if (!change && next.taskProgress === current.taskProgress && (!characterId || current.logCharacterId === characterId)) {
+    // Nothing decided differently: at most the layer is kept (no re-render of the app for a scan that changed nothing).
+    if (next.questInputs === current.questInputs) return profile
+    return { ...profile, modes: { ...profile.modes, [selectedMode]: { ...current, questInputs: next.questInputs } } }
+  }
   if (change) announceLogEpochChange({ ...change, profileId: profile.id, mode: selectedMode })
   return {
     ...profile,
@@ -397,12 +453,29 @@ function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: Pa
       [selectedMode]: {
         ...withTaskEvents(current, next, selectedMode),
         logCharacterId: characterId ?? current.logCharacterId,
-        logResetAt,
-        logEpochAt: change ? change.at : current.logEpochAt,
         lastLogSyncAt: now,
       },
     },
   }
+}
+
+/** The server's new layer, or the kept one when it says the same (nothing re-renders for an unchanged answer). */
+function sameObservations(kept: Record<string, QuestObservation>, next: Record<string, QuestObservation>) {
+  const keys = Object.keys(next)
+  return keys.length === Object.keys(kept).length && keys.every((key) => kept[key]?.status === next[key]!.status && kept[key]?.at === next[key]!.at) ? kept : next
+}
+
+/**
+ * The mode rebuilt from every log on disk right after a reset (owner, 15.10.2026): the latest full scan the main process
+ * published (src/import/logStatus.ts), applied like any scan — the game's own reset in it is the only floor. Without one
+ * (the phone, no Logs folder) the server's records come back with the next pull.
+ */
+function rebuildFromLogs(profile: LocalProfile, mode: RaidMode): LocalProfile {
+  const scan = currentLogStatus().scan
+  const summary = scan && !scan.identityOnly ? scan.summaryByMode?.[mode] : undefined
+  if (!scan || !summary?.lastActivityAt) return profile
+  const events = logEventsForMode(scan, mode, profile.modes[mode].registration)
+  return applyLogState(profile, mode, events, { characterId: scan.latestCharacterIdByMode?.[mode], resetAt: summary.resetAt, characterSince: summary.profileSince }, 'log')
 }
 
 /**
@@ -416,16 +489,6 @@ function withTaskEvents(before: ModeProgress, after: ModeProgress, mode: RaidMod
   if (!events.length) return after
   const loggedCompletions = events.filter((event) => event.newValue === 'completed' && event.source === 'log').map((event) => event.taskId)
   return logCompletionConflicts(appendEvents(after, events), mode, loggedCompletions, now)
-}
-
-function mergeTaskRecords(progress: LocalProfile['modes'][RaidMode], records: TaskProgressRecord[]) {
-  const taskProgress = { ...progress.taskProgress }
-  for (const record of records) {
-    const current = taskProgress[record.taskId]
-    if (current && current.updatedAt > record.updatedAt && current.source !== 'inferred') continue
-    taskProgress[record.taskId] = record
-  }
-  return { ...progress, taskProgress }
 }
 
 export function useAppState() {

@@ -2,7 +2,7 @@
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
-import { existsSync } from 'node:fs'
+import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -106,6 +106,13 @@ const logWatcher = createLogWatcher({
     if (channel === 'logs:updated') void pushToDevelopmentServer(payload as ModeLogScanResult)
   },
   gameWindow: () => foregroundGame()?.id ?? null,
+  // Constant tracking (owner, 15.10.2026): the Logs folder with its launch folders, recursive (Windows and Node 20+).
+  watchFolder: (root, onChange, onError) => {
+    const watcher = watchFs(root, { recursive: true, persistent: false }, () => onChange())
+    watcher.on('error', onError)
+    return () => { try { watcher.close() } catch { /* closed already */ } }
+  },
+  exists: async (root) => Boolean(await stat(root).then((info) => info.isDirectory()).catch(() => false)),
   onFolder: (folder) => {
     logFolderGrants.grant(folder)
     void rememberedLogsFolder().catch(() => '').then((remembered) => {
@@ -605,6 +612,7 @@ function registerIpc() {
     return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
   ipcMain.handle('game:get-raid-state', () => logWatcher.raidState())
+  ipcMain.handle('logs:watch-state', () => logWatcher.watchState())
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
     const raw = options && typeof options === 'object' ? options as { restart?: unknown; names?: unknown } : {}
     // The wanted items' labels (a second look at a misread one): a short list of short strings, nothing else.

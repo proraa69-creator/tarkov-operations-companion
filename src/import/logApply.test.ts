@@ -37,7 +37,7 @@ describe('log event application', () => {
     expect(next.taskProgress.story?.currentStageIndex).toBe(7)
   })
 
-  it('keeps a newer reading of the Tasks table or another PC\'s later event over an older log event', () => {
+  it('a log event beats any Tasks-table reading; only another PC\'s later log event beats an older one (owner, 15.10.2026)', () => {
     const progress = createModeProgress()
     progress.taskProgress.scanned = { taskId: 'scanned', status: 'active', source: 'screen-scan', updatedAt: '2026-09-27T12:00:00.000Z' }
     progress.taskProgress.server = { taskId: 'server', status: 'completed', source: 'eft-log', updatedAt: '2026-09-27T12:00:00.000Z' }
@@ -45,7 +45,7 @@ describe('log event application', () => {
       { taskId: 'scanned', status: 'failed', timestamp: '2026-09-27T08:00:00.000Z' },
       { taskId: 'server', status: 'active', timestamp: '2026-09-27T08:00:00.000Z' },
     ], { keepPreviousLogRecords: true })
-    expect(next.taskProgress.scanned).toMatchObject({ status: 'active', source: 'screen-scan' })
+    expect(next.taskProgress.scanned).toMatchObject({ status: 'failed', source: 'eft-log' })
     expect(next.taskProgress.server).toMatchObject({ status: 'completed', source: 'eft-log' })
   })
 

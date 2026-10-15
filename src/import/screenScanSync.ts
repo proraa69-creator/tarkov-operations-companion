@@ -177,9 +177,9 @@ export function applyScreenScanProgress(
     write(taskId, { taskId, status: 'active', source: 'screen-scan', updatedAt: now, currentStageIndex: stageIndex })
   }
 
-  // Quests that are complete-prerequisites of something now on screen were turned in
-  // («Завершить» → the next quest of the chain appears). Untracked predecessors are inferred
-  // at read time, so a single misread cannot permanently mark a whole chain as done.
+  // Quests that are complete-prerequisites of something now on screen are no longer current («Завершить» → the next
+  // quest of the chain appears): their Tasks-table record goes. Not «completed»: a chain is inference, and inference never
+  // decides a status (src/quests/questEngine.ts) — the lists show such a quest as «вероятно выполнено», uncounted.
   // A row counts once its quest is current — confirmed by two frames, or known from the logs.
   const confirmed = new Set([...seen].filter((taskId) => taskProgress[taskId]?.status === 'active'))
   const prerequisites = new Set<string>()
@@ -189,9 +189,7 @@ export function applyScreenScanProgress(
   for (const [taskId, record] of Object.entries(taskProgress)) {
     if (record.source !== 'screen-scan' || record.status !== 'active') continue
     if (seen.has(taskId) || byId.get(taskId)?.kind === 'story') continue
-    if (confirmed.size && prerequisites.has(taskId)) {
-      write(taskId, { taskId, status: 'completed', source: 'screen-scan', updatedAt: now, currentStageIndex: record.currentStageIndex })
-    }
+    if (confirmed.size && prerequisites.has(taskId)) write(taskId, undefined)
   }
 
   // Keep active rows discovered in EFT logs. OCR only sees the currently visible page of the

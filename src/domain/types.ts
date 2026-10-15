@@ -21,7 +21,11 @@ export type MarkerLayerId =
   | 'landmark'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
-export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred' | 'screen-scan'
+/**
+ * `manual-fix`: «Ручная отметка» (owner, 15.10.2026), the player's own mark for a quest a bug got wrong. `manual`: the
+ * marks of versions before 0.5 (nothing creates them now).
+ */
+export type ProgressSource = 'manual' | 'manual-fix' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred' | 'screen-scan'
 
 export interface TaskRequirement {
   taskId: string
@@ -34,10 +38,31 @@ export interface TaskProgressRecord {
   status: 'active' | 'completed' | 'failed'
   source: ProgressSource
   updatedAt: string
+  /** An `eft-log` decision taken from the server's records (another PC's logs), src/quests/questEngine.ts. */
+  origin?: 'server'
   inferredFromTaskId?: string
   currentStageIndex?: number
   /** Latest visible objectives, not a prediction from the chapter's sequence. */
   storyObjectives?: StoryObjectiveReading[]
+}
+
+// The quest-state engine's inputs (src/quests/questEngine.ts), kept per mode in ModeProgress.questInputs.
+/** One source's word on a quest: its status and when it was seen (ISO, UTC). */
+export interface QuestObservation { status: 'active' | 'completed' | 'failed'; at: string }
+/** A manual mark: `cleared` is «Снять отметку», kept as a tombstone so it syncs too. */
+export interface ManualMark { status: 'active' | 'completed' | 'cleared'; at: string }
+
+/** What each source said, per quest id, never merged (ModeProgress.questInputs). */
+export interface QuestInputLayers {
+  log: Record<string, QuestObservation>
+  server: Record<string, QuestObservation>
+  manual: Record<string, ManualMark>
+  /** Tasks-table readings (source 'screen-scan'): PvE only. */
+  table: Record<string, TaskProgressRecord>
+  /** Story-pane readings of chapters (source 'screen-scan'): stage and objectives. */
+  story: Record<string, TaskProgressRecord>
+  /** `manual` records of older versions. */
+  legacy: Record<string, TaskProgressRecord>
 }
 
 export interface StoryObjectiveReading {
@@ -152,7 +177,18 @@ export interface ModeProgress {
   levelAnchor?: LevelAnchor
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
+  /**
+   * Since when `prestige` is the player's own value: the level chosen in «Престиж +» (owner, 15.10.2026). A later game
+   * reading (Tarkov.dev) after it may raise it, never lower it. Undefined: the prestige is Tarkov.dev's.
+   */
+  prestigeSetAt?: string
+  /**
+   * The quest-state engine's output (src/quests/questEngine.ts resolveQuestStates over `questInputs`): written only by
+   * it, read by everything. Kept in the stored profile so older readers work.
+   */
   taskProgress: Record<string, TaskProgressRecord>
+  /** What each quest source said, kept apart (src/quests/questInputs.ts). Missing in profiles of 0.6.0.41 and older. */
+  questInputs?: QuestInputLayers
   trackedTaskIds: string[]
   favoriteItemIds: string[]
   raidItemIds: string[]
@@ -170,11 +206,23 @@ export interface ModeProgress {
    */
   logEpochAt?: string
   /**
-   * The last reset of the whole mode the player asked for in the app — «Престиж +» or a nickname change
-   * (src/state/modeReset.ts): nothing older than this is applied again in this mode, from any source (logs, the server,
-   * the game's screens, Tarkov.dev). Undefined until one.
+   * The floor of 0.6.0.40/41: «Престиж +» or a nickname change at the press. No longer written (owner, 15.10.2026: «нужно
+   * что бы приложение находило все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в
+   * игре нет»): a profile that has one gets a pending `resetMarker` instead at load (src/domain/progress.ts).
    */
   modeResetAt?: string
+  /**
+   * «Престиж +» / «Вайп» / a new nickname: the player says the game's profile was reset around `at`. While pending, the
+   * logs before it still count (it may be an app-only reset); the game's own reset after it in the logs (a new profile id,
+   * a quest taken again after its hand-in, the prestige / new-profile request) becomes the floor and resolves it
+   * (`resolvedAt`). src/state/AppState.tsx applyLogState.
+   */
+  resetMarker?: { kind: 'prestige' | 'wipe' | 'nickname'; at: string; resolvedAt?: string }
+  /**
+   * The times of this app's reset presses (newest last, a few): a server that still answers one of them as a «reset»
+   * (0.6.0.41's floors) is not taken for the game's own reset.
+   */
+  appResetTimes?: string[]
   /** Objective state keyed by objectiveId (schema v6). */
   objectiveProgress: Record<string, ObjectiveProgress>
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */

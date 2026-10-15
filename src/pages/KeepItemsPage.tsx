@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { Boxes, Minus, PackageX, Plus, Search } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { calculateAvailability } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { COLLECTOR_CHANGED_EVENT, loadCollected } from '../kappa/collector'
 import { computeKeepList, filterKeepRows, type KeepReason, type KeepRow, type KeepSource } from '../raidprep/keepList'
 import '../styles/raidPrep.css'
@@ -33,7 +33,7 @@ export function KeepItemsPage() {
     return () => window.removeEventListener(COLLECTOR_CHANGED_EVENT, reload)
   }, [raidMode])
 
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const rows = useMemo(
     () => computeKeepList({ quests: data.quests, hideout: data.hideout, items: data.items, progress, availability, collectorCollected: collected }),
     [data.quests, data.hideout, data.items, progress, availability, collected],

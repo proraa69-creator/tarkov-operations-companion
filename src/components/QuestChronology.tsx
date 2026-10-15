@@ -1,7 +1,7 @@
 import { Check, ChevronRight, Lock } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import type { ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
-import type { TaskAvailability } from '../progression/requirementEngine'
+import { provenCompleted, type TaskAvailability } from '../progression/requirementEngine'
 import type { ChronologyGroup } from '../progression/chronologyView'
 import { questStatusText } from '../shared/questStatus'
 import { chronologyNote, chronologyTag } from '../progression/chronologyText'
@@ -23,7 +23,8 @@ export function QuestChronology({ groups, availability, progress, questsById, se
   return <div className="quest-chronology">
     {groups.map((group) => {
       const quests = group.steps.flatMap((step) => step.quests)
-      const done = quests.filter((quest) => availability.get(quest.id)?.status === 'completed').length
+      // Counted as the game reported them; the dated ones stay marked in the list (src/quests/questEngine.ts).
+      const done = quests.filter((quest) => provenCompleted(availability.get(quest.id))).length
       return <section key={group.key} className={`quest-chronology-group is-${group.kind}`}>
         <header>
           <strong>{uiText(groupTitle(group))}</strong>

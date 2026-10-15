@@ -20,7 +20,7 @@ const quests = [
 ]
 const state = vi.hoisted(() => ({
   raidMode: 'pve' as 'pvp' | 'pve' | 'seasonal',
-  activeProfile: { id: 'profile-1' },
+  activeProfile: { id: 'profile-1' } as { id: string; modes?: Record<string, { modeResetAt?: string; logResetAt?: string }> },
   applyStoryScanForMode: vi.fn(),
   applyQuestScanForMode: vi.fn(),
 }))
@@ -94,7 +94,25 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
   })
 
-  it('reads the table again when the game is in a mode whose logs do not reach back (PvP while only PvE is whole)', async () => {
+  it('reads the table again for a mode whose logs a «Престиж +» cut into (owner, 15.10.2026), not for the others', async () => {
+    const scan = wholeLog()
+    // Pressed after the logs' whole history, with no prestige of the game in them: the older logged quests were dropped.
+    state.activeProfile = { id: 'profile-1', modes: { pve: { modeResetAt: '2026-10-14T09:00:00.000Z', logResetAt: '2026-10-14T09:00:00.000Z' }, pvp: {}, seasonal: {} } }
+    try {
+      expect(logsCoverModes(scan, quests)).toMatchObject({ pve: true })
+      expect(logsCoverModes(scan, quests, state.activeProfile.modes)).toMatchObject({ pve: false })
+      updateLogStatus({ scan })
+      desktop(tasksTable)
+      render(<StoryScreenScanner />)
+      await run(0)
+      expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+      expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
+    } finally {
+      state.activeProfile = { id: 'profile-1' }
+    }
+  })
+
+  it('passes the Tasks table over in PvP and Season, whatever their logs hold (owner, 15.10.2026: the table in PvE only)', async () => {
     // The game went on to PvP afterwards; the app still shows PvE.
     const scan = buildScanResult([
       { kind: 'mode', at: Date.parse('2026-10-14T08:00:00Z'), mode: 'pve' },
@@ -110,8 +128,16 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     desktop(tasksTable)
     render(<StoryScreenScanner />)
     await run(0)
-    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
-    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pvp')
+    await run(STORY_SCAN_TIMING.storyMs)
+    // Not matched, not applied, and looked at only at the slow pace.
+    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    expect(looks).toHaveLength(1)
+    cleanup()
+    updateLogStatus({ scan: gameIn('seasonal') })
+    desktop(tasksTable)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
   })
 
   it('reads the Russian table even when the dimmed «СЮЖЕТНЫЕ» tab is read (audit P1)', async () => {
@@ -166,22 +192,30 @@ describe('readings go to the mode the game is in (audit P12, P5e)', () => {
     expect(looks).toHaveLength(1)
     // A Logs folder may exist (the search still runs): nothing goes to the app's mode, shown last before the restart.
     expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
-    await act(async () => { updateLogStatus({ scan: gameIn('seasonal') }) })
+    await act(async () => { updateLogStatus({ scan: gameIn('pve') }) })
     await run(0)
     expect(looks).toHaveLength(2)
     expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
-    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('seasonal')
+    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
     // The held frame is the first of the two readings a new row needs.
     expect((state.applyQuestScanForMode.mock.calls[0]![3] as string[]).sort()).toEqual(tableIds())
   })
 
   it('with no Logs folder found at all, the app\'s mode as before', async () => {
-    state.raidMode = 'seasonal'
+    state.raidMode = 'pve'
     updateLogStatus({ notFound: true })
     desktop(tasksTable)
     render(<StoryScreenScanner />)
     await run(0)
-    expect(state.applyQuestScanForMode.mock.calls.map((call) => call[0])).toEqual(['seasonal'])
+    expect(state.applyQuestScanForMode.mock.calls.map((call) => call[0])).toEqual(['pve'])
+    // The app's mode is Season: its trader quests come from the logs only.
+    cleanup()
+    state.applyQuestScanForMode.mockReset()
+    state.raidMode = 'seasonal'
+    desktop(tasksTable)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
   })
 
   it('switching the app\'s mode is a view change only: frames are not thrown away', async () => {

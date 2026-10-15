@@ -84,6 +84,13 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   startWatchingLogs: (folder) => ipcRenderer.invoke('logs:start-watching', folder),
   setLogQuestIds: (mode, ids) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []),
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data'),
+  /** How the main process follows the Logs folder (electron/logWatcher.ts LogWatchState). */
+  onLogWatchState: (callback) => {
+    const listener = (_event, state) => callback(state)
+    ipcRenderer.on('logs:watch-state', listener)
+    return () => ipcRenderer.removeListener('logs:watch-state', listener)
+  },
+  getLogWatchState: () => ipcRenderer.invoke('logs:watch-state'),
   onLogsUpdated: (callback) => {
     const listener = (_event, result) => callback(result)
     ipcRenderer.on('logs:updated', listener)

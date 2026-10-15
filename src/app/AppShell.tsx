@@ -23,7 +23,8 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, pushLogProgress, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
@@ -45,6 +46,8 @@ import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 import { SupportNotice } from '../support/SupportChat'
 import { ModeResetToast } from '../components/ModeResetToast'
+import { PrestigeIcon } from '../components/PrestigeIcon'
+import { prestigeLabel } from '../profile/prestige'
 
 
 const navigation = [
@@ -161,6 +164,21 @@ export function AppShell({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 3000)
     return () => window.clearTimeout(timer)
   }, [raidMode, storyKey])
+  // «Ручная отметка» through the server (src/quests/questEngine.ts weighs each against the logs): another PC and the phone
+  // get the marks; «Престиж +» / «Вайп» remove the mode's older ones there too.
+  useEffect(() => {
+    bindManualSync({
+      read: (mode) => manualMarksOf(stateRef.current.activeProfile.modes[mode]),
+      apply: (mode, marks) => stateRef.current.applyRemoteManualMarks(mode, marks),
+    })
+    return () => bindManualSync(null)
+  }, [])
+  const manualKey = useMemo(() => JSON.stringify(manualMarksOf(activeProfile.modes[raidMode])), [activeProfile.modes, raidMode])
+  useEffect(() => {
+    if (manualKey === '[]') return
+    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
+    return () => window.clearTimeout(timer)
+  }, [raidMode, manualKey])
   // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
   useEffect(() => {
     if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)
@@ -301,7 +319,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar mobile-topbar">
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
-          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
+          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}>{activeProfile.modes[raidMode].prestige > 0 ? <span className="op-prestige-chip" title={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)}><PrestigeIcon level={activeProfile.modes[raidMode].prestige} size={18} label={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)} /></span> : <UserRound size={16} />}<span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
           <ThemeButton />
           <SubscriptionExpiryNotice compact />
         </header>

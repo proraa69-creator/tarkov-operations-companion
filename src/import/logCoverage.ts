@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Quest, RaidMode } from '../domain/types'
+import type { ModeProgress, Quest, RaidMode } from '../domain/types'
 import { isGunsmithQuest } from '../gunsmith/gunsmith'
 import { questFaction, questRequirements } from '../progression/requirementEngine'
 import type { ModeLogScanResult } from './eftLogTimeline'
@@ -80,22 +80,48 @@ export function loggedQuestHistory(scan: Pick<ModeLogScanResult, 'eventsByMode' 
 }
 
 /** What the coverage check reads from a log scan: the quests, the acceptances and whether the history starts in the logs. */
-export type CoverageScan = Pick<ModeLogScanResult, 'eventsByMode' | 'acceptedByMode'> & { summaryByMode?: Partial<Record<RaidMode, { historyStartsInLogs?: boolean }>> }
+export type CoverageScan = Pick<ModeLogScanResult, 'eventsByMode' | 'acceptedByMode'> & { summaryByMode?: Partial<Record<RaidMode, { historyStartsInLogs?: boolean; resetAt?: string }>> }
 
-/** The logs of this mode hold its whole quest history: it starts inside them, and nothing in it is missing (logsCoverQuestHistory). */
-export function logsCoverMode(scan: CoverageScan | undefined, mode: RaidMode, quests: readonly CoverageQuest[]) {
+/** The resets a mode's records were cut at (the app's state of the mode). */
+export type CoverageResets = Pick<ModeProgress, 'logResetAt' | 'modeResetAt'>
+
+/**
+ * Whether the app applies all of this mode's logs since their own start: no floor of the app («Престиж +», «Вайп», a new
+ * nickname, or such a reset another device sent) cuts into them. One that does threw the older logged quests away, so
+ * the logs no longer hold the mode's history, and the quests still active in the game must come from the Tasks table
+ * again (owner, 15.10.2026: «Не работает обнаружение квестов после сброса через кнопку престиж»). The game's own trusted
+ * reset is no cut: the logs' history starts there anyway.
+ */
+function logsUncut(scan: CoverageScan, mode: RaidMode, resets: CoverageResets | undefined) {
+  if (!resets) return true
+  const floor = resets.logResetAt && resets.modeResetAt ? (resets.logResetAt > resets.modeResetAt ? resets.logResetAt : resets.modeResetAt) : resets.logResetAt ?? resets.modeResetAt
+  if (!floor) return true
+  const gameResetAt = scan.summaryByMode?.[mode]?.resetAt
+  if (gameResetAt && floor <= gameResetAt) return true
+  const times = (scan.eventsByMode[mode] ?? []).map((event) => event.timestamp)
+  return times.length > 0 && times.every((time) => time >= floor)
+}
+
+/**
+ * The logs of this mode hold its whole quest history: it starts inside them, nothing in it is missing
+ * (logsCoverQuestHistory), and no reset of the app cut into them (`resets`: the app's state of the mode).
+ */
+export function logsCoverMode(scan: CoverageScan | undefined, mode: RaidMode, quests: readonly CoverageQuest[], resets?: CoverageResets) {
   if (!scan?.summaryByMode?.[mode]?.historyStartsInLogs) return false
+  if (!logsUncut(scan, mode, resets)) return false
   return logsCoverQuestHistory(loggedQuestHistory(scan, mode), quests)
 }
 
 const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 /** Each mode on its own: PvP, PvE and the season never share a quest history. */
-export function logsCoverModes(scan: CoverageScan | undefined, quests: readonly CoverageQuest[]): Record<RaidMode, boolean> {
-  return Object.fromEntries(MODES.map((mode) => [mode, logsCoverMode(scan, mode, quests)])) as Record<RaidMode, boolean>
+export function logsCoverModes(scan: CoverageScan | undefined, quests: readonly CoverageQuest[], resets?: Partial<Record<RaidMode, CoverageResets | undefined>>): Record<RaidMode, boolean> {
+  return Object.fromEntries(MODES.map((mode) => [mode, logsCoverMode(scan, mode, quests, resets?.[mode])])) as Record<RaidMode, boolean>
 }
 
-/** logsCoverModes, worked out again only when the log scan or the catalog changes. */
-export function useLogsCoverModes(scan: CoverageScan | undefined, quests: readonly CoverageQuest[] | undefined) {
-  return useMemo(() => logsCoverModes(scan, quests ?? []), [scan, quests])
+/** logsCoverModes, worked out again only when the log scan, the catalog or a mode's resets change. */
+export function useLogsCoverModes(scan: CoverageScan | undefined, quests: readonly CoverageQuest[] | undefined, modes?: Partial<Record<RaidMode, CoverageResets | undefined>>) {
+  const key = MODES.map((mode) => [modes?.[mode]?.logResetAt, modes?.[mode]?.modeResetAt].join(',')).join('|')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for the resets of `modes`
+  return useMemo(() => logsCoverModes(scan, quests ?? [], modes), [scan, quests, key])
 }

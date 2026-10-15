@@ -32,7 +32,8 @@ export function StoryScreenScanner() {
   const state = useAppState()
   const logStatus = useLogStatus()
   // Per mode: the game's logs hold its whole quest history (src/import/logCoverage.ts).
-  const logsCover = useLogsCoverModes(logStatus.scan, data.quests)
+  // A reset of a mode in the app («Престиж +») that cut into its logs turns the Tasks-table reading back on for it.
+  const logsCover = useLogsCoverModes(logStatus.scan, data.quests, state.activeProfile.modes)
   const logsCoverRef = useRef(logsCover)
   const questsRef = useRef(data.quests)
   const logStatusRef = useRef(logStatus)
@@ -152,7 +153,9 @@ export function StoryScreenScanner() {
         const screenKind = frame?.gameWindow ? tasksScreenKind(frame.text, frame.story) : null
         const storyScreen = screenKind === 'story'
         const tasksTable = screenKind === 'table'
-        const tasksFromLogs = tasksTable && Boolean(mode && logsCoverRef.current[mode])
+        // Owner, 15.10.2026: «сканирование экрана только для пве режима и для сюжетных квестах во всех режимах» — in PvP
+        // and Season the table is passed over like a covered one: no matching, no applying.
+        const tasksFromLogs = tasksTable && Boolean(mode && (mode !== 'pve' || logsCoverRef.current[mode]))
         const held = !mode && (storyScreen || tasksTable)
         heldRef.current = held
         let delay: number = IDLE_MS

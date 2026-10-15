@@ -1,0 +1,17 @@
+/* «Диагностика квестов» (owner only): small, collapsed by default. */
+.quest-diagnostics { margin-top: 14px; }
+.quest-diagnostics-toggle { width: 100%; background: none; border: 0; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.quest-diagnostics-icons { display: inline-flex; gap: 6px; align-items: center; color: var(--text-dim); }
+.quest-diagnostics-icons .is-open { transform: rotate(180deg); }
+.quest-diagnostics-body { display: grid; gap: 12px; }
+.quest-diagnostics-mode { border: 1px solid var(--line, rgb(255 255 255 / 10%)); border-radius: 8px; padding: 10px 12px; }
+.quest-diagnostics-mode.is-shown { border-color: color-mix(in srgb, var(--brass, #c8a96a) 55%, transparent); }
+.quest-diagnostics-mode header { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.quest-diagnostics-mode header span { color: var(--text-dim); font-size: 12.5px; overflow-wrap: anywhere; }
+.quest-diagnostics-mode dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 14px; margin: 8px 0 0; font-size: 12.5px; }
+.quest-diagnostics-mode dl > div { display: contents; }
+.quest-diagnostics-mode dt { color: var(--text-dim); }
+.quest-diagnostics-mode dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.quest-diagnostics-conflicts { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--text-dim); }
+.quest-diagnostics-conflicts b { color: var(--text); font-weight: 600; }
+@media (max-width: 640px) { .quest-diagnostics-mode dl { grid-template-columns: 1fr; } .quest-diagnostics-mode dd { text-align: left; margin-bottom: 4px; } }

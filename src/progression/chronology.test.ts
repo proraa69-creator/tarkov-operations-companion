@@ -3,7 +3,7 @@ import type { AppDataset, ModeProgress, Quest, TaskProgressRecord } from '../dom
 import { createModeProgress } from '../domain/progress'
 import { withQuestGrid } from '../data/questGrid'
 import { unlockFromRequirements } from '../data/questUnlock'
-import { calculateAvailability } from './requirementEngine'
+import { calculateAvailability, completedQuestStats, isLiveGameQuest } from './requirementEngine'
 import { inferChronology } from './chronology'
 import grid from './__fixtures__/quest-grid-tasks-2026-10.json'
 import ownerLogs from './__fixtures__/owner-logs-2026-09.json'
@@ -165,6 +165,25 @@ describe("the owner's logs against the quest grid", () => {
     expect(statusOf(availability, 'Терапевт', 'Служба дезинфекции')?.status).toBe('unknown')
     expect(count('active')).toBe(3)
     expect(count('completed')).toBeGreaterThanOrEqual(25)
+  })
+
+  it('«Выполнено» counts what the game reported or proves, never the chronology guesses (owner, 15.10.2026: 154 in the game, 226 in the app)', () => {
+    const availability = calculateAvailability(quests, progressOf(recordsOf('pve'), { faction: 'bear', playerLevel: 40 }))
+    const inferred = [...availability.values()].filter((entry) => entry.status === 'completed' && entry.basis && !entry.proof).length
+    // The lists still show the chronology's guesses as done (line, stage, start): about two hundred of them.
+    expect(inferred).toBeGreaterThan(190)
+    // The count: the one PvE quest these logs show handed in, and the prerequisites the held quests prove — no guesses.
+    const handedIn = (ownerLogs.events.pve as Array<[string, string, string]>).filter(([, status]) => status === 'completed').length
+    expect(handedIn).toBe(1)
+    const required = [...availability.values()].filter((entry) => entry.status === 'completed' && entry.proof === 'prerequisite').length
+    expect(required).toBeGreaterThan(0)
+    expect(completedQuestStats(quests, availability).completed).toBe(handedIn + required)
+    // PvP after its prestige: the 36 handed in since the reset, nothing more.
+    const pvp = calculateAvailability(quests, progressOf(recordsOf('pvp', ownerLogs.resets.pvp), { faction: 'bear', playerLevel: 5 }))
+    const live = new Set(quests.filter((entry) => isLiveGameQuest(entry)).map((entry) => entry.id))
+    const pvpHandedIn = Object.entries(recordsOf('pvp', ownerLogs.resets.pvp)).filter(([taskId, record]) => record.status === 'completed' && live.has(taskId)).length
+    expect(pvpHandedIn).toBeGreaterThan(0)
+    expect(completedQuestStats(quests, pvp).completed).toBe(pvpHandedIn)
   })
 
   it('PvE, 26.09: Prapor — the quest handed in and the ones taken date the first line', () => {
