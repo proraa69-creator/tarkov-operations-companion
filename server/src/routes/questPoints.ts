@@ -5,23 +5,31 @@
  *                                                                without the author and the note)
  *   GET  /v1/accounts/me/admin/quest-points                   -> { overrides } (owner: with author and note)
  *   PUT  /v1/accounts/me/admin/quest-points  { id?, questId, markerId?, objectiveId?, stageIndex?, mapId, x, z, floor?,
- *                                               kind: 'move' | 'add' | 'hide', note? } -> { override, overrides }
+ *                                               kind: 'move' | 'add' | 'hide' | 'describe', title?, titleEn?, description?,
+ *                                               descriptionEn?, note? } -> { override, overrides }
  *   POST /v1/accounts/me/admin/quest-points/:id/remove        -> { overrides } («Вернуть исходную точку»)
  *
  * Owner routes need the session of an account listed in TARKOV_OWNER_EMAILS: 401 without a session, 404 for everybody
  * else (like the boss placements, routes/mapBosses.ts). Writes go to the owner's audit log as `map.quest-point`.
  * Removal is a POST like the boss placements: the desktop app's service gateway forwards GET / POST / PUT only.
+ *
+ * A point's description «где и что искать» (`title` up to 80, `description` up to 500 characters, RU and optionally EN)
+ * is for every player and is in the public list; `describe` gives an original point a description without moving it.
+ * Older apps skip a `describe` entry and the unknown fields (src/data/questPointOverrides.ts parses known kinds only).
  */
 import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { QuestPointStore, type QuestPointOverride } from '../services/questPointStore.js'
+import { optionalLine, optionalText } from './ownerText.js'
 
 const slug = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/)
 const ident = z.string().trim().regex(/^[A-Za-z0-9_.:-]{1,200}$/)
 /** Game metres; the largest maps are well within ±2000. */
 const metres = z.number().finite().min(-5000).max(5000)
+export const QUEST_POINT_TITLE_MAX = 80
+export const QUEST_POINT_DESCRIPTION_MAX = 500
 const overrideSchema = z.object({
   id: z.string().regex(/^[a-f0-9]{24}$/).optional(),
   questId: ident,
@@ -32,7 +40,11 @@ const overrideSchema = z.object({
   x: metres,
   z: metres,
   floor: z.string().trim().min(1).max(40).optional(),
-  kind: z.enum(['move', 'add', 'hide']),
+  kind: z.enum(['move', 'add', 'hide', 'describe']),
+  title: optionalLine(QUEST_POINT_TITLE_MAX),
+  titleEn: optionalLine(QUEST_POINT_TITLE_MAX),
+  description: optionalText(QUEST_POINT_DESCRIPTION_MAX),
+  descriptionEn: optionalText(QUEST_POINT_DESCRIPTION_MAX),
   note: z.string().trim().max(300).optional().transform((value) => value || undefined),
 })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
@@ -76,8 +88,9 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
     const actor = owner(req, res, true)
     if (!actor) return
     const body = overrideSchema.safeParse(req.body)
-    if (!body.success) { res.status(400).json({ error: 'Некорректные данные точки' }); return }
+    if (!body.success) { res.status(400).json({ error: `Некорректные данные точки (заголовок до ${QUEST_POINT_TITLE_MAX}, описание до ${QUEST_POINT_DESCRIPTION_MAX} символов)` }); return }
     const { id, ...input } = body.data
+    if (input.kind === 'describe' && !input.title && !input.description && !input.titleEn && !input.descriptionEn) { res.status(400).json({ error: 'Пустое описание точки' }); return }
     const saved = store.save(input, actor, id)
     if (saved === 'invalid') { res.status(400).json({ error: 'Не указана исходная точка' }); return }
     if (saved === 'missing') { res.status(404).json({ error: 'Правка не найдена' }); return }
@@ -87,6 +100,8 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
       audit?.(actor, 'map.quest-point', saved.id, {
         op: saved.kind, quest: saved.questId, mapId: saved.mapId, x: Math.round(saved.x), z: Math.round(saved.z),
         ...(saved.markerId ? { marker: saved.markerId } : {}), ...(saved.note ? { note: saved.note } : {}),
+        ...(saved.description || saved.title ? { described: (saved.title ?? '').length + (saved.description ?? '').length } : {}),
+        ...(saved.descriptionEn || saved.titleEn ? { describedEn: (saved.titleEn ?? '').length + (saved.descriptionEn ?? '').length } : {}),
       })
     } catch { /* saved anyway */ }
     res.json({ override: saved, overrides: store.list() })

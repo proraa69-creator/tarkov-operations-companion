@@ -48,6 +48,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
+  // Quest requirements curated by the owner (server/src/routes/questRequirements.ts).
+  { methods: ['GET'], path: /^\/v1\/quest-requirements$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.

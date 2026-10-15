@@ -36,6 +36,7 @@ import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointsRouter } from './routes/questPoints.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
+import { catalogItemCheck, createQuestRequirementsRouter } from './routes/questRequirements.js'
 import { createAnnouncementRouter } from './routes/announcement.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
@@ -51,6 +52,7 @@ import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
+import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
@@ -277,6 +279,13 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // Quest requirements the owner curated in the quest constructor (items / keys from the catalog): read by every player,
+  // written by the owner (routes/questRequirements.ts).
+  app.use(createQuestRequirementsRouter(accounts, new QuestRequirementStore(accounts.database), {
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+    changed: () => mapUpdates.changed(),
+    knownItem: catalogItemCheck(options.catalog ?? peekCatalogSnapshot),
+  }))
   // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
   app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))
   // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
