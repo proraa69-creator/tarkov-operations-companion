@@ -1,7 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { MapPin, Search, Trophy, X } from 'lucide-react'
+import { ListTree, MapPin, Search, Trophy, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
@@ -20,7 +20,9 @@ import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { featureEnabled } from '../app/archivedFeatures'
 import { StoryEndingsView } from '../endings/StoryEndingsView'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
+import { StoryChaptersAll } from '../components/StoryChaptersAll'
 import './storyObjectives.css'
+import '../components/storyChaptersAll.css'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -86,18 +88,21 @@ export function QuestsPage() {
   const selectedGunsmith = selected ? isGunsmithQuest(selected) : false
   // «Оружейник» parts taken in the game live in their own block: a link instead of rows here.
   const gunsmithActive = statusFilter === 'active' ? data.quests.filter((quest) => isGunsmithQuest(quest) && availability.get(quest.id)?.status === 'active') : []
+  // «Показать все» at the end of «Главы истории»: every chapter of the base, reached or not (owner, 14.10.2026)
+  const showAllStory = statusFilter === 'story' && params.get('all') === '1'
+  const setShowAllStory = (on: boolean) => setParams((current) => { const next = new URLSearchParams(current); if (on) { next.set('all', '1'); next.delete('selected') } else next.delete('all'); return next })
 
   return <div className="page">
     <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!mobile ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}</p>}</div>{statusFilter !== 'endings' && <span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>}</header>
     <div className="filter-row quest-filter-bar">
-      {statusFilter !== 'endings' && <>
+      {statusFilter !== 'endings' && !showAllStory && <>
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
       <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
       </>}
-      <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} data-guide={value === 'story' ? 'story-tab' : undefined} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); if (mobile) next.delete('selected'); return next }) }}>{uiText(label)}</button>))}</div>
+      <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} data-guide={value === 'story' ? 'story-tab' : undefined} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); next.delete('all'); if (mobile) next.delete('selected'); return next }) }}>{uiText(label)}</button>))}</div>
     </div>
 
-    {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : <div className="split-page">
+    {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : showAllStory ? <StoryChaptersAll availability={availability} progress={progress} onBack={() => setShowAllStory(false)} /> : <div className="split-page">
       <section className="panel">
         <div className="panel-header"><div className="panel-title">{uiText(statusFilter === 'story' ? 'Главы истории' : 'Каталог заданий')}</div></div>
         {statusFilter === 'chronology' && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
@@ -128,6 +133,7 @@ export function QuestsPage() {
           }))}
           {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         </div>}
+        {statusFilter === 'story' && <div className="story-all-footer"><button type="button" className="button small" data-testid="story-show-all" onClick={() => setShowAllStory(true)}><ListTree size={14} /> {uiText('Показать все')}</button></div>}
       </section>
 
       {mobile && selected && <div className="quest-sheet-backdrop" onClick={closeSelected} aria-hidden />}
