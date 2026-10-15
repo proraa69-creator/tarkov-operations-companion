@@ -15,6 +15,8 @@ import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
 import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor } from '../data/mapProjection'
+import { keyDoorFocusCard } from '../data/keyDoors'
+import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
@@ -313,6 +315,7 @@ export function MapsPage() {
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
   const [params, setParams] = useSearchParams()
+  const { locale } = useLocale()
   const { data } = useTarkovData()
   const state = useAppState()
   const navigate = useNavigate()
@@ -355,6 +358,8 @@ export function MapsPage() {
   const focusedStage = params.get('stage')
   // «Барахолка» → a key's «Показать дверь на карте» (?lock=<marker id>): that door, on its floor, even with «Двери» off.
   const focusedLockId = params.get('lock')
+  // ?key=<item id>: the key whose curated lock that marker stands for (data/keyDoors.ts keyDoorFocusCard).
+  const focusedLockKey = params.get('key')
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
@@ -482,9 +487,9 @@ export function MapsPage() {
   useEffect(() => {
     if (!focusedLock) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the door from «Барахолка» is selected once its marker is known
-    setSelectedMarker(focusedLock)
+    setSelectedMarker(keyDoorFocusCard(focusedLock, focusedLockKey, locale))
     setFloor(focusedLock.floor ?? baseFloor)
-  }, [focusedLock, baseFloor])
+  }, [focusedLock, focusedLockKey, locale, baseFloor])
 
   /** `questId`: open that quest on the new map (the quest constructor jumps to the map a picked quest is plotted on). */
   const selectMap = (id: string, questId?: string) => {
@@ -508,13 +513,17 @@ export function MapsPage() {
     next.delete('quest')
     next.delete('stage')
     next.delete('lock')
+    next.delete('key')
     setParams(next, { replace: true })
   }
 
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
-    if (marker.id !== focusedLockId) next.delete('lock')
+    if (marker.id !== focusedLockId) {
+      next.delete('lock')
+      next.delete('key')
+    }
     if (marker.questId) {
       next.set('quest', marker.questId)
       if (marker.stageIndex != null) next.set('stage', String(marker.stageIndex))
