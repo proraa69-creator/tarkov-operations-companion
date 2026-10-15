@@ -12,8 +12,6 @@ export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
   ['Цель под эффектом', 'Target under effect'], ['Вы под эффектом', 'You under effect'], ['Открыть квест', 'Open task'],
   // the short words of the card's line (src/overview/conditionText.ts)
   ['ЧВК', 'PMC'], ['Дикие', 'Scavs'], ['любые цели', 'any target'], ['снайперы', 'Sniper Scavs'], ['рейдеры', 'Raiders'], ['отступники', 'Rogues'],
-  // the sections of quests with gear conditions (src/overview/GearQuestSection.tsx)
-  ['С условиями на снаряжение', 'Gear conditions'], ['Снаряжение для рейда', 'Raid gear'],
   ['голова', 'head'], ['грудь', 'thorax'], ['живот', 'stomach'], ['руки', 'arms'], ['ноги', 'legs'], ['попадание', 'a hit counts'],
 ]
 

@@ -79,35 +79,6 @@
 .qc-meta.is-full { flex-wrap: wrap; overflow: visible; }
 .qc-meta.is-full .qc-chips { flex-wrap: wrap; flex: 0 1 auto; }
 .qc-meta.is-full .qc-line { white-space: normal; }
-.qc-gear.is-tiny { gap: 4px; height: 24px; }
-.qc-gear.is-tiny .qc-weapon { width: 22px; height: 22px; padding: 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-0); filter: none; }
-.qc-gear.is-tiny .qc-icon { width: 20px; height: 20px; padding: 1px; }
-.qc-gear.is-tiny .qc-icon-group { padding-left: 4px; }
-
-/* ── «С условиями на снаряжение»: the quests with gear conditions apart, at the bottom of «Текущие задания» (Overview)
-   and «Квесты на карте» (Maps); a crosshair marks them so they are not taken for ordinary quests. ── */
-.gear-section {
-  display: grid; gap: 6px; margin-top: 14px; padding: 10px 10px 4px; border: 1px solid color-mix(in srgb, var(--brass) 32%, var(--line));
-  border-radius: 10px; background: color-mix(in srgb, var(--brass) 5%, var(--surf-1));
-}
-.gear-section-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.gear-section-icon { display: inline-grid; flex: 0 0 auto; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: color-mix(in srgb, var(--brass) 18%, var(--surf-0)); color: var(--brass-strong); }
-.gear-section-title { min-width: 0; color: var(--brass-strong); font-size: 10.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-.gear-section-count { margin-left: auto; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-muted); font-size: 10px; font-weight: 750; line-height: 1.6; font-variant-numeric: tabular-nums; }
-.quest-row.is-gear { grid-template-columns: 32px minmax(0, 1fr); padding: 9px 2px; }
-.quest-row.is-gear .quest-index { color: var(--brass-strong); background: color-mix(in srgb, var(--brass) 14%, var(--surf-0)); }
-.gear-quest-button {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; width: 100%; margin: 0; padding: 4px 6px;
-  border: 1px solid transparent; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
-  transition: background .12s var(--ease-soft), border-color .12s var(--ease-soft);
-}
-.gear-quest-button:hover, .gear-quest-button:focus-visible { border-color: var(--line-strong); background: var(--panel-3); outline: none; }
-.gear-quest-button:hover strong, .gear-quest-button:focus-visible strong { color: var(--brass-strong); }
-.gear-quest-copy { min-width: 0; }
-.gear-quest-copy strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.map-gear-section { padding-bottom: 10px; }
-.map-gear-section .quest-map-row { margin-top: 2px; border-color: color-mix(in srgb, var(--brass) 22%, var(--line)); }
-.quest-map-row.is-gear h3::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 7px 2px 0; border-radius: 50%; background: var(--brass); vertical-align: middle; }
 
 /* ── The dialog: the whole build and every condition ─────────────── */
 .quest-conditions-overlay { animation: kappa-dialog-fade .3s var(--ease-soft) both; }

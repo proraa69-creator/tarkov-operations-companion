@@ -40,15 +40,6 @@ export function gearObjectivesOnMap(quest: Pick<Quest, 'objectiveDetails'>, mapI
   return gearObjectives(quest).filter((objective) => objectiveOnMap(objective, mapId))
 }
 
-/**
- * The quest is one «Сбор на рейд» can show on the map: a weapon, weapon parts, gear to wear or not to wear for an
- * objective of that map (or of any map). Such quests get their own section «С условиями на снаряжение» at the bottom of
- * «Текущие задания» (Overview) and «Квесты на карте» (Maps), owner 15.10.2026: «что бы не путаться в квестах».
- */
-export function hasGearOnMap(quest: Pick<Quest, 'objectiveDetails'>, mapId: string): boolean {
-  return gearObjectivesOnMap(quest, mapId).length > 0
-}
-
 export function conditionQuestsForMap(quests: readonly Quest[], availability: Map<string, TaskAvailability>, mapId: string): MapConditionQuests {
   const active: ConditionQuest[] = []
   const available: ConditionQuest[] = []

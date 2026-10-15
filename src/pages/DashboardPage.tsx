@@ -28,7 +28,7 @@ import { GunsmithPanel } from '../gunsmith/GunsmithPanel'
 import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
 import { CountUp } from '../components/CountUp'
 import { QuestConditionsCard } from '../overview/QuestConditionsCard'
-import { conditionQuestsForMap, gearObjectivesOnMap, type ConditionQuest } from '../overview/questConditions'
+import { conditionQuestsForMap } from '../overview/questConditions'
 import { OverviewBlock } from '../overview/OverviewBlock'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
@@ -99,11 +99,6 @@ export function DashboardPage() {
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition.
   const conditionQuests = useMemo(() => conditionQuestsForMap(data.quests, availability, selectedMap.id), [availability, data.quests, selectedMap.id])
-  // «Текущие задания»: the tasks with a gear condition on this map go to their own section at the bottom of the list.
-  const gearTasks = [...mapQuests, ...anyMapCurrent].flatMap((quest): ConditionQuest[] => {
-    const objectives = gearObjectivesOnMap(quest, selectedMap.id)
-    return objectives.length ? [{ quest, objectives }] : []
-  })
   // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
   const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
@@ -149,7 +144,7 @@ export function DashboardPage() {
     requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} /> },
   }
   const rightBlocks: Blocks = {
-    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} gear={{ quests: gearTasks, items: data.items, mapName }} /> },
+    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',

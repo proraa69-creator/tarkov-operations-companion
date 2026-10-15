@@ -84,17 +84,16 @@ function shortOptions(options: ItemRef[][], pictures: Pictures): { refs: ItemRef
 /**
  * The pictures of one objective at rest: the weapon (+N), the first few parts and gear (+N). Gear not to wear is never
  * shown (owner, 15.10.2026: «то что не нужно надевать, не показывай»).
- * `tiny`: the small strip of a task row («С условиями на снаряжение» in «Текущие задания»).
  */
-export function GearStrip({ conditions, pictures, tiny }: { conditions: ObjectiveConditions; pictures: Pictures; tiny?: boolean }) {
+export function GearStrip({ conditions, pictures }: { conditions: ObjectiveConditions; pictures: Pictures }) {
   const weapon = conditions.weapons?.length ? exampleOf(conditions.weapons, pictures) : undefined
   const mods = conditions.mods?.[0] ?? []
   const wearing = conditions.wearing?.[0] ?? []
-  const limit = tiny ? 2 : CARD_PARTS
+  const limit = CARD_PARTS
   const more = (count: number, title: string) => count > 0 && <span className="qc-more" title={uiText(title)}>+{count}</span>
-  return <span className={`qc-gear${tiny ? ' is-tiny' : ''}`}>
+  return <span className="qc-gear">
     {weapon && <span className="qc-weapon-group">
-      <Picture className="qc-weapon" src={(tiny ? iconOf : weaponPictureOf)(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={tiny ? 12 : 16} />} />
+      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={16} />} />
       {more((conditions.weapons?.length ?? 0) - 1, 'Подходит и другое оружие из списка')}
     </span>}
     {mods.length > 0 && <span className="qc-icon-group is-mods">

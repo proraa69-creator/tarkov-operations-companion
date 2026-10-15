@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { ArrowUp, Check, Lightbulb, MapPin, MousePointer2 } from 'lucide-react'
@@ -175,8 +175,11 @@ function useTarget(selector?: string) {
 /** Where the card goes, and the pointer between it and the part: `turn` is the way the pointer points. */
 interface Placement { left: number; top: number; pointer?: { left: number; top: number; turn: 'up' | 'down' | 'left' | 'right' } }
 
-/** The tip card over the page, the part it points at lit up. `id`: the tip's name on the layer (`data-step`). */
-export function GuideTip({ id, tip, phone, onAccept }: { id: string; tip: GuideTipContent; phone: boolean; onAccept: () => void }) {
+/**
+ * The tip card over the page, the part it points at lit up. `id`: the tip's name on the layer (`data-step`); `children`:
+ * an example drawn under the words (the quest of the «Сбор на рейд» tip).
+ */
+export function GuideTip({ id, tip, phone, onAccept, children }: { id: string; tip: GuideTipContent; phone: boolean; onAccept: () => void; children?: ReactNode }) {
   const { locale } = useLocale()
   const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
   const target = useTarget(tip.target)
@@ -257,6 +260,7 @@ export function GuideTip({ id, tip, phone, onAccept }: { id: string; tip: GuideT
         {tip.media === 'checkmark' && <CheckmarkDemo quest={say(DEMO_QUEST)} map={say(DEMO_MAP)} />}
         {tip.media === 'kappa' && <img className="frg-shot" src={kappaContainer} alt={say(KAPPA_ALT)} width={681} height={712} />}
         <p id="frg-text">{say(tip.text(phone))}</p>
+        {children}
         <button ref={button} type="button" className="button primary frg-accept" onClick={onAccept}>{say(ACCEPT)}</button>
       </div>
     </div>,
