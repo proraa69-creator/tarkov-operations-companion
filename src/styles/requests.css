@@ -37,27 +37,3 @@
 @media (hover: hover) and (pointer: fine) { .requests-image:hover img { border-color: var(--brass); } }
 .requests-files-link { padding: 0; border: 0; background: none; color: var(--brass-strong, var(--brass)); font: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: zoom-in; }
 .requests-files-link[aria-busy="true"] { cursor: progress; opacity: .7; }
-/* Over everything, the image fitted to the window (never enlarged past its own size); the buttons around it. */
-.requests-viewer {
-  position: fixed; inset: 0; z-index: 5000; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center;
-  padding: 58px 76px; background: rgb(4 5 4 / 92%);
-}
-.requests-viewer img {
-  max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; background: #0b0d0c; box-shadow: 0 20px 60px rgb(0 0 0 / 60%);
-  -webkit-user-select: none; user-select: none;
-}
-.requests-viewer-close, .requests-viewer-step {
-  position: absolute; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%;
-  background: var(--panel); color: var(--text); cursor: pointer;
-}
-.requests-viewer-close { top: 12px; right: 12px; width: 40px; height: 40px; }
-.requests-viewer-step { top: 50%; width: 48px; height: 48px; translate: 0 -50%; }
-.requests-viewer-step.is-prev { left: 14px; }
-.requests-viewer-step.is-next { right: 14px; }
-@media (hover: hover) and (pointer: fine) { .requests-viewer-close:hover, .requests-viewer-step:hover { border-color: var(--brass); } }
-.requests-viewer-close:focus-visible, .requests-viewer-step:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
-.requests-viewer-count { position: absolute; top: 22px; left: 50%; translate: -50% 0; color: var(--text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-@media (max-width: 700px) {
-  .requests-viewer { padding: 60px 8px 76px; }
-  .requests-viewer-step { top: auto; bottom: 14px; translate: none; }
-}

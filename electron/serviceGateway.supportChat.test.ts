@@ -98,4 +98,32 @@ describe('support chat through the desktop gateway', () => {
     expect(await serviceRequest('GET', '/v1/me/support/messages')).toEqual({ messages: [], unread: 0, oldestId: null })
     await accountLogout()
   })
+
+  it('screenshots (owner, 15.10.2026): sent with a message past 1 MB, read as JSON by the account and the owner only', async () => {
+    // A PNG header (1280×720) with padding: 1.5 MB, past the server's global 1 MB body limit.
+    const png = Buffer.alloc(1_500_000)
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).copy(png)
+    png.write('IHDR', 12, 'latin1')
+    png.writeUInt32BE(1280, 16)
+    png.writeUInt32BE(720, 20)
+    await accountRegister('shooter@example.com', password, undefined, 'RU')
+    const sent = await serviceRequest('POST', '/v1/me/support/messages', { text: '', images: [{ data: png.toString('base64') }] }) as { message: Message & { attachments: Array<{ id: string; width: number; height: number }> } }
+    expect(sent.message.text).toBe('[скриншот]')
+    const [shot] = sent.message.attachments
+    expect([shot!.width, shot!.height]).toEqual([1280, 720])
+    const own = await serviceRequest('GET', `/v1/me/support/attachments/${shot!.id}`) as { mime: string; data: string }
+    expect([own.mime, own.data === png.toString('base64')]).toEqual(['image/png', true])
+    for (const path of ['/v1/me/support/attachments/NOT-AN-ID', `/v1/me/support/attachments/${shot!.id}/x`, '/v1/me/support/attachments']) {
+      await expect(serviceRequest('GET', path)).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    await expect(serviceRequest('GET', `/v1/accounts/me/admin/support/attachments/${shot!.id}`)).rejects.toThrow('Не найдено')
+    await accountLogout()
+    // Another player: as if it did not exist.
+    await accountRegister('curious@example.com', password, undefined, 'RU')
+    await expect(serviceRequest('GET', `/v1/me/support/attachments/${shot!.id}`)).rejects.toThrow('Скриншот не найден')
+    await accountLogout()
+    await accountLogin('owner@example.com', password)
+    expect(await serviceRequest('GET', `/v1/accounts/me/admin/support/attachments/${shot!.id}`)).toMatchObject({ mime: 'image/png', width: 1280, height: 720 })
+    await accountLogout()
+  })
 })

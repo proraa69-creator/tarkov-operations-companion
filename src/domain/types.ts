@@ -366,7 +366,33 @@ export interface MapMarker {
   requiresItem?: boolean
   requiresCoop?: boolean
   meta?: string
+  /**
+   * The owner's description of a quest point «где и что искать» in the app's language, and the curated requirements
+   * linked to this point (src/data/questPointOverrides.ts, src/data/questRequirementOverrides.ts).
+   */
+  hint?: MarkerHint
 }
+
+/** What the owner wrote for players at a quest point. */
+export interface MarkerHint {
+  title?: string
+  text?: string
+  /** Items / keys the owner linked to this point (resolved names, for the tooltip). */
+  needs?: Array<{ itemId: string; name: string; iconUrl?: string; kind: string; count: number }>
+}
+
+/** A quest point's description, gathered on the quest for its card (objective / stage it belongs to). */
+export interface QuestPointHint {
+  markerId: string
+  mapId: string
+  objectiveId?: string
+  stageIndex?: number
+  title?: string
+  text: string
+}
+
+/** Kinds of the requirements the owner adds in the quest constructor (src/data/questRequirementOverrides.ts). */
+export type CuratedRequirementKind = 'bring' | 'handover' | 'find' | 'key' | 'plant' | 'use'
 
 export interface QuestStage {
   id: string
@@ -619,7 +645,14 @@ export interface Quest {
     minDurability?: number
     maxDurability?: number
     dogTagLevel?: number
+    /**
+     * Added or corrected by the owner in the quest constructor («добавлено Raid OS»): its own kind, comment and the point
+     * it is tied to; `replaced` when it corrects the catalog's requirement of the same item and kind.
+     */
+    curated?: { id: string; kind: CuratedRequirementKind; comment?: string; pointId?: string; replaced?: boolean }
   }>
+  /** The owner's point descriptions «где искать» of this quest (src/data/questPointOverrides.ts). */
+  pointHints?: QuestPointHint[]
 }
 
 /** Raid briefing / route name for the unified objective shape. */

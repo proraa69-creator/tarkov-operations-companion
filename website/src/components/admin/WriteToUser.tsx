@@ -4,16 +4,19 @@ import { useAuth } from '../../auth'
 import { errorMessage } from '../../api'
 import { ownerCall } from './noticesApi'
 import { dateTime } from './adminData'
+import { SUPPORT_IMAGE_PLACEHOLDER } from '../../../../src/shared/supportChat'
 import '../../payments.css'
 
-interface ChatMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+/** `attachments`: the message's screenshots (owner, 15.10.2026); the site names them, the owner app shows them. */
+interface ChatMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: unknown[] }
 const MAX = 2000
 
 /**
  * «Написать» on the website (owner, 15.10.2026: from «Пользователи» and the survey answers): the same conversation as
  * the owner app's «Заявки» → «Чаты» (server/src/routes/supportChat.ts) — its latest messages and a box to write. The
  * player gets it in the app as any answer of the support chat (the toast and the badge); the owner's first message into
- * an empty conversation is audited as «Начат чат с пользователем».
+ * an empty conversation is audited as «Начат чат с пользователем». Screenshots in the conversation are named
+ * «[скриншот]» here (a message of screenshots only has that text already); they open in the owner app's «Чаты».
  */
 export function WriteToUser({ accountId, email, small = true }: { accountId: string; email: string; small?: boolean }) {
   const [open, setOpen] = useState(false)
@@ -72,6 +75,7 @@ function WriteDialog({ accountId, email, onClose }: { accountId: string; email: 
               <div key={message.id} className={`admin-write-message is-${message.author}`}>
                 <span className="admin-write-meta">{message.author === 'owner' ? 'Вы' : 'Игрок'} · {dateTime.format(new Date(message.createdAt))}</span>
                 <span>{message.text}</span>
+                {Boolean(message.attachments?.length) && message.text !== SUPPORT_IMAGE_PLACEHOLDER && <span className="muted">{SUPPORT_IMAGE_PLACEHOLDER}{message.attachments!.length > 1 ? ` ×${message.attachments!.length}` : ''}</span>}
               </div>
             ))}
         </div>

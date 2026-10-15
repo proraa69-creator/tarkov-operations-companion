@@ -8,6 +8,7 @@ import { cleanIpcError } from '../sync/serverSync'
 import { SupportComposer, SupportMessageList } from './SupportChat'
 import { supportTime } from './supportChatClient'
 import { FindUserToWrite } from './FindUserToWrite'
+import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
 import './supportChat.css'
 
 /** The player as the owner knows them: the game nickname, else the e-mail. */
@@ -22,6 +23,10 @@ const playerName = (player: { nickname?: string; email: string } | undefined) =>
  * author's conversation here (`selected`), also one with no message yet: the owner writes first. «Проблема решена»
  * («добавь кнопку у админ версии, проблема решена. и данный чат удаляется») deletes the whole conversation for both sides
  * after «Удалить переписку?» → «Да»; the report it came from stays as it is.
+ *
+ * Screenshots (owner, 15.10.2026): the players' show in the conversation (a click opens them full size), and the owner
+ * attaches them to an answer the same way (the paperclip, Ctrl+V, a drop on the conversation). A conversation whose
+ * latest message is screenshots only reads «[скриншот]» in the list.
  */
 export function OwnerChats({ selected, onSelect }: { selected: string | null; onSelect: (accountId: string | null) => void }) {
   const { locale } = useLocale()
@@ -40,7 +45,7 @@ export function OwnerChats({ selected, onSelect }: { selected: string | null; on
           <button key={thread.accountId} type="button" className={`owner-chat-item${thread.accountId === selected ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`} aria-current={thread.accountId === selected ? 'true' : undefined} onClick={() => onSelect(thread.accountId)}>
             <span className="owner-chat-name">{playerName(thread)}</span>
             <time className="owner-chat-time" dateTime={thread.lastAt}>{supportTime(thread.lastAt, locale)}</time>
-            <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text}</span>
+            <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text === SUPPORT_IMAGE_PLACEHOLDER ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : thread.lastMessage.text}</span>
             {thread.unread > 0 && <span className="requests-tab-count" aria-label={uiText(`Непрочитанных: ${thread.unread}`)}>{thread.unread}</span>}
           </button>
         ))}
@@ -77,6 +82,7 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
   const [resolving, setResolving] = useState(false)
   const [resolveError, setResolveError] = useState('')
   const resolveButton = useRef<HTMLButtonElement>(null)
+  const view = useRef<HTMLElement>(null)
   const noButton = useRef<HTMLButtonElement>(null)
   // Another conversation opened meanwhile stays open when the deletion ends.
   const shown = useRef(true)
@@ -116,7 +122,7 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
     }
   }
   return (
-    <section className="panel owner-chat-thread" aria-label={name}>
+    <section ref={view} className="panel owner-chat-thread" aria-label={name}>
       <header className="owner-chat-thread-head">
         <button type="button" className="icon-button owner-chat-back" onClick={onBack} aria-label={uiText('Все чаты')}><ArrowLeft size={16} /></button>
         <div className="owner-chat-who">
@@ -133,7 +139,7 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
       </header>
       {resolveError && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(resolveError)}</span></div>}
       <SupportMessageList messages={messages} viewer="owner" loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет." />
-      <SupportComposer onSend={(text) => reply(accountId, text)} placeholder="Ответ игроку…" autoFocus />
+      <SupportComposer onSend={(text, images) => reply(accountId, text, images)} placeholder="Ответ игроку…" autoFocus allowImages dropZone={view} />
     </section>
   )
 }
