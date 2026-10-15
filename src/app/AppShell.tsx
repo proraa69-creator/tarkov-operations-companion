@@ -44,6 +44,7 @@ import { useShareLevels } from '../squad/useShareLevels'
 import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 import { SupportNotice } from '../support/SupportChat'
+import { ModeResetToast } from '../components/ModeResetToast'
 
 
 const navigation = [
@@ -337,6 +338,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}
       <SupportNotice />
+      {/* «Ник изменился — прогресс режима PvE сброшен» / after «Престиж +» (src/state/modeReset.ts), PC and phone. */}
+      <ModeResetToast />
     </div>
   )
 }

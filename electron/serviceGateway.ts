@@ -84,6 +84,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/events$`) },
+  // «Престиж +» / a nickname change: the whole mode starts again (src/state/modeReset.ts, server/src/routes/me.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // Objective progress and its history (server/src/routes/me.ts).

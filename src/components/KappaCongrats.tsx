@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
+import { kappaCongratsKey } from '../kappa/kappaCongratsKey'
 import '../styles/kappaCongrats.css'
 
-const seenKey = (profileId: string, mode: string) => `tarkov-kappa-congrats-v1:${profileId}:${mode}`
+const seenKey = kappaCongratsKey
 
 function wasShown(key: string) {
   try { return localStorage.getItem(key) === '1' } catch { return false }

@@ -34,6 +34,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/players\/resolve$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/players/${MODE}/\\d{1,12}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
+  // «Престиж +» / a nickname change on the phone: the whole mode starts again (src/state/modeReset.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // Objective progress and its history (server/src/routes/me.ts).

@@ -68,6 +68,15 @@ export class UserDataStore {
     return { itemIds: unique, updatedAt }
   }
 
+  /**
+   * A reset of the whole mode (POST /v1/me/progress/:mode/reset): the Collector checklist and the shared level of that
+   * mode, when they are older than `at` (a list ticked after the reset stays). Other modes are not touched.
+   */
+  clearModeBefore(accountId: string, mode: RaidMode, at: string) {
+    this.db.prepare('DELETE FROM user_collector WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
+    this.db.prepare('DELETE FROM user_levels WHERE account_id=? AND mode=? AND observed_at < ?').run(accountId, mode, at)
+  }
+
   getPosition(accountId: string, mode: RaidMode): StoredPosition | null {
     const row = this.db.prepare('SELECT x, y, z, yaw, at, map, received_at FROM user_positions WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
     if (!row) return null
