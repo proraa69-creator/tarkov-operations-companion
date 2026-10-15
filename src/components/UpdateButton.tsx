@@ -14,8 +14,12 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: 'install', label: 'Установка и перезапуск' },
 ]
 
-/** The owner's copy, a release with another Electron or other files outside the archive (electron/appUpdate.ts). */
-const OWNER_EXE_TEXT = 'Частями её не поставить: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.'
+/**
+ * The owner's copy, a release with another Electron or other files outside the archive, and only while the server has
+ * no signed manifest of the owner exe (electron/appUpdate.ts ownerExe, the fallback). With one, the owner's copy
+ * downloads and installs that exe here like any update, and this text is not shown.
+ */
+const OWNER_EXE_TEXT = 'Частями её не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.'
 
 function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
@@ -50,8 +54,9 @@ export function UpdateButton() {
   const busy = status.state === 'downloading' || status.state === 'installing'
   if (!busy && !open && status.notify === false) return null
   const start = () => {
-    // The owner's copy and a release only a whole owner exe brings: the click opens the admin panel, nothing to watch here.
-    if (status.ownerExe) { void api.install().catch(() => {}); return }
+    // The fallback (no signed owner exe on the server): the click checks once more, then opens the admin panel — or, if
+    // a signed owner exe appeared meanwhile, starts the update here, which then opens the window by its status.
+    if (status.ownerExe) { void api.install().then(setStatus).catch(() => {}); return }
     setOpen(true)
     if (!busy) void api.install().then(setStatus).catch(() => {})
   }

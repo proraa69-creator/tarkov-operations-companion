@@ -75,7 +75,10 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
 /** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
-/** ownerExe: the owner's copy and a release only a whole owner exe brings (from the admin panel, «Серверная версия»). */
+/**
+ * ownerExe: the owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (the fallback:
+ * the admin panel, «Серверная версия»). With a signed one it is a normal update installed in the app.
+ */
 export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
