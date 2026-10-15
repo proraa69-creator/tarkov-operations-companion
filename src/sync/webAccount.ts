@@ -61,6 +61,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Объявления по регионам» and «Опросы» (server/src/routes/notices.ts, src/notices/noticeInbox.ts): this account's
+  // popups, «Понятно», «Позже», the answers and the photos (base64 JSON).
+  { methods: ['GET'], path: /^\/v1\/me\/notices$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/notices\/\d{1,12}\/(?:seen|close)$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/notices\/\d{1,12}\/images\/\d$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/surveys\/\d{1,12}\/(?:later|responses)$/ },
   // «Укажите страну» (src/account/CountryGate.tsx): the country of an account without one, once (server: 409 after).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Кабинет стримера» on the phone too.

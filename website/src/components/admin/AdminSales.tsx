@@ -33,6 +33,11 @@ const ACTION_LABEL: Record<string, string> = {
   'announcement.set': 'Изменено уведомление для игроков',
   'features.minimap': 'Функции мини-карты для всех игроков',
   'features.minimapOverlay': 'Окно мини-карты поверх игры для всех игроков',
+  'notice.send': 'Отправлено объявление по регионам',
+  'notice.withdraw': 'Отозвано объявление или опрос',
+  'survey.publish': 'Опубликован опрос',
+  'survey.export': 'Выгрузка ответов опроса CSV',
+  'support.start': 'Начат чат с пользователем',
   'requests-key.create': 'Создан ключ Claude для чтения заявок',
   'requests-key.revoke': 'Отозван ключ Claude для чтения заявок',
   'payments.export': 'Выгрузка платежей CSV',
@@ -41,14 +46,14 @@ const ACTION_LABEL: Record<string, string> = {
   'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
-const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск' }
+const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли' }
 
-const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён' }
+const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён', all: 'все', unpaid: 'без оплаты', cis: 'СНГ', europe: 'Европа', other: 'другие', none: 'не указана', announcement: 'объявление', survey: 'опрос' }
 
 function detailText(details: Record<string, unknown> | undefined) {
   if (!details) return ''
   return Object.entries(details).map(([key, value]) => {
-    const text = typeof value === 'boolean' ? (value ? 'да' : 'нет') : key === 'paidUntil' && typeof value === 'string' ? dateTime.format(new Date(value)) : key === 'status' || key === 'decision' ? VALUE_LABEL[String(value)] ?? String(value) : String(value)
+    const text = typeof value === 'boolean' ? (value ? 'да' : 'нет') : key === 'paidUntil' && typeof value === 'string' ? dateTime.format(new Date(value)) : key === 'status' || key === 'decision' || key === 'payment' || key === 'kind' ? VALUE_LABEL[String(value)] ?? String(value) : key === 'regions' ? String(value).split(',').map((part) => VALUE_LABEL[part] ?? part).join(', ') : String(value)
     return `${DETAIL_LABEL[key] ?? key}: ${text}`
   }).join(' · ')
 }

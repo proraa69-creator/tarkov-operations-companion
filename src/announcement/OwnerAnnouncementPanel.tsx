@@ -69,7 +69,8 @@ export function OwnerAnnouncementPanel() {
   return (
     <section className="panel owner-announcement">
       <div className="panel-header">
-        <div><div className="eyebrow">{uiLabel('Для всех игроков')}</div><div className="panel-title">{uiLabel('Уведомление сверху')}</div></div>
+        {/* «Баннер для всех» next to «Объявления по регионам» (src/notices/OwnerNoticesPanel.tsx, owner 15.10.2026). */}
+        <div><div className="eyebrow">{uiLabel('Уведомление сверху · для всех игроков')}</div><div className="panel-title">{uiLabel('Баннер для всех')}</div></div>
         <Megaphone size={18} className={shown ? 'brass' : 'dim'} aria-hidden="true" />
       </div>
       <div className="panel-body owner-announcement-body">

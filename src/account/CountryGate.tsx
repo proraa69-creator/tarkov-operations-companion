@@ -17,6 +17,12 @@ import './countryGate.css'
  * shows nothing. After the save the server has the country (and the owner's tools work as before).
  */
 export function CountryGate() {
+  const gate = useCountryGate()
+  return gate.missing ? <CountryGateDialog onSaved={gate.saved} onSignOut={() => { void logoutFromServer() }} /> : null
+}
+
+/** The signed-in account ('' when nobody is, or the server is not reachable) and whether it still needs a country. */
+export function useCountryGate() {
   const status = useServerStatus()
   const account = status?.signedIn && status.online ? status.email ?? 'signed-in' : ''
   // The account the server said has no country; the window is for that account only (another sign-in asks again).
@@ -29,8 +35,7 @@ export function CountryGate() {
     void request('GET', '/v1/accounts/me').then((view) => { if (alive) setMissingFor(needsCountry(view) ? account : '') }).catch(() => {})
     return () => { alive = false }
   }, [account])
-  if (!account || missingFor !== account) return null
-  return <CountryGateDialog onSaved={() => setMissingFor('')} onSignOut={() => { void logoutFromServer() }} />
+  return { account, missing: Boolean(account) && missingFor === account, saved: () => setMissingFor('') }
 }
 
 export function CountryGateDialog({ onSaved, onSignOut }: { onSaved: () => void; onSignOut: () => void }) {

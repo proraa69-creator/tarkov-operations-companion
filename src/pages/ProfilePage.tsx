@@ -12,6 +12,7 @@ import { useAccountNickname } from '../account/useAccountNickname'
 import { NicknameEditor } from '../account/NicknameEditor'
 import { outdatedProfile } from '../account/logNickname'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
+import { OwnerNoticesPanel } from '../notices/OwnerNoticesPanel'
 import { DonateCard } from '../components/DonateCard'
 import { PrestigeResetButton } from '../components/PrestigeResetButton'
 import '../account/account.css'
@@ -48,6 +49,8 @@ export function ProfilePage() {
     </div>
     {/* The owner's notice over every player's app («ведутся технические работы»). */}
     {owner && <OwnerAnnouncementPanel />}
+    {/* «Объявления по регионам» and «Опросы»: popups for the chosen players (owner, 15.10.2026). */}
+    {owner && <OwnerNoticesPanel />}
     {accountBlock}
     {status?.kind === 'streamer' && <StreamerCabinetPanel />}
     {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026). */}

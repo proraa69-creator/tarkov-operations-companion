@@ -53,6 +53,7 @@ export type AuditAction =
   | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
+  | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
@@ -729,7 +730,7 @@ function toPayment(row: Row): AdminPayment {
 const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
 const money = (value: number) => value.toFixed(2).replace('.', ',')
 /** Quotes a CSV cell; a leading = + - @ (or tab / CR) is prefixed with «'» so Excel never runs it as a formula. */
-function csvCell(raw: string) {
+export function csvCell(raw: string) {
   const value = /^[=+\-@\t\r]/.test(raw) && !/^-?\d+(,\d+)?$/.test(raw) ? `'${raw}` : raw
   return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }

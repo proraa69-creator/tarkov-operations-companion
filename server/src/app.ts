@@ -70,6 +70,8 @@ import { createBugReportsRouter, type BugReportLimits } from './routes/bugReport
 import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
+import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
+import { NoticeStore } from './services/noticeStore.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
@@ -223,6 +225,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
       adminStore.grant(actor, accountId, days, reason)
     },
   }))
+  // «Объявления по регионам»: a photo (≤ 5 MB) is uploaded on its own, with its own body limit (routes/notices.ts).
+  const notices = new NoticeStore(accounts.database, accounts.clock)
+  app.use(createNoticeUploadRouter(accounts, notices))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
   // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
@@ -302,6 +307,13 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     limits: options.supportChatLimits,
     social: socialSignals,
     ownerSignals: reportSignals,
+    now: accounts.clock,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
+  // «Объявления по регионам» and «Опросы» (owner, 15.10.2026): per account, before /v1/me as well; the targeted apps
+  // hear a new one through the social events (routes/notices.ts).
+  app.use(createNoticesRouter(accounts, notices, {
+    social: socialSignals,
     now: accounts.clock,
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))

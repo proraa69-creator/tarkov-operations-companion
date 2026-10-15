@@ -98,6 +98,19 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Объявления по регионам» and «Опросы» (server/src/routes/notices.ts, src/notices/noticeInbox.ts): this account's
+  // popups, «Понятно», «Позже», the answers and the photos (base64 JSON).
+  { methods: ['GET'], path: /^\/v1\/me\/notices$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/notices\/\d{1,12}\/(?:seen|close)$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/notices\/\d{1,12}\/images\/\d$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/surveys\/\d{1,12}\/(?:later|responses)$/ },
+  // The owner's «Объявления по регионам» / «Опросы» (src/notices/OwnerNoticesPanel.tsx; 404 for everybody but the owner).
+  { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/admin\/notices(?:\?kind=(?:announcement|survey))?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/notices\/images$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/notices\/\d{1,12}\/withdraw$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/notices\/\d{1,12}\/images\/\d$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/surveys$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/surveys\/\d{1,12}\/results$/ },
   // «Укажите страну» (src/account/CountryGate.tsx): the country of an account without one, once (server: 409 after).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Пригласи друга»: the Escape from Tarkov AccountId read from the game logs (one game account — one Raid OS account).
@@ -379,7 +392,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
-  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path === '/v1/accounts/me/admin/notices/images' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
