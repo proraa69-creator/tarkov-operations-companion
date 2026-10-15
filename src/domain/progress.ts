@@ -84,21 +84,25 @@ export function laterTime(a: string | undefined, b: string | undefined) {
 }
 
 /**
- * «Престиж +» or a nickname change (src/state/modeReset.ts): every progress record of one mode goes — quests from the
- * logs, the Tasks table and the story pane (chapters, stages, their objectives), objective progress, conflicts and the
- * history of changes, hideout levels, «Что не продавать» counts, and the level, prestige, faction and Tarkov.dev profile
- * read for the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the
- * tracked quests, favourite and raid items (preferences), the season. The reset time `at` becomes the mode's epoch
- * (`logResetAt`, `logEpochAt`, `modeResetAt`): nothing older comes back from a rescan, the server or a screen reading.
- * Other modes are not touched.
+ * «Престиж +», «Вайп», «Сброс» or a nickname change (src/state/modeReset.ts): every progress record of one mode goes —
+ * quests of every source (logs, server, Tasks table, story pane, manual marks), objective progress, conflicts and the
+ * history of changes, hideout levels, «Что не продавать» counts, and the level, faction and Tarkov.dev profile read for
+ * the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the tracked
+ * quests, favourite and raid items (preferences), the season, and the game's own last reset proven by the logs.
+ *
+ * No floor at the press (owner, 15.10.2026: «нужно что бы приложение находило все актуальные на данный момент квесты,
+ * даже если просто сделали сброс приложения, а в игре нет»): the mode is rebuilt from all logs right after
+ * (AppState.resetModeProgress). `marker` («Престиж +», «Вайп», a new nickname) records that the player says the game was
+ * reset around `at`; the logs' own reset after it becomes the floor (src/state/AppState.tsx applyLogState). «Сброс»
+ * passes none and clears a pending one. Other modes are not touched.
  */
-export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }): LocalProfile {
+export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }, marker?: NonNullable<ModeProgress['resetMarker']>['kind']): LocalProfile {
   const current = profile.modes[mode]
   const next: ModeProgress = {
     ...createModeProgress(),
     questInputs: emptyQuestInputs(),
-    // «Престиж +»: the level the player chose, from the press on. «Вайп»: a game wipe keeps the prestige (BSG, 0.16.0.0:
-    // «Prestige levels and rewards do not reset with wipes»). A nickname change: Tarkov.dev reads it again.
+    // «Престиж +»: the level the player chose, from the press on. «Вайп», «Сброс»: the prestige stays (a game wipe keeps it,
+    // BSG 0.16.0.0: «Prestige levels and rewards do not reset with wipes»). A nickname change: Tarkov.dev reads it again.
     ...(prestige?.level != null ? { prestige: prestige.level, prestigeSetAt: at }
       : prestige?.keep ? { prestige: current.prestige, ...(current.prestigeSetAt ? { prestigeSetAt: current.prestigeSetAt } : {}) } : {}),
     registration: current.registration,
@@ -108,9 +112,10 @@ export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: stri
     ...(current.seasonId ? { seasonId: current.seasonId } : {}),
     ...(current.lastLogSyncAt ? { lastLogSyncAt: current.lastLogSyncAt } : {}),
     ...(current.logCharacterId ? { logCharacterId: current.logCharacterId } : {}),
-    logResetAt: laterTime(current.logResetAt, at),
-    logEpochAt: laterTime(current.logEpochAt, at),
-    modeResetAt: laterTime(current.modeResetAt, at),
+    ...(current.logResetAt ? { logResetAt: current.logResetAt } : {}),
+    ...(current.logEpochAt ? { logEpochAt: current.logEpochAt } : {}),
+    ...(marker ? { resetMarker: { kind: marker, at } } : {}),
+    appResetTimes: [...(current.appResetTimes ?? []), at].slice(-5),
   }
   return { ...profile, updatedAt: now, modes: { ...profile.modes, [mode]: next } }
 }
@@ -256,6 +261,16 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       objectiveConflicts: sanitizeConflicts(saved?.objectiveConflicts),
     }
     delete migrated.questInputs
+    // 0.6.0.40/41's floor at a reset press: a pending marker now, and the floors the press wrote go — the logs before it
+    // count again until the game's own reset shows in them (owner, 15.10.2026).
+    if (saved?.modeResetAt) {
+      const at = saved.modeResetAt
+      migrated.resetMarker = saved.resetMarker ?? { kind: 'prestige', at }
+      migrated.appResetTimes = [...new Set([...(saved.appResetTimes ?? []), at])].slice(-5)
+      delete migrated.modeResetAt
+      if (saved.logResetAt === at) delete migrated.logResetAt
+      if (saved.logEpochAt === at) delete migrated.logEpochAt
+    }
     // The quest-state engine (src/quests/questEngine.ts): its layers, built once from the records of an older profile;
     // the Tasks table counts in PvE only. `taskProgress` becomes the engine's output.
     const layers = sanitizeInputs(saved?.questInputs) ?? inputsFromRecords(taskProgress, mode)

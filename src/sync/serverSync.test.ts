@@ -146,7 +146,7 @@ describe('server sync with the desktop gateway', () => {
     const queue = () => JSON.parse(localStorage.getItem('raidos-mode-resets-v1') ?? '{}') as Record<string, Record<string, { at: string; pending?: boolean }>>
     const resetCalls = () => serviceRequest.mock.calls.filter(([, path]) => String(path).endsWith('/reset'))
 
-    it('the same account: sent at once, then not again; the log pushes carry it and leave out older events', async () => {
+    it('the same account: sent at once, then not again; then every log event goes again (no floor at the press)', async () => {
       const at = '2026-09-25T12:30:00.000Z'
       serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
       queueModeReset('pve', at)
@@ -158,9 +158,10 @@ describe('server sync with the desktop gateway', () => {
       expect(resetCalls()).toHaveLength(1)
 
       serviceRequest.mockReset()
-      serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+      serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x' } })
       await pushLogProgress(scan(), () => unregistered, vi.fn())
-      expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, resetAt: at, events: [] })
+      // The event from before the press goes too, and no reset rides along: the press is no floor.
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, events: [{ taskId: TASK, status: 'completed', timestamp: '2026-09-25T12:00:00.000Z' }] })
     })
 
     it('queued offline for one account: another account signing in gets nothing; the original account gets it when back', async () => {

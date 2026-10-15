@@ -1,27 +1,30 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronsUp, Eraser, RotateCcw, X } from 'lucide-react'
+import { ChevronsUp, Eraser, RefreshCw, RotateCcw, X } from 'lucide-react'
 import type { RaidMode } from '../domain/types'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
-import { prestigeResetText, wipeResetText } from '../state/modeReset'
+import { pendingMarkerText, prestigeResetText, rebuildResetText, wipeResetText } from '../state/modeReset'
 import { PrestigeIcon } from './PrestigeIcon'
 import { PRESTIGE_LEVELS, prestigeLabel } from '../profile/prestige'
 import '../styles/modeReset.css'
 
 /**
- * «Престиж +» and, right below it, «Вайп» (owner, 15.10.2026), next to the level in «Текущий профиль», PC and phone. Both
- * reset the mode the app shows after a confirmation (AppState.resetModeProgress, src/state/modeReset.ts): its records in
- * the app and on the server go, the press becomes the mode's floor and only the game's new log entries count. «Престиж +»
- * asks which prestige the player now has (the player's own value, src/domain/progress.ts wipeModeProgress); «Вайп» keeps
- * the prestige (a game wipe does not reset it).
+ * «Престиж +», «Вайп» right below it and «Сброс» (owner, 15.10.2026), next to the level in «Текущий профиль», PC and
+ * phone. Each wipes the mode the app shows after a confirmation — its records in the app and on the server — and finds
+ * it again from every game log at once (AppState.resetModeProgress, src/state/modeReset.ts): no press hides a quest
+ * that is still current in the game. «Престиж +» asks which prestige the player now has and, like «Вайп», leaves a
+ * pending marker: the game's own reset in the logs after it becomes the floor, and the older quests drop out then.
+ * «Сброс» only rebuilds. «Вайп» and «Сброс» keep the prestige (a game wipe does not reset it).
  */
 export function ModeResetButtons() {
-  const { raidMode, resetModeProgress } = useAppState()
+  const { raidMode, resetModeProgress, activeProfile } = useAppState()
   const { locale } = useLocale()
-  const [open, setOpen] = useState<'prestige' | 'wipe' | null>(null)
+  const [open, setOpen] = useState<'prestige' | 'wipe' | 'rebuild' | null>(null)
   const prestige = prestigeResetText(raidMode, locale)
   const wipe = wipeResetText(raidMode, locale)
+  const rebuild = rebuildResetText(raidMode, locale)
+  const marker = activeProfile.modes[raidMode].resetMarker
   return <div className="mode-reset-buttons">
     <button type="button" className="button small prestige-reset-button" onClick={() => setOpen('prestige')} aria-haspopup="dialog">
       <ChevronsUp size={14} aria-hidden="true" />{prestige.button}
@@ -29,8 +32,13 @@ export function ModeResetButtons() {
     <button type="button" className="button small wipe-reset-button" onClick={() => setOpen('wipe')} aria-haspopup="dialog">
       <Eraser size={14} aria-hidden="true" />{wipe.button}
     </button>
+    <button type="button" className="button small rebuild-reset-button" onClick={() => setOpen('rebuild')} aria-haspopup="dialog">
+      <RefreshCw size={14} aria-hidden="true" />{rebuild.button}
+    </button>
+    {marker && !marker.resolvedAt && <small className="mode-reset-pending" data-testid="reset-pending">{pendingMarkerText(marker.kind, locale)}</small>}
     {open === 'prestige' && <PrestigeResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={(level) => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'prestige', { prestige: level }) }} />}
     {open === 'wipe' && <WipeResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={() => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'wipe') }} />}
+    {open === 'rebuild' && <RebuildResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={() => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'rebuild') }} />}
   </div>
 }
 
@@ -79,6 +87,17 @@ export function PrestigeResetDialog({ mode, locale, onCancel, onConfirm }: { mod
 export function WipeResetDialog({ mode, locale, onCancel, onConfirm }: { mode: RaidMode; locale: AppLocale; onCancel: () => void; onConfirm: () => void }) {
   const text = wipeResetText(mode, locale)
   return <ResetDialog id="wipe-reset" title={text.title} question={text.question} close={text.close} onCancel={onCancel}>
+    <div className="prestige-reset-actions">
+      <button type="button" className="button danger" onClick={onConfirm}>{text.confirm}</button>
+      <button type="button" className="button ghost" onClick={onCancel} autoFocus>{text.cancel}</button>
+    </div>
+  </ResetDialog>
+}
+
+/** «Сброс»: the text and «Сбросить и найти заново» / «Отмена». */
+export function RebuildResetDialog({ mode, locale, onCancel, onConfirm }: { mode: RaidMode; locale: AppLocale; onCancel: () => void; onConfirm: () => void }) {
+  const text = rebuildResetText(mode, locale)
+  return <ResetDialog id="rebuild-reset" title={text.title} question={text.question} close={text.close} onCancel={onCancel}>
     <div className="prestige-reset-actions">
       <button type="button" className="button danger" onClick={onConfirm}>{text.confirm}</button>
       <button type="button" className="button ghost" onClick={onCancel} autoFocus>{text.cancel}</button>

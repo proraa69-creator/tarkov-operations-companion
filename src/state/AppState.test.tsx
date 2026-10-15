@@ -78,8 +78,9 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
     expect(pvp()).toMatchObject({ logResetAt: resetAt, logEpochAt: resetAt })
     await Promise.resolve()
     expect(events.map((event) => event.kind)).toEqual(['reset'])
-    // Another PC (or the server) still sends the hand-in from before the reset: it does not come back.
-    act(() => state.applyLogStateForMode('pvp', [{ taskId: QUEST, status: 'completed', timestamp: '2026-10-01T10:00:00.000Z' }], OLD))
+    // Another PC (or the server) still sends the hand-in from before the reset: it does not come back. (The server's
+    // answer is every record it keeps: OTHER with it.)
+    act(() => state.applyLogStateForMode('pvp', [{ taskId: QUEST, status: 'completed', timestamp: '2026-10-01T10:00:00.000Z' }, { taskId: OTHER, status: 'active', timestamp: '2026-10-06T00:00:00.000Z' }], OLD))
     expect(pvp().taskProgress[QUEST]).toBeUndefined()
     expect(pvp().taskProgress[OTHER]).toMatchObject({ status: 'active' })
   })

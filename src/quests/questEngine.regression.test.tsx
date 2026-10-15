@@ -7,6 +7,7 @@ import { withQuestGrid } from '../data/questGrid'
 import { buildScanResult, readLogSignals, traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import { applyLogQuestState, applyScanToModes } from '../import/logApply'
 import { firstApplication, forgetAppliedLogResults } from '../import/logResults'
+import { updateLogStatus } from '../import/logStatus'
 import { completedQuestStats, isLiveGameQuest } from '../progression/requirementEngine'
 import grid from '../progression/__fixtures__/quest-grid-tasks-2026-10.json'
 import ownerLogs from '../progression/__fixtures__/owner-logs-2026-09.json'
@@ -105,6 +106,7 @@ describe('after «Престиж +» on a UTC+7 PC', () => {
   const statuses = (mode: RaidMode) => Object.fromEntries(Object.values(probe.app!.activeProfile.modes[mode].taskProgress).map((record) => [record.taskId, record.status]))
   /** AppShell's application of a published scan (once per scan: src/import/logResults.ts). */
   const apply = (scan: ModeLogScanResult) => {
+    updateLogStatus({ scan })
     if (!firstApplication(scan, probe.app!.activeProfile.id)) return
     act(() => applyScanToModes(scan, (mode) => probe.app!.activeProfile.modes[mode].registration, (mode, events, characterId, resetAt, characterSince) => probe.app!.applyLogScanForMode(mode, events, { characterId, resetAt, characterSince })))
   }
@@ -118,7 +120,7 @@ describe('after «Престиж +» on a UTC+7 PC', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
   })
 
-  it('reads the local times as UTC+7, drops what came before the press, and takes every line and launch after it', () => {
+  it('reads the local times as UTC+7; after the press every line and launch counts, and the game\'s own reset is the floor', () => {
     // 12:00 local on the owner's PC is 05:00 UTC.
     expect(line(Date.parse('2026-10-15T05:00:00Z'), 'x')).toMatch(/^2026-10-15 12:00:00\.000\|/)
     expect(readLogSignals(line(Date.parse('2026-10-15T05:00:00Z'), 'Session mode: Pve'))[0]!.at).toBe(Date.parse('2026-10-15T05:00:00Z'))
@@ -127,25 +129,24 @@ describe('after «Престиж +» on a UTC+7 PC', () => {
     apply(scanOf(first))
     expect(statuses('pve')).toEqual({ [OLD]: 'completed' })
 
-    // «Престиж +» one hour later (the press is stored in UTC).
+    // «Престиж +» one hour later (stored in UTC): an app-only press hides nothing, the logs bring it back at once.
     const pressed = T0 + 3_600_000
     act(() => probe.app!.resetModeProgress('pve', new Date(pressed).toISOString(), 'prestige', { prestige: 2 }))
-    expect(statuses('pve')).toEqual({})
-    // The same logs again (a rescan, the same signature) bring nothing back.
-    apply(scanOf(first, ''))
-    expect(statuses('pve')).toEqual({})
+    expect(statuses('pve')).toEqual({ [OLD]: 'completed' })
 
     // An appended line in the same launch 10 minutes after the press, local time.
     const appended = `${first}\n${quest(pressed + 600_000, NEW, 10)}`
     apply(scanOf(appended))
-    expect(statuses('pve')).toEqual({ [NEW]: 'active' })
-    // A new launch folder later: its lines count too.
-    const launch = [line(pressed + 7_200_000, 'Session mode: Pve'), line(pressed + 7_201_000, `SelectProfile ProfileId:${PROFILE} AccountId:1`), quest(pressed + 7_260_000, LATER, 10), quest(pressed + 7_320_000, NEW, 12)].join('\n')
+    expect(statuses('pve')).toEqual({ [OLD]: 'completed', [NEW]: 'active' })
+    // A new launch folder later, where the game's own prestige shows: OLD taken again after its hand-in.
+    const launch = [line(pressed + 7_200_000, 'Session mode: Pve'), line(pressed + 7_201_000, `SelectProfile ProfileId:${PROFILE} AccountId:1`), quest(pressed + 7_260_000, OLD, 10), quest(pressed + 7_320_000, LATER, 10)].join('\n')
     apply(scanOf(appended, launch))
-    expect(statuses('pve')).toEqual({ [NEW]: 'completed', [LATER]: 'active' })
-    // A line written 1 minute BEFORE the press (local time) never counts, even when it is read only now.
-    apply(scanOf(`${appended}\n${quest(pressed - 60_000, OLD, 10)}`, launch))
-    expect(statuses('pve')[OLD]).toBeUndefined()
+    expect(statuses('pve')).toEqual({ [OLD]: 'active', [LATER]: 'active' })
+    expect(probe.app!.activeProfile.modes.pve.logResetAt).toBe(new Date(pressed + 7_201_000).toISOString())
+    expect(probe.app!.activeProfile.modes.pve.resetMarker?.resolvedAt).toBe(new Date(pressed + 7_201_000).toISOString())
+    // A line written before the game's reset never counts again, even when it is read only now.
+    apply(scanOf(`${appended}\n${quest(pressed + 7_000_000, NEW, 12)}`, launch))
+    expect(statuses('pve')[NEW]).toBeUndefined()
     expect(probe.app!.activeProfile.modes.pve.prestige).toBe(2)
   })
 })

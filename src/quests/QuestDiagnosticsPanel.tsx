@@ -4,6 +4,7 @@ import type { RaidMode } from '../domain/types'
 import { useTarkovData } from '../data/DataProvider'
 import { useLocale } from '../i18n/LocaleProvider'
 import { isOwnerApp } from '../app/buildEdition'
+import { useLogStatus } from '../import/logStatus'
 import { useAppState } from '../state/AppState'
 import { diagnosticsLine, withInferred, type QuestConflictKind, type QuestSourceKind } from './questEngine'
 import { questAvailabilityOf, questResolutionOf } from './questReadModel'
@@ -28,6 +29,9 @@ const CONFLICT_NAMES: Record<QuestConflictKind, { ru: string; en: string }> = {
   'prerequisite-open': { ru: 'выполнено, а предыдущее не сдано', en: 'completed while a prerequisite is open' },
   'unknown-quest': { ru: 'нет в каталоге', en: 'not in the catalog' },
 }
+const VIA = { quest: { ru: 'квест взят снова после сдачи', en: 'a quest taken again after its hand-in' }, prestige: { ru: 'запрос престижа', en: 'the prestige request' }, 'profile-create': { ru: 'новый профиль', en: 'a new profile' } } as const
+const MARKER = { prestige: { ru: 'Престиж +', en: 'Prestige +' }, wipe: { ru: 'Вайп', en: 'Wipe' }, nickname: { ru: 'новый ник', en: 'new nickname' } } as const
+const when = (iso: string, locale: 'ru' | 'en') => new Date(iso).toLocaleString(locale === 'en' ? 'en-GB' : 'ru-RU')
 const modeName = (mode: RaidMode, locale: 'ru' | 'en') => mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : locale === 'en' ? 'Season' : 'Сезон'
 
 /**
@@ -54,6 +58,7 @@ export function QuestDiagnosticsPanel() {
 function QuestDiagnosticsBody({ locale }: { locale: 'ru' | 'en' }) {
   const { data } = useTarkovData()
   const { activeProfile, raidMode } = useAppState()
+  const scan = useLogStatus().scan
   const rows = useMemo(() => MODES.map((mode) => {
     const progress = activeProfile.modes[mode]
     // The catalog loaded is the mode shown's (one at a time): its checks and the lists' inference for that mode only.
@@ -61,12 +66,12 @@ function QuestDiagnosticsBody({ locale }: { locale: 'ru' | 'en' }) {
     const resolution = shown ? questResolutionOf(progress, mode, data.quests) : resolveMode(progress, mode)
     const diagnostics = shown ? withInferred(resolution.diagnostics, questAvailabilityOf(data.quests, progress)) : resolution.diagnostics
     const conflicts = [...resolution.states.values()].flatMap((state) => state.conflicts.filter((conflict) => conflict.kind !== 'before-floor').map((conflict) => ({ taskId: state.taskId, decided: state.source, ...conflict }))).slice(0, 12)
-    return { mode, diagnostics, conflicts }
-  }), [activeProfile.modes, data.quests, raidMode])
+    return { mode, diagnostics, conflicts, marker: progress.resetMarker, summary: scan?.identityOnly ? undefined : scan?.summaryByMode?.[mode] }
+  }), [activeProfile.modes, data.quests, raidMode, scan])
   const name = (taskId: string) => data.quests.find((quest) => quest.id === taskId)?.name ?? taskId
   return (
     <div className="panel-body quest-diagnostics-body">
-      {rows.map(({ mode, diagnostics, conflicts }) => (
+      {rows.map(({ mode, diagnostics, conflicts, marker, summary }) => (
         <article key={mode} className={`quest-diagnostics-mode${mode === raidMode ? ' is-shown' : ''}`} data-mode={mode}>
           <header><strong>{modeName(mode, locale)}</strong><span>{diagnosticsLine(diagnostics, locale)}</span></header>
           <dl>
@@ -79,7 +84,8 @@ function QuestDiagnosticsBody({ locale }: { locale: 'ru' | 'en' }) {
                 : `${decided.completed} выполн. · ${decided.active} текущ. · ${decided.failed} провал. (прочитано ${diagnostics.layerSizes[source]})`}</dd></div>
             })}
             <div><dt>{locale === 'en' ? 'Counted «Completed»' : 'Считается «Выполнено»'}</dt><dd>{diagnostics.completed}</dd></div>
-            {diagnostics.floor && <div><dt>{locale === 'en' ? 'Mode floor' : 'Сброс режима'}</dt><dd>{new Date(diagnostics.floor).toLocaleString(locale === 'en' ? 'en-GB' : 'ru-RU')} · {locale === 'en' ? `${diagnostics.beforeFloor} older ignored` : `старше не учтено: ${diagnostics.beforeFloor}`}</dd></div>}
+            {diagnostics.floor && <div><dt>{locale === 'en' ? 'Game reset (logs)' : 'Сброс в игре (журналы)'}</dt><dd>{when(diagnostics.floor, locale)}{summary?.resetVia ? ` · ${VIA[summary.resetVia][locale]}` : ''} · {locale === 'en' ? `${diagnostics.beforeFloor} older ignored` : `старше не учтено: ${diagnostics.beforeFloor}`}</dd></div>}
+            {marker && <div><dt>{locale === 'en' ? `«${MARKER[marker.kind].en}» pressed` : `Нажато «${MARKER[marker.kind].ru}»`}</dt><dd>{when(marker.at, locale)} · {marker.resolvedAt ? (locale === 'en' ? `confirmed by the logs ${when(marker.resolvedAt, locale)}` : `подтверждено журналами ${when(marker.resolvedAt, locale)}`) : (locale === 'en' ? 'waiting for the game\'s reset in the logs' : 'ждём сброса в журналах игры')}</dd></div>}
             {(Object.keys(diagnostics.conflicts) as QuestConflictKind[]).filter((kind) => kind !== 'before-floor').map((kind) => <div key={kind}><dt>{CONFLICT_NAMES[kind][locale]}</dt><dd>{diagnostics.conflicts[kind]}</dd></div>)}
           </dl>
           {conflicts.length > 0 && <ul className="quest-diagnostics-conflicts">

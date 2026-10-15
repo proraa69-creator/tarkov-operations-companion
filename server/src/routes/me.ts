@@ -172,8 +172,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     progressChanged(account(res))
   })
 
-  // «Престиж +» or a nickname change in the app (src/state/modeReset.ts): one mode only. Repeating it, or sending an
-  // older one later (a queued offline reset), changes nothing more than the newest one did.
+  // «Престиж +», «Вайп», «Сброс» or a nickname change in the app (src/state/modeReset.ts): the account's copy of one mode
+  // is wiped (the app sends its logs again right after). No floor is kept.
   router.post('/progress/:mode/reset', (req, res) => {
     const parsed = mode(req)
     const body = resetSchema.safeParse(req.body ?? {})
@@ -291,8 +291,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // A client clock far in the future must not make its values «newer» than everything else for good.
     const latest = new Date((options.now ?? Date.now)() + 60_000).toISOString()
     const clamp = (time: string) => time > latest ? latest : time
-    // Nothing from before a reset of the whole mode comes back (an app that has not heard of it yet).
-    const resetAt = progress.modeResetAt(owner(account(res)), parsed.data)
+    // Nothing from before the character's last reset comes back (an app that has not heard of it yet).
+    const resetAt = progress.scope(owner(account(res)), parsed.data)?.resetAt
     const fresh = (time: string) => !resetAt || time >= resetAt
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {

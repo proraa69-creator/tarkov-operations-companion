@@ -108,9 +108,6 @@ describe('«Ручная отметка» (owner, 15.10.2026)', () => {
     expect(record(SECOND!)).toBeUndefined()
     expect(pvp().questInputs!.manual).toEqual({})
     expect(probe.app!.activeProfile.modes.pve.taskProgress[SECOND!]).toMatchObject({ status: 'active', source: 'manual-fix' })
-    // A mark from before the reset never comes back from the server.
-    act(() => probe.app!.applyRemoteManualMarks('pvp', [{ taskId: SECOND!, status: 'completed', at: '2026-10-01T00:00:00.000Z' }]))
-    expect(record(SECOND!)).toBeUndefined()
   })
 
   it('in English', () => {

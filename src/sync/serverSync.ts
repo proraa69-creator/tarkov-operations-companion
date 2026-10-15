@@ -287,15 +287,13 @@ async function pushMode(mode: RaidMode): Promise<void> {
     }
     const registration = registrationOf(mode)
     const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
-    // The logs' last trusted reset, or the mode's reset in the app when newer («Престиж +», a nickname change): the
-    // server drops the character's older events either way, even before the queued reset itself gets through.
-    const logReset = summary.resetAt ? isoTime(summary.resetAt) : null
-    const appReset = modeResetFloor(mode)
-    const resetAt = appReset && (!logReset || appReset > logReset) ? appReset : logReset
+    // The game's own last reset as the logs prove it — never a reset press in the app (owner, 15.10.2026: a press is no
+    // floor; the mode is found again from every log).
+    const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
     const key = `${accountKey()}|${characterId}|${resetAt ?? ''}`
     if (confirmed[mode]?.key !== key) confirmed[mode] = { key, events: new Set() }
     const known = confirmed[mode]!.events
-    const events = serverEventsForMode(result, mode, registration).filter((event) => !known.has(eventKey(event)) && (!appReset || event.timestamp >= appReset))
+    const events = serverEventsForMode(result, mode, registration).filter((event) => !known.has(eventKey(event)))
     let answer: unknown = null
     for (let start = 0; start === 0 || start < events.length; start += MAX_EVENTS_PER_BATCH) {
       answer = await meRequest('POST', `/v1/me/progress/${mode}/events`, {
@@ -336,14 +334,15 @@ async function fetchServerScope(mode: RaidMode) {
 }
 
 // ------------------------------------------------------------------------------------------------------------
-// The reset of a whole mode («Престиж +», a nickname change: src/state/modeReset.ts)
+// The reset of a whole mode («Престиж +», «Вайп», «Сброс», a nickname change: src/state/modeReset.ts): the server's
+// copy of the mode is wiped, then every event of this PC's logs is sent again (no floor at the press)
 // ------------------------------------------------------------------------------------------------------------
 
 /**
  * Per signed-in server account (accountIdentity), per mode: the newest reset done in this app while that account was
  * signed in, and whether the server still has to hear of it (queued offline). A reset goes only to the account it was
  * made under — never to another account signed in later (it would wipe that account's mode); it stays queued for its
- * own account. A reset made signed out stays local (the profile's modeResetAt) and is never sent.
+ * own account. A reset made signed out stays local (the mode is rebuilt from this PC's logs) and is never sent.
  */
 const MODE_RESETS_KEY = 'raidos-mode-resets-v1'
 type ModeResetEntry = { at: string; pending?: boolean }
@@ -446,6 +445,9 @@ export async function sendModeResets() {
       const now = readModeResets()
       // A newer reset queued meanwhile is sent on the next round.
       if (now[account]?.[mode]?.at === entry.at) { now[account] = { ...now[account], [mode]: { at: entry.at } }; writeModeResets(now) }
+      // The server's copy of the mode is empty now: every event of the logs goes to it again (the rebuild).
+      delete confirmed[mode]
+      await pushMode(mode)
     }
   } finally {
     modeResetsBusy = false

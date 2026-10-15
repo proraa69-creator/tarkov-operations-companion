@@ -27,8 +27,10 @@ Per mode, `ModeProgress.questInputs` keeps what each source said, never merged:
 | `story`  | story-pane readings (all modes) and other PCs' chapters              | `applyStoryScanForMode`, `applyRemoteStoryForMode` |
 | `legacy` | `manual` records of versions before 0.5 (nothing creates them now)   | migration only |
 
-Plus the mode's floor: the later of `modeResetAt` («Престиж +», «Вайп», a nickname change), `logResetAt` (the game's
-trusted reset) and `logEpochAt` (another character). A profile saved by 0.6.0.41 or older has no `questInputs`: they are
+Plus the mode's floor: only what the logs prove — `logResetAt`, the game's own last reset (a catalog trader quest taken
+again after its hand-in, or the backend's «/client/prestige/obtain» / «/client/game/profile/create» request), and a new
+character (profile id) of the mode. No button sets a floor (owner, 15.10.2026: «нужно что бы приложение находило все
+актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в игре нет»). A profile saved by 0.6.0.41 or older has no `questInputs`: they are
 built once from its records by source (`inputsFromRecords`), then the profile is saved in the new shape. `taskProgress`
 stays in the stored profile, always equal to the engine's output, so older readers keep working.
 
@@ -67,6 +69,17 @@ failed) and `unknown-quest` (not in the mode's catalog).
 - Server: friends', squad mates' and the cabinet's counts merge the log records and the manual marks with the same
   engine (`server/src/services/sharedProgress.ts`). Sync pushes send inputs with their source (log events, manual marks,
   chapters), never the merged state.
+
+## The reset buttons
+
+«Престиж +», «Вайп» and «Сброс» (Profile → «Текущий профиль») each wipe the mode's records in the app and on the server and
+rebuild the mode from every log at once (the latest scan, through the engine); the server then gets every event again.
+«Престиж +» and «Вайп» also leave a pending marker `resetMarker {kind, at}`: «the player says the game was reset around
+now». While it is pending, the quests before it still count (it may be an app-only reset); when the logs show the game's
+own reset after it (above), that point becomes the floor, the older quests drop out and the marker resolves. No guess by
+time. «Сброс» leaves no marker and clears one. Profiles of 0.6.0.40/41 with a floor at a press (`modeResetAt`) get a
+pending marker at load and the floors the press wrote go, so their quests come back with the next scan; a 0.6.0.41 server
+answering the press as the character's reset is ignored (`appResetTimes`), and the new server drops those floors once.
 
 ## «Ручная отметка»
 

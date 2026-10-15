@@ -25,6 +25,11 @@ export const DETECTED_MODE_KEY = 'eft-last-detected-mode'
 let status: LogStatus = {}
 const listeners = new Set<() => void>()
 
+/** The status now, outside React (AppState rebuilds a mode from the latest scan at a reset). */
+export function currentLogStatus(): LogStatus {
+  return status
+}
+
 export function updateLogStatus(next: Partial<LogStatus>) {
   status = { ...status, ...next }
   for (const listener of listeners) listener()

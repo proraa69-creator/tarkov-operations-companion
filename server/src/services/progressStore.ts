@@ -66,6 +66,13 @@ export class ProgressStore {
       CREATE TABLE IF NOT EXISTS manual_marks (
         owner TEXT NOT NULL, mode TEXT NOT NULL, task_id TEXT NOT NULL, status TEXT NOT NULL, marked_at TEXT NOT NULL,
         PRIMARY KEY(owner, mode, task_id));`)
+    // 0.6.0.40/41 kept a reset press as the mode's floor, and its apps reported the same time as the character's reset:
+    // no press is a floor any more (owner, 15.10.2026: the mode is found again from every log), so both go once.
+    transaction(this.db, () => {
+      this.db.exec(`UPDATE progress_scopes SET reset_at = NULL WHERE EXISTS (SELECT 1 FROM mode_resets m
+        WHERE m.owner = progress_scopes.owner AND m.mode = progress_scopes.mode AND m.reset_at = progress_scopes.reset_at)`)
+      this.db.exec('DELETE FROM mode_resets')
+    })
   }
 
   /** Development single-owner endpoint (/v1/sync/events). */
@@ -88,8 +95,8 @@ export class ProgressStore {
     // A client clock far ahead must not hide this character's events for good.
     const latestAllowed = new Date(now + 60_000).toISOString()
     const reported = input.resetAt && input.resetAt > latestAllowed ? latestAllowed : input.resetAt
-    // The character's last trusted reset, and the reset of the whole mode the player asked for in the app (resetMode).
-    const kept = latest(previous?.characterId === characterId ? previous.resetAt : undefined, this.modeResetAt(owner, mode))
+    // The character's last trusted reset (the game's own, as the logs prove it).
+    const kept = previous?.characterId === characterId ? previous.resetAt : undefined
     const resetAt = reported && (!kept || reported > kept) ? reported : kept
     transaction(this.db, () => {
       if (reported) {
@@ -110,35 +117,26 @@ export class ProgressStore {
   userRecords(owner: string, mode: RaidMode): UserProgressResponse {
     const scope = this.scope(owner, mode)
     if (!scope) return { revision: createHash('sha256').update('[]').digest('hex'), records: [], coverage: 'partial', scope: null }
-    const resetAt = latest(scope.resetAt, this.modeResetAt(owner, mode))
-    return { ...this.project(owner, mode, scope.accountId, scope.characterId), scope: { ...scope, ...(resetAt ? { resetAt } : {}) } }
+    return { ...this.project(owner, mode, scope.accountId, scope.characterId), scope }
   }
 
   /**
-   * «Престиж +» or a nickname change in the app: the whole mode starts again at `at` (clamped to the server's clock).
-   * Every quest event and story chapter of the mode older than that goes, whatever character it belonged to, and nothing
-   * older is stored again (syncUser, syncStory). Kept with the mode, so the scope's `resetAt` tells the phone and the
-   * other PCs (old apps included: the trusted-reset path) to drop their older records too. An older reset changes
-   * nothing. Other modes are not touched.
+   * «Престиж +», «Вайп», «Сброс» or a nickname change in the app: the account's copy of one mode is wiped — every quest
+   * event, story chapter and manual mark older than `at` (clamped to the server's clock) and the character's reset — and
+   * the app sends every event of its logs again. No floor is kept (owner, 15.10.2026: «нужно что бы приложение находило
+   * все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в игре нет»): only the game's
+   * own reset, reported from the logs, is one. Other modes are not touched.
    */
   resetMode(owner: string, mode: RaidMode, at: string, now = Date.now()): { resetAt: string; scope: ProgressScope | null } {
     const latestAllowed = new Date(now + 60_000).toISOString()
-    const requested = at > latestAllowed ? latestAllowed : at
-    const resetAt = latest(this.modeResetAt(owner, mode), requested)!
+    const resetAt = at > latestAllowed ? latestAllowed : at
     transaction(this.db, () => {
       this.db.prepare('DELETE FROM quest_events WHERE owner=? AND mode=? AND occurred_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM story_records WHERE owner=? AND mode=? AND updated_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM manual_marks WHERE owner=? AND mode=? AND marked_at < ?').run(owner, mode, resetAt)
-      this.db.prepare(`INSERT INTO mode_resets (owner, mode, reset_at) VALUES (?,?,?)
-        ON CONFLICT(owner, mode) DO UPDATE SET reset_at=excluded.reset_at WHERE excluded.reset_at > mode_resets.reset_at`).run(owner, mode, resetAt)
+      this.db.prepare('UPDATE progress_scopes SET reset_at = NULL WHERE owner=? AND mode=?').run(owner, mode)
     })
     return { resetAt, scope: this.userRecords(owner, mode).scope }
-  }
-
-  /** The last reset of the whole mode (resetMode), if any. */
-  modeResetAt(owner: string, mode: RaidMode): string | undefined {
-    const row = this.db.prepare('SELECT reset_at FROM mode_resets WHERE owner=? AND mode=?').get(owner, mode) as Row | undefined
-    return typeof row?.reset_at === 'string' && row.reset_at ? row.reset_at : undefined
   }
 
   /**
@@ -150,7 +148,7 @@ export class ProgressStore {
     const scope = this.scope(owner, mode)
     const characterId = input.characterId ?? scope?.characterId
     if (!characterId) return { characterId: null, records: [] }
-    const resetAt = latest(scope?.characterId === characterId ? scope.resetAt : undefined, this.modeResetAt(owner, mode))
+    const resetAt = scope?.characterId === characterId ? scope.resetAt : undefined
     const latestAllowed = new Date(now + 60_000).toISOString()
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO story_records (owner, mode, character_id, chapter_id, status, stage_id, updated_at) VALUES (?,?,?,?,?,?,?)
@@ -171,7 +169,7 @@ export class ProgressStore {
    * refused), and every kept one comes back.
    */
   syncManualMarks(owner: string, mode: RaidMode, marks: readonly ManualMarkRecord[], now = Date.now()): { marks: ManualMarkRecord[] } {
-    const resetAt = this.modeResetAt(owner, mode)
+    const resetAt = this.scope(owner, mode)?.resetAt
     const latestAllowed = new Date(now + 60_000).toISOString()
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO manual_marks (owner, mode, task_id, status, marked_at) VALUES (?,?,?,?,?)
@@ -236,7 +234,4 @@ export class ProgressStore {
   }
 }
 
-/** The later of two ISO times (either may be missing). */
-function latest(a: string | undefined, b: string | undefined) {
-  return a && b ? (a > b ? a : b) : a ?? b
-}
+
