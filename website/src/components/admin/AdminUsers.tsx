@@ -27,7 +27,9 @@ const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
 ]
 
 /** «Казахстан · СНГ» for the owner (the panel is in Russian); the code itself where the browser has no country names. */
-const countryText = (code: string) => `${countryName(code, 'ru')} · ${REGION_LABELS.ru[regionOf(code)]}`
+const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${REGION_LABELS.ru[regionOf(code)]}`
+/** A country typed by hand («Укажите страну» → «ввести вручную», stored as «XX»): the player's own words, in quotes. */
+const shownCountry = (code: string, other?: string) => (other ? `«${other}» (вручную)` : countryName(code, 'ru'))
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
@@ -114,7 +116,7 @@ export function AdminUsers() {
                             <span className="admin-registered">
                               <span className="mono">{dateOnly.format(new Date(user.createdAt))}</span>
                               {user.country
-                                ? <span className="admin-country" title={countryText(user.country)}>{countryName(user.country, 'ru')}</span>
+                                ? <span className="admin-country" title={countryText(user.country, user.countryOther)}>{shownCountry(user.country, user.countryOther)}</span>
                                 : <span className="admin-country dim">страна не указана</span>}
                             </span>
                           </td>
@@ -318,7 +320,7 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
         <div>
           <div className="field-label"><Globe size={13} aria-hidden="true" />Страна</div>
           {user.country
-            ? <span className="field-hint">{countryText(user.country)} · <span className="mono">{user.country}</span></span>
+            ? <span className="field-hint">{countryText(user.country, user.countryOther)} · <span className="mono">{user.country}</span></span>
             : <span className="field-hint">Не указана: аккаунт создан до вопроса о стране — пользователь может указать её в личном кабинете.</span>}
         </div>
       </div>

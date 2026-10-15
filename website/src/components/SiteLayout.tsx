@@ -9,6 +9,7 @@ import { CookieNotice } from './CookieNotice'
 import { LanguageSwitch } from './LanguageSwitch'
 import { siteLocale, tr } from '../i18n'
 import { SubscriptionDialog } from './SubscriptionDialog'
+import { CountryGateDialog } from './CountryGateDialog'
 import '../brand.css'
 
 const NAV = [
@@ -111,6 +112,8 @@ export function SiteLayout() {
         </div>
       </footer>
       {subscriptionOpen && <SubscriptionDialog onClose={() => setSubscriptionOpen(false)} />}
+      {/* «Укажите страну» (owner, 15.10.2026): the cabinet and the admin panel wait for the country of an account without one. */}
+      {(pathname.startsWith('/cabinet') || pathname.startsWith('/admin')) && <CountryGateDialog />}
       <CookieNotice />
     </div>
   )

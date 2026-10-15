@@ -98,6 +98,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Укажите страну» (src/account/CountryGate.tsx): the country of an account without one, once (server: 409 after).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Пригласи друга»: the Escape from Tarkov AccountId read from the game logs (one game account — one Raid OS account).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/eft-account$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },

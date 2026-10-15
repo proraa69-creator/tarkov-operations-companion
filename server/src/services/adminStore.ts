@@ -90,6 +90,8 @@ export interface AdminUser {
   eftAccount?: { masked: string; boundAt: string }
   /** The country named at registration (ISO 3166-1 alpha-2); absent for accounts from before 13.10.2026 that did not set it. */
   country?: string
+  /** «XX»: the country the player typed by hand in «Укажите страну» (counted in «Другие»). */
+  countryOther?: string
   /** The Escape from Tarkov nickname the PC app found in the game logs (one for every mode); absent until it is found. */
   nickname?: string
   /**
@@ -417,7 +419,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -507,6 +509,7 @@ export class AdminStore {
       payments: { count: Number(row.paid_count ?? 0), total: rub(row.paid_total) },
       ...(row.eft_hint == null ? {} : { eftAccount: { masked: `••••${String(row.eft_hint)}`, boundAt: iso(row.eft_bound_at)! } }),
       ...(row.country == null ? {} : { country: String(row.country) }),
+      ...(row.country_other == null ? {} : { countryOther: String(row.country_other) }),
       ...(nickname ? { nickname } : {}),
       ...(row.invited_by == null ? {} : { invitedBy: { ...inviterOf(row), discount: row.friend_discount_paid ? 'used' as const : Number(row.paid_count ?? 0) > 0 ? 'lost' as const : 'unused' as const } }),
     }

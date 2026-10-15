@@ -61,6 +61,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Укажите страну» (src/account/CountryGate.tsx): the country of an account without one, once (server: 409 after).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Кабинет стримера» on the phone too.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
