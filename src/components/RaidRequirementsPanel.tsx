@@ -19,6 +19,8 @@ export interface RaidNeedRow {
 
 const PURPOSES: Record<string, string> = {
   place: 'Взять и заложить', mark: 'Взять для маркировки', key: 'Взять ключ', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде',
+  // a gear condition of a kill objective (src/overview/questConditions.ts gearRaidRequirements)
+  wear: 'Надеть в рейд',
 }
 
 /**
@@ -33,7 +35,7 @@ export function RaidRequirementsPanel({ rows }: { rows: RaidNeedRow[] }) {
         {rows.map((row) => <RaidNeed row={row} key={row.key} />)}
       </div>}
       {!rows.length && <p className="muted">{uiText('Для текущих заданий на этой карте нет предметов, которые нужно взять с собой или заложить.')}</p>}
-      {rows.length > 0 && <p className="muted raid-needs-note">{uiText('Только то, что нужно взять в рейд: заложить, пометить или открыть дверь. Предметы «найти и вынести» сюда не входят.')}</p>}
+      {rows.length > 0 && <p className="muted raid-needs-note">{uiText('Только то, что нужно взять в рейд: заложить, пометить, открыть дверь, оружие и снаряжение по условиям квестов. Предметы «найти и вынести» сюда не входят.')}</p>}
     </div>
   </section>
 }

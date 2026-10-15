@@ -49,6 +49,8 @@ import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { isDesktopShell, useMobileLayout } from '../platform'
+import { hasGearOnMap } from '../overview/questConditions'
+import { GearSectionHeading, RaidGearBlock } from '../overview/GearQuestSection'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -430,14 +432,21 @@ export function MapsPage() {
     })
   }, [activeMap.id, currentQuests, plottedMarkers, progress])
 
+  // «С условиями на снаряжение»: quests with a weapon, parts or gear condition on this map get their own section at the
+  // bottom of the list (owner, 15.10.2026), out of «Актуальные квесты» and «Любая карта»; a click shows their build.
+  const gearMapQuests = useMemo(
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => hasGearOnMap(quest, activeMap.id)), questChecks),
+    [activeMap.id, mapQuestEntries, questChecks],
+  )
+
   const localMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), questChecks),
-    [mapQuestEntries, questChecks],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap && !hasGearOnMap(quest, activeMap.id)), questChecks),
+    [activeMap.id, mapQuestEntries, questChecks],
   )
 
   const anyMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), questChecks),
-    [mapQuestEntries, questChecks],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap && !hasGearOnMap(quest, activeMap.id)), questChecks),
+    [activeMap.id, mapQuestEntries, questChecks],
   )
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
@@ -753,6 +762,7 @@ export function MapsPage() {
                   {uiText(sheetPoint?.approximate && (
                     <p className="map-quest-sheet-note"><MapPin size={12} />{uiText(" Точное место этапа неизвестно — метка стоит приблизительно.")}</p>
                   ))}
+                  {!editingTexts && <RaidGearBlock quest={relatedQuest} mapId={activeMap.id} mapName={(id) => data.maps.find((map) => map.id === id)?.name ?? id} items={data.items} />}
                 </div>
                 <Link
                   className="button map-quest-sheet-link"
@@ -822,7 +832,7 @@ export function MapsPage() {
               {plan.floorWithoutRender && <small className="dim map-floor-note">{uiText('У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».')}</small>}
             </div>
           ))}
-          {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
+          {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0 || gearMapQuests.length > 0) ? (
             <div className="detail-section" style={{ padding: '0 12px 16px' }}>
               {uiText(localMapQuests.length > 0 && (
                 <>
@@ -856,6 +866,23 @@ export function MapsPage() {
                   )))}
                 </>
               ))}
+              {gearMapQuests.length > 0 && (
+                <div className="gear-section map-gear-section" style={{ marginTop: localMapQuests.length || anyMapQuests.length ? 16 : 0 }}>
+                  <GearSectionHeading count={gearMapQuests.length} />
+                  {gearMapQuests.map(({ quest, marker }) => (
+                    <QuestMapRow
+                      key={quest.id}
+                      quest={quest}
+                      gear
+                      selected={selectedMarker?.questId === quest.id}
+                      onSelect={() => toggleQuest(quest, marker)}
+                      squad={squadShared.get(quest.id)}
+                      checked={questChecks.has(quest.id)}
+                      onToggleCheck={() => toggleRaidCheck(quest.id)}
+                    />
+                  ))}
+                </div>
+              )}
               {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
             </div>
           ) : (
@@ -867,7 +894,7 @@ export function MapsPage() {
               </div>
             </div>
           ))}
-          {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
+          {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0 || gearMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
           </>
         )}
       </aside>
@@ -944,10 +971,10 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void }) {
+function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck, gear }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void; gear?: boolean }) {
   return (
-    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}`}>
-      <button type="button" className="quest-map-row-main" onClick={onSelect}>
+    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}${gear ? ' is-gear' : ''}`}>
+      <button type="button" className="quest-map-row-main" onClick={onSelect} title={gear ? uiText('Снаряжение для рейда') : undefined}>
         <span className="quest-card-copy">
           <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
