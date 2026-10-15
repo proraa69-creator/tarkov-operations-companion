@@ -8,7 +8,7 @@ import { useAppState } from '../state/AppState'
 import type { Trader } from '../domain/types'
 import { dueNotifications, findReset, formatCountdown, LEAD_MINUTE_CHOICES, msUntilRestock, nextNotificationDelay, nextRestock, type DueNotification } from './restock'
 import { useTraderResets } from './restockSource'
-import { readNotified, rememberNotified, useRestockSettings, writeRestockSettings } from './restockSettings'
+import { readNotified, readRestockSettings, rememberNotified, useRestockSettings, writeRestockSettings } from './restockSettings'
 import '../arsenal/arsenal.css'
 
 const SOON_MS = 10 * 60_000
@@ -124,7 +124,7 @@ export function RestockSettingsPanel() {
   )
 }
 
-interface Toast { key: string; text: string }
+interface Toast { key: string; traderId: string; at: number; text: string }
 
 /**
  * Watches the selected mode's restock times and notifies `leadMinutes` before each chosen trader restocks:
@@ -136,13 +136,15 @@ export function RestockNotifier() {
   const settings = useRestockSettings()
   const { locale } = useLocale()
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [tick, setTick] = useState(0)
+  // The time of the last wake-up: a new restock window opens, or a message outlives its restock.
+  const [clock, setClock] = useState(() => Date.now())
   const notified = useRef<Set<string>>(readNotified())
   const resets = useMemo(() => data ?? [], [data])
 
   useEffect(() => {
     const now = Date.now()
-    const due: DueNotification[] = dueNotifications(resets, settings, now, notified.current)
+    // The stored switch, read again right before notifying: a change made a moment ago always wins.
+    const due: DueNotification[] = readRestockSettings().enabled ? dueNotifications(resets, settings, now, notified.current) : []
     if (due.length) {
       for (const entry of due) {
         notified.current.add(entry.key)
@@ -151,21 +153,34 @@ export function RestockNotifier() {
           ? `${entry.trader.name} restocks in ${entry.minutesLeft} min`
           : `${entry.trader.name}: ресток через ${entry.minutesLeft} мин`
         void window.tarkovDesktop?.notify?.(title, body).catch(() => false)
-        setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, text: body }].slice(-3))
+        setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, traderId: entry.trader.id, at: entry.at, text: body }].slice(-3))
       }
       rememberNotified(notified.current, now)
     }
     // Wake up when the next window opens (capped, so a sleeping laptop or a changed clock is caught within a minute).
-    const delay = nextNotificationDelay(resets, settings, now, notified.current)
+    // Also wake up when a message on screen outlives its restock, so it goes away by itself.
+    const nextDue = nextNotificationDelay(resets, settings, now, notified.current)
+    const live = toasts.filter((toast) => toast.at > now)
+    const firstExpiry = live.length ? Math.min(...live.map((toast) => toast.at)) - now : undefined
+    // A message whose restock passed while nothing ran (a sleeping laptop) is cleared on the next wake-up, a second later.
+    const delay = toasts.length > live.length ? 0
+      : nextDue === undefined ? firstExpiry : firstExpiry === undefined ? nextDue : Math.min(nextDue, firstExpiry)
     if (delay === undefined) return
-    const timer = window.setTimeout(() => setTick((value) => value + 1), Math.min(Math.max(delay, 1000), 60_000))
+    const timer = window.setTimeout(() => {
+      const at = Date.now()
+      setClock(at)
+      setToasts((current) => current.some((toast) => toast.at <= at) ? current.filter((toast) => toast.at > at) : current)
+    }, Math.min(Math.max(delay, 1000), 60_000))
     return () => window.clearTimeout(timer)
-  }, [resets, settings, locale, tick])
+  }, [resets, settings, locale, clock, toasts])
 
-  if (!toasts.length) return null
+  // Turned off (owner, 15.10.2026: «даже если выключено, то все равно уведомления появляются»): nothing is shown, and a
+  // message already on screen goes at once, as does one for a trader taken off the list or a restock that has passed.
+  const visible = settings.enabled ? toasts.filter((toast) => toast.at > clock && settings.traderIds.includes(toast.traderId)) : []
+  if (!visible.length) return null
   return (
     <div className="restock-toasts" role="status" aria-live="polite">
-      {toasts.map((toast) => (
+      {visible.map((toast) => (
         <div key={toast.key} className="restock-toast">
           <BellRing size={16} />
           <span><strong>{uiText('Скоро ресток')}</strong><br />{toast.text}</span>
