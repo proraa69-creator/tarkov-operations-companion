@@ -106,3 +106,42 @@ test('quest point store: an update by id that targets another point takes over i
   assert.ok(typeof retarget === 'object')
   assert.deepEqual(store.list().map((entry) => [entry.id, entry.markerId, entry.kind]), [[a.id, 'm-b', 'hide']])
 })
+
+test('quest points: a point description «где искать» is public, the owner\'s note is not; an original point can get one without moving', async () => {
+  const { call, login, close } = await setup()
+  try {
+    const owner = await login('owner@example.com')
+    const path = '/accounts/me/admin/quest-points'
+    const described = { ...moved, kind: 'describe', title: 'Склад\nу заправки', description: '  За красной дверью,\r\nна второй полке\u0007  ', descriptionEn: 'Behind the red door' }
+    assert.equal((await call('PUT', path, owner, { ...described, description: 'а'.repeat(501) })).status, 400)
+    assert.equal((await call('PUT', path, owner, { ...described, title: 'а'.repeat(81) })).status, 400)
+    assert.equal((await call('PUT', path, owner, { ...moved, kind: 'describe' })).status, 400, 'a description without text')
+    assert.equal((await call('PUT', path, owner, { ...described, markerId: undefined })).status, 400, 'describe needs the original point')
+    const saved = await call<{ override: Override & { title?: string; description?: string; descriptionEn?: string } }>('PUT', path, owner, described)
+    assert.equal(saved.status, 200)
+    assert.deepEqual([saved.json.override.kind, saved.json.override.title, saved.json.override.description, saved.json.override.descriptionEn],
+      ['describe', 'Склад у заправки', 'За красной дверью,\nна второй полке', 'Behind the red door'])
+    const listed = (await call<{ overrides: Array<Record<string, unknown>> }>('GET', '/quest-points')).json.overrides
+    assert.equal(listed[0].description, 'За красной дверью,\nна второй полке', 'every player reads the description')
+    assert.equal(listed[0].note, undefined, 'the owner\'s note stays with the owner')
+    assert.equal(listed[0].updatedBy, undefined)
+    // A later move keeps the same correction and carries the description the app sends along.
+    const movedToo = await call<{ override: Override & { description?: string } }>('PUT', path, owner, { ...moved, x: 1, description: 'За красной дверью' })
+    assert.equal(movedToo.json.override.id, saved.json.override.id)
+    assert.deepEqual([movedToo.json.override.kind, movedToo.json.override.description], ['move', 'За красной дверью'])
+  } finally {
+    await close()
+  }
+})
+
+test('quest point store: a table from before the descriptions gets the new columns and keeps its rows', () => {
+  const db = openDatabase(':memory:')
+  db.exec(`CREATE TABLE quest_point_overrides (id TEXT PRIMARY KEY, quest_id TEXT NOT NULL, marker_id TEXT, objective_id TEXT, stage_index INTEGER,
+    map_id TEXT NOT NULL, x REAL NOT NULL, z REAL NOT NULL, floor TEXT, kind TEXT NOT NULL, note TEXT, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL)`)
+  db.prepare(`INSERT INTO quest_point_overrides VALUES ('${'c'.repeat(24)}', 'q', 'm', NULL, NULL, 'customs', 1, 2, NULL, 'move', 'old', 'owner', '2026-10-01T00:00:00.000Z')`).run()
+  const store = new QuestPointStore(db)
+  assert.deepEqual(store.list().map((entry) => [entry.markerId, entry.kind, entry.description]), [['m', 'move', undefined]])
+  const saved = store.save({ questId: 'q', markerId: 'm', mapId: 'customs', x: 1, z: 2, kind: 'describe', description: 'Под лестницей' }, 'owner')
+  assert.ok(typeof saved === 'object')
+  assert.equal(store.get(saved.id)?.description, 'Под лестницей')
+})

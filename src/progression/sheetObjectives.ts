@@ -24,6 +24,8 @@ export interface SheetObjective {
   /** On the map being viewed. */
   here: boolean
   done: boolean
+  /** The owner's descriptions «где искать» of this objective's points (quest constructor). */
+  hints?: Array<{ title?: string; text: string }>
 }
 
 export interface SheetGroup { kind: SheetGroupKind; title: string; objectives: SheetObjective[] }
@@ -77,6 +79,18 @@ function titleOf(kind: SheetGroupKind, objectives: SheetObjective[]) {
   return 'Вне рейда'
 }
 
+/** The objective's point descriptions, the same text once. */
+function hintsOf(quest: Quest, objectiveId: string) {
+  const seen = new Set<string>()
+  const hints = (quest.pointHints ?? []).filter((hint) => {
+    const key = `${hint.title ?? ''}|${hint.text}`
+    if (hint.objectiveId !== objectiveId || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).map((hint) => ({ ...(hint.title ? { title: hint.title } : {}), text: hint.text }))
+  return hints.length ? { hints } : {}
+}
+
 /** Null when the quest has no structured objectives (the card then lists the plain texts as before). */
 export function sheetObjectives(
   quest: Quest,
@@ -101,6 +115,7 @@ export function sheetObjectives(
       where: whereOf(kind, mapIds, options.maps),
       here: mapIds.includes(mapId),
       done: options.progress ? objectiveDone(options.progress, quest.id, objective.id) : false,
+      ...hintsOf(quest, objective.id),
     }
     grouped.set(kind, [...(grouped.get(kind) ?? []), line])
   }

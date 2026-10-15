@@ -47,6 +47,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts): everybody reads, only the owner's account writes.
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
+  // Quest requirements curated by the owner (server/src/routes/questRequirements.ts): everybody reads, only the owner writes.
+  { methods: ['GET'], path: /^\/v1\/quest-requirements$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-requirements$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-requirements\/(?:order|[a-f0-9]{24}\/remove)$/ },
   // «Правки карты сразу у всех»: waits up to ~25 s for the owner's next map correction (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
