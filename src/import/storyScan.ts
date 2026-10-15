@@ -58,16 +58,22 @@ export function storyPaneChapter(text: string, story: Quest[], status?: string):
     // The English game's banner says «CHAPTER» (OCR may read it in Cyrillic look-alikes, «СНАРТЕВ»), the name under it.
     const header = lines[index]!.match(/^(?:история|[а-яё]{0,2}тория|story|[cс][hн][aа][pр][tт][eе][rв]?)(?=\s|$)(.*)$/i)
     if (!header) continue
-    const window = [header[1]!, ...lines.slice(index + 1, index + 3)]
-    for (const candidate of window) {
+    // The banner art of some chapters gives OCR lines of its own between «ИСТОРИЯ» and the name: the owner's «Batya» pane
+    // read «CHAPTER к аа A “а», «пет», then «Batya ‚ в -» (englishGameOcr.ts). The name is looked for three lines down.
+    const window = [header[1]!, ...lines.slice(index + 1, index + 4)]
+    for (const [offset, candidate] of window.entries()) {
       const found = titleKeys(candidate.replace(STATUS, ' ')).map((key) => names.find((entry) => entry.keys.some((name) => sameTitle(name, key))))
         .find(Boolean)
       if (found) {
-        const header = [lines[index]!, ...lines.slice(index + 1, index + 4)]
-        const active = header.some(isActive)
+        // The header down to the line under the name: the status label sits beside or under it.
+        const header = [lines[index]!, ...lines.slice(index + 1, index + Math.max(4, offset + 3))]
         const block = header.findIndex((line) => OBJECTIVE_BLOCK.test(line))
         const above = block < 0 ? header : header.slice(0, Math.max(1, block))
-        const done = status !== undefined ? status.split(/\r?\n/).some(isDoneLabel) : above.some(isDoneLabel)
+        // The status label read on its own (the pane's parts) says «АКТИВНО» / «ACTIVE» wherever the art put the title:
+        // without it a chapter whose objective wording the catalog lacks was never written (owner, 15.10.2026: «Батя»).
+        const statusLines = status?.split(/\r?\n/) ?? []
+        const active = statusLines.some(isActive) || header.some(isActive)
+        const done = status !== undefined ? statusLines.some(isDoneLabel) : above.some(isDoneLabel)
         return { quest: found.quest, active, completed: !active && done }
       }
     }

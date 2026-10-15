@@ -168,7 +168,7 @@ function seedStage(chapter: StoryChapterSeed, seed: StoryStageSeed, index: numbe
     // The Tasks → Story pane lists sub-objectives under the stage; any of them identifies it, in the Russian or the
     // English game (the seeds' English is the game's wording).
     ocrAliases: [seed.ru.toLowerCase(), seed.en.toLowerCase(), ...(seed.aliases ?? []).map((alias) => alias.toLowerCase()),
-      ...(seed.steps ?? []).flatMap((step) => [step.ru.toLowerCase(), step.en.toLowerCase()])],
+      ...(seed.steps ?? []).flatMap((step) => [step.ru.toLowerCase(), step.en.toLowerCase(), ...(step.aliases ?? []).map((alias) => alias.toLowerCase())])],
   }
 }
 
