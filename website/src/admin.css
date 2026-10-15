@@ -174,3 +174,23 @@
 .admin-write-meta { color: var(--text-muted); font-size: 11.5px; }
 .admin-write-form { display: grid; gap: 8px; }
 .admin-write-form textarea { resize: vertical; font: inherit; line-height: 1.45; padding-block: 8px; }
+/* «Опросы» (components/admin/AdminSurveys.tsx): the surveys, the bars per option, the free answers, the answers table. */
+.admin-survey-picker { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.admin-survey-tab { display: grid; gap: 2px; min-width: 180px; max-width: 280px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); color: var(--text-muted); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+.admin-survey-tab strong { color: var(--text); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-survey-tab.is-active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 10%, var(--surf-1)); }
+.admin-survey { display: grid; gap: 16px; min-width: 0; }
+.admin-survey-questions { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.admin-survey-question { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); min-width: 0; }
+.admin-survey-bars { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.admin-survey-bars li { display: grid; grid-template-columns: minmax(80px, 200px) 1fr auto; align-items: center; gap: 10px; font-size: 14px; }
+.admin-survey-bar-label { overflow-wrap: anywhere; }
+.admin-survey-bar { height: 10px; border-radius: 5px; background: var(--surf-1); overflow: hidden; }
+.admin-survey-bar span { display: block; height: 100%; border-radius: 5px; background: var(--brass); }
+.admin-survey-bar-value { color: var(--text-muted); font-size: 12.5px; white-space: nowrap; }
+.admin-survey-texts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 320px; overflow-y: auto; }
+.admin-survey-texts li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--surf-1); white-space: pre-line; overflow-wrap: anywhere; font-size: 14px; }
+.admin-survey-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.admin-survey-filters .field-label { display: grid; gap: 5px; }
+.admin-survey-table td { vertical-align: top; }
+@media (max-width: 640px) { .admin-survey-bars li { grid-template-columns: 1fr auto; } .admin-survey-bar { grid-column: 1 / -1; grid-row: 2; } }
