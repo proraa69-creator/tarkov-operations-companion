@@ -53,7 +53,9 @@ export class ProgressStore {
     this.db.exec(`CREATE TABLE IF NOT EXISTS story_records (
         owner TEXT NOT NULL, mode TEXT NOT NULL, character_id TEXT NOT NULL, chapter_id TEXT NOT NULL,
         status TEXT NOT NULL, stage_id TEXT, updated_at TEXT NOT NULL,
-        PRIMARY KEY(owner, mode, character_id, chapter_id));`)
+        PRIMARY KEY(owner, mode, character_id, chapter_id));
+      CREATE TABLE IF NOT EXISTS mode_resets (
+        owner TEXT NOT NULL, mode TEXT NOT NULL, reset_at TEXT NOT NULL, PRIMARY KEY(owner, mode));`)
   }
 
   /** Development single-owner endpoint (/v1/sync/events). */
@@ -74,9 +76,10 @@ export class ProgressStore {
     const characterId = input.characterId ?? previous?.characterId ?? ''
     const syncedAt = new Date(now).toISOString()
     // A client clock far ahead must not hide this character's events for good.
-    const latest = new Date(now + 60_000).toISOString()
-    const reported = input.resetAt && input.resetAt > latest ? latest : input.resetAt
-    const kept = previous?.characterId === characterId ? previous.resetAt : undefined
+    const latestAllowed = new Date(now + 60_000).toISOString()
+    const reported = input.resetAt && input.resetAt > latestAllowed ? latestAllowed : input.resetAt
+    // The character's last trusted reset, and the reset of the whole mode the player asked for in the app (resetMode).
+    const kept = latest(previous?.characterId === characterId ? previous.resetAt : undefined, this.modeResetAt(owner, mode))
     const resetAt = reported && (!kept || reported > kept) ? reported : kept
     transaction(this.db, () => {
       if (reported) {
@@ -97,7 +100,34 @@ export class ProgressStore {
   userRecords(owner: string, mode: RaidMode): UserProgressResponse {
     const scope = this.scope(owner, mode)
     if (!scope) return { revision: createHash('sha256').update('[]').digest('hex'), records: [], coverage: 'partial', scope: null }
-    return { ...this.project(owner, mode, scope.accountId, scope.characterId), scope }
+    const resetAt = latest(scope.resetAt, this.modeResetAt(owner, mode))
+    return { ...this.project(owner, mode, scope.accountId, scope.characterId), scope: { ...scope, ...(resetAt ? { resetAt } : {}) } }
+  }
+
+  /**
+   * «Престиж +» or a nickname change in the app: the whole mode starts again at `at` (clamped to the server's clock).
+   * Every quest event and story chapter of the mode older than that goes, whatever character it belonged to, and nothing
+   * older is stored again (syncUser, syncStory). Kept with the mode, so the scope's `resetAt` tells the phone and the
+   * other PCs (old apps included: the trusted-reset path) to drop their older records too. An older reset changes
+   * nothing. Other modes are not touched.
+   */
+  resetMode(owner: string, mode: RaidMode, at: string, now = Date.now()): { resetAt: string; scope: ProgressScope | null } {
+    const latestAllowed = new Date(now + 60_000).toISOString()
+    const requested = at > latestAllowed ? latestAllowed : at
+    const resetAt = latest(this.modeResetAt(owner, mode), requested)!
+    transaction(this.db, () => {
+      this.db.prepare('DELETE FROM quest_events WHERE owner=? AND mode=? AND occurred_at < ?').run(owner, mode, resetAt)
+      this.db.prepare('DELETE FROM story_records WHERE owner=? AND mode=? AND updated_at < ?').run(owner, mode, resetAt)
+      this.db.prepare(`INSERT INTO mode_resets (owner, mode, reset_at) VALUES (?,?,?)
+        ON CONFLICT(owner, mode) DO UPDATE SET reset_at=excluded.reset_at WHERE excluded.reset_at > mode_resets.reset_at`).run(owner, mode, resetAt)
+    })
+    return { resetAt, scope: this.userRecords(owner, mode).scope }
+  }
+
+  /** The last reset of the whole mode (resetMode), if any. */
+  modeResetAt(owner: string, mode: RaidMode): string | undefined {
+    const row = this.db.prepare('SELECT reset_at FROM mode_resets WHERE owner=? AND mode=?').get(owner, mode) as Row | undefined
+    return typeof row?.reset_at === 'string' && row.reset_at ? row.reset_at : undefined
   }
 
   /**
@@ -109,15 +139,15 @@ export class ProgressStore {
     const scope = this.scope(owner, mode)
     const characterId = input.characterId ?? scope?.characterId
     if (!characterId) return { characterId: null, records: [] }
-    const resetAt = scope?.characterId === characterId ? scope.resetAt : undefined
-    const latest = new Date(now + 60_000).toISOString()
+    const resetAt = latest(scope?.characterId === characterId ? scope.resetAt : undefined, this.modeResetAt(owner, mode))
+    const latestAllowed = new Date(now + 60_000).toISOString()
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO story_records (owner, mode, character_id, chapter_id, status, stage_id, updated_at) VALUES (?,?,?,?,?,?,?)
         ON CONFLICT(owner, mode, character_id, chapter_id) DO UPDATE SET status=excluded.status, stage_id=excluded.stage_id, updated_at=excluded.updated_at
         WHERE excluded.updated_at > story_records.updated_at`)
       for (const record of input.records) {
         // A client clock far ahead must not make its reading «newer» than every other for good.
-        const updatedAt = record.updatedAt > latest ? latest : record.updatedAt
+        const updatedAt = record.updatedAt > latestAllowed ? latestAllowed : record.updatedAt
         if (resetAt && updatedAt < resetAt) continue
         upsert.run(owner, mode, characterId, record.chapterId, record.status, record.stageId ?? null, updatedAt)
       }
@@ -167,4 +197,9 @@ export class ProgressStore {
     for (const row of rows) records.set(String(row.task_id), { taskId: String(row.task_id), status: row.status as 'active' | 'completed' | 'failed', updatedAt: String(row.occurred_at), source: 'eft-log' })
     return { revision: createHash('sha256').update(JSON.stringify([...records.values()])).digest('hex'), records: [...records.values()], coverage: 'partial' }
   }
+}
+
+/** The later of two ISO times (either may be missing). */
+function latest(a: string | undefined, b: string | undefined) {
+  return a && b ? (a > b ? a : b) : a ?? b
 }

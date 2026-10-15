@@ -47,6 +47,14 @@ export class ObjectiveStore {
     return { objectives, events, updatedAt: latest?.at == null ? null : String(latest.at) }
   }
 
+  /** A reset of the whole mode (POST /v1/me/progress/:mode/reset): its objectives and history older than `at` go. */
+  dropBefore(owner: string, mode: RaidMode, at: string) {
+    transaction(this.db, () => {
+      this.db.prepare('DELETE FROM objective_progress WHERE owner=? AND mode=? AND observed_at < ?').run(owner, mode, at)
+      this.db.prepare('DELETE FROM progress_events WHERE owner=? AND mode=? AND observed_at < ?').run(owner, mode, at)
+    })
+  }
+
   /** Merges the app's copy into the server copy and returns the merged state. */
   sync(owner: string, mode: RaidMode, input: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }): ObjectiveSnapshot {
     const now = new Date().toISOString()

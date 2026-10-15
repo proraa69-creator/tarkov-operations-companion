@@ -166,6 +166,79 @@ test('/v1/me/progress keeps the latest trusted reset with the character scope', 
   })
 })
 
+test('POST /v1/me/progress/:mode/reset («Престиж +») resets one mode of one account and honours it afterwards', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'prestige@example.com')
+    const other = await register(call, 'other-prestige@example.com')
+    type Answer = { records: Array<{ taskId: string }>; scope: { characterId: string; resetAt?: string } | null }
+    const before = [
+      { taskId: TASK_A, status: 'active', timestamp: '2026-09-25T10:00:00.000Z' },
+      { taskId: TASK_A, status: 'completed', timestamp: '2026-09-25T11:00:00.000Z' },
+    ]
+    // Authenticated, per mode, strict body.
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', {})).status, 401)
+    assert.equal((await call('POST', '/v1/me/progress/arena/reset', {}, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { at: 'yesterday' }, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { mode: 'pvp' }, token)).status, 400)
+
+    for (const raidMode of ['pvp', 'pve', 'seasonal']) {
+      await call('POST', `/v1/me/progress/${raidMode}/events`, { accountId: 100, characterId: CHARACTER, events: before }, token)
+      await call('POST', `/v1/me/story/${raidMode}`, { characterId: CHARACTER, records: [{ chapterId: 'tour', status: 'active', updatedAt: '2026-09-25T11:00:00.000Z' }] }, token)
+      await call('PUT', `/v1/me/collector/${raidMode}`, { itemIds: ['axe'] }, token)
+    }
+    await call('POST', '/v1/me/progress/pve/events', { accountId: 100, characterId: CHARACTER, events: before }, other)
+    await call('PUT', '/v1/me/levels', { modes: { pve: { level: 42, prestige: 1, observedAt: '2026-09-25T11:00:00.000Z' }, pvp: { level: 30, prestige: 0, observedAt: '2026-09-25T11:00:00.000Z' } } }, token)
+    await call('POST', '/v1/me/objectives/pve/sync', { objectives: [objective(OBJ_A, 2, 'log', '2026-09-25T11:00:00.000Z')], events: [] }, token)
+
+    // Pressed now: everything above is older (the Collector list too).
+    const pressed = Date.now()
+    const reset = await (await call('POST', '/v1/me/progress/pve/reset', {}, token)).json() as { resetAt: string; scope: Answer['scope'] }
+    const AT = reset.resetAt
+    assert.ok(Math.abs(Date.parse(AT) - pressed) < 5_000)
+    assert.equal(reset.scope?.resetAt, AT, 'the scope tells the phone and old apps to drop older records')
+
+    // PvE of this account: empty, and the reset comes back with every pull.
+    const pve = await (await call('GET', '/v1/me/progress/pve', undefined, token)).json() as Answer
+    assert.deepEqual(pve.records, [])
+    assert.equal(pve.scope?.resetAt, AT)
+    assert.deepEqual(((await (await call('GET', '/v1/me/story/pve', undefined, token)).json()) as { records: unknown[] }).records, [])
+    assert.deepEqual(((await (await call('GET', '/v1/me/collector/pve', undefined, token)).json()) as { itemIds: string[] }).itemIds, [])
+    assert.deepEqual(((await (await call('GET', '/v1/me/objectives/pve', undefined, token)).json()) as Snapshot).objectives, [])
+    // PvP and Season of this account, and PvE of another account: untouched.
+    for (const raidMode of ['pvp', 'seasonal']) {
+      const kept = await (await call('GET', `/v1/me/progress/${raidMode}`, undefined, token)).json() as Answer
+      assert.deepEqual(kept.records.map((record) => record.taskId), [TASK_A], raidMode)
+      assert.equal(kept.scope?.resetAt, undefined, raidMode)
+      assert.equal(((await (await call('GET', `/v1/me/story/${raidMode}`, undefined, token)).json()) as { records: unknown[] }).records.length, 1, raidMode)
+      assert.deepEqual(((await (await call('GET', `/v1/me/collector/${raidMode}`, undefined, token)).json()) as { itemIds: string[] }).itemIds, ['axe'], raidMode)
+    }
+    assert.equal(((await (await call('GET', '/v1/me/progress/pve', undefined, other)).json()) as Answer).records.length, 1)
+
+    // An app that has not heard of the reset sends the old events again: not stored. Newer ones are.
+    const stale = await (await call('POST', '/v1/me/progress/pve/events', { characterId: CHARACTER, events: [...before, { taskId: TASK_B, status: 'active', timestamp: new Date(pressed + 10_000).toISOString() }] }, token)).json() as Answer
+    assert.deepEqual(stale.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(stale.scope?.resetAt, AT)
+    // A new character in the mode still starts after the reset of the mode.
+    const fresh = await (await call('POST', '/v1/me/progress/pve/events', { characterId: 'fedcba9876543210fedcba98', events: before }, token)).json() as Answer
+    assert.deepEqual(fresh.records, [])
+    assert.equal(fresh.scope?.resetAt, AT)
+    const story = await (await call('POST', '/v1/me/story/pve', { characterId: CHARACTER, records: [{ chapterId: 'tour', status: 'active', updatedAt: '2026-09-25T11:00:00.000Z' }] }, token)).json() as { records: unknown[] }
+    assert.deepEqual(story.records, [])
+    const objectives = await (await call('POST', '/v1/me/objectives/pve/sync', { objectives: [objective(OBJ_A, 2, 'log', '2026-09-25T11:00:00.000Z')], events: [] }, token)).json() as Snapshot
+    assert.deepEqual(objectives.objectives, [])
+
+    // A queued older reset sent later changes nothing; the shared level of the mode went with the reset.
+    const older = await (await call('POST', '/v1/me/progress/pve/reset', { at: '2026-09-25T09:00:00.000Z' }, token)).json() as { resetAt: string }
+    assert.equal(older.resetAt, AT)
+    const friendLevels = await (await call('PUT', '/v1/me/levels', { modes: {} }, token)).json() as { modes: Record<string, unknown> }
+    assert.equal(friendLevels.modes.pve, undefined)
+    assert.ok(friendLevels.modes.pvp)
+    // A clock far ahead is held to the server's time.
+    const future = await (await call('POST', '/v1/me/progress/seasonal/reset', { at: '2099-01-01T00:00:00.000Z' }, token)).json() as { resetAt: string }
+    assert.ok(Date.parse(future.resetAt) <= Date.now() + 61_000)
+  })
+})
+
 test('a progress database from before the reset column gets it', () => {
   const db = new DatabaseSync(':memory:')
   db.exec(`CREATE TABLE progress_scopes (owner TEXT NOT NULL, mode TEXT NOT NULL, account_id INTEGER NOT NULL, character_id TEXT NOT NULL,
