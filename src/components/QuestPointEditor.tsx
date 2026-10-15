@@ -493,7 +493,7 @@ export function QuestPointCardActions({ state, marker, onDone }: { state: QuestP
   const override = state.overrideOf(marker)
   return (
     <div className="boss-placement-remove">
-      <span className="dim">{uiText(override?.kind === 'add' ? 'Точка добавлена вручную, её видят все игроки.' : override ? 'Точка перенесена вручную, её видят все игроки.' : 'Исходная точка: перетащите её, скройте или добавьте новую — изменения сохраняются сразу и видны всем игрокам.')}</span>
+      <span className="dim">{uiText(override?.kind === 'add' ? 'Точка добавлена вручную, её видят все игроки.' : override?.kind === 'move' ? 'Точка перенесена вручную, её видят все игроки.' : 'Исходная точка: перетащите её, скройте или добавьте новую — изменения сохраняются сразу и видны всем игрокам.')}</span>
       {override?.note && <small className="dim">{uiText('Заметка для себя')}: {override.note}</small>}
       <div className="boss-placement-actions">
         <button type="button" className="button small" disabled={state.busy} onClick={() => { state.setTab('points'); state.setDescribing(marker.id) }}>
