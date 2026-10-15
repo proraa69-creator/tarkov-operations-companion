@@ -75,7 +75,12 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
   const history = find(/истори|тори[яи]|^[cс][hн][aа][pр][tт]/i, (box) => box.y0 < H * 0.35)
   const main = find(/^главн(?:ые|ая)$|^main$/i, (box) => box.y0 > H * 0.15 && box.y0 < H * 0.9)
     ?? find(/^[а-яё]{0,4}иональн|^optional$/i, (box) => box.y0 > H * 0.15 && box.y0 < H * 0.9)
-  const panel = find(/^предметы$|^task$/i, (box) => box.y0 < H * 0.12 && box.x0 > W * 0.5)
+  // The right panel: its top header, or either of its headers «Предметы для заданий …» / «Task items …» anywhere down
+  // the right half (the owner's «Тур», 15.10.2026: the body reached the panel and read «Предмет:» into an objective).
+  const headers = words.filter((word, index) => word.bbox.x0 > W * 0.5
+    && /^(?:предметы\s+для|task\s+items)$/i.test(`${word.text.trim()} ${words[index + 1]?.text.trim() ?? ''}`)).map((word) => word.bbox)
+  const top = find(/^предметы$|^task$/i, (box) => box.y0 < H * 0.12 && box.x0 > W * 0.5)
+  const panel = [top, ...headers].filter((box): box is OcrWordBox['bbox'] => Boolean(box)).sort((a, b) => a.x0 - b.x0)[0]
   const menu = find(/^главное$|main\s*menu$/i, (box) => box.y0 > H * 0.9)
   const ratio = W / H
   if (!history && !main && (ratio < 1.7 || ratio > 1.85)) return undefined

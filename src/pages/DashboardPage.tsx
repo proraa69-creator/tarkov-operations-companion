@@ -7,7 +7,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
-import { completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
@@ -27,6 +27,8 @@ import { collectorKeyTasks } from '../components/collectorKeyTasks'
 import { GunsmithPanel } from '../gunsmith/GunsmithPanel'
 import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
 import { CountUp } from '../components/CountUp'
+import { QuestConditionsCard } from '../overview/QuestConditionsCard'
+import { conditionQuestsForMap, gearObjectivesOnMap, gearRaidRequirements, type ConditionQuest } from '../overview/questConditions'
 import { OverviewBlock } from '../overview/OverviewBlock'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
@@ -70,7 +72,11 @@ export function DashboardPage() {
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const raidPrepPurposes = new Set(['place', 'mark', 'key', 'bring'])
-  const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })))
+  const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => [
+    ...(quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })),
+    // The weapon, its parts and the gear a kill objective of this map asks for (the same quests as «Сбор на рейд»).
+    ...gearRaidRequirements(quest, selectedMap.id),
+  ])
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
   const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
@@ -92,7 +98,13 @@ export function DashboardPage() {
     return item ? [{ ...row, key: item.id, name: item.name, iconUrl: item.iconUrl, href: `/flea?selected=${item.id}` }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
-  const stats = completedQuestStats(data.quests, availability)
+  // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition.
+  const conditionQuests = useMemo(() => conditionQuestsForMap(data.quests, availability, selectedMap.id), [availability, data.quests, selectedMap.id])
+  // «Текущие задания»: the tasks with a gear condition on this map go to their own section at the bottom of the list.
+  const gearTasks = [...mapQuests, ...anyMapCurrent].flatMap((quest): ConditionQuest[] => {
+    const objectives = gearObjectivesOnMap(quest, selectedMap.id)
+    return objectives.length ? [{ quest, objectives }] : []
+  })
   // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
   const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
@@ -108,7 +120,7 @@ export function DashboardPage() {
 
   const statCards: Blocks = {
     'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
-    'stat-progress': { label: 'Прогресс', node: <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value"><CountUp value={stats.completed} /></div></div> },
+    'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
@@ -138,7 +150,7 @@ export function DashboardPage() {
     requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} /> },
   }
   const rightBlocks: Blocks = {
-    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} /> },
+    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} gear={{ quests: gearTasks, items: data.items, mapName }} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',
@@ -186,7 +198,7 @@ export function DashboardPage() {
     </header>
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
-      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Прогресс» можно сделать узкими и поставить рядом.'
+      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Сбор на рейд» можно сделать узкими и поставить рядом.'
       : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
     {mobile

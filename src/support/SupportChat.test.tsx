@@ -1,9 +1,11 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SupportChatDialog, SupportNotice } from './SupportChat'
-import { pendingSupportNotice, resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
+import { cleanSupportMessage, pendingSupportNotice, resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
+import { SUPPORT_TELEGRAM_URL } from '../app/support'
+import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
 import { SupportButtons } from '../components/SupportButtons'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { OPEN_ACCOUNT_SIGN_IN_EVENT } from '../account/accountEvents'
@@ -32,10 +34,14 @@ function mockServer(status: unknown, thread: { messages: SupportMessage[]; unrea
       return { messages: thread.messages.filter((message) => message.id > after), unread: thread.unread, oldestId: thread.messages[0]?.id ?? null }
     }
     if (method === 'POST' && path === '/v1/me/support/messages') {
-      const message = mine(nextId++, (body as { text: string }).text)
+      const sent = body as { text: string; images?: Array<{ data: string }> }
+      const attachments = (sent.images ?? []).map((_, index) => ({ id: `${String(nextId).padStart(22, '0')}${index}a`, width: 1920, height: 1080 }))
+      const message: SupportMessage = { ...mine(nextId++, sent.text || (attachments.length ? SUPPORT_IMAGE_PLACEHOLDER : '')), ...(attachments.length ? { attachments } : {}) }
       thread.messages = [...thread.messages, message]
       return { message }
     }
+    // A screenshot of the conversation: a 1×1 PNG.
+    if (method === 'GET' && path.startsWith('/v1/me/support/attachments/')) return { mime: 'image/png', data: 'iVBORw0KGgo=', width: 1920, height: 1080 }
     if (method === 'POST' && path === '/v1/me/support/read') { thread.unread = 0; return null }
     return null
   })
@@ -145,12 +151,12 @@ describe('support chat window', () => {
   })
 })
 
-describe('unread answers on «Связаться» and «Ещё»', () => {
-  it('the sidebar «Связаться» counts the answers not read yet; opening the chat reads them', async () => {
+describe('unread answers on «Чат с поддержкой» and «Ещё»', () => {
+  it('the sidebar «Чат с поддержкой» counts the answers not read yet; opening the chat reads them', async () => {
     const server = mockServer(signedIn, { messages: [mine(1, 'Вопрос', true), answer(2, 'Ответ 1'), answer(3, 'Ответ 2')], unread: 2 })
     const user = userEvent.setup()
     render(<SupportButtons variant="nav" />)
-    const contact = screen.getByRole('button', { name: /Связаться/ })
+    const contact = screen.getByRole('button', { name: /Чат с поддержкой/ })
     expect(await within(contact).findByLabelText('Новых сообщений: 2')).toHaveTextContent('2')
     await user.click(contact)
     expect(await screen.findByText('Ответ 2')).toBeInTheDocument()
@@ -184,28 +190,30 @@ describe('unread answers on «Связаться» and «Ещё»', () => {
     expect(server.calls).toEqual([])
   })
 
-  it('the PC sidebar: «Чат с поддержкой» right under «Сообщить об ошибке», with the count; it opens the chat (owner, 14.10.2026)', async () => {
+  it('the PC sidebar: one «Чат с поддержкой» right under «Сообщить об ошибке», with the count; it opens the chat (owner, 14 and 15.10.2026)', async () => {
     mockServer(signedIn, { messages: [mine(1, 'Вопрос', true), answer(2, 'Ответ')], unread: 1 })
     const user = userEvent.setup()
     render(<SupportButtons variant="nav" />)
     const names = screen.getAllByRole('button').map((button) => button.querySelector('span')?.textContent)
-    expect(names).toEqual(['Связаться', 'Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
+    // «Связаться» duplicated the chat (owner, 15.10.2026: «у нас дублируется связаться и чат с поддержкой»): gone.
+    expect(names).toEqual(['Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
+    expect(screen.queryByText('Связаться')).toBeNull()
     const entry = screen.getByRole('button', { name: /Чат с поддержкой/ })
     expect(await within(entry).findByLabelText('Новых сообщений: 1')).toHaveTextContent('1')
     await user.click(entry)
     expect(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).toHaveTextContent('Ответ')
     await waitFor(() => expect(within(entry).queryByLabelText(/Новых сообщений/)).toBeNull())
     cleanup()
-    // Settings → «Поддержка» keeps its three buttons.
+    // Settings → «Поддержка»: the same three, the chat named «Чат с поддержкой» with the same count.
     render(<SupportButtons variant="panel" />)
-    expect(screen.getAllByRole('button').map((button) => button.querySelector('span')?.textContent)).toEqual(['Связаться', 'Сообщить об ошибке', 'Ваши предложения'])
+    expect(screen.getAllByRole('button').map((button) => button.querySelector('span')?.textContent)).toEqual(['Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
   })
 
   it('a conversation the owner deleted («Проблема решена») leaves the app at once: no count, an empty chat', async () => {
     const server = mockServer(signedIn, { messages: [mine(1, 'Карта не грузится', true), answer(2, 'Обновите приложение')], unread: 1 })
     const user = userEvent.setup()
     render(<SupportButtons variant="nav" />)
-    const contact = screen.getByRole('button', { name: /Связаться/ })
+    const contact = screen.getByRole('button', { name: /Чат с поддержкой/ })
     expect(await within(contact).findByLabelText('Новых сообщений: 1')).toBeInTheDocument()
     server.thread.messages = []
     server.thread.unread = 0
@@ -257,7 +265,7 @@ describe('«Новое сообщение от поддержки» (owner, 14.1
     act(() => { window.dispatchEvent(new Event(SOCIAL_UPDATE_EVENT)) })
     await waitFor(() => expect(server.calls.filter(([method]) => method === 'GET')).toHaveLength(5))
     expect(toast()).toBeFalsy()
-    expect(within(screen.getByRole('button', { name: /Связаться/ })).getByLabelText('Новых сообщений: 1')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /Чат с поддержкой/ })).getByLabelText('Новых сообщений: 1')).toBeInTheDocument()
     // Nor after a restart of the app: the closed one is remembered for this account on this device.
     cleanup()
     resetSupportChat()
@@ -345,7 +353,8 @@ describe('English', () => {
       expect(uiText('Чат с поддержкой')).toBe('Support chat')
       expect(uiText('Напишите нам — ответим здесь же')).toBe('Write to us and we will answer right here')
       expect(uiText('Войдите в аккаунт, чтобы написать нам')).toBe('Sign in to message us')
-      expect(uiText('Или напишите нам в Telegram')).toBe('Or message us on Telegram')
+      expect(uiText('Удобнее в Telegram?')).toBe('Prefer Telegram?')
+      expect(uiText('Написать в Telegram')).toBe('Message on Telegram')
       expect(uiText('Enter — отправить, Shift+Enter — новая строка')).toBe('Enter to send, Shift+Enter for a new line')
       expect(uiText('Новых сообщений: 3')).toBe('New messages: 3')
       expect(uiText('Новых уведомлений: 4')).toBe('New notifications: 4')
@@ -372,6 +381,194 @@ describe('English', () => {
     for (const [ru, en] of SUPPORT_CHAT_PHRASES) {
       if (seen.has(ru)) expect(seen.get(ru)).toBe(en)
       seen.set(ru, en)
+    }
+  })
+})
+
+const PNG_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13])
+const shotFile = (name: string, type = 'image/png', bytes: BlobPart = PNG_BYTES) => new File([bytes], name, { type })
+const ATTACHMENT = 'c0ffee00c0ffee00c0ffee00'
+const withImages = (message: SupportMessage, count = 1): SupportMessage => ({ ...message, attachments: Array.from({ length: count }, (_, index) => ({ id: `${ATTACHMENT.slice(0, 23)}${index}`, width: 800, height: 600 })) })
+
+describe('one entry, Telegram inside (owner, 15.10.2026: «сделай одну кнопку чат с поддержкой, но что бы там можно было написать в чат и кнопка на телеграм»)', () => {
+  it('signed in: the box and «Написать в Telegram» under it', async () => {
+    mockServer(signedIn, { messages: [], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    expect(await within(dialog).findByRole('textbox', { name: 'Сообщение' })).toBeInTheDocument()
+    const telegram = within(dialog).getByRole('link', { name: 'Написать в Telegram' })
+    expect(telegram).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
+    expect(telegram).toHaveAttribute('target', '_blank')
+    expect(telegram.querySelector('svg')).not.toBeNull()
+    expect(dialog).toHaveTextContent('Удобнее в Telegram?')
+  })
+
+  it('signed out: «Войти» and the same Telegram button', async () => {
+    mockServer(signedOut, { messages: [], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    expect(await within(dialog).findByRole('button', { name: 'Войти' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: 'Написать в Telegram' })).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
+    expect(within(dialog).queryByRole('button', { name: 'Прикрепить скриншот' })).toBeNull()
+  })
+})
+
+describe('screenshots in the chat (owner, 15.10.2026: «еще связаться с поддержкой, добавь что бы можно было добавить скриншот»)', () => {
+  const posts = (server: ReturnType<typeof mockServer>) => server.calls.filter(([method, path]) => method === 'POST' && path === '/v1/me/support/messages')
+
+  it('the paperclip attaches; text and screenshots go in one message; the message shows them as thumbnails', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    const user = userEvent.setup({ applyAccept: false })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const box = await screen.findByRole('textbox', { name: 'Сообщение' })
+    expect(screen.getByRole('button', { name: 'Прикрепить скриншот' })).toBeEnabled()
+    await user.upload(screen.getByLabelText('Скриншоты'), shotFile('raid.png'))
+    const waiting = await screen.findByRole('list', { name: 'Скриншоты к сообщению' })
+    expect(within(waiting).getByRole('img', { name: 'raid.png' })).toBeInTheDocument()
+    await user.type(box, 'Вот ошибка{Enter}')
+    await waitFor(() => expect(posts(server)).toHaveLength(1))
+    const [, , body] = posts(server)[0]! as [string, string, { text: string; images: Array<{ data: string }> }]
+    expect(body.text).toBe('Вот ошибка')
+    expect(body.images).toHaveLength(1)
+    // base64 without the data: prefix (src/notices/imageResize.ts).
+    expect(body.images[0]!.data).toBe(btoa(String.fromCharCode(...PNG_BYTES)))
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Скриншоты к сообщению' })).toBeNull())
+    const sent = (await screen.findByText('Вот ошибка')).closest('.support-chat-message') as HTMLElement
+    expect(await within(sent).findByRole('img', { name: 'Скриншот 1' })).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgo=')
+    expect(server.calls.some(([method, path]) => method === 'GET' && path.startsWith('/v1/me/support/attachments/'))).toBe(true)
+  })
+
+  it('screenshots only: the send button works without text; the bubble shows the images, not «[скриншот]»', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    const user = userEvent.setup({ applyAccept: false })
+    const { container } = render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByRole('textbox', { name: 'Сообщение' })
+    expect(screen.getByRole('button', { name: 'Отправить' })).toBeDisabled()
+    await user.upload(screen.getByLabelText('Скриншоты'), shotFile('only.png'))
+    await screen.findByRole('img', { name: 'only.png' })
+    await user.click(screen.getByRole('button', { name: 'Отправить' }))
+    await waitFor(() => expect(posts(server)).toHaveLength(1))
+    expect((posts(server)[0]![2] as { text: string }).text).toBe('')
+    const bubble = await waitFor(() => { const found = document.querySelector('.support-chat-message.has-images'); expect(found).not.toBeNull(); return found as HTMLElement })
+    expect(await within(bubble).findByRole('img', { name: 'Скриншот 1' })).toBeInTheDocument()
+    expect(bubble.querySelector('.support-chat-text')).toBeNull()
+    expect(container.ownerDocument.body).not.toHaveTextContent(SUPPORT_IMAGE_PLACEHOLDER)
+  })
+
+  it('Ctrl+V pastes a screenshot; a dropped file is taken by the window; neither reaches the bug report under it', async () => {
+    const server = mockServer(signedIn, { messages: [], unread: 0 })
+    // What a dialog under the chat (the bug report, which takes pastes and drops too) would hear.
+    const outside = vi.fn()
+    render(<div onPaste={(event) => outside(event.type)} onDrop={(event) => outside(event.type)}><SupportChatDialog onClose={() => {}} /></div>)
+    const box = await screen.findByRole('textbox', { name: 'Сообщение' })
+    {
+      fireEvent.paste(box, { clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => shotFile('pasted.png') }], types: ['Files'] } })
+      expect(await screen.findByRole('img', { name: 'pasted.png' })).toBeInTheDocument()
+      // A text paste stays a text paste.
+      fireEvent.paste(box, { clipboardData: { items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }], types: ['text/plain'] } })
+      const dialog = screen.getByRole('dialog', { name: 'Чат с поддержкой' }).querySelector('section')!
+      fireEvent.dragEnter(dialog, { dataTransfer: { types: ['Files'], files: [] } })
+      expect(dialog).toHaveClass('is-dropping')
+      const drop = fireEvent.drop(dialog.querySelector('.support-chat-log')!, { dataTransfer: { types: ['Files'], files: [shotFile('dropped.webp', 'image/webp')] } })
+      expect(drop).toBe(false)
+      expect(await screen.findByRole('img', { name: 'dropped.webp' })).toBeInTheDocument()
+      expect(dialog).not.toHaveClass('is-dropping')
+      // Only the text paste went on.
+      expect(outside.mock.calls).toEqual([['paste']])
+    }
+    expect(posts(server)).toHaveLength(0)
+  })
+
+  it('limits like the bug report: four at most, PNG / JPEG / WEBP, each up to 5 MB; a removed one frees its place', async () => {
+    mockServer(signedIn, { messages: [], unread: 0 })
+    const user = userEvent.setup({ applyAccept: false })
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByRole('textbox', { name: 'Сообщение' })
+    const input = screen.getByLabelText('Скриншоты')
+    expect(input).toHaveAttribute('accept', 'image/png,image/jpeg,image/webp')
+    await user.upload(input, shotFile('anim.gif', 'image/gif'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Можно прикрепить только PNG, JPEG или WEBP.')
+    await user.upload(input, shotFile('huge.png', 'image/png', new Uint8Array(5 * 1024 * 1024 + 1)))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Каждый скриншот — не больше 5 МБ.')
+    await user.upload(input, ['1', '2', '3', '4', '5'].map((name) => shotFile(`${name}.png`)))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не больше 4 скриншотов.')
+    const waiting = await screen.findByRole('list', { name: 'Скриншоты к сообщению' })
+    await waitFor(() => expect(within(waiting).getAllByRole('img')).toHaveLength(4))
+    expect(screen.getByRole('button', { name: 'Прикрепить скриншот' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Убрать скриншот 2.png' }))
+    expect(screen.getByRole('button', { name: 'Прикрепить скриншот' })).toBeEnabled()
+    await user.upload(input, shotFile('6.png'))
+    await waitFor(() => expect(within(waiting).getAllByRole('img').map((image) => image.getAttribute('alt'))).toEqual(['1.png', '3.png', '4.png', '6.png']))
+  })
+
+  it('a screenshot opens full size over the chat (the reports\' viewer); Escape closes only it', async () => {
+    mockServer(signedIn, { messages: [withImages(answer(1, 'Так должно быть'), 2)], unread: 0 })
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<SupportChatDialog onClose={onClose} />)
+    const bubble = (await screen.findByText('Так должно быть')).closest('.support-chat-message') as HTMLElement
+    await within(bubble).findByRole('img', { name: 'Скриншот 2' })
+    // Sized before it arrives: 800×600 in a 150×120 box for two.
+    const thumb = within(bubble).getByRole('button', { name: 'Открыть скриншот 1' })
+    expect([thumb.style.width, thumb.style.height]).toEqual(['150px', '113px'])
+    await user.click(within(bubble).getByRole('button', { name: 'Открыть скриншот 2' }))
+    const viewer = await screen.findByRole('dialog', { name: 'Изображение 2 из 2' })
+    expect(within(viewer).getByRole('img')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgo=')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /Изображение/ })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Чат с поддержкой' })).toBeInTheDocument()
+  })
+
+  it('another account\'s screenshot (404) shows as unavailable; old messages keep their text; «[скриншот]» without images stays readable', async () => {
+    const server = mockServer(signedIn, { messages: [mine(1, 'Старое сообщение', true), withImages(mine(2, SUPPORT_IMAGE_PLACEHOLDER)), mine(3, SUPPORT_IMAGE_PLACEHOLDER)], unread: 0 })
+    const original = server.serviceRequest.getMockImplementation()!
+    server.serviceRequest.mockImplementation(async (method: string, path: string, body?: unknown) => {
+      if (path.startsWith('/v1/me/support/attachments/')) throw new Error('Скриншот не найден')
+      return original(method, path, body)
+    })
+    render(<SupportChatDialog onClose={() => {}} />)
+    expect(await screen.findByText('Старое сообщение')).toBeInTheDocument()
+    const broken = await screen.findByRole('button', { name: 'Открыть скриншот 1' })
+    await waitFor(() => expect(broken).toHaveAttribute('title', 'Скриншот недоступен'))
+    expect(broken).toBeDisabled()
+    // The images of message 3 are gone (90 days): its placeholder is the text.
+    expect(screen.getAllByText(SUPPORT_IMAGE_PLACEHOLDER)).toHaveLength(1)
+  })
+
+  it('the server\'s message shape: attachments checked, at most four, none on an old message', () => {
+    expect(cleanSupportMessage({ id: 1, author: 'user', text: 'x', createdAt: at, read: false })).toEqual({ id: 1, author: 'user', text: 'x', createdAt: at, read: false })
+    const message = cleanSupportMessage({ id: 2, author: 'owner', text: SUPPORT_IMAGE_PLACEHOLDER, createdAt: at, read: true, attachments: [
+      { id: ATTACHMENT, width: 10, height: 20 }, { id: '../etc/passwd', width: 1, height: 1 }, { id: ATTACHMENT, width: -1, height: 2 }, 'x',
+      { id: 'a'.repeat(24), width: 1, height: 1 }, { id: 'b'.repeat(24), width: 1, height: 1 }, { id: 'c'.repeat(24), width: 1, height: 1 }, { id: 'd'.repeat(24), width: 1, height: 1 },
+    ] })
+    expect(message?.attachments?.map((attachment) => attachment.id)).toEqual([ATTACHMENT, 'a'.repeat(24), 'b'.repeat(24), 'c'.repeat(24)])
+    expect(cleanSupportMessage({ id: 3, author: 'user', text: 'y', createdAt: at, read: false, attachments: 'nope' })).not.toHaveProperty('attachments')
+  })
+
+  it('English', async () => {
+    const { setRenderLanguage, uiText } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      expect(uiText(SUPPORT_IMAGE_PLACEHOLDER)).toBe('[screenshot]')
+      expect(uiText('Прикрепить скриншот')).toBe('Attach a screenshot')
+      expect(uiText('Скриншоты к сообщению')).toBe('Screenshots for the message')
+      expect(uiText('Скриншот')).toBe('Screenshot')
+      expect(uiText('Открыть скриншот')).toBe('Open screenshot')
+      expect(uiText('Скриншот недоступен')).toBe('Screenshot unavailable')
+      expect(uiText('Не больше 4 скриншотов.')).toBe('No more than 4 screenshots.')
+      expect(uiText('Не больше 4 скриншотов')).toBe('No more than 4 screenshots')
+      expect(uiText('Слишком много скриншотов. Попробуйте через час.')).toBe('Too many screenshots. Please try again in an hour.')
+      expect(uiText('Хранилище скриншотов сейчас заполнено. Отправьте сообщение без скриншотов.')).toBe('Screenshot storage is full right now. Please send the message without screenshots.')
+      expect(uiText('Enter — отправить, Shift+Enter — новая строка, Ctrl+V — вставить скриншот')).toBe('Enter to send, Shift+Enter for a new line, Ctrl+V to paste a screenshot')
+      mockServer(signedIn, { messages: [], unread: 0 })
+      render(<SupportChatDialog onClose={() => {}} />)
+      const dialog = await screen.findByRole('dialog', { name: 'Support chat' })
+      expect(await within(dialog).findByRole('button', { name: 'Attach a screenshot' })).toBeInTheDocument()
+      expect(within(dialog).getByRole('link', { name: 'Message on Telegram' })).toBeInTheDocument()
+      expect(dialog).toHaveTextContent('Prefer Telegram?')
+    } finally {
+      setRenderLanguage('ru')
     }
   })
 })

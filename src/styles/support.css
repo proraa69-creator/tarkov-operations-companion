@@ -1,7 +1,9 @@
-/* «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx; the chat itself is
+/* «Сообщить об ошибке» / «Чат с поддержкой» / «Ваши предложения» (src/components/SupportButtons.tsx; the chat itself is
    src/support/supportChat.css). The dialog reuses .registration-overlay / .registration-dialog (pages.css) so every theme
    styles it like the other dialogs. */
 .support-nav-link { width: 100%; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+/* One line in the sidebar, the unread count beside it. */
+.support-nav-link > span:not(.nav-badge) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* «Онлайн сейчас: N» under «Ваши предложения» (owner app, src/components/OwnerOnlineLine.tsx): a muted line with a green
    dot; on the collapsed sidebar only the dot and the number. */
 .nav-online { display: flex; align-items: center; gap: 16px; min-height: 30px; padding: 2px 11px 4px 16px; color: var(--text-dim, #8c978e); font-size: 12px; line-height: 1.25; cursor: default; }

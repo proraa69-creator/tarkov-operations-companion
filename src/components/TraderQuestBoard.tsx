@@ -6,6 +6,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { isLiveGameQuest, provenCompleted } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
+import { questMapsLabel } from '../progression/questLocation'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { chronologyStages } from '../progression/chronology'
 import { traderChronologyGroups } from '../progression/chronologyView'
@@ -105,7 +106,7 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
             <span className="trader-quest-index">{done ? <Check size={13} /> : status === 'locked' ? <Lock size={12} /> : position.get(quest.id)}</span>
             <span className="trader-quest-copy">
               <strong>{uiText(quest.name)}</strong>
-              <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? ` · ${uiText('капа')}` : ''}{quest.anyMap ? ` · ${uiText('Любая карта')}` : quest.mapId ? ` · ${uiText(data.maps.find((map) => map.id === quest.mapId)?.name ?? quest.mapId)}` : ''}</small>
+              <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? ` · ${uiText('капа')}` : ''}{quest.anyMap ? ` · ${uiText('Любая карта')}` : questMapsLabel(quest, data.maps) ? ` · ${uiText(questMapsLabel(quest, data.maps))}` : ''}</small>
             </span>
             {questStatusText(status) && <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>}
           </>

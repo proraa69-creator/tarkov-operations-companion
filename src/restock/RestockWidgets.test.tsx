@@ -9,17 +9,43 @@ vi.mock('./restockSource', () => ({
   useTraderResets: () => ({ data: [{ id: 'prapor', name: 'Прапор', resetTime: new Date(start + 10 * 60_000).toISOString() }], isLoading: false }),
 }))
 
-const { TopbarRestock } = await import('./RestockWidgets')
+const { TopbarRestock, TraderRestockTimer, RestockSettingsPanel } = await import('./RestockWidgets')
+const { writeRestockSettings } = await import('./restockSettings')
+
+describe('restocks switched off (owner, 15.10.2026: «при выключеном, не должно быть данных о рестоке»)', () => {
+  beforeEach(() => { localStorage.clear(); writeRestockSettings({ enabled: false }) })
+  afterEach(() => { cleanup(); localStorage.clear() })
+
+  it('no top-bar countdown, no trader timer, only the switch in Settings', () => {
+    const view = render(<MemoryRouter><TopbarRestock /><TraderRestockTimer trader={{ id: 'prapor', name: 'Прапор' }} /><RestockSettingsPanel /></MemoryRouter>)
+    expect(view.container.querySelector('.restock-pill')).toBeNull()
+    expect(view.container.querySelector('.restock-timer')).toBeNull()
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByText('Прапор')).toBeNull()
+    expect(screen.queryByText('За сколько минут')).toBeNull()
+  })
+
+  it('switched on: the countdown and the trader timer show', () => {
+    vi.useFakeTimers({ now: start })
+    writeRestockSettings({ enabled: true })
+    const view = render(<MemoryRouter><TopbarRestock /><TraderRestockTimer trader={{ id: 'prapor', name: 'Прапор' }} /></MemoryRouter>)
+    expect(view.container.querySelector('.restock-pill')).not.toBeNull()
+    expect(view.container.querySelector('.restock-timer')).not.toBeNull()
+    vi.useRealTimers()
+  })
+})
 
 describe('top-bar restock countdown', () => {
   let focus: ReturnType<typeof vi.spyOn>
   beforeEach(() => {
     vi.useFakeTimers({ now: start })
+    writeRestockSettings({ enabled: true })
     focus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     Object.assign(window, { tarkovDesktop: { isDesktop: true } })
   })
   afterEach(() => {
     cleanup()
+    localStorage.clear()
     vi.useRealTimers()
     vi.restoreAllMocks()
     Reflect.deleteProperty(window, 'tarkovDesktop')

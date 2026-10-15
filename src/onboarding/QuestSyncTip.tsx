@@ -23,7 +23,7 @@ const TIP: GuideTipContent = {
 const readSeen = () => { try { return localStorage.getItem(QUEST_SYNC_TIP_KEY) !== null } catch { return true } }
 
 /**
- * After the update, once per computer: on the Overview of the PC app, a tip pointing at «Список текущих заданий» — how to
+ * Once per computer, ever (never again after an update or a reset): on the Overview of the PC app, a tip pointing at «Список текущих заданий» — how to
  * bring in all the current quests. Mounted once, next to the first-run guide; it waits for the startup notices too.
  * The Russian and the English game are both read (src/import/screenScanSync.ts), so the tip is in both languages.
  */

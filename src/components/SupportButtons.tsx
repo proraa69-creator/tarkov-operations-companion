@@ -11,7 +11,7 @@ import { appEdition } from '../app/buildEdition'
 import { isDesktopShell, isNative, nativePlatform } from '../platform'
 import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
 import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
-import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, imageFilesOf, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
 import { openAccountSignIn } from '../account/accountEvents'
@@ -165,7 +165,7 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
   }, [kind, words])
 
   const onPaste = (event: ClipboardEvent) => {
-    const files = Array.from(event.clipboardData?.items ?? []).filter((item) => item.kind === 'file' && item.type.startsWith('image/')).map((item) => item.getAsFile()).filter((file): file is File => Boolean(file))
+    const files = imageFilesOf(event.clipboardData)
     if (!files.length) return
     event.preventDefault()
     void addFiles(files)
@@ -296,7 +296,7 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
         </div>
         {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{error}</span></div>}
         <div className="bug-report-actions">
-          <button type="button" className="button ghost" onClick={() => setChat(true)}><MessageCircle size={15} />{uiText('Связаться')}</button>
+          <button type="button" className="button ghost" onClick={() => setChat(true)}><MessagesSquare size={15} />{uiText('Чат с поддержкой')}</button>
           <button type="submit" className="button primary" disabled={sending || !ready}>
             {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : words.send)}
           </button>
@@ -308,14 +308,15 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
 }
 
 /**
- * «Связаться» (the support chat, owner 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»; it asked
- * to open Telegram before), «Сообщить об ошибке» and under it «Ваши предложения» (owner, 13.10.2026): in the sidebar's
- * «Система» group (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which has no
- * sidebar). «Связаться» counts the answers not read yet.
+ * «Сообщить об ошибке», «Чат с поддержкой» right under it (owner, 14.10.2026: «а в клиенской версии, добавь кнопку под
+ * сообщить об ошибке, чат с поддержкой») and «Ваши предложения» (owner, 13.10.2026): in the sidebar's «Система» group
+ * (`variant="nav"`) and in Settings → «Поддержка» (`variant="panel"`, also on the phone, which has no sidebar).
+ * «Чат с поддержкой» counts the answers not read yet.
  *
- * The sidebar also names the chat right under «Сообщить об ошибке» (owner, 14.10.2026: «а в клиенской версии, добавь
- * кнопку под сообщить об ошибке, чат с поддержкой»): «Чат с поддержкой», the same window and the same count. «Открыть»
- * on the toast «Новое сообщение от поддержки» opens the window here (the phone: mobile/MobileNav.tsx).
+ * One entry for the chat (owner, 15.10.2026: «у нас дублируется связаться и чат с поддержкой, сделай одну кнопку чат с
+ * поддержкой, но что бы там можно было написать в чат и кнопка на телеграм»): «Связаться» is gone; Telegram is a button
+ * inside the chat (support/SupportChat.tsx). «Открыть» on the toast «Новое сообщение от поддержки» opens the window here
+ * (the phone: mobile/MobileNav.tsx).
  */
 export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
   const [open, setOpen] = useState<'' | 'chat' | ReportKind>('')
@@ -332,11 +333,8 @@ export function SupportButtons({ variant }: { variant: 'nav' | 'panel' }) {
   }, [variant])
   const badge = unread > 0 && <span className="nav-badge" aria-label={uiText(`Новых сообщений: ${unread}`)}>{unread > 99 ? '99+' : unread}</span>
   return <>
-    <button type="button" className={className} onClick={() => setOpen('chat')} title={uiText('Чат с поддержкой')}>
-      <MessageCircle size={icon} /><span>{uiText('Связаться')}</span>{badge}
-    </button>
     <button type="button" className={className} onClick={() => setOpen('bug')}><Bug size={icon} /><span>{uiText('Сообщить об ошибке')}</span></button>
-    {variant === 'nav' && <button type="button" className={className} onClick={() => setOpen('chat')}><MessagesSquare /><span>{uiText('Чат с поддержкой')}</span>{badge}</button>}
+    <button type="button" className={className} onClick={() => setOpen('chat')}><MessagesSquare size={icon} /><span>{uiText('Чат с поддержкой')}</span>{badge}</button>
     <button type="button" className={className} onClick={() => setOpen('idea')}><Lightbulb size={icon} /><span>{uiText('Ваши предложения')}</span></button>
     {/* «Онлайн сейчас: N» under «Ваши предложения», in the owner app only (owner, 14.10.2026). */}
     {variant === 'nav' && <OwnerOnlineLine />}

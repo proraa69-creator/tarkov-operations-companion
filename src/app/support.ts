@@ -1,6 +1,6 @@
 import { isDesktopShell, isNative } from '../platform'
 
-/** «Связаться»: the owner's Telegram (opens in the system browser: electron/main.ts setWindowOpenHandler → shell.openExternal). */
+/** «Написать в Telegram» in «Чат с поддержкой»: the owner's Telegram (opens in the system browser: electron/main.ts setWindowOpenHandler → shell.openExternal). */
 export const SUPPORT_TELEGRAM_URL = 'https://t.me/raidosapp'
 /** «Поддержать проект» (owner, 13.10.2026): the donation page (components/DonateCard.tsx, the website's DonateCard). */
 export const DONATE_URL = 'https://donatepay.ru/don/1537561'
@@ -17,4 +17,9 @@ export function describePlatform(ua = typeof navigator === 'undefined' ? '' : na
   const arch = /Win64|WOW64|x86_64|x64/.test(ua) ? ' x64' : /arm64|aarch64/i.test(ua) ? ' arm64' : ''
   const shell = isDesktopShell() ? 'desktop app' : isNative() ? 'phone app' : 'browser'
   return `${os}${arch} · ${shell}`
+}
+
+/** The image files of a paste (Ctrl+V) or a drop: what the bug report and the support chat take from the clipboard. */
+export function imageFilesOf(data: DataTransfer | null | undefined): File[] {
+  return Array.from(data?.items ?? []).filter((item) => item.kind === 'file' && item.type.startsWith('image/')).map((item) => item.getAsFile()).filter((file): file is File => Boolean(file))
 }

@@ -2,7 +2,7 @@
  * «Чат с поддержкой» in the apps (owner, 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»): the
  * player's conversation with the owner (server/src/routes/supportChat.ts) through the same whitelisted gateway as the
  * rest of the account (electron/serviceGateway.ts on the PC, sync/webAccount.ts on the phone). One copy for the whole
- * app: the unread count on «Связаться» and «Ещё», and the chat window (support/SupportChat.tsx).
+ * app: the unread count on «Чат с поддержкой» and «Ещё», and the chat window (support/SupportChat.tsx).
  *
  * Fresh at once: the owner's answer moves GET /v1/me/social-events, squad/useSocialEvents.ts then sends
  * SOCIAL_UPDATE_EVENT and the conversation is read again (only the new messages while the window is closed, all of it
@@ -17,10 +17,14 @@
  * сообщение»): the same reads tell the toast (support/SupportChat.tsx SupportNotice) about an answer the player has not
  * read, while no chat window is open. Opened or closed, it comes again only for a newer answer: the newest answer the
  * player was told about is kept per account on this device (`noticed`). No faster poll for it.
+ *
+ * Screenshots (owner, 15.10.2026: «еще связаться с поддержкой, добавь что бы можно было добавить скриншот»): a message
+ * may carry up to four (`attachments`, src/shared/supportChat.ts); they are sent with it as base64 and read one by one
+ * as JSON (`supportAttachmentImage`, kept in memory while the app runs), from the player's route or the owner's.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
-import { cleanSupportText, SUPPORT_MESSAGE_MAX } from '../shared/supportChat'
+import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportAttachment } from '../shared/supportChat'
 import { SOCIAL_UPDATE_EVENT } from '../squad/useSocialEvents'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 
@@ -31,8 +35,11 @@ export const SUPPORT_IDLE_REFRESH_MS = 5 * 60_000
 /** Messages kept in the app (the server keeps 500 per account). */
 const KEPT = 500
 
-/** 'user': the player; 'owner': the answer, shown as «Raid OS». */
-export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+/** 'user': the player; 'owner': the answer, shown as «Raid OS». `attachments`: its screenshots, when it has any. */
+export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[] }
+
+/** A screenshot as it is sent: base64 without the data: prefix (src/notices/imageResize.ts prepareNoticeImage). */
+export interface SupportImageUpload { data: string }
 
 export interface SupportChatState {
   /** Whose conversation this is ('' while signed out): another account starts from nothing. */
@@ -95,12 +102,26 @@ function keptSince(messages: SupportMessage[], oldestId: unknown) {
   return messages.filter((message) => message.id >= oldestId)
 }
 
+const pixels = (value: unknown) => (typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= 100_000 ? value : 0)
+
+/** The screenshots of a message, shape-checked (at most four); the broken ones are left out. */
+function cleanAttachments(raw: unknown): SupportAttachment[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((entry) => {
+    const value = entry && typeof entry === 'object' ? entry as Record<string, unknown> : null
+    const width = pixels(value?.width)
+    const height = pixels(value?.height)
+    return value && typeof value.id === 'string' && SUPPORT_ATTACHMENT_ID.test(value.id) && width && height ? [{ id: value.id, width, height }] : []
+  }).slice(0, SUPPORT_IMAGE_LIMITS.files)
+}
+
 /** A message of the server's answer, shape-checked; null for anything else. */
 export function cleanSupportMessage(raw: unknown): SupportMessage | null {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   if (!value || typeof value.id !== 'number' || !Number.isSafeInteger(value.id) || value.id < 1) return null
   if ((value.author !== 'user' && value.author !== 'owner') || typeof value.text !== 'string') return null
-  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true }
+  const attachments = cleanAttachments(value.attachments)
+  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true, ...(attachments.length ? { attachments } : {}) }
 }
 
 /** The messages of an answer, oldest first, without the broken ones. */
@@ -135,10 +156,15 @@ const listeners = new Set<() => void>()
 const set = (next: Partial<SupportChatState>) => { state = { ...state, ...next }; for (const listener of listeners) listener() }
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 
+/** Screenshots read while the app runs: by route and id, as data: URLs (at most IMAGES_KEPT, the oldest go first). */
+const images = new Map<string, Promise<string>>()
+const IMAGES_KEPT = 120
+
 /** Forgets the conversation (tests; signing out or another account does it on its own). */
 export function resetSupportChat() {
   generation += 1
   inflight = null
+  images.clear()
   set(EMPTY)
 }
 
@@ -147,7 +173,28 @@ function switchAccount(account: string) {
   if (state.account === account) return
   generation += 1
   inflight = null
+  images.clear()
   set({ ...EMPTY, account, noticed: account ? storedNotice(account) : 0 })
+}
+
+/**
+ * A screenshot of a message as a data: URL: the player reads their own conversation's (`viewer` 'user'), the owner app
+ * any (`viewer` 'owner'). Read once while the app runs; a failure is not kept, so showing it again asks again.
+ */
+export function supportAttachmentImage(id: string, viewer: SupportMessage['author']): Promise<string> {
+  if (!SUPPORT_ATTACHMENT_ID.test(id)) return Promise.reject(new Error('Скриншот не найден'))
+  const path = viewer === 'owner' ? `/v1/accounts/me/admin/support/attachments/${id}` : `/v1/me/support/attachments/${id}`
+  const known = images.get(path)
+  if (known) return known
+  const loading = (async () => {
+    const answer = await call('GET', path) as { mime?: unknown; data?: unknown } | null
+    if (!answer || typeof answer.data !== 'string' || typeof answer.mime !== 'string' || !/^image\/(?:png|jpeg|webp)$/.test(answer.mime)) throw new Error('Скриншот не найден')
+    return `data:${answer.mime};base64,${answer.data}`
+  })()
+  images.set(path, loading)
+  loading.catch(() => { if (images.get(path) === loading) images.delete(path) })
+  while (images.size > IMAGES_KEPT) images.delete(images.keys().next().value!)
+  return loading
 }
 
 async function call(method: 'GET' | 'POST', path: string, body?: unknown) {
@@ -195,13 +242,23 @@ export function loadSupportChat(full = true): Promise<void> {
   return promise
 }
 
-/** Sends a message; it joins the conversation at once. Throws a readable error (Russian, for uiText). */
-export async function sendSupportMessage(raw: string): Promise<SupportMessage> {
+/**
+ * The body of a message: `{ text }` as before the screenshots, `{ text, images }` with them (text may then be empty).
+ * Throws a readable error (Russian, for uiText). Shared with the owner's answer (data/ownerRequests.ts).
+ */
+export function supportMessageBody(raw: string, uploads: SupportImageUpload[] = []) {
   const text = cleanSupportText(raw)
-  if (!text) throw new Error('Напишите сообщение')
+  if (!text && !uploads.length) throw new Error('Напишите сообщение')
   if (text.length > SUPPORT_MESSAGE_MAX) throw new Error(`Сообщение длиннее ${SUPPORT_MESSAGE_MAX} символов`)
+  if (uploads.length > SUPPORT_IMAGE_LIMITS.files) throw new Error(`Не больше ${SUPPORT_IMAGE_LIMITS.files} скриншотов`)
+  return uploads.length ? { text, images: uploads.map((upload) => ({ data: upload.data })) } : { text }
+}
+
+/** Sends a message (with its screenshots); it joins the conversation at once. Throws a readable error (Russian, for uiText). */
+export async function sendSupportMessage(raw: string, uploads: SupportImageUpload[] = []): Promise<SupportMessage> {
+  const body = supportMessageBody(raw, uploads)
   const mine = generation
-  const answer = await call('POST', SUPPORT_MESSAGES_PATH, { text }) as { message?: unknown } | null
+  const answer = await call('POST', SUPPORT_MESSAGES_PATH, body) as { message?: unknown } | null
   if (!answer) throw new Error('Войдите в аккаунт, чтобы написать нам')
   const message = cleanSupportMessage(answer.message)
   if (!message) throw new Error('Сервер вернул неожиданный ответ')
@@ -271,7 +328,7 @@ function useSupportChatState(open: boolean) {
   return { current: current.account === account ? current : { ...EMPTY, account }, account, server }
 }
 
-/** The owner's answers the player has not seen: the badge on «Связаться», «Чат с поддержкой» and «Ещё» (0 while signed out). */
+/** The owner's answers the player has not seen: the badge on «Чат с поддержкой» and «Ещё» (0 while signed out). */
 export function useSupportUnread() {
   const { current, account } = useSupportChatState(false)
   return account ? current.unread : 0

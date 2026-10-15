@@ -15,6 +15,8 @@ import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
 import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor } from '../data/mapProjection'
+import { keyDoorFocusCard } from '../data/keyDoors'
+import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
@@ -38,6 +40,7 @@ import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
+import { QuestCuratedRequirements, QuestPointHints } from '../components/QuestCuratedInfo'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -49,6 +52,8 @@ import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { isDesktopShell, useMobileLayout } from '../platform'
+import { hasGearOnMap } from '../overview/questConditions'
+import { GearSectionHeading, RaidGearBlock } from '../overview/GearQuestSection'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -310,6 +315,7 @@ export function MapsPage() {
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
   const [params, setParams] = useSearchParams()
+  const { locale } = useLocale()
   const { data } = useTarkovData()
   const state = useAppState()
   const navigate = useNavigate()
@@ -350,6 +356,10 @@ export function MapsPage() {
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
   const focusedStage = params.get('stage')
+  // «Барахолка» → a key's «Показать дверь на карте» (?lock=<marker id>): that door, on its floor, even with «Двери» off.
+  const focusedLockId = params.get('lock')
+  // ?key=<item id>: the key whose curated lock that marker stands for (data/keyDoors.ts keyDoorFocusCard).
+  const focusedLockKey = params.get('key')
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
@@ -394,7 +404,7 @@ export function MapsPage() {
 
   const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
     const layerId = markerLayerId(marker)
-    const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId)
+    const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
     // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
     if (editingQuest && isQuest && marker.questId) return marker.questId === editingQuest && questEditorShows(marker)
@@ -406,7 +416,7 @@ export function MapsPage() {
       && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
@@ -428,14 +438,21 @@ export function MapsPage() {
     })
   }, [activeMap.id, currentQuests, plottedMarkers, progress])
 
+  // «С условиями на снаряжение»: quests with a weapon, parts or gear condition on this map get their own section at the
+  // bottom of the list (owner, 15.10.2026), out of «Актуальные квесты» and «Любая карта»; a click shows their build.
+  const gearMapQuests = useMemo(
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => hasGearOnMap(quest, activeMap.id)), questChecks),
+    [activeMap.id, mapQuestEntries, questChecks],
+  )
+
   const localMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), questChecks),
-    [mapQuestEntries, questChecks],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap && !hasGearOnMap(quest, activeMap.id)), questChecks),
+    [activeMap.id, mapQuestEntries, questChecks],
   )
 
   const anyMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), questChecks),
-    [mapQuestEntries, questChecks],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap && !hasGearOnMap(quest, activeMap.id)), questChecks),
+    [activeMap.id, mapQuestEntries, questChecks],
   )
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
@@ -465,6 +482,15 @@ export function MapsPage() {
     if (quest) setSelectedMarker(questInfoMarker(quest, activeMap.id))
   }, [focusedQuestId, focusedStage, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress])
 
+  // ?lock=<marker id>: select the door and switch to its floor once, when the map's markers are known.
+  const focusedLock = useMemo(() => (focusedLockId ? plottedMarkers.find((marker) => marker.id === focusedLockId) : undefined), [focusedLockId, plottedMarkers])
+  useEffect(() => {
+    if (!focusedLock) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the door from «Барахолка» is selected once its marker is known
+    setSelectedMarker(keyDoorFocusCard(focusedLock, focusedLockKey, locale))
+    setFloor(focusedLock.floor ?? baseFloor)
+  }, [focusedLock, focusedLockKey, locale, baseFloor])
+
   /** `questId`: open that quest on the new map (the quest constructor jumps to the map a picked quest is plotted on). */
   const selectMap = (id: string, questId?: string) => {
     state.setSelectedMapId(id)
@@ -486,12 +512,18 @@ export function MapsPage() {
     const next = new URLSearchParams(params)
     next.delete('quest')
     next.delete('stage')
+    next.delete('lock')
+    next.delete('key')
     setParams(next, { replace: true })
   }
 
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
+    if (marker.id !== focusedLockId) {
+      next.delete('lock')
+      next.delete('key')
+    }
     if (marker.questId) {
       next.set('quest', marker.questId)
       if (marker.stageIndex != null) next.set('stage', String(marker.stageIndex))
@@ -621,7 +653,7 @@ export function MapsPage() {
         >
           <ZoomControl position="topright" />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
-          <FocusOnMarker marker={flyTarget} />
+          <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
           <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
@@ -635,7 +667,7 @@ export function MapsPage() {
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
-            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest)
+            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
@@ -740,6 +772,10 @@ export function MapsPage() {
                   {uiText(sheetPoint?.approximate && (
                     <p className="map-quest-sheet-note"><MapPin size={12} />{uiText(" Точное место этапа неизвестно — метка стоит приблизительно.")}</p>
                   ))}
+                  {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
+                  {!editingTexts && <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} />}
+                  {!editingTexts && <QuestCuratedRequirements quest={relatedQuest} items={data.items} />}
+                  {!editingTexts && <RaidGearBlock quest={relatedQuest} mapId={activeMap.id} mapName={(id) => data.maps.find((map) => map.id === id)?.name ?? id} items={data.items} />}
                 </div>
                 <Link
                   className="button map-quest-sheet-link"
@@ -781,7 +817,7 @@ export function MapsPage() {
           <div className="panel-title">{uiText(questEditor.active ? 'Конструктор квестов' : 'Квесты на карте')}</div>
         </div>
         {questEditor.active ? (
-          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
+          <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
         ) : (
           <>
           {featureEnabled('raidBriefing') && route.enabled && <RaidBriefingPanel mapId={activeMap.id} route={route.plan} compact />}
@@ -809,7 +845,7 @@ export function MapsPage() {
               {plan.floorWithoutRender && <small className="dim map-floor-note">{uiText('У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».')}</small>}
             </div>
           ))}
-          {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
+          {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0 || gearMapQuests.length > 0) ? (
             <div className="detail-section" style={{ padding: '0 12px 16px' }}>
               {uiText(localMapQuests.length > 0 && (
                 <>
@@ -843,6 +879,23 @@ export function MapsPage() {
                   )))}
                 </>
               ))}
+              {gearMapQuests.length > 0 && (
+                <div className="gear-section map-gear-section" style={{ marginTop: localMapQuests.length || anyMapQuests.length ? 16 : 0 }}>
+                  <GearSectionHeading count={gearMapQuests.length} />
+                  {gearMapQuests.map(({ quest, marker }) => (
+                    <QuestMapRow
+                      key={quest.id}
+                      quest={quest}
+                      gear
+                      selected={selectedMarker?.questId === quest.id}
+                      onSelect={() => toggleQuest(quest, marker)}
+                      squad={squadShared.get(quest.id)}
+                      checked={questChecks.has(quest.id)}
+                      onToggleCheck={() => toggleRaidCheck(quest.id)}
+                    />
+                  ))}
+                </div>
+              )}
               {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
             </div>
           ) : (
@@ -854,7 +907,7 @@ export function MapsPage() {
               </div>
             </div>
           ))}
-          {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
+          {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0 || gearMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
           </>
         )}
       </aside>
@@ -931,10 +984,10 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void }) {
+function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck, gear }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void; gear?: boolean }) {
   return (
-    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}`}>
-      <button type="button" className="quest-map-row-main" onClick={onSelect}>
+    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}${gear ? ' is-gear' : ''}`}>
+      <button type="button" className="quest-map-row-main" onClick={onSelect} title={gear ? uiText('Снаряжение для рейда') : undefined}>
         <span className="quest-card-copy">
           <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
@@ -970,15 +1023,22 @@ function FollowContainerSize() {
   return null
 }
 
-function FocusOnMarker({ marker }: { marker: MapMarker | null }) {
+/** `closer`: a door opened from «Барахолка» (?lock=) is shown two zoom steps closer (once), so the door can be told apart. */
+function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; closer?: boolean }) {
   const map = useMap()
+  // The zoom picked for the door: a repeated focus on the same door (its marker rebuilt) keeps it instead of the mid-flight zoom.
+  const closerZoom = useRef<{ id: string; zoom: number } | null>(null)
   useEffect(() => {
     if (!marker) return
     const [lat, lng] = marker.position
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-    const zoom = Math.min(Math.max(map.getZoom(), map.getMinZoom() + 2), map.getMaxZoom())
-    map.flyTo(marker.position, zoom, { duration: 0.55 })
-  }, [map, marker])
+    let zoom = Math.max(map.getZoom(), map.getMinZoom() + 2)
+    if (closer) {
+      if (closerZoom.current?.id !== marker.id) closerZoom.current = { id: marker.id, zoom: map.getZoom() + 2 }
+      zoom = closerZoom.current.zoom
+    }
+    map.flyTo(marker.position, Math.min(zoom, map.getMaxZoom()), { duration: 0.55 })
+  }, [map, marker, closer])
   return null
 }
 

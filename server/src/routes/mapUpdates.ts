@@ -5,8 +5,9 @@
  *   GET /v1/map-updates?since=<version> -> { version } as soon as the version differs from `since`, or after ~25 s with
  *                                         the same version (the app simply asks again)
  *
- * The version changes on every write of quest points (routes/questPoints.ts) and owner boss placements
- * (routes/mapBosses.ts); the app then re-reads /v1/quest-points and /v1/map-bosses. It starts from the server's start
+ * The version changes on every write of quest points (routes/questPoints.ts), quest texts (routes/questTexts.ts), quest
+ * requirements (routes/questRequirements.ts) and owner boss placements (routes/mapBosses.ts); the app then re-reads
+ * /v1/quest-points, /v1/quest-texts, /v1/quest-requirements and /v1/map-bosses. It starts from the server's start
  * time, so a restarted server also counts as «changed». Long polling, not SSE / WebSocket: it travels through the
  * desktop app's ordinary request gateway (electron/serviceGateway.ts) and every proxy in front of the server.
  * Waiting requests are capped per address and in total; over the cap the answer comes at once.

@@ -91,6 +91,15 @@ describe('where the story pane parts are cut', () => {
     expect(rects.body.y + rects.body.height).toBe(1047)
   })
 
+  it('ends the body before the right panel when only its lower header «Предметы для заданий в схроне» was read', () => {
+    // Owner's «Тур», 15.10.2026: the body reached the panel and «Предмет:» became part of «Посетить Таможню».
+    const lower = [...WORDS.filter((entry) => entry.text !== 'Предметы'), word('Предметы', 1240, 600, 1320, 616), word('для', 1326, 600, 1356, 616)]
+    expect(storyPaneRects({ width: 1920, height: 1080 }, lower, true)!.body.x + storyPaneRects({ width: 1920, height: 1080 }, lower, true)!.body.width).toBe(1202)
+    // A «предметы» of the description is no panel header.
+    const description = [...WORDS, word('предметы', 1100, 300, 1180, 316), word('Лыжнику', 1186, 300, 1260, 316)]
+    expect(storyPaneRects({ width: 1920, height: 1080 }, description, true)!.status.x + storyPaneRects({ width: 1920, height: 1080 }, description, true)!.status.width).toBe(1272)
+  })
+
   it('reads other aspect ratios only with anchors', () => {
     expect(storyPaneRects({ width: 1920, height: 810 })).toBeUndefined()
     expect(storyPaneRects({ width: 1920, height: 810 }, WORDS.map((entry) => ({ ...entry, bbox: { ...entry.bbox, y0: entry.bbox.y0 * 0.75, y1: entry.bbox.y1 * 0.75 } })))).toBeDefined()

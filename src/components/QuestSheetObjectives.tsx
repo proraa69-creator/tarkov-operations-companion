@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import type { SheetObjectives } from '../progression/sheetObjectives'
+import { PointHintLine } from './QuestCuratedInfo'
 
 /**
  * «Цели» on the quest card under the map, grouped: в рейде, заложить, найти, сдать торговцу. When the objectives are
@@ -23,6 +24,7 @@ export function QuestSheetObjectives({ sheet, trader }: { sheet: SheetObjectives
                   {objective.item && objective.foundInRaid ? <span className="sheet-objective-fir"> · {uiText('найден в рейде')}</span> : null}
                   {objective.optional ? <span className="dim"> ({uiText('необязательно')})</span> : null}
                 </span>
+                {objective.hints?.map((hint) => <PointHintLine key={`${hint.title ?? ''}|${hint.text}`} hint={hint} />)}
               </li>
             ))}
           </ul>

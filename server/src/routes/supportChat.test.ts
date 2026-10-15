@@ -6,17 +6,18 @@ import { AccountStore } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
-import { SUPPORT_CHAT_LIMITS, SupportChatStore } from '../services/supportChatStore.js'
-import { SUPPORT_CHAT_RATE_LIMITS } from './supportChat.js'
-import { cleanSupportText } from '../../../src/shared/supportChat.js'
+import { SUPPORT_CHAT_LIMITS, SUPPORT_IMAGE_STORAGE, SupportChatError, SupportChatStore } from '../services/supportChatStore.js'
+import { imageSize } from '../services/imageSize.js'
+import { SUPPORT_CHAT_RATE_LIMITS, type SupportChatLimits } from './supportChat.js'
+import { cleanSupportText, SUPPORT_IMAGE_PLACEHOLDER } from '../../../src/shared/supportChat.js'
 
 /** «Чат с поддержкой» (owner, 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»). */
 const password = 'correct horse battery'
 
-interface Message { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+interface Message { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: Array<{ id: string; width: number; height: number }> }
 interface Thread { accountId: string; email: string; nickname?: string; nicknames: Record<string, string>; lastMessage: Message; lastAt: string; unread: number }
 
-async function setup(limits?: { perAccount?: number; perIp?: number }) {
+async function setup(limits?: Partial<SupportChatLimits>) {
   const db = openDatabase(':memory:')
   const first = new AccountStore({ db, ownerEmails: [] })
   await first.register('owner@example.com', password)
@@ -184,7 +185,7 @@ test('support chat: a session is required; the owner routes answer 404 to everyb
 })
 
 test('support chat: 20 messages per 10 minutes per account and per address; a refused empty message does not count', async () => {
-  assert.deepEqual(SUPPORT_CHAT_RATE_LIMITS, { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000 })
+  assert.deepEqual(SUPPORT_CHAT_RATE_LIMITS, { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40 })
   const t = await setup({ perAccount: 2, perIp: 3 })
   try {
     const a = await t.register('a@example.com')
@@ -473,4 +474,192 @@ test('«Написать пользователю»: the owner finds accounts by
   } finally {
     await t.close()
   }
+})
+
+/** Image headers the server reads (services/imageSize.ts); `pad` bytes after them make a large file. */
+function png(width: number, height: number, pad = 0) {
+  const head = Buffer.alloc(33 + pad)
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]).copy(head, 0)
+  head.write('IHDR', 12, 'latin1')
+  head.writeUInt32BE(width, 16)
+  head.writeUInt32BE(height, 20)
+  return head
+}
+function jpeg(width: number, height: number) {
+  // SOI, an APP0 segment, then SOF0 with the size.
+  return Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x4a, 0x46, 0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 3, 0, 0, 0, 0, 0, 0])
+}
+function webp(chunk: 'VP8 ' | 'VP8L' | 'VP8X', width: number, height: number) {
+  const data = Buffer.alloc(40)
+  data.write('RIFF', 0, 'latin1')
+  data.writeUInt32LE(32, 4)
+  data.write('WEBP', 8, 'latin1')
+  data.write(chunk, 12, 'latin1')
+  if (chunk === 'VP8 ') { data[23] = 0x9d; data[24] = 0x01; data[25] = 0x2a; data.writeUInt16LE(width, 26); data.writeUInt16LE(height, 28) }
+  if (chunk === 'VP8L') { data[20] = 0x2f; data.writeUInt32LE((width - 1) | ((height - 1) << 14), 21) }
+  if (chunk === 'VP8X') { data.writeUIntLE(width - 1, 24, 3); data.writeUIntLE(height - 1, 27, 3) }
+  return data
+}
+const b64 = (data: Buffer) => data.toString('base64')
+
+test('support chat screenshots: the size in pixels is read from PNG, JPEG and WEBP headers; broken ones are refused', () => {
+  assert.deepEqual(imageSize(png(1920, 1080), 'image/png'), { width: 1920, height: 1080 })
+  assert.deepEqual(imageSize(jpeg(800, 600), 'image/jpeg'), { width: 800, height: 600 })
+  assert.deepEqual(imageSize(webp('VP8 ', 640, 480), 'image/webp'), { width: 640, height: 480 })
+  assert.deepEqual(imageSize(webp('VP8L', 1000, 700), 'image/webp'), { width: 1000, height: 700 })
+  assert.deepEqual(imageSize(webp('VP8X', 3840, 2160), 'image/webp'), { width: 3840, height: 2160 })
+  assert.equal(imageSize(png(1, 1).subarray(0, 20), 'image/png'), undefined)
+  assert.equal(imageSize(Buffer.from([0xff, 0xd8, 0xff, 0xda, 0, 4, 0, 0]), 'image/jpeg'), undefined)
+  assert.equal(imageSize(png(0, 10), 'image/png'), undefined)
+})
+
+test('support chat screenshots: text and images, images only; only the conversation\'s account and the owner read them', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const other = await t.register('other@example.com')
+    const playerId = t.idOf('player@example.com')
+
+    // Two large screenshots (past the global 1 MB body limit together) with a text.
+    const big = png(1920, 1080, 900 * 1024)
+    const sent = await t.call<{ message: Message }>('POST', '/me/support/messages', player, { text: 'Вот что на экране', images: [{ data: `data:image/png;base64,${b64(big)}` }, { data: b64(jpeg(800, 600)) }] })
+    assert.equal(sent.status, 201, JSON.stringify(sent.json))
+    assert.equal(sent.json.message.text, 'Вот что на экране')
+    const [first, second] = sent.json.message.attachments!
+    assert.deepEqual([first!.width, first!.height, second!.width, second!.height], [1920, 1080, 800, 600])
+    assert.match(first!.id, /^[a-f0-9]{24}$/)
+
+    // Images only: the text old apps (and the owner's list) show instead.
+    const only = await t.call<{ message: Message }>('POST', '/me/support/messages', player, { images: [{ data: b64(webp('VP8X', 640, 480)) }] })
+    assert.equal(only.status, 201, JSON.stringify(only.json))
+    assert.equal(only.json.message.text, SUPPORT_IMAGE_PLACEHOLDER)
+    assert.equal(only.json.message.attachments!.length, 1)
+    // A text message keeps its old shape: no `attachments` at all.
+    const plain = await t.call<{ message: Message }>('POST', '/me/support/messages', player, { text: 'И ещё вопрос' })
+    assert.equal('attachments' in plain.json.message, false)
+
+    const mine = await t.call<{ messages: Message[] }>('GET', '/me/support/messages', player)
+    assert.deepEqual(mine.json.messages.map((message) => [message.text, message.attachments?.length ?? 0]), [['Вот что на экране', 2], [SUPPORT_IMAGE_PLACEHOLDER, 1], ['И ещё вопрос', 0]])
+    assert.equal('attachments' in mine.json.messages[2]!, false)
+
+    // The player reads their own; the bytes come back as they were sent.
+    const own = await t.call<{ mime: string; data: string; width: number; height: number }>('GET', `/me/support/attachments/${first!.id}`, player)
+    assert.equal(own.status, 200)
+    assert.equal(own.headers.get('cache-control'), 'no-store')
+    assert.deepEqual([own.json.mime, own.json.width, own.json.height, own.json.data === b64(big)], ['image/png', 1920, 1080, true])
+    // Another account: exactly as for one that does not exist. No session: 401.
+    const foreign = await t.call('GET', `/me/support/attachments/${first!.id}`, other)
+    assert.deepEqual([foreign.status, foreign.json], [404, { error: 'Скриншот не найден' }])
+    assert.equal((await t.call('GET', `/me/support/attachments/${'0'.repeat(24)}`, other)).status, 404)
+    assert.equal((await t.call('GET', `/me/support/attachments/${first!.id}`)).status, 401)
+    assert.equal((await t.call('GET', `/me/support/attachments/..%2F..%2Fx`, player)).status, 404)
+    // The owner's route: the owner only (404 for a player, even for their own screenshot).
+    assert.equal((await t.call('GET', `/accounts/me/admin/support/attachments/${first!.id}`, player)).status, 404)
+    assert.equal((await t.call('GET', `/accounts/me/admin/support/attachments/${first!.id}`)).status, 401)
+    const seen = await t.call<{ mime: string; width: number }>('GET', `/accounts/me/admin/support/attachments/${second!.id}`, owner)
+    assert.deepEqual([seen.status, seen.json.mime, seen.json.width], [200, 'image/jpeg', 800])
+
+    // The owner's conversation and list show them; the owner answers with a screenshot too.
+    const opened = await t.call<{ messages: Message[] }>('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)
+    assert.deepEqual(opened.json.messages.map((message) => message.attachments?.map((attachment) => attachment.id) ?? []), [[first!.id, second!.id], [only.json.message.attachments![0]!.id], []])
+    const reply = await t.call<{ message: Message }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: '', images: [{ data: b64(png(300, 200)) }] })
+    assert.equal(reply.status, 201, JSON.stringify(reply.json))
+    assert.deepEqual([reply.json.message.author, reply.json.message.text], ['owner', SUPPORT_IMAGE_PLACEHOLDER])
+    const threads = await t.call<{ threads: Thread[] }>('GET', '/accounts/me/admin/support/threads', owner)
+    assert.equal(threads.json.threads[0]!.lastMessage.text, SUPPORT_IMAGE_PLACEHOLDER)
+    assert.equal(threads.json.threads[0]!.lastMessage.attachments!.length, 1)
+    // The player reads the owner's screenshot of their conversation; the other account cannot.
+    const answerId = reply.json.message.attachments![0]!.id
+    assert.equal((await t.call('GET', `/me/support/attachments/${answerId}`, player)).status, 200)
+    assert.equal((await t.call('GET', `/me/support/attachments/${answerId}`, other)).status, 404)
+
+    // «Проблема решена»: the screenshots go with the conversation.
+    assert.equal((await t.call('DELETE', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 204)
+    assert.equal((await t.call('GET', `/me/support/attachments/${first!.id}`, player)).status, 404)
+    assert.equal((await t.call('GET', `/accounts/me/admin/support/attachments/${answerId}`, owner)).status, 404)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat screenshots: count, type, size and broken data are checked by the server; a refused one counts nothing', async () => {
+  const t = await setup()
+  try {
+    const player = await t.register('player@example.com')
+    const send = (body: unknown) => t.call<{ error: string }>('POST', '/me/support/messages', player, body)
+    const shot = { data: b64(png(10, 10)) }
+    assert.deepEqual([(await send({ text: 'x', images: [shot, shot, shot, shot, shot] })).json.error], ['Не больше 4 скриншотов'])
+    assert.deepEqual((await send({ images: [{ data: b64(Buffer.from('GIF89a......')) }] })).json, { error: 'Скриншоты принимаются только в PNG, JPEG или WEBP' })
+    assert.deepEqual((await send({ images: [{ data: '!!!' }] })).json, { error: 'Повреждённый файл скриншота' })
+    // A PNG signature without a readable size.
+    assert.deepEqual((await send({ images: [{ data: b64(png(10, 10).subarray(0, 16)) }] })).json, { error: 'Повреждённый файл скриншота' })
+    const tooBig = await send({ images: [{ data: b64(png(10, 10, 5 * 1024 * 1024)) }] })
+    assert.deepEqual([tooBig.status, tooBig.json], [400, { error: 'Скриншот больше 5 МБ' }])
+    // Neither text nor images.
+    assert.deepEqual((await send({ images: [] })).json, { error: 'Напишите сообщение' })
+    assert.deepEqual((await send({ text: '   ', images: [] })).json, { error: 'Напишите сообщение' })
+    // Nothing was written.
+    assert.deepEqual((await t.call<{ messages: Message[] }>('GET', '/me/support/messages', player)).json.messages, [])
+    // Without a session a large body is refused before it is read.
+    const unsigned = await t.call('POST', '/me/support/messages', undefined, { images: [{ data: b64(png(10, 10, 2 * 1024 * 1024)) }] })
+    assert.equal(unsigned.status, 401)
+    // A player on the owner's message route with a large body: 404 unread.
+    const playerId = t.idOf('player@example.com')
+    assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, player, { images: [{ data: b64(png(10, 10, 2 * 1024 * 1024)) }] })).status, 404)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat screenshots: their own hourly limit per account', async () => {
+  const t = await setup({ imagesPerHour: 3 })
+  try {
+    const player = await t.register('player@example.com')
+    const shot = { data: b64(png(10, 10)) }
+    assert.equal((await t.call('POST', '/me/support/messages', player, { images: [shot, shot] })).status, 201)
+    const limited = await t.call<{ error: string }>('POST', '/me/support/messages', player, { images: [shot, shot] })
+    assert.equal(limited.status, 429)
+    assert.equal(limited.json.error, 'Слишком много скриншотов. Попробуйте через час.')
+    assert.ok(Number(limited.headers.get('retry-after')) > 0)
+    // One more still fits, and text goes on.
+    assert.equal((await t.call('POST', '/me/support/messages', player, { images: [shot] })).status, 201)
+    assert.equal((await t.call('POST', '/me/support/messages', player, { text: 'Без картинки' })).status, 201)
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat screenshots: the storage quota (507), retention, the oldest messages and deleted accounts take them along', async () => {
+  const db = openDatabase(':memory:')
+  let now = Date.parse('2026-10-15T10:00:00Z')
+  const full = new SupportChatStore(db, { now: () => now, maxStoredBytes: 100 })
+  assert.throws(() => full.add('a'.repeat(24), 'user', '', [png(10, 10, 200)]), (error: unknown) => error instanceof SupportChatError && error.status === 507)
+  // Text still goes through.
+  assert.equal(full.add('a'.repeat(24), 'user', 'Только текст').text, 'Только текст')
+
+  const store = new SupportChatStore(db, { now: () => now, keep: 2 })
+  const account = 'b'.repeat(24)
+  const first = store.add(account, 'user', 'Первое', [png(10, 10)])
+  assert.ok(store.attachment(first.attachments![0]!.id))
+  const second = store.add(account, 'user', '', [png(20, 20)])
+  store.add(account, 'owner', 'Ответ')
+  // Past `keep`: the oldest message and its screenshot are gone.
+  assert.equal(store.attachment(first.attachments![0]!.id), undefined)
+  assert.ok(store.attachment(second.attachments![0]!.id))
+  // 90 days later: the screenshot is deleted, the message stays with the placeholder.
+  now += SUPPORT_IMAGE_STORAGE.retentionMs + 1000
+  assert.equal(store.pruneImages(), 1)
+  const [kept] = store.messages(account)
+  assert.deepEqual([kept!.id, kept!.text, 'attachments' in kept!], [second.id, SUPPORT_IMAGE_PLACEHOLDER, false])
+  // A table from before the screenshots gets its column.
+  const old = openDatabase(':memory:')
+  old.exec('CREATE TABLE support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, author TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL, owner_read_at INTEGER, user_read_at INTEGER)')
+  old.prepare('INSERT INTO support_messages (account_id, author, body, created_at) VALUES (?, ?, ?, ?)').run(account, 'user', 'Старое сообщение', now)
+  const upgraded = new SupportChatStore(old, { now: () => now })
+  assert.deepEqual(upgraded.messages(account).map((message) => [message.text, 'attachments' in message]), [['Старое сообщение', false]])
+  // Deleting a thread or its messages any other way (a deleted account) takes the screenshots along.
+  const third = upgraded.add(account, 'user', 'x', [png(5, 5)])
+  old.prepare('DELETE FROM support_messages WHERE account_id = ?').run(account)
+  assert.equal(upgraded.attachment(third.attachments![0]!.id), undefined)
 })

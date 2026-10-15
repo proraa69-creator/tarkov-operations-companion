@@ -88,6 +88,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Квесты: правка точек', 'Quests: fix points'],
   ['Исправить точку квеста вручную (например, по баг-репорту): исправление увидят все игроки', 'Fix a quest point by hand (e.g. after a bug report): every player will see the fix'],
   ['Найти квест по названию (RU / EN)…', 'Find a quest by name (RU / EN)…'], ['Найти квест', 'Find a quest'], ['Квест не найден', 'No quest found'],
+  ['Выберите квест — затем можно выбрать карту и отметить точку.', 'Pick a quest, then choose a map and mark the point.'], ['Карты квеста', 'Quest maps'], ['Другие карты', 'Other maps'],
   ['Другой квест', 'Another quest'], ['Цель / этап', 'Objective / stage'], ['Все цели и этапы', 'All objectives and stages'],
   ['Заметка (например, «по баг-репорту»)', 'Note (e.g. “bug report”)'], ['Заметка', 'Note'],
   ['Добавить точку', 'Add a point'], ['Клик по карте — поставить новую точку квеста на выбранный этаж', 'Click the map to place a new quest point on the selected floor'],
@@ -134,6 +135,8 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/^Этап (\d+):\s*/g, 'Stage $1: '],
   [/^Точка (\d+) из (\d+)$/g, 'Point $1 of $2'],
   [/Переход на карту\s+/g, 'Transit to '],
+  // Quest transit points (src/data/questTransits.ts questTransitTexts).
+  [/Условие перехода:\s*/g, 'Transit condition: '],
   [/Иконки на карте:\s*/g, 'Map icons: '],
   [/Вид карты:\s*/g, 'Map view: '],
   [/Выжить на локации\s+(.+?)\s+и выйти или посетить\s+(.+?)\s+3 раза/g, 'Survive and extract from $1 or visit $2 3 times'],

@@ -1,8 +1,10 @@
-import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
+import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
+import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
+import { adaptMapTransits, questTransitPoints, questTransitTexts } from './questTransits'
 
 type JsonRecord = Record<string, unknown>
 
@@ -37,6 +39,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
+  markers.push(...adaptQuestTransits(root, taskRoot, context))
   return [...new Map(markers.map((marker) => [marker.id, marker])).values()]
 }
 
@@ -532,7 +535,13 @@ const KEYCARD_LABELS: Record<KeycardColor, string> = {
 }
 
 function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
-  return asArray(rawMap.locks).flatMap((lock, index) => {
+  const live = asArray(rawMap.locks)
+  const liveIds = new Set(live.map((lock) => text(lock.id)))
+  // Locks the current feed lost, from an older tarkov.dev feed (src/data/keyDoorNames.ts KEY_DOOR_EXTRA_LOCKS).
+  const kept: JsonRecord[] = KEY_DOOR_EXTRA_LOCKS
+    .filter((lock) => lock.mapId === map.id && !liveIds.has(lock.id))
+    .map((lock) => ({ id: lock.id, lockType: lock.lockType, key: lock.keyId, needsPower: false, position: lock.position, top: lock.top, bottom: lock.bottom, kept: true }))
+  return [...live, ...kept].flatMap((lock, index) => {
     const base = baseMarker(map, `lock-${text(lock.id, String(index))}`, lock.position, undefined, asRecord(lock.position).y, asRecord(lock.position).y)
     if (!base) return []
     const keyId = text(lock.key) || text(asRecord(lock.key).id)
@@ -554,10 +563,14 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
       // Keycard doors show the card colour in the tooltip instead.
       meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,
-      lock: { keyId: keyId || undefined, keyName: shownName, keycard, needsPower: needsPower || undefined },
-      source: 'json.tarkov.dev/maps',
+      lock: { keyId: keyId || undefined, keyName: shownName, keycard, needsPower: needsPower || undefined, kind: lockKind(lockType) },
+      source: lock.kept ? 'json.tarkov.dev/maps 29.09.2026' : 'json.tarkov.dev/maps',
     }]
   })
+}
+
+function lockKind(lockType: string): MarkerLock['kind'] {
+  return lockType === 'trunk' || lockType === 'container' ? lockType : 'door'
 }
 
 function adaptStationaryWeapons(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
@@ -658,6 +671,40 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
   }
 
   return markers
+}
+
+/**
+ * Quests that need a transit: a transit objective is drawn at its transit (src/data/questTransits.ts). Same layer, icon and
+ * click as the quest's other points.
+ */
+function adaptQuestTransits(root: JsonRecord, taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
+  const maps = new Map(context.maps.map((map) => [map.id, map]))
+  const resolve = (rawId: string) => resolveApiMapId(rawId, context)
+  const transits = adaptMapTransits(root, resolve)
+  if (!transits.length) return []
+  const tasks = asRecord(taskRoot.tasks)
+  return context.quests.flatMap((quest) => {
+    const task = asRecord(tasks[quest.id])
+    if (quest.anyMap || !text(task.id)) return []
+    return questTransitPoints(task, transits, resolve).flatMap((point) => {
+      const map = maps.get(point.transit.mapId)
+      if (!map) return []
+      const base = baseMarker(map, `quest-transit-${quest.id}-${point.transit.id}`, point.transit.position, point.transit.outline, point.transit.top, point.transit.bottom)
+      if (!base) return []
+      const texts = questTransitTexts(point, quest, context.maps)
+      return [{
+        ...base,
+        type: 'quest' as const,
+        layerId: 'quest.zone' as const,
+        title: texts.title,
+        description: texts.description,
+        meta: texts.meta,
+        questId: quest.id,
+        objectiveId: point.objectiveId,
+        source: 'quest-transit',
+      } satisfies MapMarker]
+    })
+  })
 }
 
 function pointCoords(position: JsonRecord) {
