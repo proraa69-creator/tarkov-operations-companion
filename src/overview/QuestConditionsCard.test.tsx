@@ -242,7 +242,7 @@ describe('QuestConditionsCard', () => {
     fireEvent.click(shooterCard)
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Weapon')
-    expect(dialog).toHaveTextContent('any one')
+    expect(dialog).toHaveTextContent('or any of 3')
     expect(dialog).toHaveTextContent('Kill conditions')
     expect(dialog).toHaveTextContent('Distance')
     expect(within(dialog).getByRole('link', { name: /Open task/ })).toBeInTheDocument()
