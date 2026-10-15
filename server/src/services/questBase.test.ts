@@ -4,6 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import type { AppDataset, Quest, RaidMode } from '../../../src/domain/types'
+import { fetchLiveCatalog } from '../../../src/data/catalogSource'
+import { TO_THE_LIGHT_IDS } from '../../../src/data/curatedQuests'
+import { toTheLightFetcher } from '../../../src/data/__fixtures__/toTheLightFeed'
 import type { CatalogLocale } from './catalogCache.js'
 import { CATALOG_RETRY_MS } from './catalogCache.js'
 import { QUEST_BASE_MODES, QuestBase, questBasePeriodMs, type QuestBaseManifest, type QuestBaseOptions } from './questBase.js'
@@ -295,6 +298,29 @@ test('quest base titles: every quest has nameRu and nameEn in both languages; st
   const [kept] = (await questBase.snapshot('pve', 'ru')).quests
   assert.equal(kept!.nameEn, 'Shortage')
   assert.deepEqual(questBase.report().modes.pve.changes?.renamed, [])
+  questBase.stop()
+})
+
+test('quest base: the «На свет» series tarkov.dev lacks is in both snapshots of every mode, with both titles and its log ids', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: START })
+  // the app's own catalog builder on a tarkov.dev feed without the series (src/data/curatedQuests.ts)
+  const { questBase } = base({ load: (mode, locale) => fetchLiveCatalog(mode, locale, toTheLightFetcher(), { wiki: async () => ({ titles: [], pages: [], storyQuests: [] }) }) })
+  await questBase.start()
+  await advance(t, questBase, 0)
+  for (const mode of QUEST_BASE_MODES) {
+    for (const locale of ['ru', 'en'] as const) {
+      const quests = (await questBase.snapshot(mode, locale)).quests
+      const first = quests.find((entry) => entry.id === TO_THE_LIGHT_IDS.trustButVerify)
+      const last = quests.find((entry) => entry.id === TO_THE_LIGHT_IDS.gettingAcquainted)
+      assert.equal(first?.nameRu, 'На свет. Доверяй, но проверяй')
+      assert.equal(first?.nameEn, 'To the Light - Trust but Verify')
+      assert.equal(last?.nameRu, 'На свет. Новое знакомство')
+      assert.equal(last?.nameEn, 'To the Light - Getting Acquainted')
+      // the title the same id had before game version 1.1.5 stays an OCR alias
+      assert.deepEqual(last?.ocrAliases, ['Новое знакомство', 'Getting Acquainted'])
+      assert.equal(Object.values(TO_THE_LIGHT_IDS).filter((id) => quests.some((entry) => entry.id === id)).length, 11)
+    }
+  }
   questBase.stop()
 })
 
