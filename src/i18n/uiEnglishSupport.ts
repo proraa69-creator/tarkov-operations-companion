@@ -1,9 +1,8 @@
 /**
- * English for «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx) and the server's
- * bug report errors.
+ * English for «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx; «Чат с поддержкой» is in
+ * uiEnglishSupportChat.ts) and the server's bug report errors.
  */
 export const SUPPORT_PHRASES: Array<[string, string]> = [
-  ['Связаться', 'Contact us'],
   ['Сообщить об ошибке', 'Report a bug'],
   ['Да', 'Yes'],
   // Traders page 3D figure (src/components/TraderFigure.tsx)

@@ -26,34 +26,40 @@ describe('SupportButtons', () => {
     resetSupportChat()
   })
 
-  it('«Связаться» opens the support chat (owner, 13.10.2026); Telegram stays as a small line in it; Escape and × close it', async () => {
+  it('Settings: «Чат с поддержкой» opens the chat (owner, 15.10.2026: one button); signed out it asks to sign in and «Написать в Telegram» is there; Escape and × close it', async () => {
     mockDesktop(signedOut)
     const user = userEvent.setup()
     render(<SupportButtons variant="panel" />)
-    expect(screen.getByRole('button', { name: 'Связаться' })).toHaveAttribute('title', 'Чат с поддержкой')
-    await user.click(screen.getByRole('button', { name: 'Связаться' }))
+    expect(screen.queryByRole('button', { name: 'Связаться' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Чат с поддержкой' }))
     const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
     expect(await within(dialog).findByText('Войдите в аккаунт, чтобы написать нам')).toBeInTheDocument()
-    const telegram = within(dialog).getByRole('link', { name: '@raidosapp' })
+    const telegram = within(dialog).getByRole('link', { name: 'Написать в Telegram' })
     expect(telegram).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
     expect(SUPPORT_TELEGRAM_URL).toBe('https://t.me/raidosapp')
     expect(telegram).toHaveAttribute('target', '_blank')
-    expect(dialog).toHaveTextContent('Или напишите нам в Telegram')
+    expect(telegram).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(telegram).toHaveClass('button')
+    expect(dialog).not.toHaveTextContent('Или напишите нам в Telegram')
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Связаться' }))
+    await user.click(screen.getByRole('button', { name: 'Чат с поддержкой' }))
     await user.click(within(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).getByRole('button', { name: 'Закрыть' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('over the bug report, «Связаться» opens the chat and Escape closes only the chat', async () => {
+  it('over the bug report, «Чат с поддержкой» opens the chat (signed in: the box and «Написать в Telegram») and Escape closes only the chat', async () => {
     mockDesktop(signedIn, { messages: [], unread: 0 })
     const user = userEvent.setup()
     render(<SupportButtons variant="nav" />)
     await user.click(screen.getByRole('button', { name: 'Сообщить об ошибке' }))
     await screen.findByLabelText('Тема')
-    await user.click(within(screen.getByRole('dialog', { name: 'Сообщить об ошибке' })).getByRole('button', { name: 'Связаться' }))
-    expect(await screen.findByRole('dialog', { name: 'Чат с поддержкой' })).toBeInTheDocument()
+    const report = screen.getByRole('dialog', { name: 'Сообщить об ошибке' })
+    expect(within(report).queryByRole('button', { name: 'Связаться' })).toBeNull()
+    await user.click(within(report).getByRole('button', { name: 'Чат с поддержкой' }))
+    const chat = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    expect(await within(chat).findByRole('textbox', { name: 'Сообщение' })).toBeInTheDocument()
+    expect(within(chat).getByRole('link', { name: 'Написать в Telegram' })).toHaveAttribute('href', SUPPORT_TELEGRAM_URL)
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Чат с поддержкой' })).toBeNull()
     expect(screen.getByRole('dialog', { name: 'Сообщить об ошибке' })).toBeInTheDocument()
@@ -80,7 +86,7 @@ describe('SupportButtons', () => {
 
     await user.click(screen.getByRole('button', { name: 'Отправить отчёт' }))
     expect(await screen.findByText('Спасибо! Отчёт отправлен')).toBeInTheDocument()
-    // The other calls are the support chat's (the badge on «Связаться»).
+    // The other calls are the support chat's (the badge on «Чат с поддержкой»).
     const reports = serviceRequest.mock.calls.filter(([, path]) => path === '/v1/bug-reports')
     expect(reports).toHaveLength(1)
     const [method, path, body] = reports[0] as [string, string, { kind: string; topic: string; description: string; appVersion: string; platform: string; screenshots: Array<{ data: string }> }]
@@ -126,7 +132,7 @@ describe('SupportButtons', () => {
     const user = userEvent.setup({ applyAccept: false })
     render(<SupportButtons variant="nav" />)
     // The sidebar names the chat right under «Сообщить об ошибке» (owner, 14.10.2026), «Ваши предложения» comes after it.
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Связаться', 'Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Сообщить об ошибке', 'Чат с поддержкой', 'Ваши предложения'])
     await user.click(screen.getByRole('button', { name: 'Ваши предложения' }))
     const dialog = await screen.findByRole('dialog', { name: 'Ваши предложения' })
     expect(dialog).toHaveTextContent('Есть идея для Raid OS?')
@@ -171,8 +177,8 @@ describe('SupportButtons', () => {
     const { setRenderLanguage, uiText } = await import('../i18n/renderText')
     setRenderLanguage('en')
     try {
-      expect(uiText('Связаться')).toBe('Contact us')
       expect(uiText('Чат с поддержкой')).toBe('Support chat')
+      expect(uiText('Написать в Telegram')).toBe('Message on Telegram')
       expect(uiText('Сообщить об ошибке')).toBe('Report a bug')
       expect(uiText('Спасибо! Отчёт отправлен')).toBe('Thank you! The report has been sent')
       expect(uiText('Скриншоты принимаются только в PNG, JPEG или WEBP')).toBe('Screenshots are accepted only as PNG, JPEG or WEBP')
