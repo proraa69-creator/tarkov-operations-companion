@@ -16,6 +16,7 @@ import { questStatusText } from '../shared/questStatus'
 import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
+import { QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -65,12 +66,17 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
 
   // One row per item: what to do with it (plant, mark, key…) and how many.
   const itemRows = useMemo(() => {
-    const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string> }>()
+    const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string>; curated?: boolean; comments?: string[] }>()
     for (const requirement of quest.raidRequirements ?? []) {
       const row = rows.get(requirement.itemId) ?? { itemId: requirement.itemId, count: 0, purposes: new Set<string>(), mapIds: new Set<string>() }
       row.count = Math.max(row.count, requirement.count)
       row.purposes.add(requirement.purpose)
       requirement.mapIds.forEach((id) => row.mapIds.add(id))
+      // Added or corrected in the quest constructor: marked «Raid OS», with the owner's comment.
+      if (requirement.curated) {
+        row.curated = true
+        if (requirement.curated.comment) row.comments = [...(row.comments ?? []), requirement.curated.comment]
+      }
       rows.set(requirement.itemId, row)
     }
     for (const itemId of quest.requiredItems ?? []) {
@@ -153,8 +159,9 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
           return <Link className="quest-full-item" key={row.itemId} to={`/flea?selected=${row.itemId}`}>
             {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <span className="quest-full-item-empty"><Package size={18} /></span>}
             <span>
-              <strong>{uiText(item.name)}{row.count > 1 ? ` ×${row.count}` : ''}</strong>
+              <strong>{uiText(item.name)}{row.count > 1 ? ` ×${row.count}` : ''}{row.curated && <RaidOsMark />}</strong>
               <small>{uiText([...row.purposes].map((purpose) => PURPOSES[purpose] ?? purpose).join(' · ') || item.category)}{row.mapIds.size ? ` · ${[...row.mapIds].map((id) => uiText(mapName(id))).join(', ')}` : ''}</small>
+              {row.comments?.map((comment) => <small key={comment} className="quest-curated-comment">{comment}</small>)}
             </span>
           </Link>
         })}
@@ -180,6 +187,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
           </figure>
         })}
       </div>}
+      <QuestPointHints quest={quest} />
       {points.length > shownPoints.length && <p className="dim quest-full-more">{uiText(`Ещё точек на карте: ${points.length - shownPoints.length}`)}</p>}
       {shownPoints.length === 0 && <p className="dim">{uiText(quest.anyMap ? 'Задание выполняется на любой карте.' : 'Точных точек для этого задания в данных нет — место указано в целях.')}</p>}
     </div>}

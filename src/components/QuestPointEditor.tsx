@@ -2,11 +2,14 @@
 import { uiText } from '../i18n/renderText'
 import { useCallback, useMemo, useState } from 'react'
 import { CircleMarker, Tooltip, useMapEvents } from 'react-leaflet'
-import { Crosshair, EyeOff, LoaderCircle, MapPinPlus, PencilRuler, RotateCcw, Search, X } from 'lucide-react'
+import { Check, Crosshair, EyeOff, FileText, LoaderCircle, MapPinPlus, PencilRuler, RotateCcw, Search, Undo2, X } from 'lucide-react'
 import { isOwnerApp } from '../app/buildEdition'
 import { cleanIpcError } from '../sync/serverSync'
-import { addedOverrideIdOf, useQuestPointOverrides, useQuestPointWriter, type QuestPointInput, type QuestPointOverride } from '../data/questPointOverrides'
-import type { GameMap, MapMarker, Quest } from '../domain/types'
+import { addedOverrideIdOf, hasPointText, QUEST_POINT_DESCRIPTION_MAX, QUEST_POINT_TITLE_MAX, useQuestPointOverrides, useQuestPointWriter, type QuestPointInput, type QuestPointOverride } from '../data/questPointOverrides'
+import type { GameMap, Item, MapMarker, Quest } from '../domain/types'
+import { QuestTextEditor } from './QuestTextEditor'
+import { QuestRequirementsEditor } from './QuestRequirementsEditor'
+import './questEditor.css'
 
 /**
  * The quest constructor «Редактировать квесты» (owner app only, server/src/routes/questPoints.ts): find a quest in the
@@ -15,6 +18,13 @@ import type { GameMap, MapMarker, Quest } from '../domain/types'
  * (src/data/questPointOverrides.ts). The floor selected on the map goes with a moved / added point when it is not the
  * main level. The quest's texts are edited in the quest window at the bottom (components/QuestTextEditor.tsx).
  */
+/** The player-facing description of a point and the owner's own note, as the constructor's form edits them. */
+export interface PointTexts { title?: string; titleEn?: string; description?: string; descriptionEn?: string; note?: string }
+/** The constructor's sections for the picked quest. */
+export type QuestEditorTab = 'points' | 'texts' | 'requirements'
+/** What «Отменить» does: the last saved change undone on the server. */
+export interface EditorUndo { label: string; run: () => Promise<unknown> }
+
 /** `initialQuestId`: open the constructor on that quest (the owner's «Заявки» → «Открыть в конструкторе», ?edit=1). */
 export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, initialQuestId }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string }) {
   const enabled = isOwnerApp()
@@ -28,6 +38,12 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  /** «Сохранено» after the last change went through; cleared when the next one starts. */
+  const [saved, setSaved] = useState(false)
+  const [lastUndo, setLastUndo] = useState<EditorUndo | null>(null)
+  const [tab, setTab] = useState<QuestEditorTab>('points')
+  /** The point whose description form is open (a marker id). */
+  const [describing, setDescribing] = useState('')
 
   const quest = questId ? quests.find((entry) => entry.id === questId) : undefined
   const byMarker = useMemo(() => new Map(overrides.filter((entry) => entry.kind !== 'add' && entry.markerId).map((entry) => [entry.markerId!, entry])), [overrides])
@@ -52,13 +68,38 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   const hidden = useMemo(() => (active && questId ? overrides.filter((entry) => entry.kind === 'hide' && entry.questId === questId && entry.mapId === mapId && goalMatches(entry)) : []),
     [active, questId, overrides, mapId, goalMatches])
 
-  /** True when the server accepted the change. */
-  const run = async (action: () => Promise<void>) => {
-    setBusy(true); setError('')
-    try { await action(); return true } catch (reason) { setError(ownerError(reason)); return false } finally { setBusy(false) }
+  /**
+   * Runs one change of the constructor (points here, requirements in QuestRequirementsEditor.tsx): saved at once, then
+   * «Сохранено»; an error is shown. The undo it returns becomes «Отменить». True when the server accepted it.
+   */
+  const perform = async (label: string, action: () => Promise<(() => Promise<unknown>) | void>) => {
+    setBusy(true); setError(''); setSaved(false)
+    try {
+      const undo = await action()
+      setLastUndo(undo ? { label, run: undo } : null)
+      setSaved(true)
+      return true
+    } catch (reason) { setError(ownerError(reason)); return false } finally { setBusy(false) }
+  }
+  const run = (action: () => Promise<(() => Promise<unknown>) | void>, label = 'изменение точки') => perform(label, action)
+  /** «Отменить»: the last change is undone on the server (once). */
+  const undo = () => {
+    const last = lastUndo
+    if (!last) return Promise.resolve(false)
+    return perform('', async () => { await last.run() })
+  }
+  /** How to bring a point's correction back as it was before a change (`after`: what the change saved, if anything). */
+  const undoPoint = (before: QuestPointOverride | undefined, after: QuestPointOverride | undefined) => {
+    if (before) return () => writer.save(restoreInput(before, after?.id === before.id))
+    if (after) return () => writer.reset(after.id)
+    return undefined
   }
   const floorField = () => (floor !== baseFloor ? { floor } : {})
-  const noteField = () => (note.trim() ? { note: note.trim().slice(0, 300) } : {})
+  /** The note typed in the panel, else the point's own note (a move keeps it). */
+  const noteField = (existing?: QuestPointOverride) => {
+    const text = note.trim().slice(0, 300) || existing?.note
+    return text ? { note: text } : {}
+  }
   const goalField = (marker?: MapMarker) => {
     if (marker) return { ...(marker.objectiveId ? { objectiveId: marker.objectiveId } : {}), ...(marker.stageIndex != null ? { stageIndex: marker.stageIndex } : {}) }
     if (goal.startsWith('o:')) return { objectiveId: goal.slice(2) }
@@ -74,36 +115,78 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   const move = (marker: MapMarker, x: number, z: number) => run(async () => {
     if (!marker.questId) return
     const added = addedOverride(marker)
+    const before = added ?? byMarker.get(marker.id)
     const input: QuestPointInput = added
-      ? { ...stripMeta(added), x: round(x), z: round(z), ...floorField(), ...noteField() }
-      : { questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(x), z: round(z), kind: 'move', ...goalField(marker), ...floorField(), ...noteField() }
+      ? { ...stripMeta(added), x: round(x), z: round(z), ...floorField(), ...noteField(added) }
+      : { questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(x), z: round(z), kind: 'move', ...goalField(marker), ...floorField(), ...textFields(before), ...noteField(before) }
     if (added && floor === baseFloor) delete input.floor
-    await writer.save(input)
-  })
+    return undoPoint(before, await writer.save(input))
+  }, 'перенос точки')
   /** «Добавить точку»: a click on the map while adding. */
   const add = (x: number, z: number) => run(async () => {
     if (!questId) throw new Error('Сначала выберите квест.')
-    await writer.save({ questId, mapId, x: round(x), z: round(z), kind: 'add', ...goalField(), ...floorField(), ...noteField() })
-  })
+    const saved = await writer.save({ questId, mapId, x: round(x), z: round(z), kind: 'add', ...goalField(), ...floorField(), ...noteField() })
+    if (saved) setDescribing(`owner-quest-${saved.id}`)
+    return undoPoint(undefined, saved)
+  }, 'новая точка')
   /** «Скрыть»: a catalog point is hidden (where it stood is kept); an added point is simply deleted. */
   const hide = (marker: MapMarker) => run(async () => {
     if (!marker.questId) return
-    const addedId = addedOverrideIdOf(marker)
-    if (addedId) { await writer.reset(addedId); return }
-    await writer.save({ questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), kind: 'hide', ...goalField(marker), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), ...noteField() })
-  })
-  /** «Вернуть исходную»: the correction is removed (an added point disappears). */
-  const reset = (overrideId: string) => run(() => writer.reset(overrideId))
+    const added = addedOverride(marker)
+    if (added) { await writer.reset(added.id); return undoPoint(added, undefined) }
+    const before = byMarker.get(marker.id)
+    const saved = await writer.save({ questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), kind: 'hide', ...goalField(marker), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), ...textFields(before), ...noteField(before) })
+    return undoPoint(before, saved)
+  }, 'скрытие точки')
+  /**
+   * «Вернуть исходную»: the correction is removed (an added point disappears). A moved / hidden point with a description
+   * goes back to its place and keeps the description («describe»).
+   */
+  const reset = (overrideId: string) => run(async () => {
+    const before = overrides.find((entry) => entry.id === overrideId)
+    if (before && (before.kind === 'move' || before.kind === 'hide') && hasPointText(before)) {
+      const saved = await writer.save({ ...restoreInput(before, true), kind: 'describe' })
+      return undoPoint(before, saved)
+    }
+    await writer.reset(overrideId)
+    return undoPoint(before, undefined)
+  }, 'возврат точки')
+  /**
+   * «Описание для игроков» and «Заметка для себя» of a point: saved with its correction (a catalog point without one
+   * gets a «describe»). Empty texts on a mere description remove it.
+   */
+  const describe = (marker: MapMarker, texts: PointTexts) => run(async () => {
+    if (!marker.questId) return
+    const clean = cleanTexts(texts)
+    const added = addedOverride(marker)
+    const before = added ?? byMarker.get(marker.id)
+    const { note: ownNote, ...shown } = clean
+    if (before) {
+      if (before.kind === 'describe' && !hasPointText(shown)) {
+        await writer.reset(before.id)
+        return undoPoint(before, undefined)
+      }
+      const input: QuestPointInput = { ...stripMeta(before), id: before.id, ...shown, ...(ownNote ? { note: ownNote } : {}) }
+      return undoPoint(before, await writer.save(input))
+    }
+    if (!hasPointText(shown)) throw new Error('Напишите описание для игроков.')
+    const saved = await writer.save({
+      questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), kind: 'describe',
+      ...goalField(marker), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), ...shown, ...(ownNote ? { note: ownNote } : {}),
+    })
+    return undoPoint(undefined, saved)
+  }, 'описание точки')
   /** The correction behind a point drawn on the map, if any. */
   const overrideOf = (marker: MapMarker): QuestPointOverride | undefined => addedOverride(marker) ?? byMarker.get(marker.id)
   /** A marker on the map that the owner can drag right now. */
   const canDrag = (marker: MapMarker) => active && !busy && Boolean(questId) && marker.questId === questId && isQuestPoint(marker)
-  const pick = (id: string) => { setQuestId(id); setGoal(''); setAdding(false); setError('') }
+  const pick = (id: string) => { setQuestId(id); setGoal(''); setAdding(false); setError(''); setSaved(false); setLastUndo(null); setDescribing(''); setTab('points') }
 
   return {
     enabled, active: enabled && active, setActive: (value: boolean) => { setActive(value); if (!value) setAdding(false) },
     questId, quest, pick, goal, setGoal, adding: enabled && active && adding && Boolean(questId), setAdding, note, setNote,
     busy, error, points, hidden, pointCounts, overrides, move, add, hide, reset, overrideOf, canDrag, mapId, floor, baseFloor,
+    describe, describing, setDescribing, tab, setTab, saved, perform, undo, lastUndo,
     /** While a quest is being edited, the map shows only its points (all of them, on every floor). */
     editingQuest: enabled && active && questId ? questId : '',
     shows: goalMatches,
@@ -121,6 +204,31 @@ function stripMeta(entry: QuestPointOverride): QuestPointInput {
   delete input.updatedBy
   delete input.note
   return input
+}
+/** A correction as it was, to save it again (its id when it still exists; the note too). */
+function restoreInput(entry: QuestPointOverride, keepId: boolean): QuestPointInput {
+  const input = { ...stripMeta(entry), ...(entry.note ? { note: entry.note } : {}) }
+  if (!keepId) delete input.id
+  return input
+}
+/** A point's description, carried along when the point is moved or hidden. */
+function textFields(entry?: QuestPointOverride): Pick<QuestPointInput, 'title' | 'titleEn' | 'description' | 'descriptionEn'> {
+  if (!entry) return {}
+  return {
+    ...(entry.title ? { title: entry.title } : {}), ...(entry.titleEn ? { titleEn: entry.titleEn } : {}),
+    ...(entry.description ? { description: entry.description } : {}), ...(entry.descriptionEn ? { descriptionEn: entry.descriptionEn } : {}),
+  }
+}
+/** Trimmed texts, empty ones dropped, cut to the server's limits. */
+export function cleanTexts(texts: PointTexts): PointTexts {
+  const line = (value: string | undefined, max: number) => value?.replace(/\s*\n\s*/g, ' ').trim().slice(0, max) || undefined
+  const block = (value: string | undefined, max: number) => value?.trim().slice(0, max) || undefined
+  const out: PointTexts = {
+    title: line(texts.title, QUEST_POINT_TITLE_MAX), titleEn: line(texts.titleEn, QUEST_POINT_TITLE_MAX),
+    description: block(texts.description, QUEST_POINT_DESCRIPTION_MAX), descriptionEn: block(texts.descriptionEn, QUEST_POINT_DESCRIPTION_MAX),
+    note: block(texts.note, 300),
+  }
+  return Object.fromEntries(Object.entries(out).filter(([, value]) => value)) as PointTexts
 }
 const normalize = (value: string) => value.toLowerCase().replace(/ё/g, 'е').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
 
@@ -185,11 +293,13 @@ export function firstQuestPoint(markers: MapMarker[], questId: string, mapId: st
  * points here (drag on the map to move, hide, return the original) and the maps it has points on. Its texts are edited
  * in the quest window at the bottom of the map (components/QuestTextEditor.tsx).
  */
-export function QuestEditorPanel({ state, maps, markers, quests, onPick, onFocus, onSelectMap }: {
+export function QuestEditorPanel({ state, maps, markers, quests, items = [], onPick, onFocus, onSelectMap }: {
   state: QuestPointEditorState
   maps: GameMap[]
   markers: MapMarker[]
   quests: Quest[]
+  /** The catalog for «Требования» (the item / key picker). */
+  items?: Item[]
   onPick: (quest: Quest) => void
   onFocus: (marker: MapMarker) => void
   onSelectMap: (mapId: string) => void
@@ -232,37 +342,52 @@ export function QuestEditorPanel({ state, maps, markers, quests, onPick, onFocus
             <strong>{uiText(quest.name)}</strong>
             <button type="button" className="icon-button" onClick={() => state.pick('')} aria-label={uiText('Другой квест')} title={uiText('Другой квест')}><X size={14} /></button>
           </div>
-          <small className="dim">{uiText('Текст квеста правится в окне квеста внизу карты.')}</small>
+          <div className="quest-editor-tabs" role="tablist" aria-label={uiText('Разделы квеста')}>
+            {EDITOR_TABS.map(([value, label]) => (
+              <button key={value} type="button" role="tab" aria-selected={state.tab === value} onClick={() => state.setTab(value)}>{uiText(label)}</button>
+            ))}
+          </div>
+          <EditorStatus state={state} />
+          {state.tab === 'texts' && <>
+            <small className="dim">{uiText('Тексты также правятся в окне квеста внизу карты.')}</small>
+            <QuestTextEditor quest={quest} stageIndex={state.goal.startsWith('s:') ? Number(state.goal.slice(2)) : quest.stages?.length ? 0 : null} />
+          </>}
+          {state.tab === 'requirements' && <QuestRequirementsEditor state={state} quest={quest} items={items} markers={markers} />}
+          {state.tab === 'points' && <>
           {goals.length > 0 && (
             <select className="input quest-point-select" value={state.goal} onChange={(event) => state.setGoal(event.target.value)} aria-label={uiText('Цель / этап')}>
               <option value="">{uiText('Все цели и этапы')}</option>
               {goals.map((entry) => <option key={entry.key} value={entry.key}>{uiText(entry.label)}</option>)}
             </select>
           )}
-          <input className="input quest-point-note" value={state.note} maxLength={300} onChange={(event) => state.setNote(event.target.value)} placeholder={uiText('Заметка (например, «по баг-репорту»)')} aria-label={uiText('Заметка')} />
+          <input className="input quest-point-note" value={state.note} maxLength={300} onChange={(event) => state.setNote(event.target.value)} placeholder={uiText('Заметка для себя к новым правкам (например, «по баг-репорту»)')} aria-label={uiText('Заметка для себя')} title={uiText('Видите только вы: игроки её не видят')} />
           <div className="quest-point-actions">
             <button type="button" className={`map-tool${state.adding ? ' active' : ''}`} aria-pressed={state.adding} disabled={state.busy} onClick={() => state.setAdding(!state.adding)} title={uiText('Клик по карте — поставить новую точку квеста на выбранный этаж')}>
               <MapPinPlus size={14} />{uiText('Добавить точку')}
             </button>
-            {(state.busy || state.error) && <span className="boss-placement-hint">{state.busy ? <LoaderCircle size={13} className="spin" /> : uiText(state.error)}</span>}
           </div>
           <small className="dim">{uiText('Точку можно перетащить мышью — сохраняется сразу. Новая и перенесённая точка встают на выбранный этаж.')}</small>
           <ul className="quest-point-list">
             {state.points.map((marker, index) => {
               const override = state.overrideOf(marker)
-              const status = override?.kind === 'add' ? 'Добавлена' : override ? 'Перемещена' : 'Исходная'
+              const status = override?.kind === 'add' ? 'Добавлена' : override?.kind === 'move' ? 'Перемещена' : 'Исходная'
+              const open = state.describing === marker.id
+              const resetLabel = override?.kind === 'describe' ? 'Убрать описание' : 'Вернуть исходную точку'
               return (
-                <li key={marker.id}>
+                <li key={marker.id} className={open ? 'has-form' : undefined}>
                   <button type="button" className="quest-point-name" onClick={() => onFocus(marker)} title={uiText('Показать на карте')}>
                     <Crosshair size={12} />{index + 1}. {uiText(status)}
+                    {hasPointText(override) && <FileText size={11} className="quest-point-described" aria-label={uiText('с описанием')} />}
                     <small className="dim">x {Math.round(marker.position[1])}, z {Math.round(marker.position[0])}</small>
                   </button>
                   <span className="quest-point-row-actions">
+                    <button type="button" className={`icon-button${open ? ' active' : ''}`} aria-pressed={open} disabled={state.busy} onClick={() => state.setDescribing(open ? '' : marker.id)} title={uiText('Описание для игроков')} aria-label={uiText('Описание для игроков')}><FileText size={13} /></button>
                     {override && override.kind !== 'add' && (
-                      <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.reset(override.id)} title={uiText('Вернуть исходную точку')} aria-label={uiText('Вернуть исходную точку')}><RotateCcw size={13} /></button>
+                      <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.reset(override.id)} title={uiText(resetLabel)} aria-label={uiText(resetLabel)}><RotateCcw size={13} /></button>
                     )}
                     <button type="button" className="icon-button" disabled={state.busy} onClick={() => void state.hide(marker)} title={uiText(override?.kind === 'add' ? 'Удалить добавленную точку' : 'Скрыть неверную точку')} aria-label={uiText(override?.kind === 'add' ? 'Удалить добавленную точку' : 'Скрыть неверную точку')}><EyeOff size={13} /></button>
                   </span>
+                  {open && <PointDescriptionForm key={`${marker.id}|${override?.updatedAt ?? ''}`} override={override} busy={state.busy} onSave={(texts) => state.describe(marker, texts)} onClose={() => state.setDescribing('')} />}
                 </li>
               )
             })}
@@ -282,9 +407,66 @@ export function QuestEditorPanel({ state, maps, markers, quests, onPick, onFocus
               {otherMaps.map(([id, count]) => <button key={id} type="button" className="map-tool small" onClick={() => onSelectMap(id)}>{uiText(mapName(id))} · {count}</button>)}
             </div>
           )}
+          </>}
         </>
       )}
     </div>
+  )
+}
+
+const EDITOR_TABS: Array<[QuestEditorTab, string]> = [['points', 'Точки'], ['texts', 'Тексты'], ['requirements', 'Требования']]
+
+/** «Сохранено» / the error / «Отменить» of the last change, for every section of the constructor. */
+export function EditorStatus({ state }: { state: QuestPointEditorState }) {
+  if (!state.busy && !state.error && !state.saved && !state.lastUndo) return null
+  return (
+    <div className="quest-editor-status" role="status" aria-live="polite">
+      {state.busy && <LoaderCircle size={13} className="spin" aria-label={uiText('Сохранение…')} />}
+      {!state.busy && state.saved && !state.error && <span className="quest-text-saved"><Check size={13} />{uiText('Сохранено — видят все игроки')}</span>}
+      {state.error && <span className="account-error">{uiText(state.error)}</span>}
+      {!state.busy && state.lastUndo && (
+        <button type="button" className="button small ghost" onClick={() => void state.undo()} title={uiText(`Отменить: ${state.lastUndo.label}`)}>
+          <Undo2 size={13} />{uiText('Отменить')}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * «Описание для игроков» (title and «где и что искать», RU and optionally EN; every player sees it on the map and in
+ * the quest) and «Заметка для себя» (the owner's own note, never shown to players) of one point.
+ */
+export function PointDescriptionForm({ override, busy, onSave, onClose }: { override?: QuestPointOverride; busy: boolean; onSave: (texts: PointTexts) => Promise<boolean>; onClose: () => void }) {
+  const [title, setTitle] = useState(override?.title ?? '')
+  const [description, setDescription] = useState(override?.description ?? '')
+  const [titleEn, setTitleEn] = useState(override?.titleEn ?? '')
+  const [descriptionEn, setDescriptionEn] = useState(override?.descriptionEn ?? '')
+  const [note, setNote] = useState(override?.note ?? '')
+  const [english, setEnglish] = useState(Boolean(override?.titleEn || override?.descriptionEn))
+  const submit = () => { if (!busy) void onSave({ title, description, titleEn, descriptionEn, note }) }
+  return (
+    <form className="quest-point-form" aria-label={uiText('Описание точки')} onSubmit={(event) => { event.preventDefault(); submit() }}>
+      <fieldset>
+        <legend>{uiText('Описание для игроков')}</legend>
+        <input className="input" value={title} maxLength={QUEST_POINT_TITLE_MAX} onChange={(event) => setTitle(event.target.value)} placeholder={uiText('Заголовок (необязательно), например «Склад у заправки»')} aria-label={uiText('Заголовок точки')} />
+        <textarea className="input" rows={3} value={description} maxLength={QUEST_POINT_DESCRIPTION_MAX} onChange={(event) => setDescription(event.target.value)} placeholder={uiText('Где и что искать: этаж, дверь, полка…')} aria-label={uiText('Где и что искать')} />
+        <small className="quest-point-form-count">{description.length} / {QUEST_POINT_DESCRIPTION_MAX}</small>
+        <label className="dim"><input type="checkbox" checked={english} onChange={(event) => setEnglish(event.target.checked)} /> {uiText('Текст на английском')}</label>
+        {english && <>
+          <input className="input" value={titleEn} maxLength={QUEST_POINT_TITLE_MAX} onChange={(event) => setTitleEn(event.target.value)} placeholder="Title (optional)" aria-label={uiText('Заголовок на английском')} />
+          <textarea className="input" rows={3} value={descriptionEn} maxLength={QUEST_POINT_DESCRIPTION_MAX} onChange={(event) => setDescriptionEn(event.target.value)} placeholder="Where and what to look for" aria-label={uiText('Описание на английском')} />
+        </>}
+      </fieldset>
+      <fieldset className="is-private">
+        <legend>{uiText('Заметка для себя')}</legend>
+        <input className="input" value={note} maxLength={300} onChange={(event) => setNote(event.target.value)} placeholder={uiText('Видите только вы, игроки её не видят')} aria-label={uiText('Заметка для себя')} />
+      </fieldset>
+      <div className="quest-text-actions">
+        <button type="submit" className="button small primary" disabled={busy}>{busy ? <LoaderCircle size={13} className="spin" /> : <Check size={13} />}{uiText('Сохранить')}</button>
+        <button type="button" className="button small ghost" onClick={onClose}>{uiText('Закрыть')}</button>
+      </div>
+    </form>
   )
 }
 
@@ -312,8 +494,11 @@ export function QuestPointCardActions({ state, marker, onDone }: { state: QuestP
   return (
     <div className="boss-placement-remove">
       <span className="dim">{uiText(override?.kind === 'add' ? 'Точка добавлена вручную, её видят все игроки.' : override ? 'Точка перенесена вручную, её видят все игроки.' : 'Исходная точка: перетащите её, скройте или добавьте новую — изменения сохраняются сразу и видны всем игрокам.')}</span>
-      {override?.note && <small className="dim">{uiText('Заметка')}: {override.note}</small>}
+      {override?.note && <small className="dim">{uiText('Заметка для себя')}: {override.note}</small>}
       <div className="boss-placement-actions">
+        <button type="button" className="button small" disabled={state.busy} onClick={() => { state.setTab('points'); state.setDescribing(marker.id) }}>
+          <FileText size={13} />{uiText('Описание для игроков')}
+        </button>
         {override && override.kind !== 'add' && (
           <button type="button" className="button small" disabled={state.busy} onClick={() => void state.reset(override.id)}>
             <RotateCcw size={13} />{uiText('Вернуть исходную точку')}

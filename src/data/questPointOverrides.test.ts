@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { MapMarker, Quest } from '../domain/types'
-import { addedOverrideIdOf, OWNER_QUEST_POINT_SOURCE, parseQuestPointOverrides, withQuestPointOverrides, type QuestPointOverride } from './questPointOverrides'
+import type { AppDataset, MapMarker, Quest } from '../domain/types'
+import { addedOverrideIdOf, hasPointText, OWNER_QUEST_POINT_SOURCE, parseQuestPointOverrides, withQuestPointHints, withQuestPointOverrides, type QuestPointOverride } from './questPointOverrides'
 import { questGoals, searchQuests } from '../components/QuestPointEditor'
 
 const zone = (id: string, over: Partial<MapMarker> = {}): MapMarker => ({
@@ -69,5 +69,51 @@ describe('quest point editor search', () => {
   })
   it('lists the objectives of a trader quest', () => {
     expect(questGoals(quest, [zone('m1', { objectiveId: 'o9', description: 'Найти' })])).toEqual([{ key: 'o:o1', label: 'Ликвидировать Диких' }, { key: 'o:o9', label: 'Найти' }])
+  })
+})
+
+describe('point descriptions «где и что искать» (owner, 15.10.2026)', () => {
+  const described = override({ markerId: 'm1', kind: 'describe', x: 999, z: 999, title: 'Склад', description: 'За красной дверью', descriptionEn: 'Behind the red door', note: 'для себя' })
+
+  it('a described original point stays in place and carries the description for players, never the note', () => {
+    const [marker] = withQuestPointOverrides([zone('m1')], [described], [quest])
+    expect(marker.position).toEqual([10, 20])
+    expect(marker.hint).toEqual({ title: 'Склад', text: 'За красной дверью' })
+    expect(JSON.stringify(marker)).not.toContain('для себя')
+    // English uses its own text; a missing English title falls back to the Russian one.
+    expect(withQuestPointOverrides([zone('m1')], [described], [quest], 'en')[0].hint).toEqual({ title: 'Склад', text: 'Behind the red door' })
+  })
+
+  it('a moved and an added point carry their descriptions too', () => {
+    const result = withQuestPointOverrides([zone('m1')], [
+      override({ markerId: 'm1', x: 1, z: 2, description: 'Под лестницей' }),
+      override({ id: 'b'.repeat(24), kind: 'add', objectiveId: 'o1', x: 5, z: 6, title: 'Второй тайник' }),
+    ], [quest])
+    expect(result.map((marker) => [marker.position, marker.hint])).toEqual([[[2, 1], { text: 'Под лестницей' }], [[6, 5], { title: 'Второй тайник' }]])
+  })
+
+  it('gathers the descriptions on the quest under its objective / stage; nothing changes without them', () => {
+    const markers = withQuestPointOverrides([zone('m1'), zone('m2', { objectiveId: undefined, stageIndex: 1 })], [described, override({ id: 'c'.repeat(24), markerId: 'm2', kind: 'describe', description: 'У маяка' })], [quest])
+    const dataset = { quests: [quest], markers } as unknown as AppDataset
+    const result = withQuestPointHints(dataset)
+    expect(result.quests[0].pointHints).toEqual([
+      { markerId: 'm1', mapId: 'customs', objectiveId: 'o1', title: 'Склад', text: 'За красной дверью' },
+      { markerId: 'm2', mapId: 'customs', stageIndex: 1, text: 'У маяка' },
+    ])
+    const plain = { quests: [quest], markers: [zone('m1')] } as unknown as AppDataset
+    expect(withQuestPointHints(plain)).toBe(plain)
+  })
+
+  it('the public list parses the new kind and fields; unknown kinds and fields are skipped (forward compatibility)', () => {
+    const parsed = parseQuestPointOverrides({ overrides: [
+      { ...described, futureField: { x: 1 } },
+      { ...described, id: 'd'.repeat(24), kind: 'teleport' },
+      { ...described, id: 'e'.repeat(24), kind: 'describe', markerId: undefined },
+    ] })
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).not.toHaveProperty('futureField')
+    expect(parsed[0]).toMatchObject({ kind: 'describe', title: 'Склад', description: 'За красной дверью', descriptionEn: 'Behind the red door' })
+    expect(hasPointText(parsed[0])).toBe(true)
+    expect(hasPointText(override({}))).toBe(false)
   })
 })

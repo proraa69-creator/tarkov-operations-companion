@@ -1,0 +1,67 @@
+/* The quest constructor (owner app, components/QuestPointEditor.tsx, QuestRequirementsEditor.tsx) and what players see
+   of it: point descriptions «Где искать» and the requirements added by Raid OS (components/QuestCuratedInfo.tsx). */
+.raidos-mark {
+  display: inline-block; margin-left: 4px; padding: 0 5px; border: 1px solid var(--line-soft); border-radius: 999px;
+  color: var(--text-dim); font-size: 9px; font-weight: 600; letter-spacing: .04em; line-height: 15px; vertical-align: middle; text-transform: none;
+}
+.quest-point-hints { display: grid; gap: 4px; margin-top: 6px; }
+.quest-point-hint { display: flex; gap: 6px; align-items: flex-start; margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.4; white-space: pre-line; }
+.quest-point-hint svg { flex: 0 0 auto; margin-top: 2px; color: var(--brass); }
+.quest-point-hint strong { color: var(--text); font-weight: 600; }
+.sheet-objective .quest-point-hint { margin-top: 2px; }
+.mmt-hint { display: grid; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgb(255 255 255 / 8%); max-width: 280px; }
+.mmt-hint .quest-point-hint { font-size: 11px; }
+.mmt-hint-need { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 11px; color: var(--text-muted); }
+.mmt-hint-need img { width: 20px; height: 20px; object-fit: contain; }
+.quest-curated h4 { display: flex; align-items: center; gap: 4px; }
+.quest-curated-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.quest-curated-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 7px; color: inherit; text-decoration: none; }
+.quest-curated-item:hover { background: rgb(255 255 255 / 4%); }
+.quest-curated-item img, .quest-curated-empty { width: 34px; height: 34px; flex: 0 0 auto; object-fit: contain; display: grid; place-items: center; }
+.quest-curated-item > span { display: grid; gap: 1px; min-width: 0; }
+.quest-curated-item small { color: var(--text-dim); font-size: 11px; }
+.quest-curated-item .quest-curated-comment { color: var(--text-muted); white-space: pre-line; }
+
+/* The constructor: one editor for the picked quest with «Точки», «Тексты», «Требования». */
+.quest-editor-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line-soft); }
+.quest-editor-tabs button {
+  padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.quest-editor-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--brass); }
+.quest-editor-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 22px; font-size: 12px; }
+.quest-editor-status .quest-text-saved { display: inline-flex; align-items: center; gap: 4px; }
+.quest-point-list li.has-form { flex-wrap: wrap; }
+.quest-point-form { flex-basis: 100%; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgb(255 255 255 / 2%); }
+.quest-point-form fieldset { display: grid; gap: 5px; margin: 0; padding: 0; border: 0; }
+.quest-point-form legend { padding: 0; margin-bottom: 2px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.quest-point-form .input { width: 100%; min-height: 30px; padding: 5px 8px; font-size: 12px; line-height: 1.4; resize: vertical; }
+.quest-point-form .is-private legend { color: var(--amber); }
+.quest-point-form-count { justify-self: end; color: var(--text-dim); font-size: 10px; font-variant-numeric: tabular-nums; }
+.quest-point-described { color: var(--brass); }
+
+.quest-req-editor { display: grid; gap: 8px; }
+.quest-req-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.quest-req-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid transparent; border-radius: 7px; background: rgb(255 255 255 / 3%); }
+.quest-req-row.is-hidden { opacity: .55; }
+.quest-req-row.is-hidden strong { text-decoration: line-through; }
+.quest-req-row.is-curated { border-color: #5f553a; }
+.quest-req-row img, .quest-req-icon { width: 30px; height: 30px; object-fit: contain; display: grid; place-items: center; }
+.quest-req-copy { display: grid; gap: 1px; min-width: 0; }
+.quest-req-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.quest-req-copy small { color: var(--text-dim); font-size: 11px; }
+.quest-req-actions { display: inline-flex; gap: 2px; }
+.quest-req-form { grid-column: 1 / -1; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line-soft); border-radius: 8px; }
+.quest-req-form-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.quest-req-form .input { min-height: 30px; padding: 4px 8px; font-size: 12px; }
+.quest-req-form textarea.input { width: 100%; resize: vertical; }
+.quest-req-form label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.quest-req-count { width: 70px; }
+.quest-item-picker { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line-soft); border-radius: 8px; }
+.quest-item-picker-filters { display: flex; gap: 4px; }
+.quest-item-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 260px; overflow: auto; overscroll-behavior: contain; }
+.quest-item-results button { width: 100%; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid transparent; border-radius: 7px; background: none; color: inherit; text-align: left; cursor: pointer; }
+.quest-item-results button:hover, .quest-item-results button:focus-visible { border-color: #5f553a; background: rgb(255 255 255 / 3%); }
+.quest-item-results img { width: 30px; height: 30px; object-fit: contain; }
+.quest-item-results span { display: grid; min-width: 0; }
+.quest-item-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.quest-item-results small { color: var(--text-dim); font-size: 11px; }
