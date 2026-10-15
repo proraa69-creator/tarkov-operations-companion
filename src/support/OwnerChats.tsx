@@ -7,6 +7,7 @@ import { OWNER_CHATS_KEY, useOwnerChat, useOwnerChatActions, useOwnerChats, type
 import { cleanIpcError } from '../sync/serverSync'
 import { SupportComposer, SupportMessageList } from './SupportChat'
 import { supportTime } from './supportChatClient'
+import { FindUserToWrite } from './FindUserToWrite'
 import './supportChat.css'
 
 /** The player as the owner knows them: the game nickname, else the e-mail. */
@@ -30,6 +31,8 @@ export function OwnerChats({ selected, onSelect }: { selected: string | null; on
   return (
     <div className={`owner-chats${selected ? ' has-thread' : ''}`}>
       <section className="panel owner-chats-list" aria-label={uiText('Чаты')}>
+        {/* «Написать пользователю» (owner, 15.10.2026): find an account by e-mail and write first. */}
+        <FindUserToWrite onPick={onSelect} />
         {chats.isLoading && <p className="dim"><LoaderCircle size={14} className="spin" /> {uiText('Загружаем чаты…')}</p>}
         {error && <p className="account-error" role="alert">{uiText(error)}</p>}
         {!chats.isLoading && !error && !threads.length && <p className="requests-empty"><Inbox size={20} /><span>{uiText('Переписок пока нет.')}</span></p>}

@@ -178,4 +178,15 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Автопродление не включено', 'Auto-renewal is not on'],
   ['Это автопродление оформлено через платёжный сервис, который больше не подключён. Напишите в поддержку — его отменят вручную', 'This auto-renewal was set up through a payment service that is no longer connected. Contact support and it will be canceled manually'],
   ['Нужна подписка', 'Subscription required'],
+  // «Укажите страну» (components/CountryGateDialog.tsx, src/components/CountryPicker.tsx) and the server's answers.
+  ['Укажите страну', 'Please select your country'],
+  ['Нужна для правильного языка уведомлений и поддержки. Без неё личным кабинетом пользоваться нельзя.', 'We need it to send notifications and support in the right language. Your account cannot be used without it.'],
+  ['Моей страны нет в списке — ввести вручную', 'My country is not listed — type it in'],
+  ['Название страны', 'Country name'],
+  ['Только буквы, пробелы и дефисы, до 60 символов.', 'Letters, spaces and hyphens only, up to 60 characters.'],
+  ['Есть в списке:', 'Listed as:'],
+  ['Выбрать из списка', 'Choose from the list'],
+  ['Выйти из аккаунта', 'Sign out'],
+  ['Название страны: до 60 символов, только буквы, пробелы и дефисы.', 'Country name: up to 60 characters, letters, spaces and hyphens only.'],
+  ['Страна уже указана. Изменить её можно в личном кабинете.', 'The country is already set. You can change it in your account.'],
 ]

@@ -299,7 +299,8 @@ test('support chat: the owner writes first to a player who never wrote (owner, 1
     const listed = await t.call<{ threads: Thread[]; total: number; unread: number }>('GET', '/accounts/me/admin/support/threads', owner)
     assert.deepEqual([listed.json.total, listed.json.unread, listed.json.threads[0]!.accountId, listed.json.threads[0]!.lastMessage.author], [1, 0, playerId, 'owner'])
     type Audit = { entries: Array<{ action: string; target: string }> }
-    assert.deepEqual((await t.call<Audit>('GET', '/accounts/me/admin/audit', owner)).json.entries.filter((entry) => entry.action === 'support.reply').map((entry) => entry.target), ['silent@example.com'])
+    // The owner started this conversation: support.start, not support.reply (owner, 15.10.2026).
+    assert.deepEqual((await t.call<Audit>('GET', '/accounts/me/admin/audit', owner)).json.entries.filter((entry) => entry.action === 'support.start' || entry.action === 'support.reply').map((entry) => [entry.action, entry.target]), [['support.start', 'silent@example.com']])
 
     // Gone with the account: the report keeps no account (no «Открыть чат» on it), nothing to open or write to.
     assert.ok((await t.call('POST', '/accounts/me/delete', player, { password })).status < 300)
@@ -429,4 +430,47 @@ test('support chat storage: the newest messages of each account are kept, a page
   assert.deepEqual([page.length, page[0]!.text, page.at(-1)!.text], [200, '№31', '№230'])
   const after = many.messages('c', page[0]!.id - 1)
   assert.deepEqual([after.length, after[0]!.text], [200, '№31'])
+})
+
+test('«Написать пользователю»: the owner finds accounts by part of the e-mail (at most 20, owner only, limited) and starts a chat the player sees', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('kazakh.player@example.com')
+    t.accounts.setNicknames(t.idOf('kazakh.player@example.com'), { nickname: 'Steppe_Wolf' })
+    for (let index = 0; index < 22; index += 1) await t.accounts.register(`bulk${index}@mail.example`, password, undefined, undefined, 'DE')
+    type Found = { users: Array<{ id: string; email: string; nickname?: string; country?: string; region: string; subscription: { status: string }; hasThread: boolean }> }
+
+    assert.equal((await t.call('GET', '/accounts/me/admin/support/search?q=kazakh')).status, 401)
+    assert.equal((await t.call('GET', '/accounts/me/admin/support/search?q=kazakh', player)).status, 404, 'players never search')
+    assert.equal((await t.call('GET', '/accounts/me/admin/support/search?q=k', owner)).status, 400, 'two characters at least')
+
+    const found = await t.call<Found>('GET', '/accounts/me/admin/support/search?q=KAZAKH', owner)
+    assert.equal(found.status, 200)
+    assert.deepEqual(found.json.users.map((user) => [user.email, user.nickname, user.country, user.region, user.subscription.status, user.hasThread]), [['kazakh.player@example.com', 'Steppe_Wolf', 'RU', 'cis', 'inactive', false]])
+    const many = await t.call<Found>('GET', '/accounts/me/admin/support/search?q=mail.example', owner)
+    assert.equal(many.json.users.length, 20, 'at most 20')
+    assert.deepEqual((await t.call<Found>('GET', '/accounts/me/admin/support/search?q=bulk1', owner)).json.users[0]!.email.startsWith('bulk1'), true)
+    // LIKE wildcards are plain characters.
+    assert.deepEqual((await t.call<Found>('GET', '/accounts/me/admin/support/search?q=%25%25', owner)).json.users, [])
+
+    const id = found.json.users[0]!.id
+    const sent = await t.call('POST', `/accounts/me/admin/support/threads/${id}/messages`, owner, { text: 'Здравствуйте! Вы участвовали в опросе.' })
+    assert.equal(sent.status, 201)
+    const mine = await t.call<{ messages: Message[]; unread: number }>('GET', '/me/support/messages', player)
+    assert.deepEqual([mine.json.messages.map((message) => message.text), mine.json.unread], [['Здравствуйте! Вы участвовали в опросе.'], 1])
+    assert.equal((await t.call<Found>('GET', '/accounts/me/admin/support/search?q=kazakh', owner)).json.users[0]!.hasThread, true)
+    const second = await t.call('POST', `/accounts/me/admin/support/threads/${id}/messages`, owner, { text: 'Ещё вопрос' })
+    assert.equal(second.status, 201)
+    type Audit = { entries: Array<{ action: string; target: string }> }
+    const audit = (await t.call<Audit>('GET', '/accounts/me/admin/audit', owner)).json.entries.filter((entry) => entry.action.startsWith('support.')).map((entry) => entry.action)
+    assert.deepEqual(audit, ['support.reply', 'support.start'], 'newest first: the thread start, then the reply')
+
+    // 60 searches a minute.
+    let limited = 0
+    for (let index = 0; index < 60; index += 1) if ((await t.call('GET', '/accounts/me/admin/support/search?q=bulk', owner)).status === 429) limited += 1
+    assert.ok(limited > 0)
+  } finally {
+    await t.close()
+  }
 })

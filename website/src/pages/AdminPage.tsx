@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, Bug, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
@@ -12,6 +12,8 @@ import { ServerExeSection } from '../components/admin/ServerExeSection'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { AdminQuestBase } from '../components/admin/AdminQuestBase'
+import { AdminNotices } from '../components/admin/AdminNotices'
+import { AdminSurveys } from '../components/admin/AdminSurveys'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -24,6 +26,9 @@ const TABS = [
   // «Друзья», «Настройки продаж» and «Обновление» were removed (owner, 13.10.2026); their old links open «Сводка».
   // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
   { id: 'reports', label: 'Отчёты', icon: Bug },
+  // «Объявления по регионам» / «Опросы» (owner, 15.10.2026): created here or in the owner app; the surveys' statistics.
+  { id: 'notices', label: 'Объявления', icon: BellRing },
+  { id: 'surveys', label: 'Опросы', icon: ClipboardList },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
 ] as const
@@ -91,6 +96,8 @@ export function AdminPage() {
             </section>
           </>}
           {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /><AdminQuestBase /></>}
+          {tab === 'notices' && <AdminNotices />}
+          {tab === 'surveys' && <AdminSurveys />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
         </div>

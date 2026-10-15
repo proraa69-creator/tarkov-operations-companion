@@ -1,0 +1,12 @@
+/* «Укажите страну» (account/CountryGate.tsx): above every other window of the app, the account window included. */
+.country-gate { z-index: 3150; }
+.country-gate-dialog { width: min(480px, 100%); display: grid; gap: 12px; }
+.country-gate-dialog h2 { margin: 0; }
+.country-gate-dialog .registration-icon { margin-bottom: 4px; }
+.country-gate-reason { margin: 0; line-height: 1.5; }
+.country-gate-error { margin: 0; }
+.country-gate-signout { justify-self: center; display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
+@media (max-width: 560px) {
+  .country-gate { padding: 12px; }
+  .country-gate-dialog { padding: 20px 16px; }
+}
