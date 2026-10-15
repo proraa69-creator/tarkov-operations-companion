@@ -284,6 +284,9 @@ describe('Labs keycard doors', () => {
     expect(marking?.title).toBe('Дверь · открывает: Ключ-карта с синей полосой')
     expect(marking?.description).toContain('Также необходимо питание.')
     expect(result.find((marker) => marker.id === 'the-lab-lock-safe')?.title).toBe('Запертый контейнер · открывает: Ключ от кабинета управляющего TerraGroup Labs')
+    // The lock kind travels with the marker («Барахолка» names a door, a car door or a container, data/keyDoors.ts).
+    expect(result.find((marker) => marker.id === 'the-lab-lock-safe')?.lock?.kind).toBe('container')
+    expect(red?.lock?.kind).toBe('door')
   })
 })
 
