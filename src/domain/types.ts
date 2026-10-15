@@ -410,6 +410,15 @@ export interface QuestObjective {
   zoneBound?: boolean
   /** buildWeapon objectives (Механик, «Оружейник»): the weapon to modify, the parts it must hold and its stats. */
   build?: WeaponBuildRequirement
+  /** A transit objective («Совершить переход с Улиц Таркова на Лабораторию»): the transit it is done at (src/data/questTransits.ts). */
+  transit?: QuestObjectiveTransit
+}
+
+/** Where a transit objective is done: the map, the map it leads to and the transit's id in the tarkov.dev maps file. */
+export interface QuestObjectiveTransit {
+  fromMapId: string
+  toMapId: string
+  transitId?: string
 }
 
 /** A stat a modified weapon must reach (tarkov.dev `attributes` of a buildWeapon objective), e.g. ergonomics ≥ 50. */
