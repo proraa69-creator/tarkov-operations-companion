@@ -1348,3 +1348,10 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
   4. Для уже опубликованной сборки (по желанию): `RAIDOS_UPDATE_SIGNING_KEY_FILE=/root/.raidos/update-signing-key.pem node /usr/local/lib/raidos-release/sign-client-release.mjs --owner /opt/raidos-private/RaidOSServer.exe <build-info.json этой сборки> --out /opt/raidos-private/RaidOSServer.json`, владелец `raidos-api`, права 600.
 - `13a8b19` — 0.6.0.41. Gate (BASE `9d556df`): все 11 шагов 0; deploy-paths 21 файл; vitest 1831/1831; server 343/343. Push 07:09 UTC; GitHub gate + iOS IPA success; VPS опубликовал 07:21 UTC (0.6.0-41, build 1792048632112); `/api/health` 200; `/api/v1/accounts/me/admin/server-exe-manifest` без входа — 401.
 - Риски: на Windows не проверено; сброс без серверной истории режима виден только на этом устройстве; ссылки владельца ограничены 10 в час (общие с сайтом).
+
+## 2026-10-15 — Claude: 0.6.0.42 опубликовано — заголовок «Оружейника» по теме
+
+- Владелец (скриншот «Оружейник. АКС-74У»): «этот блок всегда остается одной и той же расцветки, сделай что бы он работал как надо».
+- `19f4e80`: базовый `.detail-hero` (`src/styles/pages.css`) брал фиксированный градиент `#1a251e`, а правила тем (`themes.css`, `theme-alcantara.css`, `theme-gear.css`) действовали только на `.quest-detail`. Теперь основа берёт `--panel-2` темы, а правила тем — `:is(.quest-detail, .gunsmith-detail)`. Проверено в Chromium на собранном CSS: по умолчанию, «Сталь», «Багровый», «Алькантара», «Механик» — как у карточки квеста.
+- `fbfaded` — 0.6.0.42. Gate (BASE `13a8b19`): все 11 шагов 0; vitest 1831/1831; server 343/343. Push 11:32 UTC; VPS опубликовал (0.6.0-42, build 1792064532795); `/api/health` 200.
+- В работе (ветки, не выпущено): `prestige-fix` — единая система статусов квестов, «Престиж +»/«Вайп», выбор престижа и значок, «Ручная отметка», постоянное отслеживание журналов; `owner-notify` — объявления по регионам/оплате с фото, опросы, «Укажите страну», чат по почте; `quests-na-svet` — серия «На свет».
