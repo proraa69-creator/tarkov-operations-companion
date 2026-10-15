@@ -120,15 +120,16 @@ for (const locale of ['ru', 'en'] as const) {
     await card.hover()
     const shooterName = locale === 'en' ? 'The Tarkov Shooter - Part 6' : 'Тарковский стрелок. Часть 6'
     await pop.locator('.qc-card', { hasText: shooterName }).click()
-    await expect(dialog.locator('.qc-weapon-card')).toHaveCount(10)
-    // thirty options of one suppressor each, one of them listed twice by tarkov.dev: 29 different suppressors
-    await expect(dialog.locator('.qc-block', { hasText: locale === 'en' ? 'Weapon parts' : 'Модули на оружии' }).locator('.gs-part')).toHaveCount(29)
+    // a choice is one example and «или любое из N» (owner, 15.10.2026: «не должно быть огромных списков»)
+    await expect(dialog.locator('.qc-weapon-card')).toHaveCount(1)
+    await expect(dialog.locator('.qc-choice-more').first()).toContainText(locale === 'en' ? 'or any of 10' : 'или любое из 10')
+    await expect(dialog.locator('.qc-block', { hasText: locale === 'en' ? 'Weapon parts' : 'Модули на оружии' }).locator('.gs-part')).toHaveCount(1)
     await page.waitForTimeout(600)
     await shot(page, `cond2-dialog-options-${locale}.png`, page.locator('.quest-conditions-dialog'))
     await page.keyboard.press('Escape')
   })
 
-  test(`Maps (${locale}): «С условиями на снаряжение» at the bottom of «Квесты на карте», the sheet shows the build`, async ({ page }) => {
+  test(`Maps (${locale}): «С условиями на снаряжение» at the bottom of «Квесты на карте», the sheet adds no gear block`, async ({ page }) => {
     test.setTimeout(120_000)
     await openOverview(page, locale, { width: 1600, height: 1000 }, '/#/maps/streets-of-tarkov')
     const panel = page.locator('.map-detail')
@@ -142,10 +143,8 @@ for (const locale of ['ru', 'en'] as const) {
     await page.waitForTimeout(500)
     await shot(page, `cond2-map-panel-${locale}.png`, panel)
     await section.locator('.quest-map-row-main', { hasText: patriotName }).click()
-    const gear = page.locator('.map-quest-sheet.is-open .qc-raid-gear')
-    await expect(gear).toBeVisible()
-    await expect(gear.locator('.qc-weapon-card')).toContainText(locale === 'en' ? 'AK-12' : 'АК-12')
-    await expect(gear).toContainText(locale === 'en' ? 'PS-320' : 'ПС-320')
+    await expect(page.locator('.map-quest-sheet.is-open')).toBeVisible()
+    await expect(page.locator('.map-quest-sheet.is-open .qc-weapon-card')).toHaveCount(0)
     await page.waitForTimeout(700)
     await shot(page, `cond2-map-sheet-${locale}.png`, page.locator('main'))
   })

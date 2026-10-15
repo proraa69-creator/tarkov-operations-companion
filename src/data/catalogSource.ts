@@ -155,9 +155,13 @@ async function withBuildGuides(
   return tables.size ? withWikiBuilds(guided, tables, await englishResolver()) : guided
 }
 
+/** tarkov.dev «Launcher»: underbarrel grenade launchers (GP-25, M203). */
+const LAUNCHER_CATEGORY = '55818b014bdc2ddc698b456b'
+
 /**
  * What the kill objectives' conditions need (src/data/objectiveConditions.ts): each task's untranslated objectives, the
- * item names in the catalog's language and each item's equipment slot (its own category, `categories[0]`).
+ * item names in the catalog's language, each item's equipment slot (its own category, `categories[0]`) and its kind
+ * of weapon (a grenade's type, an underbarrel launcher).
  */
 export function conditionSourceOf(rawTasksRoot: unknown, itemsRoot: JsonRecord, items: Map<string, Item>): ConditionSources {
   const rawTasks = asRecord(asRecord(rawTasksRoot).tasks)
@@ -168,6 +172,13 @@ export function conditionSourceOf(rawTasksRoot: unknown, itemsRoot: JsonRecord, 
       const entry = asRecord(rawItems[id])
       const categories = Array.isArray(entry.categories) ? entry.categories : []
       return refId(categories[0]) || refId(entry.bsgCategoryId) || refId(entry.bsgCategory) || undefined
+    },
+    weaponKind: (id: string) => {
+      const entry = asRecord(rawItems[id])
+      const properties = asRecord(entry.properties)
+      if (properties.propertiesType === 'ItemPropertiesGrenade' && typeof properties.type === 'string') return properties.type
+      const categories = Array.isArray(entry.categories) ? entry.categories.map(refId) : []
+      return categories.includes(LAUNCHER_CATEGORY) ? 'launcher' : undefined
     },
   }
   return (taskId) => ({ ...context, rawObjectives: asRecord(rawTasks[taskId]).objectives })

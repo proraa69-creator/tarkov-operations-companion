@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { Ban, ChevronDown, ChevronRight, Crosshair, MapPinned, Package, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Crosshair, MapPinned, Package, X } from 'lucide-react'
 import type { GameMap, Item, ItemRef, ObjectiveConditions, QuestObjective } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { allConditionPieces, bodyPartWord, conditionPieces, distanceText, targetWord, timeText } from './conditionText'
@@ -14,10 +14,6 @@ import '../styles/questConditions.css'
 const CARD_PARTS = 3
 /** Map chips the card shows at rest. */
 const CARD_MAPS = 2
-/** Gear not to wear in the unfolded card: this many, then «+N» (the dialog has all). */
-const FULL_NOT_WEARING = 30
-/** Gear not to wear: the dialog shows this many before «ещё N». */
-const NOT_WEARING_SHOWN = 24
 
 /** The item's icon: the catalog's, else the same image folder by id; no other host. */
 function iconOf(id: string, pictures: Pictures) {
@@ -55,20 +51,45 @@ function MapChips({ objective, mapName, limit = CARD_MAPS }: { objective: Pick<Q
   </span>
 }
 
-function ItemIcon({ item, pictures, banned }: { item: ItemRef; pictures: Pictures; banned?: boolean }) {
-  const icon = <Picture className="qc-icon" src={iconOf(item.id, pictures)} alt={uiText(nameOf(item, pictures))} fallback={<Package size={12} />} />
-  return banned ? <span className="qc-ban">{icon}<Ban size={12} aria-hidden="true" /></span> : icon
+function ItemIcon({ item, pictures }: { item: ItemRef; pictures: Pictures }) {
+  return <Picture className="qc-icon" src={iconOf(item.id, pictures)} alt={uiText(nameOf(item, pictures))} fallback={<Package size={12} />} />
 }
 
 /**
- * The pictures of one objective at rest: the weapon (+N), the first few parts and gear (+N), the gear not to wear.
+ * A choice is one example, never a long list (owner, 15.10.2026: «не должно быть огромных списков! коротко и понятно,
+ * если конкретная вещь или оружие, показывай его, если нет, на выбор, то любая из допустимого»): the cheapest item on
+ * the flea market, else the first.
+ */
+function exampleOf(refs: ItemRef[], pictures: Pictures): ItemRef {
+  const price = (ref: ItemRef) => pictures.items.get(ref.id)?.fleaPrice || Infinity
+  return refs.reduce((best, ref) => price(ref) < price(best) ? ref : best, refs[0])
+}
+
+/** «или любое из N» after the example of a choice. */
+function ChoiceMore({ total, options }: { total: number; options?: boolean }) {
+  return total > 1 ? <span className="qc-more qc-choice-more">{uiText(options ? `или другой вариант из ${total}` : `или любое из ${total}`)}</span> : null
+}
+
+/**
+ * Parts or gear as the game asks for them, shortly: one option — every item of it (each is needed); a choice of single
+ * items — one of them and «или любое из N»; a choice of sets — the first set and «или другой вариант из N».
+ */
+function shortOptions(options: ItemRef[][], pictures: Pictures): { refs: ItemRef[]; total: number; sets: boolean } {
+  if (options.length === 1) return { refs: distinct(options[0]), total: 1, sets: false }
+  const singles = distinct(options.flat())
+  if (options.every((option) => option.length === 1)) return { refs: [exampleOf(singles, pictures)], total: singles.length, sets: false }
+  return { refs: options[0], total: options.length, sets: true }
+}
+
+/**
+ * The pictures of one objective at rest: the weapon (+N), the first few parts and gear (+N). Gear not to wear is never
+ * shown (owner, 15.10.2026: «то что не нужно надевать, не показывай»).
  * `tiny`: the small strip of a task row («С условиями на снаряжение» in «Текущие задания»).
  */
 export function GearStrip({ conditions, pictures, tiny }: { conditions: ObjectiveConditions; pictures: Pictures; tiny?: boolean }) {
-  const weapon = conditions.weapons?.[0]
+  const weapon = conditions.weapons?.length ? exampleOf(conditions.weapons, pictures) : undefined
   const mods = conditions.mods?.[0] ?? []
   const wearing = conditions.wearing?.[0] ?? []
-  const notWearing = conditions.notWearing ?? []
   const limit = tiny ? 2 : CARD_PARTS
   const more = (count: number, title: string) => count > 0 && <span className="qc-more" title={uiText(title)}>+{count}</span>
   return <span className={`qc-gear${tiny ? ' is-tiny' : ''}`}>
@@ -84,48 +105,38 @@ export function GearStrip({ conditions, pictures, tiny }: { conditions: Objectiv
       {wearing.slice(0, limit).map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
       {more(Math.max(0, wearing.length - limit) + ((conditions.wearing?.length ?? 1) - 1), 'Есть и другие варианты снаряжения')}
     </span>}
-    {notWearing.length > 0 && <span className="qc-icon-group is-not-wearing" title={uiText('Нельзя надевать')}>
-      <ItemIcon item={notWearing[0]} pictures={pictures} banned />
-      {more(notWearing.length - 1, 'Нельзя надевать')}
-    </span>}
   </span>
 }
 
-/** Parts or gear in full: one option — every item; several — each option, «или» between them. */
+/** Parts or gear in the unfolded card, shortly (shortOptions). */
 function FullOptions({ kind, title, options, pictures }: { kind: string; title: string; options: ItemRef[][]; pictures: Pictures }) {
-  const singles = options.length > 1 && options.every((option) => option.length === 1)
+  const short = shortOptions(options, pictures)
   return <span className={`qc-full-row is-${kind}`}>
-    <span className="qc-full-label">{uiText(title)}{options.length > 1 && <small>{uiText(singles ? 'любой из' : 'любой из вариантов')}</small>}</span>
+    <span className="qc-full-label">{uiText(title)}</span>
     <span className="qc-full-items">
-      {options.length === 1 || singles
-        ? distinct(options.flat()).map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)
-        : options.map((option, index) => <span key={option.map((ref) => ref.id).join()} className="qc-full-option">
-          {index > 0 && <span className="qc-or">{uiText('или')}</span>}
-          {option.map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
-        </span>)}
+      {short.refs.map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
+      <ChoiceMore total={short.total} options={short.sets} />
     </span>
   </span>
 }
 
-/** One objective in full: every weapon, every part and gear option, the gear not to wear, every condition and map. */
+/** One objective unfolded: the weapon, the parts and the gear (one example of a choice), every condition and map. */
 function FullObjective({ objective, pictures, mapName }: { objective: QuestObjective; pictures: Pictures; mapName: (id: string) => string }) {
   const conditions = objective.conditions ?? {}
   const pieces = allConditionPieces(objective)
-  const notWearing = conditions.notWearing ?? []
   return <span className="qc-full-objective">
     {conditions.weapons?.length ? <span className="qc-full-row is-weapons">
-      <span className="qc-full-label">{uiText('Оружие')}{conditions.weapons.length > 1 && <small>{uiText('любое из')}</small>}</span>
-      <span className="qc-full-items">{conditions.weapons.map((ref) => <Picture key={ref.id} className="qc-weapon" src={weaponPictureOf(ref.id, pictures)} alt={uiText(nameOf(ref, pictures))} fallback={<Crosshair size={16} />} />)}</span>
+      <span className="qc-full-label">{uiText('Оружие')}</span>
+      <span className="qc-full-items">
+        {(() => {
+          const weapon = exampleOf(conditions.weapons, pictures)
+          return <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={16} />} />
+        })()}
+        <ChoiceMore total={conditions.weapons.length} />
+      </span>
     </span> : null}
     {conditions.mods?.length ? <FullOptions kind="mods" title="Модули на оружии" options={conditions.mods} pictures={pictures} /> : null}
     {conditions.wearing?.length ? <FullOptions kind="wearing" title="Надеть" options={conditions.wearing} pictures={pictures} /> : null}
-    {notWearing.length ? <span className="qc-full-row is-not-wearing">
-      <span className="qc-full-label">{uiText('Нельзя надевать')}<small>{uiText(`ничего из ${notWearing.length}`)}</small></span>
-      <span className="qc-full-items">
-        {notWearing.slice(0, FULL_NOT_WEARING).map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} banned />)}
-        {notWearing.length > FULL_NOT_WEARING && <span className="qc-more">+{notWearing.length - FULL_NOT_WEARING}</span>}
-      </span>
-    </span> : null}
     <span className="qc-meta is-full">
       <MapChips objective={objective} mapName={mapName} limit={Infinity} />
       {pieces.length > 0 && <span className="qc-line">{pieces.map((piece) => uiText(piece)).join(' · ')}</span>}
@@ -139,7 +150,7 @@ function hasMoreToShow(entry: ConditionQuest): boolean {
   const objective = entry.objectives[0]
   const conditions = objective?.conditions ?? {}
   const options = (list: ItemRef[][] | undefined) => (list?.length ?? 0) > 1 || (list?.[0]?.length ?? 0) > CARD_PARTS
-  return (conditions.weapons?.length ?? 0) > 1 || options(conditions.mods) || options(conditions.wearing) || (conditions.notWearing?.length ?? 0) > 1
+  return (conditions.weapons?.length ?? 0) > 1 || options(conditions.mods) || options(conditions.wearing)
     || (objective?.mapIds?.length ?? 0) > CARD_MAPS || allConditionPieces(objective ?? { count: 1 }).length > conditionPieces(objective ?? { count: 1 }).length
 }
 
@@ -299,13 +310,12 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
   </div>
 }
 
-function ItemCard({ item, pictures, banned }: { item: ItemRef; pictures: Pictures; banned?: boolean }) {
+function ItemCard({ item, pictures }: { item: ItemRef; pictures: Pictures }) {
   const catalog = pictures.items.get(item.id)
   const name = nameOf(item, pictures)
-  return <Link className={`gs-part qc-part${banned ? ' is-banned' : ''}`} to={`/flea?selected=${encodeURIComponent(item.id)}`} title={uiText(name)}>
+  return <Link className="gs-part qc-part" to={`/flea?selected=${encodeURIComponent(item.id)}`} title={uiText(name)}>
     <span className="qc-part-picture">
       <Picture src={iconOf(item.id, pictures)} alt={uiText(name)} fallback={<Package size={18} />} />
-      {banned && <Ban size={14} className="qc-part-ban" aria-hidden="true" />}
     </span>
     <span>
       <strong>{uiText(catalog?.shortName ?? name)}</strong>
@@ -322,17 +332,13 @@ function WeaponCard({ weapon, pictures }: { weapon: ItemRef; pictures: Pictures 
   </Link>
 }
 
-/** Options of parts or gear: one option = every item; several = any one of them («Вариант 1», …, or «Любой из»). */
+/** Parts or gear in the dialog, shortly (shortOptions): the items to take and «или любое из N» for a choice. */
 function OptionGroups({ title, options, pictures }: { title: string; options: ItemRef[][]; pictures: Pictures }) {
-  const singles = options.every((option) => option.length === 1)
+  const short = shortOptions(options, pictures)
   return <div className="gs-block qc-block">
-    <h5>{uiText(title)} <small>{uiText(options.length === 1 ? (options[0].length > 1 ? 'все вместе' : '') : singles ? 'любой из' : 'любой из вариантов')}</small></h5>
-    {options.length === 1 || singles
-      ? <div className="gs-parts">{distinct(options.flat()).map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
-      : <ol className="qc-options">{options.map((option, index) => <li key={option.map((ref) => ref.id).join()}>
-        <span className="qc-option-label">{uiText(`Вариант ${index + 1}`)}</span>
-        <div className="gs-parts">{option.map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
-      </li>)}</ol>}
+    <h5>{uiText(title)} {short.total === 1 && short.refs.length > 1 && <small>{uiText('все вместе')}</small>}</h5>
+    <div className="gs-parts">{short.refs.map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
+    <ChoiceMore total={short.total} options={short.sets} />
   </div>
 }
 
@@ -353,19 +359,9 @@ function ConditionFacts({ objective, mapName }: { objective: QuestObjective; map
   return <dl className="qc-facts">{facts.map(([label, value]) => <div key={label}><dt>{uiText(label)}</dt><dd>{value}</dd></div>)}</dl>
 }
 
-function NotWearing({ refs, pictures }: { refs: ItemRef[]; pictures: Pictures }) {
-  const [all, setAll] = useState(false)
-  const shown = all ? refs : refs.slice(0, NOT_WEARING_SHOWN)
-  return <div className="gs-block qc-block">
-    <h5>{uiText('Нельзя надевать')} <small>{uiText(`ничего из ${refs.length}`)}</small></h5>
-    <div className="gs-parts qc-parts-small">{shown.map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} banned />)}</div>
-    {refs.length > shown.length && <button type="button" className="button small ghost qc-show-all" onClick={() => setAll(true)}>{uiText(`Показать все (${refs.length})`)}</button>}
-  </div>
-}
-
 /**
- * Everything to take into the raid for these objectives: the weapons in large pictures, every part and gear option, the
- * gear not to wear, every condition. The dialog's body and «Снаряжение для рейда» of the map's quest sheet.
+ * What to take into the raid for these objectives, shortly: the weapon in a large picture, the parts and the gear (one
+ * example of a choice) and every condition. The dialog's body.
  */
 export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true }: { objectives: QuestObjective[]; mapId: string; mapName: (id: string) => string; pictures: Pictures; texts?: boolean }) {
   return <>
@@ -375,12 +371,12 @@ export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true 
       return <article key={objective.id} className={`qc-objective${here ? ' is-here' : ''}`}>
         {texts && objective.description && <p className="qc-objective-text">{uiText(objective.description)}</p>}
         {conditions.weapons?.length ? <div className="gs-block qc-block">
-          <h5>{uiText('Оружие')} {conditions.weapons.length > 1 && <small>{uiText('любое из')}</small>}</h5>
-          <div className={`qc-weapons${conditions.weapons.length === 1 ? ' is-single' : ''}`}>{conditions.weapons.map((ref) => <WeaponCard key={ref.id} weapon={ref} pictures={pictures} />)}</div>
+          <h5>{uiText('Оружие')}</h5>
+          <div className="qc-weapons is-single"><WeaponCard weapon={exampleOf(conditions.weapons, pictures)} pictures={pictures} /></div>
+          <ChoiceMore total={conditions.weapons.length} />
         </div> : null}
         {conditions.mods?.length ? <OptionGroups title="Модули на оружии" options={conditions.mods} pictures={pictures} /> : null}
         {conditions.wearing?.length ? <OptionGroups title="Надеть" options={conditions.wearing} pictures={pictures} /> : null}
-        {conditions.notWearing?.length ? <NotWearing refs={conditions.notWearing} pictures={pictures} /> : null}
         <div className="gs-block qc-block">
           <h5>{uiText('Условия убийства')}</h5>
           <ConditionFacts objective={objective} mapName={mapName} />

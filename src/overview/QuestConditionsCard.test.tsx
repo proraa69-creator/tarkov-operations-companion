@@ -125,7 +125,7 @@ describe('QuestConditionsCard', () => {
     await waitFor(() => expect(pop).not.toHaveClass('is-open'))
   })
 
-  it('a card with a lot of data shows the essentials at rest and «+N»; unfolded, every weapon, condition and map', () => {
+  it('a card with a lot of data shows the essentials at rest and «+N»; unfolded, one weapon «или любое из 3», every condition and map', () => {
     const many: Quest = { ...shooter, id: 'many', name: 'Много всего', objectiveDetails: [{ ...shooter.objectiveDetails![0], mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'],
       conditions: { ...shooter.objectiveDetails![0].conditions, zoneNames: ['Причал'], bodyParts: [{ key: 'Head', name: 'голова' }] } }] }
     renderCard([many])
@@ -136,7 +136,9 @@ describe('QuestConditionsCard', () => {
     expect(card().querySelector(':scope > .qc-head .qc-count')).toBeNull()
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
     const full = card().querySelector('.qc-pop.is-open .qc-card.is-full') as HTMLElement
-    expect(full.querySelectorAll('.is-weapons .qc-weapon')).toHaveLength(3)
+    // a choice is one example, never a long list (owner, 15.10.2026)
+    expect(full.querySelectorAll('.is-weapons .qc-weapon')).toHaveLength(1)
+    expect(full.querySelector('.is-weapons .qc-choice-more')).toHaveTextContent('или любое из 3')
     expect(full.querySelectorAll('.qc-chip')).toHaveLength(3)
     expect(full.querySelector('.qc-line')).toHaveTextContent('Причал')
   })
@@ -191,19 +193,22 @@ describe('QuestConditionsCard', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
-  it('several gear options: each a variant; gear not to wear is crossed out', async () => {
+  it('several gear options: the first and «или другой вариант из 2»; gear not to wear is never shown', async () => {
     const setup: Quest = { ...dandies, id: 'setup', name: 'Подстава', objectiveDetails: [{ ...dandies.objectiveDetails![0], conditions: {
       wearing: [[{ id: 'beanie0000000000000000aa', name: 'Шапка' }, { id: 'glasses000000000000000aa', name: 'Очки' }], [{ id: 'hat', name: 'Ушанка' }, { id: 'vest', name: 'Жилет' }]],
       notWearing: [{ id: 'helmet', name: 'Шлем' }],
     } }] }
     renderCard([setup])
     expect(rest().querySelector('.is-wearing .qc-more')).toHaveTextContent('+1')
-    expect(rest().querySelector('.is-not-wearing')).not.toBeNull()
+    expect(rest().querySelector('.is-not-wearing')).toBeNull()
+    expect(rest()).not.toHaveTextContent('Шлем')
     fireEvent.click(rest())
     const dialog = await screen.findByRole('dialog')
-    expect([...dialog.querySelectorAll('.qc-option-label')].map((label) => label.textContent)).toEqual(['Вариант 1', 'Вариант 2'])
-    expect(dialog).toHaveTextContent('Нельзя надевать')
-    expect(dialog.querySelectorAll('.qc-part.is-banned')).toHaveLength(1)
+    expect(dialog.querySelectorAll('.gs-part')).toHaveLength(2)
+    expect(dialog).not.toHaveTextContent('Ушанка')
+    expect(dialog.querySelector('.qc-choice-more')).toHaveTextContent('или другой вариант из 2')
+    expect(dialog).not.toHaveTextContent('Нельзя надевать')
+    expect(dialog).not.toHaveTextContent('Шлем')
   })
 
   it('no such quest on the map: a short line', () => {
@@ -287,7 +292,7 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
     expect(dialog).toHaveTextContent('Глушитель 5.45x39 для АК-12')
     expect(dialog).toHaveTextContent('×10')
   })
-  it('«Текущие задания» keeps these quests apart at the bottom, a click shows the build; «Требования рейда» lists the AK-12 and its parts', async () => {
+  it('«Текущие задания» keeps these quests apart at the bottom, a click shows the build; «Требования рейда» lists no weapon or gear', async () => {
     const { container } = await renderOverview()
     const tasks = container.querySelector('.current-tasks') as HTMLElement
     const section = tasks.querySelector('.gear-section') as HTMLElement
@@ -302,8 +307,9 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
     expect(dialog).toHaveTextContent('Глушитель 5.45x39 для АК-12')
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // Only keys and the items to plant or mark (owner, 15.10.2026): the build is in «Сбор на рейд» alone.
     const needs = container.querySelector('.raid-needs') as HTMLElement
-    expect(needs).toHaveTextContent('АК-12')
-    expect(needs).toHaveTextContent('ПС-320')
+    expect(needs).not.toHaveTextContent('АК-12')
+    expect(needs).not.toHaveTextContent('ПС-320')
   })
 })
