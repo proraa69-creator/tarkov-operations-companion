@@ -1,14 +1,10 @@
 import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, Crosshair } from 'lucide-react'
-import type { Item, Quest } from '../domain/types'
+import { ChevronDown } from 'lucide-react'
+import type { Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { mapLocativePhrase } from '../shared/mapLocative'
-import { GearStrip, QuestConditionsDialog } from '../overview/QuestConditionsCard'
-import { usePictures } from '../overview/usePictures'
-import { GearSectionHeading } from '../overview/GearQuestSection'
-import type { ConditionQuest } from '../overview/questConditions'
 
 interface CurrentTasksPanelProps {
   map: { id: string; name: string }
@@ -19,11 +15,6 @@ interface CurrentTasksPanelProps {
   questLink: (quest: Quest) => string
   /** Tasks shown while the list is collapsed. */
   collapsedCount?: number
-  /**
-   * The tasks of `quests` / `anyMapQuests` with a gear condition on this map, in display order: they leave the list for
-   * the section «С условиями на снаряжение» at its bottom, and a click shows their build. The counts stay as they are.
-   */
-  gear?: { quests: ConditionQuest[]; items: Item[]; mapName: (id: string) => string }
 }
 
 type Entry = { kind: 'quest'; quest: Quest; index: string; anyMap: boolean } | { kind: 'group' }
@@ -39,21 +30,15 @@ function tasksWord(count: number) {
  * «Текущие задания» of the Overview: the first three tasks, the rest behind «Ещё N заданий». The rest opens and
  * closes slowly (grid rows 0fr ↔ 1fr, pages.css) — the owner asked for a calm, not a snappy, reveal.
  */
-export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, gear }: CurrentTasksPanelProps) {
+export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3 }: CurrentTasksPanelProps) {
   const { locale } = useLocale()
   const [expanded, setExpanded] = useState(false)
   const moreId = useId()
-  const [build, setBuild] = useState<ConditionQuest | undefined>()
-  const pictures = usePictures(gear?.items ?? NO_ITEMS)
 
-  const gearIds = new Set(gear?.quests.map((entry) => entry.quest.id))
-  const ordinary = quests.filter((quest) => !gearIds.has(quest.id))
-  const ordinaryAnyMap = anyMapQuests.filter((quest) => !gearIds.has(quest.id))
-  const gearQuests = gear?.quests ?? []
   const entries: Entry[] = [
-    ...ordinary.map((quest, index): Entry => ({ kind: 'quest', quest, index: String(index + 1).padStart(2, '0'), anyMap: false })),
-    ...(ordinaryAnyMap.length ? [{ kind: 'group' } as Entry] : []),
-    ...ordinaryAnyMap.map((quest): Entry => ({ kind: 'quest', quest, index: '∞', anyMap: true })),
+    ...quests.map((quest, index): Entry => ({ kind: 'quest', quest, index: String(index + 1).padStart(2, '0'), anyMap: false })),
+    ...(anyMapQuests.length ? [{ kind: 'group' } as Entry] : []),
+    ...anyMapQuests.map((quest): Entry => ({ kind: 'quest', quest, index: '∞', anyMap: true })),
   ]
   // The «Любая карта» heading goes with the first task under it, so it never dangles above the «Ещё» button.
   const visible: Entry[] = []
@@ -68,7 +53,7 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
   const hiddenCount = hidden.filter((entry) => entry.kind === 'quest').length
 
   const render = (entry: Entry) => entry.kind === 'group'
-    ? <div className="stat-label current-tasks-group" key="any-map">{uiText('Любая карта · ')}{ordinaryAnyMap.length}</div>
+    ? <div className="stat-label current-tasks-group" key="any-map">{uiText('Любая карта · ')}{anyMapQuests.length}</div>
     : <div className="quest-row" key={entry.quest.id}>
       <div className="quest-index">{entry.index}</div>
       <Link to={questLink(entry.quest)} title={uiText('Показать на карте')}>
@@ -98,26 +83,6 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
           {expanded ? uiText('Свернуть') : moreLabel}<ChevronDown size={14} aria-hidden="true" />
         </button>
       </>}
-      {gear && gearQuests.length > 0 && <div className="gear-section current-tasks-gear">
-        <GearSectionHeading count={gearQuests.length} />
-        {gearQuests.map((entry) => {
-          const first = entry.objectives[0]
-          const anyMap = !quests.includes(entry.quest)
-          return <div className="quest-row is-gear" key={entry.quest.id}>
-            <div className="quest-index" aria-hidden="true"><Crosshair size={13} /></div>
-            <button type="button" className="gear-quest-button" aria-haspopup="dialog" title={uiText('Снаряжение для рейда')} onClick={() => setBuild(entry)}>
-              <span className="gear-quest-copy">
-                <strong>{uiText(entry.quest.name)}</strong>
-                <small>{uiText(entry.quest.trader)}{anyMap ? uiText(' · Любая карта') : <>{uiText(' · ур. ')}{entry.quest.level}</>}{uiText(entry.quest.kappa ? ' · капа' : '')}</small>
-              </span>
-              {first?.conditions && <GearStrip conditions={first.conditions} pictures={pictures} tiny />}
-            </button>
-          </div>
-        })}
-      </div>}
     </div>
-    {gear && build && <QuestConditionsDialog entry={build} mapId={map.id} mapName={gear.mapName} pictures={pictures} mapLink={questLink(build.quest)} onClose={() => setBuild(undefined)} />}
   </section>
 }
-
-const NO_ITEMS: Item[] = []
