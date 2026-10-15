@@ -663,9 +663,8 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
 }
 
 /**
- * Quests on several locations: a quest point at the transit to take (src/data/questTransits.ts). A transit objective is
- * drawn at its transit; a quest whose objectives need other locations shows the transit (or the first hop of the shortest
- * route) towards each of them. Same layer, icon and click as the quest's other points.
+ * Quests that need a transit: a transit objective is drawn at its transit (src/data/questTransits.ts). Same layer, icon and
+ * click as the quest's other points.
  */
 function adaptQuestTransits(root: JsonRecord, taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
   const maps = new Map(context.maps.map((map) => [map.id, map]))
@@ -681,7 +680,7 @@ function adaptQuestTransits(root: JsonRecord, taskRoot: JsonRecord, context: Mar
       if (!map) return []
       const base = baseMarker(map, `quest-transit-${quest.id}-${point.transit.id}`, point.transit.position, point.transit.outline, point.transit.top, point.transit.bottom)
       if (!base) return []
-      const texts = questTransitTexts(point, quest, context.maps, transits)
+      const texts = questTransitTexts(point, quest, context.maps)
       return [{
         ...base,
         type: 'quest' as const,

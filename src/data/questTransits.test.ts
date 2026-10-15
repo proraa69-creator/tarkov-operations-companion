@@ -6,7 +6,7 @@ import { fetchLiveCatalog } from './catalogSource'
 import { maps } from './demo'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import {
-  adaptMapTransits, feedMapResolver, isTransitObjective, objectiveTransit, questTransitPoints, shortestTransitRoute, transitsWithoutPosition,
+  adaptMapTransits, feedMapResolver, isTransitObjective, objectiveTransit, questTransitPoints, transitsWithoutPosition,
 } from './questTransits'
 import {
   BENEATH_THE_STREETS, MAP_IDS, PRICE_OF_INDEPENDENCE, transitMapNames, transitMaps, transitQuestsFetcher,
@@ -68,13 +68,6 @@ describe('transit adaptation', () => {
     expect(transitsWithoutPosition(feed, (raw) => raw)).toEqual(['factory|99 → woods'])
     expect(transitsWithoutPosition(ruMaps, resolve)).toEqual([])
   })
-
-  it('finds the shortest chain of transits', () => {
-    expect(shortestTransitRoute(transits, 'customs', 'factory')?.map((step) => step.id)).toEqual(['10'])
-    expect(shortestTransitRoute(transits, 'customs', 'woods')?.map((step) => `${step.mapId}→${step.toMapId}`)).toEqual(['customs→reserve', 'reserve→woods'])
-    expect(shortestTransitRoute(transits, 'customs', 'customs')).toEqual([])
-    expect(shortestTransitRoute(transits, 'customs', 'terminal')).toBeUndefined()
-  })
 })
 
 describe('transit objectives', () => {
@@ -104,49 +97,51 @@ describe('transit objectives', () => {
 })
 
 describe('quest transit points', () => {
-  const twoMaps = task('two-maps', [
-    { id: 'o1', type: 'findQuestItem', maps: [MAP_IDS.customs] },
-    { id: 'o2', type: 'plantItem', maps: [MAP_IDS.factory] },
-  ])
+  const transitObjective = (id: string, description: string, mapId: string) => ({ id, type: 'extract', exitStatus: ['Переход'], description, maps: [mapId] })
 
-  it('a two-map quest shows the transit to the other map on each of them', () => {
-    const points = questTransitPoints(twoMaps, transits, resolve)
-    expect(points.map((point) => [point.transit.mapId, point.transit.id, point.targets])).toEqual([
-      ['customs', '10', ['factory']],
-      ['factory', '13', ['customs']],
-    ])
+  it('a transit objective is drawn at its transit, in either direction between two maps', () => {
+    const there = questTransitPoints(task('there', [transitObjective('t1', 'Совершить переход с Улиц Таркова на Лабораторию', MAP_IDS.streets)]), transits, resolve)
+    const back = questTransitPoints(task('back', [transitObjective('t1', 'Совершить переход с Лаборатории на Улицы Таркова', MAP_IDS.lab)]), transits, resolve)
+    expect(there.map((point) => `${point.transit.mapId}#${point.transit.id}→${point.transit.toMapId}`)).toEqual(['streets-of-tarkov#5→the-lab'])
+    expect(back.map((point) => `${point.transit.mapId}#${point.transit.id}→${point.transit.toMapId}`)).toEqual(['the-lab#8→streets-of-tarkov'])
   })
 
-  it('without a direct transit, the first hop of the shortest route, with the route in the tooltip', () => {
-    const context = { maps, quests: [quest('chain', 'Прикормка', ['customs', 'woods'])], items: new Map(), mapNameByApiId: index }
-    const tasks = { tasks: { chain: task('chain', [{ id: 'o1', type: 'plantItem', maps: [MAP_IDS.customs] }, { id: 'o2', type: 'mark', maps: [MAP_IDS.woods] }]) } }
+  it('the marker: the transit\'s position, the game\'s label, the objective and the quest\'s line', () => {
+    const context = { maps, quests: [quest('leg', 'Перехват инициативы', ['customs', 'shoreline'])], items: new Map(), mapNameByApiId: index }
+    const tasks = { tasks: { leg: task('leg', [transitObjective('t1', 'Совершить переход с Таможни на Резерв', MAP_IDS.customs), { id: 'o2', type: 'extract', exitStatus: ['Выжил', 'Переход'], maps: [MAP_IDS.reserve] }]) } }
     const markers = adaptLiveMapMarkers(ruMaps, tasks, context).filter((marker) => marker.source === 'quest-transit')
-    const customs = markers.find((marker) => marker.mapId === 'customs')
-    expect(customs).toMatchObject({
+    expect(markers).toHaveLength(1)
+    expect(markers[0]).toMatchObject({
+      mapId: 'customs',
       type: 'quest',
       layerId: 'quest.zone',
-      questId: 'chain',
-      title: 'Переход на Резерв → «Прикормка»',
-      description: 'Задание продолжается на локации Лес. Прямого перехода нет — маршрут: Таможня → Резерв → Лес (через Резерв).',
+      questId: 'leg',
+      objectiveId: 't1',
+      title: 'Переход на Резерв → «Перехват инициативы»',
+      description: 'Совершить переход с Таможни на Резерв',
       meta: 'Прапор · ур. 10',
     })
     // At the Customs → Reserve transit itself (tarkov.dev x/z → [z, x]).
-    expect(customs?.position).toEqual([124.94, 650.64])
-    expect(markers.find((marker) => marker.mapId === 'woods')?.title).toBe('Переход на Таможню → «Прикормка»')
-    // The English catalog builds the same text from English map names; the dictionary knows the Russian ones too.
-    expect(translateUiText(customs!.description)).toBe('The task continues on Woods. No direct transit, route: Customs → Reserve → Woods (via Reserve).')
+    expect(markers[0].position).toEqual([124.94, 650.64])
   })
 
-  it('no point when the quest needs no other map, or is a tour of three or more maps without transit objectives', () => {
-    expect(questTransitPoints(task('one', [{ id: 'o1', type: 'visit', maps: [MAP_IDS.customs] }, { id: 'o2', type: 'shoot', maps: [MAP_IDS.customs, MAP_IDS.woods, MAP_IDS.reserve] }]), transits, resolve)).toEqual([])
-    expect(questTransitPoints(task('tour', ['customs', 'woods', 'reserve'].map((name, i) => ({ id: `o${i}`, type: 'visit', maps: [MAP_IDS[name as 'customs']] }))), transits, resolve)).toEqual([])
-    // «Woods or Interchange»: a choice of maps, not two places to go.
+  it('a quest on two maps without a transit objective («Компромат»: Customs and Factory, separate raids) gets no transit point', () => {
+    const kompromat = task('kompromat', [
+      { id: 'o1', type: 'extract', exitStatus: ['Выжил', 'Сквозная пробежка', 'Переход'], maps: [MAP_IDS.customs] },
+      { id: 'o2', type: 'findQuestItem', maps: [MAP_IDS.factory] },
+    ])
+    expect(questTransitPoints(kompromat, transits, resolve)).toEqual([])
+    const context = { maps, quests: [quest('kompromat', 'Компромат', ['customs', 'factory'])], items: new Map(), mapNameByApiId: index }
+    expect(adaptLiveMapMarkers(ruMaps, { tasks: { kompromat } }, context).filter((marker) => marker.source === 'quest-transit')).toEqual([])
+    // Nor one that only starts on another map, nor a chain of maps without a transit objective.
+    expect(questTransitPoints(task('start', [{ id: 'o1', type: 'visit', maps: [MAP_IDS.lab] }], { map: MAP_IDS.streets }), transits, resolve)).toEqual([])
+    expect(questTransitPoints(task('chain', [{ id: 'o1', type: 'plantItem', maps: [MAP_IDS.customs] }, { id: 'o2', type: 'mark', maps: [MAP_IDS.woods] }]), transits, resolve)).toEqual([])
+  })
+
+  it('no point for a one-map quest or a choice of maps', () => {
+    expect(questTransitPoints(task('one', [{ id: 'o1', type: 'visit', maps: [MAP_IDS.customs] }]), transits, resolve)).toEqual([])
+    // «Woods or Interchange»: a choice of maps, not a transit.
     expect(questTransitPoints(task('either', [{ id: 'o1', type: 'extract', exitStatus: ['Выжил'], maps: [MAP_IDS.woods, MAP_IDS.interchange] }]), transits, resolve)).toEqual([])
-  })
-
-  it('the task\'s own start map counts as a place of the quest', () => {
-    const points = questTransitPoints(task('start', [{ id: 'o1', type: 'visit', maps: [MAP_IDS.lab] }], { map: MAP_IDS.streets }), transits, resolve)
-    expect(points.map((point) => `${point.transit.mapId}#${point.transit.id}`)).toEqual(['streets-of-tarkov#5', 'the-lab#8'])
   })
 
   it('a curated transit objective with its zone at the transit is not drawn twice', () => {

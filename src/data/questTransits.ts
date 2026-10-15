@@ -8,15 +8,12 @@ import { canonicalMapId, mapDisplayName } from './mapIds'
  *
  * Transits (EFT 0.15+, the in-raid move from one location to another) come from the tarkov.dev maps file (`<mode>/maps`,
  * `transits`: id, the map it leads to, position, outline, top/bottom). Nothing here invents a place: a transit without
- * coordinates gives no point, a route the transits cannot make gives no point.
+ * coordinates gives no point, an objective whose transit cannot be told gives no point.
  *
- * A quest's transit points:
- * - a transit objective (tarkov.dev `extract` whose only accepted exit status is the transit, or a curated `transit`) is
- *   done AT the transit of its map that leads where its text says: its point is that transit;
- * - otherwise a quest whose objectives need exactly two locations shows, on each, the transit that leads to the other one;
- *   with no direct transit, the first transit of the shortest route over the transit graph. A quest on three or more
- *   locations without transit objectives is a tour of separate raids («Что-то мне это напоминает...»: eight maps), and a
- *   transit to every other map would bury the map in points: it gets none.
+ * Only quests that need a transit get a transit point: a transit objective (tarkov.dev `extract` whose only accepted exit
+ * status is the transit, or a curated `transit`) is done AT the transit of its map that leads where its text says, and its
+ * point is that transit. A quest on two maps without a transit objective («Компромат»: Customs and Factory, separate
+ * raids) gets none.
  */
 
 type JsonRecord = Record<string, unknown>
@@ -40,25 +37,17 @@ export interface MapTransit {
   bottom?: unknown
 }
 
-/** A transit point of one quest on one map: the transit to take and where it finally leads. */
+/** A transit point of one quest: the transit objective and the transit it is done at. */
 export interface QuestTransitPoint {
   questId: string
-  /** The transit objective this point is (explicit), absent for a route between the quest's locations. */
   objectiveId?: string
-  /** The objective's own text (explicit points). */
+  /** The objective's own text. */
   objectiveText?: string
-  /** The transit to take on this map (the first hop of the route). */
   transit: MapTransit
-  /** The quest's locations this transit leads to (directly or as the first hop). */
-  targets: string[]
-  /** Maps of the shortest route per target, start and target included (a direct transit: [start, target]). */
-  routes: string[][]
 }
 
 /** The transit exit status in the feed: its key and its translations (regular/tasks_ru «Переход», tasks_en «Transition»). */
 const TRANSIT_STATUS = /^(?:marathon name|переход|transit|transition)$/i
-/** A quest without transit objectives gets transit points only on this many locations (see the file's comment). */
-const IMPLICIT_LOCATIONS = 2
 /** A transit in an objective's text (tarkov.dev tasks_en / tasks_ru). */
 const TRANSIT_TEXT = /\btransit\b|(?:^|\s)переход/iu
 
@@ -105,35 +94,6 @@ export function transitsWithoutPosition(mapsRoot: JsonRecord, resolveMapId: (raw
     const placed = position.x != null && position.z != null && Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z))
     return placed ? [] : [`${text(rawMap.normalizedName)}|${text(raw.id) || String(raw.id ?? '')} → ${resolveMapId(text(raw.map)) || text(raw.map)}`]
   }))
-}
-
-/**
- * The shortest chain of transits from one location to another (breadth-first over the transit graph; ties keep the
- * maps file's order). Undefined when the transits do not connect them; empty when it is the same location.
- */
-export function shortestTransitRoute(transits: MapTransit[], fromMapId: string, toMapId: string): MapTransit[] | undefined {
-  if (fromMapId === toMapId) return []
-  const previous = new Map<string, MapTransit>()
-  const visited = new Set([fromMapId])
-  let frontier = [fromMapId]
-  while (frontier.length) {
-    const next: string[] = []
-    for (const mapId of frontier) {
-      for (const transit of transits) {
-        if (transit.mapId !== mapId || visited.has(transit.toMapId)) continue
-        visited.add(transit.toMapId)
-        previous.set(transit.toMapId, transit)
-        if (transit.toMapId === toMapId) {
-          const route: MapTransit[] = []
-          for (let step = previous.get(toMapId); step; step = step.mapId === fromMapId ? undefined : previous.get(step.mapId)) route.unshift(step)
-          return route
-        }
-        next.push(transit.toMapId)
-      }
-    }
-    frontier = next
-  }
-  return undefined
 }
 
 /**
@@ -220,39 +180,18 @@ function transitHints(objectives: JsonRecord[], objective: JsonRecord, locations
   return { locations, nextMaps }
 }
 
-/** The transit points of one task (tarkov.dev shape, already translated) — see the file's comment. */
+/** The transit points of one task (tarkov.dev shape, already translated): one per transit objective whose transit is known. */
 export function questTransitPoints(task: JsonRecord, transits: MapTransit[], resolveMapId: (rawId: string) => string): QuestTransitPoint[] {
   const questId = text(task.id)
   if (!questId || !transits.length) return []
   const locations = questLocations(task, resolveMapId)
-  const points: QuestTransitPoint[] = []
   const objectives = asArray(task.objectives)
-  const explicit = objectives.filter(isTransitObjective)
-  if (explicit.length) {
-    for (const objective of explicit) {
-      const transit = objectiveTransit(objective, transits, resolveMapId, transitHints(objectives, objective, locations, resolveMapId))
-      // A curated objective with a zone at the transit is drawn by its zone already.
-      if (!transit || asArray(objective.zones).length) continue
-      points.push({ questId, objectiveId: text(objective.id) || undefined, objectiveText: text(objective.description) || undefined, transit, targets: [transit.toMapId], routes: [[transit.mapId, transit.toMapId]] })
-    }
-    return points
-  }
-  if (locations.length !== IMPLICIT_LOCATIONS) return []
-  for (const from of locations) {
-    const byTransit = new Map<string, QuestTransitPoint>()
-    for (const to of locations) {
-      if (to === from) continue
-      const route = shortestTransitRoute(transits, from, to)
-      if (!route?.length) continue
-      const first = route[0]
-      const path = [from, ...route.map((step) => step.toMapId)]
-      const point = byTransit.get(first.id)
-      if (point) { point.targets.push(to); point.routes.push(path) }
-      else byTransit.set(first.id, { questId, transit: first, targets: [to], routes: [path] })
-    }
-    points.push(...byTransit.values())
-  }
-  return points
+  return objectives.filter(isTransitObjective).flatMap((objective) => {
+    const transit = objectiveTransit(objective, transits, resolveMapId, transitHints(objectives, objective, locations, resolveMapId))
+    // A curated objective with a zone at the transit is drawn by its zone already.
+    if (!transit || asArray(objective.zones).length) return []
+    return [{ questId, objectiveId: text(objective.id) || undefined, objectiveText: text(objective.description) || undefined, transit }]
+  })
 }
 
 /** The objectives' transit: where it is taken and where it leads (QuestObjective.transit), by objective id. */
@@ -317,21 +256,11 @@ function labelPlace(label: string) {
 }
 
 /** The marker texts of a quest transit point (Russian templates; src/i18n/uiEnglishMap.ts turns them into English). */
-export function questTransitTexts(point: QuestTransitPoint, quest: Pick<Quest, 'name' | 'trader' | 'level'>, maps: Array<{ id: string; name: string }>, transits: MapTransit[]) {
-  const name = (mapId: string) => mapDisplayName(mapId, maps)
-  // «через Таможню»: the hop's name as the game's own transit label declines it.
-  const via = (mapId: string) => labelPlace(transits.find((transit) => transit.toMapId === mapId && transit.label)?.label ?? '') || name(mapId)
-  const lead = point.transit.label || `Переход на карту ${name(point.transit.toMapId)}`
+export function questTransitTexts(point: QuestTransitPoint, quest: Pick<Quest, 'name' | 'trader' | 'level'>, maps: Array<{ id: string; name: string }>) {
+  const lead = point.transit.label || `Переход на карту ${mapDisplayName(point.transit.toMapId, maps)}`
   const title = `${lead} → ${/^«.*»$/u.test(quest.name.trim()) ? quest.name.trim() : `«${quest.name}»`}`
   const parts: string[] = []
   if (point.objectiveText) parts.push(point.objectiveText)
-  else {
-    parts.push(`Задание продолжается на ${point.targets.length > 1 ? 'локациях' : 'локации'} ${point.targets.map(name).join(', ')}.`)
-    for (const route of point.routes) {
-      if (route.length <= 2) continue
-      parts.push(`Прямого перехода нет — маршрут: ${route.map(name).join(' → ')} (через ${route.slice(1, -1).map(via).join(', ')}).`)
-    }
-  }
   if (point.transit.condition) parts.push(`Условие перехода: ${point.transit.condition}.`)
   return { title, description: parts.join(' '), meta: `${quest.trader} · ур. ${quest.level}` }
 }
