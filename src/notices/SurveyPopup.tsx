@@ -3,21 +3,8 @@ import { ClipboardList, LoaderCircle, ShieldCheck } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { cleanIpcError } from '../sync/serverSync'
 import { localized, SURVEY_LIMITS, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../shared/notices'
+import { questionProblem } from './surveyRules'
 import { answerSurvey } from './noticeInbox'
-
-/** What a question still lacks before sending (the server checks the same), or ''. */
-export function questionProblem(question: SurveyQuestion, answer: string[] | string | undefined) {
-  if (question.type === 'text') {
-    const text = typeof answer === 'string' ? answer.trim() : ''
-    if (question.required && !text) return 'Ответ обязателен'
-    if (text.length > SURVEY_LIMITS.answer) return 'Не длиннее 1000 символов'
-    return ''
-  }
-  const chosen = Array.isArray(answer) ? answer : []
-  if (question.required && !chosen.length) return 'Выберите вариант'
-  if (question.type === 'multiple' && question.max && chosen.length > question.max) return 'Слишком много вариантов'
-  return ''
-}
 
 /**
  * The owner's survey as a window over the app (owner, 15.10.2026: «создавать опросы … эту статистику я могу посмотреть

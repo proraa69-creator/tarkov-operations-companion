@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { Globe2, LogOut } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { cleanIpcError, logoutFromServer, useServerStatus } from '../sync/serverSync'
+import { cleanIpcError, logoutFromServer } from '../sync/serverSync'
 import { CountryPicker, type CountryChoice } from '../components/CountryPicker'
-import { serviceClient } from './nicknameBinding'
-import { needsCountry, saveInitialCountry } from './initialCountry'
+import { saveInitialCountry, useCountryGate } from './initialCountry'
 import './countryGate.css'
 
 /**
@@ -19,23 +18,6 @@ import './countryGate.css'
 export function CountryGate() {
   const gate = useCountryGate()
   return gate.missing ? <CountryGateDialog onSaved={gate.saved} onSignOut={() => { void logoutFromServer() }} /> : null
-}
-
-/** The signed-in account ('' when nobody is, or the server is not reachable) and whether it still needs a country. */
-export function useCountryGate() {
-  const status = useServerStatus()
-  const account = status?.signedIn && status.online ? status.email ?? 'signed-in' : ''
-  // The account the server said has no country; the window is for that account only (another sign-in asks again).
-  const [missingFor, setMissingFor] = useState('')
-  useEffect(() => {
-    if (!account) return
-    const request = serviceClient()
-    if (!request) return
-    let alive = true
-    void request('GET', '/v1/accounts/me').then((view) => { if (alive) setMissingFor(needsCountry(view) ? account : '') }).catch(() => {})
-    return () => { alive = false }
-  }, [account])
-  return { account, missing: Boolean(account) && missingFor === account, saved: () => setMissingFor('') }
 }
 
 export function CountryGateDialog({ onSaved, onSignOut }: { onSaved: () => void; onSignOut: () => void }) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { CountryGateDialog, useCountryGate } from '../account/CountryGate'
+import { CountryGateDialog } from '../account/CountryGate'
+import { useCountryGate } from '../account/initialCountry'
 import { useLocale } from '../i18n/LocaleProvider'
 import { raidRunning, useRaidState } from '../app/useRaidState'
 import { logoutFromServer } from '../sync/serverSync'

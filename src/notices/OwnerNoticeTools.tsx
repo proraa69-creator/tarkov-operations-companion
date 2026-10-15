@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode
 import { ArrowDown, ArrowUp, ClipboardList, ExternalLink, ImagePlus, Languages, LoaderCircle, Megaphone, Plus, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-react'
 import { audienceText, NOTICE_LIMITS, NOTICE_REGIONS, PAYMENT_NAMES, REGION_NAMES, SURVEY_LIMITS, type NoticeAudience, type NoticePayment, type NoticeRegion, type SurveyQuestion, type SurveyQuestionType } from '../shared/notices'
 import { NOTICE_IMAGE_TYPES, prepareNoticeImage } from './imageResize'
+import { surveyDraftProblem } from './surveyRules'
 import './ownerNotices.css'
 
 /** The owner's API call: the app's gateway (serviceRequest) or the website's fetch with the owner's session. */
@@ -205,27 +206,12 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
   )
 }
 
-interface DraftQuestion { key: string; text: string; textEn: string; type: SurveyQuestionType; options: Array<{ key: string; text: string }>; max: string; required: boolean }
+export interface DraftQuestion { key: string; text: string; textEn: string; type: SurveyQuestionType; options: Array<{ key: string; text: string }>; max: string; required: boolean }
 let draftKey = 0
 const newKey = () => `d${(draftKey += 1)}`
 const newQuestion = (): DraftQuestion => ({ key: newKey(), text: '', textEn: '', type: 'single', options: [{ key: newKey(), text: '' }, { key: newKey(), text: '' }], max: '', required: true })
 
 const QUESTION_TYPES: Array<[SurveyQuestionType, string]> = [['single', 'Один вариант'], ['multiple', 'Несколько вариантов'], ['text', 'Свой ответ']]
-
-/** What the builder still lacks before «Опубликовать» (the server checks the same), or ''. */
-export function surveyDraftProblem(title: string, questions: DraftQuestion[]) {
-  if (!title.trim()) return 'Введите название опроса'
-  if (!questions.length) return 'Добавьте хотя бы один вопрос'
-  for (const [index, question] of questions.entries()) {
-    if (!question.text.trim()) return `Вопрос ${index + 1}: введите текст`
-    if (question.type === 'text') continue
-    const filled = question.options.filter((option) => option.text.trim())
-    if (filled.length < SURVEY_LIMITS.options.min) return `Вопрос ${index + 1}: нужно минимум ${SURVEY_LIMITS.options.min} варианта`
-    const max = Number(question.max)
-    if (question.type === 'multiple' && question.max && (!Number.isInteger(max) || max < 1 || max > filled.length)) return `Вопрос ${index + 1}: «не больше» — от 1 до ${filled.length}`
-  }
-  return ''
-}
 
 function SurveyBuilder({ request, t, onSent, onCancel }: { request: OwnerRequest; t: T; onSent: () => void; onCancel: () => void }) {
   const [title, setTitle] = useState('')
