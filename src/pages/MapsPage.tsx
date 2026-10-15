@@ -350,6 +350,8 @@ export function MapsPage() {
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
   const focusedStage = params.get('stage')
+  // «Барахолка» → a key's «Показать дверь на карте» (?lock=<marker id>): that door, on its floor, even with «Двери» off.
+  const focusedLockId = params.get('lock')
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
@@ -394,7 +396,7 @@ export function MapsPage() {
 
   const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
     const layerId = markerLayerId(marker)
-    const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId)
+    const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
     // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
     if (editingQuest && isQuest && marker.questId) return marker.questId === editingQuest && questEditorShows(marker)
@@ -406,7 +408,7 @@ export function MapsPage() {
       && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
@@ -465,6 +467,15 @@ export function MapsPage() {
     if (quest) setSelectedMarker(questInfoMarker(quest, activeMap.id))
   }, [focusedQuestId, focusedStage, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress])
 
+  // ?lock=<marker id>: select the door and switch to its floor once, when the map's markers are known.
+  const focusedLock = useMemo(() => (focusedLockId ? plottedMarkers.find((marker) => marker.id === focusedLockId) : undefined), [focusedLockId, plottedMarkers])
+  useEffect(() => {
+    if (!focusedLock) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the door from «Барахолка» is selected once its marker is known
+    setSelectedMarker(focusedLock)
+    setFloor(focusedLock.floor ?? baseFloor)
+  }, [focusedLock, baseFloor])
+
   /** `questId`: open that quest on the new map (the quest constructor jumps to the map a picked quest is plotted on). */
   const selectMap = (id: string, questId?: string) => {
     state.setSelectedMapId(id)
@@ -486,12 +497,14 @@ export function MapsPage() {
     const next = new URLSearchParams(params)
     next.delete('quest')
     next.delete('stage')
+    next.delete('lock')
     setParams(next, { replace: true })
   }
 
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
+    if (marker.id !== focusedLockId) next.delete('lock')
     if (marker.questId) {
       next.set('quest', marker.questId)
       if (marker.stageIndex != null) next.set('stage', String(marker.stageIndex))
@@ -621,7 +634,7 @@ export function MapsPage() {
         >
           <ZoomControl position="topright" />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
-          <FocusOnMarker marker={flyTarget} />
+          <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
           <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
@@ -635,7 +648,7 @@ export function MapsPage() {
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
-            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest)
+            const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
@@ -970,15 +983,22 @@ function FollowContainerSize() {
   return null
 }
 
-function FocusOnMarker({ marker }: { marker: MapMarker | null }) {
+/** `closer`: a door opened from «Барахолка» (?lock=) is shown two zoom steps closer (once), so the door can be told apart. */
+function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; closer?: boolean }) {
   const map = useMap()
+  // The zoom picked for the door: a repeated focus on the same door (its marker rebuilt) keeps it instead of the mid-flight zoom.
+  const closerZoom = useRef<{ id: string; zoom: number } | null>(null)
   useEffect(() => {
     if (!marker) return
     const [lat, lng] = marker.position
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
-    const zoom = Math.min(Math.max(map.getZoom(), map.getMinZoom() + 2), map.getMaxZoom())
-    map.flyTo(marker.position, zoom, { duration: 0.55 })
-  }, [map, marker])
+    let zoom = Math.max(map.getZoom(), map.getMinZoom() + 2)
+    if (closer) {
+      if (closerZoom.current?.id !== marker.id) closerZoom.current = { id: marker.id, zoom: map.getZoom() + 2 }
+      zoom = closerZoom.current.zoom
+    }
+    map.flyTo(marker.position, Math.min(zoom, map.getMaxZoom()), { duration: 0.55 })
+  }, [map, marker, closer])
   return null
 }
 

@@ -322,6 +322,8 @@ export interface MarkerLock {
   /** Set for TerraGroup Labs keycards and other card readers. */
   keycard?: KeycardColor
   needsPower?: boolean
+  /** tarkov.dev `lockType`: a door, a car door / trunk, or a locked container. */
+  kind?: 'door' | 'trunk' | 'container'
 }
 
 export interface MapMarker {

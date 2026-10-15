@@ -1,4 +1,4 @@
-import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
+import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -556,10 +556,14 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
       // Keycard doors show the card colour in the tooltip instead.
       meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,
-      lock: { keyId: keyId || undefined, keyName: shownName, keycard, needsPower: needsPower || undefined },
+      lock: { keyId: keyId || undefined, keyName: shownName, keycard, needsPower: needsPower || undefined, kind: lockKind(lockType) },
       source: 'json.tarkov.dev/maps',
     }]
   })
+}
+
+function lockKind(lockType: string): MarkerLock['kind'] {
+  return lockType === 'trunk' || lockType === 'container' ? lockType : 'door'
 }
 
 function adaptStationaryWeapons(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
