@@ -16,7 +16,6 @@ import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
-import { ExperimentalPage } from '../pages/ExperimentalPage'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
 import { KeepItemsPage } from '../pages/KeepItemsPage'
 import { RaidBriefingPage } from '../pages/RaidBriefingPage'
@@ -55,9 +54,10 @@ export function App() {
   // the app unlocks (audit P4a, #202), nothing else.
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
-  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
+  // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
   return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><QuestSyncTip /><AppShell key={`${locale}:${revision}`}><Routes>
-    <Route path="/experimental" element={mobile ? <Navigate to="/maps" replace /> : <ExperimentalPage />} />
+    {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
+    <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
     <Route path="/live" element={<Navigate to="/maps" replace />} />
     <Route path="/gallery" element={<GalleryPage />} />

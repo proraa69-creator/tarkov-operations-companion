@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { tr } from '../../i18n'
 import { Reveal } from '../Reveal'
 import {
-  BallisticsVisual, BossesVisual, CollectorVisual, ItemPriceVisual, MinimapVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual,
+  BallisticsVisual, BossesVisual, CollectorVisual, ItemPriceVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual,
   SyncVisual, ThemesVisual, UpdateVisual,
 } from './PromoVisuals'
 import '../../promo.css'
@@ -46,7 +46,7 @@ const FEATURES: Feature[] = [
     icon: <Tag />,
     eyebrow: 'Цена в рейде',
     title: 'Продать или оставить?',
-    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу — её можно повесить и на боковую кнопку мыши. Карточка покажет, сколько он стоит.',
+    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу — её можно повесить и на боковую кнопку мыши. Карточка появится на карте в приложении и сразу же в телефоне.',
     points: [
       'Цена на барахолке и у лучшего торговца',
       'Пометка «Каппа»: предмет нужен для «Коллекционера»',
@@ -123,16 +123,16 @@ const FEATURES: Feature[] = [
   {
     id: 'minimap',
     icon: <MapPinned />,
-    eyebrow: 'Мини-карта',
-    title: 'Мини-карта поверх игры',
-    lead: 'Карта прямо поверх окна игры — не нужно сворачивать игру, чтобы свериться с ней.',
+    eyebrow: 'Позиция',
+    title: 'Где вы — на карте и в телефоне',
+    lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на карте в приложении и сразу же в телефоне. Поверх игры ничего не рисуется.',
     points: [
-      'Ваша позиция на карте',
+      'Карта текущего рейда открывается сама',
+      'Этаж по высоте из скриншота',
       'Квестовые точки рядом',
-      'Этажи зданий и прозрачность',
-      'Горячие клавиши — и на кнопки мыши',
+      'Телефон получает позицию и цену предмета моментально',
     ],
-    visual: <MinimapVisual />,
+    visual: <SyncVisual />,
   },
   {
     id: 'updates',
@@ -225,7 +225,7 @@ export function Presentation() {
             </div>
             <ul className="final-trust">
               <li><ShieldCheck aria-hidden="true" /><span><strong>{tr('Честная игра.')}</strong> {tr('Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.')}</span></li>
-              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Работает рядом с игрой.')}</strong> {tr('Отдельное окно и оверлей поверх игры, Windows 10 и 11.')}</span></li>
+              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Работает рядом с игрой.')}</strong> {tr('Отдельное окно рядом с игрой и телефон, ничего поверх игры, Windows 10 и 11.')}</span></li>
             </ul>
           </Reveal>
         </div>

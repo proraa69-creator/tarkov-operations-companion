@@ -22,7 +22,8 @@ import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { MapFloorLayers } from '../components/MapFloorLayers'
-import { LivePlayerMarker, useLivePlayer } from '../components/LivePlayerMarker'
+import { LivePlayerMarker, useFollowRaidMap, useLivePlayer } from '../components/LivePlayerMarker'
+import { MapItemCard } from '../components/MapItemCard'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
 import { firstQuestPoint, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
@@ -372,6 +373,8 @@ export function MapsPage() {
   // «Этаж по скриншоту»: the floor the player is on. Declared after the reset above — effects run in order, so on
   // opening the map (or a new screenshot) the player's floor wins; a floor picked by hand stays until the next one.
   const player = useLivePlayer(activeMap.id)
+  // The PC: the map of the current raid opens by itself with each new position (the phone does it in PhoneMapsPage).
+  useFollowRaidMap(player, activeMap.id, !bossPlacement.active && !questEditor.active)
   const playerOnFloor = useAutoFloor(activeMap, player.onThisMap ? player.position : null, setFloor, !bossPlacement.active && !questEditor.active)
 
   const itemsById = useMemo(() => new Map<string, Item>(data.items.map((item) => [item.id, item])), [data.items])
@@ -629,6 +632,8 @@ export function MapsPage() {
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
           <QuestEditorButton state={questEditor} onToggle={(on) => { if (on) setBossActive(false) }} />
+          {/* The recognised item under «Вид» (owner, 15.10.2026), on a line of its own below the controls. */}
+          <MapItemCard />
         </div>
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId

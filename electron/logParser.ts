@@ -4,7 +4,7 @@ import { readLogSignalsFrom, type LogSignal } from '../src/import/eftLogTimeline
 
 /**
  * The game's logs parsed off the main process's thread (audit step 3): a player keeps hundreds of launches, a first read
- * parses tens or hundreds of megabytes, and the main process also runs the overlays, the hotkeys and every IPC. Big
+ * parses tens or hundreds of megabytes, and the main process also runs the item lookup, the hotkeys and every IPC. Big
  * slices go to a worker thread (electron/logParseWorker.ts), which decodes and parses them; small ones — the few new
  * lines of a running game every 5 s — stay here, where a message would cost more than the parse. Without the worker (the
  * sources in the tests, or a worker that fails to start or dies) every slice is parsed here as before.

@@ -13,7 +13,6 @@ import { App } from './app/App'
 import { createPageTransitionHistory, markViewTransitions } from './app/pageTransitionHistory'
 import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
-import { OverlayApp, overlayKind } from './overlay/OverlayApp'
 import { LocaleProvider } from './i18n/LocaleProvider'
 import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
 import { installLayoutAttributes } from './platform'
@@ -60,20 +59,17 @@ applyAppearance()
 clearRemovedAppearanceSettings()
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } })
-const overlay = overlayKind(window.location.hash)
 // Page changes crossfade (owner, 12.10.2026: «сделай нам так же плавно все приложение»).
 const pageHistory = createPageTransitionHistory()
 markViewTransitions()
 
 try {
   ReactDOM.createRoot(document.getElementById('root')!).render(
-    overlay
-      ? <LocaleProvider><OverlayApp kind={overlay} /></LocaleProvider>
-      : <React.StrictMode>
-        <QueryClientProvider client={queryClient}>
-          <LocaleProvider><AppStateProvider><DataProvider><HistoryRouter history={pageHistory} useTransitions={false}><App /></HistoryRouter></DataProvider></AppStateProvider></LocaleProvider>
-        </QueryClientProvider>
-      </React.StrictMode>,
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <LocaleProvider><AppStateProvider><DataProvider><HistoryRouter history={pageHistory} useTransitions={false}><App /></HistoryRouter></DataProvider></AppStateProvider></LocaleProvider>
+      </QueryClientProvider>
+    </React.StrictMode>,
   )
 } catch (error) {
   showStartupError(error)

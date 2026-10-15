@@ -1,5 +1,17 @@
 /** English for the website (src/i18n/index.ts): [Russian source text, English]. */
 export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
+  // No overlays (owner, 15.10.2026): the position and the item card on the app's map and the phone.
+  ['Позиция и цена предмета на карте и в телефоне', 'Position and item price on the map and on your phone'],
+  ['Наведите курсор на предмет в игре и нажмите горячую клавишу — её можно повесить и на боковую кнопку мыши. Карточка появится на карте в приложении и сразу же в телефоне.', 'Hover an item in the game and press the hotkey (a side mouse button works too). The card appears on the map in the app and at once on your phone.'],
+  ['Позиция', 'Position'],
+  ['Где вы — на карте и в телефоне', 'Where you are, on the map and on your phone'],
+  ['Сделайте скриншот в рейде: точка с направлением взгляда появится на карте в приложении и сразу же в телефоне. Поверх игры ничего не рисуется.', 'Take a screenshot in a raid: a dot with your view direction appears on the map in the app and at once on your phone. Nothing is drawn over the game.'],
+  ['Карта текущего рейда открывается сама', 'The current raid’s map opens by itself'],
+  ['Этаж по высоте из скриншота', 'The floor from the screenshot’s height'],
+  ['Телефон получает позицию и цену предмета моментально', 'The phone gets the position and the item price instantly'],
+  ['Отдельное окно рядом с игрой и телефон, ничего поверх игры, Windows 10 и 11.', 'A separate window next to the game and your phone, nothing over the game, Windows 10 and 11.'],
+  ['прогресс, позиция и цены', 'progress, position and prices'],
+  ['Карта на телефоне: местоположение игрока с ПК', 'The map on the phone: the player’s position from the PC'],
   // Home page (pages/HomePage.tsx).
   ['Компаньон для Escape from Tarkov', 'Companion for Escape from Tarkov'],
   ['Raid OS — полевой компаньон · Escape from Tarkov', 'Raid OS — field companion · Escape from Tarkov'],

@@ -80,7 +80,7 @@ export async function enableFromCommandLine(argv: string[]) {
 
 /**
  * `--server-mode` (the laptop that keeps the server on, Server-Laptop-Setup.cmd): only the server, the site and the
- * public link — no overlays, screen reading or game hotkeys, no administrator prompt, the window starts minimized.
+ * public link — no screen reading or game hotkeys, no administrator prompt, the window starts minimized.
  */
 export function isServerMode(argv: string[] = process.argv) {
   return argv.includes('--server-mode')
