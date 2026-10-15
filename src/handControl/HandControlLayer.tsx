@@ -14,7 +14,7 @@ const FADE_MS = 320
  * (time constant below), so it glides between camera frames instead of stepping from one to the
  * next — smooth on a 60/144 Hz monitor even when the camera gives 30 frames per second.
  */
-const EASE_MS = 35
+const EASE_MS = 22
 
 type P3 = { x: number; y: number; z: number }
 

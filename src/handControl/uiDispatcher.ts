@@ -1,3 +1,6 @@
+import { Point } from 'leaflet'
+import { leafletMaps } from '../lib/leafletRegistry'
+
 // Delivers hand input to Raid OS's own DOM. It never moves the OS cursor, never sends
 // OS-level input and never focuses the window — the game on the other monitor keeps focus.
 
@@ -269,10 +272,28 @@ export class HandUiDispatcher {
     this.scrollTarget = null
   }
 
-  /** Pinch zoom over a map: one wheel notch per step at the aim point (Leaflet zooms around it). */
+  /**
+   * Zoom a map around a point by `steps` zoom levels (fractional). A registered Leaflet map is
+   * zoomed directly and without snapping, so many small calls give a smooth zoom; otherwise
+   * whole steps fall back to wheel notches.
+   */
   zoom(x: number, y: number, steps: number) {
     const hit = mapAt(x, y)
     if (!hit) return null
+    const map = leafletMaps.get(hit.map as HTMLElement)
+    if (map) {
+      const rect = (hit.map as HTMLElement).getBoundingClientRect()
+      const target = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getZoom() + steps))
+      const snap = map.options.zoomSnap
+      map.options.zoomSnap = 0
+      try {
+        map.setZoomAround(new Point(x - rect.left, y - rect.top), target, { animate: false })
+      } finally {
+        map.options.zoomSnap = snap
+      }
+      return hit.map
+    }
+    if (Math.abs(steps) < 1) return null
     const factor = /Win/i.test(navigator.platform) ? 2 * (window.devicePixelRatio || 1) : 1
     hit.element.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, clientX: x, clientY: y, deltaY: -steps * WHEEL_PER_STEP * factor, deltaMode: 0 }))
     return hit.map
@@ -287,7 +308,14 @@ export class HandUiDispatcher {
     this.grabbing = hit.element
     hit.map.setAttribute('data-hand-grabbing', '')
     fire(hit.element, 'mousedown', x, y, true)
+    // The real mouse wins: touching it ends the hand's drag (no map stuck to the mouse).
+    document.addEventListener('mousedown', this.onRealMouse, true)
+    document.addEventListener('mousemove', this.onRealMouse, true)
     return hit.map
+  }
+
+  private onRealMouse = (event: MouseEvent) => {
+    if (event.isTrusted) this.grabEnd(event.clientX, event.clientY)
   }
 
   grabMove(x: number, y: number) {
@@ -297,6 +325,8 @@ export class HandUiDispatcher {
 
   grabEnd(x?: number, y?: number) {
     if (!this.grabbing) return
+    document.removeEventListener('mousedown', this.onRealMouse, true)
+    document.removeEventListener('mousemove', this.onRealMouse, true)
     this.grabbing.closest('.leaflet-container')?.removeAttribute('data-hand-grabbing')
     this.grabbing = null
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x ?? 0, clientY: y ?? 0, button: 0, buttons: 0 }))

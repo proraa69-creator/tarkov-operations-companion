@@ -105,21 +105,14 @@ describe('recorded L pose with the thumb closing in place', () => {
   })
 })
 
-// The product owner's recording of zoom by distance: the L pose held at 14.6–18.9 s, the hand
-// moving away from the camera (~16.4–17.8 s), then towards it (~17.8–18.9 s).
-describe('recorded zoom by distance', () => {
+// The product owner's earlier recording of zoom by distance: the L pose held at 14.6–18.9 s, the
+// hand moving away from the camera and back. Zoom now follows turning the hand, not its distance.
+describe('recorded L pose moving in depth', () => {
   const { events } = replay(load(zoomDepthRecordingB64))
-  const zooms = events.filter(({ event }) => event.type === 'zoom').map(({ t, event }) => ({ t, steps: (event as Extract<HandEvent, { type: 'zoom' }>).steps }))
+  const zoomed = events.filter(({ event }) => event.type === 'zoom').reduce((total, { event }) => total + Math.abs((event as Extract<HandEvent, { type: 'zoom' }>).steps), 0)
 
-  it('zooms in while the hand moves away and out while it comes closer', () => {
-    const away = zooms.filter(({ t }) => t >= 16.4 && t < 17.8)
-    const closer = zooms.filter(({ t }) => t >= 17.8 && t <= 19.1)
-    expect(away.length).toBeGreaterThanOrEqual(2)
-    expect(away.every(({ steps }) => steps > 0)).toBe(true)
-    expect(closer.length).toBeGreaterThanOrEqual(2)
-    expect(closer.every(({ steps }) => steps < 0)).toBe(true)
-    // Nothing while the L is just held (14.6–16.4 s).
-    expect(zooms.filter(({ t }) => t < 16.4)).toEqual([])
+  it('barely zooms while the hand only moves closer and further', () => {
+    expect(zoomed).toBeLessThan(0.6)
   })
 
   it('does nothing else', () => {

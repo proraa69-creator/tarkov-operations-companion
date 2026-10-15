@@ -1,7 +1,7 @@
 import { OneEuroFilter } from '1eurofilter'
 import { GHOST_PALM_PX } from './ghostPose'
 import { HandAnchor } from './handAnchor'
-import { clamp01, fingerFlex, fingerStraightness, imageSpan, inverseDepth, palmCenter, pinchDistance, thumbOut, toWindowSpace, type FingerName } from './handGeometry'
+import { clamp01, fingerFlex, fingerStraightness, imageSpan, inverseDepth, palmCenter, pinchDistance, toWindowSpace, type FingerName } from './handGeometry'
 import { LM, type HandEvent, type HandFrame, type HandObservation, type HandPhase, type HandControlSettings, type Point3, type TrackingQuality } from './types'
 
 /**
@@ -65,35 +65,34 @@ export const ENGINE = {
   baselineAwayMs: 350,
   pointerBeta: 6,
   /** the drawn hand's own 1€ beta (window units/s): lower = steadier on screen */
-  handBeta: 2,
+  handBeta: 3,
   /**
    * Smoothing of the drawn hand (1€): the palm centre before the anchor (beta per palm span/s) and
    * the finger shape (palm spans). A beta that follows real moves but not the per-frame tracking
    * noise (~0.6 span/s at 30 fps) — measured shake on the recordings dropped by about half.
    */
   palmCutoff: 1.5,
-  palmBeta: 0.8,
+  palmBeta: 1.6,
   fingerCutoff: 1.6,
-  fingerBeta: 0.6,
+  fingerBeta: 1.0,
   historyMs: 600,
   /**
-   * Map zoom, from the product owner's recordings. The "L" pose — index up, thumb sticking out
-   * (thumb↔index angle ≥ 42°, tips ≥ 0.95 palm lengths apart; plain pointing measured 18–37° and
-   * ≤ 0.96) — held for `zoomPoseMs` enters zoom mode. In it the hand's distance to the camera
-   * zooms the map: moving the hand away zooms in, bringing it closer zooms out, one step per
-   * `zoomDepthStep` of log palm size (measured on the recording: away 720→500 px/m = −0.37,
-   * closer 500→930 = +0.62; a still hand wobbles ±0.04). No taps in zoom mode. It ends when the
-   * hand is no longer in the L for `zoomExitMs` (e.g. back to pointing), or other fingers open.
+   * Map zoom (product owner): the "L" pose — index up, thumb sticking out (thumb↔index angle
+   * ≥ 42°, tips ≥ 1.0 palm lengths apart; plain pointing measured 18–37° and ≤ 0.96) — held for
+   * `zoomPoseMs` enters zoom mode. Turning the hand right zooms in, left zooms out, smoothly and
+   * around the point where the L began: the zoom follows the turn angle (`zoomDegPerLevel` per
+   * zoom level beyond a `zoomDeadDeg` dead zone, smoothed over `zoomTurnSmoothMs`). The turn is
+   * the larger of the hand's tilt in the image (like a dial) and its turn around the forearm.
+   * No taps in zoom mode. It ends when the hand leaves the L, or the thumb closes onto the index.
    */
   zoomAngle: 42,
   zoomPinch: 1.0,
   /** the index must be straight up in the L (measured 24–31°; a half-folded index turns away from the thumb) */
   zoomMaxFlex: 45,
   zoomPoseMs: 250,
-  /** "practically does not work" at 0.14 (product owner): one step per ~7 % change in palm size */
-  zoomDepthStep: 0.07,
-  /** the palm-size signal for zoom is averaged over ~this time: frame-to-frame wobble must not step the map */
-  zoomDepthSmoothMs: 120,
+  zoomDeadDeg: 8,
+  zoomDegPerLevel: 35,
+  zoomTurnSmoothMs: 80,
   /** thumb↔index gap counted as the thumb closed onto the index (the L is left, not a zoom) */
   zoomClosed: 0.5,
   zoomOpen: 0.78,
@@ -102,14 +101,8 @@ export const ENGINE = {
   zoomMoving: 0.12,
   zoomMovingMs: 300,
   zoomOthersExitMs: 150,
-  /** palm grab: thumb sticking out + four fingers extended; released by pulling back or closing */
-  thumbOutOpen: 0.65,
-  grabReleaseRatio: 0.5,
-  grabOpenLostMs: 250,
-  maxGrabMs: 15000,
+  maxGrabMs: 120000,
   grabMoveEpsilon: 0.0008,
-  /** palm travel before a grab starts dragging (the push itself shifts the hand image a little) */
-  grabEngage: 0.03,
   /**
    * A push (poke or palm grab) counts only when it is quick and made in place: the distance to the
    * camera must rise within `pushWindowMs` while the palm travels less than `pushMaxTravel` along
@@ -149,8 +142,13 @@ export const ENGINE = {
   /** the index counts as raised before a tap when tracked straight or folded at most this much (degrees) */
   pointedMaxFlex: 45,
   maxPushTurn: 30,
-  /** the palm must already be open this long before a push grabs (opening the hand is not a push) */
-  openBeforeGrabMs: 400,
+  /**
+   * Map drag (product owner): opening the hand (all four fingers up) over a map grabs it at once —
+   * whatever the distance to the camera — and the map follows the hand; folding the fingers
+   * releases it at once. `openGrabMs` / `closeReleaseMs` only skip single-frame tracking blips.
+   */
+  openGrabMs: 90,
+  closeReleaseMs: 60,
   /**
    * Pinch click (product owner): bring the thumb and index tips together — press; open — click,
    * where the phalanx was before the pinch. The gap is in palm lengths: a relaxed pointing hand
@@ -169,12 +167,11 @@ export const ENGINE = {
   pinchReleaseMin: 0.45,
   pinchMaxPressMs: 1500,
   /**
-   * Pinch and move = hold the mouse button and drag (maps pan). The knuckles shift while the
-   * fingers close, so the hand's travel is measured from `pinchDragAfterMs` after the press;
-   * beyond `pinchDragStart` (window units) the press turns into a drag instead of a click.
+   * The knuckles shift while the fingers close, so the hand's travel during a pinch is measured
+   * from `pinchDragAfterMs` after the press; beyond `pinchMoveCancel` (window units) it is not a click.
    */
   pinchDragAfterMs: 200,
-  pinchDragStart: 0.045,
+  pinchMoveCancel: 0.08,
   /** the drawn hand's size follows the real palm size this slowly (turning the wrist must not pump it) */
   spanSmoothMs: 1500,
 } as const
@@ -259,9 +256,7 @@ export class HandGestureEngine {
   private press: { id: number; at: number; x: number; y: number; kind: 'tap' | 'poke' | 'pinch'; base: number; dragFrom: { x: number; y: number } | null } | null = null
   private cooldownUntil = 0
   private zoomPoseSince = Number.NaN
-  private zoom: { id: number; x: number; y: number; ref: number; level: number; exitSince: number } | null = null
-  /** smoothed log of the palm's size in the frame (larger = closer to the camera) */
-  private distanceLog = Number.NaN
+  private zoom: { id: number; x: number; y: number; roll0: number; yaw0: number; turn: number; applied: number; exitSince: number } | null = null
   private scrollPoseSince = Number.NaN
   private exitPoseSince = Number.NaN
   private scroll: {
@@ -269,7 +264,7 @@ export class HandGestureEngine {
     lastFlickAt: number; chain: number; lastFlingAt: number; lastFlingSign: number
   } | null = null
   private flungAt = Number.NEGATIVE_INFINITY
-  private grab: { id: number; at: number; kind: 'palm' | 'pinch'; x0: number; y0: number; palmX0: number; palmY0: number; x: number; y: number; openLostSince: number; engaged: boolean } | null = null
+  private grab: { id: number; at: number; kind: 'palm'; x0: number; y0: number; palmX0: number; palmY0: number; x: number; y: number; openLostSince: number; engaged: boolean } | null = null
   private last: HandFrame = emptyFrame(0, 0)
 
   constructor(settings: HandControlSettings) {
@@ -368,10 +363,11 @@ export class HandGestureEngine {
     const zoomPose = this.pose.index && !this.pose.middle && !this.pose.ring && !this.pose.pinky && flexIndex <= ENGINE.zoomMaxFlex && thumbAngle >= ENGINE.zoomAngle && pinch >= ENGINE.zoomPinch
     if (!zoomPose) this.zoomPoseSince = Number.NaN
     else if (Number.isNaN(this.zoomPoseSince)) this.zoomPoseSince = t
-    const openPalm = this.pose.index && this.pose.middle && this.pose.ring && this.pose.pinky && thumbOut(world) >= ENGINE.thumbOutOpen
+    // Open hand: all four fingers up (the thumb may be anywhere).
+    const openPalm = this.pose.index && this.pose.middle && this.pose.ring && this.pose.pinky
     if (!openPalm) this.openPalmSince = Number.NaN
     else if (Number.isNaN(this.openPalmSince)) this.openPalmSince = t
-    const palmSettled = openPalm && t - this.openPalmSince >= ENGINE.openBeforeGrabMs
+    const openHandReady = openPalm && t - this.openPalmSince >= ENGINE.openGrabMs
     const usePinch = settings.clickMode === 'pinch'
     const useTap = settings.clickMode === 'tap' || settings.clickMode === 'both'
     const usePoke = settings.clickMode === 'poke' || settings.clickMode === 'both'
@@ -383,7 +379,7 @@ export class HandGestureEngine {
     const madeByFinger = fingerFold >= palmTurn * ENGINE.foldToTurn
     const tapProgress = useTap && indexRecent && othersFolded && madeByFinger && !openPalm && !this.fistLock ? clamp01(fingerFold / settings.tapAngle) : 0
     const pokeProgress = usePoke && this.pose.index && !scrollPose && !openPalm ? clamp01(depth / settings.pressThreshold) : 0
-    const grabProgress = settings.palmGrab && openPalm ? clamp01(depth / settings.grabThreshold) : 0
+    const grabProgress = 0
     const pinchWindow = this.history.filter((sample) => sample.t >= t - ENGINE.pinchWindowMs)
     const pinchOpen = Math.max(pinch, ...pinchWindow.map((sample) => sample.pinch))
     const othersSteady = [0, 1, 2].every((finger) => {
@@ -408,11 +404,11 @@ export class HandGestureEngine {
     if (this.phase === 'scroll' && this.scroll) {
       this.updateScroll(events, t, scrollPose, openPalm, flexTwo, palm.y, palmTurn)
     } else if (this.phase === 'zoom' && this.zoom) {
-      this.updateZoom(events, t, pinch, thumbAngle, dt)
+      this.updateZoom(events, t, pinch, thumbAngle, dt, observation)
     } else if (this.phase === 'press' && this.press) {
       this.updatePress(events, t, flexIndex, depth, pinch, live)
     } else if (this.phase === 'grab' && this.grab) {
-      this.updateGrab(events, t, openPalm, depth, palm, pinch, live)
+      this.updateGrab(events, t, openPalm, live)
     } else {
       const at = this.aim ?? pointer
       if (scrollPose) {
@@ -420,13 +416,12 @@ export class HandGestureEngine {
       } else this.scrollPoseSince = Number.NaN
 
       const ready = tracking === 'good' && t >= this.cooldownUntil && !this.fistLock
-      if (ready && settings.palmGrab && palmSettled && palmTurn <= ENGINE.maxPushTurn && this.isPush(t, depth, settings.grabThreshold)) {
+      if (settings.palmGrab && tracking === 'good' && !this.fistLock && openHandReady) {
         const id = this.nextId++
-        const start = this.pushStart(t, pointer)
-        // Drag relative to where the palm is now (the push itself shifts the image of the hand).
-        this.grab = { id, at: t, kind: 'palm', x0: start.x, y0: start.y, palmX0: palm.x, palmY0: palm.y, x: start.x, y: start.y, openLostSince: Number.NaN, engaged: false }
+        // Grab where the drawn palm is; the map then follows the live palm.
+        this.grab = { id, at: t, kind: 'palm', x0: palm.x, y0: palm.y, palmX0: live.x, palmY0: live.y, x: palm.x, y: palm.y, openLostSince: Number.NaN, engaged: true }
         this.phase = 'grab'
-        events.push({ type: 'grab-start', id, x: start.x, y: start.y })
+        events.push({ type: 'grab-start', id, x: palm.x, y: palm.y })
       } else if (!this.fistLock && scrollPose && t - this.scrollPoseSince >= ENGINE.scrollPoseMs) {
         const id = this.nextId++
         this.scroll = {
@@ -445,7 +440,8 @@ export class HandGestureEngine {
       } else if (settings.pinchZoom && !this.fistLock && zoomPose && t - this.zoomPoseSince >= ENGINE.zoomPoseMs) {
         // Zoom around the point the phalanx was on when the L pose began.
         const center = this.pointerAt(this.zoomPoseSince) ?? at
-        this.zoom = { id: this.nextId++, x: center.x, y: center.y, ref: this.distanceLog, level: this.distanceLog, exitSince: Number.NaN }
+        const twist = this.handTwist(observation)
+        this.zoom = { id: this.nextId++, x: center.x, y: center.y, roll0: twist.roll, yaw0: twist.yaw, turn: 0, applied: 0, exitSince: Number.NaN }
         this.phase = 'zoom'
         this.aim = null
         this.frozenAt = Number.NaN
@@ -559,15 +555,12 @@ export class HandGestureEngine {
         this.cooldownUntil = t + ENGINE.clickCooldownMs
         return
       }
-      // Pinched and moving: the button is held — drag from the press point (pans a map).
+      // Pinched while the whole hand travels: not a click (the map is dragged with an open hand).
       if (!press.dragFrom && t - press.at >= ENGINE.pinchDragAfterMs) press.dragFrom = { ...live }
-      if (press.dragFrom && Math.hypot(live.x - press.dragFrom.x, live.y - press.dragFrom.y) >= ENGINE.pinchDragStart) {
+      if (press.dragFrom && Math.hypot(live.x - press.dragFrom.x, live.y - press.dragFrom.y) >= ENGINE.pinchMoveCancel) {
         events.push({ type: 'cancel', id: press.id })
-        const id = this.nextId++
-        this.grab = { id, at: t, kind: 'pinch', x0: press.x, y0: press.y, palmX0: press.dragFrom.x, palmY0: press.dragFrom.y, x: press.x, y: press.y, openLostSince: Number.NaN, engaged: true }
         this.press = null
-        this.phase = 'grab'
-        events.push({ type: 'grab-start', id, x: press.x, y: press.y })
+        this.toPoint(t)
         return
       }
       if (t - press.at > ENGINE.pinchMaxPressMs) {
@@ -594,35 +587,12 @@ export class HandGestureEngine {
     }
   }
 
-  private updateGrab(events: HandEvent[], t: number, openPalm: boolean, depth: number, palm: { x: number; y: number }, pinch: number, live: { x: number; y: number }) {
+  /** Open-hand drag: the map follows the live palm; folding the fingers releases at once. */
+  private updateGrab(events: HandEvent[], t: number, openPalm: boolean, live: { x: number; y: number }) {
     const grab = this.grab!
-    if (grab.kind === 'pinch') {
-      // The live palm: a drag must follow the hand at once, not the steadier drawn hand.
-      const x = clamp01(grab.x0 + live.x - grab.palmX0)
-      const y = clamp01(grab.y0 + live.y - grab.palmY0)
-      if (Math.hypot(x - grab.x, y - grab.y) > ENGINE.grabMoveEpsilon) {
-        grab.x = x
-        grab.y = y
-        events.push({ type: 'grab-move', id: grab.id, x, y })
-      }
-      if (pinch >= ENGINE.pinchReleaseMin || t - grab.at > ENGINE.maxGrabMs) {
-        events.push({ type: 'grab-end', id: grab.id })
-        this.grab = null
-        this.toPoint(t)
-        this.cooldownUntil = t + ENGINE.clickCooldownMs
-      }
-      return
-    }
-    if (!grab.engaged) {
-      // Re-anchor when the drag really begins, so the engage distance does not jump the map.
-      if (Math.hypot(palm.x - grab.palmX0, palm.y - grab.palmY0) >= ENGINE.grabEngage) {
-        grab.engaged = true
-        grab.palmX0 = palm.x
-        grab.palmY0 = palm.y
-      }
-    }
-    const x = grab.engaged ? clamp01(grab.x0 + palm.x - grab.palmX0) : grab.x
-    const y = grab.engaged ? clamp01(grab.y0 + palm.y - grab.palmY0) : grab.y
+    // The live palm: a drag must follow the hand at once, not the steadier drawn hand.
+    const x = clamp01(grab.x0 + live.x - grab.palmX0)
+    const y = clamp01(grab.y0 + live.y - grab.palmY0)
     if (Math.hypot(x - grab.x, y - grab.y) > ENGINE.grabMoveEpsilon) {
       grab.x = x
       grab.y = y
@@ -630,13 +600,11 @@ export class HandGestureEngine {
     }
     if (openPalm) grab.openLostSince = Number.NaN
     else if (Number.isNaN(grab.openLostSince)) grab.openLostSince = t
-    const closed = !openPalm && t - grab.openLostSince >= ENGINE.grabOpenLostMs
-    if (depth <= this.settings.grabThreshold * ENGINE.grabReleaseRatio || closed || t - grab.at > ENGINE.maxGrabMs) {
+    if ((!openPalm && t - grab.openLostSince >= ENGINE.closeReleaseMs) || t - grab.at > ENGINE.maxGrabMs) {
       events.push({ type: 'grab-end', id: grab.id })
       this.grab = null
       this.toPoint(t)
       this.cooldownUntil = t + ENGINE.clickCooldownMs
-      this.baseline = Number.NaN
     }
   }
 
@@ -763,26 +731,48 @@ export class HandGestureEngine {
     return { x: sample?.x ?? pointer.x, y: sample?.y ?? pointer.y }
   }
 
-  /** Zoom mode: the hand moving away from the camera zooms in a step, coming closer zooms out. */
-  private updateZoom(events: HandEvent[], t: number, pinch: number, thumbAngle: number, dt: number) {
+  /**
+   * The hand's turn, degrees, in the user's view (mirrored like the drawn hand): `roll` — tilt in
+   * the image like a dial (fingers leaning right = positive), `yaw` — turn around the forearm.
+   */
+  private handTwist(observation: HandObservation) {
+    const { image, world, frameWidth, frameHeight } = observation
+    const sign = this.settings.mirror ? -1 : 1
+    const dx = sign * (image[LM.MIDDLE_MCP].x - image[LM.WRIST].x) * frameWidth
+    const dy = (image[LM.MIDDLE_MCP].y - image[LM.WRIST].y) * frameHeight
+    const roll = (Math.atan2(dx, -dy) * 180) / Math.PI
+    const a = { x: world[LM.INDEX_MCP].x - world[LM.WRIST].x, y: world[LM.INDEX_MCP].y - world[LM.WRIST].y, z: world[LM.INDEX_MCP].z - world[LM.WRIST].z }
+    const b = { x: world[LM.PINKY_MCP].x - world[LM.WRIST].x, y: world[LM.PINKY_MCP].y - world[LM.WRIST].y, z: world[LM.PINKY_MCP].z - world[LM.WRIST].z }
+    const nx = a.y * b.z - a.z * b.y
+    const nz = a.x * b.y - a.y * b.x
+    const yaw = (Math.atan2(sign * nx, -nz) * 180) / Math.PI
+    return { roll, yaw }
+  }
+
+  /** Zoom mode: turning the hand right zooms in, left zooms out — smoothly, around the L's start point. */
+  private updateZoom(events: HandEvent[], t: number, pinch: number, thumbAngle: number, dt: number, observation: HandObservation) {
     const zoom = this.zoom!
-    zoom.level = Number.isFinite(zoom.level) ? zoom.level + (this.distanceLog - zoom.level) * (1 - Math.exp(-dt / ENGINE.zoomDepthSmoothMs)) : this.distanceLog
     const others = this.pose.middle || this.pose.ring || this.pose.pinky
-    const pinches = this.history.filter((sample) => sample.t >= t - ENGINE.zoomMovingMs).map((sample) => sample.pinch)
-    const reforming = Math.max(...pinches) - Math.min(...pinches) >= ENGINE.zoomMoving
     const inL = !others && pinch >= ENGINE.zoomOpen && thumbAngle >= ENGINE.zoomAngle
-    if (!inL || !Number.isFinite(zoom.ref)) {
-      // Out of the L (e.g. the thumb closed) the palm looks different: measure from where the L is back.
-      zoom.ref = zoom.level
-    } else {
-      const delta = zoom.level - zoom.ref
-      if (Math.abs(delta) >= ENGINE.zoomDepthStep) {
-        const steps = Math.trunc(delta / ENGINE.zoomDepthStep)
-        zoom.ref += steps * ENGINE.zoomDepthStep
-        // Closer (palm grows) zooms out, further away zooms in.
-        events.push({ type: 'zoom', id: this.nextId++, x: zoom.x, y: zoom.y, steps: -steps })
+    if (inL && observation.score >= ENGINE.goodScore) {
+      const twist = this.handTwist(observation)
+      const wrap = (deg: number) => ((deg + 540) % 360) - 180
+      const roll = wrap(twist.roll - zoom.roll0)
+      const yaw = wrap(twist.yaw - zoom.yaw0)
+      // The tilt in the image is measured well (±2° on the recording); the turn around the forearm
+      // comes from the tracker's depth estimate (±7°), so it counts only when clearly larger.
+      const raw = Math.abs(yaw) > Math.abs(roll) * 1.5 + ENGINE.zoomDeadDeg ? yaw : roll
+      zoom.turn += (raw - zoom.turn) * (1 - Math.exp(-dt / ENGINE.zoomTurnSmoothMs))
+      const beyond = Math.sign(zoom.turn) * Math.max(0, Math.abs(zoom.turn) - ENGINE.zoomDeadDeg)
+      const level = ((this.settings.zoomInvert ? -1 : 1) * beyond) / ENGINE.zoomDegPerLevel
+      const delta = level - zoom.applied
+      if (Math.abs(delta) >= 0.004) {
+        zoom.applied = level
+        events.push({ type: 'zoom', id: this.nextId++, x: zoom.x, y: zoom.y, steps: delta })
       }
     }
+    const pinches = this.history.filter((sample) => sample.t >= t - ENGINE.zoomMovingMs).map((sample) => sample.pinch)
+    const reforming = Math.max(...pinches) - Math.min(...pinches) >= ENGINE.zoomMoving
     // Thumb closed onto the index = a pinch: leave zoom mode quickly, the next pinch clicks.
     const pinched = pinch <= ENGINE.zoomClosed
     const inPose = !others && !pinched && (reforming || inL)
@@ -801,7 +791,6 @@ export class HandGestureEngine {
     const q = inverseDepth(observation)
     if (!Number.isFinite(q)) return this.last.depth
     const value = this.depthFilter.filter(Math.log(q), seconds)
-    this.distanceLog = value
     if (!Number.isFinite(this.baseline)) this.baseline = value
     // The baseline drifts towards the current distance (slow leans are absorbed) but is fixed
     // during a poke or a grab so the pull-back can be measured.
@@ -836,7 +825,8 @@ export class HandGestureEngine {
     this.handVotes.push(observation.handedness === 'Left' ? 1 : -1)
     if (this.handVotes.length > 30) this.handVotes.shift()
     const votes = this.handVotes.reduce((sum, vote) => sum + vote, 0)
-    const fromVotes = (labelledLeft: boolean) => (labelledLeft === this.settings.mirror ? 'left' : 'right')
+    // Seen from behind ("own" view) the depth flip undoes the mirror: the user's real hand is drawn.
+    const fromVotes = (labelledLeft: boolean) => ((labelledLeft === this.settings.mirror) !== this.settings.ownView ? 'left' : 'right')
     // The label flickers when the hand turns edge-on: switch the drawn model only on a clear
     // majority over the last second, never back and forth.
     if (!this.chiralityNow) this.chiralityNow = fromVotes(votes >= 0)
@@ -888,7 +878,6 @@ export class HandGestureEngine {
     this.frozenAt = Number.NaN
     this.rearmBlocked = false
     this.baseline = Number.NaN
-    this.distanceLog = Number.NaN
     this.scrollPoseSince = Number.NaN
     this.history = []
     this.anchor.reset()
@@ -939,11 +928,13 @@ export class HandGestureEngine {
     const sign = this.settings.mirror ? -1 : 1
     const unit = Math.max(1, span)
     const wristZ = image[LM.WRIST].z
+    const depthSign = this.settings.ownView ? -1 : 1
     return image.map((point, index) => {
       const filter = this.skeletonFilters[index]
       const rx = filter.x.filter((sign * (point.x - center.x) * frameWidth) / unit, seconds)
       const ry = filter.y.filter(((point.y - center.y) * frameHeight) / unit, seconds)
-      const rz = filter.z.filter((-(point.z - wristZ) * frameWidth) / unit, seconds)
+      // The camera sees the palm; the user sees the back of the hand: depth is flipped for "own" view.
+      const rz = filter.z.filter((depthSign * -(point.z - wristZ) * frameWidth) / unit, seconds)
       return {
         x: palm.x + (rx * GHOST_PALM_PX) / this.viewport.width,
         y: palm.y + (ry * GHOST_PALM_PX) / this.viewport.height,

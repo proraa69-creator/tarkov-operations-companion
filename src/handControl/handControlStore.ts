@@ -6,7 +6,7 @@ import type { TrackerErrorCode, TrackerStats, WebcamHandTracker } from './webcam
 
 const SETTINGS_KEY = 'raidos-hand-control-v1'
 /** Bumped when default gesture thresholds change, so stored settings pick up the new values. */
-const SETTINGS_VERSION = 4
+const SETTINGS_VERSION = 5
 const SNAPSHOT_INTERVAL_MS = 200
 
 export type HandControlStatus = 'off' | 'starting' | 'on' | 'error'
@@ -36,6 +36,12 @@ function loadSettings(): HandControlSettings {
     // to the fingertip (v2) would be off by the finger length — calibrate again.
     if ((stored?.version ?? 1) < 3) settings.homography = null
     // v4: press by pinching thumb and index (pinch and move drags the map), camera at 60 fps.
+    // v5: open-hand map grab and hand-turn zoom are on, the hand is drawn as the user sees it.
+    if ((stored?.version ?? 1) < 5) {
+      settings.palmGrab = true
+      settings.pinchZoom = true
+      settings.ownView = DEFAULT_SETTINGS.ownView
+    }
     if ((stored?.version ?? 1) < 4) {
       settings.clickMode = DEFAULT_SETTINGS.clickMode
       settings.cameraFps = DEFAULT_SETTINGS.cameraFps

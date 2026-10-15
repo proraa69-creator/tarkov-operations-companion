@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, type DivIcon, type PointExpression } from 'leaflet'
 import { ImageOverlay, MapContainer, Marker, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { RegisterLeafletMap } from '../lib/leafletRegistry'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
@@ -448,6 +449,7 @@ export function MapsPage() {
           attributionControl={false}
         >
           <ZoomControl position="topright" />
+          <RegisterLeafletMap />
           {uiText(imageUrl && !tileUrl && <ImageOverlay key={imageUrl} url={imageUrl} bounds={activeBounds} />)}
           {imageUrl && activeMap.layers && floorLayer?.svgLayer && !floorTileUrl && <FloorSvgOverlay key={activeMap.id} url={imageUrl} layers={activeMap.layers} selected={floor} bounds={activeBounds} />}
           {uiText(tileUrl && (

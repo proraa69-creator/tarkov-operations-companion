@@ -103,11 +103,15 @@ export interface HandControlSettings {
   secondHand: boolean
   /** where MediaPipe runs: GPU is faster, CPU leaves the graphics card to the game */
   compute: 'auto' | 'GPU' | 'CPU'
-  /** quick thumb-from-index spread / pinch zooms the map */
+  /** L pose (index up, thumb out) + turning the hand zooms the map smoothly */
   pinchZoom: boolean
-  /** open palm pushed towards the camera drags like a held mouse button */
+  /** turning the hand right zooms out instead of in */
+  zoomInvert: boolean
+  /** draw the hand as the user sees it (from behind) instead of as the camera / a mirror does */
+  ownView: boolean
+  /** an open hand over a map grabs it (the map follows the hand); folding the fingers releases */
   palmGrab: boolean
-  /** push depth (log ratio) for the palm grab */
+  /** unused since the open-hand grab (kept so older saved settings load) */
   grabThreshold: number
 }
 
@@ -130,6 +134,8 @@ export const DEFAULT_SETTINGS: HandControlSettings = {
   secondHand: false,
   compute: 'auto',
   pinchZoom: true,
+  zoomInvert: false,
+  ownView: true,
   palmGrab: true,
   grabThreshold: 0.08,
 }
