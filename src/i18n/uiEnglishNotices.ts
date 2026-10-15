@@ -118,4 +118,16 @@ export const NOTICE_PHRASES: Array<[string, string]> = [
   ['Фото не найдено: загрузите его ещё раз', 'Photo not found: upload it again'],
   ['Выберите регионы и оплату', 'Choose the regions and the payment'],
   ['Ссылка кнопки: полный адрес https://…', 'Button link: a full https://… address'],
+  // «Написать пользователю» (src/support/FindUserToWrite.tsx) and the server's answers.
+  ['Написать пользователю', 'Message a user'],
+  ['Почта пользователя', 'User e-mail'],
+  ['Закрыть поиск', 'Close search'],
+  ['Никого не нашли.', 'Nobody found.'],
+  ['Найденные пользователи', 'Users found'],
+  ['Подписка', 'Subscription'],
+  ['Пробный период', 'Trial'],
+  ['Без подписки', 'No subscription'],
+  ['Стример', 'Streamer'],
+  ['есть переписка', 'has a conversation'],
+  ['Введите не меньше 2 символов почты', 'Type at least 2 characters of the e-mail'],
 ]

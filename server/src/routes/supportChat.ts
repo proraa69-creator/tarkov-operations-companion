@@ -19,6 +19,10 @@
  *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text } -> 201 { message } (audit: support.reply);
  *        an answer also marks the player's messages seen
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
+ *   GET  /v1/accounts/me/admin/support/search?q=<part of an e-mail>      -> { users: [{ id, email, nickname?, country?,
+ *        countryOther?, region, subscription: { status, paidUntil?, trialEndsAt? }, hasThread }] } at most 20, the
+ *        e-mails that start with it first («Написать пользователю»); 2–254 characters, 60 a minute
+ *   The owner's first message into an empty conversation is audited as support.start (an owner-initiated thread).
  *   DELETE /v1/accounts/me/admin/support/threads/:accountId                -> 204 «Проблема решена»: the whole
  *        conversation is deleted for both sides (audit: support.resolve); the report it came from stays as it is
  *   Any existing account, even one that never wrote (owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно
@@ -39,6 +43,7 @@ import { ipRateKey } from '../services/securityGuard.js'
 import type { SocialSignals } from '../services/socialSignals.js'
 import { EMPTY_MESSAGE, SupportChatError, supportText, TOO_LONG_MESSAGE, type SupportChatStore } from '../services/supportChatStore.js'
 import type { MapUpdates } from './mapUpdates.js'
+import { regionOf } from '../../../src/shared/countries.js'
 
 const textSchema = z.object({ text: z.string() })
 /** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
@@ -50,7 +55,10 @@ const pageSchema = z.object({
 })
 const accountIdSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
-export type SupportChatAudit = (actor: string, action: 'support.reply' | 'support.resolve', target: string, details: Record<string, unknown>) => void
+export type SupportChatAudit = (actor: string, action: 'support.reply' | 'support.resolve' | 'support.start', target: string, details: Record<string, unknown>) => void
+/** «Написать пользователю»: the search text (part of an e-mail) and the most it answers. */
+const searchSchema = z.object({ q: z.string().trim().min(2).max(254) })
+export const SUPPORT_SEARCH_LIMIT = 20
 export interface SupportChatLimits { perAccount: number; perIp: number; windowMs: number }
 export const SUPPORT_CHAT_RATE_LIMITS: SupportChatLimits = { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000 }
 export const SUPPORT_RATE_MESSAGE = 'Слишком много сообщений. Подождите несколько минут.'
@@ -74,6 +82,8 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   const userLimiter = new FixedWindowRateLimiter(600, 10 * 60 * 1000, options.now)
   const readLimiter = new FixedWindowRateLimiter(600, 60 * 1000, options.now)
   const writeLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
+  // «Написать пользователю»: typing searches as it goes, never a crawl of every address.
+  const searchLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
   const signal = (work: () => void) => { try { work() } catch { /* the other side catches up on its next read */ } }
 
   /** The signed-in player's account, or an answer was already sent. */
@@ -87,12 +97,12 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   }
 
   /** The owner's e-mail, or an answer was already sent (as in routes/bugReports.ts). */
-  const owner = (kind: 'read' | 'write', req: Request, res: Response) => {
+  const owner = (kind: 'read' | 'write' | 'search', req: Request, res: Response) => {
     res.set('Cache-Control', 'no-store')
     const id = accounts.authenticate(bearer(req.get('authorization')))
     if (!id) { res.status(401).json({ error: 'Требуется вход в аккаунт' }); return undefined }
     if (!accounts.isOwner(id)) { res.status(404).json({ error: 'Не найдено' }); return undefined }
-    const retry = (kind === 'read' ? readLimiter : writeLimiter).hit(id)
+    const retry = (kind === 'read' ? readLimiter : kind === 'search' ? searchLimiter : writeLimiter).hit(id)
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много запросов. Подождите минуту.' }); return undefined }
     return accounts.emailOf(id) ?? id
   }
@@ -170,6 +180,31 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     res.json({ ...page, threads: page.threads.map((entry) => ({ accountId: entry.accountId, ...who(entry.accountId), lastMessage: entry.lastMessage, lastAt: entry.lastAt, unread: entry.unread })) })
   })
 
+  // «Написать пользователю» (owner, 15.10.2026: «сделай что бы прям в приложении я мог найти человека по почте и написать
+  // ему»): accounts whose e-mail contains the text, at most SUPPORT_SEARCH_LIMIT, with what the owner needs to pick one.
+  router.get('/v1/accounts/me/admin/support/search', (req, res) => {
+    if (!owner('search', req, res)) return
+    const query = searchSchema.safeParse(req.query)
+    if (!query.success) { res.status(400).json({ error: 'Введите не меньше 2 символов почты' }); return }
+    const users = accounts.searchByEmail(query.data.q, SUPPORT_SEARCH_LIMIT).flatMap((id) => {
+      try {
+        const view = accounts.view(id)
+        return [{
+          id,
+          email: view.email,
+          ...(view.nickname ? { nickname: view.nickname } : {}),
+          ...(view.country ? { country: view.country, region: regionOf(view.country) } : { region: 'none' }),
+          ...(view.countryOther ? { countryOther: view.countryOther } : {}),
+          subscription: { status: view.kind === 'streamer' ? 'lifetime' : view.subscription.status, ...(view.subscription.paidUntil ? { paidUntil: view.subscription.paidUntil } : {}), ...(view.subscription.trialEndsAt ? { trialEndsAt: view.subscription.trialEndsAt } : {}) },
+          hasThread: store.oldestId(id) !== null,
+        }]
+      } catch {
+        return []
+      }
+    })
+    res.json({ users })
+  })
+
   router.get('/v1/accounts/me/admin/support/threads/:accountId', (req, res) => {
     if (!owner('read', req, res)) return
     const accountId = thread(req, res)
@@ -184,13 +219,15 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     if (!accountId) return
     const answer = text(req, res)
     if (answer === undefined) return
+    // The owner writes first into an empty conversation: «Написать пользователю» (or «Открыть чат» on a report).
+    const starts = store.oldestId(accountId) === null
     const message = store.add(accountId, 'owner', answer)
     // Answering is reading: the conversation leaves the unread ones.
     const marked = store.markRead(accountId, 'owner')
     res.status(201).json({ message })
     signal(() => options.social?.changed([accountId]))
     if (marked) signal(() => options.ownerSignals?.changed())
-    signal(() => options.audit?.(actor, 'support.reply', who(accountId).email || accountId, { id: message.id }))
+    signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id }))
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/read', (req, res) => {

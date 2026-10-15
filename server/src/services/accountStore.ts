@@ -886,6 +886,19 @@ export class AccountStore {
     return this.findByEmail(email) !== undefined
   }
 
+  /**
+   * «Написать пользователю» (owner, 15.10.2026: «сделай что бы прям в приложении я мог найти человека по почте и написать
+   * ему»): live accounts whose e-mail contains `query` (any letter case), the ones that start with it first, at most
+   * `limit`. Ids only; the owner's route adds what it shows (routes/supportChat.ts).
+   */
+  searchByEmail(query: string, limit = 20): string[] {
+    const text = query.trim().toLowerCase()
+    if (!text) return []
+    const escaped = text.replace(/[\\%_]/g, (char) => `\\${char}`)
+    return (this.db.prepare(`SELECT id FROM accounts WHERE deleted_at IS NULL AND LOWER(email) LIKE ? ESCAPE '\\'
+      ORDER BY CASE WHEN LOWER(email) LIKE ? ESCAPE '\\' THEN 0 ELSE 1 END, email LIMIT ?`).all(`%${escaped}%`, `${escaped}%`, limit) as Row[]).map((row) => String(row.id))
+  }
+
   /** Whether this id is a live account: a deleted one stays only as an anonymous stub (deleteAccount). */
   exists(accountId: string) {
     return this.db.prepare('SELECT 1 FROM accounts WHERE id = ? AND deleted_at IS NULL').get(accountId) !== undefined

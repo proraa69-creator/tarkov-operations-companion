@@ -106,3 +106,12 @@
   .owner-chats.has-thread .owner-chats-list, .owner-chats:not(.has-thread) .owner-chat-pick { display: none; }
   .owner-chat-thread-head .owner-chat-back { display: inline-grid; }
 }
+/* «Написать пользователю» (support/FindUserToWrite.tsx) at the top of the owner's «Чаты». */
+.owner-find-user-open { justify-self: start; margin: 2px 2px 6px; }
+.owner-find-user { display: grid; gap: 6px; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.owner-find-user-field { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+.owner-find-user-field .input { flex: 1; min-width: 0; min-height: 34px; }
+.owner-find-user-close { width: 30px; height: 30px; }
+.owner-find-user-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.owner-find-user-item { width: 100%; }
+.owner-find-user-empty { margin: 0; font-size: 12.5px; }
