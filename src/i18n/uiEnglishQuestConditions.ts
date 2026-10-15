@@ -1,4 +1,4 @@
-/** English for «Условия квестов» on the Overview (src/overview/QuestConditionsCard.tsx, src/overview/conditionText.ts). */
+/** English for «Сбор на рейд» on the Overview (src/overview/QuestConditionsCard.tsx, src/overview/conditionText.ts). */
 export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
   ['Сбор на рейд', 'Raid loadout'],
   ['На этой карте нет квестов с условиями на снаряжение', 'No quests with gear conditions on this map'],
@@ -12,6 +12,10 @@ export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
   ['Цель под эффектом', 'Target under effect'], ['Вы под эффектом', 'You under effect'], ['Открыть квест', 'Open task'],
   // the short words of the card's line (src/overview/conditionText.ts)
   ['ЧВК', 'PMC'], ['Дикие', 'Scavs'], ['любые цели', 'any target'], ['снайперы', 'Sniper Scavs'], ['рейдеры', 'Raiders'], ['отступники', 'Rogues'],
+  // the sections of quests with gear conditions (src/overview/GearQuestSection.tsx) and «Требования рейда»
+  ['С условиями на снаряжение', 'Gear conditions'], ['Снаряжение для рейда', 'Raid gear'], ['Надеть в рейд', 'Wear into the raid'],
+  ['Только то, что нужно взять в рейд: заложить, пометить, открыть дверь, оружие и снаряжение по условиям квестов. Предметы «найти и вынести» сюда не входят.',
+    'Only items to bring into the raid: planting items, markers, keys, and the weapons and gear quest conditions ask for. Items to find and extract are not included.'],
   ['голова', 'head'], ['грудь', 'thorax'], ['живот', 'stomach'], ['руки', 'arms'], ['ноги', 'legs'], ['попадание', 'a hit counts'],
 ]
 

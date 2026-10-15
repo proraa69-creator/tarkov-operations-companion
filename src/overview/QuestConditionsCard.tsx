@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { Ban, ChevronDown, ChevronRight, Crosshair, MapPinned, Package, X } from 'lucide-react'
@@ -6,6 +6,7 @@ import type { GameMap, Item, ItemRef, ObjectiveConditions, QuestObjective } from
 import { uiText } from '../i18n/renderText'
 import { allConditionPieces, bodyPartWord, conditionPieces, distanceText, targetWord, timeText } from './conditionText'
 import { gearObjectives, objectiveOnMap, stablePick, type ConditionQuest, type MapConditionQuests } from './questConditions'
+import { usePictures, type Pictures } from './usePictures'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
 
@@ -18,20 +19,6 @@ const FULL_NOT_WEARING = 30
 /** Gear not to wear: the dialog shows this many before «ещё N». */
 const NOT_WEARING_SHOWN = 24
 
-export interface Pictures {
-  items: Map<string, Item>
-  /** A catalog icon address to derive another item's icon from (the server's own image folder or tarkov.dev). */
-  iconBase?: string
-}
-
-/** The catalog's pictures by item id, made once per catalog. */
-export function usePictures(items: Item[]): Pictures {
-  return useMemo<Pictures>(() => ({
-    items: new Map(items.map((item) => [item.id, item])),
-    iconBase: items.map((item) => item.iconUrl).find((url): url is string => Boolean(url && /\/[0-9a-f]{24}-icon\.webp$/.test(url))),
-  }), [items])
-}
-
 /** The item's icon: the catalog's, else the same image folder by id; no other host. */
 function iconOf(id: string, pictures: Pictures) {
   return pictures.items.get(id)?.iconUrl ?? pictures.iconBase?.replace(/[0-9a-f]{24}-icon\.webp$/, `${id}-icon.webp`)
@@ -40,6 +27,12 @@ function iconOf(id: string, pictures: Pictures) {
 /** The whole weapon: its default preset's picture, else its icon. */
 function weaponPictureOf(id: string, pictures: Pictures) {
   return pictures.items.get(id)?.presetImageUrl ?? iconOf(id, pictures)
+}
+
+/** One of each item: tarkov.dev may list an item in two options of «any one of». */
+function distinct(refs: ItemRef[]): ItemRef[] {
+  const seen = new Set<string>()
+  return refs.filter((ref) => !seen.has(ref.id) && Boolean(seen.add(ref.id)))
 }
 
 function nameOf(ref: ItemRef, pictures: Pictures) {
@@ -105,7 +98,7 @@ function FullOptions({ kind, title, options, pictures }: { kind: string; title: 
     <span className="qc-full-label">{uiText(title)}{options.length > 1 && <small>{uiText(singles ? 'любой из' : 'любой из вариантов')}</small>}</span>
     <span className="qc-full-items">
       {options.length === 1 || singles
-        ? options.flat().map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)
+        ? distinct(options.flat()).map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)
         : options.map((option, index) => <span key={option.map((ref) => ref.id).join()} className="qc-full-option">
           {index > 0 && <span className="qc-or">{uiText('или')}</span>}
           {option.map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
@@ -141,7 +134,7 @@ function FullObjective({ objective, pictures, mapName }: { objective: QuestObjec
 }
 
 /** The card at rest hides something: another weapon, part, gear option or map, a second objective, a zone or an effect. */
-export function hasMoreToShow(entry: ConditionQuest): boolean {
+function hasMoreToShow(entry: ConditionQuest): boolean {
   if (entry.objectives.length > 1) return true
   const objective = entry.objectives[0]
   const conditions = objective?.conditions ?? {}
@@ -153,12 +146,15 @@ export function hasMoreToShow(entry: ConditionQuest): boolean {
 /**
  * One quest as a card, the same in the Overview card and in its unfolded list: at rest the name, the weapon, the first
  * parts and gear with «+N», the maps and the short line; `full` — every picture, every condition and every map.
+ * `expandable` (a card of the unfolded list): both are rendered and the stylesheet shows the full one on hover, focus or
+ * `full`, so a tap never swaps the element under the finger between pointerdown and click (the click would be lost).
  */
-function QuestCard({ entry, pictures, mapName, full, className = '', onOpen, ...events }: {
+function QuestCard({ entry, pictures, mapName, full, expandable, className = '', onOpen, ...events }: {
   entry: ConditionQuest
   pictures: Pictures
   mapName: (id: string) => string
   full?: boolean
+  expandable?: boolean
   className?: string
   onOpen: () => void
   onPointerEnter?: (event: ReactPointerEvent) => void
@@ -168,18 +164,20 @@ function QuestCard({ entry, pictures, mapName, full, className = '', onOpen, ...
 }) {
   const objective = entry.objectives[0]
   const pieces = objective ? conditionPieces(objective) : []
-  return <button type="button" className={`qc-main qc-card${full ? ' is-full' : ''}${className ? ` ${className}` : ''}`} aria-haspopup="dialog"
+  const rest = <span className="qc-rest">
+    {objective?.conditions && <GearStrip conditions={objective.conditions} pictures={pictures} />}
+    <span className="qc-meta">
+      {objective && <MapChips objective={objective} mapName={mapName} />}
+      {pieces.length > 0 && <span className="qc-line">{pieces.map((piece) => uiText(piece)).join(' · ')}</span>}
+    </span>
+  </span>
+  const all = <span className="qc-all">
+    {entry.objectives.map((entryObjective) => <FullObjective key={entryObjective.id} objective={entryObjective} pictures={pictures} mapName={mapName} />)}
+  </span>
+  return <button type="button" className={`qc-main qc-card${full ? ' is-full' : ''}${expandable ? ' is-expandable' : ''}${className ? ` ${className}` : ''}`} aria-haspopup="dialog"
     title={uiText('Подробнее о сборке и предметах')} onClick={onOpen} {...events}>
     <strong className="qc-name">{uiText(entry.quest.name)}</strong>
-    {full
-      ? entry.objectives.map((entryObjective) => <FullObjective key={entryObjective.id} objective={entryObjective} pictures={pictures} mapName={mapName} />)
-      : <>
-        {objective?.conditions && <GearStrip conditions={objective.conditions} pictures={pictures} />}
-        <span className="qc-meta">
-          {objective && <MapChips objective={objective} mapName={mapName} />}
-          {pieces.length > 0 && <span className="qc-line">{pieces.map((piece) => uiText(piece)).join(' · ')}</span>}
-        </span>
-      </>}
+    {expandable ? <>{rest}{all}</> : full ? all : rest}
   </button>
 }
 
@@ -289,7 +287,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
       <QuestCard entry={shown} pictures={pictures} mapName={mapName} full className="is-shown" onOpen={() => openDetails(shown)} />
       {others.length > 0 && <ul className="qc-list">
         {others.map((entry) => <li key={entry.quest.id}>
-          <QuestCard entry={entry} pictures={pictures} mapName={mapName} full={pointed === entry.quest.id} onOpen={() => openDetails(entry)}
+          <QuestCard entry={entry} pictures={pictures} mapName={mapName} expandable full={pointed === entry.quest.id} onOpen={() => openDetails(entry)}
             onPointerEnter={(event) => { if (event.pointerType === 'mouse') setPointed(entry.quest.id) }}
             onPointerLeave={(event) => { if (event.pointerType === 'mouse') setPointed((id) => id === entry.quest.id ? undefined : id) }}
             onFocus={() => setPointed(entry.quest.id)}
@@ -330,7 +328,7 @@ function OptionGroups({ title, options, pictures }: { title: string; options: It
   return <div className="gs-block qc-block">
     <h5>{uiText(title)} <small>{uiText(options.length === 1 ? (options[0].length > 1 ? 'все вместе' : '') : singles ? 'любой из' : 'любой из вариантов')}</small></h5>
     {options.length === 1 || singles
-      ? <div className="gs-parts">{options.flat().map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
+      ? <div className="gs-parts">{distinct(options.flat()).map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
       : <ol className="qc-options">{options.map((option, index) => <li key={option.map((ref) => ref.id).join()}>
         <span className="qc-option-label">{uiText(`Вариант ${index + 1}`)}</span>
         <div className="gs-parts">{option.map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
@@ -369,13 +367,13 @@ function NotWearing({ refs, pictures }: { refs: ItemRef[]; pictures: Pictures })
  * Everything to take into the raid for these objectives: the weapons in large pictures, every part and gear option, the
  * gear not to wear, every condition. The dialog's body and «Снаряжение для рейда» of the map's quest sheet.
  */
-export function QuestBuild({ objectives, mapId, mapName, pictures }: { objectives: QuestObjective[]; mapId: string; mapName: (id: string) => string; pictures: Pictures }) {
+export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true }: { objectives: QuestObjective[]; mapId: string; mapName: (id: string) => string; pictures: Pictures; texts?: boolean }) {
   return <>
     {objectives.map((objective) => {
       const conditions = objective.conditions ?? {}
       const here = objectiveOnMap(objective, mapId)
       return <article key={objective.id} className={`qc-objective${here ? ' is-here' : ''}`}>
-        {objective.description && <p className="qc-objective-text">{uiText(objective.description)}</p>}
+        {texts && objective.description && <p className="qc-objective-text">{uiText(objective.description)}</p>}
         {conditions.weapons?.length ? <div className="gs-block qc-block">
           <h5>{uiText('Оружие')} {conditions.weapons.length > 1 && <small>{uiText('любое из')}</small>}</h5>
           <div className={`qc-weapons${conditions.weapons.length === 1 ? ' is-single' : ''}`}>{conditions.weapons.map((ref) => <WeaponCard key={ref.id} weapon={ref} pictures={pictures} />)}</div>

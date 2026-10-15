@@ -56,7 +56,9 @@ function renderCard(quests: Quest[], pickKey = 'pvp:streets-of-tarkov', items = 
   return { ...rendered, rerenderWith: (key?: string, list?: Item[]) => rendered.rerender(view(key, list)) }
 }
 const card = () => document.querySelector('.quest-conditions-card') as HTMLElement
-const shownName = () => card().querySelector('.qc-main .qc-name')?.textContent
+/** The card at rest (the unfolded copy in .qc-pop comes after it). */
+const rest = () => card().querySelector(':scope > .qc-main') as HTMLElement
+const shownName = () => rest()?.querySelector('.qc-name')?.textContent
 
 beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
 afterEach(() => { setRenderLanguage('ru'); vi.unstubAllGlobals() })
@@ -64,59 +66,108 @@ afterEach(() => { setRenderLanguage('ru'); vi.unstubAllGlobals() })
 describe('QuestConditionsCard', () => {
   it('shows one quest: its name, the maps as chips, the weapon picture, the parts as icons and a short line', () => {
     renderCard([patriot])
-    expect(within(card()).getByText('Сбор на рейд')).toBeInTheDocument()
+    expect(card().querySelector(':scope > .qc-head .stat-label')).toHaveTextContent('Сбор на рейд')
     expect(shownName()).toBe('Работа для патриота')
-    expect([...card().querySelectorAll('.qc-main .qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', '+1'])
+    expect([...rest().querySelectorAll('.qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', '+1'])
     // the whole AK-12 (its default preset), then the scope and the suppressor
     expect(card().querySelector('.qc-weapon')).toHaveAttribute('src', 'https://assets.tarkov.dev/64c1510bda0f6d156000cc17-512.webp')
-    expect([...card().querySelectorAll('.qc-main .is-mods .qc-icon')].map((icon) => icon.getAttribute('alt'))).toEqual(['Оптический прицел Валдай ПС-320 1x/6x', 'Глушитель 5.45x39 для АК-12'])
-    expect(card().querySelector('.qc-line')).toHaveTextContent('×10 · ЧВК')
+    expect([...rest().querySelectorAll('.is-mods .qc-icon')].map((icon) => icon.getAttribute('alt'))).toEqual(['Оптический прицел Валдай ПС-320 1x/6x', 'Глушитель 5.45x39 для АК-12'])
+    expect(rest().querySelector('.qc-line')).toHaveTextContent('×10 · ЧВК')
     // a single quest: no list, no «ещё»
-    expect(card().querySelector('.qc-count')).toBeNull()
+    expect(card().querySelector(':scope > .qc-head .qc-count')).toBeNull()
     expect(card().querySelector('.qc-list')).toBeNull()
   })
 
   it('«any of N» weapons: the first one and «+N-1»; any map is said so', () => {
     renderCard([shooter])
-    expect(card().querySelectorAll('.qc-main .qc-weapon')).toHaveLength(1)
-    expect(card().querySelector('.qc-main .qc-weapon-group .qc-more')).toHaveTextContent('+2')
-    expect(card().querySelector('.qc-main .qc-chip')).toHaveTextContent('Любая карта')
-    expect(card().querySelector('.qc-line')).toHaveTextContent('×5 · Дикие · 40+ м')
+    expect(rest().querySelectorAll('.qc-weapon')).toHaveLength(1)
+    expect(rest().querySelector('.qc-weapon-group .qc-more')).toHaveTextContent('+2')
+    expect(rest().querySelector('.qc-chip')).toHaveTextContent('Любая карта')
+    expect(rest().querySelector('.qc-line')).toHaveTextContent('×5 · Дикие · 40+ м')
   })
 
-  it('hovering unfolds every quest below; a row shows its quest in the card; leaving folds it', async () => {
+  it('hovering unfolds the card in place: its quest with all of its info, every other quest below as a full-size card', async () => {
     renderCard([patriot, dandies, shooter])
-    const list = card().querySelector('.qc-list') as HTMLElement
-    expect(list).not.toHaveClass('is-open')
-    expect(list).toHaveAttribute('inert')
+    const pop = card().querySelector('.qc-pop') as HTMLElement
+    expect(pop).not.toHaveClass('is-open')
+    expect(pop).toHaveAttribute('inert')
     // a touch does not unfold it
     fireEvent.pointerEnter(card(), { pointerType: 'touch' })
-    expect(list).not.toHaveClass('is-open')
+    expect(pop).not.toHaveClass('is-open')
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    expect(list).toHaveClass('is-open')
-    expect([...list.querySelectorAll('.qc-row strong')].map((row) => row.textContent)).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 1'])
-    // each row: its maps and tiny pictures
-    const dandiesRow = within(list).getByText('Стиляги').closest('button') as HTMLElement
-    expect(dandiesRow.querySelectorAll('.qc-gear.is-tiny .qc-icon')).toHaveLength(2)
-    fireEvent.pointerEnter(dandiesRow, { pointerType: 'mouse' })
-    expect(shownName()).toBe('Стиляги')
-    expect(dandiesRow).toHaveClass('is-shown')
+    expect(pop).toHaveClass('is-open')
+    expect(pop).not.toHaveAttribute('inert')
+    // the card's own quest first, in full; the two others below it
+    const first = shownName()
+    const shownCard = pop.querySelector('.qc-card.is-shown') as HTMLElement
+    expect(shownCard).toHaveClass('is-full')
+    expect(shownCard.querySelector('.qc-name')).toHaveTextContent(first!)
+    const listCards = [...pop.querySelectorAll('.qc-list .qc-card')] as HTMLElement[]
+    expect(listCards.map((entry) => entry.querySelector('.qc-name')?.textContent).sort()).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 1'].filter((name) => name !== first).sort())
+    // each one is a card of the main card's size and layout: name, the weapon picture (not a tiny icon), the maps, the line
+    for (const entry of listCards) {
+      expect(entry).toHaveClass('qc-main')
+      expect(entry).not.toHaveClass('is-full')
+      expect(entry.querySelector('.qc-gear')).not.toHaveClass('is-tiny')
+      expect(entry.querySelector('.qc-chips')).not.toBeNull()
+    }
+    // pointing at a list card shows all of its info in place (both are rendered; the stylesheet shows one)
+    expect(listCards.every((entry) => entry.classList.contains('is-expandable') && entry.querySelector('.qc-rest') && entry.querySelector('.qc-all'))).toBe(true)
+    const patriotCard = [...pop.querySelectorAll('.qc-card')].find((entry) => entry.querySelector('.qc-name')?.textContent === 'Работа для патриота') as HTMLElement
+    fireEvent.pointerEnter(patriotCard, { pointerType: 'mouse' })
+    expect(patriotCard).toHaveClass('is-full')
+    expect([...patriotCard.querySelectorAll('.qc-all .qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', 'Эпицентр'])
+    expect(patriotCard.querySelector('.qc-full-row.is-weapons .qc-weapon')).toHaveAttribute('src', 'https://assets.tarkov.dev/64c1510bda0f6d156000cc17-512.webp')
+    expect(patriotCard.querySelectorAll('.qc-full-row.is-mods .qc-icon')).toHaveLength(2)
+    // the card itself stays as it was
+    expect(shownName()).toBe(first)
     fireEvent.pointerLeave(card(), { pointerType: 'mouse' })
-    await waitFor(() => expect(list).not.toHaveClass('is-open'))
-    // the chosen quest stays in the card
-    expect(shownName()).toBe('Стиляги')
+    await waitFor(() => expect(pop).not.toHaveClass('is-open'))
   })
 
-  it('on touch, «ещё N» unfolds the list; a tapped row is shown and the list folds; a tap outside folds it too', () => {
+  it('a card with a lot of data shows the essentials at rest and «+N»; unfolded, every weapon, condition and map', () => {
+    const many: Quest = { ...shooter, id: 'many', name: 'Много всего', objectiveDetails: [{ ...shooter.objectiveDetails![0], mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'],
+      conditions: { ...shooter.objectiveDetails![0].conditions, zoneNames: ['Причал'], bodyParts: [{ key: 'Head', name: 'голова' }] } }] }
+    renderCard([many])
+    // at rest: one weapon and «+2», two maps and «+1»
+    expect(rest().querySelectorAll('.qc-weapon')).toHaveLength(1)
+    expect(rest().querySelector('.qc-chip.is-more')).toHaveTextContent('+1')
+    // no other quest: no «ещё», but hovering still unfolds the whole of it
+    expect(card().querySelector(':scope > .qc-head .qc-count')).toBeNull()
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    const full = card().querySelector('.qc-pop.is-open .qc-card.is-full') as HTMLElement
+    expect(full.querySelectorAll('.is-weapons .qc-weapon')).toHaveLength(3)
+    expect(full.querySelectorAll('.qc-chip')).toHaveLength(3)
+    expect(full.querySelector('.qc-line')).toHaveTextContent('Причал')
+  })
+
+  it('a click on a list card opens its build and keeps it in the card', async () => {
     renderCard([patriot, dandies, shooter])
-    const more = within(card()).getByRole('button', { name: /ещё 2/ })
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    const pop = card().querySelector('.qc-pop') as HTMLElement
+    const target = [...pop.querySelectorAll('.qc-list .qc-card')][0] as HTMLElement
+    const name = target.querySelector('.qc-name')!.textContent
+    fireEvent.click(target)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: name! })).toBeInTheDocument()
+    expect(pop).not.toHaveClass('is-open')
+    expect(shownName()).toBe(name)
+  })
+
+  it('on touch, «ещё N» unfolds it; a tap outside folds it; a tapped card opens its build', async () => {
+    renderCard([patriot, dandies, shooter])
+    const more = within(card()).getAllByRole('button', { name: /ещё 2/ })[0]
     fireEvent.click(more)
     expect(more).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(within(card().querySelector('.qc-list') as HTMLElement).getByText('Тарковский стрелок. Часть 1'))
-    expect(shownName()).toBe('Тарковский стрелок. Часть 1')
+    expect(card().querySelector('.qc-pop')).toHaveClass('is-open')
+    fireEvent.pointerDown(document.body)
     expect(more).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(more)
-    fireEvent.pointerDown(document.body)
+    const tapped = card().querySelector('.qc-list .qc-card') as HTMLElement
+    const name = tapped.querySelector('.qc-name')!.textContent!
+    fireEvent.click(tapped)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name })).toBeInTheDocument()
     expect(more).toHaveAttribute('aria-expanded', 'false')
   })
 
@@ -146,9 +197,9 @@ describe('QuestConditionsCard', () => {
       notWearing: [{ id: 'helmet', name: 'Шлем' }],
     } }] }
     renderCard([setup])
-    expect(card().querySelector('.qc-main .is-wearing .qc-more')).toHaveTextContent('+1')
-    expect(card().querySelector('.qc-main .is-not-wearing')).not.toBeNull()
-    fireEvent.click(card().querySelector('.qc-main')!)
+    expect(rest().querySelector('.is-wearing .qc-more')).toHaveTextContent('+1')
+    expect(rest().querySelector('.is-not-wearing')).not.toBeNull()
+    fireEvent.click(rest())
     const dialog = await screen.findByRole('dialog')
     expect([...dialog.querySelectorAll('.qc-option-label')].map((label) => label.textContent)).toEqual(['Вариант 1', 'Вариант 2'])
     expect(dialog).toHaveTextContent('Нельзя надевать')
@@ -178,12 +229,12 @@ describe('QuestConditionsCard', () => {
     setRenderLanguage('en')
     renderCard([shooter, patriot])
     expect(card()).toHaveTextContent('Raid loadout')
-    expect(within(card()).getByRole('button', { name: /1 more/ })).toBeInTheDocument()
+    expect(within(card()).getAllByRole('button', { name: /1 more/ })[0]).toBeInTheDocument()
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    fireEvent.pointerEnter(within(card().querySelector('.qc-list') as HTMLElement).getByText('Тарковский стрелок. Часть 1').closest('button')!, { pointerType: 'mouse' })
-    expect(card().querySelector('.qc-main .qc-chip')).toHaveTextContent('Any map')
-    expect(card().querySelector('.qc-line')).toHaveTextContent('×5 · Scavs · 40+ m')
-    fireEvent.click(card().querySelector('.qc-main')!)
+    const shooterCard = within(card().querySelector('.qc-pop') as HTMLElement).getByText('Тарковский стрелок. Часть 1').closest('button')!
+    expect(shooterCard.querySelector('.qc-chip')).toHaveTextContent('Any map')
+    expect(shooterCard.querySelector('.qc-line')).toHaveTextContent(/×5 · Scavs · 40\+ m/)
+    fireEvent.click(shooterCard)
     const dialog = screen.getByRole('dialog')
     expect(dialog).toHaveTextContent('Weapon')
     expect(dialog).toHaveTextContent('any one')
@@ -199,7 +250,7 @@ describe('QuestConditionsCard', () => {
   })
 })
 
-describe('«Условия квестов» on the Overview with real tarkov.dev quests', () => {
+describe('«Сбор на рейд» on the Overview with real tarkov.dev quests', () => {
   async function renderOverview() {
     const catalog: AppDataset = await fetchLiveCatalog('pvp', 'ru', conditionQuestsFetcher(fixture as unknown as Record<string, unknown>), { wiki: async () => ({ titles: [], pages: [], storyQuests: [] }) })
     let profile = createLocalProfile('TEST', 'conditions-overview')
@@ -224,16 +275,35 @@ describe('«Условия квестов» on the Overview with real tarkov.dev
     expect(container.querySelector('[data-block="stat-conditions"] .quest-conditions-card')).not.toBeNull()
     expect(container.querySelector('.stat-grid')).not.toHaveTextContent('Прогресс')
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
-    const rows = [...card().querySelectorAll('.qc-row strong')].map((row) => row.textContent)
-    expect(rows.sort()).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 6'])
-    fireEvent.pointerEnter(within(card().querySelector('.qc-list') as HTMLElement).getByText('Работа для патриота').closest('button')!, { pointerType: 'mouse' })
-    expect(shownName()).toBe('Работа для патриота')
-    expect([...card().querySelectorAll('.qc-main .qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', '+1'])
-    fireEvent.click(card().querySelector('.qc-main')!)
+    const cards = [...card().querySelectorAll('.qc-pop .qc-card .qc-name')].map((entry) => entry.textContent)
+    expect(cards.sort()).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 6'])
+    const patriotCard = within(card().querySelector('.qc-pop') as HTMLElement).getByText('Работа для патриота').closest('button')!
+    fireEvent.pointerEnter(patriotCard, { pointerType: 'mouse' })
+    expect([...patriotCard.querySelectorAll('.qc-all .qc-chip')].map((chip) => chip.textContent)).toEqual(['Улицы Таркова', 'Берег', 'Эпицентр'])
+    fireEvent.click(patriotCard)
     const dialog = await screen.findByRole('dialog')
     expect(dialog.querySelector('.qc-weapon-card')).toHaveTextContent('АК-12')
     expect(dialog).toHaveTextContent('ПС-320')
     expect(dialog).toHaveTextContent('Глушитель 5.45x39 для АК-12')
     expect(dialog).toHaveTextContent('×10')
+  })
+  it('«Текущие задания» keeps these quests apart at the bottom, a click shows the build; «Требования рейда» lists the AK-12 and its parts', async () => {
+    const { container } = await renderOverview()
+    const tasks = container.querySelector('.current-tasks') as HTMLElement
+    const section = tasks.querySelector('.gear-section') as HTMLElement
+    expect(section).toHaveTextContent('С условиями на снаряжение')
+    const gearNames = [...section.querySelectorAll('.quest-row strong')].map((node) => node.textContent)
+    expect(gearNames.sort()).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 6'])
+    const ordinary = [...tasks.querySelectorAll('.quest-row:not(.is-gear) strong')].map((node) => node.textContent)
+    for (const name of gearNames) expect(ordinary).not.toContain(name)
+    fireEvent.click(within(section).getByText('Работа для патриота').closest('button')!)
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.querySelector('.qc-weapon-card')).toHaveTextContent('АК-12')
+    expect(dialog).toHaveTextContent('Глушитель 5.45x39 для АК-12')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    expect(needs).toHaveTextContent('АК-12')
+    expect(needs).toHaveTextContent('ПС-320')
   })
 })

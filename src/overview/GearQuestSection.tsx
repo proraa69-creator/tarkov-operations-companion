@@ -1,7 +1,8 @@
 import { Crosshair } from 'lucide-react'
 import type { Item, Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
-import { QuestBuild, usePictures } from './QuestConditionsCard'
+import { QuestBuild } from './QuestConditionsCard'
+import { usePictures } from './usePictures'
 import { gearObjectives, gearObjectivesOnMap } from './questConditions'
 import '../styles/questConditions.css'
 
@@ -29,6 +30,7 @@ export function RaidGearBlock({ quest, mapId, mapName, items }: { quest: Pick<Qu
   if (!objectives.length) return null
   return <section className="qc-raid-gear" aria-label={uiText('Снаряжение для рейда')}>
     <h4><Crosshair size={12} aria-hidden="true" /> {uiText('Снаряжение для рейда')}</h4>
-    <QuestBuild objectives={objectives} mapId={mapId} mapName={mapName} pictures={pictures} />
+    {/* The sheet lists the objectives above: one objective's text is not repeated. */}
+    <QuestBuild objectives={objectives} mapId={mapId} mapName={mapName} pictures={pictures} texts={objectives.length > 1} />
   </section>
 }
