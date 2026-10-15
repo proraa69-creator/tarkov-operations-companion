@@ -44,3 +44,14 @@ export function detectAnyMapQuest(input: {
   if (input.traderId === ARENA_TRADER_ID || ARENA_COPY.test(blob)) return false
   return input.objectives.some((objective) => RAID_ANY_OBJECTIVE.test(objective.type ?? ''))
 }
+
+/**
+ * Every map a quest needs, the start map first, for the quest lists (owner, 15.10.2026: «Непарадный Тарков» was listed
+ * under Streets of Tarkov only; it goes on to The Lab through the transit). More than `limit` maps: «… и ещё N».
+ * Empty when the quest names no map.
+ */
+export function questMapsLabel(quest: Pick<Quest, 'mapId' | 'mapIds'>, maps: Array<Pick<GameMap, 'id' | 'name'>>, limit = 3) {
+  const ids = [...new Set([quest.mapId, ...(quest.mapIds ?? [])].filter((id): id is string => Boolean(id)))]
+  const names = ids.map((id) => maps.find((map) => map.id === id)?.name ?? id)
+  return names.length > limit ? `${names.slice(0, limit).join(', ')} и ещё ${names.length - limit}` : names.join(', ')
+}
