@@ -60,9 +60,16 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   // Auto-update (UpdateButton, electron/appUpdate.ts)
   ['Обновить приложение', 'Update the app'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
   ['Ошибка обновления', 'Update failed'], ['Доступна новая версия', 'A new version is available'],
-  // The owner's copy, a release only a whole owner exe brings (electron/appUpdate.ts ownerExe)
+  // The owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (electron/appUpdate.ts ownerExe, the fallback)
   ['Скачать новую версию', 'Download the new version'],
-  ['Частями её не поставить: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.', 'It cannot be installed in parts: download «Raid OS Server.exe» in the admin panel («Server version» section) and replace this exe with it.'],
+  ['Частями её не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.', 'It cannot be installed in parts, and the server has no signed server version yet: download «Raid OS Server.exe» in the admin panel («Server version» section) and replace this exe with it.'],
+  // The owner's copy downloading the whole signed owner exe inside the app (electron/appUpdate.ts, electron/serviceGateway.ts)
+  ['Войдите в аккаунт владельца, чтобы скачать обновление', 'Sign in to the owner account to download the update'],
+  ['На сервере уже другой выпуск, попробуйте ещё раз', 'The server already has another release, try again'],
+  ['Сервер обновления сменился, проверьте обновление ещё раз', 'The update server has changed, check for the update again'],
+  ['Файл обновления изменился после проверки, скачайте обновление ещё раз', 'The update file changed after it was checked, download the update again'],
+  ['Слишком много ссылок. Подождите немного.', 'Too many links. Please wait a little.'],
+  ['Файл сервера недоступен: сервер запущен не из приложения владельца.', 'The server file is unavailable: the server was not started from the owner app.'],
   ['Уведомлять о наличии нового обновления', 'Notify when an update is available'],
   ['Автоматически обновление не ставится во время рейда. Нажмите «Обновить», чтобы установить сейчас.', 'Updates are not installed automatically during a raid. Press «Update» to install now.'],
   ['Приложение перезапустится, настройки и прогресс сохранятся.', 'The app restarts; settings and progress are kept.'],

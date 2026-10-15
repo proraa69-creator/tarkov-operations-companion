@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UpdateStatus } from '../electron'
 import { UpdateButton } from './UpdateButton'
 import { AppUpdateSettings } from './AppUpdateSettings'
+import { setRenderLanguage } from '../i18n/renderText'
 
 let status: UpdateStatus
 let listener: (next: UpdateStatus) => void
@@ -28,14 +29,49 @@ describe('desktop update controls', () => {
     act(() => listener({ state: 'downloading', version: '0.5.4', progress: 42 }))
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '42')
   })
-  it('the owner\'s copy and a release only a whole owner exe brings: «Скачать новую версию» opens the admin panel, no download window', async () => {
+  it('the owner\'s copy with a signed owner exe on the server: the same «Обновить приложение» and update window as players', async () => {
+    // electron/appUpdate.ts: a verified owner manifest makes it a normal update (no ownerExe).
+    status = { state: 'available', version: '0.6.1', notify: true }
+    render(<UpdateButton />)
+    const button = await screen.findByRole('button', { name: 'Обновить приложение' })
+    expect(button.getAttribute('title')).not.toContain('админ-панели')
+    fireEvent.click(button)
+    expect(install).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('Обновление до актуальной версии')).toBeTruthy()
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 37 }))
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '37')
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 100, phase: 'verifying' }))
+    expect(screen.getByText('Проверка файла (размер и подпись SHA-256)')).toBeTruthy()
+    act(() => listener({ state: 'error', version: '0.6.1', error: 'Файл обновления повреждён, попробуйте ещё раз' }))
+    expect(screen.getByRole('button', { name: 'Повторить обновление' })).toBeTruthy()
+    expect(screen.getAllByText('Файл обновления повреждён, попробуйте ещё раз').length).toBeGreaterThan(0)
+  })
+  it('the fallback (no signed owner exe on the server): «Скачать новую версию» opens the admin panel, no download window', async () => {
     status = { state: 'available', version: '0.6.0-29', notify: true, ownerExe: true }
     render(<UpdateButton />)
     const button = await screen.findByRole('button', { name: 'Скачать новую версию' })
     expect(button.getAttribute('title')).toContain('«Raid OS Server.exe»')
+    expect(button.getAttribute('title')).toContain('подписанной серверной версии на сервере пока нет')
     fireEvent.click(button)
     expect(install).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  it('English: the owner\'s in-app update, its errors and the fallback', async () => {
+    setRenderLanguage('en')
+    try {
+      status = { state: 'error', version: '0.6.1', notify: true, error: 'Войдите в аккаунт владельца, чтобы скачать обновление' }
+      const { unmount } = render(<UpdateButton />)
+      const retry = await screen.findByRole('button', { name: 'Retry update' })
+      expect(retry.getAttribute('title')).toBe('Sign in to the owner account to download the update')
+      unmount()
+      status = { state: 'available', version: '0.6.1', notify: true, ownerExe: true }
+      render(<UpdateButton />)
+      const fallback = await screen.findByRole('button', { name: 'Download the new version' })
+      expect(fallback.getAttribute('title')).toContain('the server has no signed server version yet')
+    } finally {
+      setRenderLanguage('ru')
+    }
   })
   it('opens a startup download already in progress when the UI mounts', async () => {
     status = { state: 'downloading', progress: 10, notify: false }
@@ -56,7 +92,7 @@ describe('desktop update controls', () => {
     fireEvent.click(button)
     expect(setSettings).toHaveBeenCalledWith({ autoInstall: true })
   })
-  it('settings say where the owner\'s whole exe is and the button opens the admin panel', async () => {
+  it('the fallback: settings say where the owner\'s whole exe is and the button opens the admin panel', async () => {
     status = { state: 'available', version: '0.6.0-29', notify: true, ownerExe: true }
     render(<AppUpdateSettings />)
     expect(await screen.findByText(/скачайте «Raid OS Server\.exe» в админ-панели, раздел «Серверная версия»/)).toBeTruthy()
