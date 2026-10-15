@@ -4,6 +4,16 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['Чтобы сюжетные квесты определялись автоматически, откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест. Приложение само просканирует с экрана квесты и их этапы.',
     'To detect story quests automatically, go to Character → Tasks in the game and open each story quest one by one. The app scans the quests and their stages from the screen.'],
   ['Этап', 'Stage'], ['Актуальный', 'Current'],
+  // «Показать все» of the story tab: every story chapter (src/components/StoryChaptersAll.tsx)
+  ['Все сюжетные главы', 'All story chapters'], ['Назад к главам', 'Back to chapters'],
+  ['Поиск по главам, задачам и предметам…', 'Search chapters, objectives and items…'], ['Перейти к главе', 'Jump to a chapter'],
+  ['Ничего не найдено.', 'Nothing found.'],
+  ['Глава выполнена', 'Chapter completed'], ['Глава в процессе', 'Chapter in progress'], ['Глава провалена', 'Chapter failed'], ['Глава не начата', 'Chapter not started'],
+  ['Этапов в игре', 'Stages in the game'], ['задач в списке', 'objectives listed'],
+  ['Как открыть', 'How to unlock'], ['Ключи и нужные предметы', 'Keys and items needed'], ['Этапы и задачи', 'Stages and objectives'],
+  ['Для всех веток', 'Same for every branch'], ['не отслеживается', 'not tracked'],
+  ['Этой задачи нет среди этапов, которые приложение читает из игры', 'This objective is not among the stages the app reads from the game'],
+  ['Заложить / оставить', 'Plant / stash'], ['Нужно на месте', 'Needed on the spot'],
   // Traders
   ['Выберите торговца: его задания идут по порядку выдачи в игре. Выполненные зачёркнуты, доступное задание открывается с полным описанием.',
     'Choose a trader: the tasks are listed in the order the game gives them out. Completed ones are struck through; an available task opens with its full description.'],

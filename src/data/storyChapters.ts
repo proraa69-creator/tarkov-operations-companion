@@ -109,7 +109,7 @@ const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestS
       {
         id: 'story-tour-20',
         title: 'Обеспечить доступ на локацию Маяк',
-        description: 'Передать Механику 20 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.',
+        description: 'Передать Механику 8 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.',
         mapIds: [],
         ocrAliases: ['доступ на локацию маяк', '20 000 долларов механику', 'access to lighthouse', 'dollars to mechanic'],
       },
