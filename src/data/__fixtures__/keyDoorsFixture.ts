@@ -46,7 +46,7 @@ const lock = (mapId: string, id: string, keyId: string, keyName: string, positio
 
 export const keyMarkers: MapMarker[] = [
   lock('customs', 'dorm-206', DORM_KEY_ID, 'Ключ от комнаты 206 общежития', [150, 180]),
-  // The Factory exit key: three Factory doors (one on the 2nd floor) and a truck cab on Lighthouse.
+  // The Factory exit key: three Factory doors (one on the 2nd floor) and a truck cab on Lighthouse it does not open.
   lock('factory', 'gate-3', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [60, 20], { floor: 'Основной', height: 1 }),
   lock('factory', 'office', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [40, 10], { floor: '2 этаж', height: 4 }),
   lock('factory', 'cellar', FACTORY_KEY_ID, 'Ключ от аварийного выхода с завода', [-50, 30], { floor: 'Основной', height: 0.5 }),

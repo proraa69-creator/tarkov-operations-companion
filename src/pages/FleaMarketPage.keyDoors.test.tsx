@@ -69,7 +69,7 @@ describe('«Барахолка»: the door of a key on the map', () => {
     vi.useFakeTimers()
     renderFlea()
     const button = rowOf('Ключ от аварийного выхода с завода').querySelector<HTMLButtonElement>('button.key-doors-button')!
-    expect(button).toHaveTextContent('Несколько дверей · 4')
+    expect(button).toHaveTextContent('Несколько дверей · 3')
     // The button itself goes nowhere.
     expect(button.tagName).toBe('BUTTON')
     expect(popup()).toBeNull()
@@ -83,7 +83,7 @@ describe('«Барахолка»: the door of a key on the map', () => {
     act(() => { vi.advanceTimersByTime(KEY_DOORS_CLOSE_DELAY_MS * 3) })
     expect(popup()).not.toBeNull()
     const rows = [...popup()!.querySelectorAll('a.key-doors-row')]
-    expect(rows.map((row) => row.textContent)).toEqual(['ЗаводДверь 1', 'ЗаводДверь 2', 'ЗаводДверь 3 · 2 этаж', 'МаякДверь машины'])
+    expect(rows.map((row) => row.textContent)).toEqual(['ЗаводДверь 1', 'ЗаводДверь 2', 'ЗаводДверь 3 · 2 этаж'])
     expect(rows[2]).toHaveAttribute('href', '/maps/factory?lock=factory-lock-office')
     // Leaving the list closes it after the delay.
     fireEvent.mouseLeave(popup()!)
@@ -135,7 +135,7 @@ describe('«Барахолка»: the door of a key on the map', () => {
     renderFlea(`/flea?tab=keys&selected=${NO_DOOR_KEY_ID}`)
     // Item names are translated in English; the buttons name their key in aria-label.
     const forKey = (name: string) => document.querySelector<HTMLElement>(`.price-table [aria-label$="· ${name}"]`)!
-    expect(forKey('Ключ от аварийного выхода с завода')).toHaveTextContent('4 doors')
+    expect(forKey('Ключ от аварийного выхода с завода')).toHaveTextContent('3 doors')
     expect(forKey('Ключ от комнаты 206 общежития')).toHaveAttribute('aria-label', expect.stringMatching(/^Show the door on the map · /))
     expect(document.querySelector('.flea-detail button.key-doors-button')).toHaveTextContent('Door is not marked on the map')
     expect(document.querySelector('.flea-detail .key-doors-detail h4')).toHaveTextContent('Door on the map')

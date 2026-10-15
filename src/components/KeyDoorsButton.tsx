@@ -184,11 +184,12 @@ function KeyDoorsPopup({ id, popupRef, anchor, keyName, doors, onMouseEnter, onM
         {doors.map((door) => {
           const text = keyDoorRowText(door, locale)
           return <li key={door.markerId}>
-            <Link role="menuitem" to={keyDoorHref(door)} onClick={onPick} className="key-doors-row">
+            <Link role="menuitem" to={keyDoorHref(door)} onClick={onPick} className="key-doors-row" title={door.hint ? (locale === 'en' ? door.hint.en : door.hint.ru) : undefined}>
               <MapPin size={13} />
               <span className="key-doors-row-copy">
                 <strong>{text.map}</strong>
                 <small>{[text.kind, text.floor, door.needsPower ? uiText('нужно питание') : ''].filter(Boolean).join(' · ')}</small>
+                {door.hint && <small className="key-doors-row-hint">{locale === 'en' ? door.hint.en : door.hint.ru}</small>}
               </span>
             </Link>
           </li>

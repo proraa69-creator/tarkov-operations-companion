@@ -1,6 +1,6 @@
 import type { GameMap, Item, KeycardColor, MapMarker, MarkerLock } from '../domain/types'
 import { canonicalMapId } from './mapIds'
-import { keyDoorPlace, type KeyDoorPlace } from './keyDoorNames'
+import { KEY_DOORS_VIA, keyDoorExcluded, keyDoorPlace, type KeyDoorPlace } from './keyDoorNames'
 import { floorLabel, mainFloor } from './mapProjection'
 
 /**
@@ -24,6 +24,10 @@ export interface KeyDoor {
   number?: number
   /** The place, where the wiki names it (src/data/keyDoorNames.ts): «Подвалы (выход)», «Кабинет Круглова (R22)». */
   name?: { ru: string; en: string }
+  /** How to reach the lock, for a curated lock (KEY_DOORS_VIA): «сдвиньте картину…». */
+  hint?: { ru: string; en: string }
+  /** The key, when the door is a curated lock shown on another key's lock marker (MapsPage `?key=` names it on the card). */
+  viaOf?: string
 }
 
 /**
@@ -54,39 +58,36 @@ interface DoorPoint {
  * Key / keycard item id → the doors it opens, from the loaded map markers. Keys with no known door are absent.
  * Every lock tarkov.dev attaches to a key counts (owner, 15.10.2026: the Factory exit key opens doors beyond Factory), with
  * three merges: a map variant is its map, the same lock point listed twice is one door, and the lock points of one place
- * the wiki names (src/data/keyDoorNames.ts: a room's door and its safe, a double door) are one entry.
+ * the wiki names (src/data/keyDoorNames.ts: a room's door and its safe, a double door) are one entry. keyDoorNames.ts also
+ * drops lock points a key does not open (KEY_DOOR_EXCLUSIONS) and adds the ones tarkov.dev lacks (KEY_DOORS_VIA).
  */
 export function buildKeyDoorIndex(markers: MapMarker[], maps: GameMap[]): Map<string, KeyDoor[]> {
   const mapOrder = new Map(maps.map((map, index) => [map.id, index]))
   const mapById = new Map(maps.map((map) => [map.id, map]))
   const points = new Map<string, DoorPoint[]>()
-  const seen = new Set<string>()
-  for (const marker of markers) {
-    const keyId = marker.lock?.keyId
-    if (!keyId || marker.layerId !== 'key' || seen.has(marker.id)) continue
-    const mapId = canonicalMapId(marker.mapId)
-    const map = mapById.get(mapId)
-    if (!map) continue
-    const [z, x] = marker.position
-    if (!Number.isFinite(x) || !Number.isFinite(z)) continue
-    seen.add(marker.id)
-    const base = mainFloor(map)
-    const place = keyDoorPlace(keyId, mapId, x, z, marker.height)
-    const door: KeyDoor = {
-      markerId: marker.id,
-      mapId,
-      mapName: map.name,
-      floor: floorLabel(marker, base),
-      rawFloor: marker.floor && marker.floor !== base ? marker.floor : undefined,
-      kind: marker.lock?.kind ?? 'door',
-      keycard: marker.lock?.keycard,
-      needsPower: marker.lock?.needsPower,
-      ...(place ? { name: { ru: place.ru, en: place.en } } : {}),
-    }
-    const point: DoorPoint = { door, x, z, y: marker.height, place, variant: marker.mapId !== mapId }
+  const add = (keyId: string, point: DoorPoint) => {
     const list = points.get(keyId)
     if (list) list.push(point)
     else points.set(keyId, [point])
+  }
+  const seen = new Set<string>()
+  const lockMarkers: MapMarker[] = []
+  for (const marker of markers) {
+    const keyId = marker.lock?.keyId
+    if (!keyId || marker.layerId !== 'key' || seen.has(marker.id)) continue
+    seen.add(marker.id)
+    lockMarkers.push(marker)
+    const point = doorPoint(marker, keyId, mapById)
+    if (point) add(keyId, point)
+  }
+  // Curated locks tarkov.dev lacks, shown on the lock of the key that leads there (src/data/keyDoorNames.ts KEY_DOORS_VIA).
+  for (const via of KEY_DOORS_VIA) {
+    const anchor = lockMarkers
+      .filter((marker) => marker.lock?.keyId === via.viaKeyId && canonicalMapId(marker.mapId) === via.mapId)
+      .sort((a, b) => Number(a.mapId !== via.mapId) - Number(b.mapId !== via.mapId) || a.id.localeCompare(b.id))[0]
+    if (!anchor) continue
+    const point = doorPoint(anchor, via.keyId, mapById, via)
+    if (point) add(via.keyId, { ...point, door: { ...point.door, kind: 'door', keycard: undefined, needsPower: undefined, hint: via.hint, viaOf: via.keyId } })
   }
   const index = new Map<string, KeyDoor[]>()
   for (const [keyId, list] of points) {
@@ -116,6 +117,32 @@ export function buildKeyDoorIndex(markers: MapMarker[], maps: GameMap[]): Map<st
   return index
 }
 
+/** One lock point of a key as a door; `named` gives it a curated place instead of the one at its position. */
+function doorPoint(marker: MapMarker, keyId: string, mapById: Map<string, GameMap>, named?: { ru: string; en: string }): DoorPoint | undefined {
+  const mapId = canonicalMapId(marker.mapId)
+  const map = mapById.get(mapId)
+  if (!map) return undefined
+  const [z, x] = marker.position
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return undefined
+  if (!named && keyDoorExcluded(keyId, mapId, x, z, marker.height, marker.lock?.kind)) return undefined
+  const base = mainFloor(map)
+  const place: KeyDoorPlace | undefined = named
+    ? { keyId, mapId, x, y: marker.height ?? 0, z, radius: 0, ru: named.ru, en: named.en }
+    : keyDoorPlace(keyId, mapId, x, z, marker.height)
+  const door: KeyDoor = {
+    markerId: marker.id,
+    mapId,
+    mapName: map.name,
+    floor: floorLabel(marker, base),
+    rawFloor: marker.floor && marker.floor !== base ? marker.floor : undefined,
+    kind: marker.lock?.kind ?? 'door',
+    keycard: marker.lock?.keycard,
+    needsPower: marker.lock?.needsPower,
+    ...(place ? { name: { ru: place.ru, en: place.en } } : {}),
+  }
+  return { door, x, z, y: marker.height, place, variant: marker.mapId !== mapId }
+}
+
 function sameDoor(a: DoorPoint, b: DoorPoint) {
   if (a.door.mapId !== b.door.mapId) return false
   if (a.place || b.place) return a.place === b.place
@@ -124,8 +151,19 @@ function sameDoor(a: DoorPoint, b: DoorPoint) {
 }
 
 /** The Maps page focused on one door: its map, its floor and the marker selected (MapsPage `?lock=`). */
-export function keyDoorHref(door: Pick<KeyDoor, 'mapId' | 'markerId'>) {
-  return `/maps/${encodeURIComponent(door.mapId)}?lock=${encodeURIComponent(door.markerId)}`
+export function keyDoorHref(door: Pick<KeyDoor, 'mapId' | 'markerId' | 'viaOf'>) {
+  return `/maps/${encodeURIComponent(door.mapId)}?lock=${encodeURIComponent(door.markerId)}${door.viaOf ? `&key=${encodeURIComponent(door.viaOf)}` : ''}`
+}
+
+/**
+ * The Maps page card of a focused lock (`?lock=` and `?key=`): a curated lock shown on another key's lock marker (the
+ * black keycard's safe panel on the Cardinal apartment door) gets its own name and hint; any other marker is unchanged.
+ */
+export function keyDoorFocusCard(marker: MapMarker, keyId: string | null, locale: 'ru' | 'en'): MapMarker {
+  if (!keyId) return marker
+  const via = KEY_DOORS_VIA.find((entry) => entry.keyId === keyId && entry.viaKeyId === marker.lock?.keyId && entry.mapId === canonicalMapId(marker.mapId))
+  if (!via) return marker
+  return { ...marker, title: locale === 'en' ? via.en : via.ru, description: via.hint ? (locale === 'en' ? via.hint.en : via.hint.ru) : '' }
 }
 
 /** Russian kind label (translated by uiText): «Дверь», «Дверь машины», «Контейнер». */

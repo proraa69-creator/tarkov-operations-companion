@@ -1,5 +1,6 @@
 import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
+import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
@@ -534,7 +535,13 @@ const KEYCARD_LABELS: Record<KeycardColor, string> = {
 }
 
 function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
-  return asArray(rawMap.locks).flatMap((lock, index) => {
+  const live = asArray(rawMap.locks)
+  const liveIds = new Set(live.map((lock) => text(lock.id)))
+  // Locks the current feed lost, from an older tarkov.dev feed (src/data/keyDoorNames.ts KEY_DOOR_EXTRA_LOCKS).
+  const kept: JsonRecord[] = KEY_DOOR_EXTRA_LOCKS
+    .filter((lock) => lock.mapId === map.id && !liveIds.has(lock.id))
+    .map((lock) => ({ id: lock.id, lockType: lock.lockType, key: lock.keyId, needsPower: false, position: lock.position, top: lock.top, bottom: lock.bottom, kept: true }))
+  return [...live, ...kept].flatMap((lock, index) => {
     const base = baseMarker(map, `lock-${text(lock.id, String(index))}`, lock.position, undefined, asRecord(lock.position).y, asRecord(lock.position).y)
     if (!base) return []
     const keyId = text(lock.key) || text(asRecord(lock.key).id)
@@ -557,7 +564,7 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
       meta: keycard ? undefined : 'Запертая дверь',
       itemId: keyId || undefined,
       lock: { keyId: keyId || undefined, keyName: shownName, keycard, needsPower: needsPower || undefined, kind: lockKind(lockType) },
-      source: 'json.tarkov.dev/maps',
+      source: lock.kept ? 'json.tarkov.dev/maps 29.09.2026' : 'json.tarkov.dev/maps',
     }]
   })
 }
