@@ -278,6 +278,21 @@ describe('story chapters on the pane (audit P9)', () => {
     expect(done?.[0]).toBe('seasonal')
     expect(done?.[1]).toEqual([{ questId: 'story-falling-skies', completed: true, completionConfirmed: true, stageConfirmed: false }])
   })
+
+  // Owner, 15.10.2026: «не находит сюжетную ветку Батя, хотя тур нашел» — the pane is read in every mode, and its status
+  // part counts wherever the banner art put the name.
+  for (const mode of ['pvp', 'seasonal'] as const) {
+    it(`hands «Батя» over as «АКТИВНО» with its objectives in ${mode}, the name three art lines under «ИСТОРИЯ»`, async () => {
+      updateLogStatus({ scan: gameIn(mode) })
+      const story = { title: 'ИСТОРИЯ к аа A “а\nпет\n\nБатя ‚ в -\nзаса ей Ae 5\n', status: 'АКТИВНО\n', body: 'Главные задачи\n[О] Совсем новая формулировка задачи\n' }
+      desktop({ text: 'ИСТОРИЯ\nГлавные задачи', sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1, story })
+      render(<StoryScreenScanner />)
+      await run(0)
+      const [appliedMode, matches] = state.applyStoryScanForMode.mock.calls[0] ?? []
+      expect(appliedMode).toBe(mode)
+      expect(matches).toMatchObject([{ questId: 'story-batya', active: true, objectives: [{ text: 'Совсем новая формулировка задачи', optional: false }] }])
+    })
+  }
 })
 
 describe('the screenshot fallback (audit P5d)', () => {

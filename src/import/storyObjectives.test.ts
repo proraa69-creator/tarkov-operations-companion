@@ -56,3 +56,37 @@ Rarity
     expect(result.every(row => !/Rarity|ГЛАВНОЕ МЕНЮ/.test(row.text))).toBe(true)
   })
 })
+
+// Owner, 15.10.2026 («Тур», PvP): «читает не коректно описание квеста» — «там лишние буквы вв ws предмет GYWTLO | PVP S |».
+// The game: main «Выжить на локации Таможня и выйти или посетить Таможню 3 раза», optional «Посетить Таможню» 1/3.
+describe('the «Тур» objectives with the owner\'s junk tokens (images/162)', () => {
+  const MAIN = 'Выжить на локации Таможня и выйти или посетить Таможню 3 раза'
+  const panes = {
+    'counter at the end': `Главные задачи\n[С] ${MAIN}\n'Опциснальные задачи\nCD Посетить Таможню вв ws Предмет: GYWTLO | PVP S | 1/3\n`,
+    'counter glued to the bar': `Главные задачи\n[С] выжить на локации Таможня и выйти или посетить Таможню 3 раза\nОпционапьные задачи\nО Посетить Таможню вв ws Предмет: GYWTLO | PVP S |1/3\n`,
+    'heading read right': `Главные задачи\n[С] ${MAIN}\nОпциональные задачи\n[С] Посетить Таможню вв ws Предмет: GYWTLO | PVP S | 1/3\n`,
+  }
+  for (const [variant, pane] of Object.entries(panes)) {
+    it(`(${variant}): the optional objective is optional, «1/3» a counter, no junk in the text`, () => {
+      const objectives = readStoryObjectives(pane, quest)
+      expect(objectives.map(({ text, optional, current, total, stageIndex }) => ({ text, optional, current, total, stageIndex }))).toEqual([
+        { text: MAIN, optional: false, current: undefined, total: undefined, stageIndex: 7 },
+        { text: 'Посетить Таможню', optional: true, current: 1, total: 3, stageIndex: 7 },
+      ])
+      const words = objectives.flatMap((objective) => objective.text.split(/\s+/))
+      for (const junk of ['вв', 'ws', 'Предмет:', 'GYWTLO', '|', 'PVP', 'S', '|1/3', '1/3']) expect(words).not.toContain(junk)
+    })
+  }
+
+  it('an objective the catalog does not know loses the same junk', () => {
+    const [objective] = readStoryObjectives('Главные задачи\n[С] Осмотреть новый склад у моста вв ws Предмет: GYWTLO | PVP S | 1/3\n', quest)
+    expect(objective).toMatchObject({ text: 'Осмотреть новый склад у моста', optional: false, current: 1, total: 3 })
+  })
+
+  it('a saved objective of an older version is shown cleaned', () => {
+    const progress = createModeProgress()
+    progress.taskProgress['story-tour'] = { taskId: 'story-tour', status: 'active', source: 'screen-scan', updatedAt: '2026-10-15T10:00:00.000Z', currentStageIndex: 7,
+      storyObjectives: [{ id: 'main:x', text: 'Посетить Таможню вв ws Предмет: GYWTLO | PVP S |', optional: false, completed: false }] }
+    expect(visibleStoryObjectives(quest, progress).map((objective) => objective.text)).toEqual(['Посетить Таможню'])
+  })
+})
