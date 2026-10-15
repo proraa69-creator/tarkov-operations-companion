@@ -24,18 +24,24 @@ function useNow(interval = 1000) {
   return now
 }
 
+/**
+ * The selected mode's restock times — only while restocks are switched on in Settings (owner, 15.10.2026: «при выключеном,
+ * не должно быть данных о рестоке»): switched off, nothing is fetched and no countdown shows anywhere.
+ */
 function useModeResets() {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
-  return useTraderResets(raidMode, locale)
+  const { enabled } = useRestockSettings()
+  const query = useTraderResets(raidMode, locale, enabled)
+  return { ...query, data: enabled ? query.data : undefined, isLoading: enabled && query.isLoading, enabled }
 }
 
 /** Top bar: the next trader restock with a live countdown; opens «Торговцы». */
 export function TopbarRestock() {
-  const { data } = useModeResets()
+  const { data, enabled } = useModeResets()
   const now = useNow()
   const navigate = useNavigate()
-  const next = data ? nextRestock(data, now) : undefined
+  const next = enabled && data ? nextRestock(data, now) : undefined
   if (!next) return null
   const left = next.at - now
   return (
@@ -55,9 +61,9 @@ export function TopbarRestock() {
 
 /** Countdown under a trader card on «Торговцы». */
 export function TraderRestockTimer({ trader }: { trader: Pick<Trader, 'id' | 'name'> }) {
-  const { data, isLoading } = useModeResets()
+  const { data, isLoading, enabled } = useModeResets()
   const now = useNow()
-  if (isLoading) return null
+  if (!enabled || isLoading) return null
   const reset = findReset(data, trader)
   const left = reset ? msUntilRestock(reset, now) : undefined
   if (left === undefined) return <small className="restock-timer">{uiText('нет данных о рестоке')}</small>
@@ -95,6 +101,8 @@ export function RestockSettingsPanel() {
           <span />
         </button>
       </div>
+      {/* Switched off: only the switch — no lead time, traders or restock data. */}
+      {settings.enabled && <>
       <div className="setting-row">
         <span><strong>{uiText('За сколько минут')}</strong></span>
         <select
@@ -120,6 +128,7 @@ export function RestockSettingsPanel() {
         {!traders.length && <small className="dim">{uiText('нет данных о рестоке')}</small>}
       </div>
       <small className="dim">{uiText('На компьютере — системное уведомление Windows, в приложении для телефона — сообщение внутри приложения, пока оно открыто.')}</small>
+      </>}
     </div>
   )
 }

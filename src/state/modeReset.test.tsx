@@ -142,7 +142,8 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     expect(readQuestChecks('local-test', 'seasonal').size).toBe(1)
     expect(localStorage.getItem(kappaCongratsKey('local-test', 'pve'))).toBeNull()
     expect(localStorage.getItem(kappaCongratsKey('local-test', 'pvp'))).toBe('1')
-    expect(localStorage.getItem(QUEST_SYNC_TIP_KEY)).toBeNull()
+    // The quest sync tip shows once per computer: a reset never brings it back.
+    expect(localStorage.getItem(QUEST_SYNC_TIP_KEY)).toBe('2026-10-01T10:00:00.000Z')
 
     // Made signed out (no server account in this test): local only, nothing queued for any account. Told as the mode's
     // epoch, and shown.
