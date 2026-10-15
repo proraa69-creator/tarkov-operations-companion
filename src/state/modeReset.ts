@@ -16,7 +16,6 @@ import { clearTraderLevels } from '../gunsmith/traderLevels'
 import { saveCollected } from '../kappa/collector'
 import { kappaCongratsKey } from '../kappa/kappaCongratsKey'
 import { clearQuestChecks } from '../progression/questChecks'
-import { QUEST_SYNC_TIP_KEY } from '../onboarding/guideProgress'
 import { queueModeReset } from '../sync/serverSync'
 
 /** What reset the mode: «Престиж +», «Вайп», «Сброс» (`rebuild`) or a confirmed new nickname (src/account/nicknameChange.ts). */
@@ -27,8 +26,9 @@ export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeReset
 /**
  * The stores outside the profile that hold progress of the mode: the traders' loyalty (screen readings and the player's
  * own levels), the Collector checklist (the server's goes with the reset route), «Сделал в этом рейде»
- * checks and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») shows
- * once more on this computer: the mode's current quests are read from the Tasks table again.
+ * checks and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») stays
+ * seen: it shows once per computer, for the first acquaintance only (owner, 15.10.2026: «его достаточно показать один раз
+ * при первом запуске для ознакомления, больше его показывать не нужно»).
  */
 export function wipeModeStores(profileId: string, mode: RaidMode) {
   clearTraderLevels(mode)
@@ -38,7 +38,6 @@ export function wipeModeStores(profileId: string, mode: RaidMode) {
   clearQuestChecks(profileId, mode)
   try {
     localStorage.removeItem(kappaCongratsKey(profileId, mode))
-    localStorage.removeItem(QUEST_SYNC_TIP_KEY)
   } catch { /* storage unavailable */ }
 }
 
