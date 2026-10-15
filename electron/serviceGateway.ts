@@ -77,6 +77,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // conversation (owner, 14.10.2026).
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // A chat screenshot (owner, 15.10.2026) as base64 JSON: the player's own conversation's, or any for the owner.
+  { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?limit=\d{1,3}(?:&offset=\d{1,7})?)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
@@ -383,6 +386,9 @@ function withCatalogVersion(result: unknown, etag: string | null) {
   return result
 }
 
+/** A support chat message may carry screenshots (up to ~28 MB): it gets the bug report's time to upload. */
+const SUPPORT_MESSAGE_PATH = /^\/v1\/(?:me\/support\/messages|accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages)$/
+
 /** Whitelisted request from the renderer. `/v1/me/*` returns null when no account is signed in. */
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
@@ -394,7 +400,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
-  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path === '/v1/accounts/me/admin/notices/images' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

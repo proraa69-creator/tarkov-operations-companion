@@ -34,6 +34,21 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     }
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
+
+  it('screenshots (owner, 15.10.2026): the player\'s own with the session; the owner\'s route is not on the phone\'s list', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ mime: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const id = 'ab'.repeat(12)
+    expect(await webServiceRequest('GET', `/v1/me/support/attachments/${id}`)).toBeNull()
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    expect(await webServiceRequest('GET', `/v1/me/support/attachments/${id}`)).toMatchObject({ mime: 'image/png' })
+    const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit]
+    expect([url, (init.headers as Record<string, string>).authorization]).toEqual([`https://raidos.app/v1/me/support/attachments/${id}`, `Bearer ${token}`])
+    for (const path of [`/v1/accounts/me/admin/support/attachments/${id}`, '/v1/me/support/attachments/../x', `/v1/me/support/attachments/${id}?x=1`]) {
+      await expect(webServiceRequest('GET', path)).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('phone transport: the owner\'s notice (server/src/routes/announcement.ts)', () => {

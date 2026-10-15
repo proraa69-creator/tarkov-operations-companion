@@ -283,6 +283,57 @@ describe('«Проблема решена»', () => {
   })
 })
 
+describe('«Чаты» with screenshots (owner, 15.10.2026: «еще связаться с поддержкой, добавь что бы можно было добавить скриншот»)', () => {
+  const SHOT = 'feedface0000feedface0000'
+  const withShots = (method: string, path: string) => {
+    if (method === 'GET' && path === `/v1/accounts/me/admin/support/threads/${PLAYER}`) {
+      return { account: { id: PLAYER, email: 'p1@mail.ru', nickname: 'Shturman_77' }, messages: [
+        { id: 1, author: 'user', text: 'Вот что вижу', createdAt: '2026-10-13T09:59:00.000Z', read: false, attachments: [{ id: SHOT, width: 1280, height: 720 }] },
+        { id: 2, author: 'user', text: '[скриншот]', createdAt: '2026-10-13T10:00:00.000Z', read: false, attachments: [{ id: `${SHOT.slice(0, 23)}1`, width: 640, height: 480 }] },
+      ] }
+    }
+    if (method === 'GET' && path.startsWith('/v1/accounts/me/admin/support/attachments/')) return { mime: 'image/jpeg', data: '/9j/4AAQ', width: 1280, height: 720 }
+    return undefined
+  }
+  const shotChat: OwnerChatThread = { ...chat(1), lastMessage: { id: 2, author: 'user', text: '[скриншот]', createdAt: '2026-10-13T10:00:00.000Z', read: false, attachments: [{ id: `${SHOT.slice(0, 23)}1`, width: 640, height: 480 }] } }
+
+  it('the list says «[скриншот]»; the conversation shows the players\' screenshots from the owner\'s route; a click opens them full size', async () => {
+    const { calls } = ownerApp([], 'owner', [shotChat], withShots)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /Чаты/ }))
+    const thread = await screen.findByRole('button', { name: /Shturman_77/ })
+    expect(thread).toHaveTextContent('[скриншот]')
+    await user.click(thread)
+    const view = await screen.findByRole('region', { name: 'Shturman_77' })
+    const withText = (await within(view).findByText('Вот что вижу')).closest('.support-chat-message') as HTMLElement
+    expect(await within(withText).findByRole('img', { name: 'Скриншот 1' })).toHaveAttribute('src', 'data:image/jpeg;base64,/9j/4AAQ')
+    // Screenshots only: the images, no «[скриншот]» in the bubble.
+    const only = view.querySelectorAll('.support-chat-message')[1] as HTMLElement
+    expect(await within(only).findByRole('img', { name: 'Скриншот 1' })).toBeInTheDocument()
+    expect(only).not.toHaveTextContent('[скриншот]')
+    const reads = calls.filter(([, path]) => path.includes('/attachments/')).map(([, path]) => path)
+    expect(reads.sort()).toEqual([`/v1/accounts/me/admin/support/attachments/${SHOT}`, `/v1/accounts/me/admin/support/attachments/${SHOT.slice(0, 23)}1`].sort())
+    await user.click(within(withText).getByRole('button', { name: 'Открыть скриншот 1' }))
+    expect(await screen.findByRole('dialog', { name: 'Изображение 1 из 1' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /Изображение/ })).toBeNull()
+  })
+
+  it('the owner attaches a screenshot to an answer with the same box', async () => {
+    const { calls } = ownerApp([], 'owner', [chat(1)])
+    const user = userEvent.setup({ applyAccept: false })
+    await user.click(await screen.findByRole('tab', { name: /Чаты/ }))
+    await user.click(await screen.findByRole('button', { name: /Shturman_77/ }))
+    const view = await screen.findByRole('region', { name: 'Shturman_77' })
+    await user.upload(within(view).getByLabelText('Скриншоты'), new File([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])], 'fix.jpg', { type: 'image/jpeg' }))
+    expect(await within(view).findByRole('img', { name: 'fix.jpg' })).toBeInTheDocument()
+    await user.type(within(view).getByRole('textbox', { name: 'Сообщение' }), 'Вот так{Enter}')
+    await waitFor(() => expect(calls.filter(([method, path]) => method === 'POST' && path.endsWith('/messages')).map(([, path, body]) => [path, body])).toEqual([
+      [`/v1/accounts/me/admin/support/threads/${PLAYER}/messages`, { text: 'Вот так', images: [{ data: '/9j/4A==' }] }],
+    ]))
+  })
+})
+
 /** Owner, 14.10.2026: «еще добавь возможность открывать скриншоты которые люди присылают». */
 describe('a report\'s images full size', () => {
   const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='

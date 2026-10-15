@@ -22,3 +22,21 @@ export function cleanSupportText(raw: string) {
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
+
+/**
+ * Screenshots in the chat (owner, 15.10.2026: «еще связаться с поддержкой, добавь что бы можно было добавить скриншот»):
+ * up to `files` images per message, PNG / JPEG / WEBP, each at most `fileBytes` (before the app scales it down to `side`
+ * on its longest side, src/notices/imageResize.ts; the server checks the bytes again by their first bytes).
+ */
+export const SUPPORT_IMAGE_LIMITS = { files: 4, fileBytes: 5 * 1024 * 1024, side: 1920 } as const
+export const SUPPORT_IMAGE_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp']
+
+/**
+ * The text of a message that has only screenshots. Apps before 15.10.2026 know nothing of `attachments` and show this
+ * instead of an empty bubble; so do the owner's chat list and the website. Newer apps show the images in its place.
+ */
+export const SUPPORT_IMAGE_PLACEHOLDER = '[скриншот]'
+
+/** A stored screenshot of a message: its id (GET …/support/attachments/:id) and its size in pixels. */
+export interface SupportAttachment { id: string; width: number; height: number }
+export const SUPPORT_ATTACHMENT_ID = /^[a-f0-9]{24}$/
