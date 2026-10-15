@@ -23,6 +23,13 @@ export interface ProgressScope { accountId: number; characterId: string; syncedA
  */
 export interface StoryRecord { chapterId: string; status: 'active' | 'completed'; stageId?: string; updatedAt: string }
 export interface StoryAnswer { characterId: string | null; records: StoryRecord[] }
+/**
+ * «Ручная отметка» (owner, 15.10.2026): the player's own mark of a quest in one mode — `active`, `completed`, or `cleared`
+ * («Снять отметку», kept so it reaches the other devices) — and when it was made. Per account and mode; the newest per
+ * quest is kept; «Престиж +» / «Вайп» (resetMode) remove the older ones. The quest-state engine weighs it against the logs
+ * (src/quests/questEngine.ts).
+ */
+export interface ManualMarkRecord { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
 export interface UserProgressResponse extends SyncResponse { scope: ProgressScope | null }
 
 type Row = Record<string, unknown>
@@ -55,7 +62,10 @@ export class ProgressStore {
         status TEXT NOT NULL, stage_id TEXT, updated_at TEXT NOT NULL,
         PRIMARY KEY(owner, mode, character_id, chapter_id));
       CREATE TABLE IF NOT EXISTS mode_resets (
-        owner TEXT NOT NULL, mode TEXT NOT NULL, reset_at TEXT NOT NULL, PRIMARY KEY(owner, mode));`)
+        owner TEXT NOT NULL, mode TEXT NOT NULL, reset_at TEXT NOT NULL, PRIMARY KEY(owner, mode));
+      CREATE TABLE IF NOT EXISTS manual_marks (
+        owner TEXT NOT NULL, mode TEXT NOT NULL, task_id TEXT NOT NULL, status TEXT NOT NULL, marked_at TEXT NOT NULL,
+        PRIMARY KEY(owner, mode, task_id));`)
   }
 
   /** Development single-owner endpoint (/v1/sync/events). */
@@ -118,6 +128,7 @@ export class ProgressStore {
     transaction(this.db, () => {
       this.db.prepare('DELETE FROM quest_events WHERE owner=? AND mode=? AND occurred_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM story_records WHERE owner=? AND mode=? AND updated_at < ?').run(owner, mode, resetAt)
+      this.db.prepare('DELETE FROM manual_marks WHERE owner=? AND mode=? AND marked_at < ?').run(owner, mode, resetAt)
       this.db.prepare(`INSERT INTO mode_resets (owner, mode, reset_at) VALUES (?,?,?)
         ON CONFLICT(owner, mode) DO UPDATE SET reset_at=excluded.reset_at WHERE excluded.reset_at > mode_resets.reset_at`).run(owner, mode, resetAt)
     })
@@ -153,6 +164,32 @@ export class ProgressStore {
       }
     })
     return this.storyRecords(owner, mode, characterId)
+  }
+
+  /**
+   * Manual marks of one mode: those sent are kept when newer than the kept ones (a mark from before the mode's reset is
+   * refused), and every kept one comes back.
+   */
+  syncManualMarks(owner: string, mode: RaidMode, marks: readonly ManualMarkRecord[], now = Date.now()): { marks: ManualMarkRecord[] } {
+    const resetAt = this.modeResetAt(owner, mode)
+    const latestAllowed = new Date(now + 60_000).toISOString()
+    transaction(this.db, () => {
+      const upsert = this.db.prepare(`INSERT INTO manual_marks (owner, mode, task_id, status, marked_at) VALUES (?,?,?,?,?)
+        ON CONFLICT(owner, mode, task_id) DO UPDATE SET status=excluded.status, marked_at=excluded.marked_at
+        WHERE excluded.marked_at > manual_marks.marked_at`)
+      for (const mark of marks) {
+        // A client clock far ahead must not make its mark «newer» than every other for good.
+        const at = mark.at > latestAllowed ? latestAllowed : mark.at
+        if (resetAt && at < resetAt) continue
+        upsert.run(owner, mode, mark.taskId, mark.status, at)
+      }
+    })
+    return { marks: this.manualMarks(owner, mode) }
+  }
+
+  manualMarks(owner: string, mode: RaidMode): ManualMarkRecord[] {
+    const rows = this.db.prepare('SELECT task_id, status, marked_at FROM manual_marks WHERE owner=? AND mode=? ORDER BY task_id').all(owner, mode) as Row[]
+    return rows.map((row) => ({ taskId: String(row.task_id), status: row.status === 'completed' ? 'completed' : row.status === 'active' ? 'active' : 'cleared', at: String(row.marked_at) }))
   }
 
   storyRecords(owner: string, mode: RaidMode, characterId = this.scope(owner, mode)?.characterId): StoryAnswer {

@@ -1,0 +1,14 @@
+/* «Ручная отметка» (src/quests/ManualMarks.tsx): a compact switch under the Kappa badge and small row actions. */
+.quest-header-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.manual-marks-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--line, rgb(255 255 255 / 12%)); border-radius: 999px; background: transparent; color: var(--text-dim); font: inherit; font-size: 11.5px; cursor: pointer; }
+.manual-marks-toggle > i { position: relative; width: 22px; height: 12px; border-radius: 999px; background: rgb(255 255 255 / 14%); transition: background .15s; }
+.manual-marks-toggle > i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); transition: transform .15s; }
+.manual-marks-toggle.is-on { color: var(--brass); border-color: color-mix(in srgb, var(--brass) 55%, transparent); }
+.manual-marks-toggle.is-on > i { background: color-mix(in srgb, var(--brass) 45%, transparent); }
+.manual-marks-toggle.is-on > i::after { transform: translateX(10px); background: var(--brass); }
+.manual-mark-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.manual-mark-actions.is-compact { margin: 2px 0 0; grid-column: 1 / -1; }
+.manual-mark-actions .button { gap: 4px; padding: 3px 8px; font-size: 11.5px; min-height: 0; }
+.manual-mark-actions .button.is-chosen { border-color: var(--brass); color: var(--brass); }
+.manual-tag { color: var(--brass); border-style: dashed; }
+@media (max-width: 640px) { .quest-header-side { align-items: flex-start; } }

@@ -68,6 +68,13 @@ failed) and `unknown-quest` (not in the mode's catalog).
   engine (`server/src/services/sharedProgress.ts`). Sync pushes send inputs with their source (log events, manual marks,
   chapters), never the merged state.
 
+## «Ручная отметка»
+
+Source `manual-fix`, not the legacy `manual`: the legacy records come from versions before 0.5, whose marks were retired
+(P19) because they silently beat the logs; reusing the name would revive them with the new precedence. They stay in their
+own `legacy` layer (lowest). Marks are kept per account and mode on the server (`/v1/me/progress/:mode/manual`, newest per
+quest, `cleared` for «Снять отметку»), removed by the mode's reset and never offered for story chapters.
+
 ## Diagnostics
 
 `withInferred(resolution.diagnostics, availability)` per mode: how many quests each source decided (completed / active / failed),

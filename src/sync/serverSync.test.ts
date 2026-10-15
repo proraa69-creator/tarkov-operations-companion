@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindManualSync, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -343,5 +343,26 @@ describe('server sync with the desktop gateway', () => {
       await syncStory('pvp')
       expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [] })
     } finally { bindStorySync(null) }
+  })
+  it('«Ручная отметка»: sends the new marks of a mode with their time, applies every mark the server keeps; a reset sends them again', async () => {
+    const mark = { taskId: TASK, status: 'completed' as const, at: '2026-10-15T10:00:00.000Z' }
+    const other = { taskId: '5936d90786f7742b1420ba5c', status: 'cleared' as const, at: '2026-10-15T09:00:00.000Z' }
+    serviceRequest.mockResolvedValue({ marks: [mark, other, { taskId: '<b>', status: 'completed', at: 'x' }] })
+    let local = [mark]
+    const apply = vi.fn()
+    bindManualSync({ read: () => local, apply })
+    try {
+      await syncManualMarks('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/progress/pve/manual', { marks: [mark] })
+      expect(apply).toHaveBeenCalledWith('pve', [mark, other])
+      // Nothing new: nothing sent again; a changed mark is.
+      await syncManualMarks('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/progress/pve/manual', { marks: [] })
+      local = [{ ...mark, status: 'cleared' as const, at: '2026-10-15T11:00:00.000Z' }] as never
+      await syncManualMarks('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/progress/pve/manual', { marks: local })
+    } finally { bindManualSync(null) }
+    expect(parseManualMarks({ marks: [{ taskId: TASK, status: 'failed', at: '2026-10-15T10:00:00.000Z' }] })).toEqual([])
+    expect(parseManualMarks(null)).toBeNull()
   })
 })

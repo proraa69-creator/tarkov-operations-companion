@@ -17,6 +17,8 @@
  *   PUT  /settings                       { settings } -> { settings, updatedAt } (max 16 KB)
  *   PUT  /levels                         { modes: { pvp?|pve?|seasonal?: { level, prestige | null, observedAt } } }
  *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
+ *   GET  /progress/:mode/manual          -> { marks } («Ручная отметка» of the mode)
+ *   POST /progress/:mode/manual          { marks: [{ taskId, status: active|completed|cleared, at }] } -> { marks }
  *   GET  /summary                        -> per-mode counts for the website cabinet
  *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
  *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
@@ -33,6 +35,7 @@ import type { ProgressStore } from '../services/progressStore.js'
 import type { UserDataStore } from '../services/userDataStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
+import { resolvedRecords } from '../services/sharedProgress.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -49,6 +52,10 @@ const eventsSchema = z.object({
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
 }).strict()
 const resetSchema = z.object({ at: isoTime.optional() }).strict()
+/** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
+const manualSchema = z.object({
+  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
+}).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
 const storyRecordSchema = z.object({
@@ -179,6 +186,21 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     progressChanged(account(res))
   })
 
+  // «Ручная отметка» (owner, 15.10.2026): the player's own marks of the mode, newest per quest; every kept one comes back.
+  router.get('/progress/:mode/manual', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json({ marks: progress.manualMarks(owner(account(res)), parsed.data) })
+  })
+
+  router.post('/progress/:mode/manual', (req, res) => {
+    const parsed = mode(req)
+    const body = manualSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)()))
+    if (body.data.marks.length) progressChanged(account(res))
+  })
+
   router.get('/story/:mode', (req, res) => {
     const parsed = mode(req)
     const characterId = req.query.characterId === undefined ? undefined : hexId.safeParse(req.query.characterId)
@@ -302,13 +324,15 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
 
     function summarizeMode(raidMode: RaidMode): ModeSummary {
       const { records, scope } = progress.userRecords(owner(accountId), raidMode)
+      // Decided as the player's app decides (src/quests/questEngine.ts): the logs of every PC and the manual marks.
+      const decided = resolvedRecords(progress, owner(accountId), raidMode, records, scope?.resetAt)
       const quests = { completed: 0, active: 0, failed: 0 }
-      for (const record of records) quests[record.status] += 1
+      for (const status of decided.values()) if (status !== 'not-started') quests[status] += 1
       const catalog = safePeek(options.catalog, raidMode)
       let kappa: ModeSummary['kappa'] = null
       let collectorTotal: number | null = null
       if (catalog) {
-        const completed = new Set(records.filter((record) => record.status === 'completed').map((record) => record.taskId))
+        const completed = new Set([...decided].filter(([, status]) => status === 'completed').map(([taskId]) => taskId))
         const kappaQuests = catalog.quests.filter((quest) => quest.kappa && !quest.id.startsWith('wiki:'))
         kappa = { completed: kappaQuests.filter((quest) => completed.has(quest.id)).length, total: kappaQuests.length }
         collectorTotal = collectorEntries(catalog.quests, catalog.items).length || null

@@ -422,6 +422,7 @@ export function queueModeReset(mode: RaidMode, at: string) {
   // The mode's records the server confirmed belong to the time before: sent again only if newer (pushMode).
   delete confirmed[mode]
   delete storySent[mode]
+  delete manualSent[mode]
   void sendModeResets().catch(() => {})
 }
 
@@ -457,6 +458,7 @@ export function forgetProgressSync() {
   serverScopes = {}
   confirmed = {}
   storySent = {}
+  manualSent = {}
   desktopLogs = 'unknown'
   pushAgain.clear()
 }
@@ -632,6 +634,60 @@ export async function syncStory(mode: RaidMode) {
     binding.apply(mode, answer.records, answer.characterId)
   } finally {
     storyBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// «Ручная отметка» (src/quests/questEngine.ts: a mark beats older log events, loses to newer ones)
+// ------------------------------------------------------------------------------------------------------------
+
+export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualSyncBinding {
+  /** This app's marks of the mode (with «Снять отметку» as `cleared`). */
+  read: (mode: RaidMode) => ManualMarkEntry[]
+  /** Every mark the server keeps for the account and mode: other devices' among them. */
+  apply: (mode: RaidMode, marks: ManualMarkEntry[]) => void
+}
+
+let manualBinding: ManualSyncBinding | null = null
+const manualBusy = new Set<RaidMode>()
+/** Per mode, what the server has (account → quest → time): only newer marks are sent. */
+let manualSent: Partial<Record<RaidMode, { key: string; marks: Map<string, string> }>> = {}
+
+/** Mounted once (AppShell): how the manual marks are read from and applied to the active profile. */
+export function bindManualSync(binding: ManualSyncBinding | null) {
+  manualBinding = binding
+}
+
+/** The server's answer (GET/POST /v1/me/progress/:mode/manual), checked: null when it is not one. */
+export function parseManualMarks(value: unknown): ManualMarkEntry[] | null {
+  const marks = (value as { marks?: unknown } | null)?.marks
+  if (!Array.isArray(marks)) return null
+  return marks.flatMap((entry): ManualMarkEntry[] => {
+    const mark = entry as Partial<ManualMarkEntry> | null
+    if (!mark || typeof mark.taskId !== 'string' || !ENTITY_ID_PATTERN.test(mark.taskId) || typeof mark.at !== 'string') return []
+    const at = isoTime(mark.at)
+    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared')) return []
+    return [{ taskId: mark.taskId, status: mark.status, at }]
+  })
+}
+
+/** Sends this mode's new marks and applies every mark the server keeps (another PC's or the phone's among them). */
+export async function syncManualMarks(mode: RaidMode) {
+  const binding = manualBinding
+  if (!binding || !connected() || manualBusy.has(mode)) return
+  manualBusy.add(mode)
+  try {
+    const key = accountKey()
+    if (manualSent[mode]?.key !== key) manualSent[mode] = { key, marks: new Map() }
+    const sent = manualSent[mode]!.marks
+    const marks = binding.read(mode).filter((mark) => ENTITY_ID_PATTERN.test(mark.taskId) && isoTime(mark.at) && sent.get(mark.taskId) !== mark.at).slice(0, 1000)
+    const answer = parseManualMarks(await meRequest('POST', `/v1/me/progress/${mode}/manual`, { marks }))
+    if (!answer) return
+    for (const mark of [...marks, ...answer]) sent.set(mark.taskId, mark.at)
+    binding.apply(mode, answer)
+  } finally {
+    manualBusy.delete(mode)
   }
 }
 
@@ -839,6 +895,7 @@ export async function runFullSync() {
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
     for (const mode of RAID_MODES) await syncStory(mode)
+    for (const mode of RAID_MODES) await syncManualMarks(mode)
   } finally {
     fullSyncRunning = false
   }
@@ -866,7 +923,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -911,6 +968,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
   useEffect(() => {
     if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
     lastModeSync = { mode: raidMode, at: Date.now() }
-    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {})
+    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {})
   }, [raidMode, pullProgress])
 }
