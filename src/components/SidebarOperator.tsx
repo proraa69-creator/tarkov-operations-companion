@@ -3,7 +3,10 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useAccountNickname } from '../account/useAccountNickname'
+import { PrestigeIcon } from './PrestigeIcon'
+import { prestigeLabel } from '../profile/prestige'
 import '../styles/sidebarOperator.css'
+import '../styles/modeReset.css'
 
 type Faction = 'usec' | 'bear' | 'unknown'
 
@@ -65,6 +68,8 @@ export function SidebarOperator() {
           <strong>{nick}</strong>
         </span>
         <i className="op-patch-led" aria-hidden="true" />
+        {/* The mode's prestige (owner, 15.10.2026), at the plate's bottom left; nothing at 0. */}
+        {mode.prestige > 0 && <span className="op-prestige" title={prestigeLabel(mode.prestige, locale)} data-testid="sidebar-prestige"><PrestigeIcon level={mode.prestige} size={20} label={prestigeLabel(mode.prestige, locale)} /></span>}
       </div>
       <div className="sidebar-version" title={`Raid OS ${version}`}>v{version}</div>
     </footer>

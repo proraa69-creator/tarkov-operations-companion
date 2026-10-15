@@ -17,7 +17,7 @@ import { clearQuestChecks } from '../progression/questChecks'
 import { QUEST_SYNC_TIP_KEY } from '../onboarding/guideProgress'
 import { queueModeReset } from '../sync/serverSync'
 
-/** What reset the mode: «Престиж +» or a confirmed new nickname (src/account/nicknameChange.ts). */
+/** What reset the mode: «Престиж +», «Вайп» or a confirmed new nickname (src/account/nicknameChange.ts). */
 export type ModeResetReason = 'prestige' | 'wipe' | 'nickname'
 
 export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeResetReason; at: string }
@@ -69,17 +69,32 @@ export function modeResetName(mode: RaidMode, locale: 'ru' | 'en') {
   return mode === 'pvp' ? 'PvP' : mode === 'pve' ? 'PvE' : locale === 'en' ? 'Season' : 'Сезон'
 }
 
-/** «Ник изменился — прогресс режима PvE сброшен» / «Nickname changed — PvE progress was reset», and the same for «Престиж +». */
+/** «Ник изменился — прогресс режима PvE сброшен» / «Nickname changed — PvE progress was reset», the same after «Престиж +» and «Вайп». */
 export function modeResetMessage(reason: ModeResetReason, mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
-  if (locale === 'en') return reason === 'nickname' ? `Nickname changed — ${name} progress was reset` : `Prestige + — ${name} progress was reset`
-  return reason === 'nickname' ? `Ник изменился — прогресс режима ${name} сброшен` : `Престиж + — прогресс режима ${name} сброшен`
+  if (locale === 'en') return reason === 'nickname' ? `Nickname changed — ${name} progress was reset` : reason === 'wipe' ? `Wipe — ${name} progress was reset` : `Prestige + — ${name} progress was reset`
+  return reason === 'nickname' ? `Ник изменился — прогресс режима ${name} сброшен` : reason === 'wipe' ? `Вайп — прогресс режима ${name} сброшен` : `Престиж + — прогресс режима ${name} сброшен`
 }
 
-/** The confirm text of «Престиж +», RU and EN. */
+/**
+ * The confirm text of «Престиж +», RU and EN (owner, 15.10.2026): only the game's new log entries count afterwards; the
+ * prestige level is chosen in the same window.
+ */
 export function prestigeResetText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Prestige +', title: 'Prestige +', question: `Reset all ${name} progress? Quests, chapters, loyalty and everything else of this mode will be deleted. Other modes will not change.`, confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Престиж +', title: 'Престиж +', question: `Сбросить весь прогресс режима ${name}? Квесты, главы, лояльность и всё остальное этого режима будут удалены. Другие режимы не изменятся.`, confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: all progress of this mode will be deleted; only new game log entries will count. Other modes will not change.`, choose: 'Choose your prestige', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: весь прогресс этого режима будет удалён, учитываться будут только новые записи журналов игры. Другие режимы не изменятся.`, choose: 'Выберите свой престиж', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
+}
+
+/**
+ * The confirm text of «Вайп» (owner, 15.10.2026: «после вайпа должны читаться только новые журналы, не старые … как и в
+ * престиже»). A game wipe keeps the prestige (BSG, patch 0.16.0.0: «Prestige levels and rewards do not reset with wipes»),
+ * so the mode's prestige stays.
+ */
+export function wipeResetText(mode: RaidMode, locale: 'ru' | 'en') {
+  const name = modeResetName(mode, locale)
+  return locale === 'en'
+    ? { button: 'Wipe', title: 'Wipe', question: `Wipe of ${name}: all progress of this mode will be deleted and the old game logs will no longer count — progress starts from zero. Other modes will not change.`, confirm: 'Wipe', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Вайп', title: 'Вайп', question: `Вайп режима ${name}: весь прогресс этого режима будет удалён, а старые журналы игры больше не будут учитываться — прогресс начнётся с нуля. Другие режимы не изменятся.`, confirm: 'Сделать вайп', cancel: 'Отмена', close: 'Закрыть' }
 }

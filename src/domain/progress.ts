@@ -151,7 +151,10 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
     playerSnapshot: snapshot,
     ...levelUpdate,
     faction: snapshot.faction,
-    prestige: Math.max(0, Math.round(snapshot.prestige)),
+    // The prestige the player chose in «Престиж +» is theirs from then on: a later game reading may raise it, never lower it.
+    prestige: profile.modes[mode].prestigeSetAt
+      ? Math.max(profile.modes[mode].prestige, Math.max(0, Math.round(snapshot.prestige)))
+      : Math.max(0, Math.round(snapshot.prestige)),
     registration: {
       ...profile.modes[mode].registration,
       status: 'registered',

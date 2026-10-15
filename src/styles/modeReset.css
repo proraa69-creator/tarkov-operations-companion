@@ -1,7 +1,18 @@
 /* «Престиж +» (components/PrestigeResetButton.tsx) and the notice after a reset of one mode (components/ModeResetToast.tsx). */
 .profile-level-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .profile-level-row > .player-loadout, .profile-level-row > .player-loadout-empty { flex: 1 1 260px; min-width: 0; }
-.prestige-reset-button { flex: none; gap: 6px; }
+.mode-reset-buttons { display: flex; flex-direction: column; align-items: stretch; gap: 6px; flex: none; }
+.prestige-reset-button, .wipe-reset-button { flex: none; gap: 6px; justify-content: center; }
+.profile-prestige { display: inline-flex; align-items: center; gap: 6px; color: var(--brass); font-weight: 700; font-size: 13px; }
+.profile-prestige.is-none { color: var(--text-dim); font-weight: 500; }
+.prestige-picker-label { margin: 16px 0 8px; color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.prestige-picker { list-style: none; margin: 0; padding: 4px; display: grid; gap: 4px; max-height: min(44vh, 360px); overflow: auto; border: 1px solid var(--line, rgb(255 255 255 / 10%)); border-radius: 8px; }
+.prestige-picker > li { display: flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.prestige-picker > li:hover, .prestige-picker > li:focus-visible { background: rgb(255 255 255 / 5%); outline: none; }
+.prestige-picker > li.is-chosen { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+.prestige-icon { flex: none; display: block; }
+.op-prestige { position: absolute; left: -4px; bottom: -6px; display: inline-flex; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
+.mobile-profile .op-prestige-chip { display: inline-flex; margin-right: -2px; }
 .prestige-reset-dialog { width: min(460px, 100%); }
 .prestige-reset-icon { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid #613d37; border-radius: 10px; color: #e2a398; background: #261b18; }
 .prestige-reset-question { margin: 0; color: var(--text-muted); line-height: 1.5; }

@@ -45,6 +45,8 @@ import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 import { SupportNotice } from '../support/SupportChat'
 import { ModeResetToast } from '../components/ModeResetToast'
+import { PrestigeIcon } from '../components/PrestigeIcon'
+import { prestigeLabel } from '../profile/prestige'
 
 
 const navigation = [
@@ -301,7 +303,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar mobile-topbar">
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
-          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}><UserRound size={16} /><span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
+          <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}>{activeProfile.modes[raidMode].prestige > 0 ? <span className="op-prestige-chip" title={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)}><PrestigeIcon level={activeProfile.modes[raidMode].prestige} size={18} label={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)} /></span> : <UserRound size={16} />}<span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
           <ThemeButton />
           <SubscriptionExpiryNotice compact />
         </header>
