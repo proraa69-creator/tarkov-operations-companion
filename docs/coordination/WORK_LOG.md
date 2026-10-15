@@ -1,5 +1,9 @@
 # Общий рабочий лог
 
+## 2026-10-15: Codex, secondary disk migration completed
+
+Owner-authorized storage maintenance: 65 inactive backup/artifact directories, 19,294,015,488 allocated bytes, moved and checksum-verified on secondary NVMe with original paths preserved as symlinks. Root usage 84% -> 46%, available 7.8 -> 26 GiB. Secondary available 6.2 GiB. No service restart or deployment; API/database, website/cabinet and client download checks passed. See `STORAGE_MIGRATION_20261015.md` for exact paths, exclusions and verification limits.
+
 ## 2026-10-08: Codex, выпуск по поручению владельца
 
 - Статус: completed; интегратор Codex, исходная ветка cc1506f. Итоговые build/тесты указаны в записи завершения ниже.
