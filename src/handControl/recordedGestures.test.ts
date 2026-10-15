@@ -63,6 +63,15 @@ describe('recorded reference gestures', () => {
     expect(drag).toBeLessThan(0.15)
   })
 
+  it('the drawn hand does not shake (mean frame-to-frame jerk on a 1920×1080 screen)', () => {
+    // Second difference of the drawn wrist: steady motion costs nothing, shaking does.
+    // Measured 8.2 px before the smoothing pass, 5.7 px after.
+    const wrist = frames.filter(({ frame }) => frame.skeleton).map(({ frame }) => [frame.skeleton![0].x * 1920, frame.skeleton![0].y * 1080])
+    let jerk = 0
+    for (let i = 1; i < wrist.length - 1; i++) jerk += Math.hypot(wrist[i + 1][0] - 2 * wrist[i][0] + wrist[i - 1][0], wrist[i + 1][1] - 2 * wrist[i][1] + wrist[i - 1][1])
+    expect(jerk / (wrist.length - 2)).toBeLessThan(6.5)
+  })
+
   it('the drawn hand stays exactly where it was while the finger taps', () => {
     const presses = events.filter(({ event }) => event.type === 'press').map(({ t }) => t)
     const clicks = events.filter(({ event }) => event.type === 'click').map(({ t }) => t)

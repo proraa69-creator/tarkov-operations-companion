@@ -487,6 +487,25 @@ describe('HandGestureEngine — fist resets', () => {
   })
 })
 
+describe('HandGestureEngine — taps work at any angle of the hand', () => {
+  const angles: Array<[string, Partial<SyntheticHand>]> = [
+    ['tilted 40° towards the camera', { tilt: 40 }],
+    ['tilted 30° back', { tilt: -30 }],
+    ['turned 50° to the side', { turn: 50 }],
+    ['turned 60° the other way', { turn: -60 }],
+    ['rolled 45° in the image', { roll: 45 }],
+    ['rolled 60° the other way', { roll: -60 }],
+    ['tilted and turned', { tilt: 30, turn: 40 }],
+  ]
+  for (const [name, pose] of angles) {
+    it(`a tap clicks with the hand ${name}`, () => {
+      const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+      run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: pointing, ...pose }))
+      expect(types(tap(engine, 800, { extra: pose }).events)).toEqual(['press', 'click'])
+    })
+  }
+})
+
 describe('HandGestureEngine — wrist tilt is not a finger gesture', () => {
   it('bending the wrist down from a vertical hand (index comes towards the camera) neither taps nor freezes', () => {
     const engine = new HandGestureEngine({ ...DEFAULT_SETTINGS, clickMode: 'both' })

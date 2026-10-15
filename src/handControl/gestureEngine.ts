@@ -64,6 +64,17 @@ export const ENGINE = {
   baselineMs: 900,
   baselineAwayMs: 350,
   pointerBeta: 6,
+  /** the drawn hand's own 1€ beta (window units/s): lower = steadier on screen */
+  handBeta: 2,
+  /**
+   * Smoothing of the drawn hand (1€): the palm centre before the anchor (beta per palm span/s) and
+   * the finger shape (palm spans). A beta that follows real moves but not the per-frame tracking
+   * noise (~0.6 span/s at 30 fps) — measured shake on the recordings dropped by about half.
+   */
+  palmCutoff: 1.5,
+  palmBeta: 0.8,
+  fingerCutoff: 1.6,
+  fingerBeta: 0.6,
   historyMs: 600,
   /**
    * Map zoom, from the product owner's recordings. The "L" pose — index up, thumb sticking out
@@ -125,11 +136,15 @@ export const ENGINE = {
    * Finger gestures must be made by the fingers, not by the wrist. Tilting the whole hand (e.g.
    * bending the wrist down from a vertical hand) turns the palm and brings the index towards the
    * camera, which can look like a fold. Measured on real taps the palm turns 16–29° during the
-   * fold while the finger folds ~80°; so a fold counts only if the palm turned at most
-   * `maxPalmTurn` and the finger folded at least `foldToTurn` times more than the palm turned.
+   * fold while the finger folds ~80°, so a fold counts only if the finger folded at least
+   * `foldToTurn` times more than the palm turned. There is no fixed limit on the palm turn: at
+   * unusual hand angles the tracker turns the palm more during a tap, and taps must still work
+   * at any angle of the hand (product owner). A flick keeps the stricter limit.
    */
   maxPalmTurn: 35,
-  foldToTurn: 2,
+  foldToTurn: 1.6,
+  /** the index counts as raised before a tap when tracked straight or folded at most this much (degrees) */
+  pointedMaxFlex: 45,
   maxPushTurn: 30,
   /** the palm must already be open this long before a push grabs (opening the hand is not a push) */
   openBeforeGrabMs: 400,
@@ -202,8 +217,11 @@ export class HandGestureEngine {
   private handVotes: number[] = []
   private viewport = { width: 1920, height: 1080 }
   private fistLock = false
-  private palmFilter = vectorFilter(1.2, ENGINE.pointerBeta)
+  private palmFilter = vectorFilter(1.2, ENGINE.handBeta)
   private rawFilter = vectorFilter(1.2, ENGINE.pointerBeta)
+  /** the palm centre in palm spans, smoothed before it reaches the anchor */
+  private centerFilter = vectorFilter(ENGINE.palmCutoff, ENGINE.palmBeta)
+  private chiralityNow: 'left' | 'right' | null = null
   private skeletonFilters: Array<ReturnType<typeof vectorFilter>> = []
   private depthFilter = new OneEuroFilter(30, 3, 8)
   private baseline = Number.NaN
@@ -267,7 +285,8 @@ export class HandGestureEngine {
     const tracking: TrackingQuality = observation.score >= ENGINE.goodScore ? 'good' : 'weak'
     const { world } = observation
     this.updatePose(world)
-    if (this.pose.index) this.indexExtendedAt = t
+    // At steep angles the tracker sees a raised index as slightly bent: its fold angle decides too.
+    if (this.pose.index || fingerFlex(world, 'index') <= ENGINE.pointedMaxFlex) this.indexExtendedAt = t
     if (this.pose.middle || this.pose.ring || this.pose.pinky) this.middleExtendedAt = t
     const fist = !this.pose.index && !this.pose.middle && !this.pose.ring && !this.pose.pinky
     if (!fist) {
@@ -289,7 +308,13 @@ export class HandGestureEngine {
     const frameH = observation.frameHeight
     const user = (x: number) => (settings.mirror ? 1 - x : x)
     const centerImage = palmCenter(observation.image)
-    const held = this.anchor.update(t, { x: user(centerImage.x) * frameW, y: centerImage.y * frameH }, span, [flexIndex, ...flexOthers], pinch, this.phase === 'press')
+    // Filtered in palm spans so the same smoothing fits a near and a far hand.
+    const unit = Math.max(1, span)
+    const smoothCenter = {
+      x: this.centerFilter.x.filter((user(centerImage.x) * frameW) / unit, seconds) * unit,
+      y: this.centerFilter.y.filter((centerImage.y * frameH) / unit, seconds) * unit,
+    }
+    const held = this.anchor.update(t, smoothCenter, span, [flexIndex, ...flexOthers], pinch, this.phase === 'press')
     // toWindowSpace mirrors by itself, so it gets the point back in camera coordinates.
     const anchor = toWindowSpace({ x: user(held.x / frameW), y: held.y / frameH }, settings.calibration, settings.mirror, settings.homography)
     const palm = { x: this.palmFilter.x.filter(anchor.x, seconds), y: this.palmFilter.y.filter(anchor.y, seconds) }
@@ -326,7 +351,7 @@ export class HandGestureEngine {
     // A tap folds the index alone: if the other fingers were open a moment ago, this is a fist forming.
     const othersFolded = t - this.middleExtendedAt > ENGINE.foldWindowMs
     const fingerFold = flexIndex - tapBase
-    const madeByFinger = palmTurn <= ENGINE.maxPalmTurn && fingerFold >= palmTurn * ENGINE.foldToTurn
+    const madeByFinger = fingerFold >= palmTurn * ENGINE.foldToTurn
     const tapProgress = useTap && indexRecent && othersFolded && madeByFinger && !openPalm && !this.fistLock ? clamp01(fingerFold / settings.tapAngle) : 0
     const pokeProgress = usePoke && this.pose.index && !scrollPose && !openPalm ? clamp01(depth / settings.pressThreshold) : 0
     const grabProgress = settings.palmGrab && openPalm ? clamp01(depth / settings.grabThreshold) : 0
@@ -580,7 +605,8 @@ export class HandGestureEngine {
   private detectFling(events: HandEvent[], t: number, scroll: NonNullable<HandGestureEngine['scroll']>, handY: number) {
     const recent = this.history.filter((sample) => sample.t >= t - ENGINE.flingWindowMs)
     if (recent.length < 3) return
-    const travel = handY - recent[0].palmY
+    // The live palm (not the steadier drawn hand): a swipe is judged on the real hand's speed.
+    const travel = recent[recent.length - 1].rawY - recent[0].rawY
     const elapsed = t - recent[0].t
     const folds = recent.map((sample) => sample.flexTwo)
     if (!elapsed || Math.abs(travel) < ENGINE.flingMinTravel || Math.max(...folds) - Math.min(...folds) > ENGINE.flingFoldSteady) return
@@ -717,9 +743,14 @@ export class HandGestureEngine {
    */
   private chirality(observation: HandObservation): 'left' | 'right' {
     this.handVotes.push(observation.handedness === 'Left' ? 1 : -1)
-    if (this.handVotes.length > 15) this.handVotes.shift()
-    const labelledLeft = this.handVotes.reduce((sum, vote) => sum + vote, 0) > 0
-    return labelledLeft === this.settings.mirror ? 'left' : 'right'
+    if (this.handVotes.length > 30) this.handVotes.shift()
+    const votes = this.handVotes.reduce((sum, vote) => sum + vote, 0)
+    const fromVotes = (labelledLeft: boolean) => (labelledLeft === this.settings.mirror ? 'left' : 'right')
+    // The label flickers when the hand turns edge-on: switch the drawn model only on a clear
+    // majority over the last second, never back and forth.
+    if (!this.chiralityNow) this.chiralityNow = fromVotes(votes >= 0)
+    else if (Math.abs(votes) >= this.handVotes.length * 0.6 && this.handVotes.length >= 10) this.chiralityNow = fromVotes(votes > 0)
+    return this.chiralityNow
   }
 
   private updateSpan(observation: HandObservation, dt: number) {
@@ -767,7 +798,9 @@ export class HandGestureEngine {
     for (const axis of ['x', 'y', 'z'] as const) {
       this.palmFilter[axis].reset()
       this.rawFilter[axis].reset()
+      this.centerFilter[axis].reset()
     }
+    this.chiralityNow = null
     this.depthFilter.reset()
     this.skeletonFilters = []
     this.lastT = 0
@@ -800,7 +833,7 @@ export class HandGestureEngine {
    * GHOST_PALM_PX and placed on the anchor. Fingers move freely; the hand stays on its anchor.
    */
   private drawnHand(observation: HandObservation, palm: { x: number; y: number }, span: number, seconds: number): Point3[] {
-    if (this.skeletonFilters.length !== 21) this.skeletonFilters = Array.from({ length: 21 }, () => vectorFilter(this.settings.smoothing * 1.5, ENGINE.pointerBeta))
+    if (this.skeletonFilters.length !== 21) this.skeletonFilters = Array.from({ length: 21 }, () => vectorFilter(ENGINE.fingerCutoff * this.settings.smoothing / 1.2, ENGINE.fingerBeta))
     const { image, frameWidth, frameHeight } = observation
     const center = palmCenter(image)
     const sign = this.settings.mirror ? -1 : 1

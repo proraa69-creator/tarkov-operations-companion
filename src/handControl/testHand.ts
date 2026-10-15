@@ -18,6 +18,10 @@ export interface SyntheticHand {
   thumbTip?: Point3
   /** whole hand tilted towards the camera around the wrist, degrees (wrist bent down) */
   tilt?: number
+  /** whole hand turned around the vertical axis, degrees (palm towards the side) */
+  turn?: number
+  /** whole hand rolled in the image plane, degrees (fingers pointing up-left / up-right) */
+  roll?: number
   score?: number
   t: number
 }
@@ -27,7 +31,7 @@ const FRAME_H = 480
 const MCP_X: Record<Finger, number> = { index: -0.03, middle: -0.01, ring: 0.01, pinky: 0.03 }
 
 /** Builds a plausible MediaPipe-shaped observation for tests: palm facing the camera, fingers up. */
-export function syntheticHand({ x, y, k, fingers = {}, thumbTip, tilt = 0, score = 0.95, t }: SyntheticHand): HandObservation {
+export function syntheticHand({ x, y, k, fingers = {}, thumbTip, tilt = 0, turn = 0, roll = 0, score = 0.95, t }: SyntheticHand): HandObservation {
   const world: Point3[] = new Array(21)
   world[0] = { x: 0, y: 0, z: 0 }
   world[1] = { x: -0.03, y: -0.02, z: 0 }
@@ -62,6 +66,20 @@ export function syntheticHand({ x, y, k, fingers = {}, thumbTip, tilt = 0, score
     for (let i = 0; i < world.length; i++) {
       const p = world[i]
       world[i] = { x: p.x, y: p.y * Math.cos(a) - p.z * Math.sin(a), z: p.y * Math.sin(a) + p.z * Math.cos(a) }
+    }
+  }
+  if (turn) {
+    const a = (turn * Math.PI) / 180
+    for (let i = 0; i < world.length; i++) {
+      const p = world[i]
+      world[i] = { x: p.x * Math.cos(a) + p.z * Math.sin(a), y: p.y, z: -p.x * Math.sin(a) + p.z * Math.cos(a) }
+    }
+  }
+  if (roll) {
+    const a = (roll * Math.PI) / 180
+    for (let i = 0; i < world.length; i++) {
+      const p = world[i]
+      world[i] = { x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a), z: p.z }
     }
   }
   const image = world.map((point) => ({ x: x + (point.x * k) / FRAME_W, y: y + (point.y * k) / FRAME_H, z: point.z }))
