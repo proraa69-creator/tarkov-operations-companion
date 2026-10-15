@@ -6,8 +6,8 @@
  * LEGAL_VERSION is stored on the server with every registration and payment consent (POST /v1/accounts/me/consents,
  * POST /v1/payments { consent: { version } }). Change it whenever the meaning of a document changes.
  */
-export const LEGAL_VERSION = '2026-10-15.1'
-export const LEGAL_VERSION_LABEL = '15 октября 2026 г., ред. 16'
+export const LEGAL_VERSION = '2026-10-15.2'
+export const LEGAL_VERSION_LABEL = '15 октября 2026 г., ред. 17'
 
 const SELLER_NAME = 'Протопопов Андрей Александрович'
 const SELLER_INN = '272401531806'
@@ -61,7 +61,7 @@ export const LEGAL_DOCUMENTS: LegalDocument[] = [
       {
         title: '2. Предмет договора',
         paragraphs: [
-          'Исполнитель предоставляет Пользователю на оплаченный срок доступ к платным функциям Сервиса (подписку): карты, задания, трекер прогресса, мини-карта поверх игры и другие функции, описанные на сайте и в приложении на момент оплаты.',
+          'Исполнитель предоставляет Пользователю на оплаченный срок доступ к платным функциям Сервиса (подписку): карты, задания, трекер прогресса, позиция игрока и информация о предмете на карте в приложении и в телефоне и другие функции, описанные на сайте и в приложении на момент оплаты.',
           'Сервис не автоматизирует игровой процесс, не внедряется в игру Escape from Tarkov и не обходит её защиту. Сведения о предметах, заданиях и картах берутся из открытых источников и могут содержать неточности.',
         ],
       },
