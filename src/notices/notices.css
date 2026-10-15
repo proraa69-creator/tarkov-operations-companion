@@ -37,3 +37,4 @@
   .notice-actions { flex-direction: column-reverse; }
   .notice-actions .button { width: 100%; justify-content: center; }
 }
+.survey-question .field-label { display: grid; gap: 6px; color: inherit; font-size: inherit; text-transform: none; letter-spacing: normal; }

@@ -6,7 +6,7 @@
 /* 16px: phones do not zoom into the box. */
 .country-picker-input, .country-picker-text { flex: 1; min-width: 0; height: 42px; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
 .country-picker-input::placeholder { color: var(--text-dim, var(--text-muted)); }
-.country-picker-list { max-height: min(300px, 42dvh); margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; list-style: none; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.country-picker-list { position: relative; max-height: min(300px, 42dvh); margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; list-style: none; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
 .country-picker-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; padding: 0 10px; border-radius: 7px; color: var(--text); font-size: 14px; cursor: pointer; }
 .country-picker-option[data-active="true"] { background: var(--panel-3, var(--surf-1)); }
 .country-picker-option[aria-selected="true"] { color: var(--brass-strong, var(--brass)); font-weight: 600; }
