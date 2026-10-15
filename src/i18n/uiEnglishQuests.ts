@@ -90,6 +90,7 @@ export const QUEST_RULES: Array<[RegExp, string]> = [
   [/^Старая ручная отметка: в текущих/g, 'Old manual mark: current'],
   [/^Старая ручная отметка: провалено/g, 'Old manual mark: failed'],
   [/^Вероятно выполнено: его требует (.+)\.$/g, 'Probably done: $1 needs it.'],
+  [/^Выполнено: без него не взять (.+)\.$/g, 'Done: $1 cannot be taken without it.'],
   [/^В логах игры: взято/g, 'In the game logs: taken'],
   [/^В логах игры: сдано/g, 'In the game logs: handed in'],
   [/^В логах игры: провалено/g, 'In the game logs: failed'],

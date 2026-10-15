@@ -13,6 +13,11 @@ export interface TaskAvailability {
    * needs it; `line` / `stage` / `start` — it comes before what the logs show (probably completed).
    */
   basis?: 'chain' | ChronologyBasis
+  /**
+   * `prerequisite`: proven, not guessed — a quest the game reported as held or handed in needs this one completed (a
+   * mandatory, completion-only requirement), and the game lets no one take a quest before that. Counted as completed.
+   */
+  proof?: 'prerequisite'
   /** The quest from the logs that dates this one. */
   anchorId?: string
   /** A line the quest waits for: its place among the trader's lines, the level it needs and the level the logs show. */
@@ -140,7 +145,7 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
     const mark = chronology.completed.get(quest.id)
     const inferred = verified.taskProgress[quest.id]
     if (mark) return [quest.id, { ...result, basis: mark.basis, anchorId: mark.anchorId }]
-    if (inferred?.source === 'inferred') return [quest.id, { ...result, basis: 'chain' as const, ...(inferred.inferredFromTaskId ? { anchorId: inferred.inferredFromTaskId } : {}) }]
+    if (inferred?.source === 'inferred') return [quest.id, { ...result, basis: 'chain' as const, proof: 'prerequisite' as const, ...(inferred.inferredFromTaskId ? { anchorId: inferred.inferredFromTaskId } : {}) }]
     return [quest.id, result]
   }))
   gunsmithFromLogs(byId, steps, logged, availability)
@@ -180,13 +185,14 @@ function gunsmithFromLogs(byId: Map<string, Quest>, steps: ReturnType<typeof gun
 }
 
 /**
- * A completion the game itself reported: a handed-in quest in the logs (after the mode's floor) or a confirmed screen
- * reading. Not one the app infers — from a prerequisite chain or the chronology (`basis`): those stay «вероятно
- * выполнено» in the lists but are never counted (owner, 15.10.2026: PvE «154 выполнено» in the game, 226 in the app — the
- * owner's logs of 09.2026 give 1 handed-in PvE quest and 223 inferred ones).
+ * A completion the game itself reported (a handed-in quest in the logs after the mode's floor, a manual mark), or one it
+ * proves: a mandatory prerequisite of a quest the game reports as held or handed in (`proof: 'prerequisite'`). Not one
+ * the chronology guesses (`line` / `stage` / `start` and its own chains): those stay «вероятно выполнено» in the lists but
+ * are never counted (owner, 15.10.2026: PvE «154 выполнено» in the game, 226 in the app — the chronology's guesses). The
+ * game keeps its logs a few weeks, so without the proven prerequisites an older player would count almost nothing.
  */
 export function provenCompleted(availability: TaskAvailability | undefined) {
-  return availability?.status === 'completed' && !availability.basis
+  return availability?.status === 'completed' && (!availability.basis || availability.proof === 'prerequisite')
 }
 
 /** Completed trader quests, as the game reports them (provenCompleted). */

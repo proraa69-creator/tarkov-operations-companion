@@ -45,6 +45,7 @@ export function chronologyNote(quest: Quest, info: TaskAvailability | undefined,
   const anchor = info?.anchorId ? questsById.get(info.anchorId) : undefined
   const anchorName = anchor ? `«${anchor.name}»` : 'задание из логов'
   // Inference never counts (src/quests/questEngine.ts): «вероятно», like the other bases.
+  if (info?.basis === 'chain' && info.proof === 'prerequisite') return `Выполнено: без него не взять ${anchorName}.`
   if (info?.basis === 'chain') return `Вероятно выполнено: его требует ${anchorName}.`
   if (info?.basis === 'line') {
     const level = anchor?.unlock?.lines?.find((line) => quest.unlock?.lines?.some((own) => own.id === line.id))?.level

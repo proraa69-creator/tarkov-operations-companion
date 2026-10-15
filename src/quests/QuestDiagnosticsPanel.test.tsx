@@ -34,19 +34,19 @@ describe('«Диагностика квестов»', () => {
     expect(view.container.innerHTML).toBe('')
   })
 
-  it('the owner opens it and reads each mode at a glance: what each source gave, inference uncounted', () => {
+  it('the owner opens it and reads each mode at a glance: what each source gave, proven prerequisites counted, guesses not', () => {
     mount('ru', 'owner')
     expect(screen.queryByText(/логи:/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Диагностика квестов/ }))
     const pve = screen.getByTestId('quest-diagnostics').querySelector('[data-mode="pve"]')!
-    expect(pve.textContent).toContain('логи: 1 выполнено, экран: +1, вручную: 0, вывод из цепочек: 1 (не считается)')
-    expect(pve.textContent).toContain('Считается «Выполнено»1')
-    expect(screen.getByTestId('quest-diagnostics').querySelector('[data-mode="pvp"]')!.textContent).toContain('логи: 0 выполнено, экран: +0, вручную: 0, вывод из цепочек: — (не считается)')
+    expect(pve.textContent).toContain('логи: 1 выполнено, требуются для них: +1, экран: +1, вручную: 0, догадка по хронологии: 0 (не считается)')
+    expect(pve.textContent).toContain('Считается «Выполнено»2')
+    expect(screen.getByTestId('quest-diagnostics').querySelector('[data-mode="pvp"]')!.textContent).toContain('логи: 0 выполнено, требуются для них: +0, экран: +0, вручную: 0, догадка по хронологии: — (не считается)')
   })
 
   it('in English', () => {
     mount('en', 'owner')
     fireEvent.click(screen.getByRole('button', { name: /Quest diagnostics/ }))
-    expect(screen.getByTestId('quest-diagnostics').querySelector('[data-mode="pve"]')!.textContent).toContain('logs: 1 completed, screen: +1, manual: 0, chain inference: 1 (not counted)')
+    expect(screen.getByTestId('quest-diagnostics').querySelector('[data-mode="pve"]')!.textContent).toContain('logs: 1 completed, required by them: +1, screen: +1, manual: 0, chronology guess: 0 (not counted)')
   })
 })

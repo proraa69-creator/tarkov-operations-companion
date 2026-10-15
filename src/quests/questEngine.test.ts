@@ -92,16 +92,16 @@ describe('the engine as a whole', () => {
     expect(resolution.diagnostics).toMatchObject({ unknownIds: 1, conflicts: { 'prerequisite-open': 1, 'unknown-quest': 1 } })
   })
 
-  it('the diagnostics explain a count at a glance; inference is listed, never counted', () => {
+  it('the diagnostics explain a count at a glance; proven prerequisites count, the chronology\'s guesses never do', () => {
     const resolution = resolveQuestStates(inputs({
       log: { [A]: { status: 'completed', at: t(10) } },
       table: { [B]: screen(B, 'active', 10) },
       manual: { ['1'.repeat(24)]: { status: 'completed', at: t(10) } },
     }))
-    const availability = new Map([[A, { status: 'completed' }], ['x', { status: 'completed', basis: 'chain' }], ['y', { status: 'completed', basis: 'line' }]])
+    const availability = new Map([[A, { status: 'completed' }], ['x', { status: 'completed', basis: 'chain' }], ['y', { status: 'completed', basis: 'line' }], ['z', { status: 'completed', basis: 'chain', proof: 'prerequisite' }]])
     const diagnostics = withInferred(resolution.diagnostics, availability)
-    expect(diagnostics).toMatchObject({ completed: 2, active: 1, inferred: 2, decided: { log: { completed: 1 }, table: { active: 1 }, manual: { completed: 1 } } })
-    expect(diagnosticsLine(diagnostics)).toBe('логи: 1 выполнено, экран: +1, вручную: 1, вывод из цепочек: 2 (не считается)')
-    expect(diagnosticsLine(diagnostics, 'en')).toBe('logs: 1 completed, screen: +1, manual: 1, chain inference: 2 (not counted)')
+    expect(diagnostics).toMatchObject({ completed: 2, active: 1, inferred: 2, proven: 1, decided: { log: { completed: 1 }, table: { active: 1 }, manual: { completed: 1 } } })
+    expect(diagnosticsLine(diagnostics)).toBe('логи: 1 выполнено, требуются для них: +1, экран: +1, вручную: 1, догадка по хронологии: 2 (не считается)')
+    expect(diagnosticsLine(diagnostics, 'en')).toBe('logs: 1 completed, required by them: +1, screen: +1, manual: 1, chronology guess: 2 (not counted)')
   })
 })

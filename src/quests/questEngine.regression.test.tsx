@@ -42,13 +42,15 @@ describe('PvE «226 выполнено» while the game had 154 (owner, 15.10.20
     expect(oldCount).toBeGreaterThan(200)
     const handedIn = Object.values(progress.taskProgress).filter((record) => record.status === 'completed' && live.has(record.taskId)).length
     expect(handedIn).toBe(1)
-    expect(completedQuestStats(quests, availability).completed).toBe(handedIn)
-    // The owner's panel explains it at a glance.
+    // The owner's panel explains it at a glance: the hand-in, the prerequisites the held quests prove (counted — no one
+    // takes a quest before them; the logs reach back only a few weeks) and the chronology's guesses (never counted).
     const resolution = questResolutionOf(progress, 'pve', quests)
     const diagnostics = withInferred(resolution.diagnostics, availability)
     expect(diagnostics.decided.log.completed).toBe(1)
-    expect(diagnostics.inferred).toBe(oldCount - 1)
-    expect(diagnosticsLine(diagnostics)).toBe(`логи: 1 выполнено, экран: +0, вручную: 0, вывод из цепочек: ${oldCount - 1} (не считается)`)
+    expect(diagnostics.proven).toBeGreaterThan(0)
+    expect(completedQuestStats(quests, availability).completed).toBe(handedIn + diagnostics.proven!)
+    expect(diagnostics.inferred! + diagnostics.proven!).toBe(oldCount - 1)
+    expect(diagnosticsLine(diagnostics)).toBe(`логи: 1 выполнено, требуются для них: +${diagnostics.proven}, экран: +0, вручную: 0, догадка по хронологии: ${diagnostics.inferred} (не считается)`)
   })
 
   it('an older version\'s Tasks-table chain completions («screen-scan» completed) are no longer counted after the update', () => {
@@ -62,7 +64,8 @@ describe('PvE «226 выполнено» while the game had 154 (owner, 15.10.20
     expect(before).toBeGreaterThan(60)
     const migrated = migrateProfile(JSON.parse(JSON.stringify(profile)))!
     const availability = questAvailabilityOf(quests, migrated.modes.pve)
-    expect(completedQuestStats(quests, availability).completed).toBe(1)
+    // The same count as the logs alone give: the guessed rows add nothing.
+    expect(completedQuestStats(quests, availability).completed).toBe(completedQuestStats(quests, questAvailabilityOf(quests, pve())).completed)
     const resolution = questResolutionOf(migrated.modes.pve, 'pve', quests)
     expect(resolution.diagnostics.conflicts['table-completed-unproven']).toBe(before - 1)
   })

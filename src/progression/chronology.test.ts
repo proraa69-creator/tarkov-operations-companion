@@ -167,15 +167,17 @@ describe("the owner's logs against the quest grid", () => {
     expect(count('completed')).toBeGreaterThanOrEqual(25)
   })
 
-  it('«Выполнено» counts what the game reported, never what the app infers (owner, 15.10.2026: 154 in the game, 226 in the app)', () => {
+  it('«Выполнено» counts what the game reported or proves, never the chronology guesses (owner, 15.10.2026: 154 in the game, 226 in the app)', () => {
     const availability = calculateAvailability(quests, progressOf(recordsOf('pve'), { faction: 'bear', playerLevel: 40 }))
-    const inferred = [...availability.values()].filter((entry) => entry.status === 'completed' && entry.basis).length
-    // The lists still show the inferred ones as done (chain, line, stage, start): over two hundred of them.
-    expect(inferred).toBeGreaterThan(200)
-    // The count: the one PvE quest these logs show handed in.
+    const inferred = [...availability.values()].filter((entry) => entry.status === 'completed' && entry.basis && !entry.proof).length
+    // The lists still show the chronology's guesses as done (line, stage, start): about two hundred of them.
+    expect(inferred).toBeGreaterThan(190)
+    // The count: the one PvE quest these logs show handed in, and the prerequisites the held quests prove — no guesses.
     const handedIn = (ownerLogs.events.pve as Array<[string, string, string]>).filter(([, status]) => status === 'completed').length
-    expect(completedQuestStats(quests, availability).completed).toBe(handedIn)
     expect(handedIn).toBe(1)
+    const required = [...availability.values()].filter((entry) => entry.status === 'completed' && entry.proof === 'prerequisite').length
+    expect(required).toBeGreaterThan(0)
+    expect(completedQuestStats(quests, availability).completed).toBe(handedIn + required)
     // PvP after its prestige: the 36 handed in since the reset, nothing more.
     const pvp = calculateAvailability(quests, progressOf(recordsOf('pvp', ownerLogs.resets.pvp), { faction: 'bear', playerLevel: 5 }))
     const live = new Set(quests.filter((entry) => isLiveGameQuest(entry)).map((entry) => entry.id))

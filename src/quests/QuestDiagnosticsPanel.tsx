@@ -83,7 +83,7 @@ function QuestDiagnosticsBody({ locale }: { locale: 'ru' | 'en' }) {
                 ? `${decided.completed} completed · ${decided.active} active · ${decided.failed} failed (${diagnostics.layerSizes[source]} read)`
                 : `${decided.completed} выполн. · ${decided.active} текущ. · ${decided.failed} провал. (прочитано ${diagnostics.layerSizes[source]})`}</dd></div>
             })}
-            <div><dt>{locale === 'en' ? 'Counted «Completed»' : 'Считается «Выполнено»'}</dt><dd>{diagnostics.completed}</dd></div>
+            <div><dt>{locale === 'en' ? 'Counted «Completed»' : 'Считается «Выполнено»'}</dt><dd>{diagnostics.completed + (diagnostics.proven ?? 0)}</dd></div>
             {diagnostics.floor && <div><dt>{locale === 'en' ? 'Game reset (logs)' : 'Сброс в игре (журналы)'}</dt><dd>{when(diagnostics.floor, locale)}{summary?.resetVia ? ` · ${VIA[summary.resetVia][locale]}` : ''} · {locale === 'en' ? `${diagnostics.beforeFloor} older ignored` : `старше не учтено: ${diagnostics.beforeFloor}`}</dd></div>}
             {marker && <div><dt>{locale === 'en' ? `«${MARKER[marker.kind].en}» pressed` : `Нажато «${MARKER[marker.kind].ru}»`}</dt><dd>{when(marker.at, locale)} · {marker.resolvedAt ? (locale === 'en' ? `confirmed by the logs ${when(marker.resolvedAt, locale)}` : `подтверждено журналами ${when(marker.resolvedAt, locale)}`) : (locale === 'en' ? 'waiting for the game\'s reset in the logs' : 'ждём сброса в журналах игры')}</dd></div>}
             {(Object.keys(diagnostics.conflicts) as QuestConflictKind[]).filter((kind) => kind !== 'before-floor').map((kind) => <div key={kind}><dt>{CONFLICT_NAMES[kind][locale]}</dt><dd>{diagnostics.conflicts[kind]}</dd></div>)}

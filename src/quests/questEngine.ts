@@ -51,6 +51,8 @@ export interface QuestDiagnostics {
   unknownIds: number
   /** «вероятно выполнено» hints of the chain and the chronology: never counted (with the availability). */
   inferred?: number
+  /** Prerequisites the held or handed-in quests prove completed (counted; calculateAvailability `proof`). */
+  proven?: number
   /** How many ids each layer holds. */
   layerSizes: Record<QuestSourceKind, number>
 }
@@ -228,10 +230,15 @@ export function latestTime(...values: Array<string | undefined>) {
  * The diagnostics with the «вероятно выполнено» hints of the lists (calculateAvailability's `basis`: a prerequisite chain
  * or the chronology): how many quests inference would call done, none of them counted.
  */
-export function withInferred(diagnostics: QuestDiagnostics, availability: ReadonlyMap<string, { status: string; basis?: string }>): QuestDiagnostics {
+export function withInferred(diagnostics: QuestDiagnostics, availability: ReadonlyMap<string, { status: string; basis?: string; proof?: string }>): QuestDiagnostics {
   let inferred = 0
-  for (const entry of availability.values()) if (entry.status === 'completed' && entry.basis) inferred += 1
-  return { ...diagnostics, inferred }
+  let proven = 0
+  for (const entry of availability.values()) {
+    if (entry.status !== 'completed' || !entry.basis) continue
+    if (entry.proof === 'prerequisite') proven += 1
+    else inferred += 1
+  }
+  return { ...diagnostics, inferred, proven }
 }
 
 /** One line for the owner's panel: «логи: 154 выполнено, экран: +0, вывод из цепочек: 0 (не считается)». */
@@ -241,8 +248,9 @@ export function diagnosticsLine(diagnostics: QuestDiagnostics, locale: 'ru' | 'e
   const screen = decided.table.active + decided.table.completed
   const manual = decided.manual.completed
   const inferred = diagnostics.inferred ?? '—'
+  const proven = diagnostics.proven ?? 0
   return locale === 'en'
-    ? `logs: ${logs} completed, screen: +${screen}, manual: ${manual}, chain inference: ${inferred} (not counted)`
-    : `логи: ${logs} выполнено, экран: +${screen}, вручную: ${manual}, вывод из цепочек: ${inferred} (не считается)`
+    ? `logs: ${logs} completed, required by them: +${proven}, screen: +${screen}, manual: ${manual}, chronology guess: ${inferred} (not counted)`
+    : `логи: ${logs} выполнено, требуются для них: +${proven}, экран: +${screen}, вручную: ${manual}, догадка по хронологии: ${inferred} (не считается)`
 }
 

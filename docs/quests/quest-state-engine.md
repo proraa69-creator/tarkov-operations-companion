@@ -50,8 +50,11 @@ here:
 5. **Story chapters**: the story pane in every mode, plus the logs where they mention a chapter; the newer of the two
    decides, and the chapter's stage and objectives always come from the pane. No manual marks for chapters.
 6. **Legacy manual** records fill what nothing else covers (lowest confidence).
-7. **Prerequisite inference never decides.** It only gives «вероятно выполнено» hints (`calculateAvailability`'s
-   `basis`), shown in lists, never counted.
+7. **Inference never decides a status; only a proof counts.** A mandatory, completion-only prerequisite of a quest the
+   game reports as held or handed in is proven completed (`calculateAvailability`'s `proof: 'prerequisite'`): the game
+   lets no one take a quest before it, and the logs reach back only a few weeks, so without it an older player would
+   count almost nothing. It counts in «Выполнено». The chronology's guesses (`basis` `line` / `stage` / `start` and its
+   own chains) stay «вероятно выполнено» hints in the lists, never counted.
 
 Confidence: manual 1, log 0.95, server 0.9, story 0.8, table 0.7, legacy 0.4.
 
@@ -106,4 +109,5 @@ object.
 `completedQuestStats` (src/progression/requirementEngine.ts) counted every quest whose availability was «completed», and
 `calculateAvailability` marks as completed the mandatory prerequisite chain of every held quest and the chronology of
 the trader lines. Fixture `src/progression/__fixtures__/owner-logs-2026-09.json`: 1 handed-in PvE quest, 223 inferred.
-Now only resolved completions count; the inferred ones stay visible as «вероятно выполнено».
+Now resolved completions and the prerequisites they prove count (the fixture: 1 + 6); the chronology's guesses (~200) stay
+visible as «вероятно выполнено». Prerequisites are not where 226 came from: the chronology was.
