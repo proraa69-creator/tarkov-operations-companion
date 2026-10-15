@@ -45,3 +45,17 @@ export function conditionPieces(objective: Pick<QuestObjective, 'count'> & { con
     conditions.hitOnly ? 'попадание' : '',
   ].filter(Boolean)
 }
+
+/**
+ * Every condition of the objective in short words, for the unfolded card: the line above plus the named zones and the
+ * effects. Each piece is one uiText.
+ */
+export function allConditionPieces(objective: Pick<QuestObjective, 'count'> & { conditions?: ObjectiveConditions }): string[] {
+  const conditions = objective.conditions ?? {}
+  return [
+    ...conditionPieces(objective),
+    ...(conditions.zoneNames ?? []),
+    ...(conditions.enemyEffects ?? []),
+    ...(conditions.playerEffects ?? []),
+  ]
+}

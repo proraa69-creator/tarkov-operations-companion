@@ -35,6 +35,61 @@ export function gearObjectives(quest: Pick<Quest, 'objectiveDetails'>): QuestObj
   return (quest.objectiveDetails ?? []).filter((objective) => hasGearConditions(objective.conditions))
 }
 
+/** The quest's objectives with gear conditions that can be done on the map. */
+export function gearObjectivesOnMap(quest: Pick<Quest, 'objectiveDetails'>, mapId: string): QuestObjective[] {
+  return gearObjectives(quest).filter((objective) => objectiveOnMap(objective, mapId))
+}
+
+/**
+ * The quest is one «Сбор на рейд» can show on the map: a weapon, weapon parts, gear to wear or not to wear for an
+ * objective of that map (or of any map). Such quests get their own section «С условиями на снаряжение» at the bottom of
+ * «Текущие задания» (Overview) and «Квесты на карте» (Maps), owner 15.10.2026: «что бы не путаться в квестах».
+ */
+export function hasGearOnMap(quest: Pick<Quest, 'objectiveDetails'>, mapId: string): boolean {
+  return gearObjectivesOnMap(quest, mapId).length > 0
+}
+
+/** One line of «Требования рейда» from a gear condition (src/shared/raidNeeds.ts reads it). */
+export interface GearRaidRequirement {
+  itemId: string
+  count: number
+  purpose: 'bring' | 'wear'
+  questName: string
+  /** Items of one weapon list or one set of options share it, so the panel makes them one «любой из» line. */
+  objectiveId?: string
+  alternatives?: number
+}
+
+/**
+ * What a gear condition asks to take into the raid, for «Требования рейда»: the weapon (any one of the list: one line
+ * with the others in its card), the parts and the gear to wear (one option: each item; several: one «любой из» line).
+ * Gear not to wear is nothing to take. An item the quest already lists to bring (a pinned correction) is not repeated.
+ */
+export function gearRaidRequirements(quest: Pick<Quest, 'name' | 'objectiveDetails' | 'raidRequirements'>, mapId: string): GearRaidRequirement[] {
+  const already = new Set((quest.raidRequirements ?? []).filter((requirement) => requirement.purpose === 'bring').map((requirement) => requirement.itemId))
+  const lines: GearRaidRequirement[] = []
+  const seen = new Set<string>()
+  const add = (line: GearRaidRequirement) => {
+    if (already.has(line.itemId) || seen.has(`${line.purpose}:${line.itemId}`)) return
+    seen.add(`${line.purpose}:${line.itemId}`)
+    lines.push(line)
+  }
+  const anyOf = (ids: string[], purpose: GearRaidRequirement['purpose'], group: string) => {
+    const distinct = [...new Set(ids)].filter((id) => !already.has(id))
+    for (const itemId of distinct) add({ itemId, count: 1, purpose, questName: quest.name, ...(distinct.length > 1 ? { objectiveId: group, alternatives: distinct.length } : {}) })
+  }
+  for (const objective of gearObjectivesOnMap(quest, mapId)) {
+    const conditions = objective.conditions!
+    if (conditions.weapons?.length) anyOf(conditions.weapons.map((ref) => ref.id), 'bring', `${objective.id}#weapon`)
+    for (const [field, purpose] of [['mods', 'bring'], ['wearing', 'wear']] as const) {
+      const options = conditions[field] ?? []
+      if (options.length === 1) for (const ref of options[0]) add({ itemId: ref.id, count: 1, purpose, questName: quest.name })
+      else if (options.length > 1) anyOf(options.flat().map((ref) => ref.id), purpose, `${objective.id}#${field}`)
+    }
+  }
+  return lines
+}
+
 export function conditionQuestsForMap(quests: readonly Quest[], availability: Map<string, TaskAvailability>, mapId: string): MapConditionQuests {
   const active: ConditionQuest[] = []
   const available: ConditionQuest[] = []
@@ -42,7 +97,7 @@ export function conditionQuestsForMap(quests: readonly Quest[], availability: Ma
     if (!isLiveGameQuest(quest)) continue
     const status = availability.get(quest.id)?.status
     if (status !== 'active' && status !== 'available') continue
-    const objectives = gearObjectives(quest).filter((objective) => objectiveOnMap(objective, mapId))
+    const objectives = gearObjectivesOnMap(quest, mapId)
     if (!objectives.length) continue
     ;(status === 'active' ? active : available).push({ quest, objectives })
   }
