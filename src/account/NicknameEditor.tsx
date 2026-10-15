@@ -4,6 +4,10 @@ import { uiLabel } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { setTypedNickname, useLogAccounts } from './logNickname'
 import { useAccountNickname } from './useAccountNickname'
+import { useLocale } from '../i18n/LocaleProvider'
+import { modeResetName } from '../state/modeReset'
+import { confirmedNickname } from './nicknameChange'
+import type { RaidMode } from '../domain/types'
 import '../styles/gameLogs.css'
 
 /**
@@ -16,6 +20,7 @@ export function NicknameEditor() {
   const nickname = useAccountNickname()
   const state = useAppState()
   const accounts = useLogAccounts()
+  const { locale } = useLocale()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -69,6 +74,16 @@ export function NicknameEditor() {
       </div>
       {error && <small className="nickname-editor-error" role="alert">{uiLabel(error)}</small>}
       <small className="nickname-editor-note">{uiLabel(fromLogs ? 'Один ник для PvP, PvE и Сезона, как в игре. Он привяжется к аккаунту игры из логов этого компьютера.' : 'Один ник для PvP, PvE и Сезона, как в игре.')}</small>
+      {/* Another nickname resets the mode shown (src/account/nicknameChange.ts); its other modes keep their progress. */}
+      {confirmedNickname() && <small className="nickname-editor-note nickname-editor-warning">{nicknameResetNote(state.raidMode, locale)}</small>}
     </form>
   )
+}
+
+/** Under «Сменить ник»: a new nickname resets the mode the app shows, the other modes keep theirs. */
+function nicknameResetNote(mode: RaidMode, locale: 'ru' | 'en') {
+  const name = modeResetName(mode, locale)
+  return locale === 'en'
+    ? `A new nickname resets all ${name} progress. Other modes keep theirs.`
+    : `Новый ник сбросит весь прогресс режима ${name}. Другие режимы сохранятся.`
 }
