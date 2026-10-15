@@ -94,6 +94,22 @@ describe('scripts/sign-client-release.mjs', () => {
     await expect(script.signClientRelease({ exe, buildInfo, privateKey, publicKey })).rejects.toThrow(/not a client build-info/)
   })
 
+  it('signs the owner exe (edition owner) so that the owner app accepts it, and refuses the client build-info for it', async () => {
+    const exe = join(dir, 'RaidOSServer.exe')
+    const buildInfo = join(dir, 'owner-release-build-info.json')
+    const clientInfo = join(dir, 'client-release-build-info.json')
+    writeFileSync(exe, Buffer.alloc(2048, 9))
+    writeFileSync(buildInfo, JSON.stringify({ version: '0.6.1', build: 1792000000500, commit: 'abc1234-production', edition: 'owner', ownerEmails: ['owner@example.com'] }))
+    writeFileSync(clientInfo, JSON.stringify({ version: '0.6.1', build: 1792000000000, commit: 'abc1234-production', edition: 'client' }))
+    const result = await script.signOwnerRelease({ exe, buildInfo, privateKey, publicKey })
+    expect(Object.keys(result)).toEqual(['version', 'build', 'commit', 'edition', 'size', 'sha256', 'signature'])
+    expect(verifiedUpdateManifest(result, publicKey)).toEqual({ edition: 'owner', version: '0.6.1', build: 1792000000500, commit: 'abc1234-production', size: 2048, sha256: result.sha256 })
+    // Nothing else of the build-info (the owner's e-mail) goes into the published manifest.
+    expect(JSON.stringify(result)).not.toContain('owner@example.com')
+    await expect(script.signOwnerRelease({ exe, buildInfo: clientInfo, privateKey, publicKey })).rejects.toThrow(/not an owner build-info/)
+    await expect(script.signOwnerRelease({ exe, buildInfo, privateKey: stranger.privateKey, publicKey })).rejects.toThrow(/does not match/)
+  })
+
   it('reads the key as PEM text, base64 of the PEM or a file, and never puts it in an error', () => {
     const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
     const file = join(dir, 'signing-key.pem')

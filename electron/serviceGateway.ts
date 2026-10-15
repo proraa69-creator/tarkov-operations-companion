@@ -590,6 +590,42 @@ export async function createMobileLoginCode(): Promise<{ code: string; expiresAt
   return { code: answer.code, expiresAt: answer.expiresAt }
 }
 
+/**
+ * The owner's copy only (electron/appUpdate.ts): the signed manifest of the whole owner exe
+ * (GET /v1/accounts/me/admin/server-exe-manifest, server/src/routes/serverDownload.ts), asked with the owner's session,
+ * which never leaves this process. The caller checks the signature. null: a player's copy (never asks), not signed in,
+ * not the owner, nothing published, or offline.
+ */
+export async function ownerExeManifest(): Promise<unknown> {
+  if (!isOwnerBuild()) return null
+  try {
+    await loadSessionForServer()
+    if (!sessionToken) return null
+    const { response, result } = await send('GET', '/v1/accounts/me/admin/server-exe-manifest', { token: sessionToken, timeoutMs: 10_000 })
+    return response.ok ? result : null
+  } catch {
+    return null
+  }
+}
+
+const SIGN_IN_FOR_UPDATE = 'Войдите в аккаунт владельца, чтобы скачать обновление'
+
+/**
+ * The owner's copy only: a one-time link to the whole owner exe (POST /v1/accounts/me/admin/server-exe-link: 15 minutes,
+ * three downloads) on the server the session belongs to, and the size the server reports. Throws with the reason.
+ */
+export async function ownerExeLink(): Promise<{ url: string; size: number }> {
+  if (!isOwnerBuild()) throw new Error('Не найдено')
+  await loadSessionForServer()
+  if (!sessionToken) throw new Error(SIGN_IN_FOR_UPDATE)
+  const { response, result } = await send('POST', '/v1/accounts/me/admin/server-exe-link', { token: sessionToken, timeoutMs: 15_000 })
+  if (response.status === 401) throw new Error(SIGN_IN_FOR_UPDATE)
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Сервер не отдал файл: HTTP ${response.status}`)
+  const answer = result as { url?: unknown; size?: unknown } | null
+  if (typeof answer?.url !== 'string' || !/^\/v1\/server-exe\/[a-f0-9]{48}$/.test(answer.url) || typeof answer.size !== 'number') throw new Error('Сервер вернул неожиданный ответ')
+  return { url: `${apiBaseUrl()}${answer.url}`, size: answer.size }
+}
+
 export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<AccountStatus> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
   const password = typeof rawPassword === 'string' ? rawPassword : ''

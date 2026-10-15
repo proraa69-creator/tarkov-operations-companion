@@ -16,7 +16,7 @@ vi.mock('node:os', () => ({ tmpdir: () => env.dir }))
 vi.mock('./updateSigningKey.js', () => ({ UPDATE_SIGNING_PUBLIC_KEY: keys.publicPem }))
 vi.mock('./buildEdition.js', () => ({ isOwnerBuild: () => false, buildDefaultServerUrl: () => 'https://raidos.app' }))
 vi.mock('./localServer.js', () => ({ runningBuild: async () => ({ version: '0.5.4', build: 100, edition: 'client' }) }))
-vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => '', apiBaseUrl: () => '' }))
+vi.mock('./serviceGateway.js', () => ({ loadServerUrl: async () => '', apiBaseUrl: () => '', ownerExeManifest: async () => null, ownerExeLink: async () => { throw new Error('no owner exe') } }))
 
 const realOs = await vi.importActual<typeof import('node:os')>('node:os')
 const bytes = Buffer.from('MZ verified update')
