@@ -181,12 +181,22 @@ function gunsmithFromLogs(byId: Map<string, Quest>, steps: ReturnType<typeof gun
   }
 }
 
-/** Completed trader quests: by the logs, a mandatory prerequisite chain or the chronology (src/progression/chronology.ts). */
+/**
+ * A completion the game itself reported: a handed-in quest in the logs (after the mode's floor) or a confirmed screen
+ * reading. Not one the app infers — from a prerequisite chain or the chronology (`basis`): those stay «вероятно
+ * выполнено» in the lists but are never counted (owner, 15.10.2026: PvE «154 выполнено» in the game, 226 in the app — the
+ * owner's logs of 09.2026 give 1 handed-in PvE quest and 223 inferred ones).
+ */
+export function provenCompleted(availability: TaskAvailability | undefined) {
+  return availability?.status === 'completed' && !availability.basis
+}
+
+/** Completed trader quests, as the game reports them (provenCompleted). */
 export function completedQuestStats(quests: Quest[], availability: Map<string, TaskAvailability>) {
   const live = quests.filter((quest) => isLiveGameQuest(quest))
-  const done = live.filter((quest) => availability.get(quest.id)?.status === 'completed')
+  const done = live.filter((quest) => provenCompleted(availability.get(quest.id)))
   const kappa = live.filter((quest) => quest.kappa)
-  const kappaDone = kappa.filter((quest) => availability.get(quest.id)?.status === 'completed')
+  const kappaDone = kappa.filter((quest) => provenCompleted(availability.get(quest.id)))
   return { completed: done.length, total: live.length, kappaCompleted: kappaDone.length, kappaTotal: kappa.length }
 }
 

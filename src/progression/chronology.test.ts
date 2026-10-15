@@ -3,7 +3,7 @@ import type { AppDataset, ModeProgress, Quest, TaskProgressRecord } from '../dom
 import { createModeProgress } from '../domain/progress'
 import { withQuestGrid } from '../data/questGrid'
 import { unlockFromRequirements } from '../data/questUnlock'
-import { calculateAvailability } from './requirementEngine'
+import { calculateAvailability, completedQuestStats, isLiveGameQuest } from './requirementEngine'
 import { inferChronology } from './chronology'
 import grid from './__fixtures__/quest-grid-tasks-2026-10.json'
 import ownerLogs from './__fixtures__/owner-logs-2026-09.json'
@@ -165,6 +165,23 @@ describe("the owner's logs against the quest grid", () => {
     expect(statusOf(availability, 'Терапевт', 'Служба дезинфекции')?.status).toBe('unknown')
     expect(count('active')).toBe(3)
     expect(count('completed')).toBeGreaterThanOrEqual(25)
+  })
+
+  it('«Выполнено» counts what the game reported, never what the app infers (owner, 15.10.2026: 154 in the game, 226 in the app)', () => {
+    const availability = calculateAvailability(quests, progressOf(recordsOf('pve'), { faction: 'bear', playerLevel: 40 }))
+    const inferred = [...availability.values()].filter((entry) => entry.status === 'completed' && entry.basis).length
+    // The lists still show the inferred ones as done (chain, line, stage, start): over two hundred of them.
+    expect(inferred).toBeGreaterThan(200)
+    // The count: the one PvE quest these logs show handed in.
+    const handedIn = (ownerLogs.events.pve as Array<[string, string, string]>).filter(([, status]) => status === 'completed').length
+    expect(completedQuestStats(quests, availability).completed).toBe(handedIn)
+    expect(handedIn).toBe(1)
+    // PvP after its prestige: the 36 handed in since the reset, nothing more.
+    const pvp = calculateAvailability(quests, progressOf(recordsOf('pvp', ownerLogs.resets.pvp), { faction: 'bear', playerLevel: 5 }))
+    const live = new Set(quests.filter((entry) => isLiveGameQuest(entry)).map((entry) => entry.id))
+    const pvpHandedIn = Object.entries(recordsOf('pvp', ownerLogs.resets.pvp)).filter(([taskId, record]) => record.status === 'completed' && live.has(taskId)).length
+    expect(pvpHandedIn).toBeGreaterThan(0)
+    expect(completedQuestStats(quests, pvp).completed).toBe(pvpHandedIn)
   })
 
   it('PvE, 26.09: Prapor — the quest handed in and the ones taken date the first line', () => {

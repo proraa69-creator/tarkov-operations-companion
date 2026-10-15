@@ -4,7 +4,7 @@ import { Check, ChevronRight, ListChecks, Lock, ScrollText } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { calculateAvailability, isLiveGameQuest } from '../progression/requirementEngine'
+import { calculateAvailability, isLiveGameQuest, provenCompleted } from '../progression/requirementEngine'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { chronologyStages } from '../progression/chronology'
 import { traderChronologyGroups } from '../progression/chronologyView'
@@ -57,8 +57,9 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const counts = {
     all: quests.length,
     current: quests.filter((quest) => taken(statusOf(quest))).length,
-    // «Выполнено» is handed-in quests only; failed ones stay in the «Завершённые» list but are not done.
-    completed: quests.filter((quest) => statusOf(quest) === 'completed').length,
+    // «Выполнено» is handed-in quests only, as the game reports them (not inferred: provenCompleted); failed ones stay in
+    // the «Завершённые» list but are not done.
+    completed: quests.filter((quest) => provenCompleted(availability.get(quest.id))).length,
   }
   const shown = quests.filter((quest) => list === 'all' || (list === 'current' ? taken(statusOf(quest)) : closed(statusOf(quest))))
   const position = new Map(quests.map((quest, index) => [quest.id, index + 1]))
