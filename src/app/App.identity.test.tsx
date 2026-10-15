@@ -19,6 +19,7 @@ vi.mock('../account/EftAccountBinding', () => ({ EftAccountBinding: () => null }
 vi.mock('../onboarding/GameRestartNotice', () => ({ GameRestartNotice: () => null }))
 vi.mock('../onboarding/FirstRunGuide', () => ({ FirstRunGuide: () => null }))
 vi.mock('../onboarding/QuestSyncTip', () => ({ QuestSyncTip: () => null }))
+vi.mock('../onboarding/RaidLoadoutTip', () => ({ RaidLoadoutTip: () => null }))
 vi.mock('../restock/RestockWidgets', () => ({ RestockNotifier: () => null }))
 vi.mock('../components/UpdateButton', () => ({ UpdateButton: () => null }))
 vi.mock('../announcement/AnnouncementBanner', () => ({ AnnouncementBanner: () => null }))
