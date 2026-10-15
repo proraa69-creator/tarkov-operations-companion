@@ -4,7 +4,8 @@
  * прогресс в выбраном режиме»). Both go through AppState's `resetModeProgress(mode, at, reason)`:
  *   - the mode's records in the profile (src/domain/progress.ts wipeModeProgress) and its epoch `at`, so a rescan of the
  *     logs, the server and the game's screens never bring back anything older;
- *   - here, the per-mode stores outside the profile (afterModeReset), the server (queued while offline) and the notice.
+ *   - here, the per-mode stores outside the profile (afterModeReset), the server of the account signed in now (queued
+ *     while offline, sent only to that account; a reset made signed out stays local) and the notice.
  * Other modes, settings, the account and the nickname are not touched.
  */
 import { useSyncExternalStore } from 'react'
@@ -22,14 +23,16 @@ export type ModeResetReason = 'prestige' | 'nickname'
 export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeResetReason; at: string }
 
 /**
- * The stores outside the profile that hold progress of the mode, and the server: the traders' loyalty (screen readings
- * and the player's own levels), the Collector checklist (an empty list goes to the server too), «Сделал в этом рейде»
+ * The stores outside the profile that hold progress of the mode: the traders' loyalty (screen readings and the player's
+ * own levels), the Collector checklist (the server's goes with the reset route), «Сделал в этом рейде»
  * checks and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») shows
  * once more on this computer: the mode's current quests are read from the Tasks table again.
  */
 export function wipeModeStores(profileId: string, mode: RaidMode) {
   clearTraderLevels(mode)
-  saveCollected(mode, [])
+  // Local only: the server's list goes with the reset route of the account it was made under (never an empty list pushed
+  // to whichever account signs in next).
+  saveCollected(mode, [], { fromServer: true })
   clearQuestChecks(profileId, mode)
   try {
     localStorage.removeItem(kappaCongratsKey(profileId, mode))

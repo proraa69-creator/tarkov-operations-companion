@@ -131,7 +131,8 @@ describe('resetModeProgress: one mode starts again («Престиж +», a nick
     expect(readScreenTraderLevels('pvp', CHARACTER)?.levels).toEqual({ prapor: 3 })
     expect(readManualTraderLevels('seasonal')).toEqual({ skier: 2 })
     expect(loadCollected('pve')).toEqual([])
-    expect(isCollectorDirty('pve')).toBe(true)
+    // Not pushed as an edit to whichever account signs in next: the server's list goes with the reset route.
+    expect(isCollectorDirty('pve')).toBe(false)
     expect(loadCollected('pvp')).toEqual(['axe'])
     expect(isCollectorDirty('pvp')).toBe(false)
     expect(readQuestChecks('local-test', 'pve').size).toBe(0)
@@ -140,9 +141,10 @@ describe('resetModeProgress: one mode starts again («Престиж +», a nick
     expect(localStorage.getItem(kappaCongratsKey('local-test', 'pvp'))).toBe('1')
     expect(localStorage.getItem(QUEST_SYNC_TIP_KEY)).toBeNull()
 
-    // Queued for the server (sent once an account is online), told as the mode's epoch, and shown.
-    expect(modeResetFloor('pve')).toBe(at)
-    expect(modeResetFloor('pvp')).toBeUndefined()
+    // Made signed out (no server account in this test): local only, nothing queued for any account. Told as the mode's
+    // epoch, and shown.
+    expect(modeResetFloor('pve')).toBeUndefined()
+    expect(localStorage.getItem('raidos-mode-resets-v1')).toBeNull()
     expect(epochs).toEqual([expect.objectContaining({ kind: 'reset', at, mode: 'pve', profileId: 'local-test' })])
     expect(probe.notices).toEqual([expect.objectContaining({ mode: 'pve', reason: 'prestige', at })])
   })
@@ -183,7 +185,6 @@ describe('resetModeProgress: one mode starts again («Престиж +», a nick
     act(() => state.resetModeProgress('pve', '2026-10-10T12:00:00.000Z', 'nickname'))
     act(() => state.resetModeProgress('pve', '2026-10-01T12:00:00.000Z', 'prestige'))
     expect(mode('pve').modeResetAt).toBe('2026-10-10T12:00:00.000Z')
-    expect(modeResetFloor('pve')).toBe('2026-10-10T12:00:00.000Z')
   })
 
   it('tells the reset in Russian and English', () => {

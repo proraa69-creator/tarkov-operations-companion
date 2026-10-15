@@ -137,37 +137,85 @@ describe('server sync with the desktop gateway', () => {
     expect(parseObjectiveSnapshot({ objectives: 'x', events: [] }, 'pve')).toBeNull()
   })
 
-  it('a reset of one mode is sent at once when online, queued while signed out, and carried by the log pushes', async () => {
-    const at = '2026-09-25T12:30:00.000Z'
-    serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
-    queueModeReset('pve', at)
-    await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at }))
-    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('raidos-mode-resets-v1')!)).toEqual({ pve: { at } }))
-    expect(modeResetFloor('pve')).toBe(at)
-    expect(modeResetFloor('pvp')).toBeUndefined()
+  describe('the reset of a mode goes only to the account it was made under', () => {
+    const SERVER = 'http://127.0.0.1:8787'
+    const signIn = async (email: string | null, online = true) => {
+      status.mockResolvedValue(email ? { signedIn: true, email, kind: 'user', online, serverUrl: SERVER, persistent: true } : { signedIn: false, online, serverUrl: SERVER, persistent: true })
+      await refreshServerStatus()
+    }
+    const queue = () => JSON.parse(localStorage.getItem('raidos-mode-resets-v1') ?? '{}') as Record<string, Record<string, { at: string; pending?: boolean }>>
+    const resetCalls = () => serviceRequest.mock.calls.filter(([, path]) => String(path).endsWith('/reset'))
 
-    // Signed out: queued, nothing sent; sent once an account is online, then not again.
-    serviceRequest.mockClear()
-    status.mockResolvedValue({ signedIn: false, online: true, serverUrl: 'http://127.0.0.1:8787', persistent: true })
-    await refreshServerStatus()
-    const later = '2026-09-25T13:00:00.000Z'
-    queueModeReset('seasonal', later)
-    await sendModeResets()
-    expect(serviceRequest).not.toHaveBeenCalled()
-    expect(JSON.parse(localStorage.getItem('raidos-mode-resets-v1')!).seasonal).toEqual({ at: later, pending: true })
-    status.mockResolvedValue({ signedIn: true, email: 'a@example.com', kind: 'user', online: true, serverUrl: 'http://127.0.0.1:8787', persistent: true })
-    await refreshServerStatus()
-    serviceRequest.mockResolvedValue({ resetAt: later, scope: null })
-    await sendModeResets()
-    expect(serviceRequest.mock.calls).toEqual([['POST', '/v1/me/progress/seasonal/reset', { at: later }]])
-    await sendModeResets()
-    expect(serviceRequest).toHaveBeenCalledTimes(1)
+    it('the same account: sent at once, then not again; the log pushes carry it and leave out older events', async () => {
+      const at = '2026-09-25T12:30:00.000Z'
+      serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+      queueModeReset('pve', at)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at } } }))
+      expect(modeResetFloor('pve')).toBe(at)
+      expect(modeResetFloor('pvp')).toBeUndefined()
+      await sendModeResets()
+      expect(resetCalls()).toHaveLength(1)
 
-    // The pushes of the logs carry the mode's reset and leave out the events before it.
-    serviceRequest.mockReset()
-    serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
-    await pushLogProgress(scan(), () => unregistered, vi.fn())
-    expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, resetAt: at, events: [] })
+      serviceRequest.mockReset()
+      serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+      await pushLogProgress(scan(), () => unregistered, vi.fn())
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', { accountId: 7, characterId: CHARACTER, resetAt: at, events: [] })
+    })
+
+    it('queued offline for one account: another account signing in gets nothing; the original account gets it when back', async () => {
+      const at = '2026-09-25T13:00:00.000Z'
+      await signIn('a@example.com', false)
+      queueModeReset('seasonal', at)
+      await sendModeResets()
+      expect(resetCalls()).toEqual([])
+      expect(queue()[`${SERVER}|e:a@example.com`]).toEqual({ seasonal: { at, pending: true } })
+
+      // Another account on this PC: no reset request, no reset in its log pushes, nothing kept for it.
+      await signIn('b@example.com')
+      serviceRequest.mockResolvedValue({ records: [], scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x' } })
+      await sendModeResets()
+      expect(modeResetFloor('seasonal')).toBeUndefined()
+      const scanSeasonal = { ...scan(), eventsByMode: { pvp: [], pve: [], seasonal: scan().eventsByMode.pve }, summaryByMode: { seasonal: { lastActivityAt: '2026-09-25T12:00:00.000Z', questCount: 1 } } as unknown as ModeLogScanResult['summaryByMode'], latestCharacterIdByMode: { seasonal: CHARACTER }, latestAccountIdByMode: { seasonal: 7 } }
+      await pushLogProgress(scanSeasonal, () => unregistered, vi.fn())
+      expect(resetCalls()).toEqual([])
+      const push = serviceRequest.mock.calls.find(([, path]) => path === '/v1/me/progress/seasonal/events')
+      expect(push?.[2]).not.toHaveProperty('resetAt')
+      expect(queue()[`${SERVER}|e:b@example.com`]).toBeUndefined()
+      expect(queue()[`${SERVER}|e:a@example.com`]).toEqual({ seasonal: { at, pending: true } })
+
+      // The original account signs back in. While its reset waits, its Collector list is not pulled (the server's is the
+      // one from before the reset); then the reset is sent, to it.
+      serviceRequest.mockReset()
+      serviceRequest.mockResolvedValue({ resetAt: at, scope: null })
+      await signIn('A@Example.com')
+      await syncCollector('seasonal')
+      expect(serviceRequest).not.toHaveBeenCalled()
+      await sendModeResets()
+      expect(resetCalls()).toEqual([['POST', '/v1/me/progress/seasonal/reset', { at }]])
+      expect(queue()[`${SERVER}|e:a@example.com`]).toEqual({ seasonal: { at } })
+    })
+
+    it('a reset made signed out stays local: never sent, to no account', async () => {
+      await signIn(null)
+      queueModeReset('pvp', '2026-09-25T14:00:00.000Z')
+      expect(queue()).toEqual({})
+      await signIn('a@example.com')
+      await sendModeResets()
+      await signIn('b@example.com')
+      await sendModeResets()
+      expect(resetCalls()).toEqual([])
+      expect(modeResetFloor('pvp')).toBeUndefined()
+    })
+
+    it('an account the status does not tell apart (no e-mail, no phone) queues nothing', async () => {
+      status.mockResolvedValue({ signedIn: true, online: true, serverUrl: SERVER, persistent: true })
+      await refreshServerStatus()
+      queueModeReset('pve', '2026-09-25T15:00:00.000Z')
+      await sendModeResets()
+      expect(resetCalls()).toEqual([])
+      expect(queue()).toEqual({})
+    })
   })
 
   it('does nothing while signed out', async () => {
