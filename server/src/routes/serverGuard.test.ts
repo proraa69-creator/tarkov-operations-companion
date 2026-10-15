@@ -60,6 +60,8 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/bug-reports/12/files/0', '/v1/accounts/me/admin/bug-reports/12/status',
   '/v1/accounts/me/admin/bug-reports/12/files/0/data', '/v1/accounts/me/admin/requests/events', '/v1/accounts/me/admin/requests/events?since=1791283908575',
   '/v1/accounts/me/admin/quest-texts', '/v1/accounts/me/admin/quest-texts/0123456789abcdef01234567/remove',
+  '/v1/quest-requirements', '/v1/accounts/me/admin/quest-requirements', '/v1/accounts/me/admin/quest-requirements/order',
+  '/v1/accounts/me/admin/quest-requirements/0123456789abcdef01234567/remove',
   '/v1/accounts/me/admin/requests-key', '/v1/agent/requests', '/v1/agent/requests?status=all&limit=200&offset=0', '/v1/agent/requests/12/images/0',
   '/v1/admin/streamers', '/v1/admin/streamer-invites', '/v1/admin/accounts', '/v1/admin/sms', '/v1/admin/email',
   '/v1/me/progress/pvp', '/v1/me/progress/pve/events', '/v1/me/collector/seasonal', '/v1/me/position/pvp', '/v1/me/settings', '/v1/me/summary',
@@ -83,6 +85,8 @@ const REAL_BODIES: unknown[] = [
   { phone: '+7 (999) 123-45-67', password: 'pa$$; DROP' },
   { challengeId: 'abc', code: '123456' },
   { itemIds: ['5c0e531286f7747fa54205c2', 'select'] },
+  { questId: 'q', op: 'add', itemId: '5780cf7f2459777de4559322', kind: 'key', count: 1, comment: 'Открыть дверь 314; «союз» с выбором — or 2' },
+  { questId: 'q', markerId: 'm', mapId: 'customs', x: 1, z: 2, kind: 'describe', title: 'Склад', description: 'За дверью, select the second shelf' },
 ]
 
 test('real API paths, queries and bodies never look like an attack', () => {

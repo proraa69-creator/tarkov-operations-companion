@@ -54,7 +54,7 @@ for (const locale of ['ru', 'en'] as const) {
     await openOverview(page, locale, { width: 1600, height: 1100 })
     const card = page.locator('.quest-conditions-card')
     await expect(card).toBeVisible({ timeout: 45_000 })
-    await expect(card.locator('.stat-label')).toHaveText(locale === 'en' ? 'Quest conditions' : 'Условия квестов')
+    await expect(card.locator('.stat-label')).toHaveText(locale === 'en' ? 'Raid loadout' : 'Сбор на рейд')
     // the English catalog lends its names once loaded
     if (locale === 'en') await expect(page.locator('.current-tasks')).toContainText('Job for a Patriot', { timeout: 45_000 })
     await page.waitForLoadState('networkidle')

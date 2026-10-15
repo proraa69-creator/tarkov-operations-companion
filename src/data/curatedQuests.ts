@@ -11,8 +11,12 @@ import type { AppLocale } from '../i18n/LocaleProvider'
  * the trader views, the quest detail, the map points (`zones`) and the log matching by the game's quest id. A task
  * tarkov.dev already has (the same id) is left to tarkov.dev: its data wins once it lists the quest again.
  *
- * Map points are never typed in here. An objective names a place of the tarkov.dev maps file (an extract, a transit, a
- * locked door) and takes that place's coordinates at build time; a place the maps file does not have gives no point.
+ * Map points are not typed in here. An objective names a place of the tarkov.dev files of its mode: an extract, a transit
+ * or a locked door of the maps file, or the zone of another tarkov.dev task that names the same place (the weather station
+ * on the mountain, the tennis court at the chalets), and takes that place's coordinates at build time; a place the files do
+ * not have gives no point. The exceptions are copied, never made up: `archived`, the zone tarkov.dev published for the same
+ * objective of the same quest id before it dropped the quest (docs/quests/na-svet-audit.md names the copies it was read
+ * from), and a `floor`, the heights of a floor in tarkov.dev's map config.
  */
 
 type JsonRecord = Record<string, unknown>
@@ -20,13 +24,32 @@ type JsonRecord = Record<string, unknown>
 interface Text { ru: string; en: string }
 
 /**
- * A place in the tarkov.dev maps file (`<mode>/maps`) by the map's normalizedName and a key the translation leaves alone:
- * a transit's id, an extract's id (its `name` is translated), a locked door's key.
+ * A place by the map's normalizedName and a key the translation leaves alone: in the tarkov.dev maps file (`<mode>/maps`)
+ * a transit's id, an extract's id (its `name` is translated) or a locked door's key; in the tasks file (`<mode>/tasks`) a
+ * zone of another task (`taskZone`: that task's id and the zone's id); `archived`: a zone the current files no longer
+ * have (see the header).
+ *
+ * `building`: the place is only the building the objective is in (another room of it, an extract in its basement), so the
+ * point keeps the position and drops that room's outline and heights. `floor` (with `building`): the floor the objective is
+ * on, as the [bottom, top] heights of that floor in tarkov.dev's map config; the point then has no height of its own.
  */
-export type CuratedSpot =
+type CuratedPlace =
   | { map: string; transit: string }
   | { map: string; extract: string }
   | { map: string; lockKey: string }
+  | { map: string; taskZone: { task: string; zone: string } }
+  | { map: string; archived: ArchivedZone }
+
+export type CuratedSpot = CuratedPlace & { building?: boolean; floor?: [bottom: number, top: number] }
+
+/** A zone of tarkov.dev's shape (game coordinates) as tarkov.dev published it. */
+export interface ArchivedZone {
+  id: string
+  position: { x: number; y: number; z: number }
+  outline?: Array<{ x: number; y: number; z: number }>
+  top?: number
+  bottom?: number
+}
 
 interface CuratedObjective {
   /** tarkov.dev objective type; `hideout` (return to the hideout) and `transit` are the game's, tarkov.dev has no name for them. */
@@ -109,6 +132,8 @@ const RSP_YELLOW = '624c0b3340357b5f566e8766'
 const FLARE_26X75_YELLOW = '62389be94d5d474bf712e709'
 const BLUE_FOLDERS = '6389c8c5dbfd5e4b95197e6b'
 const DSP_TRANSMITTER = '62e910aaf957f2915e0a5e36'
+const LIGHTHOUSE_STASH_KEY = '6a8d581fe74010bf70069d83'
+const WEAPON_CASE = '59fb023c86f7746d0d4b423c'
 const V3_FLASH_DRIVE = '6331bb0d1aa9f42b804997a6'
 const DOGTAG_BEAR = '59f32bb586f774757e1e8442'
 const DOGTAG_USEC = '59f32c3b86f77472a31742f0'
@@ -118,6 +143,38 @@ const STANDING_NAMES: Record<string, Text> = { [LIGHTKEEPER]: { ru: 'Смотр�
 
 /** «Источник информации» (Lightkeeper): the first task after the series. */
 const INFORMATION_SOURCE = '63966faeea19ac7ed845db2c'
+
+/**
+ * tarkov.dev tasks whose zones are the same places as objectives of the series (in all three modes' tasks files,
+ * 15.10.2026; docs/quests/na-svet-audit.md says how each place was matched).
+ */
+export const PLACE_SOURCE_TASKS = {
+  /** «Устойчивый сигнал» (Steady Signal): «Mark any of the weather stations»; zone q14_8_2 is the one on the mountain. */
+  steadySignal: '6578ec473dbd035d04531a8d',
+  /** «Водохлёб. Курьер» (Thirsty - Delivery): its Customs stash spot is in the store at the crossroads. */
+  thirstyDelivery: '665eec4a4dfc83b0ed0a9dca',
+  /** «Деза» (Bullshit): «the trash bags at the chalet tennis court on Lighthouse». */
+  bullshit: '5c0bbaa886f7746941031d82',
+  /** «Инвазивная терапия» (Invasive Therapy): «the med bay at the upper Rogue chalet on Lighthouse». */
+  invasiveTherapy: '6a7ae35b2dbf91eb050af95a',
+} as const
+
+/**
+ * «Посетить здание Маяка» of this same quest id (objective 63ab727b1287ef0b827d0c95) as tarkov.dev published it until it
+ * dropped the quest (copies of json.tarkov.dev/regular/tasks of 26 and 28.08.2026).
+ */
+const LIGHTHOUSE_BUILDING: ArchivedZone = {
+  id: '63ab727b1287ef0b827d0c95-z0',
+  position: { x: 442.2326, y: 24.1148987, z: 460.690674 },
+  outline: [
+    { x: 429.8051, y: 24.1148987, z: 447.883179 },
+    { x: 454.6601, y: 24.1148987, z: 447.883179 },
+    { x: 454.6601, y: 24.1148987, z: 473.498169 },
+    { x: 429.8051, y: 24.1148987, z: 473.498169 },
+  ],
+  top: 29.9708977,
+  bottom: 18.2589,
+}
 
 export const TO_THE_LIGHT_IDS = {
   trustButVerify: '6a880acc9216d0f5aa078305',
@@ -155,6 +212,9 @@ export const TO_THE_LIGHT: CuratedSeries = {
     'tarkov.help/en|ru/quest/…',
     'json.tarkov.dev regular/tasks_ru, tasks_en (the name of 625d700cc48e6c62a440fab5)',
     'json.tarkov.dev <mode>/maps (extracts, transits, locks)',
+    'json.tarkov.dev <mode>/tasks (zones of other tasks at the same places)',
+    'json.tarkov.dev regular/tasks before 09.2026, copies of 26 and 28.08.2026 (the lighthouse building zone)',
+    'tarkov.dev src/data/maps.json (floor heights)',
   ],
   quests: [
     {
@@ -205,7 +265,12 @@ export const TO_THE_LIGHT: CuratedSeries = {
       objectives: [
         { type: 'shoot', count: 5, maps: ['customs'], shoot: { targets: ['Savage'], fromHour: 21, untilHour: 6 }, text: { ru: 'Устранить Диких на локации Таможня с 21:00 до 6:00 (В одном рейде)', en: 'Eliminate Scavs during 21:00-06:00 on Customs (In one raid)' } },
         { type: 'shoot', count: 1, maps: ['customs'], shoot: { targets: ['AnyPmc'], fromHour: 21, untilHour: 6 }, text: { ru: 'Устранить бойцов ЧВК с 21:00 до 6:00 на локации Таможня (В одном рейде)', en: 'Eliminate PMC operatives during 21:00-06:00 on Customs (In one raid)' } },
-        { type: 'plantItem', maps: ['customs'], items: [WIFI_CAMERA], text: { ru: 'Спрятать Wi-Fi камеру у кондиционера на точке явки в магазине «Местный» на перекрёстке на локации Таможня (В одном рейде)', en: 'Hide a Wi-Fi camera at the AC unit at the convenience store near the bridge on Customs (In one raid)' } },
+        {
+          type: 'plantItem', maps: ['customs'], items: [WIFI_CAMERA],
+          // the store itself: the camera goes on its AC unit, Thirsty's stash spot is in its back room
+          spots: [{ map: 'customs', taskZone: { task: PLACE_SOURCE_TASKS.thirstyDelivery, zone: 'place_2A2_unlock_3_customs' }, building: true }],
+          text: { ru: 'Спрятать Wi-Fi камеру у кондиционера на точке явки в магазине «Местный» на перекрёстке на локации Таможня (В одном рейде)', en: 'Hide a Wi-Fi camera at the AC unit at the convenience store near the bridge on Customs (In one raid)' },
+        },
         { type: 'useItem', maps: ['customs'], useAny: [RSP_YELLOW, FLARE_26X75_YELLOW], spots: [{ map: 'customs', transit: '42' }], text: { ru: 'Подать сигнал РСП (Жёлтый) у перехода на локацию Берег (В одном рейде)', en: 'Launch a yellow signal flare at the Shoreline transit on Customs (In one raid)' } },
       ],
       bring: [{ itemIds: [RSP_YELLOW, FLARE_26X75_YELLOW], count: 1, maps: ['customs'], objective: 3 }],
@@ -235,12 +300,22 @@ export const TO_THE_LIGHT: CuratedSeries = {
       delay: [600, 900],
       experience: 45_000,
       objectives: [
-        { type: 'plantItem', maps: ['woods'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов в метеовышку в горах на локации Лес (В одном рейде)', en: 'Plant a Signal jammer at the weather station on the mountain on Woods (In one raid)' } },
+        {
+          type: 'plantItem', maps: ['woods'], items: [SIGNAL_JAMMER],
+          // the weather station on the summit (the highest point of Woods)
+          spots: [{ map: 'woods', taskZone: { task: PLACE_SOURCE_TASKS.steadySignal, zone: 'q14_8_2' } }],
+          text: { ru: 'Установить подавитель сигналов в метеовышку в горах на локации Лес (В одном рейде)', en: 'Plant a Signal jammer at the weather station on the mountain on Woods (In one raid)' },
+        },
         { type: 'plantItem', maps: ['woods'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов в сторожевой будке на лесопилке на локации Лес (В одном рейде)', en: 'Plant a Signal jammer at the sawmill guardhouse on Woods (In one raid)' } },
         { type: 'transit', maps: ['woods'], spots: [{ map: 'woods', transit: '41' }], text: { ru: 'Совершить переход с локации Лес на локацию Таможня (В одном рейде)', en: 'Use the transit from Woods to Customs (In one raid)' } },
         { type: 'plantItem', maps: ['customs'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов на втором этаже стройки у дороги на локации Таможня (В одном рейде)', en: 'Plant a Signal jammer on the second floor of the roadside construction site on Customs (In one raid)' } },
         { type: 'transit', maps: ['customs'], spots: [{ map: 'customs', transit: '42' }], text: { ru: 'Совершить переход с локации Таможня на локацию Берег (В одном рейде)', en: 'Use the transit from Customs to Shoreline (In one raid)' } },
-        { type: 'plantItem', maps: ['shoreline'], items: [SIGNAL_JAMMER], text: { ru: 'Установить подавитель сигналов в архиве на 2 этаже административного корпуса санатория на локации Берег (В одном рейде)', en: 'Plant a Signal jammer at the second floor archives in the Health Resort admin building on Shoreline (In one raid)' } },
+        {
+          type: 'plantItem', maps: ['shoreline'], items: [SIGNAL_JAMMER],
+          // the admin building (its basement extract «Adm Basement»), 2nd floor: tarkov.dev's Shoreline «2nd Floor» heights
+          spots: [{ map: 'shoreline', extract: '3475b9df1bf661d3c746ff1a1a8493bae828b939', building: true, floor: [-1, 2] }],
+          text: { ru: 'Установить подавитель сигналов в архиве на 2 этаже административного корпуса санатория на локации Берег (В одном рейде)', en: 'Plant a Signal jammer at the second floor archives in the Health Resort admin building on Shoreline (In one raid)' },
+        },
       ],
       note: {
         ru: 'Появляется через 10–15 минут после «Ложного вызова». Всё — за один заход через переходы Лес → Таможня → Берег; выход до последней цели — начинать заново. Нужно 4 подавителя сигналов (Механик, 1-й уровень лояльности).',
@@ -349,17 +424,30 @@ export const TO_THE_LIGHT: CuratedSeries = {
       after: [ID.otherSide],
       experience: 32_000,
       objectives: [
-        { type: 'findQuestItem', maps: ['lighthouse'], questItem: V3_FLASH_DRIVE, text: { ru: 'Раздобыть Флеш-накопитель V3 на локации Маяк', en: 'Obtain the V3 Flash drive on Lighthouse' } },
-        { type: 'hideout', text: { ru: 'Перепрошить Радиопередатчик с помощью Флеш-накопителя V3', en: 'Reflash the Radio transmitter using the V3 Flash drive' } },
+        {
+          type: 'findQuestItem', maps: ['lighthouse'], questItem: V3_FLASH_DRIVE,
+          spots: [
+            // the upper (black) Rogue chalet: laptops on the dining table and in the basement
+            { map: 'lighthouse', taskZone: { task: PLACE_SOURCE_TASKS.invasiveTherapy, zone: 'terapevt_tier_03_group_03_quest_03_01' }, building: true },
+            // the tennis court at the chalets: a laptop in the tent
+            { map: 'lighthouse', taskZone: { task: PLACE_SOURCE_TASKS.bullshit, zone: 'lighthouse_place_bullshit' } },
+          ],
+          text: { ru: 'Раздобыть флеш-накопитель V3 на локации Маяк', en: 'Obtain the V3 Flash drive on Lighthouse' },
+        },
+        { type: 'hideout', text: { ru: 'Перепрошить радиопередатчик с помощью флеш-накопителя V3', en: 'Reflash the Radio transmitter using the V3 Flash drive' } },
         { type: 'giveQuestItem', questItem: V3_FLASH_DRIVE, text: { ru: 'Передать флешку', en: 'Hand over the flash drive' } },
-        { type: 'visit', maps: ['lighthouse'], text: { ru: 'Посетить здание Маяка', en: 'Visit the Lighthouse building' } },
+        {
+          type: 'visit', maps: ['lighthouse'],
+          spots: [{ map: 'lighthouse', archived: LIGHTHOUSE_BUILDING }],
+          text: { ru: 'Посетить здание Маяка', en: 'Visit the Lighthouse building' },
+        },
       ],
-      startRewards: [[DSP_TRANSMITTER, 1], ['6a8d581fe74010bf70069d83', 1], ['59fb023c86f7746d0d4b423c', 1]],
+      startRewards: [[DSP_TRANSMITTER, 1], [LIGHTHOUSE_STASH_KEY, 1], [WEAPON_CASE, 1]],
       craftUnlock: { itemId: DSP_TRANSMITTER, station: { ru: 'Разведцентр, ур. 2', en: 'Intelligence Center level 2' } },
       bring: [{ itemIds: [DSP_TRANSMITTER], count: 1, maps: ['lighthouse'], objective: 3 }],
       note: {
-        ru: 'Флешка V3 лежит у шале на базе Отступников (верхнее и нижнее шале, коттеджи); перепрошивка — в Разведцентре 2-го уровня, при включённом электричестве. С перепрошитым радиопередатчиком в спецслоте Зрячий и мины на мосту пропускают к маяку; в группе он нужен у всех. Не стреляйте в Зрячего и не подходите к нему близко. После задания открывается Смотритель («Источник информации»).',
-        en: 'The V3 flash drive lies around the chalets of the Rogue base (upper and lower chalet, cottages); the reflash is done in the Intelligence Center level 2 with power on. With the reflashed transmitter in the special slot, Zryachiy and the mines on the bridge let you through to the lighthouse; in a group everyone needs one. Do not aim at Zryachiy or come close to him. The task opens Lightkeeper (Information Source).',
+        ru: 'Радиопередатчик, ключ от схрона на Маяке и оружейный кейс выдаются при взятии задания. Флешка V3 — на базе Отступников у шале: на ноутбуке на обеденном столе на первом этаже верхнего (чёрного) шале, на ноутбуке в его подвале и на ноутбуке в палатке у теннисного корта; ищите у ноутбуков, раций и аппаратуры. Базу Отступников придётся зачистить или дождаться, пока это сделают другие. Перепрошивка — в Разведцентре 2-го уровня; электричество нужно на всё время, иначе она прервётся. Перепрошитый радиопередатчик — в спецслот; перед мостом проверьте, что индикатор зелёный. С ним мины на мосту и Зрячий пропускают к маяку; в группе он нужен у всех, иначе мост не пройти. Не стреляйте в Зрячего, не целитесь в него и не подходите близко; не убивайте ЧВК на полуострове маяка — передатчик заблокируется. Убийство Зрячего проваливает задание. После него открывается Смотритель («Источник информации»).',
+        en: 'The radio transmitter, the Lighthouse island stash key and a weapon case come with the task. The V3 flash drive is at the Rogue base by the chalets: on the laptop on the dining table on the ground floor of the upper (black) chalet, on the laptop in its basement and on the laptop in the tent at the tennis court; look by laptops, radios and equipment. The Rogue base has to be cleared, by you or by someone else first. The reflash is done in the Intelligence Center level 2; it needs power the whole time or it is interrupted. Put the reflashed transmitter in the special slot and check that its light is green before the bridge. With it the mines on the bridge and Zryachiy let you through to the lighthouse; in a group everyone needs one or the bridge cannot be crossed. Do not shoot or aim at Zryachiy or come close to him, and do not kill PMCs on the lighthouse peninsula: the transmitter gets blocked. Killing Zryachiy fails the task. It opens Lightkeeper (Information Source).',
       },
     },
   ],
@@ -398,7 +486,7 @@ export function curatedQuestsFor(mode: RaidMode): Array<{ series: CuratedSeries;
 export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskContext): CuratedTasks {
   const tasks = asRecord(tasksRoot.tasks)
   const traderIds = new Set(Object.values(context.traders).map((entry) => text(asRecord(entry).id)).filter(Boolean))
-  const spots = spotIndex(context.maps)
+  const spots = spotIndex(context.maps, tasks)
   const added = new Set<string>()
   const next: JsonRecord = { ...tasks }
   for (const { quest } of curatedQuestsFor(context.mode)) {
@@ -459,14 +547,26 @@ export function applyCuratedQuestNotes(quests: Quest[], added: ReadonlySet<strin
 /** Coordinates of the places the curated objectives may point at, keyed `map|kind|id`. */
 type SpotIndex = Map<string, JsonRecord>
 
-function spotIndex(mapsRoot: JsonRecord): SpotIndex {
+function spotIndex(mapsRoot: JsonRecord, tasks: JsonRecord): SpotIndex {
   const index: SpotIndex = new Map()
+  const mapNames = new Map<string, string>()
   for (const map of Object.values(asRecord(mapsRoot.maps)).map(asRecord)) {
     const name = text(map.normalizedName)
     if (!name) continue
+    if (text(map.id)) mapNames.set(text(map.id), name)
     for (const transit of asArray(map.transits)) index.set(`${name}|transit|${text(transit.id)}`, transit)
     for (const extract of asArray(map.extracts)) index.set(`${name}|extract|${text(extract.id)}`, extract)
     for (const lock of asArray(map.locks)) if (text(lock.key)) index.set(`${name}|lock|${text(lock.key)}`, lock)
+  }
+  // Zones of other tasks: tarkov.dev names their map by id (or, in older files, by normalizedName).
+  for (const task of Object.values(tasks).map(asRecord)) {
+    for (const objective of asArray(task.objectives)) {
+      for (const zone of asArray(objective.zones)) {
+        const map = mapNames.get(text(zone.map)) ?? text(zone.map)
+        const key = `${map}|task|${text(task.id)}|${text(zone.id)}`
+        if (text(zone.id) && !index.has(key)) index.set(key, zone)
+      }
+    }
   }
   return index
 }
@@ -474,20 +574,36 @@ function spotIndex(mapsRoot: JsonRecord): SpotIndex {
 function spotKey(spot: CuratedSpot) {
   if ('transit' in spot) return `${spot.map}|transit|${spot.transit}`
   if ('extract' in spot) return `${spot.map}|extract|${spot.extract}`
-  return `${spot.map}|lock|${spot.lockKey}`
+  if ('lockKey' in spot) return `${spot.map}|lock|${spot.lockKey}`
+  if ('taskZone' in spot) return `${spot.map}|task|${spot.taskZone.task}|${spot.taskZone.zone}`
+  return `${spot.map}|archived|${spot.archived.id}`
 }
 
 function spotZoneId(spot: CuratedSpot) {
   if ('transit' in spot) return `transit-${spot.transit}`
   if ('extract' in spot) return `extract-${spot.extract}`
-  return `lock-${spot.lockKey}`
+  if ('lockKey' in spot) return `lock-${spot.lockKey}`
+  if ('taskZone' in spot) return `zone-${spot.taskZone.zone}`
+  return `zone-${spot.archived.id}`
 }
 
-/** A zone of tarkov.dev's shape at the place, with its position, outline and heights exactly as the maps file has them. */
+/**
+ * A zone of tarkov.dev's shape at the place, with its position, outline and heights exactly as the file has them (a
+ * `building` place keeps its position only: the room's outline is not where the objective is; with a `floor`, that floor's
+ * heights instead of the room's height).
+ */
 function zoneAt(spot: CuratedSpot, spots: SpotIndex): JsonRecord | undefined {
-  const place = spots.get(spotKey(spot))
+  const place = 'archived' in spot ? spot.archived as unknown as JsonRecord : spots.get(spotKey(spot))
   const position = asRecord(place?.position)
   if (!place || typeof position.x !== 'number' || typeof position.z !== 'number') return undefined
+  if (spot.building) {
+    return {
+      id: spotZoneId(spot),
+      map: spot.map,
+      position: spot.floor ? { x: position.x, z: position.z } : position,
+      ...(spot.floor ? { bottom: spot.floor[0], top: spot.floor[1] } : {}),
+    }
+  }
   return {
     id: spotZoneId(spot),
     map: spot.map,

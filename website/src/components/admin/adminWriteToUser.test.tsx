@@ -29,4 +29,20 @@ describe('admin «Написать»', () => {
     expect(await screen.findByText('Здравствуйте!')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Сообщение' })).toHaveValue('')
   })
+
+  it('names the screenshots of a conversation «[скриншот]» (owner, 15.10.2026)', async () => {
+    const shot = { id: 'c'.repeat(24), width: 800, height: 600 }
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ account: { id: ID, email: 'p@example.com' }, messages: [
+      { id: 1, author: 'user', text: 'Вот ошибка', createdAt: '2026-10-15T10:00:00.000Z', read: true, attachments: [shot, shot] },
+      { id: 2, author: 'user', text: '[скриншот]', createdAt: '2026-10-15T10:01:00.000Z', read: true, attachments: [shot] },
+      { id: 3, author: 'user', text: 'Старое сообщение', createdAt: '2026-10-15T10:02:00.000Z', read: true },
+    ] })))
+    const user = userEvent.setup()
+    render(<WriteToUser accountId={ID} email="p@example.com" />)
+    await user.click(screen.getByRole('button', { name: 'Написать' }))
+    expect(await screen.findByText('Вот ошибка')).toBeInTheDocument()
+    expect(screen.getByText('[скриншот] ×2')).toBeInTheDocument()
+    expect(screen.getAllByText('[скриншот]')).toHaveLength(1)
+    expect(screen.getByText('Старое сообщение')).toBeInTheDocument()
+  })
 })
