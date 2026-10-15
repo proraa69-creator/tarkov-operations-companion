@@ -9,7 +9,7 @@
 .prestige-reset-actions > .button { flex: 1 1 140px; justify-content: center; }
 .mode-reset-toasts { position: fixed; right: 18px; bottom: 18px; z-index: 2900; display: grid; gap: 8px; width: min(380px, calc(100vw - 32px)); }
 :root[data-layout="mobile"] .mode-reset-toasts { left: 16px; right: 16px; width: auto; bottom: calc(var(--tabbar, 70px) + 10px); }
-.mode-reset-toast.panel { display: flex; align-items: center; gap: 10px; padding: 12px 10px 12px 14px; box-shadow: 0 14px 34px rgb(0 0 0 / 55%); }
+.mode-reset-toast.panel { display: flex; align-items: center; gap: 10px; padding: 12px 10px 12px 14px; background: var(--panel, #121915); box-shadow: 0 14px 34px rgb(0 0 0 / 55%); }
 .mode-reset-toast > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mode-reset-toast > svg { flex: none; color: var(--brass); }
 .mode-reset-toast .icon-button { width: 28px; height: 28px; flex: none; }
