@@ -7,7 +7,7 @@ import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
 import { minimapOverlayAllowed, useRemoteFeatures } from '../announcement/features'
 import kappaContainer from '../assets/guide/kappa-container.webp'
-import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type GuideStep } from './guideProgress'
+import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type SectionStep } from './guideProgress'
 import './firstRunGuide.css'
 
 type Phrase = { ru: string; en: string }
@@ -30,7 +30,7 @@ export interface GuideTipContent {
   press?: boolean
 }
 
-const TIPS: Record<GuideStep, GuideTipContent> = {
+const TIPS: Record<SectionStep, GuideTipContent> = {
   // owner: «при нажатии на текущие задания, должен появится указатель на сюжетные квесты и всплывающее окно, о том что
   // нужно в игре открыть окно каждого сюжетного квеста для синхронизации… достаточно открыть окно на 3 секунды»
   quests: {
@@ -106,8 +106,11 @@ export function FirstRunGuide() {
   return <GuideTip key={pending} id={pending} tip={TIPS[pending]} phone={phone} onAccept={() => acceptStep(guide.email, pending)} />
 }
 
-/** True once the app has started, the page has settled and no other dialog (update, subscription) is open. */
-export function useGuideReady(step: string | null, pathname: string) {
+/**
+ * True once the app has started, the page has settled and no other dialog (update, subscription) is open — and, with
+ * `requires`, once that part of the page is drawn (not the loading screen before it).
+ */
+export function useGuideReady(step: string | null, pathname: string, requires?: string) {
   const [ready, setReady] = useState<string | null>(null)
   const key = step ? `${step}:${pathname}` : null
   useEffect(() => {
@@ -115,13 +118,14 @@ export function useGuideReady(step: string | null, pathname: string) {
     const entered = now()
     const check = () => {
       const settled = now() - entered >= GUIDE_TIMING.settleMs && now() - appStarted >= GUIDE_TIMING.startupGraceMs
-      if (settled && !document.querySelector('[aria-modal="true"]')) { setReady(key); return true }
+      const drawn = !requires || document.querySelector(requires) !== null
+      if (settled && drawn && !document.querySelector('[aria-modal="true"]')) { setReady(key); return true }
       return false
     }
     if (check()) return
     const timer = window.setInterval(() => { if (check()) window.clearInterval(timer) }, 300)
     return () => window.clearInterval(timer)
-  }, [key])
+  }, [key, requires])
   return key !== null && ready === key
 }
 
