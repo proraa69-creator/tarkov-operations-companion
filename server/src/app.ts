@@ -68,7 +68,7 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
-import { createSupportChatRouter, type SupportChatLimits } from './routes/supportChat.js'
+import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
@@ -228,6 +228,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // «Объявления по регионам»: a photo (≤ 5 MB) is uploaded on its own, with its own body limit (routes/notices.ts).
   const notices = new NoticeStore(accounts.database, accounts.clock)
   app.use(createNoticeUploadRouter(accounts, notices))
+  // «Чат с поддержкой» with screenshots (owner, 15.10.2026): the two message routes read their bodies here, with a larger
+  // limit, after checking the session; the routes themselves are mounted with the players' routes below.
+  app.use(createSupportChatUploadParser(accounts, supportChat))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
   // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
