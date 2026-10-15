@@ -410,6 +410,54 @@ export interface QuestObjective {
   zoneBound?: boolean
   /** buildWeapon objectives (Механик, «Оружейник»): the weapon to modify, the parts it must hold and its stats. */
   build?: WeaponBuildRequirement
+  /**
+   * What a kill objective asks of the player's gear and the kill (tarkov.dev TaskObjectiveShoot: `usingWeapon`,
+   * `usingWeaponMods`, `wearing`, `notWearing`, `distance`, `bodyParts`, `timeFromHour`…); src/data/objectiveConditions.ts.
+   * The objective's `count`, `mapIds` and `zones` stay where they are.
+   */
+  conditions?: ObjectiveConditions
+}
+
+/**
+ * An item a condition names: its id (the picture comes from the catalog's item of that id, or tarkov.dev's
+ * `<id>-icon.webp`) and its name in the catalog's language. No full item: the quest base stays small.
+ */
+export interface ItemRef {
+  id: string
+  name: string
+}
+
+/**
+ * The conditions of a kill objective (tarkov.dev TaskObjectiveShoot), compact. Alternatives as the game stores them
+ * (BSG `weaponModsInclusive` / `equipmentInclusive`): `mods` and `wearing` are a list of options — any one option will
+ * do, and every item of that option is needed («AK-12 with the suppressor AND the PS-320» is one option of two items;
+ * «any suppressor» is thirty options of one). Only what tarkov.dev has; nothing is guessed.
+ */
+export interface ObjectiveConditions {
+  /** Any one of these weapons (`usingWeapon`). */
+  weapons?: ItemRef[]
+  /** Weapon parts: any one option, all of its items (`usingWeaponMods`). */
+  mods?: ItemRef[][]
+  /** Gear to wear: any one option, all of its items (`wearing`). */
+  wearing?: ItemRef[][]
+  /** Gear that must not be worn: none of these (`notWearing`). */
+  notWearing?: ItemRef[]
+  /** Distance to the target in metres (`distance`, when its value is above 0). */
+  distance?: { compare: '>=' | '<='; value: number }
+  /** Body parts that count (`bodyParts`): `key` is the game's part (Head, Chest…), `name` the catalog's word for it. */
+  bodyParts?: Array<{ key: string; name: string }>
+  /** The targets (`targetNames`): `key` is the game's role (AnyPmc, Savage, Any, a boss…), `name` the catalog's text. */
+  targets?: Array<{ key: string; name: string }>
+  /** Named zones of the objective (GraphQL `zoneNames`; the JSON feed has only the zones' shapes, `QuestObjective.zones`). */
+  zoneNames?: string[]
+  /** In-game hours (`timeFromHour`–`timeUntilHour`, both 0 = any time). */
+  time?: { from: number; until: number }
+  /** A hit is enough (`shotType: hit`); otherwise the target is killed. */
+  hitOnly?: boolean
+  /** The target must be under these effects (`enemyHealthEffect`, e.g. stunned). */
+  enemyEffects?: string[]
+  /** The player must be under these effects (`playerHealthEffect`, e.g. a stimulant). */
+  playerEffects?: string[]
 }
 
 /** A stat a modified weapon must reach (tarkov.dev `attributes` of a buildWeapon objective), e.g. ergonomics ≥ 50. */
