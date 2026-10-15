@@ -159,7 +159,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
   const pieces = objective ? conditionPieces(objective) : []
   return <div ref={rootRef} className={`stat-card quest-conditions-card${listOpen ? ' is-listing' : ''}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">
-      <div className="stat-label">{uiText('Условия квестов')}</div>
+      <div className="stat-label">{uiText('Сбор на рейд')}</div>
       {several && <button type="button" className="qc-count" aria-expanded={listOpen} aria-controls={listId} onClick={toggleList}>
         {uiText(`ещё ${result.quests.length - 1}`)}<ChevronDown size={12} aria-hidden="true" />
       </button>}
@@ -174,7 +174,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
         </span>
       </button>
       : <p className="qc-empty">{uiText('На этой карте нет квестов с условиями на снаряжение')}</p>}
-    {several && <ul id={listId} className={`qc-list${listOpen ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!listOpen} aria-label={uiText(`Условия квестов · ${uiText(map.name)}`)}>
+    {several && <ul id={listId} className={`qc-list${listOpen ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!listOpen} aria-label={uiText(`Сбор на рейд · ${uiText(map.name)}`)}>
       {result.quests.map((entry) => {
         const first = entry.objectives[0]
         return <li key={entry.quest.id}>
@@ -278,7 +278,7 @@ export function QuestConditionsDialog({ entry, mapId, mapName, pictures, onClose
     <section className="panel quest-conditions-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="panel-header">
         <div className="qc-dialog-title">
-          <span className="stat-label">{uiText('Условия квестов')}</span>
+          <span className="stat-label">{uiText('Сбор на рейд')}</span>
           <h3 id={titleId}>{uiText(quest.name)}</h3>
           <small>{uiText(quest.trader)}</small>
         </div>
