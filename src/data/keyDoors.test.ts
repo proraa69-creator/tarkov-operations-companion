@@ -47,9 +47,9 @@ describe('key → doors index (data/keyDoors.ts)', () => {
   it('covers keycards like keys: a Labs card reader and a card with doors on two maps', () => {
     expect(index.get(RED_CARD_ID)).toEqual([expect.objectContaining({ mapId: 'the-lab', keycard: 'red', needsPower: true })])
     const storage = index.get(STORAGE_CARD_ID)!
-    expect(storage.map((door) => [door.mapId, door.kind, door.floor])).toEqual([['customs', 'trunk', 'Основной'], ['factory', 'door', 'Тоннели']])
+    expect(storage.map((door) => [door.mapId, door.kind, door.floor])).toEqual([['factory', 'door', 'Тоннели'], ['customs', 'trunk', 'Основной']])
     expect(storage.every((door) => door.number === undefined)).toBe(true)
-    expect(keyDoorKindLabel(storage[0]!)).toBe('Дверь машины')
+    expect(keyDoorKindLabel(storage[1]!)).toBe('Дверь машины')
   })
 
   it('links a door to the Maps page focus parameter', () => {
@@ -110,6 +110,8 @@ describe('key → doors on the real tarkov.dev locks', () => {
       ['streets-of-tarkov', 'trunk', 2],
     ])
     expect(doors).toHaveLength(7)
+    // Its own Factory doors come first, then the vehicle locks of other maps.
+    expect(doors.slice(0, 3).every((door) => door.mapId === 'factory')).toBe(true)
   })
 
   it('merges map variants: Night Factory and Ground Zero 21+ add no door, and the door opens the map\'s own marker', () => {

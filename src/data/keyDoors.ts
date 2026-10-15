@@ -98,7 +98,9 @@ export function buildKeyDoorIndex(markers: MapMarker[], maps: GameMap[]): Map<st
       kept.push(point)
     }
     const doors = kept.map((point) => point.door)
-    doors.sort((a, b) => (mapOrder.get(a.mapId) ?? 99) - (mapOrder.get(b.mapId) ?? 99) || Number(Boolean(a.rawFloor)) - Number(Boolean(b.rawFloor)) || a.floor.localeCompare(b.floor) || Number(!a.name) - Number(!b.name) || a.markerId.localeCompare(b.markerId))
+    // Maps where the key opens a door (its home: Factory for the exit key) before maps with only vehicle locks.
+    const doorMaps = new Set(doors.filter((door) => door.kind === 'door').map((door) => door.mapId))
+    doors.sort((a, b) => Number(!doorMaps.has(a.mapId)) - Number(!doorMaps.has(b.mapId)) || (mapOrder.get(a.mapId) ?? 99) - (mapOrder.get(b.mapId) ?? 99) || Number(Boolean(a.rawFloor)) - Number(Boolean(b.rawFloor)) || a.floor.localeCompare(b.floor) || Number(!a.name) - Number(!b.name) || a.markerId.localeCompare(b.markerId))
     // Doors without a name are numbered per map when there are several there.
     const perMap = new Map<string, number>()
     for (const door of doors) if (!door.name) perMap.set(door.mapId, (perMap.get(door.mapId) ?? 0) + 1)

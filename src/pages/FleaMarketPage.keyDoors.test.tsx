@@ -118,7 +118,7 @@ describe('«Барахолка»: the door of a key on the map', () => {
     const button = rowOf('Ключ-карта склада TerraGroup').querySelector<HTMLButtonElement>('button.key-doors-button')!
     expect(button).toHaveTextContent('Несколько дверей · 2')
     fireEvent.mouseEnter(button)
-    expect([...popup()!.querySelectorAll('a.key-doors-row')].map((row) => row.textContent)).toEqual(['ТаможняДверь машины', 'ЗаводДверь · Тоннели'])
+    expect([...popup()!.querySelectorAll('a.key-doors-row')].map((row) => row.textContent)).toEqual(['ЗаводДверь · Тоннели', 'ТаможняДверь машины'])
     const red = rowOf('Ключ-карта TerraGroup Labs (Красная)').querySelector('a.key-doors-button')!
     expect(red).toHaveAttribute('href', '/maps/the-lab?lock=the-lab-lock-red')
   })
