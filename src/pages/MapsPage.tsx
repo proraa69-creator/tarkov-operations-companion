@@ -53,7 +53,7 @@ import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } fro
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { hasGearOnMap } from '../overview/questConditions'
-import { GearSectionHeading, RaidGearBlock } from '../overview/GearQuestSection'
+import { GearSectionHeading } from '../overview/GearQuestSection'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
 type MarkerShape = 'pin' | 'boss' | 'badge' | 'round' | 'loot' | 'diamond' | 'dot'
@@ -775,7 +775,6 @@ export function MapsPage() {
                   {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
                   {!editingTexts && <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} />}
                   {!editingTexts && <QuestCuratedRequirements quest={relatedQuest} items={data.items} />}
-                  {!editingTexts && <RaidGearBlock quest={relatedQuest} mapId={activeMap.id} mapName={(id) => data.maps.find((map) => map.id === id)?.name ?? id} items={data.items} />}
                 </div>
                 <Link
                   className="button map-quest-sheet-link"

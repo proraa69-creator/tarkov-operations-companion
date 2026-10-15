@@ -26,6 +26,11 @@ export interface ConditionContext {
   itemName?: (id: string) => string | undefined
   /** The item's equipment slot: its own category id (tarkov.dev `categories[0]`), when known. */
   itemSlot?: (id: string) => string | undefined
+  /**
+   * What kind of weapon the item is, when known: a hand grenade's type as tarkov.dev names it (`Grenade`, `Impact
+   * Grenade`, `Smoke`, `Flashbang`) or `launcher` for an underbarrel grenade launcher.
+   */
+  weaponKind?: (id: string) => string | undefined
 }
 
 const asRecord = (value: unknown): JsonRecord => value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {}
@@ -84,6 +89,21 @@ export function joinMergedGear(gear: ItemRef[][], slotOf: ((id: string) => strin
   return slots.reduce<ItemRef[][]>((joined, items) => joined.flatMap((option) => items.map((item) => [...option, item])), [[]])
 }
 
+/** Hand grenades that kill: frag and impact. */
+const FRAG_GRENADES = new Set(['grenade', 'impact grenade'])
+
+/**
+ * A grenade kill objective («Гренадер»: the game also accepts smoke and stun grenades and underbarrel launchers) needs
+ * only the frag grenades (owner, 15.10.2026: «для гренадера нужны только боевые гранаты, а не дымовые и подствольники»).
+ * A list without a frag grenade is kept as it is.
+ */
+export function onlyFragGrenades(weapons: ItemRef[], kindOf: ((id: string) => string | undefined) | undefined): ItemRef[] {
+  if (!kindOf) return weapons
+  const kinds = weapons.map((weapon) => kindOf(weapon.id)?.toLowerCase())
+  if (!kinds.some((kind) => kind && FRAG_GRENADES.has(kind))) return weapons
+  return weapons.filter((_, index) => FRAG_GRENADES.has(kinds[index] ?? ''))
+}
+
 const ALL_BODY_PARTS = ['Head', 'Chest', 'Stomach', 'LeftArm', 'RightArm', 'LeftLeg', 'RightLeg']
 
 /** The game's key of a body part: «QuestCondition/Elimination/Kill/BodyPart/Head» → «Head». */
@@ -116,7 +136,7 @@ export function adaptObjectiveConditions(objective: JsonRecord, context: Conditi
   const type = text(objective.type).toLowerCase()
   const shootFields = ['usingWeapon', 'usingWeaponMods', 'wearing', 'notWearing', 'targetNames', 'shotType'].some((field) => field in objective)
   if (type !== 'shoot' && !shootFields) return undefined
-  const weapons = refs(objective.usingWeapon, context)
+  const weapons = onlyFragGrenades(refs(objective.usingWeapon, context), context.weaponKind)
   const mods = options(objective.usingWeaponMods, context)
   const wearing = joinMergedGear(options(objective.wearing, context), context.itemSlot)
   const notWearing = refs(objective.notWearing, context)
@@ -153,7 +173,10 @@ export function adaptObjectiveConditions(objective: JsonRecord, context: Conditi
   return Object.keys(conditions).length ? conditions : undefined
 }
 
-/** The objective asks for a weapon, weapon parts or gear (the Overview's «Условия квестов»). */
+/**
+ * The objective asks for a weapon, weapon parts or gear to wear (the Overview's «Сбор на рейд»). Gear not to wear is
+ * nothing to take and is not shown (owner, 15.10.2026: «то что не нужно надевать, не показывай»).
+ */
 export function hasGearConditions(conditions: ObjectiveConditions | undefined): conditions is ObjectiveConditions {
-  return Boolean(conditions && (conditions.weapons?.length || conditions.mods?.length || conditions.wearing?.length || conditions.notWearing?.length))
+  return Boolean(conditions && (conditions.weapons?.length || conditions.mods?.length || conditions.wearing?.length))
 }

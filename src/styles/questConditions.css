@@ -31,8 +31,8 @@
 .qc-icon { flex: 0 0 auto; width: 30px; height: 30px; padding: 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-0); object-fit: contain; }
 :is(.qc-weapon, .qc-icon).is-empty { display: inline-grid; place-items: center; color: var(--text-dim); }
 .qc-more { color: var(--text-muted); font-size: 10px; font-weight: 750; font-variant-numeric: tabular-nums; }
-.qc-ban { position: relative; display: inline-flex; }
-.qc-ban > svg { position: absolute; right: -3px; bottom: -3px; border-radius: 50%; background: var(--surf-1); color: var(--danger); }
+.qc-choice-more { white-space: nowrap; }
+.qc-block > .qc-choice-more { font-size: 11px; }
 .qc-meta { display: flex; align-items: center; gap: 4px 8px; min-width: 0; overflow: hidden; }
 .qc-chips { display: inline-flex; flex: 0 0 auto; gap: 3px; }
 .qc-chip {
@@ -76,8 +76,6 @@
 .qc-full-label { color: var(--text-dim); font-size: 9.5px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .qc-full-label small { margin-left: 6px; color: var(--text-muted); font-size: 9.5px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .qc-full-items { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
-.qc-full-option { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; }
-.qc-or { margin: 0 3px 0 1px; color: var(--text-muted); font-size: 10px; font-weight: 700; }
 .qc-meta.is-full { flex-wrap: wrap; overflow: visible; }
 .qc-meta.is-full .qc-chips { flex-wrap: wrap; flex: 0 1 auto; }
 .qc-meta.is-full .qc-line { white-space: normal; }
@@ -111,19 +109,6 @@
 .map-gear-section .quest-map-row { margin-top: 2px; border-color: color-mix(in srgb, var(--brass) 22%, var(--line)); }
 .quest-map-row.is-gear h3::before { content: ''; display: inline-block; width: 6px; height: 6px; margin: 0 7px 2px 0; border-radius: 50%; background: var(--brass); vertical-align: middle; }
 
-/* «Снаряжение для рейда» in the map's quest sheet: the dialog's build, inline. */
-.qc-raid-gear { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.qc-raid-gear h4 { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--brass-strong); font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-.qc-raid-gear .qc-objective { gap: 10px; padding: 10px; }
-.qc-raid-gear .qc-weapons { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-.qc-raid-gear .qc-weapons.is-single { grid-template-columns: minmax(0, 260px); }
-.qc-raid-gear .qc-weapons.is-single .qc-weapon-card img, .qc-raid-gear .qc-weapons.is-single .qc-weapon-card .is-empty { aspect-ratio: 16 / 6; }
-.qc-raid-gear .qc-facts { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
-.qc-raid-gear .qc-facts div { padding: 5px 8px; }
-/* The sheet grows to hold the build, so the weapon and the parts are seen without much scrolling. */
-.map-quest-sheet:has(.qc-raid-gear) { max-height: min(64%, 560px); }
-:root[data-layout="mobile"] .map-quest-sheet:has(.qc-raid-gear) { max-height: 62%; }
-
 /* ── The dialog: the whole build and every condition ─────────────── */
 .quest-conditions-overlay { animation: kappa-dialog-fade .3s var(--ease-soft) both; }
 .quest-conditions-dialog { width: min(880px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; box-shadow: 0 28px 90px rgb(0 0 0 / 55%); animation: kappa-dialog-rise .4s var(--ease-soft) both; }
@@ -150,12 +135,8 @@
 .qc-weapon-card:hover, .qc-weapon-card:focus-visible { border-color: var(--brass); outline: none; }
 .qc-weapon-card img, .qc-weapon-card .is-empty { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 6; color: var(--text-dim); object-fit: contain; }
 .qc-weapons.is-single .qc-weapon-card img, .qc-weapons.is-single .qc-weapon-card .is-empty { aspect-ratio: 16 / 7; }
-.qc-options { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
-.qc-option-label { display: block; margin-bottom: 5px; color: var(--text-dim); font-size: 10.5px; font-weight: 700; }
 .qc-part-picture { position: relative; display: inline-flex; }
 .qc-part-picture .is-empty { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0); color: var(--text-dim); }
-.qc-part-ban { position: absolute; right: -4px; bottom: -4px; border-radius: 50%; background: var(--surf-1); color: var(--danger); }
-.qc-part.is-banned img { opacity: .75; }
 .qc-parts-small { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
 .qc-show-all { margin-top: 8px; }
 .qc-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 0; }

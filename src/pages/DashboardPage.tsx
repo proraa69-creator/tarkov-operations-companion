@@ -28,7 +28,7 @@ import { GunsmithPanel } from '../gunsmith/GunsmithPanel'
 import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
 import { CountUp } from '../components/CountUp'
 import { QuestConditionsCard } from '../overview/QuestConditionsCard'
-import { conditionQuestsForMap, gearObjectivesOnMap, gearRaidRequirements, type ConditionQuest } from '../overview/questConditions'
+import { conditionQuestsForMap, gearObjectivesOnMap, type ConditionQuest } from '../overview/questConditions'
 import { OverviewBlock } from '../overview/OverviewBlock'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
@@ -71,12 +71,11 @@ export function DashboardPage() {
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  const raidPrepPurposes = new Set(['place', 'mark', 'key', 'bring'])
-  const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => [
-    ...(quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })),
-    // The weapon, its parts and the gear a kill objective of this map asks for (the same quests as «Сбор на рейд»).
-    ...gearRaidRequirements(quest, selectedMap.id),
-  ])
+  // Only the keys and the items to plant or mark (owner, 15.10.2026): the weapons and gear of the quests are in «Сбор на рейд».
+  const raidPrepPurposes = new Set(['place', 'mark', 'key'])
+  const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? [])
+    .filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id)))
+    .map((requirement) => ({ ...requirement, questName: quest.name })))
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
   const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
