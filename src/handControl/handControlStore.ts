@@ -6,7 +6,7 @@ import type { TrackerErrorCode, TrackerStats, WebcamHandTracker } from './webcam
 
 const SETTINGS_KEY = 'raidos-hand-control-v1'
 /** Bumped when default gesture thresholds change, so stored settings pick up the new values. */
-const SETTINGS_VERSION = 3
+const SETTINGS_VERSION = 4
 const SNAPSHOT_INTERVAL_MS = 200
 
 export type HandControlStatus = 'off' | 'starting' | 'on' | 'error'
@@ -35,6 +35,11 @@ function loadSettings(): HandControlSettings {
     // v3: the hand is placed by the palm and presses with the index phalanx; a 5-point map fitted
     // to the fingertip (v2) would be off by the finger length — calibrate again.
     if ((stored?.version ?? 1) < 3) settings.homography = null
+    // v4: press by pinching thumb and index (pinch and move drags the map), camera at 60 fps.
+    if ((stored?.version ?? 1) < 4) {
+      settings.clickMode = DEFAULT_SETTINGS.clickMode
+      settings.cameraFps = DEFAULT_SETTINGS.cameraFps
+    }
     delete (settings as { version?: number }).version
     return settings
   } catch {
@@ -96,8 +101,9 @@ class HandControlRuntime {
     this.set({ status: 'starting', error: null, errorDetail: '' })
     try {
       // Loaded on demand: the main edition never downloads the tracker.
-      const { WebcamHandTracker, setComputePreference, setHandCount } = await import('./webcamTracker')
+      const { WebcamHandTracker, setComputePreference, setHandCount, setCameraFps } = await import('./webcamTracker')
       setComputePreference(this.snapshot.settings.compute)
+      setCameraFps(this.snapshot.settings.cameraFps)
       setHandCount(this.snapshot.settings.secondHand ? 2 : 1)
       this.tracker ??= new WebcamHandTracker(
         (observation, stats, second) => this.onSample(observation, stats, second),
@@ -136,6 +142,7 @@ class HandControlRuntime {
     const restart = (patch.cameraId !== undefined && patch.cameraId !== this.snapshot.settings.cameraId)
       || (patch.compute !== undefined && patch.compute !== this.snapshot.settings.compute)
       || (patch.secondHand !== undefined && patch.secondHand !== this.snapshot.settings.secondHand)
+      || (patch.cameraFps !== undefined && patch.cameraFps !== this.snapshot.settings.cameraFps)
     this.set({ settings })
     if (restart && this.snapshot.status === 'on') {
       this.tracker?.stop()

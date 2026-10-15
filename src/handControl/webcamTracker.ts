@@ -26,13 +26,19 @@ interface Detector {
   close(): void
 }
 
-const TARGET_FPS = 30
+/** Frames per second asked from the camera and analysed (60 when the camera can, else what it gives). */
+let targetFps = 60
 /** Without a hand in view only every 3rd frame is analysed to keep CPU/GPU free for the game. */
 const IDLE_STRIDE = 3
 const WORKER_INIT_TIMEOUT_MS = 20000
 
 let compute: Compute = 'auto'
 let numHands: 1 | 2 = 1
+
+/** Camera frame rate to ask for. Applies on the next start. */
+export function setCameraFps(next: 30 | 60) {
+  targetFps = next
+}
 
 /** Applies on the next start (a running tracker keeps its detector). */
 export function setComputePreference(next: Compute) {
@@ -239,7 +245,7 @@ export class WebcamHandTracker {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { ...(cameraId ? { deviceId: { exact: cameraId } } : {}), width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: TARGET_FPS, max: TARGET_FPS } },
+        video: { ...(cameraId ? { deviceId: { exact: cameraId } } : {}), width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: targetFps, max: targetFps } },
       })
     } catch (error) {
       void detectorReady.then((detector) => detector.close(), () => {})
@@ -292,8 +298,8 @@ export class WebcamHandTracker {
     this.schedule()
     const now = performance.now()
     this.frameCount++
-    const idle = this.emptyFrames > TARGET_FPS
-    const due = now - this.lastProcessed >= 1000 / TARGET_FPS - 4 && (!idle || this.frameCount % IDLE_STRIDE === 0)
+    const idle = this.emptyFrames > targetFps
+    const due = now - this.lastProcessed >= 1000 / targetFps - 4 && (!idle || this.frameCount % IDLE_STRIDE === 0)
     if (this.busy || !due || this.video.readyState < 2 || !this.detector) return
     this.busy = true
     this.lastProcessed = now

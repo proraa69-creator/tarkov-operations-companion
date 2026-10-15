@@ -9,6 +9,26 @@ import { HAND_BONES, type HandFrame } from './types'
 import './handControl.css'
 
 const FADE_MS = 320
+/**
+ * The drawn hand is redrawn every display frame and eases towards the latest tracked pose
+ * (time constant below), so it glides between camera frames instead of stepping from one to the
+ * next — smooth on a 60/144 Hz monitor even when the camera gives 30 frames per second.
+ */
+const EASE_MS = 35
+
+type P3 = { x: number; y: number; z: number }
+
+/** Moves `current` towards `target` by `k` (0..1); a missing or reshaped pose snaps. */
+function ease(current: P3[] | null, target: P3[] | null, k: number): P3[] | null {
+  if (!target) return null
+  if (!current || current.length !== target.length) return target.map((point) => ({ ...point }))
+  for (let i = 0; i < target.length; i++) {
+    current[i].x += (target[i].x - current[i].x) * k
+    current[i].y += (target[i].y - current[i].y) * k
+    current[i].z += (target[i].z - current[i].z) * k
+  }
+  return current
+}
 const BRASS = [223, 189, 112] as const
 const TRACKING_LABEL = { none: 'руки нет', weak: 'слабый трекинг', good: 'трекинг хороший' } as const
 const CALIBRATION_HINTS = {
@@ -45,6 +65,10 @@ export function HandControlLayer() {
     let second: HandFrame | null = null
     let lostAt = 0
     let raf = 0
+    let drawnAt = 0
+    let smooth: P3[] | null = null
+    let smoothSecond: P3[] | null = null
+    let smoothPointer: P3 | null = null
     // The 3D hand loads on demand; until then (or if WebGL is unavailable) the outline is drawn.
     let hand3d: import('./hand3d').Hand3D | null = null
     let disposed = false
@@ -71,19 +95,28 @@ export function HandControlLayer() {
       context.clearRect(0, 0, width, height)
       if (latest?.pointer) { shown = latest; lostAt = 0 }
       else if (shown && !lostAt) lostAt = performance.now()
-      if (!shown?.pointer) return
-      const fade = lostAt ? 1 - (performance.now() - lostAt) / FADE_MS : 1
-      if (fade <= 0) { shown = null; hand3d?.render([], 0, width, height); return }
+      if (!shown?.pointer) { drawnAt = 0; return }
+      const now = performance.now()
+      const fade = lostAt ? 1 - (now - lostAt) / FADE_MS : 1
+      if (fade <= 0) { shown = null; smooth = smoothSecond = null; smoothPointer = null; drawnAt = 0; hand3d?.render([], 0, width, height); return }
+      // Ease the drawn pose towards the tracked one at display rate (see EASE_MS).
+      const k = drawnAt ? 1 - Math.exp(-Math.min(100, now - drawnAt) / EASE_MS) : 1
+      drawnAt = now
+      smooth = ease(smooth, shown.skeleton, k)
+      smoothSecond = ease(smoothSecond, second?.skeleton ?? null, k)
+      smoothPointer = ease(smoothPointer ? [smoothPointer] : null, [{ ...shown.pointer, z: 0 }], k)![0]
+      const view: HandFrame = { ...shown, skeleton: smooth, pointer: { x: smoothPointer.x, y: smoothPointer.y } }
       const alpha = fade * (shown.tracking === 'good' || lostAt ? 1 : 0.55)
-      if (cursorStyle !== 'finger' && shown.skeleton && shown.hand) {
+      if (cursorStyle !== 'finger' && view.skeleton && view.hand) {
         // The second hand (if enabled and in view) is drawn the same way; it does not control.
-        const hands = [shown, ...(second?.skeleton && !lostAt ? [second] : [])]
+        const hands = [view, ...(second && smoothSecond && !lostAt ? [{ ...second, skeleton: smoothSecond }] : [])]
         if (hand3d) hand3d.render(hands.map((frame) => ({ points: ghostPose(frame, width, height), chirality: frame.chirality ?? 'right' })), alpha, width, height)
         else hands.forEach((frame, index) => drawGhost(context, frame, width, height, index ? alpha * 0.75 : alpha))
       }
       // With a drawn hand the fingertip is the pointer; the ring is only for the "cursor" view.
-      if (cursorStyle === 'finger' || !shown.skeleton) drawCursor(context, shown, width, height, alpha, Boolean(lostAt))
-      if (lostAt) raf = requestAnimationFrame(draw)
+      if (cursorStyle === 'finger' || !view.skeleton) drawCursor(context, view, width, height, alpha, Boolean(lostAt))
+      // Keep drawing while the hand is shown: the eased pose keeps moving between camera frames.
+      raf = requestAnimationFrame(draw)
     }
 
     const off = handControl.onFrame((frame, other) => {

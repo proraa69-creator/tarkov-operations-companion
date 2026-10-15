@@ -74,11 +74,13 @@ export class HandAnchor {
    * @param flex fold of each finger, degrees
    * @param pinch thumb tip ↔ index tip in palm lengths
    * @param busy a finger gesture is under way (e.g. the finger is held folded in a press)
+   * @param free the hand is dragging something: follow it, never hold
    */
-  update(t: number, raw: Point, span: number, flex: number[], pinch: number, busy = false): Point {
+  update(t: number, raw: Point, span: number, flex: number[], pinch: number, busy = false, free = false): Point {
     this.recent.push({ t, flex, pinch })
     while (this.recent.length && t - this.recent[0].t > ANCHOR.articulationWindowMs) this.recent.shift()
-    const articulating = busy || this.articulating()
+    if (free) this.holdUntil = Number.NEGATIVE_INFINITY
+    const articulating = !free && (busy || this.articulating())
     if (articulating) this.holdUntil = t + ANCHOR.holdAfterMs
 
     const dt = Number.isNaN(this.lastT) ? 0 : Math.max(0, t - this.lastT)

@@ -5,7 +5,10 @@ import recordingB64 from './fixtures/recorded-gestures.json.gz.b64?raw'
 import zoomRecordingB64 from './fixtures/recorded-zoom.json.gz.b64?raw'
 import zoomDepthRecordingB64 from './fixtures/recorded-zoom-depth.json.gz.b64?raw'
 import { HandGestureEngine } from './gestureEngine'
-import { DEFAULT_SETTINGS, type HandEvent, type HandFrame, type HandObservation } from './types'
+import { DEFAULT_SETTINGS as BASE_SETTINGS, type HandControlSettings, type HandEvent, type HandFrame, type HandObservation } from './types'
+
+// These tests and recordings use the index-fold tap; the pinch click has its own tests.
+const DEFAULT_SETTINGS = { ...BASE_SETTINGS, clickMode: 'tap' as const }
 
 // MediaPipe landmarks (no video) of the reference gestures recorded by the product owner:
 // pointing 0.6–11.4 s, four index taps, then index+middle raised with four flicks.
@@ -14,8 +17,8 @@ type Recording = { W: number; H: number; frames: Frame[] }
 const load = (b64: string) => JSON.parse(strFromU8(gunzipSync(Uint8Array.from(atob(b64.trim()), (char) => char.charCodeAt(0))))) as Recording
 const recording = load(recordingB64)
 
-function replay(recording: Recording) {
-  const engine = new HandGestureEngine(DEFAULT_SETTINGS)
+function replay(recording: Recording, settings: HandControlSettings = DEFAULT_SETTINGS) {
+  const engine = new HandGestureEngine(settings)
   const events: Array<{ t: number; event: HandEvent }> = []
   const frames: Array<{ t: number; frame: HandFrame }> = []
   for (const frame of recording.frames) {
@@ -83,15 +86,22 @@ describe('recorded reference gestures', () => {
   })
 })
 
-// The earlier zoom recording: the L pose held in place while the thumb is closed onto the index
-// and opened again six times. Zoom now follows the hand's distance, so this is not a zoom — and
-// never a click.
+// The earlier recording of the L pose held in place while the thumb is closed onto the index and
+// opened again. Zoom now follows the hand's distance, so this is not a zoom; with the pinch click
+// a thumb closing onto the index is a click.
 describe('recorded L pose with the thumb closing in place', () => {
   const { events } = replay(load(zoomRecordingB64))
+  const pinchEvents = replay(load(zoomRecordingB64), { ...BASE_SETTINGS, clickMode: 'pinch' }).events
 
-  it('does not zoom (the hand stays at the same distance) and never clicks', () => {
-    expect(events.filter(({ event }) => event.type === 'zoom')).toEqual([])
-    expect(events.filter(({ event }) => event.type === 'click' || event.type === 'scroll-start' || event.type === 'grab-start')).toEqual([])
+  it('does not zoom (the hand stays at the same distance) and never drags or scrolls', () => {
+    for (const list of [events, pinchEvents]) {
+      expect(list.filter(({ event }) => event.type === 'zoom')).toEqual([])
+      expect(list.filter(({ event }) => event.type === 'scroll-start' || event.type === 'grab-start')).toEqual([])
+    }
+  })
+
+  it('with the pinch click, closing the thumb onto the index clicks', () => {
+    expect(pinchEvents.filter(({ event }) => event.type === 'click').length).toBeGreaterThanOrEqual(2)
   })
 })
 

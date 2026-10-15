@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ENGINE, HandGestureEngine } from './gestureEngine'
 import { GHOST_PALM_PX } from './ghostPose'
-import { syntheticHand, THUMB_OUT, type SyntheticHand } from './testHand'
-import { DEFAULT_SETTINGS, type HandEvent, type HandFrame } from './types'
+import { indexTipAt, syntheticHand, THUMB_OUT, type SyntheticHand } from './testHand'
+import { DEFAULT_SETTINGS as BASE_SETTINGS, type HandEvent, type HandFrame, type Point3 } from './types'
+
+// These tests and recordings use the index-fold tap; the pinch click has its own tests.
+const DEFAULT_SETTINGS = { ...BASE_SETTINGS, clickMode: 'tap' as const }
 
 const FPS = 30
 const STEP = 1000 / FPS
@@ -355,23 +358,25 @@ describe('HandGestureEngine — zoom with the L pose (index up, thumb out)', () 
     const pose = enterZoom(engine)
     expect(pose.frames.at(-1)!.phase).toBe('zoom')
     expect(pose.events).toEqual([])
-    // Away: the palm shrinks to 70 % (log −0.36) → about two steps in.
+    // Away: the palm shrinks to 70 % (log −0.36) → five steps in (one per 0.07).
     const away = run(engine, pose.end, 700, (_t, p) => ({ ...L, k: 1000 * Math.exp(-0.36 * p) }))
     const hold = run(engine, away.end, 400, () => ({ ...L, k: 1000 * Math.exp(-0.36) }))
     expect(zoomSteps([...away.events, ...hold.events]).every((steps) => steps > 0)).toBe(true)
-    expect(sum(zoomSteps([...away.events, ...hold.events]))).toBe(2)
-    // Closer: the palm grows to ×1.9 of that (log +0.62; 0.08 was left over from the way out) → three steps out.
+    expect(sum(zoomSteps([...away.events, ...hold.events]))).toBe(5)
+    // Closer: the palm grows to ×1.9 of that (log +0.62; 0.01 was left over from the way out) → eight steps out.
     const closer = run(engine, hold.end, 900, (_t, p) => ({ ...L, k: 1000 * Math.exp(-0.36 + 0.62 * p) }))
     const rest = run(engine, closer.end, 400, () => ({ ...L, k: 1000 * Math.exp(0.26) }))
     expect(zoomSteps([...closer.events, ...rest.events]).every((steps) => steps < 0)).toBe(true)
-    expect(sum(zoomSteps([...closer.events, ...rest.events]))).toBe(-3)
+    expect(sum(zoomSteps([...closer.events, ...rest.events]))).toBe(-8)
     expect(types([...away.events, ...closer.events]).filter((type) => type !== 'zoom')).toEqual([])
   })
 
   it('a still hand in the L does not zoom', () => {
     const engine = new HandGestureEngine(DEFAULT_SETTINGS)
     const pose = enterZoom(engine)
-    const still = run(engine, pose.end, 3000, (t) => ({ ...L, k: 1000 * (1 + 0.04 * Math.sin(t / 90)) }))
+    // Tracking wobble: ±4 % from frame to frame on top of a slow ±2 % sway (measured on the recording).
+    let frame = 0
+    const still = run(engine, pose.end, 3000, (t) => ({ ...L, k: 1000 * (1 + (frame++ % 2 ? 0.04 : -0.04) + 0.02 * Math.sin(t / 300)) }))
     expect(still.events).toEqual([])
   })
 
@@ -484,6 +489,74 @@ describe('HandGestureEngine — fist resets', () => {
     run(engine, 600, 300, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: raisedTwo }))
     const fist = run(engine, 900, 1000, () => ({ x: 0.5, y: 0.6, k: 1000 }))
     expect(types(fist.events)).toEqual(['scroll-end'])
+  })
+})
+
+describe('HandGestureEngine — pinch click (thumb and index together)', () => {
+  const PINCH = { ...BASE_SETTINGS, clickMode: 'pinch' as const }
+  const thumbTo = (from: Point3, to: Point3, p: number): Point3 => ({ x: lerp(from.x, to.x, p), y: lerp(from.y, to.y, p), z: lerp(from.z, to.z, p) })
+  // Relaxed pointing: thumb a little away from the index (gap ≈ 0.8 palm lengths, like the recordings).
+  const relaxed: Point3 = { x: -0.075, y: -0.1, z: -0.03 }
+  const onTip = indexTipAt(30)
+  const hand = (thumbTip: Point3, x = 0.5) => ({ x, y: 0.6, k: 1000, fingers: pointing, thumbTip })
+
+  function pinchOnce(engine: HandGestureEngine, from: number, { closeMs = 150, holdMs = 150, x = 0.5 } = {}) {
+    const close = run(engine, from, closeMs, (_t, p) => hand(thumbTo(relaxed, onTip, p), x))
+    const hold = run(engine, close.end, holdMs, () => hand(onTip, x))
+    const open = run(engine, hold.end, 150, (_t, p) => hand(thumbTo(onTip, relaxed, p), x))
+    const rest = run(engine, open.end, 300, () => hand(relaxed, x))
+    const frames = [...close.frames, ...hold.frames, ...open.frames, ...rest.frames]
+    return { frames, end: rest.end, events: frames.flatMap((frame) => frame.events) }
+  }
+
+  it('pinching presses, opening clicks where the phalanx was before the pinch', () => {
+    const engine = new HandGestureEngine(PINCH)
+    const before = run(engine, 0, 800, () => hand(relaxed)).frames.at(-1)!.pointer!
+    const result = pinchOnce(engine, 800)
+    expect(types(result.events)).toEqual(['press', 'click'])
+    const click = result.events.find((event) => event.type === 'click') as Extract<HandEvent, { type: 'click' }>
+    expect(click.x).toBeCloseTo(before.x, 2)
+    expect(click.y).toBeCloseTo(before.y, 2)
+  })
+
+  it('pinch and move drags (a held mouse button), opening releases', () => {
+    const engine = new HandGestureEngine(PINCH)
+    run(engine, 0, 800, () => hand(relaxed))
+    const close = run(engine, 800, 150, (_t, p) => hand(thumbTo(relaxed, onTip, p)))
+    const hold = run(engine, close.end, 250, () => hand(onTip))
+    const move = run(engine, hold.end, 500, (_t, p) => hand(onTip, 0.5 - 0.15 * p))
+    const open = run(engine, move.end, 200, (_t, p) => hand(thumbTo(onTip, relaxed, p), 0.35))
+    const events = [...close.events, ...hold.events, ...move.events, ...open.events]
+    expect(types(events).filter((type) => type !== 'grab-move')).toEqual(['press', 'cancel', 'grab-start', 'grab-end'])
+    const moves = events.filter((event) => event.type === 'grab-move') as Array<Extract<HandEvent, { type: 'grab-move' }>>
+    const start = events.find((event) => event.type === 'grab-start') as Extract<HandEvent, { type: 'grab-start' }>
+    // Mirrored: the hand moving left in the image drags right on screen.
+    expect(moves.at(-1)!.x - start.x).toBeGreaterThan(0.1)
+  })
+
+  it('a slow drift of the thumb does not click', () => {
+    const engine = new HandGestureEngine(PINCH)
+    run(engine, 0, 800, () => hand(relaxed))
+    const slow = run(engine, 800, 2500, (_t, p) => hand(thumbTo(relaxed, onTip, p)))
+    expect(slow.events).toEqual([])
+  })
+
+  it('closing the whole hand into a fist is not a pinch', () => {
+    const engine = new HandGestureEngine(PINCH)
+    run(engine, 0, 800, () => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: 10, middle: 10, ring: 10, pinky: 10 }, thumbTip: relaxed }))
+    const fist = run(engine, 800, 200, (_t, p) => ({ x: 0.5, y: 0.6, k: 1000, fingers: { index: lerp(10, 120, p), middle: lerp(10, 120, p), ring: lerp(10, 120, p), pinky: lerp(10, 120, p) }, thumbTip: thumbTo(relaxed, onTip, p) }))
+    const held = run(engine, fist.end, 600, () => ({ x: 0.5, y: 0.6, k: 1000, thumbTip: onTip }))
+    expect(types([...fist.events, ...held.events]).filter((type) => type === 'press' || type === 'click')).toEqual([])
+  })
+
+  it('the drawn hand stays still through a pinch click', () => {
+    const engine = new HandGestureEngine(PINCH)
+    const before = run(engine, 0, 800, () => hand(relaxed)).frames.at(-1)!.hand!
+    const result = pinchOnce(engine, 800)
+    for (const frame of result.frames) {
+      expect(frame.hand!.x).toBeCloseTo(before.x, 4)
+      expect(frame.hand!.y).toBeCloseTo(before.y, 4)
+    }
   })
 })
 

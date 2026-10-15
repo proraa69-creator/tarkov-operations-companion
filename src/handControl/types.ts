@@ -77,8 +77,13 @@ export interface HandControlSettings {
    * space. Corrects the camera's angle (webcam above the monitor); null = plain box mapping.
    */
   homography: number[] | null
-  /** how a press is made: folding the index finger (tap), pushing the hand forward (poke), or either */
-  clickMode: 'tap' | 'poke' | 'both'
+  /**
+   * how a press is made: thumb and index tips together (pinch; pinch and move drags), folding the
+   * index finger (tap), pushing the hand forward (poke), or tap or poke
+   */
+  clickMode: 'pinch' | 'tap' | 'poke' | 'both'
+  /** camera frames per second asked for: more is smoother, costs a little more CPU/GPU */
+  cameraFps: 30 | 60
   /** degrees the index finger must fold for a tap; smaller = more sensitive */
   tapAngle: number
   /** poke depth (log ratio) needed for a press; smaller = more sensitive */
@@ -111,7 +116,8 @@ export const DEFAULT_SETTINGS: HandControlSettings = {
   cursor: 'hand3d',
   calibration: { x0: 0.2, y0: 0.15, x1: 0.8, y1: 0.75 },
   homography: null,
-  clickMode: 'tap',
+  clickMode: 'pinch',
+  cameraFps: 60,
   tapAngle: 35,
   pressThreshold: 0.07,
   scrollSpeed: 2.2,

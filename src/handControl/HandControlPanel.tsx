@@ -43,8 +43,8 @@ export function HandControlPanel() {
 
   const update = (patch: Partial<HandControlSettings>) => handControl.updateSettings(patch)
   const running = status === 'on'
-  const usesTap = settings.clickMode !== 'poke'
-  const usesPoke = settings.clickMode !== 'tap'
+  const usesTap = settings.clickMode === 'tap' || settings.clickMode === 'both'
+  const usesPoke = settings.clickMode === 'poke' || settings.clickMode === 'both'
   const depthPercent = Math.max(-1, Math.min(1, (frame?.depth ?? 0) / (settings.pressThreshold * 1.5)))
   const flexPercent = Math.min(100, ((frame?.indexFlex ?? 0) / 140) * 100)
 
@@ -54,7 +54,7 @@ export function HandControlPanel() {
         <div className="panel-title">{uiText('Hand Control — управление рукой через веб-камеру (тест)')}</div>
       </div>
       <div className="panel-body">
-        <p className="hand-note">{uiText('Нарисованная кисть двигается только вместе с вашей кистью — пальцы её не сдвигают. Нажимает крайняя фаланга указательного: то что она накрывает на экране. Нажатие — быстро согнуть указательный палец и разогнуть (тап). Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг (частые взмахи подряд — всё дальше); движение руки вверх-вниз листает плавно; быстрый взмах всей рукой вверх или вниз — листает с разгоном (кулак — стоп). Карта: поза «L» (указательный вверх и большой в сторону) — режим зума: отвести руку от камеры — приблизить; поднести к камере — отдалить; раскрытая ладонь с толчком к камере — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
+        <p className="hand-note">{uiText('Нарисованная кисть двигается только вместе с вашей кистью — пальцы её не сдвигают. Нажимает крайняя фаланга указательного: то что она накрывает на экране. Нажатие — свести большой и указательный (щипок) и развести; свели и ведёте рукой — перетаскивание карты. Прокрутка — поднять указательный и средний: взмах пальцами листает на шаг (частые взмахи подряд — всё дальше); движение руки вверх-вниз листает плавно; быстрый взмах всей рукой вверх или вниз — листает с разгоном (кулак — стоп). Карта: поза «L» (указательный вверх и большой в сторону) — режим зума: отвести руку от камеры — приблизить; поднести к камере — отдалить; щипок и движение рукой — перетаскивание. Кулак — отмена текущего действия. Игра на другом мониторе остаётся активным окном: системная мышь не двигается; видео с камеры никуда не отправляется и не сохраняется.')}</p>
         <div className="hand-actions">
           {running || status === 'starting'
             ? <button className="button" onClick={() => handControl.stop()}><Square size={15} />{uiText('Остановить')}</button>
@@ -86,12 +86,19 @@ export function HandControlPanel() {
                 ))}
               </div>
             </Setting>
+            <Setting title="Кадров в секунду" hint="60 — плавнее (если камера умеет); 30 — меньше нагрузка.">
+              <div className="hand-segmented">
+                {([60, 30] as const).map((cameraFps) => (
+                  <button key={cameraFps} className={settings.cameraFps === cameraFps ? 'is-active' : ''} onClick={() => update({ cameraFps })}>{cameraFps}</button>
+                ))}
+              </div>
+            </Setting>
             <ToggleRow title="Зеркальное отображение" hint="Для камеры напротив вас: движение вправо — курсор вправо." on={settings.mirror} onChange={(mirror) => update({ mirror })} />
             <ToggleRow title="Естественная прокрутка" hint="Как на телефоне: рука вверх — список едет вверх." on={settings.naturalScroll} onChange={(naturalScroll) => update({ naturalScroll })} />
-            <Setting title="Нажатие" hint="Тап — сгиб указательного пальца. Тычок — толчок всей рукой к экрану.">
+            <Setting title="Нажатие" hint="Щипок — свести большой и указательный (свели и ведёте — перетаскивание карты). Тап — сгиб указательного. Тычок — толчок рукой к экрану.">
               <div className="hand-segmented">
-                {(['tap', 'poke', 'both'] as const).map((clickMode) => (
-                  <button key={clickMode} className={settings.clickMode === clickMode ? 'is-active' : ''} onClick={() => update({ clickMode })}>{uiText({ tap: 'Тап', poke: 'Тычок', both: 'Оба' }[clickMode])}</button>
+                {(['pinch', 'tap', 'poke', 'both'] as const).map((clickMode) => (
+                  <button key={clickMode} className={settings.clickMode === clickMode ? 'is-active' : ''} onClick={() => update({ clickMode })}>{uiText({ pinch: 'Щипок', tap: 'Тап', poke: 'Тычок', both: 'Тап и тычок' }[clickMode])}</button>
                 ))}
               </div>
             </Setting>
