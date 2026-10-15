@@ -1,0 +1,15 @@
+/* «Престиж +» (components/PrestigeResetButton.tsx) and the notice after a reset of one mode (components/ModeResetToast.tsx). */
+.profile-level-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.profile-level-row > .player-loadout, .profile-level-row > .player-loadout-empty { flex: 1 1 260px; min-width: 0; }
+.prestige-reset-button { flex: none; gap: 6px; }
+.prestige-reset-dialog { width: min(460px, 100%); }
+.prestige-reset-icon { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid #613d37; border-radius: 10px; color: #e2a398; background: #261b18; }
+.prestige-reset-question { margin: 0; color: var(--text-muted); line-height: 1.5; }
+.prestige-reset-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.prestige-reset-actions > .button { flex: 1 1 140px; justify-content: center; }
+.mode-reset-toasts { position: fixed; right: 18px; bottom: 18px; z-index: 2900; display: grid; gap: 8px; width: min(380px, calc(100vw - 32px)); }
+:root[data-layout="mobile"] .mode-reset-toasts { left: 16px; right: 16px; width: auto; bottom: calc(var(--tabbar, 70px) + 10px); }
+.mode-reset-toast.panel { display: flex; align-items: center; gap: 10px; padding: 12px 10px 12px 14px; box-shadow: 0 14px 34px rgb(0 0 0 / 55%); }
+.mode-reset-toast > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mode-reset-toast > svg { flex: none; color: var(--brass); }
+.mode-reset-toast .icon-button { width: 28px; height: 28px; flex: none; }
