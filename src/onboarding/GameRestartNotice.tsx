@@ -4,7 +4,7 @@ import { CheckCircle2, LoaderCircle, RotateCcw } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { useScreenReading } from '../account/logNickname'
 import { modeTitle } from '../account/nicknameBinding'
-import { gameRestartNoticeDue } from './gameStarts'
+import { gameRestartNoticeDue, noteGameRestartNoticeShown } from './gameStarts'
 import './firstRunGuide.css'
 
 /** Let the start-up windows (sign-in, update, subscription) come first. */
@@ -16,8 +16,8 @@ const START_DELAY_MS = 1500
  * при первом запуске»). The game shows «Выбор профиля и режима» when it starts; the app reads the nickname and every mode's
  * level from it (account/logNickname.ts). What it has read shows here as soon as it is read.
  *
- * Shown at each app start until that screen has been read on this computer or the game was started three times without
- * it (src/onboarding/gameStarts.ts; audit P4f): «Понятно» puts it away until the next start only.
+ * Shown once per computer (owner, 16.10.2026), and only while that screen has not been read here yet
+ * (src/onboarding/gameStarts.ts).
  */
 export function GameRestartNotice() {
   const [open, setOpen] = useState(() => Boolean(window.tarkovDesktop) && gameRestartNoticeDue())
@@ -33,7 +33,11 @@ export function GameRestartNotice() {
     const timer = window.setInterval(() => { if (check()) { window.clearInterval(timer); setReady(true) } }, 300)
     return () => window.clearInterval(timer)
   }, [open])
-  useEffect(() => { if (ready) button.current?.focus({ preventScroll: true }) }, [ready])
+  useEffect(() => {
+    if (!ready) return
+    noteGameRestartNoticeShown()
+    button.current?.focus({ preventScroll: true })
+  }, [ready])
 
   if (!open || !ready) return null
   const close = () => setOpen(false)

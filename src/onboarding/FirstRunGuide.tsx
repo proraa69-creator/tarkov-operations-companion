@@ -90,8 +90,16 @@ export function FirstRunGuide() {
   const step = guide ? guideStepFor(pathname, phone) : null
   const pending = step && guide && !guide.record.accepted.includes(step) ? step : null
   const ready = useGuideReady(pending, pathname)
-  if (!guide || !pending || !ready) return null
-  return <GuideTip key={pending} id={pending} tip={TIPS[pending]} phone={phone} onAccept={() => acceptStep(guide.email, pending)} />
+  // Kept as shown the moment it opens (owner, 16.10.2026: «должны показываться только по одному разу… при каждом
+  // обновлении приложения они не должны показываться»): a restart or an update before «Принял» does not bring it back.
+  const [showing, setShowing] = useState<SectionStep | null>(null)
+  if (!showing && guide && pending && ready) setShowing(pending)
+  // Another section: the tip of the section left goes away.
+  if (showing && step !== showing) setShowing(null)
+  const email = guide?.email
+  useEffect(() => { if (showing && email) acceptStep(email, showing) }, [showing, email])
+  if (!showing) return null
+  return <GuideTip key={showing} id={showing} tip={TIPS[showing]} phone={phone} onAccept={() => setShowing(null)} />
 }
 
 /**

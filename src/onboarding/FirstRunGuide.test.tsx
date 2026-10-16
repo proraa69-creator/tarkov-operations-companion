@@ -35,6 +35,17 @@ describe('first-run guide', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('kept as shown when it opens: a restart or an update before «Принял» does not bring it back (owner, 16.10.2026)', async () => {
+    const view = open('/maps')
+    await settle()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(readGuide('new@example.com')?.accepted).toEqual(['maps'])
+    view.unmount()
+    open('/maps')
+    await settle()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('says nothing to an older account', async () => {
     mocks.status = { ...newAccount, createdAt: '2025-01-01T00:00:00Z' }
     open('/kappa-items')

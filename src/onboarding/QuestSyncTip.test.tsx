@@ -68,6 +68,17 @@ describe('quest sync tip: only once, at a new account\'s first sign-in (owner, 1
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('kept as shown when it opens: a restart or an update before «Принял» does not bring it back (owner, 16.10.2026)', async () => {
+    const view = open('/')
+    await settle()
+    expect(screen.getByRole('dialog', { name: 'Полная синхронизация квестов' })).toBeInTheDocument()
+    expect(readGuide('new@example.com')?.accepted).toContain('quest-sync')
+    view.unmount()
+    open('/')
+    await settle()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('Escape accepts it too, and «Показать снова» of the guide does not bring it back', async () => {
     const view = open('/')
     await settle()

@@ -39,7 +39,7 @@ export function RaidLoadoutTip() {
   const { pathname } = useLocation()
   const phone = useMobileLayout()
   const catalog = useOptionalTarkovData()
-  const [seen, setSeen] = useState(readSeen)
+  const [seen] = useState(readSeen)
   const loading = catalog?.initialLoading ?? true
   const due = !seen && pathname === '/' && !loading
   const ready = useGuideReady(due ? 'raid-loadout' : null, pathname, TARGET)
@@ -52,12 +52,17 @@ export function RaidLoadoutTip() {
     const timer = window.setInterval(check, 500)
     return () => { window.clearTimeout(first); window.clearInterval(timer); setClear(false) }
   }, [ready])
-  if (!due || !ready || !clear) return null
-  const accept = () => {
+  // Kept as shown the moment it opens: a restart or an update before «Принял» does not bring it back.
+  const [shown, setShown] = useState<'no' | 'open' | 'closed'>('no')
+  if (shown === 'no' && due && ready && clear) setShown('open')
+  // Another page: put away for this start too.
+  if (shown === 'open' && pathname !== '/') setShown('closed')
+  useEffect(() => {
+    if (shown !== 'open') return
     try { localStorage.setItem(RAID_LOADOUT_TIP_KEY, new Date().toISOString()) } catch { /* shows again next start */ }
-    setSeen(true)
-  }
-  return <GuideTip id="raid-loadout" tip={TIP} phone={phone} onAccept={accept}><ExampleQuest /></GuideTip>
+  }, [shown])
+  if (shown !== 'open') return null
+  return <GuideTip id="raid-loadout" tip={TIP} phone={phone} onAccept={() => setShown('closed')}><ExampleQuest /></GuideTip>
 }
 
 /** «Легкотня» as the block shows it: the name, the trader, the weapon and its parts. Nothing when the catalog lacks it. */

@@ -54,6 +54,13 @@ export function QuestSyncTip() {
   const seen = oldSeen || Boolean(guide?.record.accepted.includes('quest-sync'))
   const due = questSyncTipDue({ desktop: isDesktopShell(), phone, pathname, seen, newAccount: Boolean(guide), loading, logsCover: mode ? logsCover[mode] : false, mode })
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname, TARGET)
-  if (!due || !ready || !guide) return null
-  return <GuideTip id="quest-sync" tip={TIP} phone={false} onAccept={() => acceptStep(guide.email, 'quest-sync')} />
+  // Kept as shown the moment it opens: a restart or an update before «Принял» does not bring it back.
+  const [shown, setShown] = useState<'no' | 'open' | 'closed'>('no')
+  if (shown === 'no' && due && ready && guide) setShown('open')
+  // Another page: put away for this start too.
+  if (shown === 'open' && pathname !== '/') setShown('closed')
+  const email = guide?.email
+  useEffect(() => { if (shown === 'open' && email) acceptStep(email, 'quest-sync') }, [shown, email])
+  if (shown !== 'open') return null
+  return <GuideTip id="quest-sync" tip={TIP} phone={false} onAccept={() => setShown('closed')} />
 }
