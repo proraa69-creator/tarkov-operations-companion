@@ -175,6 +175,7 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
       { box: [0.11, 0.33, -0.06, 0.2, 0.5, 0.06] }, // pouch on the left thigh
     ],
   },
+  // the owner's new model of 16.10.2026 («замени модель рейдера»), simplified to ~47k vertices.
   // nothing hangs loose on him (tight plate carrier, pouches, knee pads): the shape analysis only finds bootlaces and a
   // glove cuff, which must not twitch — he stays rigid
   raiders: {
