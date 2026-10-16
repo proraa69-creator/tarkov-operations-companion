@@ -1,6 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, MapPinned, MessageCircle, Power, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, MapPinned, MessageCircle, ShieldAlert } from 'lucide-react'
 import { startActivePolling } from '../app/activePolling'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { checkAnnouncementNow } from '../announcement/announcement'
@@ -8,7 +8,6 @@ import { useRemoteFeatures } from '../announcement/features'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
-import { PositionSetupCard } from '../overlay/PositionSetupCard'
 import './raidToolsSettings.css'
 import '../styles/playerMarker.css'
 
@@ -19,10 +18,6 @@ import '../styles/playerMarker.css'
 export const RAID_TOOLS_INTRO = 'Ваша позиция и информация о предмете появляются на «Картах» в приложении и сразу же в телефоне, если вы вошли в тот же аккаунт.'
 
 const ADMIN_NOTE = 'Лаунчер BSG запускает игру от имени администратора. Пока Raid OS работает без этих прав, Windows скрывает от него клавиши, нажатые в игре: клавиша информации о предмете не срабатывает. Позиция по скриншотам игры обновляется и так.'
-
-/** «Отключить местоположение» (was «Отключить мини-карту», owner, 14.10.2026: «отключить карту полностью»). */
-const TRACKING_ON_NOTE = 'Позицию даёт скриншот, который делает сама игра по клавише «Скриншот», — она видна на «Картах» в приложении и в телефоне.'
-const TRACKING_OFF_NOTE = 'Приложение не следит за папкой скриншотов, поэтому вашей позиции нет ни на картах, ни в телефоне. Информация о предмете работает как раньше.'
 
 /** The owner keeps the position off for everybody (owner, 14.10.2026): one quiet line instead of the old dialog. */
 export const TRACKING_OFF_FOR_ALL = 'Местоположение по скриншотам временно выключено для всех — ожидаем официального ответа от BSG. Если возникли вопросы, задайте их в нашем Telegram.'
@@ -92,7 +87,6 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
   const folderNote = !manualFolder
     ? ' (найдена автоматически)'
     : status?.screenshotsFolder === manualFolder ? ' (выбрана вручную)' : ' (в выбранной вручную папке нет скриншотов игры — использую папку игры)'
-  const positionOn = tracking && settings && !settings.minimapOff
 
   return (
     <section className="raid-tools" aria-label={uiText('Карта и предметы в рейде')}>
@@ -111,8 +105,8 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
           <a href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={13} aria-hidden="true" /> Telegram</a>
         </p>
       )}
-      {tracking && settings && <TrackingPower off={settings.minimapOff} onChange={(minimapOff) => update({ minimapOff })} />}
-      {positionOn && status && <PositionSetupCard status={status} onFixed={() => void api.getStatus().then(setStatus).catch(() => {})} />}
+      {/* The player's «Отключить местоположение» card and the «Проверка точки на карте» diagnostics are gone (owner,
+          16.10.2026: «зачеркнутое красным УДАЛИТЬ, СРОЧНО»); the position is switched for everybody in «Админ панель». */}
       {status?.displayMode === 'exclusive' && (
         <section className="panel exp-warning is-alert">
           <div className="panel-body"><AlertTriangle size={18} /><p>{uiText(EXCLUSIVE_NOTE)}</p></div>
@@ -186,24 +180,6 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
           </section>}
         </div>
         {support}
-      </div>
-    </section>
-  )
-}
-
-/** The player's own position switch, at the top: one button, and what it means in words. */
-function TrackingPower({ off, onChange }: { off: boolean; onChange: (off: boolean) => void }) {
-  return (
-    <section className={`panel exp-power${off ? ' is-off' : ''}`} aria-label={uiText('Местоположение')}>
-      <div className="panel-body">
-        <Power size={18} aria-hidden="true" />
-        <div className="exp-power-body">
-          <strong>{uiText(off ? 'Местоположение отключено' : 'Местоположение включено')}</strong>
-          <p>{uiText(off ? TRACKING_OFF_NOTE : TRACKING_ON_NOTE)}</p>
-        </div>
-        <button type="button" className={`button ${off ? 'primary' : 'ghost'}`} aria-pressed={off} onClick={() => onChange(!off)}>
-          {uiText(off ? 'Включить местоположение' : 'Отключить местоположение')}
-        </button>
       </div>
     </section>
   )
