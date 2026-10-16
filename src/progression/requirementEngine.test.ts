@@ -37,6 +37,15 @@ describe('task availability', () => {
     expect(calculateAvailability([aks, mp133], progress).get('aks-74n')?.status).toBe('active')
   })
 
+  it('never offers a task given only at a bad reputation with the trader (owner, 16.10.2026: Fence 0.44)', () => {
+    const wager = { ...quest, id: 'wager', level: 1, requirements: [], gameConditions: ['badStanding' as const] }
+    const progress = createModeProgress()
+    expect(evaluateTaskAvailability(wager, progress)).toEqual({ status: 'locked', blockers: ['Откроется только при отрицательной репутации у торговца'] })
+    // taken in the game: the logs decide
+    progress.taskProgress.wager = { taskId: 'wager', status: 'active', source: 'eft-log', updatedAt: '' }
+    expect(calculateAvailability([wager], progress).get('wager')?.status).toBe('active')
+  })
+
   it('keeps opposite-faction tasks locked', () => {
     const progress = createModeProgress()
     progress.playerLevel = 5
