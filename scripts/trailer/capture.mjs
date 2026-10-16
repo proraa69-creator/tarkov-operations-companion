@@ -658,7 +658,7 @@ if (want('mapitem') || want('mapposition')) {
   }
   if (want('mapitem')) {
     if (process.env.TRAILER_RANK) await page.evaluate(() => { window.__trailerRank = true })
-    const { payload, rank } = await showItem(page, process.env.TRAILER_ITEM ?? '5c0530ee86f774697952d952')
+    const { payload, rank } = await showItem(page, process.env.TRAILER_ITEM ?? '62a09cfe4f842e1bd12da3e4')
     console.log('item card:', JSON.stringify(payload).slice(0, 600))
     if (rank) console.log(rank.join('\n'))
     await page.waitForTimeout(2500)
