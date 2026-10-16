@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf } from '../../../src/shared/countries.js'
-import { NOTICE_LIMITS, SURVEY_LATER_MAX, SURVEY_LIMITS, cleanNoticeText, type NoticeAudience, type NoticePayment, type NoticeRegion, type PlayerNotice, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../../../src/shared/notices.js'
+import { CIS_PAYMENT_COUNTRIES, paymentRegionOf } from '../../../src/shared/paymentRegions.js'
+import { NOTICE_LIMITS, NOTICE_PAY_REGIONS, SURVEY_LATER_MAX, SURVEY_LIMITS, cleanNoticeText, type NoticeAudience, type NoticePayment, type NoticePayRegion, type NoticeRegion, type PlayerNotice, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../../../src/shared/notices.js'
 import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { transaction } from './database.js'
 
@@ -21,7 +22,9 @@ import { transaction } from './database.js'
  * country's region, src/shared/countries.ts; «Не указана» also matches an account that had no country when it was sent
  * and named one since: the window «Укажите страну» comes first) AND the payment (`paid`: an ordinary account with paid
  * days left now; `unpaid`: an ordinary account without; `all`: everybody, streamers too). A withdrawn one is shown to
- * nobody any more.
+ * nobody any more. A Boosty audience (`pay_region`, src/shared/paymentRegions.ts) replaces the regions: «СНГ» — a CIS
+ * country but Russia, «Мир» — a country outside the CIS (one typed by hand too), «Все, кроме России» — both; never Russia,
+ * never an account without a country.
  */
 
 type Row = Record<string, unknown>
@@ -131,9 +134,16 @@ const iso = (ms: unknown) => new Date(Number(ms)).toISOString()
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 const optional = <K extends string>(key: K, value: unknown) => (value == null || value === '' ? {} : { [key]: String(value) } as Record<K, string>)
 
+/** Whether an account's payment region is in a Boosty audience (never Russia, never without a country). */
+function payRegionMatches(payRegion: NoticePayRegion, country: string | null) {
+  const region = paymentRegionOf(country)
+  if (!region || region === 'RU') return false
+  return payRegion === 'ALL_PAID_REGIONS' || payRegion === region
+}
+
 export function audienceMatches(audience: NoticeAudience, sentAt: number, facts: Facts, now: number) {
   if (facts.createdAt > sentAt) return false
-  const regionOk = !audience.regions.length || audience.regions.some((region) => region === 'none'
+  const regionOk = audience.payRegion ? payRegionMatches(audience.payRegion, facts.country) : !audience.regions.length || audience.regions.some((region) => region === 'none'
     ? facts.country == null || (facts.countrySetAt != null && facts.countrySetAt > sentAt)
     : facts.country != null && regionOf(facts.country) === region)
   if (!regionOk) return false
@@ -146,7 +156,12 @@ export function audienceMatches(audience: NoticeAudience, sentAt: number, facts:
 function audienceSql(audience: NoticeAudience, sentAt: number, now: number, paidUntil: string) {
   const parts: string[] = ['a.deleted_at IS NULL', 'a.created_at <= ?']
   const args: Array<string | number> = [sentAt]
-  if (audience.regions.length) {
+  if (audience.payRegion) {
+    // The same lists as paymentRegionOf: «СНГ» = CIS without RU, «Мир» = not CIS (RU included in the CIS list), both = not RU.
+    if (audience.payRegion === 'CIS') { parts.push(`a.country IN (${placeholders(CIS_PAYMENT_COUNTRIES)})`); args.push(...CIS_PAYMENT_COUNTRIES) }
+    else if (audience.payRegion === 'WORLD') { parts.push(`(a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)}))`); args.push(...CIS_COUNTRIES) }
+    else { parts.push("(a.country IS NOT NULL AND a.country <> 'RU')") }
+  } else if (audience.regions.length) {
     const any: string[] = []
     for (const region of audience.regions) {
       if (region === 'none') { any.push('(a.country IS NULL OR (a.country_set_at IS NOT NULL AND a.country_set_at > ?))'); args.push(sentAt) }
@@ -170,6 +185,9 @@ function audienceSql(audience: NoticeAudience, sentAt: number, now: number, paid
 export class NoticeStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
     db.exec(SCHEMA)
+    // The Boosty audiences (src/shared/notices.ts NoticePayRegion), added to older databases; NULL: the regions apply.
+    const columns = new Set((db.prepare('PRAGMA table_info(owner_notices)').all() as Row[]).map((row) => String(row.name)))
+    if (!columns.has('pay_region')) db.exec('ALTER TABLE owner_notices ADD COLUMN pay_region TEXT')
   }
 
   /** The paid days of `a` (PaymentStore's subscriptions); 0 on a database without payments. */
@@ -238,10 +256,10 @@ export class NoticeStore {
         const row = this.db.prepare('SELECT notice_id FROM owner_notice_images WHERE id = ?').get(image) as Row | undefined
         if (!row || row.notice_id != null) throw new NoticeError(400, 'Фото не найдено: загрузите его ещё раз')
       }
-      const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, button_text, button_text_en, button_url, regions, payment, images, created_by, created_at)
-        VALUES ('announcement', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, button_text, button_text_en, button_url, regions, payment, pay_region, images, created_by, created_at)
+        VALUES ('announcement', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         input.title, input.titleEn || null, input.text, input.textEn || null, input.button?.text ?? null, input.button?.textEn || null, input.button?.url ?? null,
-        JSON.stringify(input.audience.regions), input.audience.payment, input.images.length, actor, now)
+        JSON.stringify(input.audience.payRegion ? [] : input.audience.regions), input.audience.payment, input.audience.payRegion ?? null, input.images.length, actor, now)
       const noticeId = Number(inserted.lastInsertRowid)
       input.images.forEach((image, idx) => this.db.prepare('UPDATE owner_notice_images SET notice_id = ?, idx = ? WHERE id = ?').run(noticeId, idx, image))
       return noticeId
@@ -259,9 +277,9 @@ export class NoticeStore {
       ...(question.type === 'multiple' && question.max ? { max: question.max } : {}),
       required: question.required,
     }))
-    const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, regions, payment, questions, created_by, created_at)
-      VALUES ('survey', ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.title, input.titleEn || null, input.intro ?? '', input.introEn || null,
-      JSON.stringify(input.audience.regions), input.audience.payment, JSON.stringify(questions), actor, this.now())
+    const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, regions, payment, pay_region, questions, created_by, created_at)
+      VALUES ('survey', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.title, input.titleEn || null, input.intro ?? '', input.introEn || null,
+      JSON.stringify(input.audience.payRegion ? [] : input.audience.regions), input.audience.payment, input.audience.payRegion ?? null, JSON.stringify(questions), actor, this.now())
     return this.ownerView(this.row(Number(inserted.lastInsertRowid))!)
   }
 
@@ -443,7 +461,8 @@ function audienceOf(row: Row): NoticeAudience {
     if (Array.isArray(parsed)) regions = parsed.filter((item): item is NoticeRegion => item === 'cis' || item === 'europe' || item === 'other' || item === 'none')
   } catch { /* none: everybody */ }
   const payment: NoticePayment = row.payment === 'paid' || row.payment === 'unpaid' ? row.payment : 'all'
-  return { regions, payment }
+  const payRegion = NOTICE_PAY_REGIONS.find((item) => item === row.pay_region)
+  return payRegion ? { regions: [], payment, payRegion } : { regions, payment }
 }
 
 function questionsOf(row: Row): SurveyQuestion[] {

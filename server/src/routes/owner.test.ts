@@ -156,7 +156,7 @@ test('POST /v1/payments requires the offer consent and stores it with the paymen
   }) as unknown as typeof globalThis.fetch
   const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_x', monthPrice: 300, receipts: true, streamerPercent: 0, publicUrl: 'https://tarkov.example.com' }, { fetch: fakeFetch })
   accounts.attachSubscriptions(payments)
-  const { token } = await accounts.register('payer@example.com', password)
+  const { token } = await accounts.register('payer@example.com', password, undefined, undefined, 'RU')
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const address = server.address()
@@ -192,7 +192,7 @@ test('POST /v1/payments returns the payer to the configured site, never to the r
     }) as unknown as typeof globalThis.fetch
     const payments = new PaymentStore(db, { shopId: '1', secretKey: 'test_x', monthPrice: 300, receipts: false, streamerPercent: 0, ...(publicUrl ? { publicUrl } : {}) }, { fetch: fakeFetch })
     accounts.attachSubscriptions(payments)
-    const { token } = await accounts.register('payer@example.com', password)
+    const { token } = await accounts.register('payer@example.com', password, undefined, undefined, 'RU')
     const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments }).listen(0, '127.0.0.1')
     await new Promise<void>((resolve) => server.on('listening', resolve))
     const address = server.address()

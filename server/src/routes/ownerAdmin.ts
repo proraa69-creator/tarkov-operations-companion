@@ -17,6 +17,21 @@
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
  *   POST /me/admin/users/:id/revoke          { days 1–3650, reason }   -> { user, payments, grants } (takes paid days off; 409 when none)
  *   POST /me/admin/users/:id/cancel-autopay                            -> { user, payments, grants } (an archived one is closed here only)
+ *   GET  /me/admin/users/:id/boosty          -> { region, friendAvailable, friendPercent, requests: [{ offer, region, at }] }
+ *   Boosty (services/boosty.ts, services/boostySync.ts; docs/payments/payment-regions-and-announcements.md «API for the
+ *   subscription tool»):
+ *   GET  /me/admin/boosty                    -> { sync: BoostySyncStatus, review: { items, total }, levels, offers }
+ *   GET  /me/admin/boosty/payments?email&limit&offset -> { payments: BoostyPaymentRecord[], total }
+ *   GET  /me/admin/boosty/review?status=open|all&limit&offset -> { items: BoostyReviewItem[], total }
+ *   POST /me/admin/boosty/payments           { email, offer: 'standard'|'friend', region?: 'CIS'|'WORLD', months?: 1|3|6|12,
+ *                                            paidUntil?: 'YYYY-MM-DD', amount?: ₽, reference?, reviewId? }
+ *                                            -> 201 { payment, user } «Подтвердить оплату Boosty» (the sync's grant
+ *                                            path); 404/409 { error, code: unknown_email|no_country|region_mismatch|
+ *                                            friend_without_referral } when the rules refuse it
+ *   POST /me/admin/boosty/review/:id/dismiss -> { ok: true }
+ *   PUT  /me/admin/boosty/levels/:levelId    { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }
+ *   PUT  /me/admin/boosty/pause              { paused: boolean } -> { sync }
+ *   POST /me/admin/boosty/sync               -> { sync } «Проверить сейчас» (409 when the server has no Boosty secrets)
  *   POST /me/admin/users/:id/block           { reason? }               -> { user, … } (sessions revoked, login 403)
  *   POST /me/admin/users/:id/unblock                                   -> { user, … }
  *   POST /me/admin/users/:id/revoke-sessions                           -> { revoked, user, … }
@@ -41,6 +56,8 @@ import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from 
 import type { AdminStore, PaymentFilter, RegionFilter, UserFilter } from '../services/adminStore.js'
 import { PaymentError } from '../services/paymentStore.js'
 import type { PresenceTracker } from '../services/presence.js'
+import { BOOSTY_OFFER_KEYS, BOOSTY_OFFER_TABLE, BoostyGrantError, type BoostyPayments } from '../services/boosty.js'
+import { BOOSTY_SYNC_OFF, type BoostySync } from '../services/boostySync.js'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const pageSchema = z.object({
@@ -66,6 +83,27 @@ const grantSchema = z.object({ days: z.number().int().min(1).max(3650), reason: 
 const blockSchema = z.object({ reason: z.string().trim().max(200).optional() })
 const percentSchema = z.object({ percent: z.number().min(0).max(100).nullable() })
 const linkSchema = z.object({ enabled: z.boolean() })
+/**
+ * «Подтвердить оплату Boosty»: what the owner saw on Boosty. `region`: the region of the offer that was bought (default:
+ * the account's); the period: `months` added, or `paidUntil` (Boosty's «оплачено до», a date); `amount` in roubles
+ * (optional, for the statistics), `reference` the owner's note (the same one is refused twice), `reviewId` the review
+ * item this settles.
+ */
+const boostyPaymentSchema = z.object({
+  email: z.string().trim().min(3).max(254),
+  offer: z.enum(['standard', 'friend']),
+  region: z.enum(['CIS', 'WORLD']).optional(),
+  months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).optional(),
+  paidUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/).optional(),
+  amount: z.number().finite().min(0).max(1_000_000).optional(),
+  reference: z.string().trim().max(120).optional().transform((value) => value || undefined),
+  reviewId: z.number().int().positive().optional(),
+}).strict().refine((input) => (input.months === undefined) !== (input.paidUntil === undefined), { message: 'period' })
+const boostyListSchema = z.object({ email: z.string().trim().max(254).optional() })
+const reviewListSchema = z.object({ status: z.enum(['open', 'all']).default('open') })
+const levelSchema = z.object({ offer: z.enum(BOOSTY_OFFER_KEYS).nullable() }).strict()
+const pauseSchema = z.object({ paused: z.boolean() }).strict()
+const MAX_PAID_AHEAD_MS = 400 * 24 * 60 * 60 * 1000
 
 /** Existing owner routes whose successful calls go to the audit log too. Only validated, non-secret fields are kept. */
 const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' | 'payout.decide' | 'payout.limits'; describe: (body: Record<string, unknown>) => { target?: string; details?: Record<string, unknown> } }> = [
@@ -74,7 +112,7 @@ const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' |
   { method: 'PUT', path: '/me/admin/payout-limits', action: 'payout.limits', describe: (body) => ({ details: { min: Number(body.min), max: Number(body.max) } }) },
 ]
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker) {
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySync?: BoostySync) {
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
   const writeLimiter = new FixedWindowRateLimiter(30, 60 * 1000)
@@ -166,6 +204,81 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.post('/me/admin/users/:id/revoke', owner('write', (req, res, actor) => {
     const { days, reason } = grantSchema.parse(req.body)
     res.json(admin.revoke(actor, idSchema.parse(req.params.id), days, reason))
+  }))
+  router.get('/me/admin/users/:id/boosty', owner('read', (req, res) => {
+    const id = idSchema.parse(req.params.id)
+    admin.user(id)
+    if (!boosty) throw new AccountError(503, 'Boosty не подключён')
+    res.json(boosty.ownerView(id))
+  }))
+  const needBoosty = () => {
+    if (!boosty) throw new AccountError(503, 'Boosty не подключён')
+    return boosty
+  }
+  const syncStatus = () => boostySync?.status() ?? BOOSTY_SYNC_OFF
+  router.get('/me/admin/boosty', owner('read', (_req, res) => {
+    const store = needBoosty()
+    res.json({ sync: syncStatus(), review: store.review({ status: 'open', limit: 50, offset: 0 }), levels: store.levels(), offers: BOOSTY_OFFER_TABLE.map(({ key, region, kind, levelId }) => ({ key, region, kind, levelId })) })
+  }))
+  router.post('/me/admin/boosty/payments', owner('write', (req, res, actor) => {
+    const store = needBoosty()
+    const input = boostyPaymentSchema.parse(req.body)
+    let paidUntil: number | undefined
+    if (input.paidUntil) {
+      // A plain date is the end of that day (Moscow): Boosty shows «оплачено до» as a date.
+      paidUntil = Date.parse(input.paidUntil.length === 10 ? `${input.paidUntil}T23:59:59+03:00` : input.paidUntil)
+      const now = accounts.clock()
+      if (!Number.isFinite(paidUntil) || paidUntil <= now || paidUntil > now + MAX_PAID_AHEAD_MS) throw new AccountError(400, 'Дата «оплачено до» должна быть в будущем, не дальше чем через 400 дней')
+    }
+    const amount = input.amount ?? 0
+    try {
+      const done = store.confirm(actor, {
+        email: input.email, offer: input.offer, amount: Math.round(amount * 100),
+        ...(input.region ? { region: input.region } : {}),
+        ...(input.months !== undefined ? { months: input.months } : { paidUntil }),
+        ...(input.reference ? { reference: input.reference } : {}),
+        ...(input.reviewId !== undefined ? { reviewId: input.reviewId } : {}),
+      })
+      admin.audit(actor, 'payment.boosty-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, offer: input.offer, region: done.region, ...(input.months ? { months: input.months } : { paidUntil: input.paidUntil }), amount, ...(input.reference ? { reference: input.reference } : {}) })
+      const record = store.list({ accountId: done.accountId, limit: 50, offset: 0 }).payments.find((item) => item.id === done.payment.id)
+      res.status(201).json({ payment: record, user: admin.user(done.accountId).user })
+    } catch (error) {
+      if (error instanceof BoostyGrantError) { res.status(error.status).json({ error: error.message, code: error.reason }); return }
+      throw error
+    }
+  }))
+  router.get('/me/admin/boosty/payments', owner('read', (req, res) => {
+    const store = needBoosty()
+    const { email } = boostyListSchema.parse(req.query)
+    const { limit, offset } = pageSchema.parse(req.query)
+    const accountId = email ? accounts.accountByEmail(email)?.id : undefined
+    if (email && !accountId) { res.json({ payments: [], total: 0 }); return }
+    res.json(store.list({ ...(accountId ? { accountId } : {}), limit, offset }))
+  }))
+  router.get('/me/admin/boosty/review', owner('read', (req, res) => {
+    const store = needBoosty()
+    const { status } = reviewListSchema.parse(req.query)
+    const { limit, offset } = pageSchema.parse(req.query)
+    res.json(store.review({ status, limit, offset }))
+  }))
+  router.post('/me/admin/boosty/review/:id/dismiss', owner('write', (req, res, actor) => {
+    needBoosty().dismissReview(actor, z.coerce.number().int().positive().parse(req.params.id))
+    res.json({ ok: true })
+  }))
+  router.put('/me/admin/boosty/levels/:levelId', owner('write', (req, res) => {
+    const levelId = z.string().regex(/^\d{1,20}$/).parse(req.params.levelId)
+    needBoosty().mapLevel(levelId, levelSchema.parse(req.body).offer)
+    res.json({ levels: needBoosty().levels() })
+  }))
+  router.put('/me/admin/boosty/pause', owner('write', (req, res) => {
+    const { paused } = pauseSchema.parse(req.body)
+    if (!boostySync) throw new AccountError(409, 'Автовыдача Boosty выключена: на сервере нет BOOSTY_AUTH и BOOSTY_CLIENT_ID')
+    boostySync.setPaused(paused)
+    res.json({ sync: syncStatus() })
+  }))
+  router.post('/me/admin/boosty/sync', owner('write', async (_req, res) => {
+    if (!boostySync) throw new AccountError(409, 'Автовыдача Boosty выключена: на сервере нет BOOSTY_AUTH и BOOSTY_CLIENT_ID')
+    res.json({ sync: await boostySync.runOnce(true) })
   }))
   router.post('/me/admin/users/:id/cancel-autopay', owner('write', async (req, res, actor) => { res.json(await admin.cancelAutopay(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/block', owner('write', (req, res, actor) => {
