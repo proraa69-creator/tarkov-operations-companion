@@ -112,7 +112,7 @@ describe('«Админ панель» in the sidebar', () => {
     const list = shell.slice(shell.indexOf('aria-label={uiText("Основная навигация")}'))
     expect(list.indexOf('<AdminNavLink locale={locale} />')).toBeGreaterThan(0)
     expect(list.indexOf('<AdminNavLink locale={locale} />')).toBeLessThan(list.indexOf('navigation.map('))
-    expect(shell).toMatch(/const navigation = \[\n  \{ to: '\/', ru: 'Обзор'/)
+    expect(shell).toContain("const navigation = [\n  { to: '/', ru: 'Обзор'")
   })
 })
 

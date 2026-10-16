@@ -14,7 +14,7 @@ import '../admin/adminPanel.css'
 
 export type AdminSectionId = 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks'
 
-export const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: string; icon: typeof Megaphone }> = [
+const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: string; icon: typeof Megaphone }> = [
   { id: 'notices', label: 'Объявления', hint: 'Всем или по регионам', icon: BellRing },
   { id: 'surveys', label: 'Опросы', hint: 'Создать, результаты', icon: ClipboardList },
   { id: 'banner', label: 'Баннер', hint: 'Сверху у всех игроков', icon: Megaphone },
