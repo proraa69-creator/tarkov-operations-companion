@@ -12,6 +12,8 @@ import type { PlayerPosition } from '../overlay/screenshotPosition'
 import type { RaidState } from '../import/raidState'
 import { playerMarkerSvg, type PlayerMarkerStyle } from '../overlay/playerMarker'
 import { useLivePositionContext, type LivePositionValue } from '../mobile/livePosition'
+import { useRemoteFeatures } from '../announcement/features'
+import { placePlayer, type PlayerMapReason } from '../overlay/positionMap'
 import '../styles/playerMarker.css'
 
 /**
@@ -20,19 +22,35 @@ import '../styles/playerMarker.css'
  * (on the desktop also to the current raid), so the map draws it and shows its floor.
  */
 export type LivePlayer =
-  | { source: 'server'; live: LivePositionValue; position: LivePositionValue['position']; onThisMap: boolean }
-  /** `raidMapId`: the map of the current raid from the game's logs ('' outside a raid). */
-  | { source: 'desktop'; position: PlayerPosition | null; onThisMap: boolean; raidMapId: string }
+  /** `guessed`: the position names no map, it is drawn on the open one (src/overlay/positionMap.ts). */
+  | { source: 'server'; live: LivePositionValue; position: LivePositionValue['position']; onThisMap: boolean; guessed: boolean }
+  /**
+   * `raidMapId`: the map of the current raid from the game's logs ('' outside a raid or when the logs name none).
+   * `guessed`: the logs name no map, the dot is on the open map; `reason`: why it is or is not on this map.
+   */
+  | { source: 'desktop'; position: PlayerPosition | null; onThisMap: boolean; raidMapId: string; guessed: boolean; reason: PlayerMapReason }
 
-/** Read by the map page itself (not by the marker), so the shown floor can follow the player (data/useAutoFloor.ts). */
-export function useLivePlayer(mapId: string): LivePlayer {
+/**
+ * Read by the map page itself (not by the marker), so the shown floor can follow the player (data/useAutoFloor.ts).
+ * `bounds`: the open map's game-space bounds, for a position whose map the logs do not name (src/overlay/positionMap.ts).
+ */
+export function useLivePlayer(mapId: string, bounds?: [[number, number], [number, number]]): LivePlayer {
   const live = useLivePositionContext()
+  const features = useRemoteFeatures()
   const desktop = useDesktopPosition(!live)
-  if (live) return { source: 'server', live, position: live.position, onThisMap: Boolean(live.position?.map && live.position.map === mapId) }
-  const { position, raid } = desktop
+  if (live) {
+    const position = live.position
+    // A PC whose logs named the raid's map sends it; one that could not sends none: the open map, while fresh.
+    if (position?.map) return { source: 'server', live, position, onThisMap: position.map === mapId, guessed: false }
+    const guess = live.fresh ? placePlayer({ mapId, position, raidMapId: '', bounds }) : null
+    return { source: 'server', live, position, onThisMap: Boolean(guess?.onThisMap), guessed: Boolean(guess?.onThisMap) }
+  }
+  const { raid, endedAt } = desktop
+  // The owner keeps the position off for everybody: no dot, even one that came before it went off.
+  const position = features.minimap ? desktop.position : null
   const raidMapId = raid.inRaid ? canonicalMapId(raid.location ?? '') : ''
-  const onThisMap = Boolean(position && raidMapId && raidMapId === mapId && !(raid.since && position.at < raid.since))
-  return { source: 'desktop', position, onThisMap, raidMapId }
+  const placement = placePlayer({ mapId, position, raidMapId, raidSince: raid.inRaid ? raid.since : undefined, raidEndedAt: endedAt, bounds })
+  return { source: 'desktop', position, onThisMap: placement.onThisMap, raidMapId, guessed: placement.guessed, reason: placement.reason }
 }
 
 /**
@@ -58,22 +76,32 @@ export function useFollowRaidMap(player: LivePlayer, mapId: string, enabled = tr
   }, [at, data.maps, enabled, mapId, navigate, raidMapId, setSelectedMapId])
 }
 
-/** Desktop: the latest screenshot position and the raid state from the game logs. */
+/**
+ * Desktop: the latest screenshot position and the raid state from the game logs, with the moment this window saw the
+ * raid end (a screenshot from before it is no position on the open map). A null position: the tracking went off.
+ */
 function useDesktopPosition(enabled: boolean) {
   const [position, setPosition] = useState<PlayerPosition | null>(null)
-  const [raid, setRaid] = useState<RaidState>({ inRaid: false })
+  const [raid, setRaidState] = useState<RaidState>({ inRaid: false })
+  const [endedAt, setEndedAt] = useState(0)
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!enabled || !desktop?.experimental) return
     // The stored position can answer after a newer screenshot already arrived: keep the newer one.
-    const take = (next: PlayerPosition) => setPosition((current) => (current && current.at > next.at ? current : next))
+    const take = (next: PlayerPosition | null) => setPosition((current) => (!next ? null : current && current.at > next.at ? current : next))
     void desktop.experimental.getStatus().then((status) => { if (status.lastPosition) take(status.lastPosition) }).catch(() => {})
+    let inRaid: boolean | null = null
+    const setRaid = (next: RaidState) => {
+      if (inRaid && !next.inRaid) setEndedAt(Date.now())
+      inRaid = next.inRaid
+      setRaidState(next)
+    }
     void desktop.getRaidState().then(setRaid).catch(() => {})
     const offPosition = desktop.experimental.onPosition(take)
     const offRaid = desktop.onRaidStateChanged(setRaid)
     return () => { offPosition(); offRaid() }
   }, [enabled])
-  return { position, raid }
+  return { position, raid, endedAt }
 }
 
 /**
@@ -139,8 +167,11 @@ function useFollowPlayer(position: PlayerPosition | null, onThisMap: boolean) {
   }, [at, map, onThisMap])
 }
 
+/** The logs named no map: the dot is on the map that is open (src/overlay/positionMap.ts). */
+export const GUESSED_MAP_NOTE = 'Карта рейда не определена по логам игры — точка на открытой карте'
+
 function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 'desktop' }> }) {
-  const { position, onThisMap } = player
+  const { position, onThisMap, guessed } = player
   const [now, setNow] = useState(() => Date.now())
   const [style, setStyle] = useState<PlayerMarkerStyle>('arrow')
 
@@ -160,7 +191,10 @@ function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source:
   if (!position || !onThisMap) return null
   return (
     <Marker position={[position.z, position.x]} icon={icon} interactive zIndexOffset={1200}>
-      <Tooltip direction="top" offset={[0, -18]}>{uiText(`Вы · ${Math.max(0, Math.round((now - position.at) / 1000))} с назад`)}</Tooltip>
+      <Tooltip direction="top" offset={[0, -18]}>
+        {uiText(`Вы · ${Math.max(0, Math.round((now - position.at) / 1000))} с назад`)}
+        {guessed && <><br /><small>{uiText(GUESSED_MAP_NOTE)}</small></>}
+      </Tooltip>
     </Marker>
   )
 }

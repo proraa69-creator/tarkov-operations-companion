@@ -370,7 +370,7 @@ export function MapsPage() {
   }, [activeMap.id, baseFloor])
   // «Этаж по скриншоту»: the floor the player is on. Declared after the reset above — effects run in order, so on
   // opening the map (or a new screenshot) the player's floor wins; a floor picked by hand stays until the next one.
-  const player = useLivePlayer(activeMap.id)
+  const player = useLivePlayer(activeMap.id, activeMap.bounds)
   // The PC: the map of the current raid opens by itself with each new position (the phone does it in PhoneMapsPage).
   useFollowRaidMap(player, activeMap.id, !bossPlacement.active && !questEditor.active)
   const playerOnFloor = useAutoFloor(activeMap, player.onThisMap ? player.position : null, setFloor, !bossPlacement.active && !questEditor.active)

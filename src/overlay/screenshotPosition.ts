@@ -10,8 +10,9 @@ export interface PlayerPosition {
 /** A number with a decimal point or, on some locales, a decimal comma («-181,42»). */
 const NUMBER = String.raw`([+-]?(?:\d+(?:[.,]\d+)?\.?|[.,]\d+)(?:[eE][+-]?\d+)?)`
 /** EFT writes the camera position and rotation into the screenshot file name:
- * `2024-06-13[11-05]_-181.42, 3.27, -77.07_0.02063, -0.84017, 0.03179, 0.54108_11.02 (0).png` */
-const SCREENSHOT_NAME = new RegExp(`_${NUMBER},\\s*${NUMBER},\\s*${NUMBER}_${NUMBER},\\s*${NUMBER},\\s*${NUMBER},\\s*${NUMBER}_`)
+ * `2024-06-13[11-05]_-181.42, 3.27, -77.07_0.02063, -0.84017, 0.03179, 0.54108_11.02 (0).png`. The part after the
+ * rotation (`_11.02 (0)`) is not needed: a name that ends right after it, or goes on with a space or a bracket, counts. */
+const SCREENSHOT_NAME = new RegExp(`_${NUMBER},\\s*${NUMBER},\\s*${NUMBER}_${NUMBER},\\s*${NUMBER},\\s*${NUMBER},\\s*${NUMBER}(?=[_\\s(]|\\.(?:png|jpe?g|bmp)$)`, 'i')
 
 export function isPositionScreenshot(name: string) {
   return /\.(png|jpe?g|bmp)$/i.test(name) && SCREENSHOT_NAME.test(name)

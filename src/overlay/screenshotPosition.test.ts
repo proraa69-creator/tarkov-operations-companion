@@ -42,3 +42,21 @@ describe('screenshot position on comma-decimal locales', () => {
     expect(parseScreenshotPosition(name, 1)).toMatchObject({ x: -181.42, y: 3.27, z: -77.07 })
   })
 })
+
+describe('screenshot names: the part after the rotation is optional', () => {
+  it('reads a name that ends right after the rotation, or goes on with a space, in any image format', () => {
+    for (const name of [
+      '2026-10-16[18-00]_-230.88, 3.59, -375.83_-0.02798, -0.17807, 0.00669, -0.98360.png',
+      '2026-10-16[18-00]_-230.88, 3.59, -375.83_-0.02798, -0.17807, 0.00669, -0.98360 (1).jpg',
+      '2026-10-16[18-00]_-230.88,3.59,-375.83_-0.02798,-0.17807,0.00669,-0.98360_0.64 (0).PNG',
+    ]) {
+      expect(isPositionScreenshot(name), name).toBe(true)
+      expect(parseScreenshotPosition(name, 3), name).toMatchObject({ x: -230.88, y: 3.59, z: -375.83, at: 3 })
+    }
+  })
+
+  it('still needs all seven numbers', () => {
+    expect(isPositionScreenshot('2026-10-16[18-00]_-230.88, 3.59, -375.83_-0.02798, -0.17807, 0.00669.png')).toBe(false)
+    expect(isPositionScreenshot('2026-10-16[18-00]_-230.88, 3.59, -375.83.png')).toBe(false)
+  })
+})
