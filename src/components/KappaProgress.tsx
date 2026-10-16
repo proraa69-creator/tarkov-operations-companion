@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useBlockTitle } from '../overview/blockTitle'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { Check, Circle, Clock, X } from 'lucide-react'
@@ -15,12 +16,13 @@ const STATE_LABELS: Record<CollectorTaskState, string> = { completed: 'выпо�
  * «Предметы» the Collector items page; the card itself keeps the plain layout of the other stat cards.
  */
 export function KappaStatCard({ completed, total, open, onOpen, controlsId }: { completed: number; total: number; open: boolean; onOpen: () => void; controlsId: string }) {
+  const title = useBlockTitle('Задания для Капы')
   return <div className="stat-card kappa-card">
     <div className="kappa-card-actions">
       <button type="button" className="button small kappa-quests-button" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? controlsId : undefined} onClick={onOpen}>{uiText('Квесты')}</button>
       <Link className="button small kappa-items-button" to="/kappa-items">{uiText('Предметы')}</Link>
     </div>
-    <div className="stat-label">{uiText('Задания для Капы')}</div>
+    <div className="stat-label">{title}</div>
     <div className="stat-value"><CountUp value={completed} /></div>
     <div className="stat-meta">{uiText(`Выполнено ${completed} из ${total}`)}</div>
   </div>

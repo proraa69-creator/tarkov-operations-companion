@@ -8,11 +8,15 @@
  * The same answer carries the owner's switches for every app (src/announcement/features.ts: the minimap, 14.10.2026).
  * So that a switch shows soon, the app also asks when its window gets the focus back and when the Mini Map page opens
  * (`checkAnnouncementNow`), never more often than FOCUS_GAP_MS for the focus.
+ *
+ * It also carries the owner's Overview for everybody («Админ панель» → «Блоки», `overview`,
+ * src/overview/overviewDefaultsStore.ts): the default order, hidden blocks and the owner's headings.
  */
 import { useEffect, useSyncExternalStore } from 'react'
 import { usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
 import { parseFeatures, sendRemoteFeaturesToMain, setRemoteFeatures } from './features'
+import { parseOverviewAnswer, setOverviewDefaults } from '../overview/overviewDefaultsStore'
 
 export interface AnnouncementView { text: string; updatedAt: string }
 
@@ -83,6 +87,8 @@ async function checkOnce(ask: Ask) {
     if (answer) setAnnouncement(answer.announcement)
     const features = parseFeatures(raw)
     if (features) setRemoteFeatures(features)
+    const overview = parseOverviewAnswer(raw)
+    if (overview !== undefined) setOverviewDefaults(overview)
   } catch { /* offline or an older server: the last notice stays until the next check */ }
 }
 
