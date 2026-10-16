@@ -2,10 +2,9 @@ import { uiText } from '../i18n/renderText'
 import { useEffect, useState, type ReactNode } from 'react'
 import { AlertTriangle, MapPinned, MessageCircle, Power, ShieldAlert } from 'lucide-react'
 import { startActivePolling } from '../app/activePolling'
-import { isOwnerApp } from '../app/buildEdition'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { checkAnnouncementNow } from '../announcement/announcement'
-import { parseFeatures, setRemoteFeatures, useRemoteFeatures } from '../announcement/features'
+import { useRemoteFeatures } from '../announcement/features'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
@@ -106,7 +105,6 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
       </header>
       {actionError && <p className="notice error" role="alert">{actionError}</p>}
       {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
-      {isOwnerApp() && <OwnerTrackingSwitch on={tracking} />}
       {!tracking && features.known && (
         <p className="exp-overlay-off muted" role="note">
           {uiText(TRACKING_OFF_FOR_ALL)}{' '}
@@ -188,51 +186,6 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
           </section>}
         </div>
         {support}
-      </div>
-    </section>
-  )
-}
-
-const FEATURES_PATH = '/v1/accounts/me/admin/features'
-
-/**
- * The owner app only (owner, 14.10.2026: «у меня кнопка которая моментально убирает эти меню функций из приложения»):
- * the position from the screenshots on or off for every app (server/src/routes/announcement.ts `minimap`). This page
- * follows at once; the players' apps at their next check. The server's second switch, the minimap window over the game,
- * concerns only the apps from before 15.10.2026: this app has no such window, so it has no button here.
- */
-function OwnerTrackingSwitch({ on }: { on: boolean }) {
-  const request = window.tarkovDesktop?.serviceRequest
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const send = async (body: { minimap: boolean }) => {
-    if (!request || busy) return
-    setBusy(true)
-    setError('')
-    try {
-      const saved = parseFeatures(await request('PUT', FEATURES_PATH, body))
-      if (!saved) throw new Error('no answer')
-      setRemoteFeatures(saved)
-    } catch {
-      setError(uiText('Не удалось переключить. Проверьте вход в аккаунт владельца и попробуйте ещё раз.'))
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <section className={`panel exp-power exp-owner-switch${on ? '' : ' is-off'}`} aria-label={uiText('Местоположение у всех')}>
-      <div className="panel-body">
-        <Power size={18} aria-hidden="true" />
-        <div className="exp-power-body">
-          <strong>{uiText('Местоположение у всех')} <small className="exp-owner-hint">· {uiText('Эту карточку видит только владелец.')}</small></strong>
-          <div className="exp-owner-row">
-            <span>{uiText('Позиция по скриншотам:')} <b className={`exp-owner-state${on ? ' is-on' : ''}`}>{uiText(on ? 'включена у всех' : 'выключена у всех')}</b></span>
-            <button type="button" className={`button small ${on ? 'ghost' : 'primary'}`} disabled={busy || !request} onClick={() => void send({ minimap: !on })}>
-              {uiText(on ? 'Выключить для всех' : 'Включить для всех')}
-            </button>
-          </div>
-          {error && <small className="is-error" role="alert">{error}</small>}
-        </div>
       </div>
     </section>
   )
