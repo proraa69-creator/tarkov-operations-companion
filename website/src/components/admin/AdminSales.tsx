@@ -33,6 +33,7 @@ const ACTION_LABEL: Record<string, string> = {
   'support.reply': 'Ответ в чате поддержки',
   'support.resolve': 'Переписка удалена («Проблема решена»)',
   'announcement.set': 'Изменено уведомление для игроков',
+  'overview.blocks': 'Блоки «Обзора» для всех игроков',
   'features.minimap': 'Функции мини-карты для всех игроков',
   'features.minimapOverlay': 'Мини-карта старых версий приложения для всех игроков',
   'notice.send': 'Отправлено объявление по регионам',

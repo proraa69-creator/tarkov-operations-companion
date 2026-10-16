@@ -64,6 +64,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
   // The owner's minimap switch for every app (the same route file): read with the notice above, set by the owner.
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
+  // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
+  // it with the notice above; the owner keeps it here.
+  { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши

@@ -60,6 +60,8 @@ import { EventQuestStore } from './services/eventQuestStore.js'
 import { createEventQuestsRouter } from './routes/eventQuests.js'
 import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
+import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
+import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -321,7 +323,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates()
-  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement))
+  // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
+  const overviewDefaults = new OverviewDefaultsStore(accounts.database)
+  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => announcementSignals.changed()))
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
   app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {

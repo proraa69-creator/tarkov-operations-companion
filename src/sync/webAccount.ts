@@ -58,6 +58,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
+  // «Блоки» of the owner's admin panel (server/src/routes/overviewDefaults.ts), also carried by the notice above.
+  { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): the phone app's heartbeat, with its device id (server/src/routes/presence.ts).
