@@ -46,17 +46,23 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
   it('asks, with a required prestige: rows of icons only, none chosen, «Сбросить» disabled until one is', () => {
     mount('ru')
     fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
+    // First PvP or PvE (owner, 16.10.2026), then the levels of that mode.
+    expect(screen.getByRole('alertdialog').textContent).toContain('В каком режиме престиж?')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.getAllByRole('button').filter((button) => button.classList.contains('prestige-mode-button')).map((button) => button.textContent)).toEqual(['PvP', 'PvE'])
+    fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     const dialog = screen.getByRole('alertdialog')
     expect(dialog.textContent).toContain('Престиж режима PvE: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после престижа, старые квесты отпадут сами. Другие режимы не изменятся.')
     const list = within(dialog).getByRole('listbox')
     const rows = within(list).getAllByRole('option')
-    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(Array.from({ length: 10 }, (_, index) => `Престиж ${index + 1}`))
-    // Only the icon: no text and no number in a row; each level its own icon.
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(Array.from({ length: 6 }, (_, index) => `Престиж ${index + 1}`))
+    // Only the badge: no text in a row; each level its own badge, the game's PvE pictures where the owner sent them.
     for (const row of rows) {
       expect(row.textContent).toBe('')
-      expect(row.querySelectorAll('svg')).toHaveLength(1)
+      expect(row.querySelectorAll('svg, img')).toHaveLength(1)
     }
-    expect(new Set(rows.map((row) => row.innerHTML)).size).toBe(10)
+    expect(new Set(rows.map((row) => row.innerHTML)).size).toBe(6)
+    expect((rows[0]!.querySelector('img') as HTMLImageElement).dataset.mode).toBe('pve')
     expect(rows.every((row) => row.getAttribute('aria-selected') === 'false')).toBe(true)
     const reset = within(dialog).getByRole('button', { name: 'Сбросить' })
     expect(reset).toHaveProperty('disabled', true)
@@ -71,8 +77,9 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, true, true])
     expect(pve().resetMarker).toBeUndefined()
-    // Reopened: nothing chosen again. Escape cancels too.
+    // Reopened: the mode is asked again and nothing is chosen. Escape cancels too.
     fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     expect(screen.getAllByRole('option').every((row) => row.getAttribute('aria-selected') === 'false')).toBe(true)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('alertdialog')).toBeNull()
@@ -83,6 +90,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     expect(screen.getByText('Без престижа')).toBeTruthy()
     expect(screen.queryByTestId('sidebar-prestige')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     fireEvent.click(screen.getByRole('option', { name: 'Престиж 4' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
@@ -103,6 +111,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
   it('a later game reading may raise the player\'s prestige, never lower it; friends get it with the level', () => {
     mount('ru')
     fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     fireEvent.click(screen.getByRole('option', { name: 'Престиж 2' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
     const profile = probe.current!.activeProfile
@@ -117,17 +126,21 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     expect(sharedLevelsOf(profile.modes).pvp).toBeUndefined()
   })
 
-  it('in English, for the season', () => {
+  it('in English: the mode chosen in the dialog is reset, whatever mode the app shows', () => {
     mount('en', 'seasonal')
     fireEvent.click(screen.getByRole('button', { name: 'Prestige +' }))
-    expect(screen.getByRole('alertdialog').textContent).toContain('Prestige of Season: this mode\'s progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. Other modes will not change.')
+    expect(screen.getByRole('alertdialog').textContent).toContain('Which mode is the prestige in?')
+    fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
+    expect(screen.getByRole('alertdialog').textContent).toContain('Prestige of PvP: this mode\'s progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. Other modes will not change.')
     expect(screen.getAllByRole('option')[0]!.getAttribute('aria-label')).toBe('Prestige 1')
+    // «Back» returns to the mode choice.
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
     fireEvent.click(screen.getByRole('option', { name: 'Prestige 1' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset' }))
-    expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, true, false])
-    expect(screen.getByRole('status').textContent).toContain('Prestige + — Season progress found again from the logs')
-    expect(screen.getByTestId('profile-prestige').textContent).toBe('Prestige 1')
-    expect(screen.getByTestId('sidebar-prestige').getAttribute('title')).toBe('Prestige 1')
+    expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([false, true, true])
+    expect(screen.getByRole('status').textContent).toContain('Prestige + — PvP progress found again from the logs')
+    expect(probe.current!.activeProfile.modes.pvp.prestige).toBe(1)
   })
 })
 

@@ -94,8 +94,8 @@ export function modeResetMessage(reason: ModeResetReason, mode: RaidMode, locale
 export function prestigeResetText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: this mode's progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. Other modes will not change.`, choose: 'Choose your prestige', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после престижа, старые квесты отпадут сами. Другие режимы не изменятся.`, choose: 'Выберите свой престиж', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: this mode's progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. Other modes will not change.`, choose: 'Choose your prestige', chooseMode: 'Which mode is the prestige in?', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после престижа, старые квесты отпадут сами. Другие режимы не изменятся.`, choose: 'Выберите свой престиж', chooseMode: 'В каком режиме престиж?', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
 }
 
 /**

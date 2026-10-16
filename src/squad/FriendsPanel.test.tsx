@@ -50,7 +50,7 @@ describe('FriendsPanel: the friend\'s colour and info', () => {
     expect(serviceRequest).toHaveBeenCalledWith('GET', `/v1/friends/${WOLF}/info`, undefined)
     const pvp = (await within(dialog).findByText('PVP')).closest('.friend-info-mode')!
     expect(pvp).toHaveTextContent('52')
-    expect(within(pvp as HTMLElement).getByRole('img', { name: 'Престиж 2' })).toHaveClass('tier-2')
+    expect(within(pvp as HTMLElement).getByRole('img', { name: 'Престиж 2' })).toHaveAttribute('data-level', '2')
     // When the level was true, dim under it; the tooltip says it came from the friend's own app.
     expect(within(pvp as HTMLElement).getByText(/обновлено/)).toHaveTextContent('обновлено 13.10.2026')
     expect(within(pvp as HTMLElement).getByText(/обновлено/)).toHaveAttribute('title', 'Из приложения друга')
@@ -133,11 +133,13 @@ describe('FriendsPanel: the friend\'s colour and info', () => {
     }
   })
 
-  it('gives every prestige level its own badge', () => {
-    const { container } = render(<>{[1, 2, 3, 4, 5, 6].map((level) => <PrestigeBadge key={level} level={level} />)}</>)
-    const badges = [...container.querySelectorAll('.prestige-badge')]
-    expect(badges.map((badge) => badge.textContent)).toEqual(['1', '2', '3', '4', '5', '6'])
-    expect(badges.map((badge) => [...badge.classList].find((name) => name.startsWith('tier-')))).toEqual(['tier-1', 'tier-2', 'tier-3', 'tier-4', 'tier-5', 'tier-5'])
+  it('shows the game\'s badge of each prestige, the PvE set in PvE (owner, 16.10.2026)', () => {
+    const { container } = render(<>{[1, 3, 4, 5, 6].map((level) => <PrestigeBadge key={level} level={level} mode="pvp" />)}<PrestigeBadge level={6} mode="pve" /></>)
+    const pictures = [...container.querySelectorAll('.prestige-badge img')] as HTMLImageElement[]
+    expect(pictures.map((picture) => picture.dataset.level)).toEqual(['1', '3', '4', '5', '6', '6'])
+    expect(pictures.map((picture) => picture.dataset.mode)).toEqual(['pvp', 'pvp', 'pvp', 'pvp', 'pvp', 'pve'])
+    expect(new Set(pictures.map((picture) => picture.getAttribute('src'))).size).toBe(6)
+    expect(screen.getAllByRole('img', { name: 'Престиж 6' })).toHaveLength(2)
   })
 
   it('has English for the new phrases', async () => {

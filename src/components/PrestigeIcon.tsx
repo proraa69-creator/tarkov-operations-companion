@@ -1,4 +1,13 @@
+import type { RaidMode } from '../domain/types'
 import { MAX_PRESTIGE } from '../profile/prestige'
+
+/**
+ * The game's prestige badges the owner sent (16.10.2026): one set for PvP (and Season), one for PvE — files
+ * `src/assets/prestige/{pvp,pve}-<level>.webp`, the white background cut away. A level without its picture yet keeps the
+ * badge drawn for this app below.
+ */
+const BADGES = import.meta.glob<string>('../assets/prestige/*.webp', { eager: true, query: '?url', import: 'default' })
+const badgeOf = (level: number, mode: RaidMode | undefined) => BADGES[`../assets/prestige/${mode === 'pve' ? 'pve' : 'pvp'}-${level}.webp`]
 
 /** A small badge per prestige level (src/profile/prestige.ts), drawn for this app: its own colour and mark, no number. */
 const TIER_COLORS = ['#c08a5b', '#b9c2c9', '#e2c35a', '#6fd0e0', '#e0645e', '#9d7be0', '#5fd38d', '#f09a3e', '#e7e2d3', '#ff5c8a']
@@ -10,9 +19,14 @@ function marks(level: number) {
 }
 
 /** One prestige level's badge. `label`: the accessible name (none when a text next to it already says it). */
-export function PrestigeIcon({ level, size = 28, label }: { level: number; size?: number; label?: string }) {
+export function PrestigeIcon({ level, size = 28, label, mode }: { level: number; size?: number; label?: string; mode?: RaidMode }) {
   if (!Number.isInteger(level) || level < 1) return null
   const shown = Math.min(level, MAX_PRESTIGE)
+  const badge = badgeOf(shown, mode)
+  if (badge) {
+    return <img className={`prestige-icon prestige-badge-image level-${shown}`} src={badge} width={size} height={size} data-level={shown} data-mode={mode === 'pve' ? 'pve' : 'pvp'}
+      draggable={false} {...(label ? { alt: label, title: label } : { alt: '', 'aria-hidden': true })} />
+  }
   const color = TIER_COLORS[shown - 1]!
   const { chevrons, ring } = marks(shown)
   const top = 14.6 - (chevrons - 1) * 1.5

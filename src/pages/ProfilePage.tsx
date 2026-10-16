@@ -46,7 +46,7 @@ export function ProfilePage() {
         {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
         <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div></div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
         {/* «Престиж +» and «Вайп» below it, next to the level: the mode shown starts again (owner, 15.10.2026). */}
-        <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><ModeResetButtons /></div><PrestigeLine level={progress.prestige} locale={locale} /></div>
+        <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><ModeResetButtons /></div><PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>
     </div>

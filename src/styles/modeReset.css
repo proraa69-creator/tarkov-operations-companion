@@ -7,8 +7,8 @@
 .profile-prestige { display: inline-flex; align-items: center; gap: 6px; color: var(--brass); font-weight: 700; font-size: 13px; }
 .profile-prestige.is-none { color: var(--text-dim); font-weight: 500; }
 .prestige-picker-label { margin: 16px 0 8px; color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
-.prestige-picker { list-style: none; margin: 0; padding: 4px; display: grid; gap: 4px; max-height: min(44vh, 360px); overflow: auto; border: 1px solid var(--line, rgb(255 255 255 / 10%)); border-radius: 8px; }
-.prestige-picker > li { display: flex; align-items: center; justify-content: center; min-height: 44px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.prestige-picker { list-style: none; margin: 0; padding: 6px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; max-height: min(44vh, 360px); overflow: auto; border: 1px solid var(--line, rgb(255 255 255 / 10%)); border-radius: 8px; }
+.prestige-picker > li { display: flex; align-items: center; justify-content: center; min-height: 82px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .prestige-picker > li:hover, .prestige-picker > li:focus-visible { background: rgb(255 255 255 / 5%); outline: none; }
 .prestige-picker > li.is-chosen { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
 .prestige-icon { flex: none; display: block; }
@@ -25,3 +25,8 @@
 .mode-reset-toast > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .mode-reset-toast > svg { flex: none; color: var(--brass); }
 .mode-reset-toast .icon-button { width: 28px; height: 28px; flex: none; }
+
+/* «Престиж +» step 1: PvP or PvE (owner, 16.10.2026), each with its first badge. */
+.prestige-mode-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.prestige-mode-button { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 124px; padding: 12px; font-size: 15px; font-weight: 800; letter-spacing: .04em; }
+.prestige-badge-image { object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%)); }
