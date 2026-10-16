@@ -21,6 +21,13 @@
 .qc-name { display: block; overflow: hidden; font-size: 13.5px; font-weight: 750; line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; transition: color .15s var(--ease-soft); }
 .qc-main:hover .qc-name, .qc-main:focus-visible .qc-name { color: var(--brass-strong); }
 .qc-empty { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+/* The empty block: the Goons sit inside it, backs against its left and right borders (owner, 16.10.2026). */
+.quest-conditions-card.is-empty { position: relative; min-height: 168px; overflow: hidden; }
+.quest-conditions-card.is-empty .qc-empty { position: relative; z-index: 1; max-width: 46%; margin-inline: auto; padding-top: 18px; text-align: center; }
+.qc-goons { position: absolute; inset: auto 4px 4px; height: min(118px, calc(100% - 44px)); pointer-events: none; user-select: none; }
+.qc-goon { position: absolute; bottom: 0; height: 100%; width: auto; filter: drop-shadow(0 3px 6px rgb(0 0 0 / .55)); }
+.qc-goon.is-left { left: 0; }
+.qc-goon.is-right { right: 0; }
 
 /* Pictures like the Gunsmith block: the weapon large (owner, 16.10.2026: «иконки оружия можно сделать больше… а
    требования разместить справа или внизу блока»), the parts and the gear as small icons beside it — or below it when the
