@@ -1318,3 +1318,11 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Тесты: `npx vitest run` — 2004/2004 (2 файла node:test в `scripts/` и `docs/` vitest не собирает — как и до правок); `npm --prefix server test` — 406/406; `tsc -b` и server typecheck — чисто; eslint изменённых файлов — без замечаний (кроме старого предупреждения MapsPage.tsx:387).
 - Не сделано: редактор в админке сайта (у сайта нет каталога предметов и торговцев для выбора). Новые квесты без точек на карте (места задаются только для встроенных).
 - Деплой: не выполнялся.
+
+## 2026-10-16 — Claude: трейлер сайта v4 и «Двенадцать причин» (ветка `site-trailer-v4`, НЕ выпущено)
+
+- Поручение владельца: убрать из видео кадры поверх игры (мини-карта, информация о предмете), добавить «Оружейник», точку и карточку предмета — в приложении на «Картах»; под видео — актуальные 12 причин.
+- Коммиты: `afc2fc5` (WIP), `4c28f7f` (трейлер), `7d88375` (сайт). Файлы: `scripts/trailer/{capture.mjs,trailer.html,README.md,site-images.cjs,.gitignore}`, `website/public/media/trailer.mp4` (68 с, 720p, 4,0 МБ) и `trailer-poster.jpg`, `website/src/components/promo/{Presentation,PromoVisuals}.tsx`, `website/src/promo.css`, `website/src/i18n/phrasesPublic.ts`, `website/src/assets/promo/` (новые `map-item`, `map-position`, `gunsmith-parts` RU/EN; `phone-live` без верхней панели; удалены `item-sneaker`, `item-gpu`, `minimap`, `phone-overview`).
+- Видео: убраны «Цена в рейде», «Мини-карта» поверх игры, карточка «Каппа» в рейде; добавлены «Информация о предмете — прямо на карте», «Ваша точка на карте» (с телефоном), «Оружейник» — живой каталог tarkov.dev; карта — нейтральная сетка (карты tarkov.dev CC BY-NC-SA).
+- Проверки: `npx tsc -b` 0; сборка сайта; `npx vitest run website` 93/93; eslint изменённых TSX 0; главная RU/EN 1440 и 390 просмотрена (скриншоты удалены).
+- Деплой: не выполнялся.
