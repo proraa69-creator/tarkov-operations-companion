@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
@@ -205,5 +205,18 @@ describe('the quest window\'s pencils (owner, 16.10.2026: «кнопка кар�
     expect(requests.some(([method, path]) => method === 'GET' && path === `/v1/me/quest-point-photos/${'b'.repeat(24)}`)).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Изменить точку' }))
     expect(onEdit).toHaveBeenCalled()
+  })
+})
+
+describe('opening the map constructor from a link', () => {
+  const open = (options: { initialQuestId?: string; initialActive?: boolean }) => {
+    const { wrapper } = ownerApp()
+    return renderHook(() => useQuestPointEditor({ mapId: 'customs', floor: 'Основной', baseFloor: 'Основной', quests: [quest], markers: [original], ...options }), { wrapper }).result.current
+  }
+
+  it('?edit=1 alone («Админ панель» → «Открыть конструктор на карте») opens it with no quest; ?quest=<id>&edit=1 on that quest; nothing else opens it', () => {
+    expect(open({ initialActive: true })).toMatchObject({ active: true, questId: '' })
+    expect(open({ initialQuestId: 'q1', initialActive: true })).toMatchObject({ active: true, questId: 'q1', editingQuest: 'q1' })
+    expect(open({})).toMatchObject({ active: false, questId: '' })
   })
 })

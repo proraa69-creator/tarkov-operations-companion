@@ -39,12 +39,16 @@ export type PointTarget = { marker: MapMarker; draft?: undefined } | { draft: Dr
  */
 export interface PointSettings extends PointTexts { icon: QuestPointIcon; questId: string; goal: string; itemIds: string[]; photoIds: string[] }
 
-/** `initialQuestId`: open the constructor on that quest (the owner's «Заявки» → «Открыть в конструкторе», ?edit=1). */
-export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, initialQuestId }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string }) {
+/**
+ * `initialQuestId`: open the constructor on that quest (the owner's «Заявки» → «Открыть в конструкторе»,
+ * ?quest=<id>&edit=1). `initialActive`: open it with no quest picked (the «Админ панель» → «Открыть конструктор на
+ * карте», ?edit=1 alone).
+ */
+export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, initialQuestId, initialActive = false }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string; initialActive?: boolean }) {
   const enabled = isOwnerApp()
   const overrides = useQuestPointOverrides(enabled)
   const writer = useQuestPointWriter()
-  const [active, setActive] = useState(Boolean(initialQuestId))
+  const [active, setActive] = useState(Boolean(initialQuestId) || initialActive)
   const [questId, setQuestId] = useState(initialQuestId ?? '')
   /** '' = all points; `o:<objective id>`; `s:<stage index>`. */
   const [goal, setGoal] = useState('')
@@ -133,7 +137,7 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
     const before = added ?? byMarker.get(marker.id)
     const input: QuestPointInput = added
       ? { ...stripMeta(added), x: round(x), z: round(z), ...floorField(), ...noteField(added) }
-      : { questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(x), z: round(z), kind: 'move', ...goalField(marker), ...floorField(), ...textFields(before), ...noteField(before) }
+      : { questId: marker.questId ?? '', markerId: marker.id, mapId: marker.mapId, x: round(x), z: round(z), kind: 'move', ...goalField(marker), ...floorField(), ...textFields(before), ...noteField(before) }
     if (added && floor === baseFloor) delete input.floor
     return undoPoint(before, await writer.save(input))
   }, 'перенос точки')

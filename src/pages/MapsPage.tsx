@@ -347,9 +347,11 @@ export function MapsPage() {
   // «Квесты: правка точек» (owner app): one editing mode at a time with «Расставить боссов».
   // «Заявки» → «Открыть в конструкторе» (owner app): ?quest=<id>&edit=1 opens the constructor on that quest, and
   // &proposal=<x>,<z> shows where the players say the point is.
-  const editQuestId = params.get('edit') === '1' ? params.get('quest') ?? undefined : undefined
+  // ?edit=1 alone («Админ панель» → «Открыть конструктор на карте») opens the constructor with no quest picked.
+  const editRequested = params.get('edit') === '1'
+  const editQuestId = editRequested ? params.get('quest') ?? undefined : undefined
   const proposal = proposalOf(params.get('proposal'))
-  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers, initialQuestId: editQuestId })
+  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers, initialQuestId: editQuestId, initialActive: editRequested })
   const editingQuest = questEditor.editingQuest
   const questEditorShows = questEditor.shows
   const setBossActive = bossPlacement.setActive
