@@ -89,6 +89,8 @@ interface CuratedQuest {
   /** Items given when the quest is taken (tarkov.dev `startRewards.items`). */
   startRewards?: Array<[itemId: string, count: number]>
   standing?: Array<[traderId: string, value: number]>
+  /** Skill rewards as the game's reward line names them («Здоровье +1 уровень»). */
+  skills?: Text[]
   craftUnlock?: { itemId: string; station: Text }
   /** Trader loyalty levels needed to get the quest. */
   loyalty?: Array<[traderId: string, level: number]>
@@ -108,6 +110,8 @@ interface CuratedQuest {
 export interface CuratedSeries {
   id: string
   name: Text
+  /** Who gives the series, or what it belongs to, for the lead of every quest's description. */
+  route: Text
   gameVersion: string
   checkedAt: string
   modes: readonly RaidMode[]
@@ -201,6 +205,7 @@ const RETURN: CuratedObjective = { type: 'hideout', text: { ru: 'Вернуть�
 export const TO_THE_LIGHT: CuratedSeries = {
   id: 'to-the-light',
   name: { ru: 'На свет', en: 'To the Light' },
+  route: { ru: 'Механик → Смотритель', en: 'Mechanic → Lightkeeper' },
   gameVersion: '1.1.5.0.47242',
   checkedAt: '2026-10-15',
   // tarkov.dev has no task of the series in any mode, but has Lightkeeper's tasks (which it opens) in all three; the
@@ -453,8 +458,67 @@ export const TO_THE_LIGHT: CuratedSeries = {
   ],
 }
 
+export const SCOURGE_QUEST_IDS = {
+  hiddenRoute: 'raidos-scourge-hidden-route',
+  simpleTask: 'raidos-scourge-simple-task',
+} as const
+
+/**
+ * «Вторжение Scourge» (owner, 16.10.2026): the event chain about Ref's operation in the Lab, from the owner's in-game
+ * screenshots (objectives, start gear, rewards). The game's quest ids are not published yet, so the ids are our own
+ * (they never match a log line: the status comes from the screen reader by the title) and the quests step aside as
+ * soon as tarkov.dev lists a quest of the same title. The trader is not on the screenshots: Therapist, by the way the
+ * texts speak («Добрый день, молодой человек»).
+ */
+export const SCOURGE_INVASION: CuratedSeries = {
+  id: 'scourge-invasion',
+  name: { ru: 'Вторжение Scourge', en: 'Scourge Invasion' },
+  route: { ru: 'ивент до 20 октября', en: 'event until 20 October' },
+  gameVersion: 'event 10.2026',
+  checkedAt: '2026-10-16',
+  // the event runs in every mode (owner, 16.10.2026: «он спавнится во всех режимах»)
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: ['the owner\'s in-game screenshots of both tasks (16.10.2026)', 'json.tarkov.dev regular/maps (Factory transit 14 to the Lab)'],
+  quests: [
+    {
+      id: SCOURGE_QUEST_IDS.hiddenRoute,
+      trader: THERAPIST,
+      name: { ru: 'Скрытый маршрут', en: 'Hidden Route' },
+      experience: 15_000,
+      objectives: [
+        {
+          type: 'visit', maps: ['factory'],
+          spots: [{ map: 'factory', transit: '14' }],
+          text: { ru: 'Найти место перехода с локации Завод на локацию Лаборатория', en: 'Find the transit from Factory to The Lab' },
+        },
+      ],
+      rewards: [[ROUBLES, 299_875], ['5af0548586f7743a532b7e99', 2], ['5d02778e86f774203e7dedbe', 2], ['5d02797c86f774203f38e30a', 1], ['590c657e86f77412b013051d', 2]],
+      skills: [{ ru: 'Хирургия +1 уровень', en: 'Surgery +1 level' }],
+      note: {
+        ru: 'Наёмники Рефа ушли с Завода в сторону Лаборатории по подземным коммуникациям. Найдите на Заводе место перехода в Лабораторию.',
+        en: 'Ref’s mercenaries left Factory for the Lab through the underground passages. Find the transit to the Lab on Factory.',
+      },
+    },
+    {
+      id: SCOURGE_QUEST_IDS.simpleTask,
+      trader: THERAPIST,
+      name: { ru: 'Простая задача в непростом месте', en: 'A Simple Task in a Difficult Place' },
+      after: [SCOURGE_QUEST_IDS.hiddenRoute],
+      experience: 18_000,
+      objectives: [{ type: 'extract', maps: ['the-lab'], text: { ru: 'Выжить и выйти с локации Лаборатория', en: 'Survive and extract from The Lab' } }],
+      startRewards: [['5c94bbff86f7747ee735c08f', 1]],
+      rewards: [[ROUBLES, 368_550], ['5c0e533786f7747fa23f4d47', 3], ['5c0e530286f7747fa1419862', 3], ['5751a89d24597722aa0e8db0', 2]],
+      skills: [{ ru: 'Здоровье +1 уровень', en: 'Health +1 level' }],
+      note: {
+        ru: 'Ключ-карта доступа в Лабораторию выдаётся при взятии задания. В Лаборатории в каждом рейде — гладиатор Scourge с охраной из четырёх человек (Оружейная или Зелёный офис).',
+        en: 'The Labs access keycard comes with the task. Every Lab raid has the gladiator Scourge with four guards (the Armory or the Green Office).',
+      },
+    },
+  ],
+}
+
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, SCOURGE_INVASION]
 
 export interface CuratedTaskContext {
   mode: RaidMode
@@ -489,8 +553,11 @@ export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskCont
   const spots = spotIndex(context.maps, tasks)
   const added = new Set<string>()
   const next: JsonRecord = { ...tasks }
+  // A quest tarkov.dev already lists under its own id (our id is not the game's): the same title in this language.
+  const titles = new Set(Object.values(tasks).map((task) => text(asRecord(task).name).trim().toLowerCase()).filter(Boolean))
   for (const { quest } of curatedQuestsFor(context.mode)) {
     if (tasks[quest.id] || !traderIds.has(quest.trader)) continue
+    if ([quest.name[context.locale], ...(quest.aliases ?? [])].some((title) => titles.has(title.trim().toLowerCase()))) continue
     next[quest.id] = rawTask(quest, context.locale, spots)
     added.add(quest.id)
   }
@@ -515,8 +582,8 @@ export function applyCuratedQuestNotes(quests: Quest[], added: ReadonlySet<strin
     if (!entry) return row
     const { series, quest, order } = entry
     const lead = locale === 'en'
-      ? `${series.name.en} series (Mechanic → Lightkeeper), task ${order} of ${series.quests.length}.`
-      : `Серия «${series.name.ru}» (Механик → Смотритель), задание ${order} из ${series.quests.length}.`
+      ? `${series.name.en} series (${series.route.en}), task ${order} of ${series.quests.length}.`
+      : `Серия «${series.name.ru}» (${series.route.ru}), задание ${order} из ${series.quests.length}.`
     const objectiveIds = row.objectiveIds ?? []
     const bring = (quest.bring ?? []).flatMap((need) => need.itemIds.map((itemId) => ({
       itemId,
@@ -530,6 +597,7 @@ export function applyCuratedQuestNotes(quests: Quest[], added: ReadonlySet<strin
       ...(quest.standing ?? []).map(([traderId, value]) => locale === 'en'
         ? `${STANDING_NAMES[traderId]?.en ?? traderId} standing +${value}`
         : `Репутация у ${STANDING_NAMES[traderId]?.ru ?? traderId} +${String(value).replace('.', ',')}`),
+      ...(quest.skills ?? []).map((skill) => skill[locale]),
       ...(quest.startRewards ?? []).map(([itemId, count]) => `${locale === 'en' ? 'On taking the task' : 'При взятии задания'}: ${itemName(itemId)} × ${count}`),
       ...(quest.craftUnlock ? [`${locale === 'en' ? 'Unlocks the craft' : 'Открывает крафт'}: ${itemName(quest.craftUnlock.itemId)} (${quest.craftUnlock.station[locale]})`] : []),
     ]

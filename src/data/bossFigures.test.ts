@@ -30,7 +30,7 @@ describe('raid card boss figures (research list 30.09.2026)', () => {
   })
 
   it('stands the Raiders as their own model on Reserve and in the Lab (owner, 11.10.2026: «рейдера в боссы»)', () => {
-    const raiders = bossFiguresFor('the-lab', 'pvp')[0]
+    const raiders = bossFiguresFor('the-lab', 'pvp').find((figure) => figure.key === 'raiders')!
     expect([raiders.key, raiders.name.ru]).toEqual(['raiders', 'Рейдеры'])
     expect(raiders.url).not.toBe(bossFiguresFor('terminal', 'pve').find((figure) => figure.key === 'ruaf')?.url)
     expect(bossMapIds('raiders')).toEqual(['reserve', 'the-lab'])

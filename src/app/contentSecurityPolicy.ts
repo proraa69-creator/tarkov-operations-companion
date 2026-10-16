@@ -38,7 +38,8 @@ export function desktopContentSecurityPolicy(extraConnect: unknown[] = []) {
     "style-src 'self' 'unsafe-inline'",
     // Game images and map tiles are served by Raid OS; blob: map layers, data: icons from CSS.
     "img-src 'self' data: blob: https://raidos.app",
-    "media-src 'self' data: blob:",
+    // the event clip on raidos.app (src/events/scourgeEvent.ts)
+    "media-src 'self' data: blob: https://raidos.app",
     "font-src 'self' data:",
     // data: / blob: for small inlined assets and glTF textures.
     `connect-src 'self' data: blob: ${connect.join(' ')}`,
