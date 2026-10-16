@@ -7,6 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { fetchFriendInfo, type FriendInfo, type FriendModeInfo } from './socialClient'
 import { ErrorLine } from './squadUi'
 import { modeLabel } from './squadLabels'
+import { PrestigeIcon } from '../components/PrestigeIcon'
 
 const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
@@ -56,7 +57,7 @@ export function FriendInfoDialog({ friendId, name, color, onClose }: { friendId:
                 <small>{uiText('Уровень')}</small><strong>{entry.level}</strong>
                 <UpdatedOn entry={entry} locale={locale} />
               </span>
-              {entry.prestige !== null && <PrestigeBadge level={entry.prestige} />}
+              {entry.prestige !== null && <PrestigeBadge level={entry.prestige} mode={mode} />}
             </> : <span className="friend-info-none">{uiText('нет данных')}</span>}
           </div>
         })}
@@ -79,12 +80,11 @@ function UpdatedOn({ entry, locale }: { entry: FriendModeInfo; locale: AppLocale
   return <small className="friend-info-updated" title={source}>{uiText('обновлено')} {day}</small>
 }
 
-/** Each prestige its own badge: the number on a shield, 1 bronze, 2 silver, 3 gold, 4 ice, 5 and up red. */
-export function PrestigeBadge({ level }: { level: number }) {
+/** The game's badge of the friend's prestige in that mode (src/components/PrestigeIcon.tsx: PvP and PvE sets). */
+export function PrestigeBadge({ level, mode }: { level: number; mode?: RaidMode }) {
   if (level <= 0) return <span className="prestige-badge is-none">{uiText('Без престижа')}</span>
   const label = `${uiText('Престиж')} ${level}`
-  return <span className={`prestige-badge tier-${Math.min(level, 5)}`} title={label} aria-label={label} role="img">
-    <svg viewBox="0 0 24 26" aria-hidden="true"><path d="M12 1.5 21 5v6.4c0 5.7-3.8 10-9 12.6-5.2-2.6-9-6.9-9-12.6V5z" /></svg>
-    <b aria-hidden="true">{level}</b>
+  return <span className="prestige-badge" data-level={level} title={label} aria-label={label} role="img">
+    <PrestigeIcon level={level} size={38} mode={mode} />
   </span>
 }

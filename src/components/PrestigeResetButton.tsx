@@ -6,7 +6,7 @@ import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { pendingMarkerText, prestigeResetText, rebuildResetText, wipeResetText } from '../state/modeReset'
 import { PrestigeIcon } from './PrestigeIcon'
-import { PRESTIGE_LEVELS, prestigeLabel } from '../profile/prestige'
+import { PRESTIGE_CHOICES, PRESTIGE_MODES, prestigeLabel } from '../profile/prestige'
 import '../styles/modeReset.css'
 
 /**
@@ -36,7 +36,7 @@ export function ModeResetButtons() {
       <RefreshCw size={14} aria-hidden="true" />{rebuild.button}
     </button>
     {marker && !marker.resolvedAt && <small className="mode-reset-pending" data-testid="reset-pending">{pendingMarkerText(marker.kind, locale)}</small>}
-    {open === 'prestige' && <PrestigeResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={(level) => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'prestige', { prestige: level }) }} />}
+    {open === 'prestige' && <PrestigeResetDialog locale={locale} onCancel={() => setOpen(null)} onConfirm={(level, mode) => { setOpen(null); resetModeProgress(mode, new Date().toISOString(), 'prestige', { prestige: level }) }} />}
     {open === 'wipe' && <WipeResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={() => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'wipe') }} />}
     {open === 'rebuild' && <RebuildResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={() => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'rebuild') }} />}
   </div>
@@ -61,23 +61,40 @@ function ResetDialog({ id, title, question, close, onCancel, children }: { id: s
 }
 
 /**
- * «Престиж +»: the text, a required choice of the prestige — a list of levels, one per row, each row only the level's
- * icon (its name for screen readers), nothing chosen at first — and «Сбросить», which stays disabled until a row is.
+ * «Престиж +» in two steps (owner, 16.10.2026: «при нажатии кнопки престиж появляется PVP или PVE и после выбора появляется
+ * выбор уровня престижа»): first PvP or PvE, then the text for that mode and a required choice of the prestige — the
+ * mode's badges, nothing chosen at first — and «Сбросить», disabled until a badge is chosen.
  */
-export function PrestigeResetDialog({ mode, locale, onCancel, onConfirm }: { mode: RaidMode; locale: AppLocale; onCancel: () => void; onConfirm: (level: number) => void }) {
-  const text = prestigeResetText(mode, locale)
+export function PrestigeResetDialog({ locale, onCancel, onConfirm }: { locale: AppLocale; onCancel: () => void; onConfirm: (level: number, mode: RaidMode) => void }) {
+  const [mode, setMode] = useState<RaidMode | null>(null)
   const [chosen, setChosen] = useState<number | null>(null)
+  const start = prestigeResetText(mode ?? 'pvp', locale)
+  if (!mode) {
+    return <ResetDialog id="prestige-reset" title={start.title} question={start.chooseMode} close={start.close} onCancel={onCancel}>
+      <div className="prestige-mode-choice" role="group" aria-label={start.chooseMode}>
+        {PRESTIGE_MODES.map((entry) => <button key={entry} type="button" className="button prestige-mode-button" data-mode={entry} onClick={() => { setMode(entry); setChosen(null) }}>
+          <PrestigeIcon level={1} size={72} mode={entry} />
+          <span>{entry === 'pve' ? 'PvE' : 'PvP'}</span>
+        </button>)}
+      </div>
+      <div className="prestige-reset-actions">
+        <button type="button" className="button ghost" onClick={onCancel} autoFocus>{start.cancel}</button>
+      </div>
+    </ResetDialog>
+  }
+  const text = prestigeResetText(mode, locale)
   return <ResetDialog id="prestige-reset" title={text.title} question={text.question} close={text.close} onCancel={onCancel}>
     <div className="prestige-picker-label" id="prestige-picker-label">{text.choose}</div>
-    <ul className="prestige-picker" role="listbox" aria-labelledby="prestige-picker-label">
-      {PRESTIGE_LEVELS.map((level) => <li key={level} role="option" aria-selected={chosen === level} aria-label={prestigeLabel(level, locale)} tabIndex={0}
+    <ul className="prestige-picker" role="listbox" aria-labelledby="prestige-picker-label" data-mode={mode}>
+      {PRESTIGE_CHOICES.map((level) => <li key={level} role="option" aria-selected={chosen === level} aria-label={prestigeLabel(level, locale)} tabIndex={0}
         className={chosen === level ? 'is-chosen' : undefined} onClick={() => setChosen(level)}
         onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setChosen(level) } }}>
-        <PrestigeIcon level={level} size={34} />
+        <PrestigeIcon level={level} size={64} mode={mode} />
       </li>)}
     </ul>
     <div className="prestige-reset-actions">
-      <button type="button" className="button danger" disabled={chosen === null} onClick={() => { if (chosen !== null) onConfirm(chosen) }}>{text.confirm}</button>
+      <button type="button" className="button danger" disabled={chosen === null} onClick={() => { if (chosen !== null) onConfirm(chosen, mode) }}>{text.confirm}</button>
+      <button type="button" className="button ghost" onClick={() => setMode(null)}>{text.back}</button>
       <button type="button" className="button ghost" onClick={onCancel} autoFocus>{text.cancel}</button>
     </div>
   </ResetDialog>
@@ -106,7 +123,7 @@ export function RebuildResetDialog({ mode, locale, onCancel, onConfirm }: { mode
 }
 
 /** «Престиж N» with its icon in «Текущий профиль»; «Без престижа» at 0. */
-export function PrestigeLine({ level, locale }: { level: number; locale: AppLocale }) {
+export function PrestigeLine({ level, locale, mode }: { level: number; locale: AppLocale; mode?: RaidMode }) {
   if (!level) return <span className="profile-prestige is-none">{locale === 'en' ? 'No prestige' : 'Без престижа'}</span>
-  return <span className="profile-prestige" data-testid="profile-prestige"><PrestigeIcon level={level} size={22} />{prestigeLabel(level, locale)}</span>
+  return <span className="profile-prestige" data-testid="profile-prestige"><PrestigeIcon level={level} size={28} mode={mode} />{prestigeLabel(level, locale)}</span>
 }

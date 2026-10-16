@@ -177,12 +177,5 @@
 @media (prefers-reduced-motion: reduce) { .friend-info-dialog { animation: friend-info-fade .2s ease both; } }
 
 /* Prestige: the number on a shield, every level its own colour. */
-.prestige-badge { --tier: #c08a5b; position: relative; display: inline-grid; place-items: center; width: 34px; height: 37px; flex: none; }
-.prestige-badge svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.prestige-badge path { fill: color-mix(in srgb, var(--tier) 24%, #0e120f); stroke: var(--tier); stroke-width: 1.6; stroke-linejoin: round; }
-.prestige-badge b { position: relative; margin-top: -2px; color: var(--tier); font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgb(0 0 0 / 70%); }
-.prestige-badge.tier-2 { --tier: #b9c2c9; }
-.prestige-badge.tier-3 { --tier: #e2c35a; }
-.prestige-badge.tier-4 { --tier: #6fd0e0; }
-.prestige-badge.tier-5 { --tier: #e0645e; }
+.prestige-badge { display: inline-grid; place-items: center; width: 38px; height: 38px; flex: none; }
 .prestige-badge.is-none { width: auto; height: auto; color: var(--text-dim); font-size: 11.5px; }
