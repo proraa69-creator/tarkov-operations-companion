@@ -111,7 +111,7 @@ The review list (nothing is issued; one item per subscriber, period and reason):
 | `unknown_email` | no Raid OS account with the subscriber's e-mail (settled automatically once such an account exists) |
 | `no_country` | the account has no country |
 | `region_mismatch` | e.g. a CIS offer bought by a WORLD account, or any offer bought by a Russian account |
-| `friend_without_referral` | a friend offer without an unspent friend code — this includes every renewal of a friend-offer subscription |
+| `friend_without_referral` | a NEW subscriber on a friend offer without an unspent friend code. Later periods of a friend-offer subscription already issued once (same Boosty subscriber and same Raid OS account, whose first grant spent the referral) renew automatically like a standard one; only the first friend payment carries the discount mark and the inviter's reward |
 | `unknown_level` | a level that is none of the four offers (logged; map it in the panel) |
 | `no_period` | Boosty sent no next-payment date |
 

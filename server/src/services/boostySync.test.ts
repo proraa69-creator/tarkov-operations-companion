@@ -282,6 +282,38 @@ test('the sync grants by e-mail and level up to Boosty\'s paid-until + 1 day, on
   }
 })
 
+test('a friend-offer subscription renews by itself once its first period spent the referral; a new friend subscriber without one is reviewed', async () => {
+  let list: unknown[] = []
+  const t = await setup(() => list)
+  const silenced = console.warn
+  console.warn = () => undefined
+  try {
+    const inviter = await t.player('inviter@example.com', 'RU')
+    const code = (await t.call<{ code: string }>('GET', '/accounts/me/invites', inviter)).json.code
+    await t.player('friend@example.com', 'KZ', code)
+    await t.player('other@example.com', 'KZ')
+    const first = t.now + 25 * DAY
+    list = [raw(31, 'friend@example.com', 4136111, first)]
+    assert.equal((await t.sync.runOnce()).lastResult?.granted, 1)
+    assert.equal(t.boosty.friendAvailable(t.idOf('friend@example.com')), false, 'the first grant spent the referral')
+    // Next period of the same subscription: extended automatically, no review item, no second discount mark.
+    list = [raw(31, 'friend@example.com', 4136111, first + 30 * DAY), raw(32, 'other@example.com', 4136111, first)]
+    const renewal = await t.sync.runOnce()
+    assert.equal(renewal.lastResult?.granted, 1)
+    assert.equal(renewal.lastResult?.review, 1)
+    assert.equal(t.payments.paidUntil(t.idOf('friend@example.com')), first + 31 * DAY)
+    assert.deepEqual(boostyPayments(t.db, t.idOf('friend@example.com')).map((row) => row.discount_percent), [20, null])
+    const review = (await t.call<Review>('GET', '/accounts/me/admin/boosty/review', t.owner)).json
+    assert.deepEqual(review.items.map((item) => [item.email, item.reason]), [['other@example.com', 'friend_without_referral']])
+    assert.equal(t.payments.paidUntil(t.idOf('other@example.com')), undefined)
+    const tool = await t.call<{ payments: Array<{ offer: string; offerKey: string }> }>('GET', '/accounts/me/admin/boosty/payments?email=friend@example.com', t.owner)
+    assert.deepEqual(tool.json.payments.map((item) => [item.offer, item.offerKey]), [['friend', 'CIS_FRIEND'], ['friend', 'CIS_FRIEND']])
+  } finally {
+    console.warn = silenced
+    await t.close()
+  }
+})
+
 test('the owner\'s confirmation and the sync share one path: a review item confirmed by hand, a manual payment adopted', async () => {
   let list: unknown[] = []
   const t = await setup(() => list)

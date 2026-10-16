@@ -281,12 +281,23 @@ export class BoostyPayments {
   }
 
   /** Why `offer` cannot be issued to this account now, or undefined. The one rule set of grant(). */
-  refusal(accountId: string, offer: BoostyOfferDef): BoostyReviewReason | undefined {
+  refusal(accountId: string, offer: BoostyOfferDef, subscriberId?: string): BoostyReviewReason | undefined {
     const region = this.region(accountId)
     if (!region) return 'no_country'
     if (region !== offer.region) return 'region_mismatch'
-    if (offer.kind === 'friend' && !this.friendAvailable(accountId)) return 'friend_without_referral'
+    if (offer.kind === 'friend' && !this.friendAvailable(accountId) && !this.friendRenewal(accountId, offer, subscriberId)) return 'friend_without_referral'
     return undefined
+  }
+
+  /**
+   * A later period of a friend-offer subscription that was already issued once (the same Boosty subscriber AND the same
+   * Raid OS account; that first grant spent the referral): it renews like a standard one, without a review. A new
+   * subscriber on the friend offer without an unspent referral is still refused.
+   */
+  private friendRenewal(accountId: string, offer: BoostyOfferDef, subscriberId: string | undefined) {
+    if (!subscriberId) return false
+    return this.db.prepare(`SELECT 1 FROM boosty_grants g JOIN payments p ON p.id = g.payment_id
+      WHERE g.boosty_user_id = ? AND g.account_id = ? AND g.offer_key = ? AND p.status = 'succeeded' LIMIT 1`).get(subscriberId, accountId, offer.key) !== undefined
   }
 
   /**
@@ -309,8 +320,10 @@ export class BoostyPayments {
     const { accountId, offer } = input
     if ((input.paidUntil === undefined) === (input.months === undefined)) throw new AccountError(400, 'Укажите срок: месяцы или дату «оплачено до»')
     if (offer.kind === 'friend' && input.months !== undefined && input.months !== 1) throw new AccountError(400, 'Скидка друга — только на 1 месяц')
-    const reason = this.refusal(accountId, offer)
+    const reason = this.refusal(accountId, offer, input.subscriber?.userId)
     if (reason) throw new BoostyGrantError(reason)
+    // The discount itself (and the inviter's reward) belongs to the first friend payment only, not to its renewals.
+    const firstFriend = offer.kind === 'friend' && this.friendAvailable(accountId)
     const plan: PlanId = input.months === undefined ? '1m' : (`${input.months}m` as PlanId)
     let paidUntilAfter = 0
     const payment = this.payments.confirmManual(this.accounts.billingInfo(accountId), {
@@ -320,10 +333,10 @@ export class BoostyPayments {
       region: offer.region,
       actor: input.actor,
       ...(input.reference ? { reference: input.reference } : {}),
-      ...(offer.kind === 'friend' ? { discountPercent: FRIEND_DISCOUNT_PERCENT } : {}),
+      ...(firstFriend ? { discountPercent: FRIEND_DISCOUNT_PERCENT } : {}),
       ...(input.paidUntil !== undefined ? { until: Math.max(this.now(), input.paidUntil + BOOSTY_GRACE_MS) } : {}),
     }, () => {
-      const again = this.refusal(accountId, offer)
+      const again = this.refusal(accountId, offer, input.subscriber?.userId)
       if (again) throw new BoostyGrantError(again)
       if (input.subscriber) {
         const last = this.lastPeriodEnd(input.subscriber.userId)
@@ -418,7 +431,7 @@ export class BoostyPayments {
     if (periodEnd <= this.now()) return 'unchanged'
     const account = subscriber.email ? this.accounts.accountByEmail(subscriber.email) : undefined
     if (!account) return this.addReview('unknown_email', subscriber, offer)
-    const reason = this.refusal(account.id, offer)
+    const reason = this.refusal(account.id, offer, subscriber.userId)
     if (reason) return this.addReview(reason, subscriber, offer, account.id)
     const meta = { userId: subscriber.userId, levelId: subscriber.levelId, periodEnd }
     if (last === undefined && this.adopt(account.id, offer, meta)) { this.resolveReviews(subscriber.userId, periodEnd); return 'adopted' }
@@ -535,7 +548,7 @@ export class BoostyPayments {
         accountId: String(row.account_id),
         ...(row.email == null || row.deleted_at != null ? {} : { email: String(row.email) }),
         region: String(row.region) as PaymentRegion,
-        offer: row.discount_percent == null ? 'standard' : 'friend',
+        offer: row.offer_key ? (String(row.offer_key).endsWith('_FRIEND') ? 'friend' : 'standard') : row.discount_percent == null ? 'standard' : 'friend',
         ...(row.offer_key ? { offerKey: String(row.offer_key) as BoostyOfferKey } : {}),
         plan: String(row.plan) as PlanId,
         amount: Number(row.amount) / 100,
