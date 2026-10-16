@@ -255,6 +255,142 @@ describe('QuestConditionsCard', () => {
   })
 })
 
+describe('«Сбор на рейд»: every variant of a choice on pointing at it (owner, 16.10.2026)', () => {
+  const scopes: Quest = { ...patriot, id: 'scopes', name: 'Прицелы', objectiveDetails: [{ ...patriot.objectiveDetails![0], conditions: {
+    weapons: [{ id: '6499849fc93611967b034949', name: 'АК-12' }],
+    mods: [[{ id: '5c0517910db83400232ffee5', name: 'ПС-320' }], [{ id: 'eotech0000000000000000aa', name: 'EOTech EXPS3' }], [{ id: 'okp7000000000000000000aa', name: 'ОКП-7' }]],
+  } }] }
+  const popup = () => document.querySelector('.qc-variants') as HTMLElement | null
+  const names = () => [...popup()!.querySelectorAll('.qc-variant-name')].map((node) => node.textContent)
+
+  it('hovering a weapon of «any of N» lists every allowed weapon with its picture; leaving it closes the list', async () => {
+    renderCard([shooter])
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    const full = card().querySelector('.qc-pop.is-open .qc-card.is-full') as HTMLElement
+    const example = full.querySelector('.is-weapons .qc-choice') as HTMLElement
+    // still one example and «или любое из 3»
+    expect(example.querySelectorAll('.qc-weapon')).toHaveLength(1)
+    expect(example.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
+    expect(popup()).toBeNull()
+    fireEvent.pointerEnter(example.querySelector('.qc-weapon')!, { pointerType: 'mouse' })
+    await waitFor(() => expect(popup()).not.toBeNull())
+    // in <body>, never clipped by the card: a fixed list with its heading and all three
+    expect(popup()!.parentElement).toBe(document.body)
+    expect(popup()).toHaveAttribute('role', 'tooltip')
+    expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Подходит любое из 3')
+    expect(names().sort()).toEqual(['M700', 'Мосин', 'СВ-98'].sort())
+    expect(popup()!.querySelectorAll('.qc-variant.is-weapon .qc-variant-weapon')).toHaveLength(3)
+    expect(example).toHaveAttribute('aria-describedby', popup()!.id)
+    // the pointer may cross into the list
+    fireEvent.pointerLeave(example, { pointerType: 'mouse' })
+    fireEvent.pointerEnter(popup()!, { pointerType: 'mouse' })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(popup()).not.toBeNull()
+    fireEvent.pointerLeave(popup()!, { pointerType: 'mouse' })
+    await waitFor(() => expect(popup()).toBeNull())
+  })
+
+  it('scopes too: the card at rest shows one scope and «+2»; hovering it lists all three; Escape closes the list, the card stays unfolded', async () => {
+    renderCard([scopes])
+    const group = rest().querySelector('.qc-reqs .is-mods') as HTMLElement
+    expect(group.querySelectorAll('.qc-icon')).toHaveLength(1)
+    expect(group.querySelector('.qc-more')).toHaveTextContent('+2')
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    const full = card().querySelector('.qc-pop.is-open .qc-card.is-shown') as HTMLElement
+    const mods = full.querySelector('.qc-full-row.is-mods .qc-choice') as HTMLElement
+    expect(mods.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
+    fireEvent.pointerEnter(mods.querySelector('.qc-icon')!, { pointerType: 'mouse' })
+    await waitFor(() => expect(popup()).not.toBeNull())
+    expect(names().sort()).toEqual(['EOTech EXPS3', 'ОКП-7', 'Оптический прицел Валдай ПС-320 1x/6x'].sort())
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(popup()).toBeNull()
+    expect(card().querySelector('.qc-pop')).toHaveClass('is-open')
+  })
+
+  it('a single fixed weapon and a fixed set of parts: no list', async () => {
+    renderCard([patriot])
+    expect(card().querySelector('.qc-choice')).toBeNull()
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    fireEvent.pointerEnter(rest().querySelector('.qc-weapon')!, { pointerType: 'mouse' })
+    fireEvent.pointerEnter(rest().querySelector('.qc-icon')!, { pointerType: 'mouse' })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(popup()).toBeNull()
+    expect(card()).not.toHaveTextContent('или любое')
+  })
+
+  it('a tap on the example at rest shows the list instead of opening the build', async () => {
+    renderCard([shooter])
+    const example = rest().querySelector('.qc-weapon-group.qc-choice') as HTMLElement
+    fireEvent.pointerDown(example, { pointerType: 'touch' })
+    fireEvent.click(example)
+    expect(popup()).not.toBeNull()
+    expect(names()).toHaveLength(3)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // a press outside closes it
+    fireEvent.pointerDown(document.body)
+    expect(popup()).toBeNull()
+  })
+
+  it('in the build dialog «или другой вариант из 2» is a button: the keyboard opens the list of the sets, Escape closes only the list', async () => {
+    const setup: Quest = { ...dandies, id: 'setup', name: 'Подстава', objectiveDetails: [{ ...dandies.objectiveDetails![0], conditions: {
+      wearing: [[{ id: 'beanie0000000000000000aa', name: 'Шапка' }, { id: 'glasses000000000000000aa', name: 'Очки' }], [{ id: 'hat', name: 'Ушанка' }, { id: 'vest', name: 'Жилет' }]],
+    } }] }
+    renderCard([setup])
+    fireEvent.click(rest())
+    const dialog = await screen.findByRole('dialog')
+    const toggle = within(dialog).getByRole('button', { name: 'или другой вариант из 2' })
+    fireEvent.focus(toggle)
+    expect(popup()).not.toBeNull()
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Подходит любой вариант из 2')
+    const sets = [...popup()!.querySelectorAll('.qc-variants-sets > li')].map((set) => [...set.querySelectorAll('.qc-variant-name')].map((node) => node.textContent))
+    expect(sets).toEqual([['Шапка Bomber', 'Очки RayBench'], ['Ушанка', 'Жилет']])
+    // Enter on the button hides and shows it again
+    fireEvent.click(toggle)
+    expect(popup()).toBeNull()
+    fireEvent.click(toggle)
+    expect(popup()).not.toBeNull()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(popup()).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('speaks English', async () => {
+    setRenderLanguage('en')
+    renderCard([shooter])
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    const example = card().querySelector('.qc-pop.is-open .is-weapons .qc-choice') as HTMLElement
+    fireEvent.pointerEnter(example, { pointerType: 'mouse' })
+    await waitFor(() => expect(popup()).not.toBeNull())
+    expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Any of 3 fits')
+  })
+})
+
+describe('«Сбор на рейд»: the weapon large, the requirements beside or below it (owner, 16.10.2026)', () => {
+  it('at rest and unfolded the weapon has its own place and the parts and gear sit together after it', () => {
+    renderCard([patriot])
+    const gear = rest().querySelector('.qc-gear') as HTMLElement
+    expect(gear).toHaveClass('has-weapon')
+    expect([...gear.children].map((child) => child.className)).toEqual(['qc-weapon-group', 'qc-reqs'])
+    expect(gear.querySelector('.qc-weapon-group .qc-weapon')).toHaveAttribute('src', 'https://assets.tarkov.dev/64c1510bda0f6d156000cc17-512.webp')
+    expect([...gear.querySelectorAll('.qc-reqs .is-mods .qc-icon')].map((icon) => icon.getAttribute('alt'))).toEqual(['Оптический прицел Валдай ПС-320 1x/6x', 'Глушитель 5.45x39 для АК-12'])
+    const full = card().querySelector('.qc-pop .qc-card.is-full') as HTMLElement
+    const build = full.querySelector('.qc-full-build') as HTMLElement
+    expect(build).toHaveClass('has-weapon')
+    expect(build.querySelector(':scope > .qc-full-row.is-weapons .qc-weapon')).not.toBeNull()
+    expect(build.querySelector(':scope > .qc-full-reqs > .qc-full-row.is-mods')).toHaveTextContent('Модули на оружии')
+    expect(build.querySelectorAll('.qc-full-reqs .is-mods .qc-icon')).toHaveLength(2)
+  })
+
+  it('gear without a weapon takes the whole row', () => {
+    renderCard([dandies])
+    const gear = rest().querySelector('.qc-gear') as HTMLElement
+    expect(gear).not.toHaveClass('has-weapon')
+    expect(gear.querySelector('.qc-weapon')).toBeNull()
+    expect(gear.querySelectorAll('.qc-reqs .is-wearing .qc-icon')).toHaveLength(2)
+  })
+})
+
 describe('«Сбор на рейд» on the Overview with real tarkov.dev quests', () => {
   async function renderOverview() {
     const catalog: AppDataset = await fetchLiveCatalog('pvp', 'ru', conditionQuestsFetcher(fixture as unknown as Record<string, unknown>), { wiki: async () => ({ titles: [], pages: [], storyQuests: [] }) })
