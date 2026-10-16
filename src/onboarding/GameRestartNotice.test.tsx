@@ -36,15 +36,14 @@ describe('the first-launch notice', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('«Понятно» without a reading puts it away until the next start, not for good (audit P4f)', async () => {
+  it('shown once per computer: the next start (an update, a restart before «Понятно») has none (owner, 16.10.2026)', async () => {
     const { unmount } = render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
-    fireEvent.click(screen.getByRole('button', { name: /Понятно/ }))
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('dialog').textContent).toMatch(/Перезапустите Escape from Tarkov/)
     unmount()
     render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
-    expect(screen.getByRole('dialog').textContent).toMatch(/Перезапустите Escape from Tarkov/)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('stops after three game starts without a reading', async () => {

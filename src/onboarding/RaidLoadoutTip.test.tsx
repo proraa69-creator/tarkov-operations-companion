@@ -47,6 +47,17 @@ describe('«Сбор на рейд» tip (owner, 15.10.2026)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('kept as shown when it opens: the next start has none, «Принял» or not (owner, 16.10.2026)', async () => {
+    const view = open()
+    await settle()
+    expect(screen.getByRole('dialog', { name: 'Новое: «Сбор на рейд»' })).toBeInTheDocument()
+    expect(localStorage.getItem(RAID_LOADOUT_TIP_KEY)).not.toBeNull()
+    view.unmount()
+    open()
+    await settle()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   it('never over the loading screen, and only on the Overview', async () => {
     mocks.loading = true
     const view = open()
