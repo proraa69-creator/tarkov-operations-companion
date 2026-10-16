@@ -64,6 +64,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
   // The owner's minimap switch for every app (the same route file): read with the notice above, set by the owner.
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
+  // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
+  // it with the notice above; the owner keeps it here.
+  { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
@@ -72,6 +77,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-points\/[a-f0-9]{24}\/remove$/ },
+  // The point constructor's photos (server/src/routes/questPoints.ts): the owner uploads one (base64, ≤ 5 MB); every
+  // signed-in app reads the ones the points show, as base64 JSON.
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-point-photos$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/quest-point-photos\/[a-f0-9]{24}$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-texts$/ },
   // «Заявки» (owner app, src/pages/RequestsPage.tsx): players' reports and quest corrections, the live count, the
   // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
@@ -414,7 +423,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
-  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

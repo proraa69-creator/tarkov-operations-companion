@@ -58,23 +58,25 @@ export function togglePhoneNarrow(layout: PhoneLayout, id: string): PhoneLayout 
   return { ...layout, narrow }
 }
 
-export function isDefaultPhoneLayout(layout: PhoneLayout) {
-  const base = defaultPhoneLayout()
+/** The starting layout: the built-in one, or `base` — the owner's default for everybody (overviewDefaults.ts «Блоки»). */
+export function isDefaultPhoneLayout(layout: PhoneLayout, base: PhoneLayout = defaultPhoneLayout()) {
   return layout.order.join() === base.order.join() && [...layout.narrow].sort().join() === [...base.narrow].sort().join()
 }
 
-export function loadPhoneLayout(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): PhoneLayout {
+/** The player's own layout (sanitized), or `base` when they never arranged the blocks. */
+export function loadPhoneLayout(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage, base: PhoneLayout = defaultPhoneLayout()): PhoneLayout {
   try {
     const raw = storage?.getItem(PHONE_LAYOUT_KEY)
-    return raw ? sanitizePhoneLayout(JSON.parse(raw)) : defaultPhoneLayout()
+    return raw ? sanitizePhoneLayout(JSON.parse(raw)) : base
   } catch {
-    return defaultPhoneLayout()
+    return base
   }
 }
 
-export function savePhoneLayout(layout: PhoneLayout, storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined = globalThis.localStorage) {
+/** Kept only when it differs from the starting one, so a player who never moved a block follows the owner's default. */
+export function savePhoneLayout(layout: PhoneLayout, storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined = globalThis.localStorage, base?: PhoneLayout) {
   try {
-    if (isDefaultPhoneLayout(layout)) storage?.removeItem(PHONE_LAYOUT_KEY)
+    if (isDefaultPhoneLayout(layout, base)) storage?.removeItem(PHONE_LAYOUT_KEY)
     else storage?.setItem(PHONE_LAYOUT_KEY, JSON.stringify(layout))
   } catch { /* private mode or a full disk: the order lives for this session only */ }
 }

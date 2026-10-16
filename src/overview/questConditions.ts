@@ -4,9 +4,11 @@
  * условия убийства из оружия либо если требуется маска или конкретная одежда»). It replaces the «Прогресс» counter.
  *
  * Which quests: those with a kill objective that asks for a weapon, weapon parts or gear (src/data/objectiveConditions.ts)
- * and can be done on the raid plan's map — an objective of that map, of several maps among them, or of any map. The
- * player's current quests of the mode first; only when there are none, the quests available now. Never a completed,
- * failed or locked one. Statuses come from the quest-state engine's read side (src/quests/questReadModel.ts).
+ * and can be done on the raid plan's map — an objective of that map, of several maps among them, or of any map. Only the
+ * player's current (taken) quests of the mode (owner, 16.10.2026: «появляется гренадер квест, хотя где то он уже выполнен,
+ * а где то еще он даже не принят» — the old fallback to the quests available now showed quests not taken, and ones done
+ * before the logs began). Never an available, completed, failed or locked one. Statuses come from the quest-state engine's
+ * read side (src/quests/questReadModel.ts).
  */
 import type { Quest, QuestObjective } from '../domain/types'
 import { hasGearConditions } from '../data/objectiveConditions'
@@ -20,8 +22,8 @@ export interface ConditionQuest {
 }
 
 export interface MapConditionQuests {
-  /** `active`: the player's current quests; `available`: none is current, these can be taken now; `none`: nothing fits. */
-  tier: 'active' | 'available' | 'none'
+  /** `active`: the player's current quests; `none`: no current quest fits. */
+  tier: 'active' | 'none'
   quests: ConditionQuest[]
 }
 
@@ -42,19 +44,15 @@ export function gearObjectivesOnMap(quest: Pick<Quest, 'objectiveDetails'>, mapI
 
 export function conditionQuestsForMap(quests: readonly Quest[], availability: Map<string, TaskAvailability>, mapId: string): MapConditionQuests {
   const active: ConditionQuest[] = []
-  const available: ConditionQuest[] = []
   for (const quest of quests) {
     if (!isLiveGameQuest(quest)) continue
-    const status = availability.get(quest.id)?.status
-    if (status !== 'active' && status !== 'available') continue
+    if (availability.get(quest.id)?.status !== 'active') continue
     const objectives = gearObjectivesOnMap(quest, mapId)
     if (!objectives.length) continue
-    ;(status === 'active' ? active : available).push({ quest, objectives })
+    active.push({ quest, objectives })
   }
   const byLevel = (a: ConditionQuest, b: ConditionQuest) => a.quest.level - b.quest.level || a.quest.name.localeCompare(b.quest.name)
-  if (active.length) return { tier: 'active', quests: active.sort(byLevel) }
-  if (available.length) return { tier: 'available', quests: available.sort(byLevel) }
-  return { tier: 'none', quests: [] }
+  return active.length ? { tier: 'active', quests: active.sort(byLevel) } : { tier: 'none', quests: [] }
 }
 
 /** One value per app start: the pick is random, yet the same for the same map and quests until the app starts again. */

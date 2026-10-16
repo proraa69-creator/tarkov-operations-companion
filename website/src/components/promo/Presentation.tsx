@@ -1,11 +1,11 @@
-import { Archive, Crosshair, Download, Layers, LayoutDashboard, MapPinned, MonitorSmartphone, Palette, RefreshCw, ShieldCheck, Skull, Smartphone, Tag, UserRound, Users } from 'lucide-react'
+import { Archive, Crosshair, Download, Layers, LayoutDashboard, MapPinned, MonitorSmartphone, Palette, RefreshCw, ShieldCheck, Skull, Tag, UserRound, Users, Wrench } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { tr } from '../../i18n'
 import { Reveal } from '../Reveal'
 import {
-  BallisticsVisual, BossesVisual, CollectorVisual, ItemPriceVisual, ModesVisual, OverviewVisual, PhoneVisual, SquadVisual,
-  SyncVisual, ThemesVisual, UpdateVisual,
+  BallisticsVisual, BossesVisual, CollectorVisual, GunsmithVisual, MapItemVisual, ModesVisual, OverviewVisual, PositionVisual,
+  SquadVisual, SyncVisual, ThemesVisual, UpdateVisual,
 } from './PromoVisuals'
 import '../../promo.css'
 
@@ -24,7 +24,9 @@ interface Feature {
  * The home page presentation below the hero: the twelve scenes of the trailer (scripts/trailer/README.md, the owner's
  * storyboard of 10.10.2026) in the same order and words, with screenshots of the current app (scripts/trailer/capture.mjs
  * → src/assets/promo, owner 11.10.2026: «обнови все пункты согласно нашему видео»). Every claim was checked against
- * the app code; the copy does not explain how the app gets its data (04.10.2026); the phone app is «скоро».
+ * the app code; the copy does not explain how the app gets its data (04.10.2026); the phone app is «скоро». Since
+ * 15.10.2026 the app draws nothing over the game: the item card and the player's point are on «Карты» (and the phone),
+ * and the reasons follow the trailer of 16.10.2026 (item on the map, the point on the map, «Оружейник»).
  */
 const FEATURES: Feature[] = [
   {
@@ -42,17 +44,18 @@ const FEATURES: Feature[] = [
     visual: <OverviewVisual />,
   },
   {
-    id: 'item-price',
+    id: 'item-on-map',
     icon: <Tag />,
-    eyebrow: 'Цена в рейде',
-    title: 'Продать или оставить?',
-    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу — её можно повесить и на боковую кнопку мыши. Карточка появится на карте в приложении и сразу же в телефоне.',
+    eyebrow: 'Предмет',
+    title: 'Информация о предмете — прямо на карте',
+    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу — её можно повесить и на боковую кнопку мыши. Карточка появится на «Картах» в приложении, слева вверху под кнопкой «Вид», и сразу же в телефоне. Поверх игры ничего не рисуется.',
     points: [
-      'Цена на барахолке и у лучшего торговца',
-      'Пометка «Каппа»: предмет нужен для «Коллекционера»',
-      'Метка MATE: предмет нужен другу, а у напарника из отряда — его ник',
+      'Картинка предмета, цена на барахолке и у лучшего торговца',
+      'Нужен ли предмет для Каппы и «Коллекционера»',
+      'Для каких квестов он нужен и сколько штук',
+      'Метка, если предмет нужен другу или напарнику из отряда',
     ],
-    visual: <ItemPriceVisual />,
+    visual: <MapItemVisual />,
   },
   {
     id: 'modes',
@@ -76,9 +79,23 @@ const FEATURES: Feature[] = [
     points: [
       'Синхронизация из схрона',
       'Что уже собрано и что осталось',
-      'Цена и пометка «Каппа» прямо в рейде',
+      'Пометка «Каппа» в карточке предмета на карте',
     ],
     visual: <CollectorVisual />,
+  },
+  {
+    id: 'position',
+    icon: <MapPinned />,
+    eyebrow: 'Позиция',
+    title: 'Ваша точка на карте',
+    lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на «Картах» в приложении и сразу же в телефоне.',
+    points: [
+      'Карта текущего рейда открывается сама',
+      'Этаж по высоте из скриншота',
+      'Квестовые точки и выходы рядом',
+      'Телефон получает позицию моментально',
+    ],
+    visual: <PositionVisual />,
   },
   {
     id: 'squad',
@@ -93,6 +110,20 @@ const FEATURES: Feature[] = [
       'Приглашение ссылкой или QR-кодом',
     ],
     visual: <SquadVisual />,
+  },
+  {
+    id: 'gunsmith',
+    icon: <Wrench />,
+    eyebrow: 'Оружейник',
+    title: 'Сборки для квестов «Оружейник»',
+    lead: 'На «Обзоре» — часть «Оружейника», которую вы взяли, а на своей странице — вся цепочка: какое оружие, какие характеристики нужны и какие детали купить.',
+    points: [
+      'Детали с картинками и ценами',
+      'Кто продаёт деталь и с какого уровня торговца',
+      'Нужные характеристики: эргономика, отдача, вес',
+      'Чем можно заменить модуль',
+    ],
+    visual: <GunsmithVisual />,
   },
   {
     id: 'bosses',
@@ -121,20 +152,6 @@ const FEATURES: Feature[] = [
     visual: <BallisticsVisual />,
   },
   {
-    id: 'minimap',
-    icon: <MapPinned />,
-    eyebrow: 'Позиция',
-    title: 'Где вы — на карте и в телефоне',
-    lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на карте в приложении и сразу же в телефоне.',
-    points: [
-      'Карта текущего рейда открывается сама',
-      'Этаж по высоте из скриншота',
-      'Квестовые точки рядом',
-      'Телефон получает позицию и цену предмета моментально',
-    ],
-    visual: <SyncVisual />,
-  },
-  {
     id: 'updates',
     icon: <RefreshCw />,
     eyebrow: 'Обновления',
@@ -159,18 +176,6 @@ const FEATURES: Feature[] = [
     visual: <ThemesVisual />,
   },
   {
-    id: 'mobile',
-    icon: <Smartphone />,
-    eyebrow: 'Телефон',
-    title: 'Приложение на iOS и Android — скоро',
-    lead: 'Те же задания и карты в мобильной раскладке: телефон удобно держать рядом, пока на ПК идёт рейд.',
-    points: [
-      'Вход по QR-коду с компьютера — без пароля',
-      'Те же задания и карты',
-    ],
-    visual: <PhoneVisual />,
-  },
-  {
     id: 'sync',
     icon: <MonitorSmartphone />,
     eyebrow: 'Синхронизация',
@@ -179,7 +184,8 @@ const FEATURES: Feature[] = [
     points: [
       'Полная синхронизация',
       'Моментальное местоположение на телефоне',
-      'Вся информация везде',
+      'Вход на телефоне по QR-коду — без пароля',
+      'Приложение на iOS и Android — скоро',
     ],
     visual: <SyncVisual />,
   },

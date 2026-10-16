@@ -74,22 +74,34 @@ export function moveBlock(layout: OverviewLayout, zone: OverviewZoneId, id: stri
   return { ...layout, [zone]: next }
 }
 
-export function isDefaultLayout(layout: OverviewLayout) {
-  return ZONE_IDS.every((zone) => layout[zone].join() === OVERVIEW_ZONES[zone].join())
+/** Same blocks in the same order in every zone. */
+export function sameLayout(a: OverviewLayout, b: OverviewLayout) {
+  return ZONE_IDS.every((zone) => a[zone].join() === b[zone].join())
 }
 
-export function loadOverviewLayout(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): OverviewLayout {
+/**
+ * The layout is the starting one: the built-in order, or `base` — the owner's default for everybody
+ * (src/overview/overviewDefaults.ts «Блоки»), which a player follows until they arrange the blocks themselves.
+ */
+export function isDefaultLayout(layout: OverviewLayout, base: OverviewLayout = defaultOverviewLayout()) {
+  return sameLayout(layout, base)
+}
+
+/** The player's own order (sanitized), or `base` when they never arranged the blocks. */
+export function loadOverviewLayout(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage, base?: OverviewLayout): OverviewLayout {
   try {
     const raw = storage?.getItem(OVERVIEW_LAYOUT_KEY)
+    if (!raw && base) return base
     return sanitizeOverviewLayout(raw ? JSON.parse(raw) : undefined)
   } catch {
-    return defaultOverviewLayout()
+    return base ?? defaultOverviewLayout()
   }
 }
 
-export function saveOverviewLayout(layout: OverviewLayout, storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined = globalThis.localStorage) {
+/** Kept only when it differs from the starting one, so a player who never moved a block follows the owner's default. */
+export function saveOverviewLayout(layout: OverviewLayout, storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined = globalThis.localStorage, base?: OverviewLayout) {
   try {
-    if (isDefaultLayout(layout)) storage?.removeItem(OVERVIEW_LAYOUT_KEY)
+    if (isDefaultLayout(layout, base)) storage?.removeItem(OVERVIEW_LAYOUT_KEY)
     else storage?.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify(layout))
   } catch { /* private mode or a full disk: the order lives for this session only */ }
 }

@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
+import { isOwnerApp } from './buildEdition'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
@@ -43,6 +44,8 @@ const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((modu
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
+// «Админ панель» (owner app only): the owner's tools load only when it is opened.
+const AdminPanelPage = lazy(() => import('../pages/AdminPanelPage').then((module) => ({ default: module.AdminPanelPage })))
 
 export function App() {
   const { locale, revision } = useLocale()
@@ -78,6 +81,7 @@ export function App() {
     <Route path="/squad/:code" element={<SquadPage />} />
     <Route path="/friend/:code" element={<SquadPage friendLink />} />
     <Route path="/requests" element={<RequestsPage />} />
+    <Route path="/admin" element={isOwnerApp() ? <Suspense fallback={null}><AdminPanelPage /></Suspense> : <Navigate to="/" replace />} />
     <Route path="/import" element={<Navigate to="/profile" replace />} />
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />

@@ -7,13 +7,15 @@ import type { DatabaseSync } from 'node:sqlite'
  * and every game mode, like the corrected points (services/questPointStore.ts); the app lays them over the catalog
  * (src/data/questTextOverrides.ts). One text per quest field and language:
  *
+ * - `name`: the quest's title as the apps show it (`target` ''; owner, 16.10.2026: «все надписи в этом квесте»); the
+ *   game's own titles stay for reading the game's screens;
  * - `description`: the quest's description (`target` '');
  * - `objective`: one objective's line (`target` = the tarkov.dev objective id);
  * - `stage-title` / `stage-description`: a story chapter stage (`target` = the stage index).
  *
  * `lang`: the interface language the owner edited in — a Russian correction never replaces the English text.
  */
-export type QuestTextField = 'description' | 'objective' | 'stage-title' | 'stage-description'
+export type QuestTextField = 'name' | 'description' | 'objective' | 'stage-title' | 'stage-description'
 export type QuestTextLang = 'ru' | 'en'
 
 export interface QuestTextOverride {
@@ -92,7 +94,7 @@ export class QuestTextStore {
   }
 }
 
-const FIELDS: readonly QuestTextField[] = ['description', 'objective', 'stage-title', 'stage-description']
+const FIELDS: readonly QuestTextField[] = ['name', 'description', 'objective', 'stage-title', 'stage-description']
 
 function toOverride(row: Row): QuestTextOverride {
   return {

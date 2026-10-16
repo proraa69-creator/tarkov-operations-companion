@@ -59,3 +59,16 @@ describe('quest texts corrected by the owner (owner, 13.10.2026: «в нижне
     expect(findQuestText(list, 'q1', 'objective', 'o1', 'ru')).toBeUndefined()
   })
 })
+
+describe('the quest title in the constructor (owner, 16.10.2026: «можно поменять любой текст в этом окне»)', () => {
+  it('renames the quest in its language, its points titled with the old name follow; the game title stays for reading the game', () => {
+    const named = { ...dataset, markers: [...dataset.markers, marker('m4', { questId: 'q1', title: 'Посылка' })] } as AppDataset
+    const result = withQuestTextOverrides(named, [text('name', '', 'Посылка из прошлого'), text('name', '', 'A parcel', 'en')], 'ru')
+    const quest = result.quests.find((entry) => entry.id === 'q1')!
+    expect(quest.name).toBe('Посылка из прошлого')
+    expect(quest.ocrAliases).toEqual(['Посылка'])
+    expect(result.markers.find((entry) => entry.id === 'm4')!.title).toBe('Посылка из прошлого')
+    expect(result.markers.find((entry) => entry.id === 'm1')!.title).toBe('Точка')
+    expect(parseQuestTextOverrides({ overrides: [{ id: 'n', questId: 'q1', field: 'name', target: '', lang: 'en', text: 'A parcel' }] })).toHaveLength(1)
+  })
+})

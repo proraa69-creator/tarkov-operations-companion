@@ -25,7 +25,7 @@ export interface SheetObjective {
   here: boolean
   done: boolean
   /** The owner's descriptions «где искать» of this objective's points (quest constructor). */
-  hints?: Array<{ title?: string; text: string }>
+  hints?: Array<{ markerId: string; title?: string; text: string; items?: Array<{ itemId: string; name: string; iconUrl?: string }>; photoIds?: string[] }>
 }
 
 export interface SheetGroup { kind: SheetGroupKind; title: string; objectives: SheetObjective[] }
@@ -83,11 +83,14 @@ function titleOf(kind: SheetGroupKind, objectives: SheetObjective[]) {
 function hintsOf(quest: Quest, objectiveId: string) {
   const seen = new Set<string>()
   const hints = (quest.pointHints ?? []).filter((hint) => {
-    const key = `${hint.title ?? ''}|${hint.text}`
+    const key = `${hint.title ?? ''}|${hint.text}|${hint.items?.map((item) => item.itemId).join(',') ?? ''}|${hint.photoIds?.join(',') ?? ''}`
     if (hint.objectiveId !== objectiveId || seen.has(key)) return false
     seen.add(key)
     return true
-  }).map((hint) => ({ ...(hint.title ? { title: hint.title } : {}), text: hint.text }))
+  }).map((hint) => ({
+    markerId: hint.markerId, ...(hint.title ? { title: hint.title } : {}), text: hint.text,
+    ...(hint.items?.length ? { items: hint.items } : {}), ...(hint.photoIds?.length ? { photoIds: hint.photoIds } : {}),
+  }))
   return hints.length ? { hints } : {}
 }
 

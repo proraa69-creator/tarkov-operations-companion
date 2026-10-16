@@ -13,6 +13,9 @@
  *   PUT /v1/accounts/me/admin/features { minimap?, minimapOverlay? } -> the same (owner, for all: the minimap over the
  *                                            game and the tracking; the window over the game alone)
  *
+ * `overview` (routes/overviewDefaults.ts, «Админ панель» → «Блоки», 16.10.2026): the Overview every player starts from,
+ * or null for the built-in one; `extra` adds it, so the apps get it with their usual check.
+ *
  * `features` (services/featureSwitchStore.ts, owner, 14.10.2026): the minimap over the game and the position tracking,
  * off until the owner turns them on («после обновления приложения у всех по стандарту функция миникарты выключена»).
  * Every app already asks here, so a switch reaches it at its next check; the apps from before ignore the field.
@@ -92,7 +95,7 @@ async function withEnglish(input: { text: string; textEn?: string | null }, prev
  * `translate`: Russian → English for the notice (services/announcementLanguage.ts); the tests pass a fake. `features`:
  * the owner's switches for every app, in the same database as the notice.
  */
-export function createAnnouncementRouter(accounts: AccountStore, store: AnnouncementStore, signals: MapUpdates, audit?: AnnouncementAudit, translate: AnnouncementTranslator = myMemoryTranslator(), features: FeatureSwitchStore = new FeatureSwitchStore(accounts.database)) {
+export function createAnnouncementRouter(accounts: AccountStore, store: AnnouncementStore, signals: MapUpdates, audit?: AnnouncementAudit, translate: AnnouncementTranslator = myMemoryTranslator(), features: FeatureSwitchStore = new FeatureSwitchStore(accounts.database), extra?: () => Record<string, unknown>) {
   const router = express.Router()
   const writeLimiter = new FixedWindowRateLimiter(60, 60 * 1000)
 
@@ -112,7 +115,7 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
     const query = querySchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректный запрос' }); return }
     const language = languageOf(req)
-    signals.wait(res, req.ip ?? req.socket.remoteAddress ?? 'unknown', query.data.since === undefined ? undefined : Number(query.data.since), () => ({ announcement: store.publicView(language), features: features.publicView() }))
+    signals.wait(res, req.ip ?? req.socket.remoteAddress ?? 'unknown', query.data.since === undefined ? undefined : Number(query.data.since), () => ({ announcement: store.publicView(language), features: features.publicView(), ...extra?.() }))
   })
 
   /** The owner's e-mail, or an answer was already sent. */

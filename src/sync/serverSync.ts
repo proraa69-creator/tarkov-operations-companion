@@ -990,7 +990,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       })
     })
     const offPosition = desktop.experimental.onPosition((position) => {
-      if (connected() && validPosition(position)) throttle.push(position)
+      if (position && connected() && validPosition(position)) throttle.push(position)
     })
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
   }, [])

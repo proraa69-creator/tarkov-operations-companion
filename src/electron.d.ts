@@ -263,7 +263,8 @@ interface TarkovDesktopApi {
     setRemoteMinimap?: (enabled: boolean) => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
-    onPosition: (callback: (position: PlayerPosition) => void) => () => void
+    /** A new position from the game's screenshot; null: the tracking went off (the dot goes from the maps). */
+    onPosition: (callback: (position: PlayerPosition | null) => void) => () => void
     /**
      * The item key's lookup (electron/experimental/index.ts): «reading…», the card or «not recognised». Shown on «Карты»
      * under «Вид»; nothing is drawn over the game. Absent in apps before 15.10.2026.

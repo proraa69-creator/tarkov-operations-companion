@@ -3,6 +3,7 @@ import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { RequestsNavButton } from '../components/RequestsNavButton'
+import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
@@ -289,6 +290,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </NavLink>
         <div className="nav-label">{uiText(locale === 'en' ? 'OPERATIONS' : 'ОПЕРАЦИИ')}</div>
         <nav className="nav-list" aria-label={uiText("Основная навигация")}>
+          {/* «Админ панель» above «Обзор» (owner, 16.10.2026), the owner's app only (src/admin/AdminNavLink.tsx). */}
+          <AdminNavLink locale={locale} />
           {uiText(navigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>))}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'RAID' : 'РЕЙД')}</div>

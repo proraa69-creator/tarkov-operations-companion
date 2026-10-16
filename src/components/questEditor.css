@@ -105,3 +105,70 @@
 .quest-guide-full img { max-width: 100%; max-height: calc(100dvh - 110px); object-fit: contain; border-radius: 10px; }
 .quest-guide-full figcaption { color: var(--text); font-size: 14px; text-align: center; }
 .quest-guide-full .icon-button { position: absolute; top: 16px; right: 16px; }
+
+/* The point constructor (components/PointConstructor.tsx): the right-click menu of a point and the point window. */
+.point-menu {
+  position: fixed; z-index: 2700; width: 260px; display: grid; gap: 2px; padding: 6px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg-elevated, var(--panel)); box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+}
+.point-menu > button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 7px; background: none; color: var(--text);
+  font-size: 12px; text-align: left; cursor: pointer;
+}
+.point-menu > button:hover:not(:disabled), .point-menu > button:focus-visible { background: rgb(255 255 255 / 6%); }
+.point-menu > button.is-danger { color: #e07a6a; }
+.point-menu-title { padding: 4px 8px 6px; overflow: hidden; color: var(--text-dim); font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--line-soft); }
+.point-menu-label { padding: 6px 8px 2px; color: var(--text-dim); font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.point-menu-emblems { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; padding: 0 4px 4px; }
+.point-menu-emblems button { display: grid; place-items: center; height: 32px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: none; cursor: pointer; }
+.point-menu-emblems button:hover, .point-menu-emblems button:focus-visible { border-color: var(--brass); background: rgb(255 255 255 / 4%); }
+.point-window-backdrop { position: fixed; inset: 0; z-index: 2650; display: grid; place-items: center; padding: 16px; background: rgb(4 6 5 / 55%); }
+.point-window {
+  width: min(480px, 100%); max-height: calc(100dvh - 32px); overflow: auto; overscroll-behavior: contain; display: grid; gap: 10px; padding: 12px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--bg-elevated, var(--panel)); box-shadow: 0 18px 48px rgb(0 0 0 / 50%);
+}
+.point-window fieldset { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.point-window legend { padding: 0; margin-bottom: 2px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.point-window .is-private legend { color: var(--amber); }
+.point-window .input { width: 100%; min-height: 30px; padding: 5px 8px; font-size: 12px; line-height: 1.4; }
+.point-window textarea.input { resize: vertical; }
+.point-window .button { justify-self: start; }
+.point-emblems { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 4px; }
+.point-emblems button {
+  display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px; border: 1px solid var(--line-soft); border-radius: 8px; background: none;
+  color: var(--text-muted); font-size: 11px; text-align: left; cursor: pointer;
+}
+.point-emblems button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.point-emblems button.active { border-color: var(--brass); color: var(--text); background: rgb(213 183 111 / 10%); }
+.point-quest-picked { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid #5f553a; border-radius: 8px; }
+.point-quest-picked small { margin-right: auto; }
+.point-photo-add { cursor: pointer; }
+.point-photo-add.is-disabled { opacity: .5; pointer-events: none; }
+
+/* A point's items and photos (components/PointPhotos.tsx): the window, the point line «Где искать», the point card. */
+.quest-point-hint-block { display: grid; gap: 4px; }
+.point-items { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.point-items li { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 7px; background: rgb(255 255 255 / 4%); font-size: 11.5px; }
+.point-items img { width: 22px; height: 22px; object-fit: contain; }
+.point-items .icon-button { width: 20px; height: 20px; min-width: 20px; min-height: 20px; padding: 0; }
+.point-photos { display: flex; flex-wrap: wrap; gap: 6px; }
+.point-photo { position: relative; }
+.point-photo-thumb { display: grid; place-items: center; width: 88px; height: 60px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: #000; color: var(--text-dim); cursor: zoom-in; }
+.point-photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.point-photo-thumb.is-loading, .point-photo-thumb.is-missing { cursor: default; background: rgb(255 255 255 / 3%); }
+.point-photo-remove {
+  position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--bg-elevated, var(--panel)); color: var(--text); cursor: pointer;
+}
+
+/* The pencils of the quest window (components/QuestSheetEditing.tsx). */
+.sheet-pencil { flex: 0 0 auto; width: 22px; height: 22px; min-width: 22px; min-height: 22px; margin-left: 4px; padding: 0; vertical-align: middle; opacity: .7; }
+.sheet-pencil:hover, .sheet-pencil:focus-visible { opacity: 1; color: var(--brass); }
+.sheet-editable { display: inline; }
+.sheet-editable-field { display: block; margin: 4px 0; font-size: 12px; font-weight: 400; letter-spacing: normal; text-transform: none; }
+.quest-text-row.is-inline { display: grid; gap: 4px; }
+.quest-text-row.is-inline .quest-text-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.quest-text-row.is-inline .input { width: 100%; }
+.quest-curated-list li { display: flex; align-items: center; gap: 4px; }
+.quest-curated-list li > a { flex: 1 1 auto; min-width: 0; }
+.map-quest-sheet-description { white-space: pre-line; }

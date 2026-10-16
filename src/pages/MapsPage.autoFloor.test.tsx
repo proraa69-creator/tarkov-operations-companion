@@ -10,6 +10,7 @@ import { demoDataset } from '../data/demo'
 import { PLAYER_FLOOR_HINT } from '../data/useAutoFloor'
 import type { GameMap } from '../domain/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
+import { reloadRemoteFeaturesForTests, setRemoteFeatures } from '../announcement/features'
 
 /** Factory with the floors and heights of the live catalog (tarkov.dev maps.json). */
 const factory: GameMap = {
@@ -53,8 +54,10 @@ beforeEach(() => {
       onPosition: (callback: (position: PlayerPosition) => void) => { screenshot = callback; return () => {} },
     },
   } as unknown as NonNullable<Window['tarkovDesktop']>
+  // The owner keeps the position on for everybody (src/announcement/features.ts).
+  setRemoteFeatures({ minimap: true, minimapChangedAt: '' })
 })
-afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); reloadRemoteFeaturesForTests() })
 
 describe('Maps page: the floor from the screenshot', () => {
   it('opens on the player\'s floor and keeps a floor picked by hand until the next screenshot', async () => {

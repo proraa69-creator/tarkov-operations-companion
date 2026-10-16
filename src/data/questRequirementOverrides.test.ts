@@ -76,7 +76,7 @@ describe('curated quest requirements (owner, 15.10.2026: «в реальном �
   it('the quest card under the map shows the description under its objective', () => {
     const sheet = sheetObjectives({ ...quest, pointHints: [{ markerId: 'm', mapId: 'customs', objectiveId: 'o1', title: 'Склад', text: 'За красной дверью' }, { markerId: 'n', mapId: 'customs', objectiveId: 'o1', title: 'Склад', text: 'За красной дверью' }] },
       { mapId: 'customs', maps: [], itemsById: new Map() })
-    expect(sheet?.groups[0].objectives[0].hints).toEqual([{ title: 'Склад', text: 'За красной дверью' }])
+    expect(sheet?.groups[0].objectives[0].hints).toEqual([{ markerId: 'm', title: 'Склад', text: 'За красной дверью' }])
   })
 
   it('parses the public list; entries an older or newer server sends that it does not know are skipped', () => {

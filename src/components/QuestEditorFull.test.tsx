@@ -11,6 +11,7 @@ import { QuestEditorPanel, useQuestPointEditor } from './QuestPointEditor'
 import { searchCatalogItems } from './QuestRequirementsEditor'
 import { MapMarkerTooltip } from './MapMarkerTooltip'
 import { QuestCuratedRequirements } from './QuestCuratedInfo'
+import { PointSettingsWindow } from './PointConstructor'
 import { setRenderLanguage, uiText } from '../i18n/renderText'
 
 const KEY = '5780cf7f2459777de4559322'
@@ -74,6 +75,7 @@ function Constructor() {
   const state = useQuestPointEditor({ mapId: 'customs', floor: 'Основной', baseFloor: 'Основной', quests: [merged], markers, initialQuestId: 'q1' })
   return <>
     <QuestEditorPanel state={state} maps={[]} markers={markers} quests={[merged]} items={items} onPick={vi.fn()} onFocus={vi.fn()} onSelectMap={vi.fn()} />
+    <PointSettingsWindow state={state} emblems={[{ id: 'quest.zone', label: 'Квест', icon: null }, { id: 'quest.item', label: 'Квестовый предмет', icon: null }]} quests={[merged]} items={items} markers={markers} />
     <div data-testid="tooltip"><MapMarkerTooltip marker={markers[0]} typeLabel="Квест" color="#fff" floor="Основной" /></div>
     <div data-testid="detail"><QuestCuratedRequirements quest={merged} items={items} /></div>
   </>
@@ -91,8 +93,8 @@ describe('the quest constructor as one editor (owner, 15.10.2026: «добавь
   it('a point gets a description for players and a note for the owner; players see the description, never the note; «Отменить» undoes it', async () => {
     const { requests, points, wrapper } = ownerApp()
     render(<Constructor />, { wrapper })
-    fireEvent.click(await screen.findByRole('button', { name: 'Описание для игроков' }))
-    const form = screen.getByRole('form', { name: 'Описание точки' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Настроить точку' }))
+    const form = screen.getByRole('dialog', { name: 'Настройки точки' })
     expect(within(form).getByText('Описание для игроков')).toBeInTheDocument()
     expect(within(form).getByText('Заметка для себя')).toBeInTheDocument()
     fireEvent.change(within(form).getByLabelText('Заголовок точки'), { target: { value: 'Склад у заправки' } })

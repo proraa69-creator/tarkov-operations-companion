@@ -100,6 +100,8 @@ It should show:
 - Goons/Nomads information where applicable;
 - market favorites.
 
+«Админ панель» → «Блоки» (owner, 16.10.2026: «функции редактирования блоков… без надобности загружать обновление сервера»): the owner sets, for every player at once, which Overview blocks show, their default order on the PC and on the phone, and his own block titles (RU / EN; an empty one keeps the standard title). Stored on the server (`/v1/accounts/me/admin/overview-defaults`, public `/v1/overview-defaults`) and delivered with the owner's notice (`GET /v1/announcement` → `overview`), so the apps pick it up within a few minutes without an update. A player's own «Настроить блоки» order wins over the default order; a block the owner hides is hidden for everybody.
+
 In the raid plan block:
 
 - keep buttons: Build route, Tasks, Choose map;

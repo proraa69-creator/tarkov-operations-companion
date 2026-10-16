@@ -38,7 +38,8 @@ import { createPresenceRouter } from './routes/presence.js'
 import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
-import { createQuestPointsRouter } from './routes/questPoints.js'
+import { createQuestPointPhotoUploadRouter, createQuestPointsRouter } from './routes/questPoints.js'
+import { QuestPointPhotoStore } from './services/questPointPhotoStore.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
 import { catalogItemCheck, createQuestRequirementsRouter } from './routes/questRequirements.js'
 import { createAnnouncementRouter } from './routes/announcement.js'
@@ -60,6 +61,8 @@ import { EventQuestStore } from './services/eventQuestStore.js'
 import { createEventQuestsRouter } from './routes/eventQuests.js'
 import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
+import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
+import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -104,6 +107,13 @@ export interface ApiOptions {
   itemImageDir?: string
   /** «Оружейник»: the guides' screenshots kept on the server (services/guideImages.ts). */
   guideImages?: GuideImageMirror
+  /**
+   * Photos of the quest constructor's points (services/questPointPhotoStore.ts): the directory under the server's data
+   * directory; without it the photo routes answer 503.
+   */
+  questPointPhotoDir?: string
+  /** Photo uploads per hour (tests). */
+  questPointPhotoUploadsPerHour?: number
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
@@ -251,6 +261,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // «Чат с поддержкой» with screenshots (owner, 15.10.2026): the two message routes read their bodies here, with a larger
   // limit, after checking the session; the routes themselves are mounted with the players' routes below.
   app.use(createSupportChatUploadParser(accounts, supportChat))
+  // Quest constructor points (routes/questPoints.ts): the photo upload (≤ 5 MB) has its own body limit too.
+  const questPoints = new QuestPointStore(accounts.database)
+  const questPointPhotos = options.questPointPhotoDir ? new QuestPointPhotoStore(accounts.database, options.questPointPhotoDir, () => questPoints.photoIds(), { now: accounts.clock }) : undefined
+  app.use(createQuestPointPhotoUploadRouter(accounts, questPointPhotos, (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, { perHour: options.questPointPhotoUploadsPerHour }))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
   // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
@@ -299,7 +313,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
-  app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  app.use(createQuestPointsRouter(accounts, questPoints, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed(), questPointPhotos))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // «Ивент-квесты» the owner adds and edits: read by every player, written by the owner (routes/eventQuests.ts). The apps
@@ -321,7 +335,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates()
-  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement))
+  // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
+  const overviewDefaults = new OverviewDefaultsStore(accounts.database)
+  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => announcementSignals.changed()))
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
   app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {

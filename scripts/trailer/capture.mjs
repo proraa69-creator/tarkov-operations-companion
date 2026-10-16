@@ -15,7 +15,9 @@
 // CC BY-NC-SA, non-commercial: not for an advert). The ammo for «Баллистика» comes from the
 // repository's tarkov.dev fixture (src/arsenal/fixtures/ammoResponse.json, 16 real rounds). The squad shots use a
 // made-up account served by a fake desktop bridge: names, ids and quests are invented for the picture.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -175,6 +177,7 @@ const SQUAD_DATA = {
 const SQUAD_BRIDGE = `(() => {
   const squad = ${JSON.stringify(SQUAD_DATA)}
   const updateState = window.__trailerUpdate ?? { state: 'idle' }
+  const raid = window.__trailerRaid
   const info = { id: squad.squadId, name: 'Ночной отряд', maxMembers: 5, isOwner: true, createdAt: new Date().toISOString(), members: squad.members.map((m) => ({ ...m, joinedAt: new Date().toISOString(), lastSyncAt: new Date().toISOString() })) }
   const deep = () => new Proxy(function () {}, {
     get: (_t, prop) => prop === 'then' ? undefined : (typeof prop === 'string' && prop.startsWith('on') ? () => () => {} : deep()),
@@ -188,7 +191,17 @@ const SQUAD_BRIDGE = `(() => {
     },
     update: { status: async () => updateState, onStatus: () => () => {}, install: async () => updateState },
     getVersion: async () => '0.6.0',
-    getRaidState: async () => ({ inRaid: false }),
+    getRaidState: async () => (raid ? { inRaid: true, location: raid.location, since: raid.since } : { inRaid: false }),
+    onRaidStateChanged: () => () => {},
+    // In a raid on Customs (groups mapitem / mapposition): the position from the game's last screenshot, the item key's
+    // card (window.__trailerItem(payload) hands it over like the main process does)
+    ...(raid ? { experimental: new Proxy({
+      getStatus: async () => ({ lastPosition: raid.position, raid: { inRaid: true, location: raid.location }, screenshotKey: { state: 'ok' } }),
+      getSettings: async () => ({ version: 1, itemLookup: true, minimap: true, tracking: true, minimapOff: false, playerMarker: 'arrow', itemKey: ';', collectorKey: '', screenshotsDir: '' }),
+      onPosition: (cb) => { window.__trailerPosition = cb; return () => {} },
+      onItem: (cb) => { window.__trailerItem = cb; return () => {} },
+      onQuery: () => () => {}, onCollectorScan: () => () => {}, setRemoteMinimap: async () => {}, answer: async () => {},
+    }, { get: (t, p) => (p in t ? t[p] : (p === 'then' ? undefined : typeof p === 'string' && p.startsWith('on') ? () => () => {} : deep())) }) } : {}),
     serviceRequest: async (method, path) => {
       if (/\\/v1\\/squads\\/mine\\//.test(path)) return { squad: info, access: true, invitations: [] }
       if (/\\/v1\\/squads\\/[a-f0-9]{32}\\/overview\\//.test(path)) return { squad: info, mode: 'pvp', generatedAt: new Date().toISOString(), sharedQuests: [] }
@@ -200,7 +213,90 @@ const SQUAD_BRIDGE = `(() => {
   window.tarkovDesktop = new Proxy(target, { get: (t, p) => (p in t ? t[p] : (p === 'then' ? undefined : typeof p === 'string' && p.startsWith('on') ? () => () => {} : deep())) })
 })()`
 
-const browser = await chromium.launch({ executablePath: process.env.TRAILER_CHROMIUM ?? '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--force-color-profile=srgb'] })
+// ---- the live catalog (groups `mapitem`, `mapposition`, `gunsmith`) ----------------------------------------------
+// These scenes show the app with the real tarkov.dev catalog (tasks, quest points, items with their pictures, traders,
+// the weapon parts), as a player sees it. Chromium here does not go through the proxy: every request to the data hosts
+// is answered with what curl fetched (it has the proxy and its CA), cached in .cache/ so a re-run is offline. The map
+// image itself stays the neutral survey grid (tarkov.dev's maps are CC BY-NC-SA, see the header).
+const CACHE = join(here, '.cache')
+const LIVE_HOSTS = /^https:\/\/(json\.tarkov\.dev|api\.tarkov\.dev|assets\.tarkov\.dev|tarkov\.help|minio\.tarkov\.help)\//
+function curlGet(url, body) {
+  mkdirSync(CACHE, { recursive: true })
+  const file = join(CACHE, createHash('sha1').update(`${url}\n${body ?? ''}`).digest('hex'))
+  if (existsSync(file)) return readFileSync(file)
+  const args = ['-sS', '--fail', '--compressed', '--max-time', '90', url]
+  if (body !== undefined) args.push('-H', 'content-type: application/json', '--data-binary', '@-')
+  const data = execFileSync('curl', args, { input: body, maxBuffer: 512 * 1024 * 1024 })
+  writeFileSync(file, data)
+  return data
+}
+const TYPE_BY_EXT = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml' }
+// The app takes the maps' configuration (maps.json) and their drawings from the Raid OS server's copy of tarkov.dev's
+// (src/data/mapMirror.ts): maps.json is read from upstream (tarkov.dev's repository), every drawing is the grid.
+const MAPS_JSON = 'https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json'
+function liveAnswer(url, request) {
+  if (/^https:\/\/raidos\.app\/v1\/map-tiles\/maps\.json/.test(url)) return { status: 200, contentType: 'application/json', body: curlGet(MAPS_JSON), headers: { 'access-control-allow-origin': '*' } }
+  if (/^https:\/\/raidos\.app\/v1\/map-tiles\//.test(url)) return { status: 200, contentType: 'image/svg+xml', body: MAP_GRID, headers: { 'access-control-allow-origin': '*' } }
+  if (!LIVE_HOSTS.test(url)) return null
+  const host = new URL(url).hostname
+  if (host === 'assets.tarkov.dev' && /\/maps\//.test(url)) return { status: 200, contentType: 'image/svg+xml', body: MAP_GRID }
+  try {
+    const post = request.method() === 'POST' ? request.postData() ?? '' : undefined
+    const body = curlGet(url, post)
+    const ext = /\.([a-z0-9]+)(?:\?|$)/i.exec(new URL(url).pathname)?.[1]?.toLowerCase()
+    const contentType = TYPE_BY_EXT[ext] ?? (/^(json|api)\./.test(host) ? 'application/json' : 'text/html; charset=utf-8')
+    return { status: 200, contentType, body, headers: { 'access-control-allow-origin': '*' } }
+  } catch {
+    return { status: 404, contentType: 'text/plain', body: 'Not found', headers: { 'access-control-allow-origin': '*' } }
+  }
+}
+/** The live tasks by normalized name (to seed a believable profile with real task ids). */
+const liveTasks = (() => {
+  let tasks = null
+  return () => tasks ??= new Map(Object.values(JSON.parse(curlGet('https://json.tarkov.dev/regular/tasks').toString()).data.tasks).map((task) => [task.normalizedName, task]))
+})()
+const CUSTOMS = '56f40101d2720b2a4d8b45d6'
+/**
+ * A PvP profile at level 28 on Customs: the early chains done, four Customs quests taken (their points are on the map),
+ * Gunsmith up to the M4A1 done and the M4A1 taken. Real task ids, so the map and the Overview show their real data.
+ */
+function liveSeed() {
+  const tasks = liveTasks()
+  const id = (name) => tasks.get(name)?.id
+  const active = ['operation-aquarius', 'the-extortionist', 'golden-swag', 'chemical-part-1', 'gunsmith-m4a1'].map(id).filter(Boolean)
+  const done = ['debut', 'shootout-picnic', 'delivery-from-the-past', 'bad-rep-evidence', 'background-check', 'shaking-up-the-teller', 'pharmacist',
+    'gunsmith-mp-133', 'gunsmith-aks-74u', 'gunsmith-hk-mp5', 'gunsmith-model-870', 'gunsmith-aks-74n', 'gunsmith-ak-105', 'gunsmith-mpx',
+    'gunsmith-op-sks', 'gunsmith-p226r', 'gunsmith-vector-9x19'].map(id).filter(Boolean)
+  return { level: 28, active, done, tracked: active.slice(0, 3) }
+}
+const LIVE_SEED = (plan) => `(() => {
+  try {
+    const now = new Date().toISOString()
+    localStorage.setItem('tarkov-map-marker-style', 'modern')
+    localStorage.setItem('raidos.remoteFeatures.v1', JSON.stringify({ minimap: true, minimapChangedAt: '' }))
+    // the map's own default layers (exits, transits, quests; src/domain/mapLayers.ts) and the bosses: no loot clutter
+    localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'customs', hiddenMarkerTypes: [], hiddenMarkerLayers: ['key', 'spawn', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents'] }))
+    const raw = localStorage.getItem('tarkov-operations-profiles-v2')
+    if (!raw) return
+    const state = JSON.parse(raw)
+    const p = state.profiles[0]
+    if (p.__trailerLive) return
+    p.__trailerLive = true
+    p.name = 'Оператор'
+    const plan = ${JSON.stringify(plan)}
+    const m = p.modes.pvp
+    m.playerLevel = plan.level
+    const rec = (taskId, status) => ({ taskId, status, source: 'eft-log', updatedAt: now })
+    m.taskProgress = {}
+    for (const id of plan.done) m.taskProgress[id] = rec(id, 'completed')
+    for (const id of plan.active) m.taskProgress[id] = rec(id, 'active')
+    m.trackedTaskIds = plan.tracked
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify(state))
+    location.reload()
+  } catch (e) { console.warn(e) }
+})()`
+
+const browser = await chromium.launch({ executablePath: process.env.TRAILER_CHROMIUM ?? '/opt/pw-browsers/chromium', args: ['--no-sandbox', '--force-color-profile=srgb', ...(process.env.TRAILER_CHROMIUM_ARGS ?? '').split(' ').filter(Boolean)] })
 
 async function newPage(opts = {}) {
   const context = await browser.newContext({ viewport: opts.viewport ?? { width: 1920, height: 1080 }, deviceScaleFactor: opts.scale ?? 2, locale: LOCALE === 'en' ? 'en-US' : 'ru-RU', reducedMotion: 'reduce' })
@@ -215,6 +311,12 @@ async function newPage(opts = {}) {
       return route.continue()
     }
     if (url.startsWith(SITE)) return route.continue()
+    if (opts.live) {
+      const answer = liveAnswer(url, route.request())
+      if (answer) return route.fulfill(answer)
+      if (process.env.TRAILER_DEBUG) console.log('aborted', url.slice(0, 160))
+      return route.abort()
+    }
     if (url.startsWith('https://api.tarkov.dev/graphql')) return route.fulfill({ status: 200, contentType: 'application/json', body: AMMO_FIXTURE })
     if (/^https?:\/\/([^/]+\.)?tarkov\.dev\//.test(url)) {
       if (/\/maps\//.test(url) || /\.svg(\?|$)/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: MAP_GRID })
@@ -222,6 +324,7 @@ async function newPage(opts = {}) {
       if (own) { try { return route.fulfill({ status: 200, contentType: 'image/png', body: readFileSync(join(SRC, own[1])) }) } catch { /* not cut yet */ } }
       if (/\.(webp|png|jpe?g|gif)(\?|$)/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', body: ITEM_TILE })
     }
+    if (process.env.TRAILER_DEBUG) console.log('aborted', url.slice(0, 160))
     return route.abort()
   })
   await context.addInitScript(([theme, mode, locale]) => {
@@ -234,13 +337,25 @@ async function newPage(opts = {}) {
         localStorage.setItem('tarkov-operations-state-v1', JSON.stringify({ raidMode: mode }))
         localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'customs', hiddenMarkerTypes: [], hiddenMarkerLayers: ['spawn'] }))
         localStorage.setItem('toc.cookie-notice', '1')
+        // the event's first-start story (src/events/ScourgeEventIntro.tsx) seen already
+        localStorage.setItem('raidos-scourge-event-v1', 'seen')
+        // the first-launch tips (src/onboarding/) seen already
+        for (const key of ['raidos-raid-loadout-tip-v1', 'raidos-quest-sync-tip-v1']) localStorage.setItem(key, new Date().toISOString())
       }
     } catch { /* storage blocked */ }
   }, [opts.theme ?? 'tarkov', opts.mode ?? 'pvp', LOCALE])
   if (opts.bridge) await context.addInitScript(BRIDGE)
   if (opts.update) await context.addInitScript((state) => { window.__trailerUpdate = state }, opts.update)
+  if (opts.raid) await context.addInitScript((raid) => { window.__trailerRaid = raid }, opts.raid)
   if (opts.squad) await context.addInitScript(SQUAD_BRIDGE)
   const page = await context.newPage()
+  page.on('crash', () => console.log('page crashed'))
+  if (process.env.TRAILER_DEBUG) {
+    page.on('close', () => console.log('page closed', new Error().stack.split('\n').slice(1, 4).join(' | ')))
+    page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log('console', m.type(), m.text().slice(0, 200)) })
+    await page.exposeFunction('__trailerLog', (x) => console.log('page log', x))
+    await page.addInitScript(() => { const c = window.close; window.close = () => { window.__trailerLog?.('window.close ' + new Error().stack); c.call(window) } })
+  }
   page.on('pageerror', (e) => console.log('pageerror', e.message, (e.stack || '').split('\n').slice(1, 3).join(' | ')))
   return { context, page }
 }
@@ -485,6 +600,105 @@ if (want('minimap')) {
   // where the player's arrow is on the card picture (cardShot pads 12 px), for the ping ring in trailer.html
   console.log('minimap player at (card px, 1x):', await page.evaluate(() => { const c = document.querySelector('.ov-minimap').getBoundingClientRect(); const p = document.querySelector('.ov-player')?.getBoundingClientRect(); const x0 = Math.max(0, c.left - 12), y0 = Math.max(0, c.top - 12); return p && [Math.round(p.left + p.width / 2 - x0), Math.round(p.top + p.height / 2 - y0), Math.round(c.right + 12 - x0), Math.round(c.bottom + 12 - y0)] }))
   console.log('minimap markers in view:', await page.evaluate(() => [...document.querySelectorAll('.ov-marker')].filter((m) => { const r = m.getBoundingClientRect(); const c = document.querySelector('.ov-minimap-map').getBoundingClientRect(); return r.right > c.left && r.left < c.right && r.bottom > c.top && r.top < c.bottom }).length))
+  await context.close()
+}
+
+// 7b. «Карты» in a raid on Customs with the live catalog (see «the live catalog» above): the player's point from the game's
+//     last screenshot on the app's own map (nothing is drawn over the game), and the item card the item key brings up,
+//     top left under «Вид». The player stands between the dorms and the cabin, looking towards the dorms.
+const RAID = () => ({ location: 'bigmap', since: Date.now() - 12 * 60_000, position: { x: 204, y: 2.5, z: 121, yaw: 55, at: Date.now() - 20_000 } })
+async function openLive(hash, opts = {}) {
+  const { context, page } = await newPage({ live: true, squad: true, ...opts })
+  await page.goto(BASE + hash)
+  await settle(page, 1500)
+  await page.evaluate(LIVE_SEED(liveSeed()))
+  await settle(page, 2500)
+  await page.waitForFunction(() => !document.querySelector('.page-loading, .catalog-loading'), null, { timeout: 60000 }).catch(() => {})
+  await page.waitForTimeout(2500)
+  return { context, page }
+}
+/** The item card as the app builds it for the item key (components/ExperimentalBridge.tsx → describeItem), for this profile. */
+async function showItem(page, itemId) {
+  return page.evaluate(async ({ itemId, en }) => {
+    const { fetchTarkovCatalog } = await import('/src/data/tarkovJsonClient.ts')
+    const { describeItem } = await import('/src/overlay/itemInfo.ts')
+    const data = await fetchTarkovCatalog('pvp', en ? 'en' : 'ru')
+    const item = data.items.find((entry) => entry.id === itemId)
+    const progress = JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')).profiles[0].modes.pvp
+    const payload = describeItem(item, data.quests, progress, 'pvp')
+    window.__trailerItem(payload)
+    // TRAILER_RANK: the items with the most open quest needs (Kappa ones first), to pick a telling one
+    const rank = window.__trailerRank ? data.items.map((entry) => describeItem(entry, data.quests, progress, 'pvp'))
+      .filter((info) => info.quests.length && info.iconUrl && info.fleaPrice)
+      .sort((a, b) => b.quests.filter((q) => q.kappa).length - a.quests.filter((q) => q.kappa).length || b.quests.length - a.quests.length)
+      .slice(0, 25).map((info) => `${info.itemId} ${info.name} · ${info.fleaPrice} · ${info.quests.map((q) => `${q.name}${q.kappa ? '[K]' : ''} ${q.purpose}×${q.count}`).join('; ')}${info.collector ? ' · COLLECTOR' : ''}`) : undefined
+    return { payload, rank }
+  }, { itemId, en: LOCALE === 'en' })
+}
+const zoomIn = async (page, times) => { for (let i = 0; i < times; i++) { await page.locator('.leaflet-control-zoom-in').click(); await page.waitForTimeout(450) } }
+if (want('mapitem') || want('mapposition')) {
+  const { context, page } = await openLive('#/maps/customs', { raid: RAID() })
+  await page.mouse.move(1900, 1060)
+  if (process.env.TRAILER_DEBUG) await page.screenshot({ path: join(OUT, 'debug-maps.png') })
+  await zoomIn(page, Number(process.env.MAP_ZOOM ?? 2))
+  // a drag, so the exits east of the player come into view (and the survey grid fills the view)
+  const [wheel, panX, panY] = (process.env.MAP_VIEW ?? '0,-300,70').split(',').map(Number)
+  if (wheel) { await page.mouse.move(1030, 580); await page.mouse.wheel(0, wheel); await page.waitForTimeout(1200) }
+  if (panX || panY) {
+    await page.mouse.move(1300, 300); await page.mouse.down()
+    await page.mouse.move(1300 + panX / 2, 300 + panY / 2, { steps: 8 }); await page.mouse.move(1300 + panX, 300 + panY, { steps: 8 }); await page.mouse.up()
+    await page.waitForTimeout(1200)
+  }
+  await page.mouse.move(1900, 1060)
+  await page.waitForTimeout(1500)
+  if (want('mapposition')) {
+    await shot(page, 'maps-position')
+    // where the player's arrow is (1x px of the shot), for the ping ring in trailer.html
+    console.log('player on maps-position (1x):', await page.evaluate(() => { const r = document.querySelector('.live-player')?.getBoundingClientRect(); return r && [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)] }))
+  }
+  if (want('mapitem')) {
+    if (process.env.TRAILER_RANK) await page.evaluate(() => { window.__trailerRank = true })
+    const { payload, rank } = await showItem(page, process.env.TRAILER_ITEM ?? '62a09cfe4f842e1bd12da3e4')
+    console.log('item card:', JSON.stringify(payload).slice(0, 600))
+    if (rank) console.log(rank.join('\n'))
+    await page.waitForTimeout(2500)
+    await shot(page, 'maps-item')
+    const card = page.locator('.map-item-card').first()
+    if (await card.count()) {
+      await card.screenshot({ path: join(OUT, 'map-item-card.png') })
+      console.log('item card box (1x):', await card.evaluate((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }))
+    } else console.log('item card not found')
+  }
+  await context.close()
+}
+
+// 7c. «Оружейник»: the Overview's block opened at the current part (the M4A1), and the part's page with the build, the
+//     parts with their pictures, prices and sellers
+if (want('gunsmith')) {
+  const { context, page } = await openLive('#/')
+  const panel = page.locator('.gunsmith-panel').first()
+  await panel.waitFor({ timeout: 60000 }).catch(() => console.log('no gunsmith panel'))
+  await panel.locator('.gunsmith-current-name').first().click().catch(() => console.log('no current gunsmith part'))
+  await page.waitForTimeout(6000)
+  await panel.scrollIntoViewIfNeeded()
+  await page.evaluate(() => { const el = document.querySelector('.gunsmith-panel'); if (el) window.scrollBy(0, el.getBoundingClientRect().top - 90) })
+  await page.mouse.move(1900, 1060)
+  await page.waitForTimeout(1500)
+  await shot(page, 'gunsmith-overview')
+  await panel.screenshot({ path: join(OUT, 'gunsmith-panel.png') })
+  await page.evaluate(() => { location.hash = '#/gunsmith' })
+  await page.waitForTimeout(8000)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.mouse.move(1900, 1060)
+  await page.waitForTimeout(800)
+  await shot(page, 'gunsmith-page')
+  // a part card hovered: who sells it and from which loyalty level, what can go instead
+  const part = page.locator('main .gs-part').nth(Number(process.env.GS_HOVER ?? 0))
+  if (await part.count()) {
+    await part.hover()
+    await page.waitForTimeout(2500)
+    await shot(page, 'gunsmith-hover')
+  }
   await context.close()
 }
 

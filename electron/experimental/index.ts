@@ -12,9 +12,10 @@ import { readGameTooltip, retryOcrReadings, type TooltipReading } from '../../sr
 import { findItemCell, type ItemCell } from '../../src/overlay/itemCell.js'
 import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidatesAnswer } from '../../src/overlay/iconMatch.js'
 import { relaunchAsAdmin } from './elevation.js'
-import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
+import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, type SeenScreenshot } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
-import { readSettings, remoteMinimapOn, setRemoteMinimap, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
+import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
+import { createTrackingControl } from './trackingControl.js'
 import { noteRaidSignal } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
 import { foregroundWindowKey } from './win32.js'
@@ -77,18 +78,36 @@ function sendItem(payload: unknown) {
   if (target && !target.isDestroyed()) target.webContents.send('experimental:item', payload)
 }
 
+/** A position older than this probably belongs to a previous raid. */
+const POSITION_MAX_AGE_MS = 20 * 60 * 1000
+/** The last position given to the main window (for the diagnostics in the settings). */
+let positionSentAt = 0
+
 const tracker = new PositionTracker((position) => {
   lastPosition = position
+  // The newest screenshot kept from before a restart (or one synced in late) is no position now: not shown, not relayed.
+  if (Date.now() - position.at >= POSITION_MAX_AGE_MS) return
   // The game writes coordinates only in a raid: the quest scanner holds its screen copies back for a while (raidSignals.ts).
   noteRaidSignal('screenshot', position.at)
   // Raid detection from the logs can lag or miss offline/training raids, so the position is not gated on it: a fresh
   // screenshot from the game is proof enough of where the player stands. The main window draws it on «Карты» and
   // publishes it for the phone.
+  positionSentAt = Date.now()
   options.mainWindow()?.webContents.send('experimental:position', position)
 })
 
-/** A position older than this probably belongs to a previous raid. */
-const POSITION_MAX_AGE_MS = 20 * 60 * 1000
+/** The owner's switch and the player's «Отключить местоположение» (electron/experimental/trackingControl.ts). */
+const tracking = createTrackingControl({
+  tracker,
+  readSettings,
+  setScreenshotsOverride,
+  onOff: () => {
+    lastPosition = null
+    // The dot goes from «Карты» at once (and nothing more is relayed to the phone).
+    const target = options.mainWindow()
+    if (target && !target.isDestroyed()) target.webContents.send('experimental:position', null)
+  },
+})
 // None while the tracking is off (the owner's switch or the player's): no dot on the maps from before it went off.
 const freshPosition = () => lastPosition && trackingOn(readSettings()) && Date.now() - lastPosition.at < POSITION_MAX_AGE_MS ? lastPosition : null
 
@@ -153,9 +172,14 @@ function registerIpc() {
     hookReady: nativeKeysAvailable(),
     hookError: nativeError() || hookError,
     tracking: tracker.running,
+    // Why the dot may not come, for the settings' diagnostics (src/overlay/PositionSetupCard.tsx).
+    remoteMinimap: remoteMinimapOn(),
+    trackingOn: trackingOn(readSettings()),
+    watchedFolders: tracker.folders,
+    positionSentAt: positionSentAt || null,
     screenshotsFolder: screenshotsFolder(),
     screenshotCandidates: screenshotFolderCandidates(),
-    lastScreenshot: tracker.lastSeen,
+    lastScreenshot: describeSeen(tracker.lastSeen),
     screenshotKey: await resolveScreenshotKey(),
     otherKeys: [readSettings().itemKey, readSettings().collectorKey].filter(Boolean),
     elevated: isElevated(),
@@ -190,30 +214,24 @@ function registerIpc() {
   // The owner's switch for every app, as the renderer learnt it from the server (src/announcement/features.ts): off, the
   // screenshots folder's watch and the position go at once, like the player's own «Отключить местоположение». A second
   // argument (the window over the game of the apps before 15.10.2026) is ignored: no app window is drawn over the game.
-  ipcMain.handle('experimental:set-remote-minimap', (_event, enabled: unknown) => applyRemoteMinimap(enabled === true))
+  // Returns whether the position tracking is on now (the owner's switch and the player's).
+  ipcMain.handle('experimental:set-remote-minimap', (_event, enabled: unknown) => tracking.setRemote(enabled === true))
 }
 
-/** Returns whether the position tracking is on now (the owner's switch and the player's). */
-function applyRemoteMinimap(enabled: boolean) {
-  if (remoteMinimapOn() !== enabled) {
-    setRemoteMinimap(enabled)
-    if (!enabled) lastPosition = null
-    applySettings(readSettings())
-  }
-  return trackingOn(readSettings())
-}
-
-let appliedScreenshotsDir: string | null = null
-
+/**
+ * The settings applied: the screenshots folders are followed while the owner's switch and the player's are on (see
+ * electron/experimental/trackingControl.ts). The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу.
+ * не программа»): the screenshots the player takes with the game's own key move the marker.
+ */
 function applySettings(settings: ExperimentalSettings) {
-  if (appliedScreenshotsDir !== null && appliedScreenshotsDir !== settings.screenshotsDir) tracker.stop()
-  appliedScreenshotsDir = settings.screenshotsDir
-  setScreenshotsOverride(settings.screenshotsDir)
-  // «Отключить местоположение» or the owner's switch: nothing watches the screenshots folder for a position.
-  if (settings.tracking && trackingOn(settings)) void tracker.start()
-  else tracker.stop()
-  // The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу. не программа»): the screenshots the
-  // player takes with the game's own key move the marker.
+  tracking.apply(settings)
+}
+
+/** The newest new screenshot for the diagnostics: its name, folder, time and the position read from its name. */
+function describeSeen(seen: SeenScreenshot | null) {
+  if (!seen) return null
+  const { position, ...rest } = seen
+  return { ...rest, position: position ? { x: position.x, y: position.y, z: position.z } : null, stale: Date.now() - seen.at >= POSITION_MAX_AGE_MS }
 }
 
 function startHook() {
