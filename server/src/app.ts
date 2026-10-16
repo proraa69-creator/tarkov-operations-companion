@@ -56,6 +56,8 @@ import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
+import { EventQuestStore } from './services/eventQuestStore.js'
+import { createEventQuestsRouter } from './routes/eventQuests.js'
 import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
@@ -117,6 +119,10 @@ export interface ApiOptions {
   catalogSnapshot?: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
   /** The quest base the owner's report reads (routes/questBase.ts); default: the server's (services/catalogService.ts). */
   questBase?: { report: () => QuestBaseReport }
+  /** «Ивент-квесты» (routes/eventQuests.ts); default: a store on the accounts' database. */
+  eventQuests?: EventQuestStore
+  /** After every saved event quest: the quest base builds the catalog again (index.ts; tests leave it out). */
+  eventQuestsChanged?: () => void
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
@@ -296,6 +302,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // «Ивент-квесты» the owner adds and edits: read by every player, written by the owner (routes/eventQuests.ts). The apps
+  // lay them over their catalog at once; the quest base builds them into the catalog shortly after.
+  app.use(createEventQuestsRouter(accounts, options.eventQuests ?? new EventQuestStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => {
+    mapUpdates.changed()
+    try { options.eventQuestsChanged?.() } catch { /* the next scheduled build picks the change up */ }
+  }))
   // Quest requirements the owner curated in the quest constructor (items / keys from the catalog): read by every player,
   // written by the owner (routes/questRequirements.ts).
   app.use(createQuestRequirementsRouter(accounts, new QuestRequirementStore(accounts.database), {
