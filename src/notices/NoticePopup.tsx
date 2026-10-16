@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, ImageOff, LoaderCircle, Megaphone, X } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { localized, type PlayerNotice } from '../shared/notices'
-import { noticeImage } from './noticeInbox'
 
 /**
  * One of the owner's announcements as a window over the app (owner, 15.10.2026: «в всплывающем окне, я нажал и при входе
@@ -10,7 +9,11 @@ import { noticeImage } from './noticeInbox'
  * language when the owner wrote that language (else Russian), the photos as a small gallery that opens full size, the
  * owner's button (a link opened in the system browser) and «Понятно», which closes it for good on every device.
  */
-export function NoticePopup({ notice, locale, onClose, previewImages }: { notice: PlayerNotice; locale: 'ru' | 'en'; onClose: () => void; previewImages?: string[] }) {
+/** One photo of an announcement as a URL (noticeInbox.ts noticeImage in the apps); a parameter so the owner's «Тест» on
+ * the website needs none of the app's server code. */
+export type NoticeImageLoader = (id: number, idx: number) => Promise<string>
+
+export function NoticePopup({ notice, locale, onClose, previewImages, loadImage }: { notice: PlayerNotice; locale: 'ru' | 'en'; onClose: () => void; previewImages?: string[]; loadImage?: NoticeImageLoader }) {
   const [full, setFull] = useState<string | null>(null)
   const close = useRef<HTMLButtonElement>(null)
   useEffect(() => { close.current?.focus() }, [notice.id])
@@ -32,7 +35,7 @@ export function NoticePopup({ notice, locale, onClose, previewImages }: { notice
                 <li key={idx}><button type="button" className="notice-photo" aria-label={`${uiLabel('Открыть фото')} ${idx + 1}`} onClick={() => setFull(url)}><img src={url} alt="" /></button></li>
               ))}
             </ul>
-          : notice.images > 0 && <NoticeGallery id={notice.id} count={notice.images} onOpen={setFull} />}
+          : notice.images > 0 && loadImage && <NoticeGallery id={notice.id} count={notice.images} load={loadImage} onOpen={setFull} />}
         <div className="notice-actions">
           {notice.button && (
             <a className="button ghost" href={notice.button.url} target="_blank" rel="noopener noreferrer">
@@ -53,16 +56,16 @@ export function NoticePopup({ notice, locale, onClose, previewImages }: { notice
 }
 
 /** The photos as thumbnails, loaded one by one; a click opens one full size. */
-function NoticeGallery({ id, count, onOpen }: { id: number; count: number; onOpen: (url: string) => void }) {
+function NoticeGallery({ id, count, load, onOpen }: { id: number; count: number; load: NoticeImageLoader; onOpen: (url: string) => void }) {
   const [urls, setUrls] = useState<Array<string | null | undefined>>(() => Array.from({ length: count }, () => undefined))
   useEffect(() => {
     let alive = true
-    Array.from({ length: count }, (_, idx) => noticeImage(id, idx).then(
+    Array.from({ length: count }, (_, idx) => load(id, idx).then(
       (url) => { if (alive) setUrls((current) => current.map((value, at) => (at === idx ? url : value))) },
       () => { if (alive) setUrls((current) => current.map((value, at) => (at === idx ? null : value))) },
     ))
     return () => { alive = false }
-  }, [id, count])
+  }, [id, count, load])
   return (
     <ul className={`notice-gallery count-${count}`} aria-label={uiLabel('Фото')}>
       {urls.map((url, idx) => (

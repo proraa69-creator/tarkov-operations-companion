@@ -4,7 +4,7 @@ import { useCountryGate } from '../account/initialCountry'
 import { useLocale } from '../i18n/LocaleProvider'
 import { raidRunning, useRaidState } from '../app/useRaidState'
 import { logoutFromServer } from '../sync/serverSync'
-import { closeNotice, putOffSurvey, reportSeen, useNoticeInbox, useNoticesFirst } from './noticeInbox'
+import { closeNotice, noticeImage, putOffSurvey, reportSeen, useNoticeInbox, useNoticesFirst } from './noticeInbox'
 import { NoticePopup } from './NoticePopup'
 import { SurveyPopup } from './SurveyPopup'
 import './notices.css'
@@ -37,7 +37,7 @@ export function AccountNotices() {
 
   if (gate.missing) return <CountryGateDialog onSaved={gate.saved} onSignOut={() => { void logoutFromServer() }} />
   if (inRaid && !keep) return null
-  if (notice) return <NoticePopup key={notice.id} notice={notice} locale={locale} onClose={() => closeNotice(notice.id)} />
+  if (notice) return <NoticePopup key={notice.id} notice={notice} locale={locale} loadImage={noticeImage} onClose={() => closeNotice(notice.id)} />
   if (survey) return <SurveyPopup key={survey.id} survey={survey} locale={locale} onLater={() => putOffSurvey(survey.id)} />
   return null
 }
