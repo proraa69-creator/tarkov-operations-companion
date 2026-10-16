@@ -156,6 +156,9 @@ const WEAPON_CASE = '59fb023c86f7746d0d4b423c'
 const V3_FLASH_DRIVE = '6331bb0d1aa9f42b804997a6'
 const DOGTAG_BEAR = '59f32bb586f774757e1e8442'
 const DOGTAG_USEC = '59f32c3b86f77472a31742f0'
+const SVDS = '5c46fbd72e2216398b5a8c9c'
+const SVD_MAG_10 = '5c471c442e221602b542a6f8'
+const PS_GZH_PACK_20 = '6570257cc5d7d4cb4d078579'
 
 /** Traders of the standing rewards, as the reward lines name them. */
 const STANDING_NAMES: Record<string, Text> = { [LIGHTKEEPER]: { ru: 'Смотрителя', en: 'Lightkeeper' } }
@@ -617,8 +620,61 @@ export const SCOURGE_INVASION: CuratedSeries = {
   ],
 }
 
+export const BALANCE_SHIFT_QUEST_IDS = {
+  fogOfWar: 'raidos-balance-fog-of-war',
+} as const
+
+/**
+ * «Смещение баланса» (event of 8.09.2026, temporary): Prapor's «Туман войны» on Lighthouse, which a player has in the game
+ * (PvP and PvE screenshots, 16.10.2026) while tarkov.dev lists it in no mode. Objectives and rewards as tarkov.help gives
+ * them (ru and en), checked against the ru and en wiki and the BLAST guide (all three places in one raid, Prapor
+ * loyalty 2). The previous quest («Ключевые квесты» on tarkov.help) is no quest of tarkov.dev's, so the quest has none
+ * here; the id is our own and the quest steps aside as soon as tarkov.dev lists a quest of the same title.
+ */
+export const BALANCE_SHIFT: CuratedSeries = {
+  id: 'balance-shift',
+  name: { ru: 'Смещение баланса', en: 'Balance Shift' },
+  route: { ru: 'временный ивент', en: 'temporary event' },
+  event: true,
+  gameVersion: 'event 09.2026',
+  checkedAt: '2026-10-16',
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'https://tarkov.help/ru/quest/fog-of-war', 'https://tarkov.help/en/quest/fog-of-war',
+    'https://escapefromtarkov.fandom.com/ru/wiki/Туман_войны', 'https://escapefromtarkov.fandom.com/wiki/Fog_of_War',
+    'https://blast.tv/gaming/news/escape-from-tarkov-fog-of-war-task-guide',
+  ],
+  quests: [
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.fogOfWar,
+      trader: PRAPOR,
+      name: { ru: 'Туман войны', en: 'Fog of War' },
+      experience: 10_000,
+      objectives: [
+        {
+          type: 'visit', maps: ['lighthouse'],
+          text: { ru: 'Разведать позицию отступников с БРДМ в северной части комплекса очистных сооружений', en: 'Scout the Rogues\' position near the BRDM car in the northern part of the water treatment plant on Lighthouse' },
+        },
+        {
+          type: 'visit', maps: ['lighthouse'],
+          text: { ru: 'Посетить блокпост отступников с дозорной вышкой в юго-западной части очистных сооружений', en: 'Scout the Rogues\' checkpoint with the guard tower in the southwestern part of the water treatment plant on Lighthouse' },
+        },
+        {
+          type: 'visit', maps: ['lighthouse'],
+          text: { ru: 'Осмотреть территорию очистных сооружений с крыши любого из корпусов', en: 'Scout the water treatment plant territory from the roof of any of the plant buildings on Lighthouse' },
+        },
+      ],
+      rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 42]],
+      note: {
+        ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, где стоят отступники: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Лучше пройти все три за один рейд. Отступники стреляют без предупреждения — идите подготовленными. Следующее задание — «Абонент временно недоступен».',
+        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Subscriber Temporarily Unavailable».',
+      },
+    },
+  ],
+}
+
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, SCOURGE_INVASION]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, SCOURGE_INVASION, BALANCE_SHIFT]
 
 export interface CuratedTaskContext {
   mode: RaidMode
