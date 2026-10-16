@@ -67,3 +67,28 @@
 .quest-item-results span { display: grid; min-width: 0; }
 .quest-item-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .quest-item-results small { color: var(--text-dim); font-size: 11px; }
+
+/* «Ивент-квесты» (owner app, components/EventQuestsEditor.tsx): the list and the full editor of one event quest. */
+.event-quests-open { justify-self: start; }
+.event-quests, .event-quest-form { display: grid; gap: 8px; }
+.event-quests .quest-point-head strong { display: inline-flex; align-items: center; gap: 5px; }
+.event-quest-row.is-off { opacity: .6; }
+.event-quest-pair { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.event-quest-pair legend, .event-quest-label { padding: 0; margin-bottom: 2px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.event-quest-form .input { width: 100%; min-height: 30px; padding: 4px 8px; font-size: 12px; line-height: 1.4; }
+.event-quest-form textarea.input { resize: vertical; }
+.event-quest-form .quest-req-form-row .input { width: auto; }
+.event-quest-form .quest-req-count { width: 90px; }
+.event-quest-field { display: grid; gap: 2px; min-width: 0; flex: 1 1 140px; }
+.event-quest-field .input { width: 100% !important; }
+.event-quest-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.event-quest-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.event-quest-chips .event-quest-label { flex-basis: 100%; margin: 0; }
+.event-quest-items { display: grid; gap: 4px; }
+.event-quest-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 7px; background: rgb(255 255 255 / 3%); }
+.event-quest-item:not(:has(img, .quest-req-icon)) { grid-template-columns: minmax(0, 1fr) auto; }
+.event-quest-item img, .event-quest-item .quest-req-icon { width: 24px; height: 24px; object-fit: contain; }
+.event-quest-item > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.event-quest-skill { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 4px; align-items: center; }
+.event-quest-objective { grid-column: auto; }
+.event-quest-objective .quest-req-actions { grid-column: auto; margin-left: auto; }

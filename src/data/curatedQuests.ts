@@ -21,7 +21,8 @@ import type { AppLocale } from '../i18n/LocaleProvider'
 
 type JsonRecord = Record<string, unknown>
 
-interface Text { ru: string; en: string }
+export interface CuratedText { ru: string; en: string }
+type Text = CuratedText
 
 /**
  * A place by the map's normalizedName and a key the translation leaves alone: in the tarkov.dev maps file (`<mode>/maps`)
@@ -51,7 +52,7 @@ export interface ArchivedZone {
   bottom?: number
 }
 
-interface CuratedObjective {
+export interface CuratedObjective {
   /** tarkov.dev objective type; `hideout` (return to the hideout) and `transit` are the game's, tarkov.dev has no name for them. */
   type: string
   text: Text
@@ -73,7 +74,7 @@ interface CuratedObjective {
   spots?: CuratedSpot[]
 }
 
-interface CuratedQuest {
+export interface CuratedQuest {
   /** The game's quest id (the id in the game's log notifications). */
   id: string
   trader: string
@@ -105,6 +106,12 @@ interface CuratedQuest {
    * the data (those belong in docs/quests/na-svet-audit.md).
    */
   note: Text
+  /** The modes the quest is in, when not every mode of its series (the owner's event quests, src/data/eventQuestDefinitions.ts). */
+  modes?: readonly RaidMode[]
+  /** ISO time the event ends: from then on the app leaves the quest out (default: the series' `endsAt`). */
+  endsAt?: string
+  /** Switched off by the owner: left out everywhere. */
+  hidden?: boolean
 }
 
 export interface CuratedSeries {
@@ -117,6 +124,10 @@ export interface CuratedSeries {
   modes: readonly RaidMode[]
   sources: readonly string[]
   quests: readonly CuratedQuest[]
+  /** An in-game event (the owner edits its quests in «Ивент-квесты», src/components/EventQuestsEditor.tsx). */
+  event?: boolean
+  /** ISO time the event ends: its quests are left out from then on (a quest's own `endsAt` comes first). */
+  endsAt?: string
 }
 
 const PRAPOR = '54cb50c76803fa8b248b4571'
@@ -475,6 +486,9 @@ export const SCOURGE_INVASION: CuratedSeries = {
   id: 'scourge-invasion',
   name: { ru: 'Вторжение Scourge', en: 'Scourge Invasion' },
   route: { ru: 'ивент до 20 октября', en: 'event until 20 October' },
+  event: true,
+  // the game ends the event on 20 October 2026, 08:00 BST (src/events/scourgeEvent.ts `SCOURGE_EVENT_END`)
+  endsAt: '2026-10-20T07:00:00.000Z',
   gameVersion: 'event 10.2026',
   checkedAt: '2026-10-16',
   // the event runs in every mode (owner, 16.10.2026: «он спавнится во всех режимах»)
@@ -544,6 +558,10 @@ export interface CuratedTaskContext {
   maps: JsonRecord
   /** tarkov.dev `<mode>/traders`: a quest is added only when the feed has its trader. */
   traders: JsonRecord
+  /** The series to add: default the built-in ones; the server and the app pass them with the owner's event quests (src/data/eventQuestDefinitions.ts). */
+  series?: readonly CuratedSeries[]
+  /** For the events' end (`endsAt`); default now. */
+  now?: number
 }
 
 export interface CuratedTasks {
@@ -553,10 +571,27 @@ export interface CuratedTasks {
   added: ReadonlySet<string>
 }
 
-/** The curated quests this mode has, with their series and their place in it (1-based). */
-export function curatedQuestsFor(mode: RaidMode): Array<{ series: CuratedSeries; quest: CuratedQuest; order: number }> {
-  return CURATED_SERIES.filter((series) => series.modes.includes(mode))
-    .flatMap((series) => series.quests.map((quest, index) => ({ series, quest, order: index + 1 })))
+/** Whether a quest is shown at all: not switched off and its event (the quest's own end, else the series') not over. */
+export function curatedQuestLive(series: CuratedSeries, quest: CuratedQuest, now: number = Date.now()) {
+  if (quest.hidden) return false
+  const end = Date.parse(quest.endsAt ?? series.endsAt ?? '')
+  return !Number.isFinite(end) || now < end
+}
+
+/** The modes a quest is in: its own, else its series'. */
+export function curatedQuestModes(series: CuratedSeries, quest: CuratedQuest): readonly RaidMode[] {
+  return quest.modes ?? series.modes
+}
+
+/** The shown quests of a series, in its order: «задание N из M» counts these. */
+function liveQuests(series: CuratedSeries, now: number) {
+  return series.quests.filter((quest) => curatedQuestLive(series, quest, now))
+}
+
+/** The curated quests this mode has, with their series and their place in it (1-based, among the series' shown quests). */
+export function curatedQuestsFor(mode: RaidMode, list: readonly CuratedSeries[] = CURATED_SERIES, now: number = Date.now()): Array<{ series: CuratedSeries; quest: CuratedQuest; order: number }> {
+  return list.flatMap((series) => liveQuests(series, now).map((quest, index) => ({ series, quest, order: index + 1 })))
+    .filter(({ series, quest }) => curatedQuestModes(series, quest).includes(mode))
 }
 
 /**
@@ -572,7 +607,7 @@ export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskCont
   const next: JsonRecord = { ...tasks }
   // A quest tarkov.dev already lists under its own id (our id is not the game's): the same title in this language.
   const titles = new Set(Object.values(tasks).map((task) => text(asRecord(task).name).trim().toLowerCase()).filter(Boolean))
-  for (const { quest } of curatedQuestsFor(context.mode)) {
+  for (const { quest } of curatedQuestsFor(context.mode, context.series ?? CURATED_SERIES, context.now ?? Date.now())) {
     if (tasks[quest.id] || !traderIds.has(quest.trader)) continue
     if ([quest.name[context.locale], ...(quest.aliases ?? [])].some((title) => titles.has(title.trim().toLowerCase()))) continue
     next[quest.id] = rawTask(quest, context.locale, spots)
@@ -590,17 +625,24 @@ export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskCont
  * which points are missing), the other titles, the items to bring of `useAny` objectives, and the start rewards, the
  * standing and the craft the quest unlocks as reward lines.
  */
-export function applyCuratedQuestNotes(quests: Quest[], added: ReadonlySet<string>, locale: AppLocale, items: Map<string, Item>): Quest[] {
+export function applyCuratedQuestNotes(
+  quests: Quest[], added: ReadonlySet<string>, locale: AppLocale, items: Map<string, Item>,
+  list: readonly CuratedSeries[] = CURATED_SERIES, now: number = Date.now(),
+): Quest[] {
   if (!added.size) return quests
-  const curated = new Map(CURATED_SERIES.flatMap((series) => series.quests.map((quest, index) => [quest.id, { series, quest, order: index + 1 }] as const)))
+  const curated = new Map(list.flatMap((series) => {
+    const live = liveQuests(series, now)
+    return live.map((quest, index) => [quest.id, { series, quest, order: index + 1, total: live.length }] as const)
+  }))
   const itemName = (id: string) => items.get(id)?.name ?? id
   return quests.map((row) => {
     const entry = added.has(row.id) ? curated.get(row.id) : undefined
     if (!entry) return row
-    const { series, quest, order } = entry
+    const { series, quest, order, total } = entry
+    const route = series.route[locale].trim()
     const lead = locale === 'en'
-      ? `${series.name.en} series (${series.route.en}), task ${order} of ${series.quests.length}.`
-      : `Серия «${series.name.ru}» (${series.route.ru}), задание ${order} из ${series.quests.length}.`
+      ? `${series.name.en} series${route ? ` (${route})` : ''}, task ${order} of ${total}.`
+      : `Серия «${series.name.ru}»${route ? ` (${route})` : ''}, задание ${order} из ${total}.`
     const objectiveIds = row.objectiveIds ?? []
     const bring = (quest.bring ?? []).flatMap((need) => need.itemIds.map((itemId) => ({
       itemId,
@@ -619,9 +661,11 @@ export function applyCuratedQuestNotes(quests: Quest[], added: ReadonlySet<strin
       ...(quest.craftUnlock ? [`${locale === 'en' ? 'Unlocks the craft' : 'Открывает крафт'}: ${itemName(quest.craftUnlock.itemId)} (${quest.craftUnlock.station[locale]})`] : []),
     ]
     const aliases = [...new Set([...(row.ocrAliases ?? []), ...(quest.aliases ?? [])])]
+    const note = quest.note[locale].trim()
     return {
       ...row,
-      description: `${lead} ${quest.note[locale]}`,
+      curatedSeriesId: series.id,
+      description: note ? `${lead} ${note}` : lead,
       ...(aliases.length ? { ocrAliases: aliases } : {}),
       rewards: [...row.rewards, ...extraRewards],
       raidRequirements: [...(row.raidRequirements ?? []), ...bring],
@@ -721,7 +765,7 @@ function rawTask(quest: CuratedQuest, locale: AppLocale, spots: SpotIndex): Json
     neededKeys: [],
     availableDelaySecondsMin: quest.delay?.[0] ?? 0,
     availableDelaySecondsMax: quest.delay?.[1] ?? 0,
-    normalizedName: slug(quest.name.en),
+    normalizedName: slug(quest.name.en) || slug(quest.id),
     kappaRequired: false,
     lightkeeperRequired: false,
     map: null,

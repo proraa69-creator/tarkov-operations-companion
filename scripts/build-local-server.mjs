@@ -4,6 +4,7 @@
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { rm } from 'node:fs/promises'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 // esbuild ships with the server's dev dependencies (tsx).
@@ -36,4 +37,7 @@ await build({
   build: { outDir: join(root, 'dist-electron', 'website'), emptyOutDir: true },
   logLevel: 'warn',
 })
+// The event clip (20 MB) stays on raidos.app only: the app plays it from there (src/events/scourgeEvent.ts), and
+// carrying it in every exe would only make the download and the updates bigger.
+await rm(join(root, 'dist-electron', 'website', 'media', 'scourge-invasion.mp4'), { force: true })
 console.log('Website → dist-electron/website')

@@ -360,6 +360,14 @@ export class QuestBase {
     this.mirrorTimer.unref?.()
   }
 
+  /**
+   * The owner changed what a build adds (his event quests, routes/eventQuests.ts): every mode is built again once he
+   * stops editing (the same quiet period as the mirror's, so a burst of edits makes one build).
+   */
+  contentChanged() {
+    this.mirrorUpdated(QUEST_BASE_MODES)
+  }
+
   /** The owner's view: per mode the version, its sources and counts, what changed, and the builder's state. */
   report(): QuestBaseReport {
     const iso = (value: number | undefined) => (value === undefined || !Number.isFinite(value) ? null : new Date(value).toISOString())

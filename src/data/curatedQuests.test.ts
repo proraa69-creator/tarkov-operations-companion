@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest'
 import type { RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
 import { PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
+import { definitionOfBuiltIn, eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
+import { SCOURGE_EVENT_END } from '../events/scourgeEvent'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import { FEED_TASK_IDS, INFORMATION_SOURCE_ID, toTheLightFetcher, type FeedOptions } from './__fixtures__/toTheLightFeed'
 import ownerLogs from '../progression/__fixtures__/owner-logs-2026-09.json'
 
 const noWiki = { wiki: async () => ({ titles: [], pages: [], storyQuests: [] }) }
-const build = (mode: RaidMode, locale: 'ru' | 'en', options: FeedOptions = {}) => fetchLiveCatalog(mode, locale, toTheLightFetcher(options), noWiki)
+/** During «Вторжение Scourge» (the event ends on 20.10.2026), whatever day the tests run. */
+const DURING_EVENT = Date.UTC(2026, 9, 16, 12)
+const build = (mode: RaidMode, locale: 'ru' | 'en', options: FeedOptions = {}, eventQuests: EventQuestDefinition[] = [], now = DURING_EVENT) =>
+  fetchLiveCatalog(mode, locale, toTheLightFetcher(options), { ...noWiki, eventQuests: () => eventQuests, now })
 
 const ORDER = [
   TO_THE_LIGHT_IDS.trustButVerify, TO_THE_LIGHT_IDS.falseCall, TO_THE_LIGHT_IDS.someoneCalled, TO_THE_LIGHT_IDS.clipTheirWings,
@@ -298,8 +303,118 @@ describe('«Вторжение Scourge»: the event quests from the owner\'s scr
     expect(SCOURGE_INVASION.modes).toEqual(['pvp', 'pve', 'seasonal'])
     const tasks = { tasks: { real: { id: '6b0000000000000000000001', name: 'Скрытый маршрут', trader: '54cb57776803fa99248b456e', objectives: [] } } }
     const traders = { a: { id: '54cb57776803fa99248b456e' } }
-    const result = withCuratedTasks(tasks, { mode: 'pvp', locale: 'ru', maps: {}, traders })
+    const result = withCuratedTasks(tasks, { mode: 'pvp', locale: 'ru', maps: {}, traders, now: DURING_EVENT })
     expect(result.added.has(SCOURGE_QUEST_IDS.hiddenRoute)).toBe(false)
+    expect(result.added.has(SCOURGE_QUEST_IDS.simpleTask)).toBe(true)
+  })
+
+  it('ends with the event (20.10.2026, the same moment as the app\'s event notices)', async () => {
+    expect(Date.parse(SCOURGE_INVASION.endsAt!)).toBe(SCOURGE_EVENT_END)
+    const before = await build('pvp', 'ru', {}, [], SCOURGE_EVENT_END - 1)
+    const after = await build('pvp', 'ru', {}, [], SCOURGE_EVENT_END)
+    expect(before.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)).toBe(true)
+    expect(after.quests.some((quest) => (Object.values(SCOURGE_QUEST_IDS) as string[]).includes(quest.id))).toBe(false)
+    // «На свет» is not an event: it stays
+    expect(after.quests.some((quest) => quest.id === TO_THE_LIGHT_IDS.trustButVerify)).toBe(true)
+  })
+})
+
+describe('«Ивент-квесты»: the owner\'s definitions over the built-in series (src/data/eventQuestDefinitions.ts)', () => {
+  const builtIn = (id: string) => {
+    const quest = SCOURGE_INVASION.quests.find((entry) => entry.id === id)!
+    return definitionOfBuiltIn(SCOURGE_INVASION, quest)
+  }
+  /** «???» renamed by the owner, the rest as it was. */
+  const renamed: EventQuestDefinition = {
+    ...builtIn(SCOURGE_QUEST_IDS.coordination),
+    name: { ru: 'Нарушить координацию', en: 'Disrupt the Coordination' },
+    updatedAt: '2026-10-16T12:00:00.000Z',
+  }
+  const fourth: EventQuestDefinition = {
+    id: 'raidos-event-green1',
+    trader: '54cb57776803fa99248b456e',
+    name: { ru: 'Зелёный коридор', en: '' },
+    after: [SCOURGE_QUEST_IDS.coordination],
+    experience: 30_000,
+    objectives: [{ type: 'giveItem', count: 2, items: ['5c1d0d6d86f7744bb2683e1f'], foundInRaid: true, text: { ru: 'Передать жёлтую ключ-карту', en: 'Hand over the yellow keycard' } }],
+    rewards: [['5449016a4bdc2d6f028b456f', 100_000]],
+    skills: [{ ru: 'Здоровье +1 уровень', en: '' }],
+    note: { ru: 'Четвёртое задание цепочки.', en: '' },
+    modes: ['pvp', 'pve'],
+    series: { name: { ru: 'Вторжение Scourge', en: 'Scourge Invasion' }, route: { ru: 'ивент до 20 октября', en: 'event until 20 October' } },
+    endsAt: SCOURGE_INVASION.endsAt,
+    createdAt: '2026-10-16T12:01:00.000Z',
+  }
+  const own: EventQuestDefinition = {
+    ...fourth,
+    id: 'raidos-event-halloween',
+    name: { ru: 'Тыквенный рейд', en: 'Pumpkin Raid' },
+    after: [],
+    modes: ['pvp'],
+    series: { name: { ru: 'Хэллоуин', en: 'Halloween' }, route: { ru: 'ивент до 3 ноября', en: '' } },
+    endsAt: '2026-11-03T07:00:00.000Z',
+  }
+
+  it('a built-in quest\'s id replaces its fields: «???» gets its title, the rest of the series stays', async () => {
+    for (const locale of ['ru', 'en'] as const) {
+      const catalog = await build('pve', locale, {}, [renamed])
+      const third = catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!
+      expect(third.name).toBe(locale === 'ru' ? 'Нарушить координацию' : 'Disrupt the Coordination')
+      expect(third.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
+      expect(third.objectiveDetails?.map((objective) => [objective.type, objective.count])).toEqual([['shoot', 6]])
+      expect(third.curatedSeriesId).toBe(SCOURGE_INVASION.id)
+      expect(catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)?.name).toBe(locale === 'ru' ? 'Скрытый маршрут' : 'Hidden Route')
+    }
+    // «???» is no title: it is not kept as another title of the quest
+    const merged = eventSeriesWith([renamed]).find((series) => series.id === SCOURGE_INVASION.id)!
+    expect(merged.quests[2].aliases).toBeUndefined()
+    // the map place of the first quest is the built-in one's, kept where the editor has no field
+    const route = eventSeriesWith([{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), name: { ru: 'Маршрут', en: 'Route' } }])[1].quests[0]
+    expect(route.objectives[0].spots).toEqual([{ map: 'factory', transit: '14' }])
+    expect(route.aliases).toEqual(['Скрытый маршрут', 'Hidden Route'])
+  })
+
+  it('a new id adds a quest to the series of the same name (task 4 of 4) or to a series of its own, in its modes only', async () => {
+    const pve = await build('pve', 'ru', {}, [renamed, fourth, own])
+    const added = pve.quests.find((quest) => quest.id === fourth.id)!
+    expect(added.name).toBe('Зелёный коридор')
+    expect(added.trader).toBe('Терапевт')
+    expect(added.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.coordination])
+    expect(added.description).toBe('Серия «Вторжение Scourge» (ивент до 20 октября), задание 4 из 4. Четвёртое задание цепочки.')
+    expect(added.raidRequirements?.map((need) => [need.itemId, need.count, need.purpose, need.foundInRaid])).toEqual([['5c1d0d6d86f7744bb2683e1f', 2, 'handover', true]])
+    expect(added.rewards.join(' | ')).toContain('Здоровье +1 уровень')
+    expect(pve.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!.description).toContain('задание 1 из 4.')
+    expect(pve.quests.some((quest) => quest.id === own.id)).toBe(false)
+    const english = await build('pve', 'en', {}, [renamed, fourth, own])
+    expect(english.quests.find((quest) => quest.id === fourth.id)!.name).toBe('Зелёный коридор') // no English title: the Russian one
+    const pvp = await build('pvp', 'ru', {}, [renamed, fourth, own])
+    const halloween = pvp.quests.find((quest) => quest.id === own.id)!
+    expect(halloween.description).toBe('Серия «Хэллоуин» (ивент до 3 ноября), задание 1 из 1. Четвёртое задание цепочки.')
+    expect((await build('seasonal', 'ru', {}, [renamed, fourth, own])).quests.some((quest) => quest.id === fourth.id)).toBe(false)
+  })
+
+  it('a switched-off quest is left out and the series counts without it; the event\'s end hides a quest, an override may clear it', async () => {
+    const off = await build('pvp', 'ru', {}, [{ ...builtIn(SCOURGE_QUEST_IDS.simpleTask), hidden: true }])
+    expect(off.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.simpleTask)).toBe(false)
+    expect(off.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!.description).toContain('задание 2 из 2.')
+
+    const later = SCOURGE_EVENT_END + 60_000
+    const extended = { ...renamed, endsAt: '2026-10-27T07:00:00.000Z' }
+    const noEnd: EventQuestDefinition = { ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute) }
+    delete noEnd.endsAt
+    const after = await build('pvp', 'ru', {}, [extended, noEnd, fourth], later)
+    expect(after.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)).toBe(true)
+    expect(after.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)).toBe(true)
+    expect(after.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.simpleTask)).toBe(false)
+    expect(after.quests.some((quest) => quest.id === fourth.id)).toBe(false)
+    expect((await build('pvp', 'ru', {}, [extended], Date.parse('2026-10-27T07:00:00.000Z'))).quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)).toBe(false)
+  })
+
+  it('an owner\'s title tarkov.dev already has steps aside as the built-in ones do', () => {
+    const tasks = { tasks: { real: { id: '6b0000000000000000000002', name: 'Нарушить координацию', trader: '54cb57776803fa99248b456e', objectives: [] } } }
+    const traders = { a: { id: '54cb57776803fa99248b456e' } }
+    const result = withCuratedTasks(tasks, { mode: 'pvp', locale: 'ru', maps: {}, traders, series: eventSeriesWith([renamed]), now: DURING_EVENT })
+    expect(result.added.has(SCOURGE_QUEST_IDS.coordination)).toBe(false)
     expect(result.added.has(SCOURGE_QUEST_IDS.simpleTask)).toBe(true)
   })
 })

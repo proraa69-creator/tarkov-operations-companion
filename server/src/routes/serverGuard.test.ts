@@ -62,6 +62,8 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/quest-texts', '/v1/accounts/me/admin/quest-texts/0123456789abcdef01234567/remove',
   '/v1/quest-requirements', '/v1/accounts/me/admin/quest-requirements', '/v1/accounts/me/admin/quest-requirements/order',
   '/v1/accounts/me/admin/quest-requirements/0123456789abcdef01234567/remove',
+  '/v1/event-quests', '/v1/accounts/me/admin/event-quests', '/v1/accounts/me/admin/event-quests/raidos-event-4k2m9x7q/remove',
+  '/v1/accounts/me/admin/event-quests/raidos-scourge-coordination/remove',
   '/v1/accounts/me/admin/requests-key', '/v1/agent/requests', '/v1/agent/requests?status=all&limit=200&offset=0', '/v1/agent/requests/12/images/0',
   '/v1/admin/streamers', '/v1/admin/streamer-invites', '/v1/admin/accounts', '/v1/admin/sms', '/v1/admin/email',
   '/v1/me/progress/pvp', '/v1/me/progress/pve/events', '/v1/me/collector/seasonal', '/v1/me/position/pvp', '/v1/me/settings', '/v1/me/summary',
@@ -87,6 +89,11 @@ const REAL_BODIES: unknown[] = [
   { itemIds: ['5c0e531286f7747fa54205c2', 'select'] },
   { questId: 'q', op: 'add', itemId: '5780cf7f2459777de4559322', kind: 'key', count: 1, comment: 'Открыть дверь 314; «союз» с выбором — or 2' },
   { questId: 'q', markerId: 'm', mapId: 'customs', x: 1, z: 2, kind: 'describe', title: 'Склад', description: 'За дверью, select the second shelf' },
+  {
+    id: 'raidos-scourge-coordination', trader: '54cb57776803fa99248b456e', name: { ru: '???', en: '???' }, experience: 28000, modes: ['pvp', 'pve'],
+    objectives: [{ type: 'shoot', count: 6, maps: ['the-lab'], targets: ['Any'], text: { ru: 'Устранить любую цель; «союз» — or 2', en: 'Eliminate any target' } }],
+    note: { ru: 'Ключ-карта выдаётся при взятии задания; select the right one', en: '' }, series: { name: { ru: 'Вторжение Scourge', en: '' }, route: { ru: 'ивент до 20 октября', en: '' } },
+  },
 ]
 
 test('real API paths, queries and bodies never look like an attack', () => {

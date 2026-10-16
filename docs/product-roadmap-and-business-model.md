@@ -73,6 +73,7 @@ Important requirements:
 - If exact completed quest list cannot be read, infer previous chain completion from later completed/current quests using the Tarkov.dev quest dependency graph — shown as «вероятно выполнено», never counted in «Выполнено» or Kappa (owner, 15.10.2026: 154 in the game, 226 in the app).
 - Kappa progress must be calculated correctly from actual Kappa-required tasks, not from incomplete demo/sample data.
 - Quest counts must not change when switching interface language.
+- «Ивент-квесты» (owner, 16.10.2026: «добавь возможность обновить мне из админ приложения название потом и вообще добавь в админ панели возможность добавлять ивент квесты и редактировать их»): the owner app's quest constructor (Карты → «Редактировать квесты» → «Ивент-квесты») edits the built-in event quests of `src/data/curatedQuests.ts` (an override by the same id, «Вернуть исходный» drops it) and adds new ones (`raidos-event-…`, «Удалить»), with title, series, trader, modes, the event's end, «Скрыть», objectives, rewards and description in RU/EN. Stored on the server (`/v1/accounts/me/admin/event-quests`, public `/v1/event-quests`), shown by every app at once (`src/data/eventQuests.ts`) and built into the server's quest base shortly after (`src/data/eventQuestDefinitions.ts`, one merge for both). A quest leaves the app at its event's end; a tarkov.dev quest of the same title replaces ours.
 
 Current tasks should drive:
 

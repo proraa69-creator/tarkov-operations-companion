@@ -17,6 +17,7 @@ import { useQuestPointOverrides, withQuestPointHints, withQuestPointOverrides } 
 import { useQuestRequirementOverrides, withQuestRequirementOverrides } from './questRequirementOverrides'
 import { useQuestTextOverrides, withQuestTextOverrides } from './questTextOverrides'
 import { useLiveMapUpdates } from './mapUpdates'
+import { useEventQuestClock, useEventQuests, withEventQuests } from './eventQuests'
 
 /**
  * The catalog for the pages. It changes only when the catalog does: a refresh that brings nothing new (or is still
@@ -77,6 +78,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const russian = useMemo(() => cleanDatasetText(withQuestGrid(query.data ?? demoDataset, raidMode)), [query.data, raidMode])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
+  // The owner's event quests (renamed, added, switched off, the event over) at once (src/data/eventQuests.ts).
+  const eventQuests = useEventQuests(allowed)
+  const eventClock = useEventQuestClock(eventQuests)
+  const evented = useMemo(() => withEventQuests(translated, eventQuests, { mode: raidMode, lang: locale === 'en' ? 'en' : 'ru', now: eventClock }),
+    [translated, eventQuests, raidMode, locale, eventClock])
   // Bosses the owner placed by hand (in this mode, or for every mode) replace the automatic markers of that boss on that
   // map (src/data/mapBossPlacements.ts).
   const placements = useMapBossPlacements(allowed)
@@ -91,12 +97,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const data = useMemo(() => {
     // Texts first: a point the owner added or moved then carries the corrected objective / stage text too.
     const lang = locale === 'en' ? 'en' : 'ru'
-    const texted = withQuestTextOverrides(translated, questTexts, lang)
+    const texted = withQuestTextOverrides(evented, questTexts, lang)
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).
     return withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang)
-  }, [translated, questTexts, locale, placements, questPoints, questRequirements, raidMode])
+  }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode])
   const refresh = useCallback(() => { void refetch() }, [refetch])
   const initialLoading = isInitialCatalogLoad({ hasData: Boolean(query.data), isFetching: query.isFetching, settledOnce: query.errorUpdateCount > 0 || query.dataUpdatedAt > 0 })
   const value = useMemo<DataContextValue>(() => ({ data, source, initialLoading, refresh }), [data, source, initialLoading, refresh])

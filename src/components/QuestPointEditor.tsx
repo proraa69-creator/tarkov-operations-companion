@@ -2,13 +2,14 @@
 import { uiText } from '../i18n/renderText'
 import { useCallback, useMemo, useState } from 'react'
 import { CircleMarker, Tooltip, useMapEvents } from 'react-leaflet'
-import { Check, Crosshair, EyeOff, FileText, LoaderCircle, MapPinPlus, PencilRuler, RotateCcw, Search, Undo2, X } from 'lucide-react'
+import { CalendarClock, Check, Crosshair, EyeOff, FileText, LoaderCircle, MapPinPlus, PencilRuler, RotateCcw, Search, Undo2, X } from 'lucide-react'
 import { isOwnerApp } from '../app/buildEdition'
 import { cleanIpcError } from '../sync/serverSync'
 import { addedOverrideIdOf, hasPointText, QUEST_POINT_DESCRIPTION_MAX, QUEST_POINT_TITLE_MAX, useQuestPointOverrides, useQuestPointWriter, type QuestPointInput, type QuestPointOverride } from '../data/questPointOverrides'
-import type { GameMap, Item, MapMarker, Quest } from '../domain/types'
+import type { GameMap, Item, MapMarker, Quest, Trader } from '../domain/types'
 import { QuestTextEditor } from './QuestTextEditor'
 import { QuestRequirementsEditor } from './QuestRequirementsEditor'
+import { EventQuestsEditor } from './EventQuestsEditor'
 import './questEditor.css'
 
 /**
@@ -293,18 +294,22 @@ export function firstQuestPoint(markers: MapMarker[], questId: string, mapId: st
  * points here (drag on the map to move, hide, return the original) and the maps it has points on. Its texts are edited
  * in the quest window at the bottom of the map (components/QuestTextEditor.tsx).
  */
-export function QuestEditorPanel({ state, maps, markers, quests, items = [], onPick, onFocus, onSelectMap }: {
+export function QuestEditorPanel({ state, maps, markers, quests, items = [], traders = [], onPick, onFocus, onSelectMap }: {
   state: QuestPointEditorState
   maps: GameMap[]
   markers: MapMarker[]
   quests: Quest[]
   /** The catalog for «Требования» (the item / key picker). */
   items?: Item[]
+  /** The catalog's traders for «Ивент-квесты» (components/EventQuestsEditor.tsx). */
+  traders?: Trader[]
   onPick: (quest: Quest) => void
   onFocus: (marker: MapMarker) => void
   onSelectMap: (mapId: string) => void
 }) {
   const [query, setQuery] = useState('')
+  /** «Ивент-квесты» open instead of the quest list. */
+  const [events, setEvents] = useState(false)
   const list = useMemo(() => (state.active && !state.quest ? constructorQuests(quests, query, state.mapId, state.pointCounts) : []), [state.active, state.quest, quests, query, state.mapId, state.pointCounts])
   const goals = useMemo(() => (state.quest ? questGoals(state.quest, markers) : []), [state.quest, markers])
   if (!state.active) return null
@@ -312,10 +317,20 @@ export function QuestEditorPanel({ state, maps, markers, quests, items = [], onP
   const otherMaps = quest ? [...(state.pointCounts.get(quest.id) ?? new Map<string, number>())].filter(([mapId]) => mapId !== state.mapId) : []
   const mapName = (id: string) => maps.find((map) => map.id === id)?.name ?? id
   const total = (id: string) => [...(state.pointCounts.get(id)?.values() ?? [])].reduce((sum, count) => sum + count, 0)
+  if (events && !quest) {
+    return (
+      <div className="quest-point-panel quest-editor-panel">
+        <EventQuestsEditor quests={quests} items={items} traders={traders} maps={maps} onClose={() => setEvents(false)} />
+      </div>
+    )
+  }
   return (
     <div className="quest-point-panel quest-editor-panel">
       {!quest ? (
         <>
+          <button type="button" className="map-tool event-quests-open" onClick={() => setEvents(true)} title={uiText('Добавить и изменить квесты ивентов: название, цели, награды, окончание')}>
+            <CalendarClock size={14} />{uiText('Ивент-квесты')}
+          </button>
           <label className="quest-point-search">
             <Search size={13} />
             <input className="input" value={query} autoFocus onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти квест по названию (RU / EN)…')} aria-label={uiText('Найти квест')} />

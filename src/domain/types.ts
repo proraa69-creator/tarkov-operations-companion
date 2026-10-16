@@ -608,6 +608,11 @@ export interface Quest {
    * and server updates do not overwrite it.
    */
   manualCorrection?: { source: string; checkedAt: string }
+  /**
+   * A quest the game has and tarkov.dev does not, added from Raid OS's own data (src/data/curatedQuests.ts): the id of
+   * its series. The owner's event quests are laid over these (src/data/eventQuests.ts).
+   */
+  curatedSeriesId?: string
   mapId?: string
   level: number
   kappa: boolean

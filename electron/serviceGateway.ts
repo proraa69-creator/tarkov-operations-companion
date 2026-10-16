@@ -49,6 +49,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts): everybody reads, only the owner's account writes.
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
+  // «Ивент-квесты» (server/src/routes/eventQuests.ts): everybody reads, only the owner's account writes.
+  { methods: ['GET'], path: /^\/v1\/event-quests$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/event-quests$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/event-quests\/[A-Za-z0-9_-]{1,80}\/remove$/ },
   // Quest requirements curated by the owner (server/src/routes/questRequirements.ts): everybody reads, only the owner writes.
   { methods: ['GET'], path: /^\/v1\/quest-requirements$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-requirements$/ },
