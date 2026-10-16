@@ -45,7 +45,10 @@ describe('no in-game overlays', () => {
   })
 
   it('the position still comes from the game\'s screenshots, gated by the owner\'s switch and the player\'s', () => {
-    expect(game).toMatch(/if \(settings\.tracking && trackingOn\(settings\)\) void tracker\.start\(\)/)
+    const control = read('experimental/trackingControl.ts')
+    expect(control).toMatch(/const on = settings\.tracking && trackingOn\(settings\)/)
+    expect(control).toMatch(/if \(on\) void Promise\.resolve\(deps\.tracker\.start\(\)\)/)
+    expect(game).toMatch(/createTrackingControl\(\{\s*tracker,/)
     expect(game).toMatch(/webContents\.send\('experimental:position', position\)/)
   })
 })

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { checkAnnouncementNow, followAnnouncement } from './announcement'
-import { parseFeatures, reloadRemoteFeaturesForTests, remoteFeatures, sendRemoteFeaturesToMain } from './features'
+import { parseFeatures, reloadRemoteFeaturesForTests, remoteFeatures, RESEND_MS, sendRemoteFeaturesToMain, setRemoteFeatures } from './features'
 
 // The owner's position switch for every app, with the notice's answer (server/src/routes/announcement.ts, 14.10.2026).
 const setRemoteMinimap = vi.fn(async (...args: [enabled: boolean]) => args[0])
@@ -68,5 +68,35 @@ describe('the owner\'s position switch in the app', () => {
     vi.setSystemTime(new Date('2030-01-01T12:00:31Z'))
     await checkAnnouncementNow(30_000, ask)
     expect(ask).toHaveBeenCalledTimes(2)
+  })
+
+  it('the switch reaches a main process whose handler was not there yet (the window loads before the game functions start)', async () => {
+    vi.useFakeTimers()
+    // Turned on by the owner (now or at an earlier start), sent as the window opens: the handler does not exist yet.
+    setRemoteFeatures({ minimap: true, minimapChangedAt: '' })
+    reloadRemoteFeaturesForTests()
+    let ready = false
+    setRemoteMinimap.mockImplementation(async (enabled: boolean) => {
+      if (!ready) throw new Error("No handler registered for 'experimental:set-remote-minimap'")
+      return enabled
+    })
+    setRemoteMinimap.mockClear()
+    sendRemoteFeaturesToMain()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(setRemoteMinimap).toHaveBeenCalledTimes(1)
+    // Not left until the next server answer minutes later: tried again soon, until it gets through.
+    await vi.advanceTimersByTimeAsync(RESEND_MS)
+    expect(setRemoteMinimap).toHaveBeenCalledTimes(2)
+    ready = true
+    await vi.advanceTimersByTimeAsync(RESEND_MS)
+    expect(setRemoteMinimap).toHaveBeenCalledTimes(3)
+    expect(setRemoteMinimap).toHaveBeenLastCalledWith(true)
+    // Through: nothing more is sent.
+    await vi.advanceTimersByTimeAsync(RESEND_MS * 5)
+    expect(setRemoteMinimap).toHaveBeenCalledTimes(3)
+    // The owner turns it off later: sent at once.
+    setRemoteFeatures({ minimap: false, minimapChangedAt: '2026-10-16T10:00:00.000Z' })
+    expect(setRemoteMinimap).toHaveBeenLastCalledWith(false)
+    setRemoteMinimap.mockImplementation(async (...args: [enabled: boolean]) => args[0])
   })
 })

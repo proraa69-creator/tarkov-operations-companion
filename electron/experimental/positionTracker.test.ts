@@ -9,7 +9,7 @@ vi.mock('electron', () => ({ app: { getPath: () => join(root, 'documents') } }))
 const savedOneDrive = process.env.OneDrive
 process.env.OneDrive = join(root, 'onedrive')
 
-const { FOLDER_CACHE_MS, findScreenshotsFolder, PositionTracker, screenshotsFolder, setScreenshotsOverride } = await import('./positionTracker')
+const { FOLDER_CACHE_MS, findScreenshotsFolder, PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, watchedScreenshotFolders } = await import('./positionTracker')
 
 const shot = (taken: string, x = 10) => `${taken}_${x}.5, 3.2, -77.1_0.02, -0.84, 0.03, 0.54_11.02 (0).png`
 function folderWith(base: string, files: Array<[string, number]>) {
@@ -68,5 +68,89 @@ describe('EFT screenshots folder', () => {
     } finally {
       tracker.stop()
     }
+  })
+
+  it('reads the name of a file the game is still writing (no size yet)', async () => {
+    const folder = screenshotsFolder()
+    const positions: Array<{ x: number }> = []
+    const tracker = new PositionTracker((position) => positions.push(position))
+    await tracker.start()
+    try {
+      writeFileSync(join(folder, shot('2026-10-12[18-46]', 43)), '')
+      await vi.waitFor(() => expect(positions.at(-1)?.x).toBe(43.5), { timeout: 4000 })
+    } finally {
+      tracker.stop()
+    }
+  })
+})
+
+describe('every place the game may write to is followed (the dot from the first screenshot)', () => {
+  it('follows Windows\' Documents, the profile\'s Documents and OneDrive\'s, whichever the lookup chose', () => {
+    const watched = watchedScreenshotFolders()
+    for (const folder of screenshotFolderCandidates()) expect(watched).toContain(folder)
+    expect(screenshotFolderCandidates()).toContain(join(root, 'documents', 'Escape from Tarkov', 'Screenshots'))
+    expect(screenshotFolderCandidates()).toContain(join(root, 'onedrive', 'Documents', 'Escape from Tarkov', 'Screenshots'))
+  })
+
+  it('a screenshot in another candidate folder than the one found counts at once', async () => {
+    const other = watchedScreenshotFolders().find((folder) => folder !== screenshotsFolder() && folder.startsWith(root))!
+    mkdirSync(other, { recursive: true })
+    const positions: Array<{ x: number }> = []
+    const files: string[] = []
+    const tracker = new PositionTracker((position, file) => { positions.push(position); files.push(file.folder) })
+    await tracker.start()
+    try {
+      writeFileSync(join(other, shot('2026-10-12[18-50]', 44)), 'png')
+      await vi.waitFor(() => expect(positions.at(-1)?.x).toBe(44.5), { timeout: 4000 })
+      expect(files.at(-1)).toBe(other)
+      expect(tracker.lastSeen).toMatchObject({ folder: other, withCoordinates: true, position: { x: 44.5 } })
+    } finally {
+      tracker.stop()
+    }
+  })
+
+  it('a Screenshots folder the game creates at its first screenshot (absent at the start)', async () => {
+    setScreenshotsOverride(join(root, 'custom', 'Shots'))
+    const late = join(root, 'custom', 'Shots')
+    const positions: Array<{ x: number }> = []
+    const tracker = new PositionTracker((position) => positions.push(position))
+    await tracker.start()
+    try {
+      expect(tracker.folders).toContainEqual({ folder: late, exists: false, watching: false })
+      mkdirSync(late, { recursive: true })
+      writeFileSync(join(late, shot('2026-10-12[18-55]', 45)), 'png')
+      await vi.waitFor(() => expect(positions.at(-1)?.x).toBe(45.5), { timeout: 4000 })
+      await vi.waitFor(() => expect(tracker.folders).toContainEqual({ folder: late, exists: true, watching: true }), { timeout: 4000 })
+    } finally {
+      tracker.stop()
+      setScreenshotsOverride('')
+    }
+  })
+
+  it('reports the newest kept screenshot after a restart, and nothing old as new', async () => {
+    const positions: Array<{ x: number }> = []
+    const tracker = new PositionTracker((position) => positions.push(position))
+    await tracker.start()
+    try {
+      // The newest coordinate screenshot of all followed folders (x 44.5 above; the custom folder is no longer picked).
+      expect(positions).toHaveLength(1)
+      expect(positions.at(-1)?.x).toBe(44.5)
+      expect(tracker.lastSeen).toBeNull()
+    } finally {
+      tracker.stop()
+    }
+  })
+
+  it('stopped while starting: no watch and no position are left behind', async () => {
+    const positions: Array<{ x: number }> = []
+    const tracker = new PositionTracker((position) => positions.push(position))
+    const starting = tracker.start()
+    tracker.stop()
+    await starting
+    expect(tracker.running).toBe(false)
+    expect(tracker.folders).toEqual([])
+    writeFileSync(join(screenshotsFolder(), shot('2026-10-12[19-00]', 46)), 'png')
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    expect(positions).toEqual([])
   })
 })

@@ -59,17 +59,41 @@ export function parseFeatures(value: unknown): Omit<RemoteFeatures, 'known'> | n
   }
 }
 
-/** The values the main process has (null: not sent from this page yet). */
+/** The values the main process has (null: not sent from this page yet, or the last send failed). */
 let sent: boolean | null = null
+/**
+ * A failed send is tried again soon, not only at the next server answer (3–6 minutes later): the window can load before
+ * the main process has its handlers (electron/main.ts starts the game functions after the window), and the switch the
+ * owner turned on then never reached it — the screenshots were not followed and no dot came.
+ */
+export const RESEND_MS = 1500
+const RESEND_TRIES = 40
+let resendTimer: ReturnType<typeof setTimeout> | null = null
+let resendTries = 0
+
 function tellMain(enabled: boolean) {
   const set = typeof window === 'undefined' ? undefined : window.tarkovDesktop?.experimental?.setRemoteMinimap
   if (!set || sent === enabled) return
   sent = enabled
-  try {
-    void Promise.resolve(set(enabled)).catch(() => { sent = null })
-  } catch {
+  const failed = () => {
+    if (sent !== enabled) return
     sent = null
+    resendLater()
   }
+  try {
+    void Promise.resolve(set(enabled)).then(() => { if (sent === enabled) resendTries = 0 }, failed)
+  } catch {
+    failed()
+  }
+}
+
+function resendLater() {
+  if (resendTimer || resendTries >= RESEND_TRIES) return
+  resendTries += 1
+  resendTimer = setTimeout(() => {
+    resendTimer = null
+    tellMain(current.minimap)
+  }, RESEND_MS)
 }
 
 /** The main process starts with the tracking off: give it the last known value as the app opens. */
@@ -96,5 +120,8 @@ export function useRemoteFeatures() {
 export function reloadRemoteFeaturesForTests() {
   current = readStored()
   sent = null
+  if (resendTimer) clearTimeout(resendTimer)
+  resendTimer = null
+  resendTries = 0
   for (const listener of listeners) listener()
 }
