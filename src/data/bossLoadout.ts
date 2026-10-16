@@ -14,6 +14,8 @@ import type { Bilingual } from './bossInfo'
 export type BodyHealth = readonly [number, number, number, number, number, number, number]
 
 export interface BossItemRef {
+  /** A picture of our own (src/assets/boss-items, cut from the owner's in-game screenshots), shown instead of the catalog's. */
+  image?: string
   /** tarkov.dev item ids tried first (the base weapon, not a preset). */
   ids?: string[]
   /** Fragment of tarkov.dev's normalizedName, tried when no id matches. */
@@ -25,11 +27,19 @@ export interface BossLoadout {
   body?: BodyHealth
   weapons?: BossItemRef[]
   loot?: BossItemRef[]
+  /** The guards' weapons and gear, when they differ from the boss's (Scourge's squad). */
+  guardWeapons?: BossItemRef[]
+  guardLoot?: BossItemRef[]
   /** A short remark under the blocks (what can't be looted and similar). */
   note?: Bilingual
 }
 
 const item = (ru: string, en: string, slug?: string, ...ids: string[]): BossItemRef => ({ name: { ru, en }, slug, ids: ids.length ? ids : undefined })
+
+const ownImages = import.meta.glob<string>('../assets/boss-items/*.webp', { eager: true, import: 'default' })
+const ownImage = (name: string) => ownImages[`../assets/boss-items/${name}.webp`]
+/** An item with our own picture (cut from the owner's screenshot); the catalog id still gives its price. */
+const pictured = (picture: string, ru: string, en: string, ...ids: string[]): BossItemRef => ({ ...item(ru, en, undefined, ...ids), image: ownImage(picture) })
 
 // Weapons and loot used by several bosses
 const LABS_KEYCARD = item('Ключ-карта лаборатории', 'Labs access keycard', 'terragroup-labs-access-keycard', '5c94bbff86f7747ee735c08f')
@@ -128,6 +138,41 @@ export const BOSS_LOADOUT: Record<string, BossLoadout> = {
     weapons: [item('HK MP7A1', 'HK MP7A1', 'hk-mp7a1', '5ba26383d4351e00334c93d9')],
     loot: [item('Spiritus Systems LV-119', 'Spiritus Systems LV-119', 'spiritus-systems-lv-119'), item('Евро', 'Euros', 'euros', '569668774bdc2da2298b4568')],
   },
+}
+
+// «Вторжение Scourge» (owner, 16.10.2026): his and his guards' gear from the owner's in-game screenshots
+const PLATEMINUS = '6a7c8432f5f1ecf7b1033aee'
+BOSS_LOADOUT.scourge = {
+  weapons: [
+    pictured('scourge-p90', 'FN P90 «Scourge» 5.7x28', 'FN P90 5.7x28 (Scourge)', '6a78b7f8c2016eb33e0027cd'),
+    pictured('scourge-knife-sp8', 'Мачете SP-8', 'SP-8 Survival Machete', '5c010e350db83400232feec7'),
+  ],
+  loot: [
+    pictured('scourge-helmet-toxin', 'Шлем NovaSteel «Toxin»', 'NovaSteel helmet (Toxin)', '6a8339d551cfbe231b091a24'),
+    pictured('scourge-mask-strah', 'Балаклава «Страх»', 'Balaclava (Fear)', '67a9ea004fb4a4a8a00d2828'),
+    pictured('scourge-headset-tep300', 'Беруши Peltor TEP-300', 'Peltor TEP-300 earplugs', '68bf405779c8186398099017'),
+    pictured('scourge-rig-bfgp', 'Разгрузка PLATEminus V2 (Scourge)', 'PLATEminus V2 plate carrier (Scourge)', PLATEMINUS),
+    pictured('scourge-phone', 'Смартфон Scourge', 'Scourge’s smartphone', '6ac4cfbc99bdd7779608792f'),
+  ],
+  guardWeapons: [
+    pictured('guard-x17', 'FN SCAR-H X-17 7.62x51', 'FN SCAR-H X-17 7.62x51', '676176d362e0497044079f4c'),
+    item('AA-12 Gen 2 12ga', 'AA-12 Gen 2 12ga'),
+    item('ПКП «Печенег» 7.62x54R', 'PKP Pecheneg 7.62x54R', undefined, '64cf7b2d033b747d625b7666'),
+    pictured('guard-bayonet-fulcrum', 'Штык-нож ER Fulcrum', 'ER Fulcrum bayonet', '54491bb74bdc2d09088b4567'),
+  ],
+  guardLoot: [
+    item('Шлем Crye Precision AirFrame', 'Crye Precision AirFrame helmet', undefined, '69cbfe44897389c1870b2337'),
+    pictured('guard-headset-tactical-sport', 'Наушники Peltor Tactical Sport', 'Peltor Tactical Sport headset', '5c165d832e2216398b5a7e36'),
+    pictured('guard-balaclava-cf', 'Балаклава Cold Fear', 'Cold Fear balaclava', '5ab8f39486f7745cd93a1cca'),
+    pictured('guard-glasses-crossbow', 'Очки ESS Crossbow', 'ESS Crossbow glasses', '5d5fca1ea4b93635fd598c07'),
+    item('Очки Pit Viper «Straya»', 'Pit Viper glasses (Straya)', undefined, '6a83173e350dd848e70feeec'),
+    pictured('guard-cap', 'Кепка', 'Baseball cap'),
+    pictured('guard-rig-bfgp', 'Разгрузка PLATEminus V2', 'PLATEminus V2 plate carrier', PLATEMINUS),
+    item('Загустин', 'Zagustin', undefined, '5c0e533786f7747fa23f4d47'),
+    item('ПНБ', 'PNB', undefined, '637b6179104668754b72f8f5'),
+    item('eTG-c', 'eTG-change', undefined, '5c0e534186f7747fa1419867'),
+  ],
+  note: { ru: 'Снаряжение — со скриншотов из игры; у охраны набор отличается от бойца к бойцу.', en: 'The gear is from in-game screenshots; the guards’ kit differs from one to another.' },
 }
 
 export function bossLoadout(key: string): BossLoadout | undefined {

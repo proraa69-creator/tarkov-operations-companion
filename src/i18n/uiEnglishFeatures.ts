@@ -102,5 +102,5 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['3D модели', '3D models'], ['Перетащите — повернуть', 'Drag to turn'], ['колесо — масштаб', 'wheel to zoom'], ['двойной клик — сброс', 'double-click to reset'],
   ['Автоповорот', 'Auto-rotate'],
   ['Основные', 'Main'], ['Древние боссы', 'Ancient bosses'],
-  ['Здоровье', 'Health'], ['Вооружение', 'Weapons'], ['Ценный лут', 'Notable loot'], ['По мотивам', 'Styled after'],
+  ['Здоровье', 'Health'], ['Вооружение', 'Weapons'], ['Ценный лут', 'Notable loot'], ['По мотивам', 'Styled after'], ['Вооружение охраны', 'Guards’ weapons'], ['Лут охраны', 'Guards’ loot'],
 ]

@@ -1,6 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
+import { useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Loader2, RotateCw, X } from 'lucide-react'
 import { allBossFigures, bossMapIds, type BossFigure } from '../data/bossFigures'
 import { GALLERY_BOSS_KEYS, bossDetails, type BossSection } from '../data/bossInfo'
@@ -39,8 +40,11 @@ const mapLine = (key: string) => bossMapIds(key).map((id) => uiText(MAP_DISPLAY_
  */
 export function GalleryPage() {
   const { locale } = useLocale()
-  const [section, setSection] = useState<BossSection>(readTab)
-  const [openKey, setOpenKey] = useState<string | null>(null)
+  // «Открыть «Боссы»» of an announcement (src/events/ScourgeEventIntro.tsx) opens that boss at once.
+  const asked = (useLocation().state as { boss?: string } | null)?.boss
+  const askedSection = asked ? (Object.keys(SECTIONS) as BossSection[]).find((key) => SECTIONS[key].some((figure) => figure.key === asked)) : undefined
+  const [section, setSection] = useState<BossSection>(() => askedSection ?? readTab())
+  const [openKey, setOpenKey] = useState<string | null>(askedSection ? asked! : null)
   useEffect(() => { try { localStorage.setItem(TAB_STORAGE_KEY, section) } catch { /* per-viewer convenience only */ } }, [section])
   const figures = SECTIONS[section]
 

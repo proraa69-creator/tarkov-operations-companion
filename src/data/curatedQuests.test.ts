@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
-import { PLACE_SOURCE_TASKS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
+import { PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
 import { FEED_TASK_IDS, INFORMATION_SOURCE_ID, toTheLightFetcher, type FeedOptions } from './__fixtures__/toTheLightFeed'
 import ownerLogs from '../progression/__fixtures__/owner-logs-2026-09.json'
@@ -15,6 +15,8 @@ const ORDER = [
   TO_THE_LIGHT_IDS.gatherStones, TO_THE_LIGHT_IDS.otherSide, TO_THE_LIGHT_IDS.gettingAcquainted,
 ]
 const SERIES = new Set<string>(ORDER)
+/** The other curated series (Scourge's event quests), left out where only «На свет» is counted. */
+const OTHER_CURATED = new Set<string>(Object.values(SCOURGE_QUEST_IDS))
 const RESEARCH_NOTE = /tarkov\.(help|dev)|tarkov-?dev|wiki|вики|fandom|координат|coordinat|источник(и|а|ов)? (не|даёт)|no source|игра \d|game \d/i
 
 const RU_NAMES = [
@@ -75,11 +77,11 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
           expect(quest.level).toBe(1)
         }
         // the other quests: the feed's own and the story chapters, nothing else and nothing lost
-        const others = catalog.quests.filter((quest) => !SERIES.has(quest.id))
+        const others = catalog.quests.filter((quest) => !SERIES.has(quest.id) && !OTHER_CURATED.has(quest.id))
         expect(others.filter((quest) => quest.kind !== 'story').map((quest) => quest.id).sort()).toEqual([...FEED_TASK_IDS].sort())
         const without = await build(mode, locale, { withoutSeriesTraders: true })
         expect(without.quests.some((quest) => SERIES.has(quest.id))).toBe(false)
-        expect(others.length).toBe(without.quests.length)
+        expect(others.length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length)
         expect(catalog.quests.length).toBe(without.quests.length + 11)
         expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11)
       })
@@ -265,5 +267,39 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
     expect(event).toEqual(['2026-09-18T16:56:45Z', 'active', TO_THE_LIGHT_IDS.trustButVerify])
     const catalog = await build('pvp', 'ru')
     expect(catalog.quests.find((quest) => quest.id === event![2])?.name).toBe('На свет. Доверяй, но проверяй')
+  })
+})
+
+describe('«Вторжение Scourge»: the event quests from the owner\'s screenshots', () => {
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    it(`${mode}: both quests with Therapist, the order, the rewards and the skill lines`, async () => {
+      const catalog = await build(mode, 'ru')
+      const route = catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!
+      const simple = catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.simpleTask)!
+      expect(route.name).toBe('Скрытый маршрут')
+      expect(simple.name).toBe('Простая задача в непростом месте')
+      expect(route.traderId).toBe('54cb57776803fa99248b456e')
+      expect(simple.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.hiddenRoute])
+      expect(simple.mapIds).toEqual(['the-lab'])
+      expect(route.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 1 из 3.')
+      expect(route.rewards.join(' | ')).toContain('Хирургия +1 уровень')
+      expect(simple.rewards.join(' | ')).toContain('Здоровье +1 уровень')
+      expect(simple.rewards.join(' | ')).toMatch(/При взятии задания: .+ × 1/)
+      const third = catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!
+      expect(third.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
+      expect(third.objectiveDetails?.map((objective) => [objective.type, objective.count])).toEqual([['shoot', 6]])
+      expect(third.mapIds).toEqual(['the-lab'])
+      expect(third.rewards.join(' | ')).toContain('Хирургия +1 уровень')
+      expect(third.rewards.join(' | ')).toMatch(/При взятии задания: .+ × 3/)
+    })
+  }
+
+  it('in every mode, and gone once tarkov.dev lists a quest of the same title', async () => {
+    expect(SCOURGE_INVASION.modes).toEqual(['pvp', 'pve', 'seasonal'])
+    const tasks = { tasks: { real: { id: '6b0000000000000000000001', name: 'Скрытый маршрут', trader: '54cb57776803fa99248b456e', objectives: [] } } }
+    const traders = { a: { id: '54cb57776803fa99248b456e' } }
+    const result = withCuratedTasks(tasks, { mode: 'pvp', locale: 'ru', maps: {}, traders })
+    expect(result.added.has(SCOURGE_QUEST_IDS.hiddenRoute)).toBe(false)
+    expect(result.added.has(SCOURGE_QUEST_IDS.simpleTask)).toBe(true)
   })
 })
