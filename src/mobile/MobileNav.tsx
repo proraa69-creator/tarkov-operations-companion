@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Target, UserRound, Users, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, Landmark, Map, MapPinned, Menu, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Target, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -27,16 +27,18 @@ const MORE = [
   ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
   { to: '/profile', ru: 'Профиль', en: 'Profile', icon: UserRound },
+  { to: '/admin', ru: 'Админ-панель', en: 'Admin', icon: ShieldCheck },
   { to: '/settings', ru: 'Настройки', en: 'Settings', icon: Settings },
 ]
 
 /** Phone layout: the bottom tab bar and the «Ещё» sheet (replaces the desktop sidebar). */
-export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number }) {
+export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, owner = false }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number; owner?: boolean }) {
   const badge = (count: number) => count > 0 ? <span className="nav-badge" aria-label={uiText(`Новых заявок: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
   const { locale, setLocale } = useLocale()
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
-  const moreActive = MORE.some((entry) => location.pathname.startsWith(entry.to))
+  const moreEntries = owner ? MORE : MORE.filter((entry) => entry.to !== '/admin')
+  const moreActive = moreEntries.some((entry) => location.pathname.startsWith(entry.to))
   const label = (entry: { ru: string; en: string }) => uiText(locale === 'en' ? entry.en : entry.ru)
 
   // Choosing a section, tapping the backdrop or Escape closes the sheet.
@@ -58,7 +60,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
               <button type="button" className="icon-button" onClick={() => setMoreOpen(false)} aria-label={uiText('Закрыть')}><X size={18} /></button>
             </div>
             <nav className="mobile-more-grid">
-              {MORE.map((entry) => {
+              {moreEntries.map((entry) => {
                 const Icon = entry.icon
                 return <NavLink key={entry.to} to={entry.to} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{entry.to === '/squad' && badge(squadBadge)}</NavLink>
               })}

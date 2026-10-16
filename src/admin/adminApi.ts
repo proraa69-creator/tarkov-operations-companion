@@ -1,0 +1,127 @@
+import { webServiceRequest } from '../sync/webAccount'
+
+export type PlanId = '1m' | '3m' | '6m' | '12m'
+export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
+export type PaymentProvider = 'yookassa' | 'lava'
+export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
+
+export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number }
+export interface AdminOverview {
+  generatedAt: string
+  users: { total: number; today: number; days7: number; days30: number; blocked: number }
+  subscriptions: { active: number; trials: number; autopay: number; streamers: number }
+  revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
+  payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
+}
+
+export interface AdminPayment {
+  id: string
+  email: string
+  plan: PlanId
+  provider: PaymentProvider
+  status: PaymentStatus
+  amount: number
+  original?: { amount: number; currency: string }
+  createdAt: string
+  paidAt?: string
+  renewal?: true
+  referralCode?: string
+  streamerEarning?: number
+}
+
+export interface AdminPayments {
+  payments: AdminPayment[]
+  total: number
+  totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number }
+}
+
+export interface AdminUser {
+  id: string
+  email: string
+  kind: 'user' | 'streamer'
+  owner?: true
+  createdAt: string
+  referredBy?: string
+  referralCode?: string
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  autopay: { provider: string; status: string; plan: string } | null
+  lastSeenAt?: string
+  blockedAt?: string
+  payments: { count: number; total: number }
+}
+
+export interface AdminUserDetail {
+  user: AdminUser
+  payments: AdminPayment[]
+  grants: Array<{ days: number; reason: string; actor: string; at: string; paidUntil: string }>
+}
+
+export type BugReportStatus = 'open' | 'closed'
+export interface BugReportSummary {
+  id: number; email?: string; topic: string; appVersion: string; platform: string; status: BugReportStatus
+  createdAt: string; closedAt?: string; files: number
+}
+export interface BugReportFile { idx: number; mime: string; size: number }
+export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
+export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
+
+export type AdminPaymentPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'all'
+
+function query(values: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(values)) if (value !== undefined && value !== '') params.set(key, String(value))
+  const suffix = params.toString()
+  return suffix ? `?${suffix}` : ''
+}
+
+function day(value: Date) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const date = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${date}`
+}
+
+export function paymentDates(period: AdminPaymentPeriod, now = new Date()) {
+  if (period === 'all') return {}
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const start = new Date(end)
+  if (period === 'today') return { from: day(start), to: day(start) }
+  if (period === 'yesterday') {
+    start.setDate(start.getDate() - 1)
+    return { from: day(start), to: day(start) }
+  }
+  start.setDate(start.getDate() - (period === '7d' ? 6 : 29))
+  return { from: day(start), to: day(end) }
+}
+
+async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown) {
+  const result = await webServiceRequest(method, path, body)
+  if (result === null) throw new Error('Войдите в аккаунт владельца')
+  return result as T
+}
+
+export const adminApi = {
+  overview: () => request<AdminOverview>('GET', '/v1/accounts/me/admin/overview'),
+  users: (search: string, filter: AdminUserFilter, limit = 100, offset = 0) => request<{ users: AdminUser[]; total: number }>(
+    'GET', `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, limit, offset })}`,
+  ),
+  user: (id: string) => request<AdminUserDetail>('GET', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}`),
+  grant: (id: string, days: number, reason: string) => request<AdminUserDetail>(
+    'POST', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}/grant`, { days, reason },
+  ),
+  payments: (period: AdminPaymentPeriod, status: PaymentStatus | 'all', limit = 100, offset = 0) => request<AdminPayments>(
+    'GET', `/v1/accounts/me/admin/payments${query({ ...paymentDates(period), status: status === 'all' ? undefined : status, limit, offset })}`,
+  ),
+  bugReports: (status: BugReportStatus, limit = 100, offset = 0) => request<BugReportList>(
+    'GET', `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
+  ),
+  bugReport: (id: number) => request<{ report: BugReportDetail }>('GET', `/v1/accounts/me/admin/bug-reports/${id}`),
+  setBugReportStatus: (id: number, status: BugReportStatus) => request<{ report: BugReportDetail }>(
+    'POST', `/v1/accounts/me/admin/bug-reports/${id}/status`, { status },
+  ),
+}
+
+/** Paid plans on this server use 30-day months (server/src/services/paymentStore.ts). */
+export function monthsToDays(months: number) {
+  return months * 30
+}

@@ -29,6 +29,7 @@ import { useDataAccess } from '../account/dataAccess'
 import { DeviceLimitNotice, Paywall } from '../account/Paywall'
 import { EftAccountBinding } from '../account/EftAccountBinding'
 import { UpdateButton } from '../components/UpdateButton'
+import { AdminMobilePage } from '../admin/AdminMobilePage'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
@@ -78,6 +79,7 @@ export function App() {
     <Route path="/traders" element={<TradersPage />} />
     <Route path="/arsenal/builder" element={featureEnabled('gunBuilder') ? <Suspense fallback={null}><GunBuilderPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
+    <Route path="/admin" element={<AdminMobilePage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></AppErrorBoundary>
 }

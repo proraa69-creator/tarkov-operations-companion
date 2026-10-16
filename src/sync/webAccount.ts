@@ -52,6 +52,15 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
+  // Owner mobile dashboard (server/src/routes/ownerAdmin.ts). The server returns 404 for non-owners.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/overview$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Кабинет стримера» on the phone too.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
@@ -215,7 +224,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
-  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> = {}
+  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'owner'> = {}
   try {
     const health = await send('GET', '/health', { timeoutMs: 4000 })
     online = health.response.ok
@@ -223,7 +232,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
+        const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
@@ -235,7 +244,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> {
+function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'owner'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -252,7 +261,7 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
+  return { ...(view.owner === true ? { owner: true as const } : {}), nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
 }
 
 export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {

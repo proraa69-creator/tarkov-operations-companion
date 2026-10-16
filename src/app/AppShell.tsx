@@ -34,6 +34,7 @@ import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
 import { setMapMirrorServer } from '../data/mapMirror'
 import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
+import { useAdminNotifications } from '../admin/useAdminNotifications'
 
 
 const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
@@ -79,8 +80,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Friend requests and squad invitations arrive at once; the «Отряд» button counts them (squad/useSocialEvents.ts).
   useSocialEvents(raidMode)
   // Our server's copy of the maps (data/mapMirror.ts) lives on the account's server.
-  const mirrorServer = useServerAccount().status?.serverUrl
+  const serverAccount = useServerAccount().status
+  const mirrorServer = serverAccount?.serverUrl
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
+  useAdminNotifications(serverAccount?.owner === true)
   const socialBadge = useSocialBadge(raidMode)
   const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
   const { syncError, isSyncing } = usePlayerProfileSync()
@@ -229,7 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {arsenalNavigation.map(({ to, ru, en, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
-        <nav className="nav-list"><NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
+        <nav className="nav-list">{serverAccount?.owner && <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Shield /><span>{uiText(locale === 'en' ? 'Admin' : 'Админ-панель')}</span></NavLink>}<NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
         <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
@@ -272,7 +275,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>)}
-      {mobile && <MobileTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {mobile && <MobileTabBar owner={serverAccount?.owner === true} squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
       <AccountController />
     </div>
   )

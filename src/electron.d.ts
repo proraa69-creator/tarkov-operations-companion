@@ -30,6 +30,8 @@ export interface ServerAccountStatus {
   signedIn: boolean
   email?: string
   kind?: 'user' | 'streamer'
+  /** The server-verified owner account may open the mobile admin dashboard. */
+  owner?: true
   /** The API server answered /health. */
   online: boolean
   serverUrl: string
