@@ -37,11 +37,11 @@ describe('«Условия квестов»: which quests', () => {
     expect(objectiveOnMap({ mapIds: ['customs'] }, 'woods')).toBe(false)
   })
 
-  it('shows the current quests first; only without any, the quests available now; never completed, failed, locked or unknown', () => {
+  it('shows only the current (taken) quests: never available, completed, failed, locked or unknown (owner, 16.10.2026: «Гренадер»)', () => {
     const mixed = statuses({ 'streets-only': 'available', 'multi-map': 'active', 'any-map': 'completed' })
     expect(conditionQuestsForMap(QUESTS, mixed, 'streets-of-tarkov')).toMatchObject({ tier: 'active', quests: [{ quest: { id: 'multi-map' } }] })
     const noneCurrent = statuses({ 'streets-only': 'available', 'multi-map': 'locked', 'any-map': 'failed' })
-    expect(conditionQuestsForMap(QUESTS, noneCurrent, 'streets-of-tarkov')).toMatchObject({ tier: 'available', quests: [{ quest: { id: 'streets-only' } }] })
+    expect(conditionQuestsForMap(QUESTS, noneCurrent, 'streets-of-tarkov')).toEqual({ tier: 'none', quests: [] })
     const done = statuses({ 'streets-only': 'completed', 'multi-map': 'unknown', 'any-map': 'completed' })
     expect(conditionQuestsForMap(QUESTS, done, 'streets-of-tarkov')).toEqual({ tier: 'none', quests: [] })
   })
