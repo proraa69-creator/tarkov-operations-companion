@@ -1,0 +1,99 @@
+/* «Админ панель» of the owner's app (src/pages/AdminPanelPage.tsx). */
+.admin-nav-link svg { color: var(--brass); }
+
+.admin-page .page-header .tag { align-self: flex-start; }
+.admin-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+.admin-sections { position: sticky; top: calc(var(--topbar, 68px) + 12px); display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); }
+.admin-section-tab { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 7px 10px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--text-muted); text-align: left; cursor: pointer; }
+.admin-section-tab span { display: grid; gap: 1px; min-width: 0; }
+.admin-section-tab strong { color: var(--text); font-size: 13px; font-weight: 650; }
+.admin-section-tab small { overflow: hidden; color: var(--text-dim); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-section-tab svg { flex: none; color: var(--text-dim); }
+.admin-section-tab:hover { border-color: var(--line); color: var(--text); }
+.admin-section-tab.active { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: var(--surf-2); }
+.admin-section-tab.active svg { color: var(--brass); }
+.admin-section-tab:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+
+.admin-content { display: grid; gap: 16px; min-width: 0; }
+.admin-content > .panel { margin: 0; }
+.admin-section .panel-body { display: grid; gap: 10px; }
+.admin-section .panel-body > p { margin: 0; line-height: 1.5; }
+.admin-subhead { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: var(--text); font-size: 13px; font-weight: 700; }
+.admin-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.admin-done { color: var(--green); }
+
+/* «Функции» */
+.admin-features { display: grid; gap: 10px; }
+.admin-feature { display: flex; align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); }
+.admin-feature > svg { flex: none; color: var(--text-dim); }
+.admin-feature.is-on > svg { color: var(--green); }
+.admin-feature-body { display: grid; flex: 1 1 auto; gap: 3px; min-width: 0; }
+.admin-feature-body p { margin: 0; color: var(--text-muted); line-height: 1.45; }
+.admin-feature-state { font-weight: 650; color: var(--text-dim); }
+.admin-feature-state.is-on { color: var(--green); }
+.admin-feature .button { flex: none; }
+
+/* «Квесты» */
+.admin-quests { display: grid; gap: 16px; }
+.admin-search { position: relative; display: block; max-width: 520px; }
+.admin-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+.admin-search .input { width: 100%; padding-left: 30px; }
+.admin-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.admin-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); }
+.admin-list li > span { display: grid; gap: 1px; min-width: 0; }
+.admin-list li strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-list li .button { flex: none; }
+.admin-edited { max-height: 360px; overflow: auto; overscroll-behavior: contain; }
+.admin-event-quests.quest-point-panel { max-width: 860px; margin: 0; }
+
+/* «Опросы» → «Результаты» */
+.admin-survey-results { display: grid; flex-basis: 100%; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); }
+.admin-survey-results p { margin: 0; }
+.admin-survey-question { display: grid; gap: 6px; }
+.admin-survey-bars { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.admin-survey-bars li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(80px, 2fr) auto; align-items: center; gap: 8px; font-size: 12px; }
+.admin-survey-bar { height: 8px; overflow: hidden; border-radius: 4px; background: var(--surf-2); }
+.admin-survey-bar span { display: block; height: 100%; border-radius: 4px; background: var(--brass); }
+.admin-survey-texts { display: grid; gap: 3px; margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-muted); }
+
+/* «Блоки» */
+.admin-blocks-table { display: grid; gap: 4px; }
+.admin-blocks-row { display: grid; grid-template-columns: minmax(150px, 1.1fr) 110px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+.admin-blocks-row:not(.is-head) { border: 1px solid var(--line); background: var(--surf-1); }
+.admin-blocks-row.is-head { color: var(--text-dim); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.admin-blocks-row.is-hidden .admin-blocks-name { color: var(--text-dim); text-decoration: line-through; }
+.admin-blocks-row .input { width: 100%; min-height: 30px; padding: 4px 8px; font-size: 12px; }
+.admin-blocks-name { font-weight: 600; }
+.admin-check { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+.admin-blocks-view { justify-self: start; }
+.admin-blocks-view button { display: inline-flex; align-items: center; gap: 4px; }
+.admin-zones { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.admin-zone { display: grid; align-content: start; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.admin-order { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; counter-reset: admin-order; }
+.admin-order li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; padding: 3px 4px 3px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); font-size: 13px; counter-increment: admin-order; }
+.admin-order li > span:first-child::before { content: counter(admin-order) ". "; color: var(--text-dim); }
+.admin-order li.is-hidden > span:first-child { color: var(--text-dim); }
+.admin-order li.is-fixed { border-style: dashed; background: transparent; color: var(--text-dim); }
+.admin-phone-order { max-width: 460px; }
+.admin-move { display: inline-flex; flex: none; gap: 4px; }
+.admin-move .icon-button { width: 28px; height: 28px; border-radius: 7px; }
+.admin-move .icon-button:disabled { opacity: .35; cursor: default; }
+.admin-blocks-actions { margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .admin-layout { grid-template-columns: minmax(0, 1fr); }
+  .admin-sections { position: static; display: flex; overflow-x: auto; overscroll-behavior-x: contain; }
+  .admin-section-tab { flex: none; min-height: 40px; }
+  .admin-section-tab small { display: none; }
+}
+@media (max-width: 640px) {
+  .admin-blocks-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .admin-blocks-row.is-head { display: none; }
+  .admin-blocks-row > span:nth-child(3), .admin-blocks-row > span:nth-child(4) { grid-column: 1 / -1; }
+  .admin-feature { flex-wrap: wrap; }
+  .admin-list li { flex-wrap: wrap; }
+}
+
+/* «… — перенесено в Админ панель» where the owner's tools used to be (src/admin/MovedToAdminPanel.tsx). */
+.admin-moved .admin-moved-body { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--text-muted); }
+.admin-moved .admin-moved-body > span { flex: 1 1 240px; }

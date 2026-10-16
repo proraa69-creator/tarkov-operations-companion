@@ -11,8 +11,7 @@ import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { NicknameEditor } from '../account/NicknameEditor'
 import { outdatedProfile } from '../account/logNickname'
-import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
-import { OwnerNoticesPanel } from '../notices/OwnerNoticesPanel'
+import { MovedToAdminPanel } from '../admin/MovedToAdminPanel'
 import { DonateCard } from '../components/DonateCard'
 import { ModeResetButtons, PrestigeLine } from '../components/PrestigeResetButton'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -50,10 +49,8 @@ export function ProfilePage() {
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>
     </div>
-    {/* The owner's notice over every player's app («ведутся технические работы»). */}
-    {owner && <OwnerAnnouncementPanel />}
-    {/* «Объявления по регионам» and «Опросы»: popups for the chosen players (owner, 15.10.2026). */}
-    {owner && <OwnerNoticesPanel />}
+    {/* «Баннер для всех», «Объявления по регионам» and «Опросы» moved to «Админ панель» (owner, 16.10.2026). */}
+    {owner && <MovedToAdminPanel what="Баннер для всех, объявления и опросы" tab="notices" />}
     {/* «Диагностика квестов»: what each quest source gave per mode (src/quests/questEngine.ts); players never see it. */}
     {owner && <QuestDiagnosticsPanel />}
     {accountBlock}
