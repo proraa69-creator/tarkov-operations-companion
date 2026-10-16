@@ -93,7 +93,6 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.',
     'The Raid OS app reads your nickname from the game logs by itself — no need to enter it. It is the same for PvP, PvE and Season; each mode keeps its own quest progress.'],
   ['Приложение', 'App'], ['Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.', 'Portable version for Windows. Sign in to the app with the same e-mail and password.'],
-  ['Чтобы предмет распознавался по клавише, включите в Tarkov режим экрана «Оконный без рамки».', 'For item recognition by its key, set the screen mode in Tarkov to "Borderless".'],
   ['Код приглашения', 'Invitation code'], ['Вы приглашены по коду', 'Invited with code'],
   ['Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.', "You joined with a friend's invite: 20% off the first month applies until your first payment."],
   ['Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.', "Have a friend's code? Enter it once before your first payment to get 20% off the first month."],

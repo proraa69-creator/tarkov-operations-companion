@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(async () => ({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null })), createPayment: vi.fn() }))
+const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(async (): Promise<unknown> => ({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null })), createPayment: vi.fn() }))
 vi.mock('../auth', () => ({ useAuth: () => ({
   status: 'ready', token: 'session-token',
   account: { email: 'player@example.com', kind: 'user', createdAt: '2026-10-01T00:00:00Z', nicknames: {}, subscription: { status: 'inactive' }, emailVerifiedAt: '2026-10-01T00:00:00Z' },

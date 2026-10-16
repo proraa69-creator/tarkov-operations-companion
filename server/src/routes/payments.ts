@@ -1,7 +1,9 @@
 /**
  * Subscription payments, mounted at `/v1/payments` (services/paymentStore.ts).
  *
- *   GET  /plans                      -> 200 { enabled, plans, providers }
+ *   GET  /plans                      -> 200 { enabled, plans, providers, regionHint? }
+ *                                    (regionHint: 'RU' | 'CIS' | 'WORLD' from Cloudflare's country of the visitor — only a
+ *                                    suggestion for which prices «Подписка» opens on; payment always follows the account)
  *   GET  /                           Bearer -> 200 { payments, autopay, friendDiscount: { percent, plan: '1m' } | null,
  *                                    region: 'RU' | 'CIS' | 'WORLD' | null, provider: 'yookassa' | 'boosty' | null,
  *                                    boosty: { offers: ('standard' | 'friend')[] } | null }
@@ -29,6 +31,8 @@ import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
 import type { InviteProgram } from '../services/invites.js'
 import { COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
+import { countryCode } from '../services/loginCodes.js'
+import { proxiedCountry } from './loginCodes.js'
 
 const planSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']) })
 /** The payer ticked «Я принимаю условия оферты…» for this version of the documents (website/src/legal). */
@@ -80,8 +84,11 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     return id
   }
 
-  router.get('/plans', handle((_req, res) => {
-    res.json({ enabled: payments.enabled, plans: payments.plans(), providers: payments.providers() })
+  router.get('/plans', handle((req, res) => {
+    // Where the visitor seems to be (owner, 16.10.2026: «предлагать сам версию страницы взависимости от его
+    // местоположения»): never what an account may pay with, only which tab «Подписка» opens on.
+    const regionHint = paymentRegionOf(countryCode(proxiedCountry(req)))
+    res.vary('CF-IPCountry').json({ enabled: payments.enabled, plans: payments.plans(), providers: payments.providers(), ...(regionHint ? { regionHint } : {}) })
   }))
 
   router.get('/', handle((req, res) => {

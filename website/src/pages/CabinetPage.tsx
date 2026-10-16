@@ -600,7 +600,6 @@ function AppPanel() {
       <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
         <DownloadButton large={false} />
-        <p className="dim" style={{ margin: 0, fontSize: 13 }}>{tr('Чтобы предмет распознавался по клавише, включите в Tarkov режим экрана «Оконный без рамки».')}</p>
       </div>
     </section>
   )

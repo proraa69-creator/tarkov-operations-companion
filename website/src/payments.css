@@ -69,6 +69,9 @@
 .subscription-included li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; align-items: start; margin-bottom: 8px; break-inside: avoid; }
 .subscription-included li:last-child { margin-bottom: 0; }
 .subscription-included svg { width: 16px; height: 16px; margin-top: 1px; color: var(--success); }
+/* «СНГ» / «Зарубежная оплата» (owner, 16.10.2026): opens on the visitor's region, both one click away. */
+.subscription-tabs { display: flex; flex-wrap: wrap; gap: 4px; justify-self: start; max-width: 100%; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-0); }
+.subscription-tabs .button.ghost { border-color: transparent; box-shadow: none; }
 .subscription-plans { margin-top: 8px; }
 .subscription-plans .plan-card { padding: 14px; }
 .subscription-plans .plan-price { font-size: 21px; }
