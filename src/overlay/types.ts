@@ -64,8 +64,6 @@ export interface ExperimentalSettings {
   collectorKey: string
   playerMarker: 'arrow' | 'chevron' | 'dot'
   screenshotsDir: string
-  /** Start the app with administrator rights (the game runs elevated). */
-  runAsAdmin: boolean
   /** «Отключить местоположение»: no position anywhere (electron/experimental/settings.ts). */
   minimapOff: boolean
 }
