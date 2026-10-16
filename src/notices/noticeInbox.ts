@@ -19,13 +19,22 @@ const EMPTY: NoticeInbox = { notices: [], surveys: [] }
 
 let inbox: NoticeInbox = EMPTY
 let owner = ''
+/** The first answer for `owner` came (or could not come): the onboarding tips wait for it (useNoticesFirst). */
+let settled = false
+/** The tips had their turn in this run of the app; an announcement arriving later opens over them. */
+let tipsReleased = false
 /** Closed or put off in this run of the app: hidden at once, whatever an answer in flight still says. */
 const dismissed = new Set<number>()
 /** Shown in this run (the server is told once). */
 const reported = new Set<number>()
 const listeners = new Set<() => void>()
 const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
-const publish = (next: NoticeInbox) => { inbox = next; for (const listener of listeners) listener() }
+const publish = (next: NoticeInbox) => {
+  inbox = next
+  if (settled && !next.notices.length) tipsReleased = true
+  for (const listener of listeners) listener()
+}
+const settle = () => { if (!settled) { settled = true; publish({ ...inbox }) } }
 
 const visible = (value: NoticeInbox): NoticeInbox => ({
   notices: value.notices.filter((notice) => !dismissed.has(notice.id)),
@@ -48,14 +57,14 @@ let lastLoadAt = 0
 /** Asks the server now (one request at a time). */
 export function loadInbox() {
   const request = serviceClient()
-  if (!request || !owner) return Promise.resolve()
+  if (!request || !owner) { settle(); return Promise.resolve() }
   if (loading) return loading
   const account = owner
   lastLoadAt = Date.now()
   loading = request('GET', '/v1/me/notices').then((raw) => {
     const parsed = parseInbox(raw)
     if (parsed && account === owner) publish(visible(parsed))
-  }).catch(() => { /* offline or an older server: what is shown stays */ }).finally(() => { loading = null })
+  }).catch(() => { /* offline or an older server: what is shown stays */ }).finally(() => { loading = null; if (account === owner) settle() })
   return loading
 }
 
@@ -105,12 +114,16 @@ export async function noticeImage(id: number, idx: number) {
 
 /**
  * The inbox of the signed-in account `account` ('' while nobody is signed in or the server is not reachable): asked at
- * once, then once a minute, on every social event and on the focus.
+ * once, then once a minute, on every social event and on the focus. `signedIn` with no `account`: the server is out of
+ * reach for a moment (the PC slept, the network dropped) — what is on screen stays until the player presses its button
+ * (owner, 16.10.2026: «объявление не должно исчезать само, оно должно висеть до тех пор пока человек не нажмет кнопку»).
  */
-export function useNoticeInbox(account: string) {
+export function useNoticeInbox(account: string, signedIn = false) {
   useEffect(() => {
+    if (!account && signedIn) return
     if (owner !== account) {
       owner = account
+      settled = false
       dismissed.clear()
       reported.clear()
       publish(EMPTY)
@@ -127,13 +140,27 @@ export function useNoticeInbox(account: string) {
       window.removeEventListener(SOCIAL_UPDATE_EVENT, onSocial)
       window.removeEventListener('focus', onFocus)
     }
-  }, [account])
+  }, [account, signedIn])
   return useSyncExternalStore(subscribe, () => inbox, () => inbox)
+}
+
+/**
+ * The onboarding tips wait while this is true (owner, 16.10.2026: «они заходят и первое всплывающее окно это
+ * объявление, потом уже все остальные»): a signed-in account whose first inbox answer has not come yet, or one with an
+ * announcement still to read. Once the tips may show they keep their turn for the run of the app — an announcement
+ * arriving later simply opens over them (its window is above theirs). AfterNotices (AccountNotices.tsx) stops waiting
+ * after a few seconds anyway, so no server keeps the tips away.
+ */
+export function useNoticesFirst() {
+  const value = useSyncExternalStore(subscribe, () => inbox, () => inbox)
+  return { unanswered: !tipsReleased && !settled, pending: !tipsReleased && value.notices.length > 0 }
 }
 
 /** Tests: forget everything between cases. */
 export function resetNoticeInbox() {
   owner = ''
+  settled = false
+  tipsReleased = false
   dismissed.clear()
   reported.clear()
   loading = null

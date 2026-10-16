@@ -25,7 +25,7 @@ describe('admin «Объявления»', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><AdminNotices /></MemoryRouter>)
     const sent = await screen.findByRole('region', { name: 'Отправленные объявления' })
-    expect(await within(sent).findByText('Техработы')).toBeInTheDocument()
+    await user.click(await within(sent).findByRole('button', { name: /Техработы/ }))
     expect(within(sent).getByText(/Мир · Все/)).toBeInTheDocument()
     expect(fetch.mock.calls[0]![1]!.headers).toMatchObject({ authorization: 'Bearer owner-token' })
     await user.click(screen.getByRole('button', { name: 'Создать объявление' }))

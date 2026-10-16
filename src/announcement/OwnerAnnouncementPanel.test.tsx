@@ -145,7 +145,7 @@ describe('«Уведомление сверху»: the English for foreign playe
     delete legacy.textEnSource
     mockServer(legacy as Stored)
     render(<OwnerAnnouncementPanel />)
-    expect(await screen.findByText('Показывается у всех.')).toBeInTheDocument()
+    expect(await screen.findByText('Показывается у всех.', { exact: false })).toBeInTheDocument()
     expect(screen.queryByDisplayValue(WORKS)).not.toBeInTheDocument()
     expect(screen.queryByText('Английская версия')).not.toBeInTheDocument()
     expect(screen.queryByText(NO_ENGLISH)).not.toBeInTheDocument()

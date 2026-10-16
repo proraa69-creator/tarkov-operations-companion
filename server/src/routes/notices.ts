@@ -147,13 +147,13 @@ const sendError = (res: Response, error: unknown) => {
  * The English of one field for the players whose app speaks English (owner, 16.10.2026: «должен быть автоматический
  * перевод на англ язык, то что я отправляю в объявлении, для тех у кого выбран английский язык»). The owner writes
  * Russian; the English is made once here (MyMemory, services/announcementLanguage.ts), the same as the banner. A field
- * already in English stays as it is; a failed translation leaves no English and the reader sees the Russian.
+ * without Russian letters gets none (it reads the same); a failed translation leaves no English and the reader sees the Russian.
  */
 async function autoEnglish(russian: string | undefined, manual: string | undefined, translate: AnnouncementTranslator): Promise<string | undefined> {
   if (manual && manual.trim()) return manual.trim()
   const text = (russian ?? '').trim()
-  if (!text) return undefined
-  if (!hasRussian(text)) return text
+  // Nothing Russian in it (a name, a link): the same text reads in every language, no English to keep.
+  if (!text || !hasRussian(text)) return undefined
   try {
     const english = cleanNoticeLine(await translate(text)).trim()
     if (!english || stillRussian(english) || english.length > NOTICE_LIMITS.text) return undefined

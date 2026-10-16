@@ -149,6 +149,8 @@ describe('«Админ панель» sections', () => {
     renderPage('/admin?tab=surveys')
     expect(await screen.findByText('Как вам?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Создать опрос' })).toBeInTheDocument()
+    // The sent ones are collapsed to their titles: open the survey first.
+    await user.click(screen.getByRole('button', { name: /Как вам\?/ }))
     await user.click(screen.getByRole('button', { name: 'Результаты' }))
     const box = await screen.findByRole('region', { name: 'Результаты опроса' })
     expect(within(box).getByText('Да')).toBeInTheDocument()

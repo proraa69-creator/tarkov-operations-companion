@@ -31,5 +31,5 @@ export function useCountryGate() {
     void request('GET', '/v1/accounts/me').then((view) => { if (alive) setMissingFor(needsCountry(view) ? account : '') }).catch(() => {})
     return () => { alive = false }
   }, [account])
-  return { account, missing: Boolean(account) && missingFor === account, saved: () => setMissingFor('') }
+  return { account, signedIn: Boolean(status?.signedIn), missing: Boolean(account) && missingFor === account, saved: () => setMissingFor('') }
 }
