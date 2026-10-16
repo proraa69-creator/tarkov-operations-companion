@@ -254,6 +254,9 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
   // The payment region and Boosty offers (server-side, from the saved country); undefined until loaded / older server.
   const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'boosty'>>({})
+  // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
+  // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
+  const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const reloadHistory = useCallback(() => setHistoryVersion((n) => n + 1), [])
@@ -289,7 +292,8 @@ function SubscriptionPanel({ account }: { account: Account }) {
       if (cancelled) return
       setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null)
       setRegionChoice({ region: next.region, boosty: next.boosty })
-    }, () => undefined)
+      setRegionState('ready')
+    }, () => { if (!cancelled) setRegionState((state) => (state === 'ready' ? state : 'error')) })
     return () => { cancelled = true }
     // A code entered below («Код приглашения»): a streamer's sets referredBy, a friend's invitedByFriend — reload the price.
     // A changed country changes the payment region.
@@ -359,7 +363,11 @@ function SubscriptionPanel({ account }: { account: Account }) {
           </div>
         </div>
 
-        {regionChoice.region === null ? (
+        {regionState === 'loading' ? (
+          <p className="muted pay-region-loading" role="status"><LoaderCircle className="spinner" aria-hidden="true" /> {tr('Загружаем способы оплаты…')}</p>
+        ) : regionState === 'error' ? (
+          <Notice tone="error" title={tr('Не удалось загрузить способы оплаты')}>{tr('Обновите страницу или попробуйте ещё раз позже.')}</Notice>
+        ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
           <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} />
@@ -527,7 +535,8 @@ function NicknamesPanel({ account }: { account: Account }) {
 
 /**
  * «Страна» (owner, 13.10.2026: «при регистрации нужно указать страну»): the one named at registration, with its region.
- * Accounts from before the question show «Страна не указана — указать»; a named country can be corrected.
+ * Accounts from before the question show «Страна не указана — указать»; a named country is never changed (owner,
+ * 16.10.2026: «убери способ смены страны после регистрации» — the payment region follows it).
  */
 function CountryPanel({ account }: { account: Account }) {
   const auth = useAuth()
@@ -537,8 +546,7 @@ function CountryPanel({ account }: { account: Account }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ message: string; offline: boolean } | null>(null)
 
-  // A country typed by hand («XX») is not in the list: the list opens with nothing chosen.
-  const edit = () => { setCountry(account.countryOther ? '' : account.country ?? ''); setError(null); setEditing(true) }
+  const edit = () => { setCountry(''); setError(null); setEditing(true) }
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -573,7 +581,7 @@ function CountryPanel({ account }: { account: Account }) {
             </div>
           </form>
         ) : account.country ? (
-          <p className="nick-value"><strong>{account.countryOther ? `«${account.countryOther}»` : countryName(account.country, locale)}</strong> <button type="button" className="link-button" style={{ fontSize: 14 }} onClick={edit}>{tr('Изменить')}</button></p>
+          <p className="nick-value"><strong>{account.countryOther ? `«${account.countryOther}»` : countryName(account.country, locale)}</strong></p>
         ) : (
           <p style={{ margin: 0 }}><span className="muted">{tr('Страна не указана')}</span> — <button type="button" className="link-button" onClick={edit}>{tr('указать')}</button></p>
         )}

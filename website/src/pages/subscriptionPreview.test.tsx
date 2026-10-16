@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(() => new Promise(() => {})), createPayment: vi.fn() }))
+const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(async () => ({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null })), createPayment: vi.fn() }))
 vi.mock('../auth', () => ({ useAuth: () => ({
   status: 'ready', token: 'session-token',
   account: { email: 'player@example.com', kind: 'user', createdAt: '2026-10-01T00:00:00Z', nicknames: {}, subscription: { status: 'inactive' }, emailVerifiedAt: '2026-10-01T00:00:00Z' },
@@ -29,6 +29,7 @@ describe('subscription checkout', () => {
     else mocks.plans.mockResolvedValue({ enabled: mode === 'enabled', plans: [], providers: { yookassa: mode === 'enabled', autopay: false } })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    await panel.findByRole('button', { name: 'Оплатить 1 месяц' })
     for (const label of ['1 месяц', '3 месяца', '6 месяцев', '12 месяцев']) {
       const button = panel.getByRole('button', { name: `Оплатить ${label}` })
       expect(button).toBeDisabled()
@@ -89,7 +90,7 @@ describe('subscription checkout', () => {
     render(<MemoryRouter initialEntries={['/cabinet?payment=0123456789abcdef01234567']}><CabinetPage /></MemoryRouter>)
 
     expect(await screen.findByText('Проверяем предыдущую оплату…')).toBeInTheDocument()
-    const button = screen.getByRole('button', { name: 'Оплатить 1 месяц' })
+    const button = await screen.findByRole('button', { name: 'Оплатить 1 месяц' })
     expect(button).toBeEnabled()
     fireEvent.click(button)
     expect(screen.getByRole('dialog', { name: /1 месяц/ })).toBeInTheDocument()
@@ -142,6 +143,20 @@ describe('subscription checkout', () => {
     expect(await panel.findByRole('button', { name: 'Оплатить через Boosty' })).toBeInTheDocument()
     expect(panel.queryByRole('button', { name: 'Оплатить 1 месяц' })).not.toBeInTheDocument()
     expect(Boolean(panel.queryByRole('button', { name: 'Оплатить со скидкой друга (один раз)' }))).toBe(offers.length === 2)
+  })
+
+  it('no prices before the server names the region: a WORLD account never sees the Russian plans first (owner, 16.10.2026)', async () => {
+    mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
+    let answer: (value: unknown) => void = () => undefined
+    mocks.payments.mockReturnValueOnce(new Promise((resolve) => { answer = resolve }) as never)
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    expect(panel.getByRole('status')).toHaveTextContent('Загружаем способы оплаты…')
+    await vi.waitFor(() => expect(mocks.plans).toHaveBeenCalled())
+    expect(panel.queryByRole('button', { name: /^Оплатить/ })).not.toBeInTheDocument()
+    answer({ payments: [], autopay: null, friendDiscount: null, region: 'WORLD', provider: 'boosty', boosty: { offers: ['standard'] } })
+    expect(await panel.findByRole('button', { name: 'Оплатить через Boosty' })).toBeInTheDocument()
+    expect(panel.queryByRole('button', { name: 'Оплатить 1 месяц' })).not.toBeInTheDocument()
   })
 
   it('without a country no payment is offered until it is named', async () => {

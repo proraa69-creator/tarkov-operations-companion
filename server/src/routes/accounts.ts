@@ -15,7 +15,7 @@
  *   POST /me/delete         Bearer { password } -> 200 { deleted: true } (personal data erased; 409 for the owner or an active autopayment)
  *   POST /me/referral       Bearer { code }                      -> 200 account view (ordinary users only, once)
  *   PUT  /me/nicknames      Bearer { pvp?, pve?, seasonal? }     -> 200 account view
- *   PUT  /me/country        Bearer { country }                   -> 200 account view (sets or changes «Страна»; 400 unassigned code, 429)
+ *   PUT  /me/country        Bearer { country }                   -> 200 account view (sets «Страна» once, only while none; 409 already set, 400 unassigned code, 429)
  *   POST /me/initial-country Bearer { country } | { other }      -> 200 account view («Укажите страну»: only while the account has none, 409
  *                           after; `other`: typed by hand, letters / spaces / hyphens, ≤ 60, a known name becomes its code, else 'XX')
  *   POST /me/eft-account    Bearer { accountId }                 -> 200 { eftAccount?, account } | 409 { code: 'eft-in-use' | 'eft-other-account', kind, seen, bound? }
