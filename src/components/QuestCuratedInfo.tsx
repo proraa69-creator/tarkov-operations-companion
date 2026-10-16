@@ -76,13 +76,16 @@ export function MarkerHintBlock({ hint }: { hint: MarkerHint }) {
  * «Требуется» rows the owner added or corrected (quest page, quest card under the map): item, kind, count, «найден в
  * рейде» and the comment, each with the «Raid OS» mark. Nothing when the quest has none.
  */
-export function QuestCuratedRequirements({ quest, items: list, title = 'Требуется' }: { quest: Quest; items: Item[]; title?: string }) {
+export function QuestCuratedRequirements({ quest, items: list, title = 'Требуется', onEdit }: { quest: Quest; items: Item[]; title?: string; onEdit?: () => void }) {
   const rows = (quest.raidRequirements ?? []).filter((requirement) => requirement.curated)
   const items = useMemo(() => new Map(rows.length ? list.map((item) => [item.id, item]) : []), [rows.length, list])
-  if (!rows.length) return null
+  if (!rows.length && !onEdit) return null
+  // The owner's pencil (quest constructor): opens «Требования» of the quest.
+  const pencil = onEdit ? <button type="button" className="icon-button sheet-pencil" onClick={onEdit} aria-label={uiText('Изменить требования')} title={uiText('Изменить требования')}><Pencil size={12} /></button> : null
   return (
     <div className="detail-section quest-curated">
-      <h4>{uiText(title)} <RaidOsMark /></h4>
+      <h4>{uiText(title)} <RaidOsMark />{pencil}</h4>
+      {!rows.length && <small className="dim">{uiText('Требований от Raid OS нет.')}</small>}
       <ul className="quest-curated-list">
         {rows.map((requirement) => {
           const item = items.get(requirement.itemId)
@@ -100,6 +103,7 @@ export function QuestCuratedRequirements({ quest, items: list, title = 'Треб
                   {curated.comment && <small className="quest-curated-comment">{curated.comment}</small>}
                 </span>
               </Link>
+              {pencil}
             </li>
           )
         })}

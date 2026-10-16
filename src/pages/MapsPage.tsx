@@ -27,7 +27,9 @@ import { MapItemCard } from '../components/MapItemCard'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
 import { firstQuestPoint, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
-import { QuestTextEditor } from '../components/QuestTextEditor'
+import { PointMenu, PointSettingsWindow, type PointEmblem } from '../components/PointConstructor'
+import { EditableText, QuestSheetEditProvider, SheetPencil } from '../components/QuestSheetEditing'
+import { QUEST_POINT_ICONS } from '../shared/questPointConstructor'
 import { chooseTooltipPlacement, type Box as PlacementBox } from '../components/tooltipPlacement'
 import { createMapCrs, toLeafletBounds } from '../components/mapCrs'
 import { mapViewSupport, planMapLayers, readMapView, saveMapView } from '../data/mapView'
@@ -41,7 +43,7 @@ import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
-import { QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
+import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -323,7 +325,10 @@ export function MapsPage() {
   const activeMap = data.maps.find((entry) => entry.id === activeMapId) ?? data.maps[0]
   const baseFloor = mainFloor(activeMap)
   const route = useRaidRoute(activeMap.id, data.markers, data.quests, progress)
-  const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null)
+  const [pickedMarker, setSelectedMarker] = useState<MapMarker | null>(null)
+  // The picked point as the map has it now: a point the quest constructor just changed (its objective / stage, text,
+  // emblem) shows its new state in the quest window at once.
+  const selectedMarker = useMemo(() => (pickedMarker ? data.markers.find((marker) => marker.id === pickedMarker.id && marker.mapId === pickedMarker.mapId) ?? pickedMarker : null), [pickedMarker, data.markers])
   const [markerStyle, setMarkerStyle] = useState<MarkerStyle>(readMarkerStyle)
   const chooseMarkerStyle = (style: MarkerStyle) => {
     setMarkerStyle(style)
@@ -565,7 +570,9 @@ export function MapsPage() {
     ? data.quests.find((quest) => quest.id === selectedMarker.questId)
     : undefined
   const relatedAvailability = relatedQuest ? availability.get(relatedQuest.id) : undefined
-  const relatedStageIndex = relatedQuest ? (selectedMarker?.stageIndex ?? currentStoryStageIndex(relatedQuest, progress)) : 0
+  // The constructor's chosen stage of the edited quest is the one its window shows.
+  const editorStage = questEditor.active && relatedQuest && questEditor.questId === relatedQuest.id && questEditor.goal.startsWith('s:') ? Number(questEditor.goal.slice(2)) : null
+  const relatedStageIndex = relatedQuest ? (editorStage ?? selectedMarker?.stageIndex ?? currentStoryStageIndex(relatedQuest, progress)) : 0
   const relatedStage = relatedQuest?.stages?.[relatedStageIndex]
   const flyTarget = selectedMarker && selectedMarker.source !== 'quest-info' && hasRealCoordinates(selectedMarker)
     ? selectedMarker
@@ -577,8 +584,21 @@ export function MapsPage() {
   const relatedSheet = relatedQuest ? sheetObjectives(relatedQuest, { mapId: activeMap.id, maps: data.maps, itemsById, progress }) : null
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
-  // The quest constructor: the quest being edited shows its texts as fields in its window (components/QuestTextEditor.tsx).
-  const editingTexts = Boolean(questEditor.active && relatedQuest && questEditor.questId === relatedQuest.id)
+  // The quest constructor: every text line of the quest window gets a pencil (components/QuestSheetEditing.tsx).
+  const editingTexts = Boolean(questEditor.active && relatedQuest)
+  /** The pencil of a point line / the right click «Редактировать»: the point's window (components/PointConstructor.tsx). */
+  const editPoint = (markerId: string) => {
+    const marker = data.markers.find((entry) => entry.id === markerId)
+    if (marker) questEditor.openSettings({ marker })
+  }
+  /** The pencil of the requirements: the constructor's «Требования» of that quest. */
+  const editRequirements = (quest: Quest) => {
+    questEditor.setActive(true)
+    if (questEditor.questId !== quest.id) questEditor.pick(quest.id)
+    questEditor.setTab('requirements')
+  }
+  // Every emblem the map knows, drawn in the chosen marker style, for the point menu and window.
+  const pointEmblems = useMemo<PointEmblem[]>(() => QUEST_POINT_ICONS.map((id) => ({ id, label: markerTypeLabel[id], icon: <LayerIcon style={markerStyle} layerId={id} active /> })), [markerStyle])
 
   return <div className="page map-page">
     <div className={`map-shell${layersOpen ? ' layers-open' : ''}`}>
@@ -693,6 +713,14 @@ export function MapsPage() {
                     event.originalEvent.stopPropagation()
                     showMarker(marker)
                   },
+                  // Owner app: a right click on a quest point or a point the owner added opens its menu (components/PointConstructor.tsx).
+                  contextmenu: (event) => {
+                    if (!questEditor.canEdit(marker)) return
+                    const original = event.originalEvent
+                    original.preventDefault()
+                    original.stopPropagation()
+                    questEditor.openMenu({ marker }, original.clientX, original.clientY)
+                  },
                   tooltipopen: (event) => {
                     const map = mapRef.current
                     if (!map) return
@@ -732,12 +760,13 @@ export function MapsPage() {
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
+          <QuestSheetEditProvider questId={relatedQuest?.id ?? ''} enabled={editingTexts}>
           {uiText(relatedQuest && (
             <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''}`}>
               {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
               <div className="map-quest-sheet-copy">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
-                <h2 className="map-quest-sheet-title">{uiText(relatedQuest.name)}</h2>
+                <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>
                 <div className="map-quest-sheet-meta">
                   <span className="tag brass">{uiText(questStatusLabel(relatedAvailability?.status ?? 'unknown', isStoryQuest(relatedQuest)))}</span>
                   {uiText(relatedQuest.kappa && <span className="tag brass">{uiText("капа")}</span>)}
@@ -747,20 +776,22 @@ export function MapsPage() {
                   {uiText(sheetPoint?.guaranteedSpawn && <span className="tag brass">{uiText(GUARANTEED_SPAWN_TEXT)}</span>)}
                 </div>
                 <div className="map-quest-sheet-section">
-                  {editingTexts ? <QuestTextEditor quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} /> : uiText(relatedStage ? (
+                  {editingTexts && <p className="dim map-quest-sheet-description"><EditableText field="description" value={relatedQuest.description} /></p>}
+                  {uiText(relatedStage ? (
                     <>
                       <h4>{uiText('Задача')}</h4>
-                      <p><strong>{uiText(relatedStage.title)}</strong></p>
-                      {uiText(relatedStage.description && <p className="dim">{uiText(relatedStage.description)}</p>)}
+                      <p><strong><EditableText field="stage-title" target={String(relatedStageIndex)} value={relatedStage.title} /></strong></p>
+                      {uiText((relatedStage.description || editingTexts) && <p className="dim"><EditableText field="stage-description" target={String(relatedStageIndex)} value={relatedStage.description ?? ''} /></p>)}
                     </>
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives sheet={relatedSheet} trader={relatedQuest.trader} /> : (
+                      {relatedSheet ? <QuestSheetObjectives sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} /> : (
                         <ul className="map-quest-sheet-objectives">
-                          {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective) => (
-                            <li key={objective}>{uiText(objective)}</li>
-                          )))}
+                          {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
+                            const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined
+                            return <li key={objective}>{objectiveId ? <EditableText field="objective" target={objectiveId} value={objective} /> : uiText(objective)}</li>
+                          }))}
                         </ul>
                       )}
                     </>
@@ -769,9 +800,9 @@ export function MapsPage() {
                     <p className="map-quest-sheet-note"><MapPin size={12} />{uiText(" Точное место этапа неизвестно — метка стоит приблизительно.")}</p>
                   ))}
                   {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
-                  {!editingTexts && <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} />}
-                  {!editingTexts && <QuestGuideImages quest={relatedQuest} />}
-                  {!editingTexts && <QuestCuratedRequirements quest={relatedQuest} items={data.items} />}
+                  <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} onEditPoint={editingTexts ? editPoint : undefined} />
+                  <QuestGuideImages quest={relatedQuest} />
+                  <QuestCuratedRequirements quest={relatedQuest} items={data.items} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
                 </div>
                 <Link
                   className="button map-quest-sheet-link"
@@ -788,7 +819,7 @@ export function MapsPage() {
                     <span>{uiText(sheetFloor)}</span>
                   </figcaption>
                   {uiText(sheetPoint.description && sheetPoint.description !== relatedStage?.description && (
-                    <p className="map-quest-sheet-point">{uiText(sheetPoint.description)}</p>
+                    <p className="map-quest-sheet-point">{uiText(sheetPoint.description)}{editingTexts && questEditor.canEdit(sheetPoint) && <SheetPencil label="Изменить точку" onClick={() => editPoint(sheetPoint.id)} />}</p>
                   ))}
                 </figure>
               ))}
@@ -798,14 +829,18 @@ export function MapsPage() {
             <div className="map-quest-sheet-body map-marker-detail-card">
               <button className="icon-button map-marker-detail-close" onClick={() => setSelectedMarker(null)} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>
               <div className="map-quest-sheet-eyebrow">{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · {uiText(floorLabel(selectedMarker, baseFloor))}</div>
-              <h2 className="map-quest-sheet-title">{uiText(selectedMarker.title)}</h2>
+              <h2 className="map-quest-sheet-title">{uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
               {selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
+              {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
               {selectedMarker.meta && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
           ))}
+          </QuestSheetEditProvider>
         </div>
+        <PointMenu state={questEditor} emblems={pointEmblems} />
+        <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />
       </section>
 
       <aside className="map-detail">

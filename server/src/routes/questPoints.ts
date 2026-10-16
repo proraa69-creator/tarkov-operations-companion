@@ -19,7 +19,8 @@
  *
  * The point constructor (owner, 16.10.2026): a point may also carry `icon` (an emblem of the map's marker layers,
  * src/shared/questPointConstructor.ts), `itemIds` (catalog items, at most 6) and `photoIds` (at most 4 stored photos).
- * An added point may have no `questId` (a «free» point: an extract, a transit, loot…): it then needs an emblem other than
+ * A `describe` may carry only an emblem or the objective / stage the original point counts for (the constructor's
+ * «Цель / этап»). An added point may have no `questId` (a «free» point: an extract, a transit, loot…): it then needs an emblem other than
  * a quest's; the answers leave its `questId` out, so older apps (which need one) skip it.
  *
  *   POST /v1/accounts/me/admin/quest-point-photos { data: base64 } -> 201 { photo: { id, mime, size, width, height } }
@@ -169,7 +170,9 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
     const body = overrideSchema.safeParse(req.body)
     if (!body.success) { res.status(400).json({ error: `Некорректные данные точки (заголовок до ${QUEST_POINT_TITLE_MAX}, описание до ${QUEST_POINT_DESCRIPTION_MAX} символов)` }); return }
     const { id, ...input } = body.data
-    if (input.kind === 'describe' && !input.title && !input.description && !input.titleEn && !input.descriptionEn && !input.itemIds && !input.photoIds) { res.status(400).json({ error: 'Пустое описание точки' }); return }
+    // A «describe» says something: a text, items, photos, an emblem or the objective / stage the point counts for.
+    if (input.kind === 'describe' && !input.title && !input.description && !input.titleEn && !input.descriptionEn && !input.itemIds && !input.photoIds
+      && !input.icon && !input.objectiveId && input.stageIndex == null) { res.status(400).json({ error: 'Пустое описание точки' }); return }
     // A free point (no quest): only an added one, with an emblem that is not a quest's.
     if (!input.questId && (input.kind !== 'add' || !input.icon || isQuestIcon(input.icon))) { res.status(400).json({ error: 'Выберите квест или другой значок точки' }); return }
     if (input.photoIds?.some((photoId) => !photos?.has(photoId))) { res.status(400).json({ error: 'Фото не найдено: загрузите его снова' }); return }

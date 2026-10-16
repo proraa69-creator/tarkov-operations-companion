@@ -182,3 +182,19 @@ test('point photos: a server without a photo directory answers 503 to the owner'
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
+
+test('the point constructor: an original point may be moved to another objective / stage or get an emblem without a text', async () => {
+  const { call, login, close } = await setup()
+  try {
+    const owner = await login('owner@example.com')
+    const original = { questId: 'q1', markerId: 'quest-zone-q1-a', mapId: 'customs', x: 0, z: 0, kind: 'describe' }
+    assert.equal((await call('PUT', POINTS, owner, original)).status, 400, 'nothing to say')
+    const staged = await call<{ override: Override & { stageIndex?: number } }>('PUT', POINTS, owner, { ...original, stageIndex: 2 })
+    assert.equal(staged.status, 200)
+    assert.equal(staged.json.override.stageIndex, 2)
+    const item = await call<{ override: Override }>('PUT', POINTS, owner, { ...original, id: staged.json.override.id, icon: 'quest.item' })
+    assert.deepEqual([item.status, item.json.override.icon], [200, 'quest.item'])
+  } finally {
+    await close()
+  }
+})
