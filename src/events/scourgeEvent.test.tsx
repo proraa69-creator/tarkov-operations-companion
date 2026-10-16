@@ -42,6 +42,13 @@ describe('«Вторжение Scourge» (owner, 16.10.2026)', () => {
     await settle()
     expect(screen.getByRole('dialog', { name: 'Вторжение Scourge' }).querySelector('video')).toHaveAttribute('src', 'https://raidos.app/media/scourge-invasion.mp4')
     expect(localStorage.getItem(SCOURGE_INTRO_KEY)).not.toBeNull()
+    // half the volume at the start, with a slider
+    const video = document.querySelector('video')!
+    expect(video.volume).toBe(0.5)
+    const slider = screen.getByRole('slider', { name: 'Громкость' })
+    expect(slider).toHaveValue('50')
+    fireEvent.change(slider, { target: { value: '20' } })
+    expect(video.volume).toBeCloseTo(0.2)
     fireEvent.click(screen.getByRole('button', { name: 'Пропустить' }))
     const story = screen.getByRole('dialog', { name: 'Вторжение Scourge' })
     expect(story).toHaveTextContent('В игру добавили новую цепочку заданий, связанную с операцией Рефа в Лаборатории.')
@@ -60,13 +67,16 @@ describe('«Вторжение Scourge» (owner, 16.10.2026)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('the Overview button opens every event quest (taken or not); the clip plays at half volume with a slider and goes on to the story', async () => {
+  it('the Overview button opens only the event quests (taken or not): no clip, no story, no boss tip again', async () => {
     localStorage.setItem(SCOURGE_INTRO_KEY, 'seen')
     open()
     await settle()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ивент: Вторжение Scourge' }))
     const story = screen.getByRole('dialog', { name: 'Вторжение Scourge' })
+    expect(document.querySelector('video')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Смотреть ролик' })).not.toBeInTheDocument()
+    expect(story).not.toHaveTextContent('Под офисом управляющего')
     const cards = [...story.querySelectorAll('.scourge-quest summary')].map((summary) => summary.textContent)
     expect(cards).toHaveLength(6)
     for (const name of ['Скрытый маршрут', 'Простая задача', 'Продление операции', 'Информационный след', 'Подработка для души', 'Деанон']) {
@@ -75,16 +85,8 @@ describe('«Вторжение Scourge» (owner, 16.10.2026)', () => {
     // before the catalog has them: the rewards from the quests' own data
     expect(story).toHaveTextContent('Хирургия +1 уровень')
     expect(story.querySelectorAll('.quest-guide-image')).toHaveLength(2)
-    fireEvent.click(screen.getByRole('button', { name: 'Смотреть ролик' }))
-    const video = document.querySelector('video')!
-    expect(video.volume).toBe(0.5)
-    const slider = screen.getByRole('slider', { name: 'Громкость' })
-    expect(slider).toHaveValue('50')
-    fireEvent.change(slider, { target: { value: '20' } })
-    expect(video.volume).toBeCloseTo(0.2)
-    fireEvent.ended(video)
-    expect(screen.getByRole('button', { name: 'Закрыть' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await settle()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

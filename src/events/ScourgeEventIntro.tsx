@@ -16,6 +16,7 @@ type Phrase = { ru: string; en: string }
 
 const TEXT = {
   eyebrow: { ru: 'Новый ивент', en: 'New event' },
+  eventEyebrow: { ru: 'Ивент', en: 'Event' },
   title: { ru: 'Вторжение Scourge', en: 'Scourge Invasion' },
   skip: { ru: 'Пропустить', en: 'Skip' },
   sound: { ru: 'Включить звук', en: 'Sound on' },
@@ -82,7 +83,7 @@ export function ScourgeEventIntro() {
   }, [active])
 
   useEffect(() => {
-    // the Overview's event button: the quests at once, the clip one click away
+    // the Overview's event button: the event's quests only (the clip, the story and the boss tip come once, at the first start)
     const open = () => { if (scourgeEventActive()) { setFromButton(true); setStep('story') } }
     window.addEventListener(SCOURGE_OPEN_EVENT, open)
     return () => window.removeEventListener(SCOURGE_OPEN_EVENT, open)
@@ -108,7 +109,7 @@ export function ScourgeEventIntro() {
   if (!active || step === null) return null
   if (step === 'video') return <EventVideo say={say} onDone={() => setStep('story')} />
   if (step === 'story') {
-    return <EventStory say={say} locale={locale === 'en' ? 'en' : 'ru'} finalLabel={fromButton ? TEXT.close : TEXT.next}
+    return <EventStory say={say} locale={locale === 'en' ? 'en' : 'ru'} finalLabel={fromButton ? TEXT.close : TEXT.next} questsOnly={fromButton}
       onNext={() => setStep(fromButton ? null : 'boss')} onReplay={() => setStep('video')} onOpenQuest={() => setStep(null)} />
   }
   return <GuideTip id="scourge-boss" tip={BOSS_TIP} phone={phone} onAccept={() => setStep(null)}>
@@ -208,10 +209,12 @@ function eventQuests(catalog: { quests: readonly Quest[]; items: ReadonlyArray<{
 }
 
 /** What the event is: the owner's text, the two spawns, every event quest with its objectives and rewards, the end date. */
-function EventStory({ say, locale, finalLabel, onNext, onReplay, onOpenQuest }: {
+function EventStory({ say, locale, finalLabel, questsOnly, onNext, onReplay, onOpenQuest }: {
   say: (phrase: Phrase) => string
   locale: 'ru' | 'en'
   finalLabel: Phrase
+  /** From the Overview button: the event's quests only; the clip and the story were shown once, at the first start. */
+  questsOnly: boolean
   onNext: () => void
   onReplay: () => void
   onOpenQuest: () => void
@@ -232,12 +235,14 @@ function EventStory({ say, locale, finalLabel, onNext, onReplay, onOpenQuest }: 
       <section className="panel scourge-story-card">
         <div className="scourge-story-head">
           <span className="scourge-story-icon"><Swords size={20} aria-hidden="true" /></span>
-          <div className="eyebrow">{say(TEXT.eyebrow)}</div>
-          <button type="button" className="button small ghost scourge-replay" onClick={onReplay}><Film size={14} aria-hidden="true" />{say(TEXT.replay)}</button>
+          <div className="eyebrow">{say(questsOnly ? TEXT.eventEyebrow : TEXT.eyebrow)}</div>
+          {!questsOnly && <button type="button" className="button small ghost scourge-replay" onClick={onReplay}><Film size={14} aria-hidden="true" />{say(TEXT.replay)}</button>}
         </div>
         <h2 id="scourge-story-title">{say(TEXT.title)}</h2>
-        <p>{say(TEXT.story)}</p>
-        <ul className="scourge-story-list">{TEXT.spawns.map((spawn) => <li key={spawn.ru}>{say(spawn)}</li>)}</ul>
+        {!questsOnly && <>
+          <p>{say(TEXT.story)}</p>
+          <ul className="scourge-story-list">{TEXT.spawns.map((spawn) => <li key={spawn.ru}>{say(spawn)}</li>)}</ul>
+        </>}
         <h3>{say(TEXT.quests)}</h3>
         <div className="scourge-quests">
           {quests.map((quest, index) => (
