@@ -62,10 +62,12 @@ export const setRemoteMinimap = (enabled: boolean) => { remoteMinimap = enabled 
 export const remoteMinimapOn = () => remoteMinimap
 
 /**
- * The position tracking and what it needs (the screenshots folder, the position on the app's maps and the phone) is on:
- * the owner allows it for everybody, and the player did not turn it off («Отключить местоположение»).
+ * The position tracking and what it needs (the screenshots folder, the position on the app's maps and the phone) is on
+ * while the owner allows it for everybody. The player's own «Отключить местоположение» is gone (owner, 16.10.2026:
+ * «выключения кнопку удали, могу выключить только я, а пока я не выключил эта функция у них работает»): a `minimapOff`
+ * saved before no longer counts.
  */
-export const trackingOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>, remote = remoteMinimap) => remote && settings.minimap && !settings.minimapOff
+export const trackingOn = (settings: Pick<ExperimentalSettings, 'minimap'>, remote = remoteMinimap) => remote && settings.minimap
 
 let current: ExperimentalSettings | null = null
 
@@ -93,7 +95,6 @@ export async function updateSettings(patch: unknown): Promise<ExperimentalSettin
 /** Saved settings (any shape, any older version) as the current ones. Exported for the tests. */
 export function sanitize(raw: unknown): ExperimentalSettings {
   const value = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  const flag = (key: keyof ExperimentalSettings) => typeof value[key] === 'boolean' ? value[key] as boolean : DEFAULT_SETTINGS[key] as boolean
   const interval = Number(value.screenshotIntervalMs)
   return {
     version: 5,
@@ -110,6 +111,7 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     collectorKey: isKnownHotkey(value.collectorKey) ? value.collectorKey : '',
     playerMarker: value.playerMarker === 'chevron' || value.playerMarker === 'dot' ? value.playerMarker : 'arrow',
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
-    minimapOff: flag('minimapOff'),
+    // Only the owner turns the position off now (see trackingOn): a player's earlier «выключено» is dropped.
+    minimapOff: false,
   }
 }

@@ -235,14 +235,15 @@ test('the owner\'s confirmation refuses Russia, accounts without a country, unkn
   }
 })
 
-test('announcement audiences: «СНГ» without Russia, «Мир», «Все, кроме России»; the old regions still work', async () => {
+test('announcement audiences: the legacy Boosty ones still read; the regions «Россия», «СНГ» (without Russia), «Мир» (16.10.2026)', async () => {
   const facts = (country: string | null) => ({ id: 'a', kind: 'user', country, countrySetAt: null, createdAt: 0, paidUntil: 0 })
   const matches = (payRegion: 'CIS' | 'WORLD' | 'ALL_PAID_REGIONS', country: string | null) => audienceMatches({ regions: [], payment: 'all', payRegion }, 1, facts(country), 1)
   assert.deepEqual(['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null].map((country) => matches('CIS', country)), [false, true, true, false, false, false, false])
   assert.deepEqual(['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null].map((country) => matches('WORLD', country)), [false, false, false, true, true, true, false])
   assert.deepEqual(['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null].map((country) => matches('ALL_PAID_REGIONS', country)), [false, true, true, true, true, true, false])
-  // The old «СНГ» region keeps Russia.
-  assert.equal(audienceMatches({ regions: ['cis'], payment: 'all' }, 1, facts('RU'), 1), true)
+  // «Россия» is its own region now; «СНГ» is the CIS without Russia, like the Boosty one.
+  assert.equal(audienceMatches({ regions: ['ru'], payment: 'all' }, 1, facts('RU'), 1), true)
+  assert.equal(audienceMatches({ regions: ['cis'], payment: 'all' }, 1, facts('RU'), 1), false)
 
   const t = await setup()
   try {
@@ -257,10 +258,11 @@ test('announcement audiences: «СНГ» without Russia, «Мир», «Все, �
     assert.equal(world.json.notice.targeted, 2)
     const all = await send({ regions: [], payment: 'all', payRegion: 'ALL_PAID_REGIONS' })
     assert.equal(all.json.notice.targeted, 4)
-    assert.equal((await send({ regions: ['europe'], payment: 'all', payRegion: 'WORLD' })).status, 400)
+    assert.equal((await send({ regions: ['world'], payment: 'all', payRegion: 'WORLD' })).status, 400)
     assert.equal((await send({ regions: [], payment: 'all', payRegion: 'RU' })).status, 400)
-    // The existing audiences: «СНГ» (Russia included: the RU owner too) and everybody.
-    assert.equal((await send({ regions: ['cis'], payment: 'all' })).json.notice.targeted, 4)
+    // The regions: «Россия» (the RU player and the RU owner), «СНГ» without Russia (KZ, AM), and everybody.
+    assert.equal((await send({ regions: ['ru'], payment: 'all' })).json.notice.targeted, 2)
+    assert.equal((await send({ regions: ['cis'], payment: 'all' })).json.notice.targeted, 2)
     assert.equal((await send({ regions: [], payment: 'all' })).json.notice.targeted, 7)
     // Delivery: a Russian player never gets a Boosty announcement, a Kazakh one gets the CIS one.
     const inbox = async (email: string) => {

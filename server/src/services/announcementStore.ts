@@ -26,6 +26,9 @@ export interface Announcement {
 /** What every app gets; `lang`: the language of `text`. */
 export interface PublicAnnouncement { text: string; lang: NoticeLanguage; updatedAt: string }
 
+/** One past banner, newest first (owner, 16.10.2026: «должна так же сохранятся история банеров»). */
+export interface AnnouncementHistoryEntry { id: number; text: string; textEn: string | null; active: boolean; updatedBy: string; updatedAt: string }
+
 interface Row { text: string; text_en: string | null; text_en_source: string | null; active: number; updated_by: string; updated_at: string }
 
 export class AnnouncementStore {
@@ -40,6 +43,14 @@ export class AnnouncementStore {
     const columns = db.prepare('PRAGMA table_info(announcement)').all() as Array<{ name: string }>
     if (!columns.some((column) => column.name === 'text_en')) db.exec('ALTER TABLE announcement ADD COLUMN text_en TEXT')
     if (!columns.some((column) => column.name === 'text_en_source')) db.exec('ALTER TABLE announcement ADD COLUMN text_en_source TEXT')
+    // Every save of a banner is kept so the owner can see the past banners (16.10.2026).
+    db.exec(`CREATE TABLE IF NOT EXISTS announcement_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        text_en TEXT,
+        active INTEGER NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL);`)
   }
 
   /**
@@ -75,5 +86,16 @@ export class AnnouncementStore {
         updated_by = excluded.updated_by, updated_at = excluded.updated_at`)
       .run(text, english?.text || null, english?.text ? english.source : null, active ? 1 : 0, actor, updatedAt)
     return this.current()!
+  }
+
+  /** Keep a shown banner in the history (owner, 16.10.2026); the caller records only a new or changed one, not a re-save. */
+  addHistory(text: string, textEn: string | null, actor: string) {
+    this.db.prepare('INSERT INTO announcement_history (text, text_en, active, updated_by, updated_at) VALUES (?, ?, 1, ?, ?)').run(text, textEn || null, actor, new Date(this.now()).toISOString())
+  }
+
+  /** The past banners, newest first (owner, 16.10.2026). */
+  history(limit = 50): AnnouncementHistoryEntry[] {
+    const rows = this.db.prepare('SELECT id, text, text_en, active, updated_by, updated_at FROM announcement_history ORDER BY id DESC LIMIT ?').all(limit) as unknown as Array<{ id: number; text: string; text_en: string | null; active: number; updated_by: string; updated_at: string }>
+    return rows.map((row) => ({ id: Number(row.id), text: String(row.text), textEn: row.text_en == null ? null : String(row.text_en), active: row.active === 1, updatedBy: String(row.updated_by), updatedAt: String(row.updated_at) }))
   }
 }

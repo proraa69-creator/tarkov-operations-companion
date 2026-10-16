@@ -27,7 +27,9 @@ async function setup() {
   first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
   const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'], now: () => clock })
   const payments = new PaymentStore(db, undefined)
-  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
+  // A fake translator (never the network): the English of a popup without the owner's own is this.
+  const translateAnnouncement = (russian: string) => Promise.resolve(`[EN] ${russian.replace(/[Ѐ-ӿ]+/g, 'x')}`)
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, guard: { quickCheckEveryMs: 0 }, translateAnnouncement }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
   const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown) => {
@@ -57,16 +59,22 @@ type Notice = { id: number; targeted: number; seen: number; closed: number; with
 const announcement = (overrides: Record<string, unknown> = {}) => ({ title: 'Скидка', text: 'Только сегодня', audience: { regions: [], payment: 'all' }, ...overrides })
 const tick = () => { clock += 1000 }
 
-test('audience: regions OR-ed, AND the payment; «Не указана» also for a country named after sending; nothing for later accounts', () => {
+test('audience: «Россия»/«СНГ»/«Мир» OR-ed, AND the payment; «Все» for any country incl. none; nothing for later accounts', () => {
   const sentAt = 1_000
   const facts = (country: string | null, paidUntil = 0, extra: Partial<{ kind: string; countrySetAt: number; createdAt: number }> = {}) => ({ id: 'x', kind: 'user', country, countrySetAt: null, createdAt: 0, paidUntil, ...extra })
   const now = 2_000
-  assert.equal(audienceMatches({ regions: ['cis', 'europe'], payment: 'all' }, sentAt, facts('KZ'), now), true)
-  assert.equal(audienceMatches({ regions: ['cis', 'europe'], payment: 'all' }, sentAt, facts('US'), now), false)
-  assert.equal(audienceMatches({ regions: ['other'], payment: 'all' }, sentAt, facts('XX'), now), true, 'a country typed by hand is «Другие»')
-  assert.equal(audienceMatches({ regions: ['none'], payment: 'all' }, sentAt, facts(null), now), true)
-  assert.equal(audienceMatches({ regions: ['none'], payment: 'all' }, sentAt, facts('DE', 0, { countrySetAt: 1_500 }), now), true, 'named after the sending')
-  assert.equal(audienceMatches({ regions: ['none'], payment: 'all' }, sentAt, facts('DE', 0, { countrySetAt: 500 }), now), false)
+  // «Россия» — RU; «СНГ» — the CIS without Russia; «Мир» — a known country outside the CIS.
+  assert.equal(audienceMatches({ regions: ['ru'], payment: 'all' }, sentAt, facts('RU'), now), true)
+  assert.equal(audienceMatches({ regions: ['ru'], payment: 'all' }, sentAt, facts('KZ'), now), false)
+  assert.equal(audienceMatches({ regions: ['cis'], payment: 'all' }, sentAt, facts('KZ'), now), true)
+  assert.equal(audienceMatches({ regions: ['cis'], payment: 'all' }, sentAt, facts('RU'), now), false, '«СНГ» is the CIS without Russia')
+  assert.equal(audienceMatches({ regions: ['world'], payment: 'all' }, sentAt, facts('DE'), now), true)
+  assert.equal(audienceMatches({ regions: ['world'], payment: 'all' }, sentAt, facts('XX'), now), true, 'a country typed by hand is «Мир»')
+  assert.equal(audienceMatches({ regions: ['world'], payment: 'all' }, sentAt, facts('KZ'), now), false)
+  assert.equal(audienceMatches({ regions: ['ru', 'cis'], payment: 'all' }, sentAt, facts('BY'), now), true, 'OR of the regions')
+  // «Все» (no region): everybody, an account without a country included; a specific region never matches a country-less one.
+  assert.equal(audienceMatches({ regions: [], payment: 'all' }, sentAt, facts(null), now), true)
+  assert.equal(audienceMatches({ regions: ['world'], payment: 'all' }, sentAt, facts(null), now), false)
   assert.equal(audienceMatches({ regions: [], payment: 'paid' }, sentAt, facts('DE', 3_000), now), true)
   assert.equal(audienceMatches({ regions: [], payment: 'paid' }, sentAt, facts('DE', 1_500), now), false, 'paid days over')
   assert.equal(audienceMatches({ regions: [], payment: 'unpaid' }, sentAt, facts('DE', 1_500), now), true)
@@ -98,7 +106,7 @@ test('notices are owner-only: 401 without a session, 404 for a player, on every 
   }
 })
 
-test('announcements: regions × payment, «Не указана», once per account on every device, counts, withdraw', async () => {
+test('announcements: «Россия»/«Мир»/«Все» × payment, once per account on every device, counts, withdraw', async () => {
   const t = await setup()
   try {
     const moscow = await t.player('moscow@example.com', 'RU')
@@ -108,54 +116,49 @@ test('announcements: regions × payment, «Не указана», once per accou
     await t.pay('berlin@example.com')
     tick()
 
-    // СНГ + Европа, only the paying ones: Berlin.
-    const paidEurope = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Для оплативших', audience: { regions: ['cis', 'europe'], payment: 'paid' } }))
-    assert.equal(paidEurope.status, 201, JSON.stringify(paidEurope.json))
-    assert.equal(paidEurope.json.notice.targeted, 1)
-    // «Не указана», everybody: the old account (the owner has RU).
-    const none = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Укажите страну', titleEn: 'Your country', text: 'Текст', textEn: 'Text', audience: { regions: ['none'], payment: 'all' } }))
-    assert.equal(none.json.notice.targeted, 1)
-    // Без оплаты, all regions: Moscow, Tokyo, old (and the owner's own account: it has no paid days either).
-    const unpaid = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Попробуйте подписку', audience: { regions: ['cis', 'europe', 'other', 'none'], payment: 'unpaid' } }))
-    assert.deepEqual(unpaid.json.notice.audience, { regions: [], payment: 'unpaid' }, 'all four regions are everybody')
+    // «Мир», only the paying ones: Berlin.
+    const paidWorld = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Для оплативших', audience: { regions: ['world'], payment: 'paid' } }))
+    assert.equal(paidWorld.status, 201, JSON.stringify(paidWorld.json))
+    assert.equal(paidWorld.json.notice.targeted, 1)
+    // «Россия», everybody: Moscow and the owner (both RU); the owner's own English is kept, not auto-translated.
+    const russia = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Россиянам', titleEn: 'For Russia', text: 'Текст', textEn: 'Text', audience: { regions: ['ru'], payment: 'all' } }))
+    assert.equal(russia.json.notice.targeted, 2)
+    // «Все», without a subscription: Moscow, Tokyo, old and the owner (all without paid days); Berlin pays, so no.
+    const unpaid = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Попробуйте подписку', audience: { regions: ['ru', 'cis', 'world'], payment: 'unpaid' } }))
+    assert.deepEqual(unpaid.json.notice.audience, { regions: [], payment: 'unpaid' }, 'all three regions are everybody')
     assert.equal(unpaid.json.notice.targeted, 4)
 
     const titles = async (token: string) => (await t.call<Inbox>('GET', '/me/notices', token)).json.notices.map((notice) => notice.title)
     assert.deepEqual(await titles(berlin), ['Для оплативших'])
-    assert.deepEqual(await titles(moscow), ['Попробуйте подписку'])
+    assert.deepEqual(await titles(moscow), ['Россиянам', 'Попробуйте подписку'])
     assert.deepEqual(await titles(tokyo), ['Попробуйте подписку'])
-    assert.deepEqual(await titles(old), ['Укажите страну', 'Попробуйте подписку'])
-    assert.deepEqual(await titles(t.owner), ['Попробуйте подписку'], 'the owner gets only what targets the owner too')
-    const oldInbox = (await t.call<Inbox>('GET', '/me/notices', old)).json.notices[0]!
-    assert.deepEqual([oldInbox.titleEn, oldInbox.textEn], ['Your country', 'Text'], 'both languages go to the app, which picks')
-
-    // The old account names its country now: the «Не указана» notice still reaches it.
-    tick()
-    assert.equal((await t.call('POST', '/accounts/me/initial-country', old, { country: 'FR' })).status, 200)
-    assert.deepEqual(await titles(old), ['Укажите страну', 'Попробуйте подписку'])
+    assert.deepEqual(await titles(old), ['Попробуйте подписку'], 'a country-less account matches only «Все»')
+    assert.deepEqual(await titles(t.owner), ['Россиянам', 'Попробуйте подписку'], 'the owner gets only what targets the owner too')
+    const moscowInbox = (await t.call<Inbox>('GET', '/me/notices', moscow)).json.notices[0]!
+    assert.deepEqual([moscowInbox.titleEn, moscowInbox.textEn], ['For Russia', 'Text'], 'the owner\'s own English is delivered, the app picks the language')
 
     // Seen and closed: per account, once; another device of the account sees nothing more.
     assert.equal((await t.call('POST', `/me/notices/${unpaid.json.notice.id}/seen`, moscow)).status, 204)
     assert.equal((await t.call('POST', `/me/notices/${unpaid.json.notice.id}/close`, moscow)).status, 204)
     const moscowPhone = (await t.call<{ token: string }>('POST', '/accounts/login', undefined, { email: 'moscow@example.com', password })).json.token
-    assert.deepEqual(await titles(moscowPhone), [])
+    assert.deepEqual(await titles(moscowPhone), ['Россиянам'], 'the closed one is gone, the other stays')
     assert.deepEqual(await titles(tokyo), ['Попробуйте подписку'], 'other accounts still have it')
-    assert.equal((await t.call('POST', `/me/notices/${paidEurope.json.notice.id}/close`, moscow)).status, 404, 'not this account\'s')
+    assert.equal((await t.call('POST', `/me/notices/${paidWorld.json.notice.id}/close`, moscow)).status, 404, 'not this account\'s')
     assert.equal((await t.call('POST', `/me/notices/${unpaid.json.notice.id}/seen`, tokyo)).status, 204)
 
     type List = { notices: Notice[] }
     const listed = (await t.call<List>('GET', '/accounts/me/admin/notices', t.owner)).json.notices
     assert.deepEqual(listed.map((notice) => [notice.id, notice.targeted, notice.seen, notice.closed]), [
       [unpaid.json.notice.id, 4, 2, 1],
-      [none.json.notice.id, 1, 0, 0],
-      [paidEurope.json.notice.id, 1, 0, 0],
+      [russia.json.notice.id, 2, 0, 0],
+      [paidWorld.json.notice.id, 1, 0, 0],
     ])
 
     // «Отозвать»: those who have not closed it do not see it any more.
     const withdrawn = await t.call<{ notice: Notice }>('POST', `/accounts/me/admin/notices/${unpaid.json.notice.id}/withdraw`, t.owner, {})
     assert.ok(withdrawn.json.notice.withdrawnAt)
     assert.deepEqual(await titles(tokyo), [])
-    assert.deepEqual(await titles(old), ['Укажите страну'])
+    assert.deepEqual(await titles(old), [])
 
     // An account registered after the sending never gets it.
     tick()
@@ -166,6 +169,20 @@ test('announcements: regions × payment, «Не указана», once per accou
     // The audit log names every sending and withdrawal.
     const audit = t.db.prepare("SELECT action FROM owner_audit_log WHERE action LIKE 'notice.%' ORDER BY id").all() as Array<{ action: string }>
     assert.deepEqual(audit.map((row) => row.action), ['notice.send', 'notice.send', 'notice.send', 'notice.withdraw'])
+  } finally {
+    await t.close()
+  }
+})
+
+test('announcements: without the owner\'s own English the server translates for English readers', async () => {
+  const t = await setup()
+  try {
+    const sent = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ title: 'Привет', text: 'Новости', button: { text: 'Канал', url: 'https://t.me/raidos' } }))
+    assert.equal(sent.status, 201, JSON.stringify(sent.json))
+    const inbox = (await t.call<Inbox>('GET', '/me/notices', t.owner)).json.notices[0]!
+    // The fake translator turns Russian letters into «x»; a non-empty, non-Russian English is kept.
+    assert.deepEqual([inbox.titleEn, inbox.textEn], ['[EN] x', '[EN] x'])
+    assert.equal((inbox.button as { textEn?: string }).textEn, '[EN] x')
   } finally {
     await t.close()
   }
@@ -210,7 +227,7 @@ test('photos: JPG / PNG / WEBP up to 5 MB, at most 4, shown only to the targeted
     }
     assert.match((await t.call<{ error: string }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ images: ids }))).json.error, /4 фото/)
     assert.equal((await t.call('POST', '/accounts/me/admin/notices', t.owner, announcement({ images: ['f'.repeat(24)] }))).status, 400, 'an unknown photo')
-    const sent = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ images: ids.slice(0, 2), audience: { regions: ['cis'], payment: 'all' } }))
+    const sent = await t.call<{ notice: Notice }>('POST', '/accounts/me/admin/notices', t.owner, announcement({ images: ids.slice(0, 2), audience: { regions: ['ru'], payment: 'all' } }))
     assert.equal(sent.json.notice.images, 2)
     assert.equal((await t.call('POST', '/accounts/me/admin/notices', t.owner, announcement({ images: ids.slice(0, 1) }))).status, 400, 'a photo goes with one announcement')
 
@@ -219,7 +236,7 @@ test('photos: JPG / PNG / WEBP up to 5 MB, at most 4, shown only to the targeted
     const photo = await t.call<{ mime: string; data: string }>('GET', `/me/notices/${sent.json.notice.id}/images/1`, moscow)
     assert.deepEqual([photo.json.mime, Buffer.from(photo.json.data, 'base64').equals(PNG)], ['image/png', true])
     assert.equal((await t.call('GET', `/me/notices/${sent.json.notice.id}/images/2`, moscow)).status, 404)
-    assert.equal((await t.call('GET', `/me/notices/${sent.json.notice.id}/images/0`, berlin)).status, 404, 'not for Europe')
+    assert.equal((await t.call('GET', `/me/notices/${sent.json.notice.id}/images/0`, berlin)).status, 404, 'not for Russia')
     assert.equal((await t.call('GET', `/accounts/me/admin/notices/${sent.json.notice.id}/images/0`, t.owner)).status, 200)
   } finally {
     await t.close()
@@ -300,7 +317,7 @@ test('survey results: counts and shares per option, the free answers, e-mails fo
     assert.equal(results.questions[1]!.answered, 2)
     assert.deepEqual(results.questions[1]!.options!.map((option) => [option.count, option.percent]), [[1, 50], [2, 100], [0, 0]])
     assert.deepEqual(results.questions[2]!.answers!.map((answer) => [answer.text, answer.email]), [['=HYPERLINK("x")', 'tokyo@example.com'], ['Миникарту', 'moscow@example.com']])
-    assert.deepEqual(results.responses.map((response) => [response.email, response.country, response.region]), [['tokyo@example.com', 'JP', 'other'], ['berlin@example.com', 'DE', 'europe'], ['moscow@example.com', 'RU', 'cis']])
+    assert.deepEqual(results.responses.map((response) => [response.email, response.country, response.region]), [['tokyo@example.com', 'JP', 'world'], ['berlin@example.com', 'DE', 'world'], ['moscow@example.com', 'RU', 'ru']])
 
     const csv = await t.call('GET', `/accounts/me/admin/surveys/${id}/responses.csv`, t.owner)
     assert.equal(csv.status, 200)
@@ -308,8 +325,8 @@ test('survey results: counts and shares per option, the free answers, e-mails fo
     const lines = csv.text.replace(/^\uFEFF/, '').trim().split('\r\n')
     assert.equal(lines[0], 'Дата (МСК);E-mail;Страна;Регион;1. Где играете?;2. Что нравится?;3. Что добавить?')
     assert.equal(lines.length, 4)
-    assert.match(lines[1]!, /tokyo@example\.com;Япония;Другие;PvP;;"'=HYPERLINK\(""x""\)"$/, 'a formula is neutralised')
-    assert.match(lines[3]!, /moscow@example\.com;Россия;СНГ;PvP;Карты, Квесты;Миникарту$/)
+    assert.match(lines[1]!, /tokyo@example\.com;Япония;Мир;PvP;;"'=HYPERLINK\(""x""\)"$/, 'a formula is neutralised')
+    assert.match(lines[3]!, /moscow@example\.com;Россия;Россия;PvP;Карты, Квесты;Миникарту$/)
 
     const withdrawn = await t.call<{ notice: Notice }>('POST', `/accounts/me/admin/notices/${id}/withdraw`, t.owner, {})
     assert.ok(withdrawn.json.notice.withdrawnAt)
@@ -329,7 +346,7 @@ test('a new notice reaches the targeted apps at once through the social events, 
     const berlin = await t.player('berlin@example.com', 'DE')
     const version = async (token: string) => (await t.call<{ version: number }>('GET', '/me/social-events', token)).json.version
     const before = { moscow: await version(moscow), berlin: await version(berlin) }
-    await t.call('POST', '/accounts/me/admin/notices', t.owner, announcement({ audience: { regions: ['cis'], payment: 'all' } }))
+    await t.call('POST', '/accounts/me/admin/notices', t.owner, announcement({ audience: { regions: ['ru'], payment: 'all' } }))
     assert.notEqual(await version(moscow), before.moscow)
     assert.equal(await version(berlin), before.berlin)
   } finally {

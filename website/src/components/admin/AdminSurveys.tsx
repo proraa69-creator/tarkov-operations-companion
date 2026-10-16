@@ -21,7 +21,7 @@ export interface SurveyResults {
     options?: Array<{ id: string; text: string; count: number; percent: number }>
     answers?: Array<{ text: string; email: string | null; createdAt: string }>
   }>
-  responses: Array<{ accountId: string; email: string | null; country?: string; countryOther?: string; region: NoticeRegion; createdAt: string; answers: Record<string, string[] | string> }>
+  responses: Array<{ accountId: string; email: string | null; country?: string; countryOther?: string; region: NoticeRegion | 'none'; createdAt: string; answers: Record<string, string[] | string> }>
 }
 
 /**
@@ -66,7 +66,7 @@ export function AdminSurveys() {
 
 function SurveyResultsView({ id }: { id: number }) {
   const results = useAdminData(useCallback((token: string) => ownerCall<SurveyResults>(token, 'GET', `/v1/accounts/me/admin/surveys/${id}/results`), [id]))
-  const [region, setRegion] = useState<NoticeRegion | 'all'>('all')
+  const [region, setRegion] = useState<NoticeRegion | 'none' | 'all'>('all')
   const [query, setQuery] = useState('')
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<Failure | null>(null)
@@ -124,9 +124,9 @@ function SurveyResultsView({ id }: { id: number }) {
       </ol>
       <div className="admin-survey-filters">
         <label className="field-label">Регион
-          <select className="input" value={region} onChange={(event) => setRegion(event.target.value as NoticeRegion | 'all')}>
+          <select className="input" value={region} onChange={(event) => setRegion(event.target.value as NoticeRegion | 'none' | 'all')}>
             <option value="all">Все</option>
-            {(Object.keys(REGION_NAMES) as NoticeRegion[]).map((item) => <option key={item} value={item}>{REGION_NAMES[item]}</option>)}
+            {(Object.keys(REGION_NAMES) as NoticeRegion[]).map((item) => <option key={item} value={item}>{REGION_NAMES[item]}</option>)}<option value="none">Не указана</option>
           </select>
         </label>
         <label className="field-label">E-mail
@@ -146,7 +146,7 @@ function SurveyResultsView({ id }: { id: number }) {
               <tr key={response.accountId}>
                 <td className="mono">{dateTime.format(new Date(response.createdAt))}</td>
                 <td className="admin-email">{response.email ?? <span className="muted">аккаунт удалён</span>}</td>
-                <td>{response.countryOther ? `«${response.countryOther}»` : response.country ? countryName(response.country, 'ru') : '—'} <span className="muted">· {REGION_NAMES[response.region]}</span></td>
+                <td>{response.countryOther ? `«${response.countryOther}»` : response.country ? countryName(response.country, 'ru') : '—'} <span className="muted">· {response.region === 'none' ? 'Не указана' : REGION_NAMES[response.region]}</span></td>
                 {questions.map((question) => <td key={question.id} className="admin-wrap">{answerText(question, response.answers[question.id])}</td>)}
                 <td>{response.email && <WriteToUser accountId={response.accountId} email={response.email} />}</td>
               </tr>

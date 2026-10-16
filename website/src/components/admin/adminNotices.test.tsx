@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'owner-token', account: { email: 'owner@example.com', owner: true } }) }))
 const { AdminNotices } = await import('./AdminNotices')
 
-const notice = { id: 4, kind: 'announcement', title: 'Техработы', text: 'В 3:00', images: 0, audience: { regions: ['europe'], payment: 'all' }, createdAt: '2026-10-15T10:00:00.000Z', targeted: 3, seen: 2, closed: 1 }
+const notice = { id: 4, kind: 'announcement', title: 'Техработы', text: 'В 3:00', images: 0, audience: { regions: ['world'], payment: 'all' }, createdAt: '2026-10-15T10:00:00.000Z', targeted: 3, seen: 2, closed: 1 }
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
@@ -25,8 +25,8 @@ describe('admin «Объявления»', () => {
     const user = userEvent.setup()
     render(<MemoryRouter><AdminNotices /></MemoryRouter>)
     const sent = await screen.findByRole('region', { name: 'Отправленные объявления' })
-    expect(await within(sent).findByText('Техработы')).toBeInTheDocument()
-    expect(within(sent).getByText(/Европа · Все/)).toBeInTheDocument()
+    await user.click(await within(sent).findByRole('button', { name: /Техработы/ }))
+    expect(within(sent).getByText(/Мир · Все/)).toBeInTheDocument()
     expect(fetch.mock.calls[0]![1]!.headers).toMatchObject({ authorization: 'Bearer owner-token' })
     await user.click(screen.getByRole('button', { name: 'Создать объявление' }))
     await user.type(screen.getByRole('textbox', { name: 'Заголовок' }), 'Скидка')

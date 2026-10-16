@@ -5,6 +5,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
 import type { RaidMode } from '../domain/types'
 import './goonCard.css'
+import goonLying from '../assets/goons-rest/lying.webp'
 
 interface GoonCardProps {
   mode: RaidMode
@@ -157,6 +158,11 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
     <div className={`stat-meta goon-meta ${location?.unsent && !notice ? 'is-unsent' : ''}`} aria-live="polite">
       <span key={`${location?.reportedAt ?? ""}:${notice ?? ""}:${connection}`} className="goon-rise is-late">{meta}</span>{location?.unsent && !notice && <em className="goon-rise is-late">{uiText(resending ? 'отправится позже' : 'не отправлено')}</em>}
     </div>
+
+    {/* A Goon lies at the card's right while the map name shows; the statistics rising over the card carry him away
+        (owner, 16.10.2026: «когда видно название карты он лежит в правой части. когда наводишь мышку он уезжает с этим
+        блоком»). */}
+    <span className="goon-lying-frame" aria-hidden="true"><img className="goon-lying" src={goonLying} alt="" draggable={false} /></span>
 
     <div ref={statsRef} className="goon-stats-popover" aria-hidden="true">
       <div className="goon-stats-head">

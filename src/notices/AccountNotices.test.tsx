@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ServerAccountStatus } from '../electron'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { refreshServerStatus } from '../sync/serverSync'
-import { AccountNotices } from './AccountNotices'
+import { AccountNotices, AfterNotices } from './AccountNotices'
 import { resetNoticeInbox } from './noticeInbox'
 import type { PlayerNotice, PlayerSurvey } from '../shared/notices'
 
@@ -49,7 +49,7 @@ function desktop(options: { notices?: PlayerNotice[]; surveys?: PlayerSurvey[]; 
     getRaidState: vi.fn(async () => raid),
     onRaidStateChanged: vi.fn((listener: (state: typeof raid) => void) => { raidListener = listener; return () => {} }),
   } })
-  return { serviceRequest, endRaid: () => raidListener?.({ inRaid: false, since: Date.now() }) }
+  return { serviceRequest, account, endRaid: () => raidListener?.({ inRaid: false, since: Date.now() }), startRaid: () => raidListener?.({ inRaid: true, since: Date.now() }) }
 }
 
 async function open(locale: 'ru' | 'en' = 'ru') {
@@ -66,6 +66,50 @@ afterEach(async () => {
   resetNoticeInbox()
   Reflect.deleteProperty(window, 'tarkovDesktop')
   await act(async () => { await refreshServerStatus() })
+})
+
+describe('an announcement stays until the player presses its button (owner, 16.10.2026)', () => {
+  it('stays on screen while the server is out of reach for a moment (the PC slept, the network dropped)', async () => {
+    const { account } = desktop({ notices: [russianOnly] })
+    await open()
+    expect(await screen.findByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    account.status.mockResolvedValue({ ...signedIn, online: false })
+    await act(async () => { await refreshServerStatus() })
+    expect(screen.getByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    account.status.mockResolvedValue(signedIn)
+    await act(async () => { await refreshServerStatus() })
+    expect(screen.getByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+  })
+
+  it('stays on screen when a raid starts; only «Понятно» closes it', async () => {
+    const { startRaid } = desktop({ notices: [russianOnly] })
+    const user = await open()
+    const dialog = await screen.findByRole('dialog', { name: 'Только по-русски' })
+    act(() => startRaid())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByRole('dialog', { name: 'Только по-русски' })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Понятно' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('comes first at sign-in: the tips and event windows wait until it is closed', async () => {
+    desktop({ notices: [russianOnly] })
+    localStorage.setItem('tarkov-operations-locale-v1', 'ru')
+    await refreshServerStatus()
+    const user = userEvent.setup()
+    render(<LocaleProvider><AccountNotices /><AfterNotices><p>Подсказка</p></AfterNotices></LocaleProvider>)
+    const dialog = await screen.findByRole('dialog', { name: 'Только по-русски' })
+    expect(screen.queryByText('Подсказка')).toBeNull()
+    await user.click(within(dialog).getByRole('button', { name: 'Понятно' }))
+    expect(await screen.findByText('Подсказка')).toBeInTheDocument()
+  })
+
+  it('lets the tips show once the inbox answered with nothing to read', async () => {
+    desktop()
+    await refreshServerStatus()
+    render(<LocaleProvider><AccountNotices /><AfterNotices><p>Подсказка</p></AfterNotices></LocaleProvider>)
+    expect(await screen.findByText('Подсказка')).toBeInTheDocument()
+  })
 })
 
 describe('the owner\'s announcements in the app', () => {

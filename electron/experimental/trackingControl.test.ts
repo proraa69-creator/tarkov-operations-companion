@@ -51,13 +51,11 @@ describe('the owner\'s position switch in the main process', () => {
     expect(onOff).toHaveBeenCalledTimes(1)
   })
 
-  it('the player\'s «Отключить местоположение» turns it off with the owner\'s switch on, and back on', () => {
+  it('a player\'s «minimapOff» no longer stops it: only the owner\'s switch does (owner, 16.10.2026)', () => {
     const { tracker, control, onOff, change } = setup()
     control.setRemote(true)
-    expect(change({ minimapOff: true })).toBe(false)
-    expect(tracker.running).toBe(false)
-    expect(onOff).toHaveBeenCalledTimes(1)
-    expect(change({ minimapOff: false })).toBe(true)
+    expect(change({ minimapOff: true })).toBe(true)
     expect(tracker.running).toBe(true)
+    expect(onOff).not.toHaveBeenCalled()
   })
 })

@@ -134,6 +134,12 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
     res.json({ announcement: store.current() })
   })
 
+  // The past banners (owner, 16.10.2026: «должна так же сохранятся история банеров»).
+  router.get('/v1/accounts/me/admin/announcement/history', (req, res) => {
+    if (!owner(req, res, false)) return
+    res.json({ history: store.history() })
+  })
+
   router.put('/v1/accounts/me/admin/announcement', async (req, res) => {
     const actor = owner(req, res, true)
     if (!actor) return
@@ -143,8 +149,11 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
       res.status(400).json({ error: english ? `Английский текст: до ${ANNOUNCEMENT_MAX_LENGTH} символов` : `Текст уведомления: не пустой, до ${ANNOUNCEMENT_MAX_LENGTH} символов` })
       return
     }
-    const { text, english, translation } = await withEnglish(body.data, store.current(), translate)
+    const previous = store.current()
+    const { text, english, translation } = await withEnglish(body.data, previous, translate)
     const saved = store.save(text, body.data.active, actor, english)
+    // Keep a new or changed shown banner in the history, not a re-save of the same one (e.g. correcting its English).
+    if (saved.active && saved.text && (previous?.text !== saved.text || !previous.active)) store.addHistory(saved.text, saved.textEn, actor)
     signals.changed()
     try { audit?.(actor, 'announcement.set', 'announcement', { active: saved.active, length: saved.text.length, english: saved.textEnSource ?? 'missing' }) } catch { /* saved anyway */ }
     res.json({ announcement: saved, translation })

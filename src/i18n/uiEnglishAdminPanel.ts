@@ -13,7 +13,7 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Включить или выключить у всех', 'Turn on or off for everybody'],
   ['Ивент-квесты и конструктор', 'Event quests and the constructor'],
   ['Блоки', 'Blocks'], ['«Обзор» для всех', '“Overview” for everybody'],
-  ['Всем игрокам или по регионам (СНГ, Европа, другие), оплатившим или нет. Окно появится при входе или в течение минуты, если приложение открыто; во время рейда ждёт его конца.', 'To every player or by region (CIS, Europe, other), paid or not. The window appears at sign-in or within a minute if the app is open; during a raid it waits for the raid to end.'],
+  ['Всем игрокам или по регионам (Россия, СНГ, Мир), с платной подпиской или без. Окно появится при входе или в течение минуты, если приложение открыто; во время рейда ждёт его конца. Текст переводится на английский автоматически.', 'To every player or by region (Russia, CIS, World), with a paid subscription or without. The window appears at sign-in or within a minute if the app is open; during a raid it waits for the raid to end. The text is translated into English automatically.'],
   ['Опрос для всех или по регионам. Результаты — здесь, подробная таблица с почтами — на сайте.', 'A survey for everybody or by region. Results are here; the detailed table with e-mails is on the website.'],
   ['Баннер для всех, объявления и опросы', 'Banner for everybody, announcements and surveys'], ['перенесено в Админ панель', 'moved to the Admin panel'],
   // «Опросы» → «Результаты»

@@ -129,12 +129,28 @@ describe('«Админ панель» sections', () => {
     expect(await screen.findByText('аккаунт владельца')).toBeInTheDocument()
   })
 
+  it('an open «Создать объявление» closes when the owner opens another section (owner, 16.10.2026)', async () => {
+    const user = userEvent.setup()
+    await desktop()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Создать объявление' }))
+    expect(screen.getByRole('form', { name: 'Новое объявление' })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /Опросы/ }))
+    expect(await screen.findByRole('button', { name: 'Создать опрос' })).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: 'Новое объявление' })).toBeNull()
+    await user.click(screen.getByRole('tab', { name: /Объявления/ }))
+    expect(await screen.findByRole('button', { name: 'Создать объявление' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('form', { name: 'Новое объявление' })).toBeNull()
+  })
+
   it('«Опросы»: create and see the results here', async () => {
     const user = userEvent.setup()
     const request = await desktop()
     renderPage('/admin?tab=surveys')
     expect(await screen.findByText('Как вам?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Создать опрос' })).toBeInTheDocument()
+    // The sent ones are collapsed to their titles: open the survey first.
+    await user.click(screen.getByRole('button', { name: /Как вам\?/ }))
     await user.click(screen.getByRole('button', { name: 'Результаты' }))
     const box = await screen.findByRole('region', { name: 'Результаты опроса' })
     expect(within(box).getByText('Да')).toBeInTheDocument()
