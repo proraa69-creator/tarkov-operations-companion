@@ -2,7 +2,7 @@ name: RaidOS iOS IPA
 
 on:
   push:
-    branches: [release/production, codex/yookassa-sbp]
+    branches: [release/production]
 
 permissions:
   contents: read
