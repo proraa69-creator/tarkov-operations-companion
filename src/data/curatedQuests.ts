@@ -518,8 +518,8 @@ export const SCOURGE_INVASION: CuratedSeries = {
     {
       id: SCOURGE_QUEST_IDS.coordination,
       trader: THERAPIST,
-      // the screenshot does not show the title: a plain description until the owner names it
-      name: { ru: 'Scourge. Шесть целей в Лаборатории', en: 'Scourge: Six Targets in the Lab' },
+      // the screenshot does not show the title: «???» until it is known (owner, 16.10.2026: «не называй никак, поставь ???»)
+      name: { ru: '???', en: '???' },
       after: [SCOURGE_QUEST_IDS.simpleTask],
       experience: 28_000,
       objectives: [{ type: 'shoot', count: 6, maps: ['the-lab'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Лаборатория', en: 'Eliminate any target in The Lab' } }],
