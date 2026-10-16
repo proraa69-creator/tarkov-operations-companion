@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GameMap, Item, Quest, Trader } from '../domain/types'
-import { SCOURGE_QUEST_IDS } from '../data/curatedQuests'
+import { BALANCE_SHIFT_QUEST_IDS, SCOURGE_QUEST_IDS } from '../data/curatedQuests'
 import type { EventQuestDefinition } from '../data/eventQuestDefinitions'
 import { cleanDefinition, definitionProblem, EventQuestsEditor, eventQuestRows, localDateTime, newEventQuest, newEventQuestId } from './EventQuestsEditor'
 import { setRenderLanguage, uiText } from '../i18n/renderText'
@@ -47,9 +47,9 @@ describe('«Ивент-квесты» in the owner app', () => {
     const { requests, stored, wrapper } = ownerApp()
     render(editor, { wrapper })
     const list = await screen.findByRole('list', { name: 'Ивент-квесты' })
-    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(6))
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(7))
     expect(within(list).getByText('Продление операции')).toBeInTheDocument()
-    expect(within(list).getAllByText(/исходный/)).toHaveLength(6)
+    expect(within(list).getAllByText(/исходный/)).toHaveLength(7)
 
     fireEvent.click(screen.getByRole('button', { name: 'Изменить: Продление операции' }))
     expect(screen.getByLabelText('Торговец')).toHaveValue(THERAPIST)
@@ -126,7 +126,7 @@ describe('the editor\'s helpers', () => {
     expect(newEventQuestId(() => 0)).toBe('raidos-event-aaaaaaaaaa')
     const rows = eventQuestRows([])
     expect(rows.map((row) => row.definition.id)).toEqual([
-      SCOURGE_QUEST_IDS.hiddenRoute, SCOURGE_QUEST_IDS.simpleTask, SCOURGE_QUEST_IDS.coordination,
+      BALANCE_SHIFT_QUEST_IDS.fogOfWar, SCOURGE_QUEST_IDS.hiddenRoute, SCOURGE_QUEST_IDS.simpleTask, SCOURGE_QUEST_IDS.coordination,
       SCOURGE_QUEST_IDS.informationTrail, SCOURGE_QUEST_IDS.deanon, SCOURGE_QUEST_IDS.soulJob,
     ])
     const fresh = newEventQuest(rows, 'raidos-event-x1y2z3')

@@ -11,6 +11,7 @@
  */
 import type { EntitlementView, ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import { webAcceptIssued, webClearEntitlement, webDeviceId, webDeviceName, webEntitlementDue, webEntitlementFor, webForgetKey, webPinKey, webRefuseEntitlement } from './webEntitlement'
+import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../shared/sendRetry'
 
 /** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
 export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
@@ -189,7 +190,8 @@ const saveSession = (session: StoredSession | null) => {
 let entitlementDue = false
 
 class UnavailableError extends Error {
-  constructor() { super('Сервер недоступен') }
+  /** `notTaken`: the server never got the request (no connection, or a proxy's 502–504 in front of a stopped server). */
+  constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
 async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
@@ -202,8 +204,9 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: 'no-store',
     })
-  } catch {
-    throw new UnavailableError()
+  } catch (error) {
+    // a timed-out request may have reached the server; anything else never left this device
+    throw new UnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
   const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
@@ -222,7 +225,16 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages') ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+  // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
+  const retried = retriesWhileRestarting(method, path)
+  const request = async () => {
+    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages') ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
+    return answer
+  }
+  const { response, result } = retried
+    ? await retryWhileRestarting(request, (error) => error instanceof UnavailableError && error.notTaken)
+    : await request()
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')

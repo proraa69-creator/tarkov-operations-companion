@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
-import { PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
+import { BALANCE_SHIFT, BALANCE_SHIFT_QUEST_IDS, PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
 import { definitionOfBuiltIn, eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import { SCOURGE_EVENT_END } from '../events/scourgeEvent'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -21,7 +21,7 @@ const ORDER = [
 ]
 const SERIES = new Set<string>(ORDER)
 /** The other curated series (Scourge's event quests), left out where only «На свет» is counted. */
-const OTHER_CURATED = new Set<string>(Object.values(SCOURGE_QUEST_IDS))
+const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS)])
 const RESEARCH_NOTE = /tarkov\.(help|dev)|tarkov-?dev|wiki|вики|fandom|координат|coordinat|источник(и|а|ов)? (не|даёт)|no source|игра \d|game \d/i
 
 const RU_NAMES = [
@@ -320,6 +320,32 @@ describe('«Вторжение Scourge»: the event quests from the owner\'s scr
   })
 })
 
+describe('«Туман войны» (Prapor, Lighthouse): the event quest tarkov.dev lacks', () => {
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    it(`${mode}: Prapor's quest with three Lighthouse visits and its rewards, in both languages`, async () => {
+      const ru = (await build(mode, 'ru')).quests.find((quest) => quest.id === BALANCE_SHIFT_QUEST_IDS.fogOfWar)!
+      const en = (await build(mode, 'en')).quests.find((quest) => quest.id === BALANCE_SHIFT_QUEST_IDS.fogOfWar)!
+      expect(ru.name).toBe('Туман войны')
+      expect(en.name).toBe('Fog of War')
+      expect(ru.traderId).toBe('54cb50c76803fa8b248b4571')
+      expect(ru.mapIds).toEqual(['lighthouse'])
+      expect(ru.objectiveDetails?.map((objective) => objective.type)).toEqual(['visit', 'visit', 'visit'])
+      expect(ru.objectives[0]).toContain('БРДМ')
+      expect(en.objectives[2]).toContain('roof')
+      expect(ru.requirements ?? []).toEqual([])
+      expect(ru.description).toContain('Серия «Смещение баланса»')
+      for (const line of [ru.description, en.description]) expect(line).not.toMatch(RESEARCH_NOTE)
+    })
+  }
+
+  it('steps aside once tarkov.dev lists a quest of the same title', () => {
+    expect(BALANCE_SHIFT.quests.map((quest) => quest.id)).toEqual([BALANCE_SHIFT_QUEST_IDS.fogOfWar])
+    const tasks = { tasks: { real: { id: '6b0000000000000000000002', name: 'Туман войны', trader: '54cb50c76803fa8b248b4571', objectives: [] } } }
+    const result = withCuratedTasks(tasks, { mode: 'pve', locale: 'ru', maps: {}, traders: { a: { id: '54cb50c76803fa8b248b4571' } }, now: DURING_EVENT })
+    expect(result.added.has(BALANCE_SHIFT_QUEST_IDS.fogOfWar)).toBe(false)
+  })
+})
+
 describe('«Ивент-квесты»: the owner\'s definitions over the built-in series (src/data/eventQuestDefinitions.ts)', () => {
   const builtIn = (id: string) => {
     const quest = SCOURGE_INVASION.quests.find((entry) => entry.id === id)!
@@ -370,7 +396,7 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
     const merged = eventSeriesWith([renamed]).find((series) => series.id === SCOURGE_INVASION.id)!
     expect(merged.quests[2].aliases ?? []).not.toContain('???')
     // the map place of the first quest is the built-in one's, kept where the editor has no field
-    const route = eventSeriesWith([{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), name: { ru: 'Маршрут', en: 'Route' } }])[1].quests[0]
+    const route = eventSeriesWith([{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), name: { ru: 'Маршрут', en: 'Route' } }]).find((series) => series.id === SCOURGE_INVASION.id)!.quests[0]
     expect(route.objectives[0].spots).toEqual([{ map: 'factory', transit: '14' }])
     expect(route.aliases).toEqual(['Скрытый маршрут', 'Hidden Route'])
   })

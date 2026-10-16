@@ -17,6 +17,7 @@ import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './bui
 import { localServerEnabled } from './localServer.js'
 import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EftConflict, type EntitlementStatus } from './entitlement.js'
 import { clearGameCache, type CacheAccess } from './gameDataCache.js'
+import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../src/shared/sendRetry.js'
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
@@ -183,7 +184,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
 ]
 
 export class ServiceUnavailableError extends Error {
-  constructor() { super('Сервер недоступен') }
+  /** `notTaken`: the server never got the request (no connection, or a proxy's 502–504 in front of a stopped server). */
+  constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
 export function isServiceUnavailable(error: unknown) {
@@ -370,13 +372,14 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
       headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
-  } catch {
-    throw new ServiceUnavailableError()
+  } catch (error) {
+    // a timed-out request may have reached the server; anything else never left this PC
+    throw new ServiceUnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
   // 204 No Content and 304 Not Modified carry no body (and no content type).
   const empty = response.status === 204 || response.status === 304
   if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
-    throw new ServiceUnavailableError()
+    throw new ServiceUnavailableError(restartingStatus(response.status))
   }
   const result = empty ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
@@ -423,7 +426,11 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
-  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const { response, result } = retriesWhileRestarting(method, path)
+    ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
+    : await request()
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
