@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ClipboardList, ExternalLink, ImagePlus, Languages, LoaderCircle, Megaphone, Plus, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-react'
-import { audienceText, NOTICE_LIMITS, NOTICE_REGIONS, PAYMENT_NAMES, REGION_NAMES, SURVEY_LIMITS, type NoticeAudience, type NoticePayment, type NoticeRegion, type SurveyQuestion, type SurveyQuestionType } from '../shared/notices'
+import { audienceText, NOTICE_LIMITS, NOTICE_PAY_REGIONS, NOTICE_REGIONS, PAY_REGION_NAMES, PAYMENT_NAMES, REGION_NAMES, SURVEY_LIMITS, type NoticeAudience, type NoticePayment, type NoticePayRegion, type NoticeRegion, type SurveyQuestion, type SurveyQuestionType } from '../shared/notices'
+import { BOOSTY_ANNOUNCEMENT } from '../shared/paymentRegions'
 import { NOTICE_IMAGE_TYPES, prepareNoticeImage } from './imageResize'
 import { surveyDraftProblem } from './surveyRules'
 import './ownerNotices.css'
@@ -63,9 +64,14 @@ export function OwnerNoticeTools({ request, t, results }: { request: OwnerReques
   )
 }
 
-/** «Все», «СНГ», «Европа», «Другие», «Не указана» × «Все», «Оплатившие», «Без оплаты». */
+/**
+ * «Все», «СНГ», «Европа», «Другие», «Не указана» × «Все», «Оплатившие», «Без оплаты»; or, instead of the regions, a Boosty
+ * payment audience (owner's spec, docs/payments/payment-regions-and-announcements.md): «СНГ» / «Мир» / «Все, кроме
+ * России» — never Russia, which pays through SBP.
+ */
 export function AudiencePicker({ value, onChange, t, disabled }: { value: NoticeAudience; onChange: (next: NoticeAudience) => void; t: T; disabled?: boolean }) {
   const all = value.regions.length === 0
+  const setPayRegion = (payRegion: NoticePayRegion | undefined) => onChange(payRegion ? { regions: [], payment: value.payment, payRegion } : { regions: [], payment: value.payment })
   const toggle = (region: NoticeRegion) => {
     const next = value.regions.includes(region) ? value.regions.filter((item) => item !== region) : [...value.regions, region]
     // Every region ticked is «Все»; none ticked falls back to «Все» too.
@@ -74,6 +80,13 @@ export function AudiencePicker({ value, onChange, t, disabled }: { value: Notice
   return (
     <div className="owner-notices-audience">
       <fieldset disabled={disabled}>
+        <legend>{t('Оплата через Boosty')}</legend>
+        <label className="owner-notices-check"><input type="radio" name="notice-pay-region" checked={!value.payRegion} onChange={() => setPayRegion(undefined)} />{t('Не выбрано')}</label>
+        {NOTICE_PAY_REGIONS.map((payRegion) => (
+          <label key={payRegion} className="owner-notices-check"><input type="radio" name="notice-pay-region" checked={value.payRegion === payRegion} onChange={() => setPayRegion(payRegion)} />{t(PAY_REGION_NAMES[payRegion])}</label>
+        ))}
+      </fieldset>
+      <fieldset disabled={disabled || Boolean(value.payRegion)}>
         <legend>{t('Регионы')}</legend>
         <label className="owner-notices-check"><input type="checkbox" checked={all} onChange={() => onChange({ ...value, regions: [] })} />{t('Все')}</label>
         {NOTICE_REGIONS.map((region) => (
@@ -193,7 +206,15 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
           )}
         </ul>
       </div>
-      <AudiencePicker value={audience} onChange={setAudience} t={t} disabled={busy} />
+      <AudiencePicker value={audience} onChange={(next) => {
+        // A Boosty audience: the owner's suggested text (RU and EN) as a draft, only into empty fields.
+        if (next.payRegion && !audience.payRegion) {
+          if (!title.trim() && !text.trim()) { setTitle(BOOSTY_ANNOUNCEMENT.title.ru); setText(BOOSTY_ANNOUNCEMENT.text.ru) }
+          if (!titleEn.trim() && !textEn.trim()) { setTitleEn(BOOSTY_ANNOUNCEMENT.title.en); setTextEn(BOOSTY_ANNOUNCEMENT.text.en); setEnglish(true) }
+        }
+        setAudience(next)
+      }} t={t} disabled={busy} />
+      {audience.payRegion && <small className="dim">{t('Россия не получит это объявление: там оплата через СБП. Текст о Boosty подставлен как черновик — его можно изменить.')}</small>}
       {error && <p className="owner-notices-error" role="alert">{t(error)}</p>}
       <div className="owner-notices-actions">
         <button type="submit" className="button small primary" disabled={busy || uploading || !title.trim() || !text.trim()}>

@@ -69,6 +69,12 @@ export const NOTICE_PHRASES: Array<[string, string]> = [
   ['Не указана', 'Not set'],
   ['Оплатившие', 'Paying'],
   ['Без оплаты', 'Not paying'],
+  // The Boosty payment audiences (docs/payments/payment-regions-and-announcements.md).
+  ['Оплата через Boosty', 'Payment via Boosty'],
+  ['Не выбрано', 'Not selected'],
+  ['Мир', 'World'],
+  ['Все, кроме России', 'All except Russia'],
+  ['Россия не получит это объявление: там оплата через СБП. Текст о Boosty подставлен как черновик — его можно изменить.', 'Russia will not get this announcement: payment there is via SBP. The Boosty text is filled in as a draft; you can change it.'],
   ['Получат', 'Recipients'],
   ['Опубликовать', 'Publish'],
   ['Название опроса', 'Survey title'],
