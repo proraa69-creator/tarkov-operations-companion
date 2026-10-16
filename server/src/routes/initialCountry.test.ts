@@ -118,9 +118,8 @@ test('the gate: a country typed by hand is checked, stored as XX with the text (
     const other = await t.call<Users>('GET', '/accounts/me/admin/users?region=other', owner)
     assert.deepEqual(other.json.users.map((user) => [user.email, user.country, user.countryOther]), [['atlantis@example.com', MANUAL_COUNTRY_CODE, 'Республика Атлантида']])
 
-    // The cabinet's «Страна» still changes it to a listed country, and the typed text goes with it.
-    const changed = await t.call<View>('PUT', '/accounts/me/country', atlantis, { country: 'DE' })
-    assert.deepEqual([changed.json.country, changed.json.countryOther], ['DE', undefined])
+    // A country once named is never changed by its player (owner, 16.10.2026), the typed one included.
+    assert.equal((await t.call('PUT', '/accounts/me/country', atlantis, { country: 'DE' })).status, 409)
     assert.equal((await t.call('PUT', '/accounts/me/country', atlantis, { country: MANUAL_COUNTRY_CODE })).status, 400, 'XX is not a listed country')
   } finally {
     await t.close()

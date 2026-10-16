@@ -16,7 +16,7 @@ export const NOTICE_PHRASES: Array<[string, string]> = [
   ['Выбрать из списка', 'Choose from the list'],
   ['Выйти из аккаунта', 'Sign out'],
   ['Название страны: до 60 символов, только буквы, пробелы и дефисы.', 'Country name: up to 60 characters, letters, spaces and hyphens only.'],
-  ['Страна уже указана. Изменить её можно в личном кабинете.', 'The country is already set. You can change it in your account on the website.'],
+  ['Страна уже указана. Изменить её после регистрации нельзя — если она указана неверно, напишите в поддержку.', 'The country is already set. It cannot be changed after registration; if it is wrong, contact support.'],
   // The owner's announcements and surveys (src/notices/*), the owner's tools (src/notices/OwnerNoticeTools.tsx).
   ['Объявление Raid OS', 'Raid OS announcement'],
   ['Понятно', 'Got it'],

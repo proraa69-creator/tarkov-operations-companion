@@ -93,7 +93,6 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.',
     'The Raid OS app reads your nickname from the game logs by itself — no need to enter it. It is the same for PvP, PvE and Season; each mode keeps its own quest progress.'],
   ['Приложение', 'App'], ['Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.', 'Portable version for Windows. Sign in to the app with the same e-mail and password.'],
-  ['Чтобы предмет распознавался по клавише, включите в Tarkov режим экрана «Оконный без рамки».', 'For item recognition by its key, set the screen mode in Tarkov to "Borderless".'],
   ['Код приглашения', 'Invitation code'], ['Вы приглашены по коду', 'Invited with code'],
   ['Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.', "You joined with a friend's invite: 20% off the first month applies until your first payment."],
   ['Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.', "Have a friend's code? Enter it once before your first payment to get 20% off the first month."],
@@ -188,7 +187,8 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Выбрать из списка', 'Choose from the list'],
   ['Выйти из аккаунта', 'Sign out'],
   ['Название страны: до 60 символов, только буквы, пробелы и дефисы.', 'Country name: up to 60 characters, letters, spaces and hyphens only.'],
-  ['Страна уже указана. Изменить её можно в личном кабинете.', 'The country is already set. You can change it in your account.'],
+  ['Загружаем способы оплаты…', 'Loading payment options…'], ['Не удалось загрузить способы оплаты', 'Could not load payment options'], ['Обновите страницу или попробуйте ещё раз позже.', 'Reload the page or try again later.'],
+  ['Страна уже указана. Изменить её после регистрации нельзя — если она указана неверно, напишите в поддержку.', 'The country is already set. It cannot be changed after registration; if it is wrong, contact support.'],
   // Boosty for CIS / WORLD (components/BoostyCheckout.tsx; docs/payments/payment-regions-and-announcements.md). The
   // e-mail warning is the owner's exact text in both languages (src/shared/paymentRegions.ts BOOSTY_EMAIL_WARNING).
   ['Укажите на Boosty тот же email, который используется в вашем аккаунте Raid OS. Иначе мы не сможем найти платёж и активировать подписку.', 'Use the same email on Boosty as in your Raid OS account. Otherwise, we won’t be able to find your payment and activate your subscription.'],

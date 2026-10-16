@@ -144,6 +144,8 @@ export interface PlansResponse {
   plans: Plan[]
   /** Missing on an older server: then only ЮKassa, without autopayments. */
   providers?: PaymentProviders
+  /** The visitor's region by Cloudflare's country: which tab «Подписка» opens on, never what an account may pay with. */
+  regionHint?: 'RU' | 'CIS' | 'WORLD'
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /**

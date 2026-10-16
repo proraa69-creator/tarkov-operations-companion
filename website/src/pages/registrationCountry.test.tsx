@@ -184,27 +184,14 @@ describe('the cabinet shows the country', () => {
     expect(within(panel).queryByRole('combobox')).toBeNull()
   })
 
-  it('a named country is shown and can be corrected; a refusal of the server is shown', async () => {
+  it('a named country is shown and cannot be changed (owner, 16.10.2026)', async () => {
     mocks.status = 'ready'
     mocks.account = { ...account, country: 'UA' }
-    const { ApiError } = await import('../api')
-    mocks.setCountry.mockRejectedValue(new ApiError(400, 'Неизвестная страна. Выберите страну из списка.'))
-    const user = userEvent.setup()
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = screen.getByRole('region', { name: 'Страна' })
     expect(within(panel).getByText('Украина')).toBeInTheDocument()
     expect(within(panel).getByText('Европа')).toBeInTheDocument()
-    await user.click(within(panel).getByRole('button', { name: 'Изменить' }))
-    const field = within(panel).getByRole('combobox', { name: 'Страна' })
-    expect(field).toHaveTextContent('Украина')
-    // The window opens on the chosen country.
-    await user.click(field)
-    expect(screen.getByRole('option', { name: 'Украина' })).toHaveAttribute('aria-selected', 'true')
-    await user.keyboard('{Escape}')
-    await pick(user, field, 'польш', 'Польша')
-    await user.click(within(panel).getByRole('button', { name: 'Сохранить' }))
-    expect(await within(panel).findByText('Неизвестная страна. Выберите страну из списка.')).toBeInTheDocument()
-    await user.click(within(panel).getByRole('button', { name: 'Отмена' }))
-    expect(within(panel).getByText('Украина')).toBeInTheDocument()
+    expect(within(panel).queryByRole('button')).toBeNull()
+    expect(within(panel).queryByRole('combobox')).toBeNull()
   })
 })

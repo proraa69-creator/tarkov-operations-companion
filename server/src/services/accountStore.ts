@@ -216,7 +216,7 @@ export const COUNTRY_INVALID_MESSAGE = 'Неизвестная страна. В�
 /** «Ввести вручную»: what the server keeps of a country typed by hand (src/shared/countries.ts cleanManualCountry). */
 export const MANUAL_COUNTRY_MESSAGE = 'Название страны: до 60 символов, только буквы, пробелы и дефисы.'
 /** «Укажите страну» once the account has one: changing it is «Страна» in the cabinet. */
-export const COUNTRY_ALREADY_SET = 'Страна уже указана. Изменить её можно в личном кабинете.'
+export const COUNTRY_ALREADY_SET = 'Страна уже указана. Изменить её после регистрации нельзя — если она указана неверно, напишите в поддержку.'
 export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.'
 
 /**
@@ -981,19 +981,22 @@ export class AccountStore {
   }
 
   /**
-   * «Страна» in the cabinet: an account from before the question at registration (13.10.2026) sets it here, and any
-   * player may correct it. An unassigned code is refused with 400 (COUNTRY_INVALID_MESSAGE).
+   * «Страна» in the cabinet: only an account without a country (one from before the question at registration,
+   * 13.10.2026) sets it here, once. A country once named is never changed by its player (owner, 16.10.2026: «убери способ
+   * смены страны после регистрации»: the payment region follows it, docs/payments/payment-regions-and-announcements.md),
+   * 409 COUNTRY_ALREADY_SET. An unassigned code is refused with 400 (COUNTRY_INVALID_MESSAGE). One UPDATE guarded by
+   * `country IS NULL`.
    */
   setCountry(accountId: string, country: string) {
     const account = this.mustGet(accountId)
     const code = storedCountry(country)
-    // A listed country replaces one typed by hand; the first country an account gets is dated (country_set_at).
-    this.db.prepare('UPDATE accounts SET country = ?, country_other = NULL, country_set_at = CASE WHEN country IS NULL THEN ? ELSE country_set_at END WHERE id = ?').run(code, this.now(), account.id)
+    const changed = this.db.prepare('UPDATE accounts SET country = ?, country_other = NULL, country_set_at = ? WHERE id = ? AND country IS NULL').run(code, this.now(), account.id)
+    if (!Number(changed.changes)) throw new AccountError(409, COUNTRY_ALREADY_SET)
   }
 
   /**
    * «Укажите страну» (owner, 15.10.2026): the window over the apps and the cabinet for an account without a country. Only
-   * while it has none (409 COUNTRY_ALREADY_SET otherwise: changing it stays «Страна» in the cabinet). `country`: a listed
+   * while it has none (409 COUNTRY_ALREADY_SET otherwise: a named country is never changed by its player). `country`: a listed
    * code (400 COUNTRY_INVALID_MESSAGE otherwise); `other`: «Моей страны нет в списке», the text typed by hand — cleaned
    * (cleanManualCountry, 400 MANUAL_COUNTRY_MESSAGE), stored as the listed country it names when it is one («Казахстан»,
    * «USA»), else as MANUAL_COUNTRY_CODE with the text. One UPDATE guarded by `country IS NULL`: two devices at once set it
@@ -1589,7 +1592,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       return { status: 200, body: store.view(accountId) }
     }),
 
-    /** «Страна» in the cabinet (see AccountStore.setCountry): the account view comes back. */
+    /** «Страна» in the cabinet, only while the account has none (see AccountStore.setCountry): the account view comes back. */
     setCountry: (req: AccountsRequest) => authed(req, (accountId) => {
       const blocked = limited(countryLimiter, `country:${accountId}`)
       if (blocked) return blocked
