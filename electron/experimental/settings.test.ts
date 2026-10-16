@@ -31,12 +31,11 @@ describe('«Отключить местоположение» (was «Отклю�
     expect(trackingOn(sanitize({ version: 3, minimap: false }))).toBe(true)
   })
 
-  it('stays off once the player turned it off, until turned on again', () => {
-    const off = sanitize({ ...sanitize({}), minimapOff: true })
-    expect(trackingOn(off)).toBe(false)
-    expect(trackingOn(sanitize({ ...off }))).toBe(false)
-    expect(trackingOn(sanitize({ ...off, minimapOff: false }))).toBe(true)
-    expect(sanitize({ minimapOff: 'yes' }).minimapOff).toBe(false)
+  it('a player\'s earlier «Отключить местоположение» no longer counts: only the owner turns it off (owner, 16.10.2026)', () => {
+    const saved = sanitize({ ...sanitize({}), minimapOff: true })
+    expect(saved.minimapOff).toBe(false)
+    expect(trackingOn(saved)).toBe(true)
+    expect(trackingOn({ minimap: true, minimapOff: true } as Parameters<typeof trackingOn>[0])).toBe(true)
   })
 })
 
@@ -48,15 +47,13 @@ describe('the owner\'s switch for every app (owner, 14.10.2026: «у всех п
     expect(trackingOn(sanitize({}))).toBe(false)
   })
 
-  it('gates the tracking like «Отключить местоположение»: on only when both allow it', () => {
+  it('alone decides the tracking: a player\'s saved «выключено» does not hold it back', () => {
     const on = sanitize({})
     const playerOff = sanitize({ minimapOff: true })
     setRemoteMinimap(true)
-    expect([trackingOn(on), trackingOn(playerOff)]).toEqual([true, false])
+    expect([trackingOn(on), trackingOn(playerOff)]).toEqual([true, true])
     setRemoteMinimap(false)
     expect([trackingOn(on), trackingOn(playerOff)]).toEqual([false, false])
-    // The player's own switch is kept as it was: on again with the owner's switch.
-    expect(on.minimapOff).toBe(false)
     expect(trackingOn(on, true)).toBe(true)
   })
 })
