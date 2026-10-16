@@ -130,4 +130,36 @@ describe('subscription checkout', () => {
       method: 'tinkoff_bank', autopayVersion: '2026-10-15.1',
     }))
   })
+
+  it.each([
+    ['CIS', ['standard', 'friend']],
+    ['WORLD', ['standard']],
+  ] as const)('a %s account pays through Boosty: no ЮKassa plans, the friend offer only when listed', async (region, offers) => {
+    mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region, provider: 'boosty', boosty: { offers: [...offers] } })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    expect(await panel.findByRole('button', { name: 'Оплатить через Boosty' })).toBeInTheDocument()
+    expect(panel.queryByRole('button', { name: 'Оплатить 1 месяц' })).not.toBeInTheDocument()
+    expect(Boolean(panel.queryByRole('button', { name: 'Оплатить со скидкой друга (один раз)' }))).toBe(offers.length === 2)
+  })
+
+  it('without a country no payment is offered until it is named', async () => {
+    mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: null, provider: null, boosty: null })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    expect(await panel.findByText(/Без страны оплата недоступна/)).toBeInTheDocument()
+    expect(panel.queryByRole('button', { name: /^Оплатить/ })).not.toBeInTheDocument()
+  })
+
+  it('a Russian account keeps the ЮKassa plans and never sees Boosty', async () => {
+    mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    expect(await panel.findByRole('button', { name: 'Оплатить 1 месяц' })).toBeInTheDocument()
+    await vi.waitFor(() => expect(mocks.payments).toHaveBeenCalled())
+    expect(panel.queryByText(/Boosty/)).not.toBeInTheDocument()
+  })
 })

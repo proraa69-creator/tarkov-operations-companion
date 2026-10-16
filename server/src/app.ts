@@ -26,6 +26,8 @@ import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
 import { createPaymentsRouter } from './routes/payments.js'
+import { BoostyPayments } from './services/boosty.js'
+import type { BoostySync } from './services/boostySync.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { InviteProgram } from './services/invites.js'
@@ -119,6 +121,10 @@ export interface ApiOptions {
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
   invites?: InviteProgram
+  /** Boosty (CIS / WORLD): links, issuance and the review list; defaults to one on the payments' database. */
+  boosty?: BoostyPayments
+  /** The automatic Boosty issuance (services/boostySync.ts): only when the server has the Boosty secrets. */
+  boostySync?: BoostySync
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -262,7 +268,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
-  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
+  // Boosty for CIS / WORLD (services/boosty.ts): links by the saved country; issued by the sync or the owner's confirmation.
+  const boosty = options.boosty ?? (adminStore ? new BoostyPayments(accounts, payments, invites, { now: accounts.clock }) : undefined)
+  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites, boosty))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
@@ -275,7 +283,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence))
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.

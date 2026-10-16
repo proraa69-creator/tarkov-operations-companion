@@ -50,7 +50,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'payment.refund' | 'payment.boosty-confirm' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'map.quest-requirement' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
@@ -146,8 +146,8 @@ function mskDayRange(day: string) {
 }
 /** A LIKE pattern that matches `text` literally. */
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
-/** «Способ» in the CSV: ЮKassa, or «Архив» for a payment service that is no longer connected. */
-const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', archive: 'Архив' }
+/** «Способ» in the CSV: ЮKassa, Boosty, or «Архив» for a payment service that is no longer connected. */
+const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', archive: 'Архив' }
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 /** FROM of «Пользователи»: see AdminStore.userSelect. */
 const USER_FROM = 'FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id LEFT JOIN accounts i ON i.id = a.invited_by'

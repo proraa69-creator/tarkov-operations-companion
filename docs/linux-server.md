@@ -54,6 +54,9 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   and `YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank`. List only methods actually enabled for the shop;
   unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
   payment methods and recurring charges for the shop. Keep it unset otherwise.
+  Boosty (CIS / WORLD) automatic issuance: `BOOSTY_AUTH` and `BOOSTY_CLIENT_ID` (see
+  `docs/payments/payment-regions-and-announcements.md`); the refreshed tokens are kept in
+  `/var/lib/raidos/boosty-tokens.json` (mode 600). Without both values the job stays off.
 - Check now: `systemctl start raidos-update.service`
 - ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook` (payment.succeeded, payment.canceled;
   refund.succeeded takes a refunded payment back). As of 04.10.2026 the separate RaidOS shop, shopId 1481580, was
