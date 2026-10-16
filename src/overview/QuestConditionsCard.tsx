@@ -11,6 +11,8 @@ import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
+import bigPipeResting from '../assets/goons-rest/big-pipe.webp'
+import birdeyeResting from '../assets/goons-rest/birdeye.webp'
 
 /** How many pictures of one kind the card shows at rest before «+N». */
 const CARD_PARTS = 3
@@ -365,7 +367,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
   }
   const label = title
 
-  return <div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
+  return <div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}${shown ? '' : ' is-empty'}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">
       <div className="stat-label">{label}</div>
       {others.length > 0 && <button type="button" className="qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
@@ -374,7 +376,15 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
     </div>
     {shown
       ? <QuestCard entry={shown} pictures={pictures} mapName={mapName} onOpen={() => openDetails(shown)} />
-      : <p className="qc-empty">{uiText('На этой карте нет квестов с условиями на снаряжение')}</p>}
+      : <>
+        <p className="qc-empty">{uiText('На этой карте нет квестов с условиями на снаряжение')}</p>
+        {/* Nothing to gather: the Goons rest inside the empty block, leaning on its sides; Big Pipe's grenade launcher
+            stands beside him (owner, 16.10.2026: «если этот блок пустой и нету квестов, то там сидят кочевники»). */}
+        <div className="qc-goons" aria-hidden="true">
+          <img className="qc-goon is-left" src={bigPipeResting} alt="" draggable={false} />
+          <img className="qc-goon is-right" src={birdeyeResting} alt="" draggable={false} />
+        </div>
+      </>}
     {unfoldable && shown && <div id={popId} className={`qc-pop${open ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!open} role="group" aria-label={uiText(`Сбор на рейд · ${uiText(map.name)}`)}>
       <div className="qc-head">
         <div className="stat-label">{label}</div>
