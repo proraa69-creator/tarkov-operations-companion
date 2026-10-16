@@ -60,6 +60,7 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/bug-reports/12/files/0', '/v1/accounts/me/admin/bug-reports/12/status',
   '/v1/accounts/me/admin/bug-reports/12/files/0/data', '/v1/accounts/me/admin/requests/events', '/v1/accounts/me/admin/requests/events?since=1791283908575',
   '/v1/accounts/me/admin/quest-texts', '/v1/accounts/me/admin/quest-texts/0123456789abcdef01234567/remove',
+  '/v1/accounts/me/admin/quest-point-photos', '/v1/me/quest-point-photos/0123456789abcdef01234567',
   '/v1/quest-requirements', '/v1/accounts/me/admin/quest-requirements', '/v1/accounts/me/admin/quest-requirements/order',
   '/v1/accounts/me/admin/quest-requirements/0123456789abcdef01234567/remove',
   '/v1/event-quests', '/v1/accounts/me/admin/event-quests', '/v1/accounts/me/admin/event-quests/raidos-event-4k2m9x7q/remove',

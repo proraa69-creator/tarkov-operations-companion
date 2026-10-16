@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
+import { isQuestPointIcon, type QuestPointIcon } from '../../../src/shared/questPointConstructor.js'
 
 /**
  * Quest map points corrected by the owner by hand (owner app → «Карты» → «Квесты: правка точек»), e.g. after a bug
@@ -16,12 +17,19 @@ import type { DatabaseSync } from 'node:sqlite'
  * Every point (moved, added or described) may carry a player-facing description «где и что искать» (owner, 15.10.2026):
  * `title` / `description` in Russian and optionally `titleEn` / `descriptionEn`. Every player sees them on the map. The
  * `note` is the owner's own remark and never leaves the owner's routes.
+ *
+ * The point constructor (owner, 16.10.2026: «ставлю точку, она пустая. жму правой кнопкой … можно выбрать любую
+ * эмблему»): a point may carry an emblem (`icon`, one of the map's marker layers), catalog items to look for
+ * (`itemIds`) and photos (`photoIds`, services/questPointPhotoStore.ts). An added point needs no quest: a «free» point
+ * (an extract, a transit, loot…) has an emblem other than a quest's and no `questId` (stored as '' and left out of every
+ * answer, so apps from before 16.10.2026, which need a quest id, skip it).
  */
 export type QuestPointKind = 'move' | 'add' | 'hide' | 'describe'
 
 export interface QuestPointOverride {
   id: string
-  questId: string
+  /** Absent on a free point (an added point of no quest). */
+  questId?: string
   /** The original point (move / hide); absent for an added point. */
   markerId?: string
   objectiveId?: string
@@ -36,6 +44,11 @@ export interface QuestPointOverride {
   titleEn?: string
   description?: string
   descriptionEn?: string
+  /** The emblem the point is drawn with (absent: the quest's own). */
+  icon?: QuestPointIcon
+  /** Catalog items to look for / needed here, and the photos of the place (ids of services/questPointPhotoStore.ts). */
+  itemIds?: string[]
+  photoIds?: string[]
   /** The owner's own remark: never in the public list. */
   note?: string
   updatedBy: string
@@ -51,10 +64,11 @@ interface Row {
   id: string; quest_id: string; marker_id: string | null; objective_id: string | null; stage_index: number | null
   map_id: string; x: number; z: number; floor: string | null; kind: string; note: string | null; updated_by: string; updated_at: string
   title: string | null; title_en: string | null; description: string | null; description_en: string | null
+  icon: string | null; item_ids: string | null; photo_ids: string | null
 }
 
-/** Columns added after the first release of the table (point descriptions, 15.10.2026). */
-const TEXT_COLUMNS = ['title', 'title_en', 'description', 'description_en'] as const
+/** Columns added after the first release of the table (point descriptions, 15.10.2026; emblem, items, photos, 16.10.2026). */
+const TEXT_COLUMNS = ['title', 'title_en', 'description', 'description_en', 'icon', 'item_ids', 'photo_ids'] as const
 
 export class QuestPointStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
@@ -91,10 +105,11 @@ export class QuestPointStore {
   /**
    * Saves a correction. `id` updates that override; otherwise a move / hide replaces the override of the same original
    * point (one correction per point) and an add creates a new one.
-   * `missing`: no override with that id; `full`: the table is full; `invalid`: move / hide / describe without a marker id.
+   * `missing`: no override with that id; `full`: the table is full; `invalid`: move / hide / describe without a marker id
+   * or a quest id.
    */
   save(input: QuestPointInput, actor: string, id?: string): QuestPointOverride | 'missing' | 'full' | 'invalid' {
-    if (input.kind !== 'add' && !input.markerId) return 'invalid'
+    if (input.kind !== 'add' && (!input.markerId || !input.questId)) return 'invalid'
     const markerId = input.kind === 'add' ? null : input.markerId!
     const existing = id
       ? this.db.prepare('SELECT id FROM quest_point_overrides WHERE id = ?').get(id) as { id: string } | undefined
@@ -106,7 +121,7 @@ export class QuestPointStore {
     }
     const row: Row = {
       id: existing?.id ?? randomBytes(12).toString('hex'),
-      quest_id: input.questId,
+      quest_id: input.questId ?? '',
       marker_id: markerId,
       objective_id: input.objectiveId ?? null,
       stage_index: input.stageIndex ?? null,
@@ -122,19 +137,29 @@ export class QuestPointStore {
       title_en: input.titleEn ?? null,
       description: input.description ?? null,
       description_en: input.descriptionEn ?? null,
+      icon: input.icon ?? null,
+      item_ids: input.itemIds?.length ? JSON.stringify(input.itemIds) : null,
+      photo_ids: input.photoIds?.length ? JSON.stringify(input.photoIds) : null,
     }
     // An update by id may point the override at another original point: that point's own override gives way.
     if (existing && markerId) this.db.prepare('DELETE FROM quest_point_overrides WHERE marker_id = ? AND id <> ?').run(markerId, existing.id)
     this.db.prepare(`INSERT INTO quest_point_overrides (id, quest_id, marker_id, objective_id, stage_index, map_id, x, z, floor, kind, note, updated_by, updated_at,
-          title, title_en, description, description_en)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          title, title_en, description, description_en, icon, item_ids, photo_ids)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET quest_id = excluded.quest_id, marker_id = excluded.marker_id, objective_id = excluded.objective_id,
           stage_index = excluded.stage_index, map_id = excluded.map_id, x = excluded.x, z = excluded.z, floor = excluded.floor,
           kind = excluded.kind, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at,
-          title = excluded.title, title_en = excluded.title_en, description = excluded.description, description_en = excluded.description_en`)
+          title = excluded.title, title_en = excluded.title_en, description = excluded.description, description_en = excluded.description_en,
+          icon = excluded.icon, item_ids = excluded.item_ids, photo_ids = excluded.photo_ids`)
       .run(row.id, row.quest_id, row.marker_id, row.objective_id, row.stage_index, row.map_id, row.x, row.z, row.floor, row.kind, row.note, row.updated_by, row.updated_at,
-        row.title, row.title_en, row.description, row.description_en)
+        row.title, row.title_en, row.description, row.description_en, row.icon, row.item_ids, row.photo_ids)
     return toOverride(row)
+  }
+
+  /** Every photo id some point shows (the photo store keeps these; the others go after a grace period). */
+  photoIds(): Set<string> {
+    const rows = this.db.prepare('SELECT photo_ids FROM quest_point_overrides WHERE photo_ids IS NOT NULL').all() as Array<{ photo_ids: string | null }>
+    return new Set(rows.flatMap((row) => idList(row.photo_ids)))
   }
 
   /** The removed override («Вернуть исходную точку»), or undefined when there was none. */
@@ -146,10 +171,23 @@ export class QuestPointStore {
   }
 }
 
+/** A stored JSON list of ids; anything else reads as none. */
+function idList(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const value = JSON.parse(raw) as unknown
+    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && /^[a-f0-9]{24}$/.test(entry)) : []
+  } catch {
+    return []
+  }
+}
+
 function toOverride(row: Row): QuestPointOverride {
+  const itemIds = idList(row.item_ids)
+  const photoIds = idList(row.photo_ids)
   return {
     id: row.id,
-    questId: row.quest_id,
+    ...(row.quest_id ? { questId: row.quest_id } : {}),
     ...(row.marker_id ? { markerId: row.marker_id } : {}),
     ...(row.objective_id ? { objectiveId: row.objective_id } : {}),
     ...(row.stage_index == null ? {} : { stageIndex: Number(row.stage_index) }),
@@ -162,6 +200,9 @@ function toOverride(row: Row): QuestPointOverride {
     ...(row.title_en ? { titleEn: row.title_en } : {}),
     ...(row.description ? { description: row.description } : {}),
     ...(row.description_en ? { descriptionEn: row.description_en } : {}),
+    ...(isQuestPointIcon(row.icon) ? { icon: row.icon } : {}),
+    ...(itemIds.length ? { itemIds } : {}),
+    ...(photoIds.length ? { photoIds } : {}),
     ...(row.note ? { note: row.note } : {}),
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
