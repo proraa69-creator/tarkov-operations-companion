@@ -95,7 +95,7 @@ describe('the point constructor on the map (owner, 16.10.2026: «ставлю т
   })
 
   it('a point placed with no quest is empty and unsaved; its right-click menu sets an emblem; saved as a free point for every player', async () => {
-    const { requests, wrapper } = ownerApp()
+    const { requests, points, wrapper } = ownerApp()
     render(<Constructor />, { wrapper })
     fireEvent.click(await screen.findByRole('button', { name: /Поставить точку/ }))
     fireEvent.click(screen.getByRole('button', { name: 'click map' }))
@@ -116,6 +116,12 @@ describe('the point constructor on the map (owner, 16.10.2026: «ставлю т
     expect(body).toEqual({ mapId: 'customs', x: 5, z: 6, kind: 'add', icon: 'transit', title: 'Переход на Развязку', description: 'У ворот' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(screen.queryByRole('button', { name: 'right-click draft' })).toBeNull()
+    // The saved free point: drawn with its emblem; its menu deletes it.
+    const free = `owner-quest-${String(points[0].id)}`
+    await waitFor(() => expect(screen.getByTestId('markers')).toHaveTextContent(`${free}:transit::У ворот`))
+    fireEvent.click(screen.getByRole('button', { name: `right-click ${free}` }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Удалить точку/ }))
+    await waitFor(() => expect(points).toHaveLength(0))
   })
 
   it('«Квест»: finds the quest in our list, attaches the point to the chosen objective; adds a catalog item and a photo', async () => {

@@ -128,8 +128,8 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
 
   /** Drag and drop: saved at once. An added point keeps its id; a catalog point gets (or updates) its «move». */
   const move = (marker: MapMarker, x: number, z: number) => run(async () => {
-    if (!marker.questId) return
     const added = addedOverride(marker)
+    if (!added && !marker.questId) return
     const before = added ?? byMarker.get(marker.id)
     const input: QuestPointInput = added
       ? { ...stripMeta(added), x: round(x), z: round(z), ...floorField(), ...noteField(added) }
@@ -154,9 +154,9 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   }
   /** «Скрыть»: a catalog point is hidden (where it stood is kept); an added point is simply deleted. */
   const hide = (marker: MapMarker) => run(async () => {
-    if (!marker.questId) return
     const added = addedOverride(marker)
     if (added) { await writer.reset(added.id); return undoPoint(added, undefined) }
+    if (!marker.questId) return
     const before = byMarker.get(marker.id)
     const saved = await writer.save({ questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), kind: 'hide', ...goalField(marker), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), ...textFields(before), ...noteField(before) })
     return undoPoint(before, saved)
@@ -219,7 +219,10 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   /** A point the constructor sets up: a quest point, or a point the owner added (a free one too). */
   const canEdit = (marker: MapMarker) => enabled && (marker.source === OWNER_QUEST_POINT_SOURCE || (Boolean(marker.questId) && isQuestPoint(marker)))
   /** A marker on the map that the owner can drag right now. */
-  const canDrag = (marker: MapMarker) => active && !busy && Boolean(questId) && marker.questId === questId && isQuestPoint(marker)
+  const canDrag = (marker: MapMarker) => active && !busy && (
+    (Boolean(questId) && marker.questId === questId && isQuestPoint(marker))
+    // A free point the owner placed (an extract, a transit…) moves too.
+    || (marker.source === OWNER_QUEST_POINT_SOURCE && !marker.questId))
   const pick = (id: string) => { setQuestId(id); setGoal(''); setAdding(false); setError(''); setSaved(false); setLastUndo(null); setTab('points'); setEditing(null) }
   /** The right-click menu of a point at a screen position (owner app). */
   const openMenu = (target: PointTarget, x: number, y: number) => { setMenu({ target, x, y }); setError('') }
@@ -266,12 +269,13 @@ function restoreInput(entry: QuestPointOverride, keepId: boolean): QuestPointInp
   if (!keepId) delete input.id
   return input
 }
-/** A point's description, carried along when the point is moved or hidden. */
-function textFields(entry?: QuestPointOverride): Pick<QuestPointInput, 'title' | 'titleEn' | 'description' | 'descriptionEn'> {
+/** A point's description, emblem, items and photos, carried along when the point is moved or hidden. */
+function textFields(entry?: QuestPointOverride): Pick<QuestPointInput, 'title' | 'titleEn' | 'description' | 'descriptionEn' | 'icon' | 'itemIds' | 'photoIds'> {
   if (!entry) return {}
   return {
     ...(entry.title ? { title: entry.title } : {}), ...(entry.titleEn ? { titleEn: entry.titleEn } : {}),
     ...(entry.description ? { description: entry.description } : {}), ...(entry.descriptionEn ? { descriptionEn: entry.descriptionEn } : {}),
+    ...(entry.icon ? { icon: entry.icon } : {}), ...(entry.itemIds?.length ? { itemIds: entry.itemIds } : {}), ...(entry.photoIds?.length ? { photoIds: entry.photoIds } : {}),
   }
 }
 /** Trimmed texts, empty ones dropped, cut to the server's limits. */
