@@ -518,7 +518,8 @@ export const SCOURGE_INVASION: CuratedSeries = {
     {
       id: SCOURGE_QUEST_IDS.coordination,
       trader: THERAPIST,
-      name: { ru: 'Нарушить координацию', en: 'Disrupt the Coordination' },
+      // the screenshot does not show the title: a plain description until the owner names it
+      name: { ru: 'Scourge. Шесть целей в Лаборатории', en: 'Scourge: Six Targets in the Lab' },
       after: [SCOURGE_QUEST_IDS.simpleTask],
       experience: 28_000,
       objectives: [{ type: 'shoot', count: 6, maps: ['the-lab'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Лаборатория', en: 'Eliminate any target in The Lab' } }],
@@ -526,8 +527,8 @@ export const SCOURGE_INVASION: CuratedSeries = {
       rewards: [['5c1d0d6d86f7744bb2683e1f', 1], ['5c1e495a86f7743109743dfb', 1], ['5c1d0c5f86f7744bb2683cf0', 1]],
       skills: [{ ru: 'Хирургия +1 уровень', en: 'Surgery +1 level' }],
       note: {
-        ru: 'Отрядом Рефа командует гладиатор с позывным Scourge — ветеран Арены, в Таркове был в составе USEC. Прямое столкновение может их спугнуть: достаточно нарушить их координацию — устранить в Лаборатории шесть любых целей (Диких, Рейдеров, ЧВК или охрану Scourge). Три ключ-карты доступа выдаются при взятии задания; в награду — жёлтая, фиолетовая и синяя ключ-карты.',
-        en: 'Ref’s squad is led by a gladiator called Scourge, an Arena veteran who was with USEC in Tarkov. A head-on fight may scare them off: it is enough to disrupt their coordination by eliminating any six targets in the Lab (Scavs, Raiders, PMCs or Scourge’s guards). Three Labs access keycards come with the task; the reward is the yellow, violet and blue keycards.',
+        ru: 'Отрядом Рефа командует гладиатор с позывным Scourge — ветеран Арены, в Таркове был в составе USEC. Прямое столкновение может их спугнуть: достаточно нарушить их координацию — устранить в Лаборатории шесть любых целей (Диких, Рейдеров, ЧВК или охрану Scourge). Три ключ-карты доступа выдаются при взятии задания; в награду — жёлтая, фиолетовая и синяя ключ-карты. Цепочка продолжается: дальше в наградах — зелёная и чёрная ключ-карты, кейс для вещей и кейс для медикаментов.',
+        en: 'Ref’s squad is led by a gladiator called Scourge, an Arena veteran who was with USEC in Tarkov. A head-on fight may scare them off: it is enough to disrupt their coordination by eliminating any six targets in the Lab (Scavs, Raiders, PMCs or Scourge’s guards). Three Labs access keycards come with the task; the reward is the yellow, violet and blue keycards. The chain goes on: its later rewards include the green and black keycards, an Item case and a Medicine case.',
       },
     },
   ],
