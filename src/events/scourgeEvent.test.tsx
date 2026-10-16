@@ -60,15 +60,29 @@ describe('«Вторжение Scourge» (owner, 16.10.2026)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('the clip ending goes on to the story; the Overview button opens it all again', async () => {
+  it('the Overview button opens every event quest (taken or not); the clip plays at half volume with a slider and goes on to the story', async () => {
     localStorage.setItem(SCOURGE_INTRO_KEY, 'seen')
     open()
     await settle()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ивент: Вторжение Scourge' }))
+    const story = screen.getByRole('dialog', { name: 'Вторжение Scourge' })
+    const cards = [...story.querySelectorAll('.scourge-quest summary')].map((summary) => summary.textContent)
+    expect(cards).toHaveLength(6)
+    for (const name of ['Скрытый маршрут', 'Простая задача', 'Продление операции', 'Информационный след', 'Подработка для души', 'Деанон']) {
+      expect(cards.some((card) => card?.includes(name))).toBe(true)
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Смотреть ролик' }))
     const video = document.querySelector('video')!
+    expect(video.volume).toBe(0.5)
+    const slider = screen.getByRole('slider', { name: 'Громкость' })
+    expect(slider).toHaveValue('50')
+    fireEvent.change(slider, { target: { value: '20' } })
+    expect(video.volume).toBeCloseTo(0.2)
     fireEvent.ended(video)
-    expect(screen.getByRole('button', { name: 'Далее' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Закрыть' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('after the event: no button, no intro, no Scourge on the Lab card; he stays a boss of the Lab', async () => {

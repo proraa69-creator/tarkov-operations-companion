@@ -83,6 +83,8 @@ export interface CuratedQuest {
   aliases?: string[]
   /** Previous quests (complete), in the game's order of the series. */
   after?: string[]
+  /** Quests that only need to be taken (active or complete), e.g. a side task given on accepting another one. */
+  afterAccepted?: string[]
   experience: number
   objectives: CuratedObjective[]
   /** Items given on completion (tarkov.dev `finishRewards.items`). */
@@ -90,6 +92,8 @@ export interface CuratedQuest {
   /** Items given when the quest is taken (tarkov.dev `startRewards.items`). */
   startRewards?: Array<[itemId: string, count: number]>
   standing?: Array<[traderId: string, value: number]>
+  /** Pictures of where to look: files of src/assets/quest-guides (the owner's in-game screenshots) and their captions. */
+  guideImages?: Array<{ file: string; caption: Text }>
   /** Skill rewards as the game's reward line names them («Здоровье +1 уровень»). */
   skills?: Text[]
   craftUnlock?: { itemId: string; station: Text }
@@ -473,7 +477,13 @@ export const SCOURGE_QUEST_IDS = {
   hiddenRoute: 'raidos-scourge-hidden-route',
   simpleTask: 'raidos-scourge-simple-task',
   coordination: 'raidos-scourge-coordination',
+  informationTrail: 'raidos-scourge-information-trail',
+  soulJob: 'raidos-scourge-soul-job',
+  deanon: 'raidos-scourge-deanon',
 } as const
+
+const MECHANIC_ID = MECHANIC
+const LABS_ACCESS = '5c94bbff86f7747ee735c08f'
 
 /**
  * «Вторжение Scourge» (owner, 16.10.2026): the event chain about Ref's operation in the Lab, from the owner's in-game
@@ -532,8 +542,8 @@ export const SCOURGE_INVASION: CuratedSeries = {
     {
       id: SCOURGE_QUEST_IDS.coordination,
       trader: THERAPIST,
-      // the screenshot does not show the title: «???» until it is known (owner, 16.10.2026: «не называй никак, поставь ???»)
-      name: { ru: '???', en: '???' },
+      // «???» until the owner's screenshot of its title (16.10.2026): «Продление операции»
+      name: { ru: 'Продление операции', en: 'Extending the Operation' },
       after: [SCOURGE_QUEST_IDS.simpleTask],
       experience: 28_000,
       objectives: [{ type: 'shoot', count: 6, maps: ['the-lab'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Лаборатория', en: 'Eliminate any target in The Lab' } }],
@@ -541,8 +551,67 @@ export const SCOURGE_INVASION: CuratedSeries = {
       rewards: [['5c1d0d6d86f7744bb2683e1f', 1], ['5c1e495a86f7743109743dfb', 1], ['5c1d0c5f86f7744bb2683cf0', 1]],
       skills: [{ ru: 'Хирургия +1 уровень', en: 'Surgery +1 level' }],
       note: {
-        ru: 'Отрядом Рефа командует гладиатор с позывным Scourge — ветеран Арены, в Таркове был в составе USEC. Прямое столкновение может их спугнуть: достаточно нарушить их координацию — устранить в Лаборатории шесть любых целей (Диких, Рейдеров, ЧВК или охрану Scourge). Три ключ-карты доступа выдаются при взятии задания; в награду — жёлтая, фиолетовая и синяя ключ-карты. Цепочка продолжается: дальше в наградах — зелёная и чёрная ключ-карты, кейс для вещей и кейс для медикаментов.',
-        en: 'Ref’s squad is led by a gladiator called Scourge, an Arena veteran who was with USEC in Tarkov. A head-on fight may scare them off: it is enough to disrupt their coordination by eliminating any six targets in the Lab (Scavs, Raiders, PMCs or Scourge’s guards). Three Labs access keycards come with the task; the reward is the yellow, violet and blue keycards. The chain goes on: its later rewards include the green and black keycards, an Item case and a Medicine case.',
+        ru: 'Отрядом Рефа командует гладиатор с позывным Scourge — ветеран Арены, в Таркове был в составе USEC. Прямое столкновение может их спугнуть: достаточно нарушить их координацию — устранить в Лаборатории шесть любых целей (Диких, Рейдеров, ЧВК или охрану Scourge). Три ключ-карты доступа выдаются при взятии задания; в награду — жёлтая, фиолетовая и синяя ключ-карты. Засчитываются любые боты и ЧВК.',
+        en: 'Ref’s squad is led by a gladiator called Scourge, an Arena veteran who was with USEC in Tarkov. A head-on fight may scare them off: it is enough to disrupt their coordination by eliminating any six targets in the Lab (Scavs, Raiders, PMCs or Scourge’s guards). Three Labs access keycards come with the task; the reward is the yellow, violet and blue keycards. Any bots and PMCs count.',
+      },
+    },
+    {
+      id: SCOURGE_QUEST_IDS.informationTrail,
+      trader: THERAPIST,
+      name: { ru: 'Информационный след', en: 'Information Trail' },
+      after: [SCOURGE_QUEST_IDS.coordination],
+      experience: 28_000,
+      objectives: [
+        { type: 'findQuestItem', maps: ['the-lab'], text: { ru: 'Найти Смартфон Scourge', en: 'Find Scourge’s smartphone' } },
+        { type: 'extract', maps: ['the-lab'], text: { ru: 'Выжить и выйти с локации Лаборатория', en: 'Survive and extract from The Lab' } },
+        { type: 'giveQuestItem', text: { ru: 'Передать найденный предмет', en: 'Hand over the found item' } },
+      ],
+      startRewards: [[LABS_ACCESS, 1]],
+      rewards: [['5c1d0dc586f7744baf2e7b79', 1], ['5c1d0f4986f7744bb01837fa', 1]],
+      skills: [{ ru: 'Здоровье +1 уровень', en: 'Health +1 level' }],
+      note: {
+        ru: 'Смартфон спавнится в карманах босса Scourge: его нужно убить, забрать смартфон, выжить и выйти. После принятия задания Механик даёт побочное задание «Деанон».',
+        en: 'The smartphone spawns in the boss Scourge’s pockets: kill him, take it, survive and extract. Accepting this task makes Mechanic give the side task «Deanon».',
+      },
+    },
+    {
+      id: SCOURGE_QUEST_IDS.deanon,
+      trader: MECHANIC_ID,
+      name: { ru: 'Деанон', en: 'Deanon' },
+      afterAccepted: [SCOURGE_QUEST_IDS.informationTrail],
+      experience: 28_000,
+      objectives: [
+        { type: 'findQuestItem', maps: ['ground-zero'], text: { ru: 'Найти SSD-диск с данными для отправлений на локации Эпицентр', en: 'Find the SSD drive with the shipment data in Ground Zero' } },
+        { type: 'giveQuestItem', text: { ru: 'Передать найденный предмет', en: 'Hand over the found item' } },
+      ],
+      rewards: [[ROUBLES, 322_850], ['5dcbd56fdbd3d91b3e5468d5', 1], ['6570254fcfc010a0f5006a22', 4], ['618ba27d9008e4636a67f61d', 1]],
+      note: {
+        ru: 'Побочное задание Механика, даётся после принятия «Информационного следа» и подсказывает, где искать посылку с прекурсорами. SSD — на 2-м этаже главного офиса TerraGroup в опенспейсе с кухней, на красном системном блоке под столом; у предмета может быть несколько спавнов.',
+        en: 'Mechanic’s side task, given after accepting «Information Trail»; it hints where to look for the precursor parcel. The SSD is on the 2nd floor of the TerraGroup head office, in the open space with the kitchen, on the red PC under a desk; the item may have several spawns.',
+      },
+    },
+    {
+      id: SCOURGE_QUEST_IDS.soulJob,
+      trader: THERAPIST,
+      name: { ru: 'Подработка для души', en: 'A Job for the Soul' },
+      after: [SCOURGE_QUEST_IDS.informationTrail],
+      experience: 65_000,
+      objectives: [
+        { type: 'shoot', count: 3, maps: ['the-lab'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить гладиаторов Рефа на локации Лаборатория', en: 'Eliminate Ref’s gladiators in The Lab' } },
+        { type: 'findQuestItem', maps: ['streets-of-tarkov', 'the-lab'], text: { ru: 'Найти прекурсоры', en: 'Find the precursors' } },
+        { type: 'findQuestItem', optional: true, maps: ['streets-of-tarkov', 'the-lab'], text: { ru: '(опционально) Найти кейс или коробку с прекурсорами', en: '(Optional) Find a case or box with precursors' } },
+        { type: 'giveQuestItem', text: { ru: 'Передать найденный груз', en: 'Hand over the found cargo' } },
+      ],
+      startRewards: [[LABS_ACCESS, 1]],
+      rewards: [[ROUBLES, 587_000], ['5aafbcd986f7745e590fff23', 1], ['59fb042886f7746c5005a7b2', 1]],
+      guideImages: [
+        { file: 'scourge-precursor-box.webp', caption: { ru: 'Коробка с прекурсорами («Коробка») — Улицы Таркова, отделение «Почты Руси»', en: 'The precursor box («Box»): Streets of Tarkov, the Russian Post office' } },
+        { file: 'scourge-precursor.webp', caption: { ru: 'Прекурсор (Precursor) — квестовый предмет из посылки', en: 'Precursor: the quest item from the parcel' } },
+      ],
+      skills: [{ ru: 'Здоровье +1 уровень', en: 'Health +1 level' }, { ru: 'Хирургия +1 уровень', en: 'Surgery +1 level' }],
+      note: {
+        ru: 'Убийства гладиаторов засчитываются всей группе. Груз с прекурсорами — в одной из комнат отделения «Почты Руси» на Улицах Таркова (там, где спавнится кассета сюжета «Синий огонь»): посылку нужно вынести с локации и открыть в схроне — из неё выпадет квестовый предмет для сдачи. Кейс с прекурсорами можно найти и в Лаборатории под котами. Это последнее задание цепочки; достижения за ивент нет.',
+        en: 'Gladiator kills count for the whole group. The precursor cargo is in a room of the Russian Post office on Streets of Tarkov (where the «Blue Fire» story cassette spawns): extract with the parcel and open it in the stash to get the quest item to hand over. A precursor case can also be found in the Lab under the cats. This is the last task of the chain; there is no achievement for the event.',
       },
     },
   ],
@@ -666,6 +735,7 @@ export function applyCuratedQuestNotes(
       ...row,
       curatedSeriesId: series.id,
       description: note ? `${lead} ${note}` : lead,
+      ...(quest.guideImages?.length ? { guideImages: quest.guideImages.map((image) => ({ file: image.file, caption: image.caption[locale] })) } : {}),
       ...(aliases.length ? { ocrAliases: aliases } : {}),
       rewards: [...row.rewards, ...extraRewards],
       raidRequirements: [...(row.raidRequirements ?? []), ...bring],
@@ -750,7 +820,10 @@ function rawTask(quest: CuratedQuest, locale: AppLocale, spots: SpotIndex): Json
     name: quest.name[locale],
     trader: quest.trader,
     minPlayerLevel: 0,
-    taskRequirements: (quest.after ?? []).map((task) => ({ task, status: ['complete'] })),
+    taskRequirements: [
+      ...(quest.after ?? []).map((task) => ({ task, status: ['complete'] })),
+      ...(quest.afterAccepted ?? []).map((task) => ({ task, status: ['active', 'complete'] })),
+    ],
     traderRequirements: (quest.loyalty ?? []).map(([trader, value]) => ({ trader, requirementType: 'level', compareMethod: '>=', value })),
     otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : [],
     objectives: quest.objectives.map((objective, index) => rawObjective(quest.id, index, objective, locale, spots)),
