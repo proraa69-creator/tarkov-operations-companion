@@ -1,10 +1,10 @@
 import { Globe, Monitor, Server, Smartphone } from 'lucide-react'
 import { siteLocale, tr } from '../../i18n'
 import { LoginQr } from '../LoginQr'
-import { Platforms } from '../Platforms'
 import overviewShot from '../../assets/promo/overview.webp'
-import itemSneaker from '../../assets/promo/item-sneaker.webp'
-import itemGpu from '../../assets/promo/item-gpu.webp'
+import mapItem from '../../assets/promo/map-item.webp'
+import mapPosition from '../../assets/promo/map-position.webp'
+import gunsmithParts from '../../assets/promo/gunsmith-parts.webp'
 import modePvp from '../../assets/promo/mode-pvp.webp'
 import modePve from '../../assets/promo/mode-pve.webp'
 import modeSeason from '../../assets/promo/mode-season.webp'
@@ -18,7 +18,6 @@ import themeBlackmc from '../../assets/promo/theme-blackmc.webp'
 import themeSlate from '../../assets/promo/theme-slate.webp'
 import themeTelnyashka from '../../assets/promo/theme-telnyashka.webp'
 import themeGear from '../../assets/promo/theme-gear.webp'
-import phoneShot from '../../assets/promo/phone-overview.webp'
 import phoneLive from '../../assets/promo/phone-live.webp'
 import bustReshala from '../../assets/promo/bust-reshala.webp'
 import bustKilla from '../../assets/promo/bust-killa.webp'
@@ -29,8 +28,9 @@ import bustSanitar from '../../assets/promo/bust-sanitar.webp'
 import bustKaban from '../../assets/promo/bust-kaban.webp'
 import bustZryachiy from '../../assets/promo/bust-zryachiy.webp'
 import overviewShotEn from '../../assets/promo/overview-en.webp'
-import itemSneakerEn from '../../assets/promo/item-sneaker-en.webp'
-import itemGpuEn from '../../assets/promo/item-gpu-en.webp'
+import mapItemEn from '../../assets/promo/map-item-en.webp'
+import mapPositionEn from '../../assets/promo/map-position-en.webp'
+import gunsmithPartsEn from '../../assets/promo/gunsmith-parts-en.webp'
 import modePvpEn from '../../assets/promo/mode-pvp-en.webp'
 import modePveEn from '../../assets/promo/mode-pve-en.webp'
 import modeSeasonEn from '../../assets/promo/mode-season-en.webp'
@@ -43,7 +43,6 @@ import themeBlackmcEn from '../../assets/promo/theme-blackmc-en.webp'
 import themeSlateEn from '../../assets/promo/theme-slate-en.webp'
 import themeTelnyashkaEn from '../../assets/promo/theme-telnyashka-en.webp'
 import themeGearEn from '../../assets/promo/theme-gear-en.webp'
-import phoneShotEn from '../../assets/promo/phone-overview-en.webp'
 import phoneLiveEn from '../../assets/promo/phone-live-en.webp'
 
 /** The screenshot in the site language: the app's Russian or English interface (scripts/trailer/capture.mjs, TRAILER_LOCALE=en). */
@@ -51,9 +50,10 @@ const shot = (ru: string, en: string) => (siteLocale() === 'en' ? en : ru)
 
 /**
  * Pictures of the home page presentation, the same shots as the trailer: real screens of the current desktop app with
- * its demo data (scripts/trailer/capture.mjs, 11.10.2026), no game art — the map image is a neutral survey grid; the
- * item pictures on the cards are cut out of the owner's own stash screenshot. Prices are examples. Everything else here
- * is plain HTML/CSS. All images are local (the site CSP allows only 'self').
+ * its demo data (scripts/trailer/capture.mjs, 11.10.2026), no game art — the map image is a neutral survey grid. «Карты»
+ * and «Оружейник» show the live tarkov.dev catalog (item and part pictures, prices of 16.10.2026; the Gunsmith build
+ * picture is the app's). Nothing of the app is drawn over the game (15.10.2026). Everything else here is plain HTML/CSS.
+ * All images are local (the site CSP allows only 'self').
  */
 
 function Shot({ src, alt, width, height, title, className = '' }: { src: string; alt: string; width: number; height: number; title?: string; className?: string }) {
@@ -73,19 +73,33 @@ export function OverviewVisual() {
   )
 }
 
-export function ItemPriceVisual() {
+/** The item card on «Карты», top left under «Вид» (the app's MapItemCard). */
+export function MapItemVisual() {
   return (
     <figure className="promo-figure">
-      <div className="scene stash-scene item-pair-scene">
-        <div className="stash-grid" aria-hidden="true">
-          {Array.from({ length: 40 }, (_, index) => <span key={index} className={index === 13 || index === 26 ? 'is-hover' : undefined} />)}
-        </div>
-        <div className="key-hint" aria-hidden="true"><span>{tr('наведите курсор')}</span><kbd>;</kbd><span>{tr('или')}</span><kbd>M4</kbd></div>
-        <div className="item-pair">
-          <img className="item-card-shot" src={shot(itemSneaker, itemSneakerEn)} width={560} height={285} loading="lazy" decoding="async" alt={tr('Карточка предмета в рейде: кроссовки Viibiin, пометка «Каппа», цены барахолки и Терапевта')} />
-          <img className="item-card-shot" src={shot(itemGpu, itemGpuEn)} width={560} height={281} loading="lazy" decoding="async" alt={tr('Карточка видеокарты с меткой MATE: предмет нужен другу или напарнику')} />
-        </div>
+      <Shot src={shot(mapItem, mapItemEn)} width={1200} height={676} title={tr('Raid OS · Карты')} alt={tr('Карточка предмета на «Картах» под кнопкой «Вид»: золотое яйцо, цены барахолки и Терапевта, пометка «Каппа» и квесты, для которых он нужен')} />
+    </figure>
+  )
+}
+
+/** The player's point on «Карты» and the same point on the phone. */
+export function PositionVisual() {
+  return (
+    <figure className="promo-figure position-figure">
+      <div className="position-map">
+        <Shot src={shot(mapPosition, mapPositionEn)} width={1200} height={676} title={tr('Raid OS · Карты · Таможня')} alt={tr('Точка игрока с направлением взгляда на карте Таможни в приложении, рядом квестовые точки')} />
+        <span className="position-you" aria-hidden="true">{tr('Вы здесь')}</span>
       </div>
+      <div className="phone-frame is-small position-phone"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1015} loading="lazy" decoding="async" alt={tr('Та же точка на карте в телефоне')} /></div>
+    </figure>
+  )
+}
+
+/** «Оружейник»: the build of the part taken, its parts with pictures and prices, who sells them. */
+export function GunsmithVisual() {
+  return (
+    <figure className="promo-figure">
+      <Shot src={shot(gunsmithParts, gunsmithPartsEn)} width={1000} height={880} title={tr('Оружейник · M4A1')} className="is-narrow" alt={tr('Страница «Оружейник»: сборка M4A1, нужные характеристики, детали с картинками и ценами и кто их продаёт')} />
     </figure>
   )
 }
@@ -94,7 +108,6 @@ export function CollectorVisual() {
   return (
     <figure className="promo-figure">
       <Shot src={kappaShot} width={1200} height={251} title={tr('Предметы для «Коллекционера»')} className="is-strip" alt={tr('Чек-лист предметов для «Коллекционера»: собранные предметы отмечены, кнопка «Сканировать»')} />
-      <img className="item-card-shot collector-card" src={shot(itemSneaker, itemSneakerEn)} width={560} height={285} loading="lazy" decoding="async" alt={tr('Карточка кроссовок Viibiin с пометкой «Каппа» прямо в рейде')} />
     </figure>
   )
 }
@@ -191,21 +204,6 @@ export function ThemesVisual() {
   )
 }
 
-export function PhoneVisual() {
-  return (
-    <figure className="promo-figure phone-figure">
-      <div className="phone-frame">
-        <span className="phone-badge">{tr('скоро')}</span>
-        <img src={shot(phoneShot, phoneShotEn)} width={520} height={1125} loading="lazy" decoding="async" alt={tr('Мобильная раскладка Raid OS: переключатель PvP, PvE и Сезон, текущие задания и прогресс Каппы, нижнее меню «Обзор», «Задания», «Карты», «Мини Карта»')} />
-      </div>
-      <div className="phone-side">
-        <Platforms align="start" />
-        <p>{tr('Мобильная версия собрана из того же кода, что и приложение для ПК. В App Store и Google Play её пока нет — когда появится, ссылки будут на странице загрузки.')}</p>
-      </div>
-    </figure>
-  )
-}
-
 export function SyncVisual() {
   const downloadUrl = typeof window === 'undefined' ? '/download' : `${window.location.origin}/download`
   return (
@@ -218,7 +216,7 @@ export function SyncVisual() {
           <div className="sync-hub"><Server aria-hidden="true" /><strong>{tr('Один аккаунт')}</strong></div>
         </div>
         <div className="sync-live">
-          <div className="phone-frame is-small"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1125} loading="lazy" decoding="async" alt={tr('Карта на телефоне: местоположение игрока с ПК')} /></div>
+          <div className="phone-frame is-small"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1015} loading="lazy" decoding="async" alt={tr('Карта на телефоне: местоположение игрока с ПК')} /></div>
           <div className="sync-qr">
             <LoginQr value={downloadUrl} size={120} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} />
             <p><strong>{tr('Вход по QR')}</strong>{tr('В приложении так входят на телефоне: код живёт 2 минуты и срабатывает один раз. Этот код — просто ссылка на страницу загрузки.')}</p>
