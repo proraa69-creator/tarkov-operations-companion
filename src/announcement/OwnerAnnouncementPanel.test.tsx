@@ -28,7 +28,9 @@ function mockServer(initial: Stored | null, translations: Record<string, string>
   let current = initial
   let saves = 0
   const puts: Body[] = []
+  const history: Array<{ id: number; text: string; textEn: string | null; updatedAt: string }> = []
   const serviceRequest = vi.fn(async (method: string, path: string, body?: Body) => {
+    if (path === `${PATH}/history`) return { history: [...history].reverse() }
     if (path !== PATH) throw new Error('Неизвестный запрос сервиса')
     if (method === 'GET') return { announcement: current }
     puts.push(body!)
@@ -38,7 +40,9 @@ function mockServer(initial: Stored | null, translations: Record<string, string>
     const kept = current?.text === text && current.textEn ? current : undefined
     const english = textEn ? { textEn, textEnSource: 'manual' as const } : kept ? { textEn: kept.textEn, textEnSource: kept.textEnSource }
       : translations[text!] ? { textEn: translations[text!]!, textEnSource: 'auto' as const } : { textEn: null, textEnSource: null }
+    const changed = active && text && (current?.text !== text || !current?.active)
     current = { text: text!, active, ...english, updatedBy: 'owner@example.com', updatedAt: `2026-10-14T10:00:${String(saves++).padStart(2, '0')}.000Z` }
+    if (changed) history.push({ id: history.length + 1, text: text!, textEn: current.textEn, updatedAt: current.updatedAt })
     return { announcement: current, translation: textEn ? 'manual' : kept ? 'kept' : english.textEn ? 'auto' : 'failed' }
   })
   Object.assign(window, { tarkovDesktop: { edition: 'owner', isDesktop: true, serviceRequest } })
@@ -71,6 +75,8 @@ describe('«Уведомление сверху»: the English for foreign playe
     expect(screen.getByText('Автоперевод')).toBeInTheDocument()
     expect(screen.queryByText(NO_ENGLISH)).not.toBeInTheDocument()
     expect(server.puts).toEqual([{ text: WORKS, active: true }])
+    // The compose field starts over after a banner is shown (owner, 16.10.2026).
+    expect(screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.')).toHaveValue('')
 
     // «Отмена» closes the editor without a request.
     await user.click(screen.getByRole('button', { name: 'Изменить' }))
@@ -78,8 +84,8 @@ describe('«Уведомление сверху»: the English for foreign playe
     await user.click(screen.getByRole('button', { name: 'Отмена' }))
     expect(screen.queryByRole('textbox', { name: 'Английская версия' })).not.toBeInTheDocument()
 
-    // The correction goes as textEn with the stored Russian; the Russian field keeps an unsaved edit.
-    await user.type(screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.'), ' Черновик')
+    // The correction goes as textEn with the stored Russian; the compose field keeps an unsaved draft.
+    await user.type(screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.'), 'Черновик')
     await user.click(screen.getByRole('button', { name: 'Изменить' }))
     const field = screen.getByRole('textbox', { name: 'Английская версия' })
     await user.clear(field)
@@ -91,7 +97,7 @@ describe('«Уведомление сверху»: the English for foreign playe
     expect(screen.queryByText('Автоперевод')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Английская версия' })).not.toBeInTheDocument()
     expect(server.puts.at(-1)).toEqual({ text: WORKS, active: true, textEn: 'Maintenance: back in 15 minutes.' })
-    expect(screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.')).toHaveValue(`${WORKS} Черновик`)
+    expect(screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.')).toHaveValue('Черновик')
   })
 
   it('warns when the translation failed and the English is written by hand', async () => {
@@ -113,9 +119,9 @@ describe('«Уведомление сверху»: the English for foreign playe
 
     // A new Russian the translator cannot manage: saved, and the warning is back.
     const russian = screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.')
-    await user.clear(russian)
+    expect(russian).toHaveValue('')
     await user.type(russian, 'Карты временно недоступны.')
-    await user.click(screen.getByRole('button', { name: 'Обновить у всех' }))
+    await user.click(screen.getByRole('button', { name: 'Показать новый всем' }))
     expect(await screen.findByText(NO_ENGLISH)).toBeInTheDocument()
     expect(server.puts.at(-1)).toEqual({ text: 'Карты временно недоступны.', active: true })
   })
@@ -129,7 +135,7 @@ describe('«Уведомление сверху»: the English for foreign playe
     await user.click(screen.getByRole('button', { name: 'Показать всем' }))
     expect(await screen.findByText('Maps are unavailable.')).toBeInTheDocument()
     expect(screen.getByText('Ваш перевод')).toBeInTheDocument()
-    expect(russian).toHaveValue('Карты недоступны.')
+    expect(russian).toHaveValue('')
     expect(server.puts).toEqual([{ text: 'Карты недоступны.\n\nMaps are unavailable.', active: true }])
   })
 
@@ -139,9 +145,31 @@ describe('«Уведомление сверху»: the English for foreign playe
     delete legacy.textEnSource
     mockServer(legacy as Stored)
     render(<OwnerAnnouncementPanel />)
-    expect(await screen.findByDisplayValue(WORKS)).toBeInTheDocument()
+    expect(await screen.findByText('Показывается у всех.')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue(WORKS)).not.toBeInTheDocument()
     expect(screen.queryByText('Английская версия')).not.toBeInTheDocument()
     expect(screen.queryByText(NO_ENGLISH)).not.toBeInTheDocument()
+  })
+
+  it('keeps the past banners in «История баннеров»; «Скрыть» takes down the shown one', async () => {
+    const server = mockServer(null, { 'Первый.': 'First.', 'Второй.': 'Second.' })
+    const user = userEvent.setup()
+    render(<OwnerAnnouncementPanel />)
+    const field = screen.getByPlaceholderText('Например: ведутся технические работы, приложение заработает через 15 минут.')
+    await user.type(field, 'Первый.')
+    await user.click(screen.getByRole('button', { name: 'Показать всем' }))
+    expect(await screen.findByText('First.')).toBeInTheDocument()
+    await user.type(field, 'Второй.')
+    await user.click(screen.getByRole('button', { name: 'Показать новый всем' }))
+    expect(await screen.findByText('Second.')).toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: /История баннеров/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    const list = screen.getByRole('list')
+    expect([...list.querySelectorAll('li > p:not([lang])')].map((item) => item.textContent)).toEqual(['Второй.', 'Первый.'])
+    await user.click(screen.getByRole('button', { name: 'Скрыть' }))
+    expect(await screen.findByText('Сейчас не показывается.', { exact: false })).toBeInTheDocument()
+    expect(server.puts.at(-1)).toEqual({ text: 'Второй.', active: false })
   })
 
   it('speaks English in the English interface', async () => {

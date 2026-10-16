@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ClipboardList, ExternalLink, ImagePlus, Languages, LoaderCircle, Megaphone, Plus, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-react'
-import { audienceText, NOTICE_LIMITS, NOTICE_PAY_REGIONS, NOTICE_REGIONS, PAY_REGION_NAMES, PAYMENT_NAMES, REGION_NAMES, SURVEY_LIMITS, type NoticeAudience, type NoticePayment, type NoticePayRegion, type NoticeRegion, type SurveyQuestion, type SurveyQuestionType } from '../shared/notices'
-import { BOOSTY_ANNOUNCEMENT } from '../shared/paymentRegions'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardList, ExternalLink, Eye, ImagePlus, LoaderCircle, Megaphone, Plus, RotateCcw, Send, Trash2, Undo2, X } from 'lucide-react'
+import { audienceText, NOTICE_LIMITS, NOTICE_REGIONS, PAYMENT_NAMES, REGION_NAMES, safeNoticeUrl, SURVEY_LIMITS, type NoticeAudience, type NoticePayment, type NoticeRegion, type PlayerNotice, type SurveyQuestion, type SurveyQuestionType } from '../shared/notices'
+import { NoticePopup } from './NoticePopup'
 import { NOTICE_IMAGE_TYPES, prepareNoticeImage } from './imageResize'
 import { surveyDraftProblem } from './surveyRules'
 import './ownerNotices.css'
@@ -35,12 +35,10 @@ const when = (value: string) => { try { return dateTime.format(new Date(value)) 
 const errorText = (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)).replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/, '')
 
 /**
- * «Объявления по регионам» and «Опросы» for the owner (owner, 15.10.2026: «я нажимаю в админ приложении создать
- * объявление, выбираю категорию по снг европе итд … выбираю оплативших или нет, могу прикладывать туда фото»; «нажимаю
- * создать опрос, и нажимаю + добавить вопрос…»): the same tools in the owner app («Админ панель», src/pages/AdminPanelPage.tsx,
- * next to «Баннер для всех») and on the website's admin panel (website/src/components/admin/AdminNotices.tsx), on the
- * same API (server/src/routes/notices.ts). `results`: where the survey statistics with the respondents' e-mails are (the
- * website's «Опросы»); the app links there, the website opens its tab.
+ * «Объявления» and «Опросы» for the owner (owner, 16.10.2026): the same tools in the owner app («Админ панель»,
+ * src/pages/AdminPanelPage.tsx) and on the website's admin panel, on the same API (server/src/routes/notices.ts). The
+ * English of a popup is made by the server for the players whose app speaks English, so the owner writes only Russian.
+ * `results`: where the survey statistics with the respondents' e-mails are (the website's «Опросы»).
  */
 export function OwnerNoticeTools({ request, t, results, only }: { request: OwnerRequest; t: T; results: (id: number) => ReactNode; only?: 'announcement' | 'survey' }) {
   const [open, setOpen] = useState<'announcement' | 'survey' | null>(null)
@@ -58,8 +56,8 @@ export function OwnerNoticeTools({ request, t, results, only }: { request: Owner
           <ClipboardList size={13} aria-hidden="true" />{t('Создать опрос')}
         </button>}
       </div>
-      {open === 'announcement' && <AnnouncementComposer request={request} t={t} onSent={sent} onCancel={() => setOpen(null)} />}
-      {open === 'survey' && <SurveyBuilder request={request} t={t} onSent={sent} onCancel={() => setOpen(null)} />}
+      {shows('announcement') && open === 'announcement' && <AnnouncementComposer request={request} t={t} onSent={sent} onCancel={() => setOpen(null)} />}
+      {shows('survey') && open === 'survey' && <SurveyBuilder request={request} t={t} onSent={sent} onCancel={() => setOpen(null)} />}
       {shows('announcement') && <SentList kind="announcement" request={request} t={t} refresh={refresh} />}
       {shows('survey') && <SentList kind="survey" request={request} t={t} refresh={refresh} results={results} />}
     </div>
@@ -67,30 +65,21 @@ export function OwnerNoticeTools({ request, t, results, only }: { request: Owner
 }
 
 /**
- * «Все», «СНГ», «Европа», «Другие», «Не указана» × «Все», «Оплатившие», «Без оплаты»; or, instead of the regions, a Boosty
- * payment audience (owner's spec, docs/payments/payment-regions-and-announcements.md): «СНГ» / «Мир» / «Все, кроме
- * России» — never Russia, which pays through SBP.
+ * «Все», «Россия», «СНГ», «Мир» × «Все», «Платная подписка», «Без оплаты» (owner, 16.10.2026: «Регионы: Все, Россия,
+ * СНГ, МИР , Оплата: все, платная подписка, без оплаты»). No region ticked (or all of them) is «Все».
  */
 export function AudiencePicker({ value, onChange, t, disabled }: { value: NoticeAudience; onChange: (next: NoticeAudience) => void; t: T; disabled?: boolean }) {
   const all = value.regions.length === 0
-  const setPayRegion = (payRegion: NoticePayRegion | undefined) => onChange(payRegion ? { regions: [], payment: value.payment, payRegion } : { regions: [], payment: value.payment })
   const toggle = (region: NoticeRegion) => {
     const next = value.regions.includes(region) ? value.regions.filter((item) => item !== region) : [...value.regions, region]
     // Every region ticked is «Все»; none ticked falls back to «Все» too.
-    onChange({ ...value, regions: next.length === NOTICE_REGIONS.length ? [] : next })
+    onChange({ regions: next.length === NOTICE_REGIONS.length ? [] : next, payment: value.payment })
   }
   return (
     <div className="owner-notices-audience">
       <fieldset disabled={disabled}>
-        <legend>{t('Оплата через Boosty')}</legend>
-        <label className="owner-notices-check"><input type="radio" name="notice-pay-region" checked={!value.payRegion} onChange={() => setPayRegion(undefined)} />{t('Не выбрано')}</label>
-        {NOTICE_PAY_REGIONS.map((payRegion) => (
-          <label key={payRegion} className="owner-notices-check"><input type="radio" name="notice-pay-region" checked={value.payRegion === payRegion} onChange={() => setPayRegion(payRegion)} />{t(PAY_REGION_NAMES[payRegion])}</label>
-        ))}
-      </fieldset>
-      <fieldset disabled={disabled || Boolean(value.payRegion)}>
         <legend>{t('Регионы')}</legend>
-        <label className="owner-notices-check"><input type="checkbox" checked={all} onChange={() => onChange({ ...value, regions: [] })} />{t('Все')}</label>
+        <label className="owner-notices-check"><input type="checkbox" checked={all} onChange={() => onChange({ regions: [], payment: value.payment })} />{t('Все')}</label>
         {NOTICE_REGIONS.map((region) => (
           <label key={region} className="owner-notices-check"><input type="checkbox" checked={!all && value.regions.includes(region)} onChange={() => toggle(region)} />{t(REGION_NAMES[region])}</label>
         ))}
@@ -98,7 +87,7 @@ export function AudiencePicker({ value, onChange, t, disabled }: { value: Notice
       <fieldset disabled={disabled}>
         <legend>{t('Оплата')}</legend>
         {(['all', 'paid', 'unpaid'] as NoticePayment[]).map((payment) => (
-          <label key={payment} className="owner-notices-check"><input type="radio" name="notice-payment" checked={value.payment === payment} onChange={() => onChange({ ...value, payment })} />{t(PAYMENT_NAMES[payment])}</label>
+          <label key={payment} className="owner-notices-check"><input type="radio" name="notice-payment" checked={value.payment === payment} onChange={() => onChange({ regions: value.regions, payment })} />{t(PAYMENT_NAMES[payment])}</label>
         ))}
       </fieldset>
     </div>
@@ -111,17 +100,14 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
   const id = useId()
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
-  const [english, setEnglish] = useState(false)
-  const [titleEn, setTitleEn] = useState('')
-  const [textEn, setTextEn] = useState('')
   const [withButton, setWithButton] = useState(false)
   const [buttonText, setButtonText] = useState('')
-  const [buttonTextEn, setButtonTextEn] = useState('')
   const [buttonUrl, setButtonUrl] = useState('')
   const [audience, setAudience] = useState<NoticeAudience>({ regions: [], payment: 'all' })
   const [photos, setPhotos] = useState<Photo[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [preview, setPreview] = useState(false)
   const uploading = photos.some((photo) => !photo.id && !photo.error)
 
   const addPhotos = async (files: FileList | null) => {
@@ -141,6 +127,8 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
     }
   }
 
+  // The button link, once it is a valid https address; the popup shows only the button, never the address.
+  const buttonUrlOk = safeNoticeUrl(buttonUrl)
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (busy || uploading) return
@@ -149,9 +137,7 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
     try {
       const body = {
         title, text,
-        ...(english && titleEn.trim() ? { titleEn } : {}),
-        ...(english && textEn.trim() ? { textEn } : {}),
-        ...(withButton ? { button: { text: buttonText, url: buttonUrl.trim(), ...(english && buttonTextEn.trim() ? { textEn: buttonTextEn } : {}) } } : {}),
+        ...(withButton ? { button: { text: buttonText, url: buttonUrl.trim() } } : {}),
         audience,
         images: photos.flatMap((photo) => (photo.id ? [photo.id] : [])),
       }
@@ -165,6 +151,13 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
     }
   }
 
+  // «Тест объявления»: how it will look, nothing is sent (owner, 16.10.2026).
+  const previewNotice: PlayerNotice = {
+    id: -1, kind: 'announcement', title: title || t('Заголовок'), text: text || '…', images: 0, createdAt: new Date().toISOString(),
+    ...(withButton && buttonText.trim() && buttonUrlOk ? { button: { text: buttonText, url: buttonUrlOk } } : {}),
+  }
+  const previewImages = photos.flatMap((photo) => (photo.preview ? [photo.preview] : []))
+
   return (
     <form className="owner-notices-form" onSubmit={(event) => void submit(event)} aria-label={t('Новое объявление')}>
       <label className="owner-notices-field"><span>{t('Заголовок')}</span>
@@ -174,18 +167,14 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
         <textarea className="input" rows={4} value={text} maxLength={NOTICE_LIMITS.text} required disabled={busy} onChange={(event) => setText(event.target.value)} />
         <small className="dim">{text.length}/{NOTICE_LIMITS.text}</small>
       </label>
-      <button type="button" className="link-button owner-notices-toggle" aria-expanded={english} onClick={() => setEnglish(!english)}><Languages size={13} aria-hidden="true" />{t(english ? 'Убрать английский' : 'Добавить английский (необязательно)')}</button>
-      {english && <>
-        <label className="owner-notices-field"><span>{t('Заголовок (EN)')}</span><input className="input" lang="en" value={titleEn} maxLength={NOTICE_LIMITS.title} disabled={busy} onChange={(event) => setTitleEn(event.target.value)} /></label>
-        <label className="owner-notices-field"><span>{t('Текст (EN)')}</span><textarea className="input" lang="en" rows={3} value={textEn} maxLength={NOTICE_LIMITS.text} disabled={busy} onChange={(event) => setTextEn(event.target.value)} /></label>
-        <small className="dim">{t('Игроки с английским языком приложения видят английский текст, если он есть, остальные — русский.')}</small>
-      </>}
+      <small className="dim owner-notices-auto">{t('Пишите по-русски. Игрокам с английским языком приложения текст переводится автоматически.')}</small>
       <label className="owner-notices-check"><input type="checkbox" checked={withButton} disabled={busy} onChange={(event) => setWithButton(event.target.checked)} />{t('Кнопка со ссылкой (например, Telegram)')}</label>
       {withButton && (
-        <div className="owner-notices-row">
-          <label className="owner-notices-field"><span>{t('Текст кнопки')}</span><input className="input" value={buttonText} maxLength={NOTICE_LIMITS.buttonText} disabled={busy} onChange={(event) => setButtonText(event.target.value)} placeholder="Telegram" /></label>
-          {english && <label className="owner-notices-field"><span>{t('Текст кнопки (EN)')}</span><input className="input" lang="en" value={buttonTextEn} maxLength={NOTICE_LIMITS.buttonText} disabled={busy} onChange={(event) => setButtonTextEn(event.target.value)} /></label>}
-          <label className="owner-notices-field owner-notices-url"><span>{t('Ссылка')}</span><input className="input" type="url" inputMode="url" value={buttonUrl} maxLength={NOTICE_LIMITS.buttonUrl} disabled={busy} onChange={(event) => setButtonUrl(event.target.value)} placeholder="https://t.me/…" /></label>
+        <div className="owner-notices-button-box">
+          <small className="dim">{t('У игрока видно только кнопку с этим названием, ссылку не видно.')}</small>
+          <label className="owner-notices-field"><span>{t('Название кнопки')}</span><input className="input" value={buttonText} maxLength={NOTICE_LIMITS.buttonText} disabled={busy} onChange={(event) => setButtonText(event.target.value)} placeholder="Telegram" /></label>
+          <label className="owner-notices-field"><span>{t('Ссылка (не видна игрокам)')}</span><input className="input" type="url" inputMode="url" value={buttonUrl} maxLength={NOTICE_LIMITS.buttonUrl} disabled={busy} onChange={(event) => setButtonUrl(event.target.value)} placeholder="https://t.me/…" /></label>
+          {buttonUrl.trim() && !buttonUrlOk && <small className="owner-notices-error">{t('Ссылка кнопки: полный адрес https://…')}</small>}
         </div>
       )}
       <div className="owner-notices-field">
@@ -208,40 +197,31 @@ function AnnouncementComposer({ request, t, onSent, onCancel }: { request: Owner
           )}
         </ul>
       </div>
-      <AudiencePicker value={audience} onChange={(next) => {
-        // A Boosty audience: the owner's suggested text (RU and EN) as a draft, only into empty fields.
-        if (next.payRegion && !audience.payRegion) {
-          if (!title.trim() && !text.trim()) { setTitle(BOOSTY_ANNOUNCEMENT.title.ru); setText(BOOSTY_ANNOUNCEMENT.text.ru) }
-          if (!titleEn.trim() && !textEn.trim()) { setTitleEn(BOOSTY_ANNOUNCEMENT.title.en); setTextEn(BOOSTY_ANNOUNCEMENT.text.en); setEnglish(true) }
-        }
-        setAudience(next)
-      }} t={t} disabled={busy} />
-      {audience.payRegion && <small className="dim">{t('Россия не получит это объявление: там оплата через СБП. Текст о Boosty подставлен как черновик — его можно изменить.')}</small>}
+      <AudiencePicker value={audience} onChange={setAudience} t={t} disabled={busy} />
       {error && <p className="owner-notices-error" role="alert">{t(error)}</p>}
       <div className="owner-notices-actions">
         <button type="submit" className="button small primary" disabled={busy || uploading || !title.trim() || !text.trim()}>
           {busy ? <LoaderCircle size={13} className="spin spinner" aria-hidden="true" /> : <Send size={13} aria-hidden="true" />}{t('Отправить')}
         </button>
+        <button type="button" className="button small ghost" disabled={busy || !title.trim() || !text.trim()} onClick={() => setPreview(true)}><Eye size={13} aria-hidden="true" />{t('Тест')}</button>
         <button type="button" className="button small ghost" disabled={busy} onClick={onCancel}>{t('Отмена')}</button>
         <small className="dim">{t('Получат')}: {t(audienceText(audience))}</small>
       </div>
+      {preview && <NoticePopup notice={previewNotice} locale="ru" previewImages={previewImages} onClose={() => setPreview(false)} />}
     </form>
   )
 }
 
-export interface DraftQuestion { key: string; text: string; textEn: string; type: SurveyQuestionType; options: Array<{ key: string; text: string }>; max: string; required: boolean }
+export interface DraftQuestion { key: string; text: string; type: SurveyQuestionType; options: Array<{ key: string; text: string }>; max: string; required: boolean }
 let draftKey = 0
 const newKey = () => `d${(draftKey += 1)}`
-const newQuestion = (): DraftQuestion => ({ key: newKey(), text: '', textEn: '', type: 'single', options: [{ key: newKey(), text: '' }, { key: newKey(), text: '' }], max: '', required: true })
+const newQuestion = (): DraftQuestion => ({ key: newKey(), text: '', type: 'single', options: [{ key: newKey(), text: '' }, { key: newKey(), text: '' }], max: '', required: true })
 
 const QUESTION_TYPES: Array<[SurveyQuestionType, string]> = [['single', 'Один вариант'], ['multiple', 'Несколько вариантов'], ['text', 'Свой ответ']]
 
 function SurveyBuilder({ request, t, onSent, onCancel }: { request: OwnerRequest; t: T; onSent: () => void; onCancel: () => void }) {
   const [title, setTitle] = useState('')
   const [intro, setIntro] = useState('')
-  const [english, setEnglish] = useState(false)
-  const [titleEn, setTitleEn] = useState('')
-  const [introEn, setIntroEn] = useState('')
   const [questions, setQuestions] = useState<DraftQuestion[]>(() => [newQuestion()])
   const [audience, setAudience] = useState<NoticeAudience>({ regions: [], payment: 'all' })
   const [busy, setBusy] = useState(false)
@@ -265,11 +245,8 @@ function SurveyBuilder({ request, t, onSent, onCancel }: { request: OwnerRequest
       const body = {
         title,
         ...(intro.trim() ? { intro } : {}),
-        ...(english && titleEn.trim() ? { titleEn } : {}),
-        ...(english && introEn.trim() ? { introEn } : {}),
         questions: questions.map((question) => ({
           text: question.text,
-          ...(english && question.textEn.trim() ? { textEn: question.textEn } : {}),
           type: question.type,
           ...(question.type === 'text' ? {} : { options: question.options.filter((option) => option.text.trim()).map((option) => ({ text: option.text })) }),
           ...(question.type === 'multiple' && question.max ? { max: Number(question.max) } : {}),
@@ -295,11 +272,7 @@ function SurveyBuilder({ request, t, onSent, onCancel }: { request: OwnerRequest
       <label className="owner-notices-field"><span>{t('Вступление (необязательно)')}</span>
         <textarea className="input" rows={2} value={intro} maxLength={SURVEY_LIMITS.intro} disabled={busy} onChange={(event) => setIntro(event.target.value)} />
       </label>
-      <button type="button" className="link-button owner-notices-toggle" aria-expanded={english} onClick={() => setEnglish(!english)}><Languages size={13} aria-hidden="true" />{t(english ? 'Убрать английский' : 'Добавить английский (необязательно)')}</button>
-      {english && <div className="owner-notices-row">
-        <label className="owner-notices-field"><span>{t('Название (EN)')}</span><input className="input" lang="en" value={titleEn} maxLength={SURVEY_LIMITS.title} disabled={busy} onChange={(event) => setTitleEn(event.target.value)} /></label>
-        <label className="owner-notices-field"><span>{t('Вступление (EN)')}</span><input className="input" lang="en" value={introEn} maxLength={SURVEY_LIMITS.intro} disabled={busy} onChange={(event) => setIntroEn(event.target.value)} /></label>
-      </div>}
+      <small className="dim owner-notices-auto">{t('Пишите по-русски. Игрокам с английским языком приложения текст переводится автоматически.')}</small>
       <ol className="owner-survey-questions">
         {questions.map((question, index) => (
           <li key={question.key} className="owner-survey-question">
@@ -312,7 +285,6 @@ function SurveyBuilder({ request, t, onSent, onCancel }: { request: OwnerRequest
               </span>
             </div>
             <input className="input" aria-label={`${t('Текст вопроса')} ${index + 1}`} value={question.text} maxLength={SURVEY_LIMITS.question} disabled={busy} onChange={(event) => update(question.key, { text: event.target.value })} placeholder={t('Текст вопроса')} />
-            {english && <input className="input" lang="en" aria-label={`${t('Текст вопроса (EN)')} ${index + 1}`} value={question.textEn} maxLength={SURVEY_LIMITS.question} disabled={busy} onChange={(event) => update(question.key, { textEn: event.target.value })} placeholder={t('Текст вопроса (EN)')} />}
             <div className="owner-survey-types" role="radiogroup" aria-label={`${t('Тип ответа')} ${index + 1}`}>
               {QUESTION_TYPES.map(([type, label]) => (
                 <label key={type} className="owner-notices-check"><input type="radio" name={`${question.key}-type`} checked={question.type === type} disabled={busy} onChange={() => update(question.key, { type })} />{t(label)}</label>
@@ -349,16 +321,18 @@ function SurveyBuilder({ request, t, onSent, onCancel }: { request: OwnerRequest
   )
 }
 
-/** The sent announcements or surveys: date, audience, text, targeted / seen / closed, «Отозвать». */
+/** The sent announcements or surveys, each collapsed to its title; «развернуть» opens the details and counts. */
 function SentList({ kind, request, t, refresh, results }: { kind: 'announcement' | 'survey'; request: OwnerRequest; t: T; refresh: number; results?: (id: number) => ReactNode }) {
   const [items, setItems] = useState<OwnerNoticeView[] | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState<number | null>(null)
+  const [open, setOpen] = useState<Set<number>>(() => new Set())
   const load = useCallback(() => request('GET', `/v1/accounts/me/admin/notices?kind=${kind}`).then((answer) => {
     const list = (answer as { notices?: OwnerNoticeView[] } | null)?.notices
     if (list) { setItems(list); setError('') }
   }, (reason: unknown) => setError(errorText(reason))), [kind, request])
   useEffect(() => { void load() }, [load, refresh])
+  const toggle = (id: number) => setOpen((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
 
   const withdraw = async (item: OwnerNoticeView) => {
     if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(t(kind === 'survey' ? 'Отозвать опрос? Его больше никто не увидит, ответы останутся.' : 'Отозвать объявление? Его больше не увидят те, кто ещё не закрыл.'))) return
@@ -383,23 +357,29 @@ function SentList({ kind, request, t, refresh, results }: { kind: 'announcement'
       {items && !items.length && <p className="dim owner-notices-empty">{t(kind === 'survey' ? 'Опросов пока нет.' : 'Объявлений пока нет.')}</p>}
       {items && items.length > 0 && (
         <ul className="owner-notices-list">
-          {items.map((item) => (
-            <li key={item.id} className={item.withdrawnAt ? 'is-withdrawn' : undefined}>
-              <div className="owner-notices-item-head">
-                <strong>{item.title}</strong>
-                {item.withdrawnAt ? <span className="tag">{t('Отозвано')}</span> : <span className="tag green">{t('Активно')}</span>}
-              </div>
-              <small className="dim">{when(item.createdAt)} · {t(audienceText(item.audience))}{item.images ? ` · ${t('фото')}: ${item.images}` : ''}{item.questions ? ` · ${t('вопросов')}: ${item.questions.length}` : ''}</small>
-              {item.text && <p className="owner-notices-item-text">{item.text}</p>}
-              <div className="owner-notices-counts">
-                <span><b>{item.targeted}</b> {t('получателей')}</span>
-                <span><b>{item.seen}</b> {t('увидели')}</span>
-                {kind === 'survey' ? <span><b>{item.responses ?? item.closed}</b> {t('ответили')}</span> : <span><b>{item.closed}</b> {t('закрыли')}</span>}
-                {kind === 'survey' && results?.(item.id)}
-                {!item.withdrawnAt && <button type="button" className="button small ghost" disabled={busy === item.id} onClick={() => void withdraw(item)}><Undo2 size={13} aria-hidden="true" />{t('Отозвать')}</button>}
-              </div>
-            </li>
-          ))}
+          {items.map((item) => {
+            const expanded = open.has(item.id)
+            return (
+              <li key={item.id} className={item.withdrawnAt ? 'is-withdrawn' : undefined}>
+                <button type="button" className="owner-notices-item-head owner-notices-item-toggle" aria-expanded={expanded} onClick={() => toggle(item.id)}>
+                  {expanded ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+                  <strong>{item.title}</strong>
+                  {item.withdrawnAt ? <span className="tag">{t('Отозвано')}</span> : <span className="tag green">{t('Активно')}</span>}
+                </button>
+                {expanded && <>
+                  <small className="dim">{when(item.createdAt)} · {t(audienceText(item.audience))}{item.images ? ` · ${t('фото')}: ${item.images}` : ''}{item.questions ? ` · ${t('вопросов')}: ${item.questions.length}` : ''}</small>
+                  {item.text && <p className="owner-notices-item-text">{item.text}</p>}
+                  <div className="owner-notices-counts">
+                    <span><b>{item.targeted}</b> {t('получателей')}</span>
+                    <span><b>{item.seen}</b> {t('увидели')}</span>
+                    {kind === 'survey' ? <span><b>{item.responses ?? item.closed}</b> {t('ответили')}</span> : <span><b>{item.closed}</b> {t('закрыли')}</span>}
+                    {kind === 'survey' && results?.(item.id)}
+                    {!item.withdrawnAt && <button type="button" className="button small ghost" disabled={busy === item.id} onClick={() => void withdraw(item)}><Undo2 size={13} aria-hidden="true" />{t('Отозвать')}</button>}
+                  </div>
+                </>}
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>

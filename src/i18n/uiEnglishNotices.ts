@@ -136,4 +136,17 @@ export const NOTICE_PHRASES: Array<[string, string]> = [
   ['Стример', 'Streamer'],
   ['есть переписка', 'has a conversation'],
   ['Введите не меньше 2 символов почты', 'Type at least 2 characters of the e-mail'],
+  // «Админ панель», 16.10.2026: regions «Все, Россия, СНГ, Мир», the English made by the server, «Тест», the banner history.
+  ['Россия', 'Russia'],
+  ['Платная подписка', 'Paid subscription'],
+  ['Тест', 'Test'],
+  ['Название кнопки', 'Button name'],
+  ['Ссылка (не видна игрокам)', 'Link (hidden from players)'],
+  ['У игрока видно только кнопку с этим названием, ссылку не видно.', 'Players see only the button with this name, not the link.'],
+  ['Пишите по-русски. Игрокам с английским языком приложения текст переводится автоматически.', 'Write in Russian. Players whose app is in English get an automatic translation.'],
+  ['Ссылка кнопки: полный адрес https://…', 'Button link: a full https://… address'],
+  ['Показать новый всем', 'Show the new one to everyone'],
+  ['История баннеров', 'Banner history'],
+  ['Баннеров пока не было.', 'No banners yet.'],
+  ['Загрузка…', 'Loading…'],
 ]

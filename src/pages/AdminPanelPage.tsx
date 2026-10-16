@@ -51,7 +51,9 @@ export function AdminPanelPage() {
   } else if (access === 'signed-out') {
     body = <section className="panel admin-section"><div className="panel-body"><p>{uiLabel('Войдите в аккаунт владельца на странице «Профиль» — без него сервер не примет изменения.')}</p><Link className="button small primary" to="/profile">{uiLabel('Открыть профиль')}</Link></div></section>
   } else {
-    body = <AdminSection id={section} request={request} />
+    // A fresh mount per section (owner, 16.10.2026: «при переходе на другой блок оно должно закрываться»): an open
+    // compose window — an announcement, a survey or the banner — is left behind when the owner opens another section.
+    body = <AdminSection key={section} id={section} request={request} />
   }
 
   return (
@@ -86,7 +88,7 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
         <section className="panel admin-section owner-notices-panel" aria-labelledby="admin-notices-title">
           <div className="panel-header"><div><div className="eyebrow">{uiLabel('Всплывающее окно у игроков')}</div><div className="panel-title" id="admin-notices-title">{uiLabel('Объявления')}</div></div><BellRing size={18} className="brass" aria-hidden="true" /></div>
           <div className="panel-body">
-            <p className="dim owner-notices-intro">{uiLabel('Всем игрокам или по регионам (СНГ, Европа, другие), оплатившим или нет. Окно появится при входе или в течение минуты, если приложение открыто; во время рейда ждёт его конца.')}</p>
+            <p className="dim owner-notices-intro">{uiLabel('Всем игрокам или по регионам (Россия, СНГ, Мир), с платной подпиской или без. Окно появится при входе или в течение минуты, если приложение открыто; во время рейда ждёт его конца. Текст переводится на английский автоматически.')}</p>
             <OwnerNoticeTools only="announcement" request={request} t={uiLabel} results={() => null} />
           </div>
         </section>

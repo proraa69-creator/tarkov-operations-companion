@@ -3,11 +3,11 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OwnerNoticeTools, type OwnerNoticeView } from './OwnerNoticeTools'
-import { BOOSTY_ANNOUNCEMENT } from '../shared/paymentRegions'
 
 /**
- * The owner's «Создать объявление» / «Создать опрос» (owner, 15.10.2026), shared by the owner app and the website's admin
- * panel: what the forms send, the sent list's counts and «Отозвать».
+ * The owner's «Создать объявление» / «Создать опрос» (owner, 15.10.2026; 16.10.2026: regions «Все, Россия, СНГ, Мир»,
+ * «Платная подписка», no Boosty block, the English made by the server, the button's link hidden from players, the sent
+ * ones collapsed to their titles, «Тест»), shared by the owner app and the website's admin panel.
  */
 const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='), (char) => char.charCodeAt(0))
 const sentNotice: OwnerNoticeView = { id: 7, kind: 'announcement', title: 'Скидка', text: 'Только сегодня', images: 1, audience: { regions: ['cis'], payment: 'paid' }, createdAt: '2026-10-15T10:00:00.000Z', targeted: 12, seen: 5, closed: 3 }
@@ -36,49 +36,52 @@ describe('«Создать объявление»', () => {
     const form = screen.getByRole('form', { name: 'Новое объявление' })
     await user.type(within(form).getByRole('textbox', { name: 'Заголовок' }), 'Новый канал')
     await user.type(within(form).getByRole('textbox', { name: /^Текст/ }), 'Подписывайтесь')
-    await user.click(within(form).getByRole('button', { name: 'Добавить английский (необязательно)' }))
-    await user.type(within(form).getByRole('textbox', { name: 'Заголовок (EN)' }), 'New channel')
+    expect(within(form).queryByRole('button', { name: /английский/ })).not.toBeInTheDocument()
     await user.click(within(form).getByRole('checkbox', { name: 'Кнопка со ссылкой (например, Telegram)' }))
-    await user.type(within(form).getByRole('textbox', { name: 'Текст кнопки' }), 'Telegram')
-    await user.type(within(form).getByRole('textbox', { name: 'Ссылка' }), 'https://t.me/raidos')
+    await user.type(within(form).getByRole('textbox', { name: 'Название кнопки' }), 'Telegram')
+    await user.type(within(form).getByRole('textbox', { name: 'Ссылка (не видна игрокам)' }), 'https://t.me/raidos')
     expect(within(form).getByRole('checkbox', { name: 'Все' })).toBeChecked()
+    expect(within(form).queryByText('Оплата через Boosty')).not.toBeInTheDocument()
+    await user.click(within(form).getByRole('checkbox', { name: 'Россия' }))
     await user.click(within(form).getByRole('checkbox', { name: 'СНГ' }))
-    await user.click(within(form).getByRole('checkbox', { name: 'Не указана' }))
     expect(within(form).getByRole('checkbox', { name: 'Все' })).not.toBeChecked()
-    await user.click(within(form).getByRole('radio', { name: 'Оплатившие' }))
-    expect(within(form).getByText(/Получат: СНГ, Не указана · Оплатившие/)).toBeInTheDocument()
+    await user.click(within(form).getByRole('radio', { name: 'Платная подписка' }))
+    expect(within(form).getByText(/Получат: Россия, СНГ · Платная подписка/)).toBeInTheDocument()
     await user.upload(within(form).getByLabelText('Добавить фото'), new File([PNG], 'shot.png', { type: 'image/png' }))
     await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/notices/images', { data: expect.stringMatching(/^iVBOR/) }))
     await waitFor(() => expect(within(form).getByRole('button', { name: 'Отправить' })).toBeEnabled())
     await user.click(within(form).getByRole('button', { name: 'Отправить' }))
     await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/notices', {
-      title: 'Новый канал', text: 'Подписывайтесь', titleEn: 'New channel',
+      title: 'Новый канал', text: 'Подписывайтесь',
       button: { text: 'Telegram', url: 'https://t.me/raidos' },
-      audience: { regions: ['cis', 'none'], payment: 'paid' },
+      audience: { regions: ['ru', 'cis'], payment: 'paid' },
       images: ['a'.repeat(24)],
     }))
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Новое объявление' })).not.toBeInTheDocument())
   }, 30_000)
 
-  it('offers the Boosty audiences «СНГ» / «Мир» / «Все, кроме России» with the suggested RU / EN text as a draft', async () => {
+  it('«Тест» shows the popup as players will see it — the button without its link — and sends nothing', async () => {
     const request = server()
     const user = userEvent.setup()
     render(<OwnerNoticeTools request={request} t={t} results={() => null} />)
     await user.click(screen.getByRole('button', { name: 'Создать объявление' }))
     const form = screen.getByRole('form', { name: 'Новое объявление' })
-    for (const name of ['СНГ', 'Мир', 'Все, кроме России']) expect(within(form).getByRole('radio', { name })).toBeInTheDocument()
-    await user.click(within(form).getByRole('radio', { name: 'Мир' }))
-    expect(within(form).getByRole('textbox', { name: /^Текст\d/ })).toHaveValue(BOOSTY_ANNOUNCEMENT.text.ru)
-    expect(within(form).getByRole('textbox', { name: 'Текст (EN)' })).toHaveValue(BOOSTY_ANNOUNCEMENT.text.en)
-    // Regions are not combined with a Boosty audience.
-    expect(within(form).getByRole('checkbox', { name: 'Европа' })).toBeDisabled()
-    expect(within(form).getByText(/Получат: Boosty: Мир · Все/)).toBeInTheDocument()
-    await user.click(within(form).getByRole('radio', { name: 'Все, кроме России' }))
-    await user.click(within(form).getByRole('button', { name: 'Отправить' }))
-    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/notices', expect.objectContaining({
-      title: BOOSTY_ANNOUNCEMENT.title.ru, text: BOOSTY_ANNOUNCEMENT.text.ru, titleEn: BOOSTY_ANNOUNCEMENT.title.en, textEn: BOOSTY_ANNOUNCEMENT.text.en,
-      audience: { regions: [], payment: 'all', payRegion: 'ALL_PAID_REGIONS' },
-    })))
+    expect(within(form).getByRole('button', { name: 'Тест' })).toBeDisabled()
+    await user.type(within(form).getByRole('textbox', { name: 'Заголовок' }), 'Вайп')
+    await user.type(within(form).getByRole('textbox', { name: /^Текст/ }), 'Завтра в 12:00')
+    await user.click(within(form).getByRole('checkbox', { name: 'Кнопка со ссылкой (например, Telegram)' }))
+    await user.type(within(form).getByRole('textbox', { name: 'Название кнопки' }), 'Канал')
+    await user.type(within(form).getByRole('textbox', { name: 'Ссылка (не видна игрокам)' }), 'https://t.me/raidos')
+    await user.click(within(form).getByRole('button', { name: 'Тест' }))
+    const popup = screen.getByRole('dialog')
+    expect(within(popup).getByRole('heading', { name: 'Вайп' })).toBeInTheDocument()
+    expect(within(popup).getByText('Завтра в 12:00')).toBeInTheDocument()
+    expect(within(popup).getByRole('link', { name: 'Канал' })).toHaveAttribute('href', 'https://t.me/raidos')
+    expect(popup).not.toHaveTextContent('t.me')
+    await user.click(within(popup).getByRole('button', { name: 'Понятно' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(request).not.toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/notices', expect.anything())
+    expect(within(form).getByRole('textbox', { name: 'Заголовок' })).toHaveValue('Вайп')
   })
 
   it('refuses another photo type before sending it', async () => {
@@ -97,13 +100,18 @@ describe('«Создать объявление»', () => {
     const user = userEvent.setup()
     render(<OwnerNoticeTools request={request} t={t} results={(id) => <a href={`#survey-${id}`}>Подробно</a>} />)
     const announcements = await screen.findByRole('region', { name: 'Отправленные объявления' })
-    await within(announcements).findByText('Скидка')
-    expect(within(announcements).getByText(/СНГ · Оплатившие/)).toBeInTheDocument()
+    const head = await within(announcements).findByRole('button', { name: /Скидка/ })
+    // Collapsed to the title: the details open on «развернуть».
+    expect(head).toHaveAttribute('aria-expanded', 'false')
+    expect(within(announcements).queryByText(/получателей/)).not.toBeInTheDocument()
+    await user.click(head)
+    expect(within(announcements).getByText(/СНГ · Платная подписка/)).toBeInTheDocument()
     expect(within(announcements).getByText('12').parentElement).toHaveTextContent('12 получателей')
     expect(within(announcements).getByText('5').parentElement).toHaveTextContent('5 увидели')
     expect(within(announcements).getByText('3').parentElement).toHaveTextContent('3 закрыли')
     const surveys = screen.getByRole('region', { name: 'Опросы' })
-    expect(await within(surveys).findByText('9')).toBeInTheDocument()
+    await user.click(await within(surveys).findByRole('button', { name: /Как вам\?/ }))
+    expect(within(surveys).getByText('9')).toBeInTheDocument()
     expect(within(surveys).getByRole('link', { name: 'Подробно' })).toHaveAttribute('href', '#survey-8')
     await user.click(within(announcements).getByRole('button', { name: 'Отозвать' }))
     expect(request).toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/notices/7/withdraw', {})
@@ -147,7 +155,7 @@ describe('«Создать опрос»', () => {
     // «Что добавить?» goes first.
     await user.click(within(form).getByRole('button', { name: 'Выше: 3' }))
     await user.click(within(form).getByRole('button', { name: 'Выше: 2' }))
-    await user.click(within(form).getByRole('checkbox', { name: 'Европа' }))
+    await user.click(within(form).getByRole('checkbox', { name: 'Мир' }))
     await user.click(within(form).getByRole('radio', { name: 'Без оплаты' }))
     await user.click(within(form).getByRole('button', { name: 'Опубликовать' }))
     await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/surveys', {
@@ -157,7 +165,7 @@ describe('«Создать опрос»', () => {
         { text: 'Где играете?', type: 'single', options: [{ text: 'PvP' }, { text: 'PvE' }], required: true },
         { text: 'Что нравится?', type: 'multiple', options: [{ text: 'Карты' }, { text: 'Квесты' }, { text: 'Цены' }], max: 2, required: false },
       ],
-      audience: { regions: ['europe'], payment: 'unpaid' },
+      audience: { regions: ['world'], payment: 'unpaid' },
     }))
   }, 30_000)
 })

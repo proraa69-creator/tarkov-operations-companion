@@ -10,7 +10,7 @@ import { noticeImage } from './noticeInbox'
  * language when the owner wrote that language (else Russian), the photos as a small gallery that opens full size, the
  * owner's button (a link opened in the system browser) and «Понятно», which closes it for good on every device.
  */
-export function NoticePopup({ notice, locale, onClose }: { notice: PlayerNotice; locale: 'ru' | 'en'; onClose: () => void }) {
+export function NoticePopup({ notice, locale, onClose, previewImages }: { notice: PlayerNotice; locale: 'ru' | 'en'; onClose: () => void; previewImages?: string[] }) {
   const [full, setFull] = useState<string | null>(null)
   const close = useRef<HTMLButtonElement>(null)
   useEffect(() => { close.current?.focus() }, [notice.id])
@@ -26,7 +26,13 @@ export function NoticePopup({ notice, locale, onClose }: { notice: PlayerNotice;
         </div>
         <h2 id={`notice-${notice.id}-title`} lang={title === notice.titleEn ? 'en' : undefined}>{title}</h2>
         <p className="notice-text" lang={text === notice.textEn ? 'en' : undefined}>{text}</p>
-        {notice.images > 0 && <NoticeGallery id={notice.id} count={notice.images} onOpen={setFull} />}
+        {previewImages && previewImages.length > 0
+          ? <ul className={`notice-gallery count-${previewImages.length}`} aria-label={uiLabel('Фото')}>
+              {previewImages.map((url, idx) => (
+                <li key={idx}><button type="button" className="notice-photo" aria-label={`${uiLabel('Открыть фото')} ${idx + 1}`} onClick={() => setFull(url)}><img src={url} alt="" /></button></li>
+              ))}
+            </ul>
+          : notice.images > 0 && <NoticeGallery id={notice.id} count={notice.images} onOpen={setFull} />}
         <div className="notice-actions">
           {notice.button && (
             <a className="button ghost" href={notice.button.url} target="_blank" rel="noopener noreferrer">

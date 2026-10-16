@@ -20,8 +20,8 @@ const results = {
     { id: 'q2', type: 'text', text: 'Что добавить?', answered: 1, answers: [{ text: 'Миникарту', email: 'moscow@example.com', createdAt: '2026-10-15T11:00:00.000Z' }] },
   ],
   responses: [
-    { accountId: 'a'.repeat(24), email: 'berlin@example.com', country: 'DE', region: 'europe', createdAt: '2026-10-15T12:00:00.000Z', answers: { q1: ['o2'] } },
-    { accountId: 'b'.repeat(24), email: 'moscow@example.com', country: 'RU', region: 'cis', createdAt: '2026-10-15T11:00:00.000Z', answers: { q1: ['o1'], q2: 'Миникарту' } },
+    { accountId: 'a'.repeat(24), email: 'berlin@example.com', country: 'DE', region: 'world', createdAt: '2026-10-15T12:00:00.000Z', answers: { q1: ['o2'] } },
+    { accountId: 'b'.repeat(24), email: 'moscow@example.com', country: 'RU', region: 'ru', createdAt: '2026-10-15T11:00:00.000Z', answers: { q1: ['o1'], q2: 'Миникарту' } },
   ],
 }
 
@@ -47,7 +47,7 @@ describe('admin «Опросы»', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(3)
     expect(within(table).getByText('berlin@example.com')).toBeInTheDocument()
     expect(within(table).getAllByRole('button', { name: 'Написать' })).toHaveLength(2)
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Регион' }), 'cis')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Регион' }), 'ru')
     expect(within(table).queryByText('berlin@example.com')).not.toBeInTheDocument()
     expect(within(table).getByText('moscow@example.com')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Выгрузить CSV' }))
