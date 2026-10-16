@@ -66,8 +66,9 @@ function exampleOf(refs: ItemRef[], pictures: Pictures): ItemRef {
   return refs.reduce((best, ref) => price(ref) < price(best) ? ref : best, refs[0])
 }
 
-/** How many variants a choice has: its sets, or its distinct items. */
+/** How many variants a choice has: its sets, or its distinct items; one option (every item of it is needed) is no choice. */
 function variantCount(options: ItemRef[][], sets: boolean) {
+  if (options.length <= 1) return 1
   return sets ? options.length : distinct(options.flat()).length
 }
 
