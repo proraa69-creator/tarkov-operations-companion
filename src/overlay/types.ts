@@ -75,8 +75,19 @@ export interface ExperimentalStatus {
   screenshotsFolder: string
   /** Folders checked automatically, for the settings page. */
   screenshotCandidates: string[]
-  /** Newest screenshot in the folder since tracking started, and whether its name carries coordinates. */
-  lastScreenshot: { name: string; withCoordinates: boolean; at: number } | null
+  /**
+   * Newest screenshot in the followed folders since tracking started, and whether its name carries coordinates: its
+   * folder, the coordinates read from its name, and whether it was too old to be the position now (apps from 16.10.2026).
+   */
+  lastScreenshot: { name: string; withCoordinates: boolean; at: number; folder?: string; position?: { x: number; y: number; z: number } | null; stale?: boolean } | null
+  /** The owner's switch for every app as the main process has it (apps from 16.10.2026). */
+  remoteMinimap?: boolean
+  /** The owner's switch and the player's are both on: the screenshots folders are followed. */
+  trackingOn?: boolean
+  /** Every folder followed for the game's screenshots: whether it exists and is watched (the others are polled). */
+  watchedFolders?: Array<{ folder: string; exists: boolean; watching: boolean }>
+  /** When the last position went to «Карты» (and the phone); null: none since the start. */
+  positionSentAt?: number | null
   /** The game's screenshot key: each screenshot it takes moves the player's dot (src/overlay/positionReadiness.ts). */
   screenshotKey: ScreenshotKeyInfo
   /** The app's hotkeys (item card, Collector scan). */

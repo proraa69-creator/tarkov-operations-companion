@@ -1,6 +1,6 @@
 import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { homedir } from 'node:os'
-import { mkdir, readdir, stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
@@ -20,12 +20,21 @@ export function setScreenshotsOverride(folder: string) {
   void findScreenshotsFolder().catch(() => {})
 }
 
-/** Where EFT may write screenshots: Documents (possibly redirected to OneDrive) under the user profile. */
+/**
+ * Where EFT may write screenshots: Documents under the user profile. `app.getPath('documents')` is Windows' own answer
+ * (the «Documents» known folder, wherever it was moved: OneDrive, another drive); the rest are the usual places for a
+ * profile whose Documents moved after the game was installed (the game may still write to the old one).
+ */
 export function screenshotFolderCandidates() {
   const home = homedir()
-  const documents = [app.getPath('documents'), join(home, 'Documents'), join(home, 'OneDrive', 'Documents'), join(home, 'OneDrive', 'Документы')]
-  if (process.env.OneDrive) documents.push(join(process.env.OneDrive, 'Documents'), join(process.env.OneDrive, 'Документы'))
-  return [...new Set(documents.map((folder) => join(folder, 'Escape from Tarkov', 'Screenshots')))]
+  let known = ''
+  try { known = app.getPath('documents') } catch { /* no known folder: the usual places below */ }
+  const documents = [known, join(home, 'Documents'), join(home, 'OneDrive', 'Documents'), join(home, 'OneDrive', 'Документы')]
+  for (const variable of ['OneDrive', 'OneDriveConsumer', 'OneDriveCommercial']) {
+    const root = process.env[variable]
+    if (root) documents.push(join(root, 'Documents'), join(root, 'Документы'))
+  }
+  return [...new Set(documents.filter(Boolean).map((folder) => join(folder, 'Escape from Tarkov', 'Screenshots')))]
 }
 
 /** EFT names screenshots by the time they were taken: `2024-06-13[11-05]_…`. */
@@ -112,119 +121,189 @@ export function screenshotsFolder() {
 }
 
 /**
- * Follows the EFT screenshots folder: every new screenshot carries the player position in its name.
- * Reading does not delete files; separately verified app screenshots have their own retention policy.
+ * Every folder the tracker follows: the one picked by hand, the one found by the lookup above and each candidate. The
+ * game writes to exactly one of them, but which one cannot be known before its first screenshot (Documents moved to
+ * OneDrive after the game was installed, a folder the game creates only at its first screenshot): following all of them
+ * shows the dot from the very first screenshot instead of after the next lookup (up to FOLDER_CACHE_MS).
+ */
+export function watchedScreenshotFolders() {
+  if (process.env.TARKOV_SCREENSHOTS_DIR) return [process.env.TARKOV_SCREENSHOTS_DIR]
+  return [...new Set([override, folderCache?.folder ?? '', ...screenshotFolderCandidates()].filter(Boolean))]
+}
+
+const IMAGE = /\.(png|jpe?g|bmp)$/i
+
+/** A new image in a followed folder, with the position its name carries (null: none, e.g. a menu screenshot). */
+export interface SeenScreenshot { folder: string; name: string; withCoordinates: boolean; at: number; position: PlayerPosition | null }
+
+/** One followed folder: its watch, and the names that were there when the tracking started (never reported as new). */
+interface Followed {
+  folder: string
+  watcher: FSWatcher | null
+  exists: boolean
+  preexisting: Set<string>
+  /** The folder's time at the last full listing: adding a file changes it, so an unchanged folder is not listed again. */
+  listedFolderTime: number
+  listedAt: number
+  /** When each new file was written: a screenshot never changes, so it is looked up once, not every second. */
+  written: Map<string, number>
+}
+
+/**
+ * Follows the EFT screenshots folders: every new screenshot carries the player position in its name (the name is all
+ * that is read, so a file the game is still writing counts at once). fs.watch answers at once; a poll every second
+ * catches what it misses (network and synced drives, a folder created after the start).
+ * Reading does not delete files; screenshots belong to the player.
  */
 export class PositionTracker {
-  private watcher: FSWatcher | null = null
   private poll: NodeJS.Timeout | null = null
   private startedAt = 0
+  /** Each start and stop: an answer of a start that was stopped meanwhile is dropped (no watch left behind). */
+  private generation = 0
   private lastFile = ''
-  /** Newest image in the folder (with or without coordinates), for the diagnostics in the Mini Map page. */
-  lastSeen: { folder: string; name: string; withCoordinates: boolean; at: number } | null = null
-  private folder = ''
+  private followed: Followed[] = []
   private lastFolderCheck = 0
-  /** The folder's time at the last full listing: adding a file changes it, so an unchanged folder is not listed again. */
-  private listedFolderTime = -1
-  private listedAt = 0
   private busy = false
-  /** Screenshots that existed before the tracker started belong to the player and are never touched. */
-  private preexisting = new Set<string>()
-  /** When each new file was written: a screenshot never changes, so it is looked up once, not every second. */
-  private written = new Map<string, number>()
+  private again = false
+  /** Newest new image in the folders (with or without coordinates), for the diagnostics in the settings. */
+  lastSeen: SeenScreenshot | null = null
 
   constructor(
-    private readonly onPosition: (position: PlayerPosition) => void,
-    /** Every new image in the folder, after its position (if any) was reported. */
-    private readonly onFile?: (file: { folder: string; name: string; withCoordinates: boolean; at: number }) => void,
+    private readonly onPosition: (position: PlayerPosition, file: SeenScreenshot) => void,
+    /** Every new image in the folders, after its position (if any) was reported. */
+    private readonly onFile?: (file: SeenScreenshot) => void,
   ) {}
 
   get running() {
     return this.startedAt > 0
   }
 
+  /** The folders followed now and whether each exists and is watched (the poll covers the others). */
+  get folders() {
+    return this.followed.map(({ folder, exists, watcher }) => ({ folder, exists, watching: Boolean(watcher) }))
+  }
+
   async start() {
     if (this.running) return
+    const generation = ++this.generation
     this.startedAt = Date.now()
-    const folder = await findScreenshotsFolder()
-    this.folder = folder
-    await mkdir(folder, { recursive: true }).catch(() => {})
-    this.preexisting = new Set(await readdir(folder).catch(() => [] as string[]))
-    this.written = new Map()
-    try {
-      this.watcher = watch(folder, (_event, name) => {
-        if (name && isPositionScreenshot(String(name))) void this.refresh()
-      })
-    } catch {
-      this.watcher = null
-    }
-    // fs.watch can miss events on some drives; a slow poll keeps the tracker honest.
+    this.lastFolderCheck = Date.now()
+    await findScreenshotsFolder().catch(() => '')
+    const followed = await Promise.all(watchedScreenshotFolders().map((folder) => this.follow(folder)))
+    if (generation !== this.generation) { for (const entry of followed) entry.watcher?.close(); return }
+    this.followed = followed
     this.poll = setInterval(() => void this.refresh(), POLL_MS)
-    // Restore the last known point after an application restart. Existing screenshots belong to
-    // the player and are read-only: cleanup below still touches only files created this session.
+    // The last known point after an application restart (the main process sends it only while it is fresh).
     await this.refresh(true)
   }
 
   stop() {
-    this.watcher?.close()
-    this.watcher = null
+    this.generation += 1
+    for (const entry of this.followed) entry.watcher?.close()
+    this.followed = []
     if (this.poll) clearInterval(this.poll)
     this.poll = null
     this.startedAt = 0
   }
 
-  private async writtenAt(folder: string, name: string) {
-    const known = this.written.get(name)
+  private async follow(folder: string): Promise<Followed> {
+    const names = await readdir(folder).catch(() => null)
+    const entry: Followed = { folder, watcher: null, exists: names !== null, preexisting: new Set(names ?? []), listedFolderTime: -1, listedAt: 0, written: new Map() }
+    this.watch(entry)
+    return entry
+  }
+
+  private watch(entry: Followed) {
+    if (entry.watcher || !entry.exists) return
+    try {
+      entry.watcher = watch(entry.folder, { persistent: false }, (_event, name) => {
+        // A rename or a new file: listed now, not at the next poll.
+        if (!name || IMAGE.test(String(name))) void this.refresh()
+      })
+      entry.watcher.on('error', () => { entry.watcher?.close(); entry.watcher = null })
+    } catch {
+      entry.watcher = null
+    }
+  }
+
+  private async writtenAt(entry: Followed, name: string) {
+    const known = entry.written.get(name)
     if (known !== undefined) return known
-    const info = await stat(join(folder, name)).catch(() => null)
-    // A file still being written may have no size yet: looked up again next time.
-    if (info?.size) this.written.set(name, info.mtimeMs)
+    const info = await stat(join(entry.folder, name)).catch(() => null)
+    if (info) entry.written.set(name, info.mtimeMs)
     return info?.mtimeMs ?? null
   }
 
-  private async refresh(includePreexisting = false) {
-    if (this.busy || !this.running) return
+  private async refresh(includePreexisting = false): Promise<void> {
+    if (!this.running) return
+    // A change while a listing runs is listed again right after it (a watch event is never lost to «busy»).
+    if (this.busy) { this.again = true; return }
     this.busy = true
+    const generation = this.generation
     try {
-      // EFT may start writing to another candidate folder (e.g. Documents moved to OneDrive).
+      // The folder picked by hand or found by the lookup may change: followed too from now on.
       if (Date.now() - this.lastFolderCheck > 15_000) {
         this.lastFolderCheck = Date.now()
-        const detected = screenshotsFolder()
-        if (detected !== this.folder) { this.stop(); await this.start(); return }
-      }
-      const folder = this.folder
-      // The poll runs every second: list the folder only when something was added (or now and then all the same).
-      const folderTime = (await stat(folder).catch(() => null))?.mtimeMs ?? -1
-      if (!includePreexisting && folderTime === this.listedFolderTime && Date.now() - this.listedAt < RELIST_MS) return
-      this.listedFolderTime = folderTime
-      this.listedAt = Date.now()
-      const all = await readdir(folder).catch(() => [] as string[])
-      const fresh = all.filter((name) => /\.(png|jpe?g|bmp)$/i.test(name) && !this.preexisting.has(name))
-      let newFile: PositionTracker['lastSeen'] = null
-      if (fresh.length) {
-        const stats = await Promise.all(fresh.map(async (name) => ({ name, time: await this.writtenAt(folder, name) ?? 0 })))
-        const newest = stats.sort((a, b) => b.time - a.time)[0]
-        if (newest && newest.name !== this.lastSeen?.name) {
-          this.lastSeen = { folder, name: newest.name, withCoordinates: isPositionScreenshot(newest.name), at: newest.time }
-          newFile = this.lastSeen
+        screenshotsFolder()
+        for (const folder of watchedScreenshotFolders()) {
+          if (!this.followed.some((entry) => entry.folder === folder)) {
+            const entry = await this.follow(folder)
+            if (generation !== this.generation) { entry.watcher?.close(); return }
+            this.followed.push(entry)
+          }
         }
       }
-      const names = all.filter((name) => isPositionScreenshot(name) && (includePreexisting || !this.preexisting.has(name)))
-      const files = (await Promise.all(names.map(async (name) => {
-        const time = await this.writtenAt(folder, name)
-        return time == null ? null : { name, time }
-      }))).filter((file): file is { name: string; time: number } => Boolean(file))
-      files.sort((a, b) => b.time - a.time)
-      const newest = files[0]
-      if (newest && newest.name !== this.lastFile) {
-        this.lastFile = newest.name
+      const images: Array<{ entry: Followed; name: string; time: number }> = []
+      for (const entry of this.followed) {
+        const folderTime = (await stat(entry.folder).catch(() => null))?.mtimeMs ?? -1
+        // A folder created after the start (the game's first screenshot): everything in it is new, and it is watched now.
+        if (!entry.exists && folderTime >= 0) { entry.exists = true; this.watch(entry) }
+        if (!includePreexisting && folderTime === entry.listedFolderTime && Date.now() - entry.listedAt < RELIST_MS) continue
+        entry.listedFolderTime = folderTime
+        entry.listedAt = Date.now()
+        const all = await readdir(entry.folder).catch(() => [] as string[])
+        const fresh = all.filter((name) => IMAGE.test(name) && !entry.preexisting.has(name))
+        // After a restart: the newest coordinate screenshots kept from before (only the newest minute's, by name).
+        if (includePreexisting) fresh.push(...newestMinute(all.filter((name) => entry.preexisting.has(name) && isPositionScreenshot(name))))
+        for (const name of fresh) {
+          const time = await this.writtenAt(entry, name)
+          if (time != null) images.push({ entry, name, time })
+        }
+      }
+      if (generation !== this.generation) return
+      images.sort((a, b) => b.time - a.time)
+      const newestImage = images.find((image) => !image.entry.preexisting.has(image.name))
+      let newFile: SeenScreenshot | null = null
+      if (newestImage && (newestImage.name !== this.lastSeen?.name || newestImage.entry.folder !== this.lastSeen.folder)) {
+        const position = parseScreenshotPosition(newestImage.name, newestImage.time)
+        newFile = { folder: newestImage.entry.folder, name: newestImage.name, withCoordinates: Boolean(position), at: newestImage.time, position }
+        this.lastSeen = newFile
+      }
+      const newest = images.find((image) => isPositionScreenshot(image.name))
+      const key = newest ? `${newest.entry.folder}\n${newest.name}` : ''
+      if (newest && key !== this.lastFile) {
+        this.lastFile = key
         const position = parseScreenshotPosition(newest.name, newest.time)
-        if (position) this.onPosition(position)
+        if (position) this.onPosition(position, { folder: newest.entry.folder, name: newest.name, withCoordinates: true, at: newest.time, position })
       }
       if (newFile) this.onFile?.(newFile)
-      // Screenshots belong to the player, including those taken while tracking. Never delete them.
     } finally {
       this.busy = false
+      if (this.again) { this.again = false; void this.refresh() }
     }
   }
+}
+
+/** The names of the newest minute by the game's naming (`2024-06-13[11-05]_…`), and those without such a time. */
+function newestMinute(names: string[]) {
+  let minute = ''
+  let latest: string[] = []
+  const undated: string[] = []
+  for (const name of names) {
+    const taken = TAKEN_AT.exec(name)?.[0]
+    if (!taken) undated.push(name)
+    else if (taken > minute) { minute = taken; latest = [name] }
+    else if (taken === minute) latest.push(name)
+  }
+  return [...latest, ...undated.slice(-20)]
 }

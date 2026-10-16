@@ -20,6 +20,7 @@ const MAP_ID_ALIASES: Record<string, string> = {
   'night-factory': 'factory',
   'factory-night': 'factory',
   factory4: 'factory',
+  factory4_day: 'factory',
   factory4_night: 'factory',
   bigmap: 'customs',
   rezervbase: 'reserve',
