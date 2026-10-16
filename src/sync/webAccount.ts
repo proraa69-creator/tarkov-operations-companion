@@ -50,6 +50,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
+  // «Ивент-квесты» the owner keeps (server/src/routes/eventQuests.ts).
+  { methods: ['GET'], path: /^\/v1\/event-quests$/ },
   // Quest requirements curated by the owner (server/src/routes/questRequirements.ts).
   { methods: ['GET'], path: /^\/v1\/quest-requirements$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).

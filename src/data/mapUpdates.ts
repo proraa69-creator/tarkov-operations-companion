@@ -5,6 +5,7 @@ import { PLACEMENTS_KEY } from './mapBossPlacements'
 import { OVERRIDES_KEY } from './questPointOverrides'
 import { QUEST_TEXTS_KEY } from './questTextOverrides'
 import { QUEST_REQUIREMENTS_KEY } from './questRequirementOverrides'
+import { EVENT_QUESTS_KEY } from './eventQuests'
 
 /** Pause after a failed wait (no server, an older server without the route, no network). */
 const RETRY_MS = 30_000
@@ -55,7 +56,7 @@ export async function watchVersion(request: Request, path: string, changed: () =
 /** Window event after every server-side change (a map correction or a Goons sighting): the Goons card listens to it. */
 export const LIVE_UPDATE_EVENT = 'raidos:live-update'
 
-/** Re-reads the owner's quest points, quest texts, quest requirements and boss placements the moment the server says they changed — no reload needed. */
+/** Re-reads the owner's quest points, quest texts, quest requirements, event quests and boss placements the moment the server says they changed — no reload needed. */
 export function useLiveMapUpdates(enabled = true) {
   const client = useQueryClient()
   useEffect(() => {
@@ -67,6 +68,7 @@ export function useLiveMapUpdates(enabled = true) {
       void client.invalidateQueries({ queryKey: PLACEMENTS_KEY })
       void client.invalidateQueries({ queryKey: QUEST_TEXTS_KEY })
       void client.invalidateQueries({ queryKey: QUEST_REQUIREMENTS_KEY })
+      void client.invalidateQueries({ queryKey: EVENT_QUESTS_KEY })
       window.dispatchEvent(new Event(LIVE_UPDATE_EVENT))
     }, stop.signal)
     return () => stop.abort()

@@ -55,7 +55,7 @@ export type AuditAction =
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
   | 'payment.refund' | 'payment.boosty-confirm' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'map.quest-requirement' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
+  | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
   | 'users.export' | 'subscription.bulk-grant'

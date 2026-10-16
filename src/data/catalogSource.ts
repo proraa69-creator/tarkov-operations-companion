@@ -13,6 +13,7 @@ import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import { applyQuestCorrections } from './questCorrections'
 import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
+import { eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
@@ -51,6 +52,13 @@ export interface LiveCatalogOptions {
    * passes its disk cache (server/src/services/wikiCache.ts), so only its scheduled quest base builds reach the wiki.
    */
   wiki?: () => Promise<WikiQuestSync>
+  /**
+   * The owner's event quests (server/src/routes/eventQuests.ts), laid over the built-in curated series
+   * (src/data/eventQuestDefinitions.ts). The server passes its store; without it only the built-in series.
+   */
+  eventQuests?: () => readonly EventQuestDefinition[]
+  /** For the events' end; default now. */
+  now?: number
 }
 
 export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch, options: LiveCatalogOptions = {}): Promise<AppDataset> {
@@ -73,7 +81,9 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   ])
 
   // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
-  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders })
+  const now = options.now ?? Date.now()
+  const series = eventSeriesWith(options.eventQuests?.() ?? [])
+  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders, series, now })
   const tasks = curated.tasks
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
@@ -95,7 +105,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const questRows = applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale)), locale), curated.added, locale, itemById)
+  ), locale)), locale), curated.added, locale, itemById, series, now)
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
@@ -365,6 +375,20 @@ export function itemCategoryNames(itemsRoot: JsonRecord): Map<string, string> {
     const name = text(category.name)
     return id && name ? [[id, name] as [string, string]] : []
   }))
+}
+
+/**
+ * Quest rows of tasks of tarkov.dev's shape against a catalog that is already built (the app's event quests,
+ * src/data/eventQuests.ts): the catalog's own adapter, with the maps named by normalizedName.
+ */
+export function adaptTaskRows(tasksRoot: JsonRecord, traders: readonly Trader[], items: readonly Item[]): Quest[] {
+  const mapIds = new Map<string, string>()
+  for (const task of recordValues(asRecord(tasksRoot.tasks))) {
+    for (const objective of asArray(task.objectives)) {
+      for (const id of strings(objective.maps)) if (canonicalMapId(id)) mapIds.set(id, canonicalMapId(id))
+    }
+  }
+  return adaptTasks(tasksRoot, new Map(traders.map((trader) => [trader.id, trader])), new Map(items.map((item) => [item.id, item])), mapIds)
 }
 
 function adaptTasks(
